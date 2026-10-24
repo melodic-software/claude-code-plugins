@@ -873,6 +873,146 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
+class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
+    """A FAIL judged as a `Refs:` slice is cleared at a head of the same
+    change by passes judged with the issue closed, which the verifier judges
+    against the whole spec; nothing else of the same change clears it."""
+
+    def same_change(
+        self, fail_kind: Any, pass_kind: Any, *, live_refs: bool = False
+    ) -> FakeGitHub:
+        """A FAIL at EARLIER recording `fail_kind`, a pass at the head
+        recording `pass_kind` (None: the key is absent), the same change at
+        both heads, and the issue linked now by `Refs:` when `live_refs`."""
+        fake = ACountedPassAtTheHeadClearsAnEarlierFail.earlier_fail()
+        fake.diffs[EARLIER] = fake.diffs[HEAD]
+        kinds = {"spec_kind": pass_kind} if pass_kind is not None else {}
+        fake.records[named(HEAD, "pass")] = record(**kinds)
+        fails = {"spec_kind": fail_kind} if fail_kind is not None else {}
+        fake.records[named(EARLIER, "fail")] = record(
+            sha=EARLIER, verdict="fail", **fails
+        )
+        if live_refs:
+            fake.closing = []
+            fake.body = "Refs: #7"
+            fake.refs = {7: REPO}
+        return fake
+
+    def test_a_closes_pass_clears_a_refs_fail_of_the_same_change(self) -> None:
+        evidence = read(self.same_change("refs", "closes"))
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
+    def test_a_refs_pass_never_clears_a_closes_fail_of_the_same_change(
+        self,
+    ) -> None:
+        # The live link is `Refs:`, so the refs pass would otherwise allow.
+        fake = self.same_change("closes", "refs", live_refs=True)
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_refs_pass_never_clears_a_refs_fail_of_the_same_change(
+        self,
+    ) -> None:
+        fake = self.same_change("refs", "refs", live_refs=True)
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_closes_pass_never_clears_a_closes_fail_of_the_same_change(
+        self,
+    ) -> None:
+        self.assertEqual(
+            read(self.same_change("closes", "closes")).refusal, "verify:earlier-fail"
+        )
+
+    def test_a_spec_kind_that_is_missing_or_unknown_keeps_the_fail(self) -> None:
+        # A record from before the kind was written reads as `closes` where a
+        # pass is checked against the live link; here it clears nothing.
+        for fail_kind, pass_kind in (
+            (None, "closes"),
+            ("refs", None),
+            ("Refs", "closes"),
+            ("refs", "pull-request"),
+            (["refs"], "closes"),
+        ):
+            with self.subTest(fail=fail_kind, passed=pass_kind):
+                fake = self.same_change(fail_kind, pass_kind)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_record_that_cannot_be_read_keeps_the_fail(self) -> None:
+        fake = self.same_change("refs", "closes")
+        del fake.records[named(EARLIER, "fail")]
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        fake = self.same_change("refs", "closes")
+        fake.fail = {"actions/artifacts/20/zip"}
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_record_with_no_linked_issue_keeps_the_fail(self) -> None:
+        for linked in ([], None, "7", [{"number": "7"}], [7]):
+            with self.subTest(linked=linked):
+                fake = self.same_change("refs", "closes")
+                fake.records[named(EARLIER, "fail")]["linked_issues"] = linked
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        fake = self.same_change("refs", "closes")
+        del fake.records[named(EARLIER, "fail")]["linked_issues"]
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def closing_another(self, *numbers: int) -> FakeGitHub:
+        """A refs FAIL recording issue 7, and a closes pass at the head that
+        records, and now closes, `numbers` instead."""
+        fake = self.same_change("refs", "closes")
+        fake.closing = [(n, REPO) for n in numbers]
+        fake.records[named(HEAD, "pass")] = record(
+            spec_kind="closes",
+            linked_issues=[{**TRUSTED_ISSUE, "number": n} for n in numbers],
+        )
+        return fake
+
+    def test_a_closes_pass_of_the_refs_issue_clears(self) -> None:
+        self.assertIsNone(read(self.closing_another(7)).refusal)
+
+    def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
+        # Failed as a slice of one issue, then relinked to close a different
+        # issue on the same diff.
+        self.assertEqual(
+            read(self.closing_another(8)).refusal, "verify:earlier-fail"
+        )
+
+    def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
+        self.assertEqual(
+            read(self.closing_another(7, 8)).refusal, "verify:earlier-fail"
+        )
+
+    def test_a_pass_whose_linkage_cannot_be_read_keeps_the_fail(self) -> None:
+        for linked in ([], None, "7", [{"number": "7"}], [{"number": True}], [7]):
+            with self.subTest(linked=linked):
+                fake = self.same_change("refs", "closes")
+                fake.records[named(HEAD, "pass")]["linked_issues"] = linked
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_record_of_another_judgment_keeps_the_fail(self) -> None:
+        for field_name, value in (
+            ("pr", 99),
+            ("head_sha", HEAD),
+            ("verdict", "pass"),
+        ):
+            with self.subTest(field=field_name):
+                fake = self.same_change("refs", "closes")
+                fake.records[named(EARLIER, "fail")][field_name] = value
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_one_closes_fail_among_refs_fails_at_the_head_keeps_it(self) -> None:
+        fake = self.same_change("refs", "closes")
+        name = named(EARLIER, "fail") + "-" + "0" * 16
+        fake.artifacts.append(artifact(name, 3))
+        fake.runs[3] = judged(3, OLDER_START)
+        fake.records[name] = record(sha=EARLIER, verdict="fail", spec_kind="closes")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_the_fail_must_still_precede_the_pass(self) -> None:
+        fake = self.same_change("refs", "closes")
+        fake.runs[2] = judged(2, "2026-10-15T00:00:01Z")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
 def rename(old: str, new: str) -> str:
     """A pure rename as GitHub's compare diff shows it: no hunk."""
     return (

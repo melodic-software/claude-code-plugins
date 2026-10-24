@@ -110,6 +110,15 @@ inputs:
       github-actions[bot] re-run stopped with untrusted-rerunner.
     required: false
     default: ""
+  ci-status-rerun-workflow:
+    description: >
+      The workflow path of the job that re-runs ci-status once the review
+      lanes finish. On workflow_run, an upstream attempt 2 or later
+      github-actions[bot] started proceeds only through that workflow's
+      record of it (the README's reconciler section). Empty keeps every such
+      attempt past the reconciler's stopped with untrusted-actor.
+    required: false
+    default: ""
   require-kind:
     description: >
       Empty accepts any listed actor. `human` narrows the actor-only checks
@@ -175,6 +184,7 @@ runs:
         LANES_APP_ID: ${{ inputs.lanes-app-id }}
         DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
         RECONCILER_WORKFLOW: ${{ inputs.reconciler-workflow }}
+        CI_STATUS_RERUN_WORKFLOW: ${{ inputs.ci-status-rerun-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
         APP_LABEL: ${{ inputs.app-label }}
         REQUIRE_PR: ${{ inputs.require-pr }}

@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.97.0] - 2026-10-24
+
+### Changed
+
+- `round.sh supersede` and `resolve ... restore` now handle an answered register row with more than an answer (`answer:: ...; note:: ...`, or a row an earlier reconfirm wrote). The superseded row holds the displaced resolution whole in `was named::`, `restore` gives it back byte for byte, and `reconfirm` keeps the displaced answer as `was`, with its note (unless `--note` gives a new one) and its commitments. An earlier reconfirm's proposal and `was` are dropped: the reconfirmed row has room for one of each. Before, such a row was refused and had to be edited by hand.
+
+- The interview server marks a plain accept (no text) and a plain confirm handled when it saves them, so the watcher wakes only for events that need a reply. The responses document, `sync-ledger` and `export-brief` record them as before. The accept that settles the last open question of a round stays unhandled, so the agent learns the round is complete. Undo of an auto-handled accept still works until the agent handles a later event; the "Claude already handled it" refusal applies to agent-handled events. The interview surface reference lists which events are auto-handled.
+
 ## [0.96.1] - 2026-10-24
 
 ### Fixed

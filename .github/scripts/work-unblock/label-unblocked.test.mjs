@@ -293,8 +293,8 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info or needs-human stays unlabeled", async () => {
-  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human"]) {
+test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human or untrusted-provenance stays unlabeled", async () => {
+  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance"]) {
     const { github, calls } = oneDependent({ labels: [hold] });
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
@@ -631,6 +631,32 @@ test("an issue whose agent-ready label was removed is not labeled again", async 
     });
     assert.equal(await run(github), 0);
     assert.deepEqual(writes(calls), []);
+  }
+});
+
+// Triage or a listed human adding status: ready after the newest removal
+// lifts it; anyone else's add, or one before the removal, does not.
+test("an issue marked status: ready after its agent-ready was removed is labeled again", async () => {
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T09:00:00Z" };
+  const marked = (actor, at = "2026-10-16T10:00:00Z") => ({ event: "labeled", label: { name: "status: ready" }, actor, created_at: at });
+  for (const [events, expected] of [
+    [[removed, marked(OWNER)], [labeled(20)]],
+    [[removed, marked(LANES_BOT)], [labeled(20)]],
+    [[marked(OWNER, "2026-10-16T08:00:00Z"), removed], []],
+    [[removed, marked({ id: 777, login: "triage-user" })], []],
+  ]) {
+    for (const run of [(github) => main({ env: envFor(), github }), (github) => sweep({ github })]) {
+      const { github, calls } = world({
+        closedList: [closedAt(10, "2026-10-16T11:30:00Z")],
+        blocking: [issue(20)],
+        issues: { 20: issue(20) },
+        blockedBy: { 20: [issue(10, { state: "closed" })] },
+        comments: { 20: [note()] },
+        events: { 20: events },
+      });
+      assert.equal(await run(github), 0);
+      assert.deepEqual(writes(calls), expected, JSON.stringify(events));
+    }
   }
 });
 
@@ -2324,8 +2350,8 @@ test("at the queued cap a run the WIP cap skipped is still re-fired: runs are ne
 // The HITL mark (owner decision Q75): a listed human adding admission-deferred
 // to a decided issue with `status: ready` has the sweep run intake's admission
 // rules (admit.mjs decide, on admission-rules.json) on it. The verdict is the
-// issue's own work-class label and the Size, Complexity and Uncertainty a
-// listed human or the App set; it is admitted within the room only on admit.
+// Size, Complexity and Uncertainty a listed human or the App set; it is
+// admitted within the room only on admit.
 const DIMS = {
   fields: {
     size: { "field-id": 15462270, options: { 27053568: "small", 27053567: "medium", 27053566: "large" } },
@@ -2489,7 +2515,7 @@ test("a person's mark whose field values or field setters read in an unexpected 
   assert.deepEqual(writes(setters.calls), []);
 });
 
-test("a person's mark admits only when a listed human or the App added status: ready and the work-class label", async (t) => {
+test("a person's mark admits only when a listed human or the App added status: ready", async (t) => {
   t.mock.method(console, "log", () => {});
   const outsider = { id: 999999, login: "drive-by", type: "User" };
   const human = markedWorld({ decided: [labelAdd("status: ready", OWNER), labelAdd("work-class: mechanical", OWNER)] });
@@ -2497,9 +2523,8 @@ test("a person's mark admits only when a listed human or the App added status: r
   assert.deepEqual(writes(human.calls), [labeled(25), undeferred(25)]);
   // The newest add counts: an outsider's re-add after the App's does not.
   for (const decided of [
-    [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)],
-    [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", LANES_BOT), labelAdd("work-class: mechanical", outsider, "2026-10-16T07:30:00Z")],
     [labelAdd("status: ready", outsider), labelAdd("work-class: mechanical", LANES_BOT)],
+    [labelAdd("status: ready", LANES_BOT), labelAdd("status: ready", outsider, "2026-10-16T07:30:00Z")],
     [labelAdd("work-class: mechanical", LANES_BOT)],
   ]) {
     const { github, calls } = markedWorld({ decided });
@@ -2507,9 +2532,25 @@ test("a person's mark admits only when a listed human or the App added status: r
     assert.ok(!writes(calls).includes(labeled(25)), `${JSON.stringify(decided)}\n${writes(calls).join("\n")}`);
     assert.ok(writes(calls).includes(undeferred(25)), JSON.stringify(decided));
   }
-  const workClass = markedWorld({ decided: [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)] });
-  await sweep({ github: workClass.github, admission: admissionFor() }, PAUSING);
-  assert.ok(writes(workClass.calls).some((call) => call.includes("added by neither a listed human nor the lanes App")), writes(workClass.calls).join("\n"));
+});
+
+// Owner decision Q85 (#9668): the work class gates nothing, so a class an
+// outsider added, a structural class or none at all still admits.
+test("a person's mark admits whatever work class the issue carries, except untrusted-provenance", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const outsider = { id: 999999, login: "drive-by", type: "User" };
+  for (const [labels, decided] of [
+    [MARKED, [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)]],
+    [["admission-deferred", "status: ready", "work-class: structural"], [labelAdd("status: ready", LANES_BOT)]],
+    [["admission-deferred", "status: ready"], [labelAdd("status: ready", LANES_BOT)]],
+  ]) {
+    const { github, calls } = markedWorld({ labels, decided });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(calls), [labeled(25), undeferred(25)], JSON.stringify(labels));
+  }
+  const held = markedWorld({ labels: ["admission-deferred", "status: ready", "work-class: untrusted-provenance"], decided: [labelAdd("status: ready", LANES_BOT)] });
+  await sweep({ github: held.github, admission: admissionFor() }, PAUSING);
+  assert.ok(!writes(held.calls).includes(labeled(25)), writes(held.calls).join("\n"));
 });
 
 test("a person's mark waiting on an open blocker loses admission-deferred with the admission comment", async (t) => {
@@ -2531,7 +2572,7 @@ test("a person's mark the admission rules skip loses admission-deferred with a c
   const { github, calls } = markedWorld({ extraEvents: [removed] });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(calls), [
-    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${skipText("agent-ready was removed before")}` })}`,
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${skipText("agent-ready was removed and status: ready not added since")}` })}`,
     undeferred(25),
   ]);
 });
