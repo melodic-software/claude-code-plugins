@@ -186,6 +186,12 @@ condition 1 and the actor and author parts of condition 2).
   it uploads, so a window from the run's start would refuse it. This run's own github-actions[bot]
   re-runner is never vouched for by this record.
 
+  Residuals: the record names an attempt, not who starts it. A github-actions[bot] re-run of the
+  same run that another workflow of this repository starts between the upload and the job's own
+  re-run, or within ten minutes of an upload whose re-run then failed, takes that attempt and is
+  vouched for. It re-runs only that run at that head, and `sender`, `workflow_run.actor` and the
+  PR author must still be listed.
+
   Residuals: whether one run can write another run's artifacts is unverified, as for the
   dispatcher record. A re-run that waits in a queue past the ten-minute window is refused, red;
   a person re-runs it. More than 1,000 forged artifacts of one name would push the real record
