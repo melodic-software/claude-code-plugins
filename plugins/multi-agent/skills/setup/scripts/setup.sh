@@ -100,8 +100,21 @@ convention_home() {
     printf 'docs/conventions'
 }
 
+# A repository can commit a symlink at a team or local path, or at a legacy
+# file that seeds one; reading or writing through it would reach a file
+# outside the repository. Refuse <path> when it, or a directory above it
+# inside the repository, is a symlink.
+refuse_symlink() {
+  local p="$1"
+  while [[ "$p" == "$ROOT"/* ]]; do
+    [[ -L "$p" ]] && die "refusing $1: $p is a symlink"
+    p=$(dirname "$p")
+  done
+}
+
 apply() {
   local target existing="" records body old_label seed="" seed_block=0
+  local legacy_md="$ROOT/docs/conventions/multi-agent.md" legacy_yaml="$ROOT/.claude/multi-agent.yaml"
   case "$LAYER" in
   user)
     [[ -n "$HOME_DIR" ]] || die "no home directory to hold the user layer"
@@ -117,11 +130,13 @@ apply() {
       # Until the YAML exists, the legacy team file the resolver still reads
       # seeds it, so the first write carries those keys over.
       if [[ ! -f "$target" ]]; then
-        if [[ -f "$ROOT/docs/conventions/multi-agent.md" ]] &&
-          [[ "$(awk -v BLOCK=1 -f "$PARSER" "$ROOT/docs/conventions/multi-agent.md")" == block$'\t'* ]]; then
-          seed="$ROOT/docs/conventions/multi-agent.md" seed_block=1
-        elif [[ -f "$ROOT/.claude/multi-agent.yaml" ]]; then
-          seed="$ROOT/.claude/multi-agent.yaml"
+        [[ -f "$legacy_md" ]] && refuse_symlink "$legacy_md"
+        if [[ -f "$legacy_md" ]] &&
+          [[ "$(awk -v BLOCK=1 -f "$PARSER" "$legacy_md")" == block$'\t'* ]]; then
+          seed="$legacy_md" seed_block=1
+        elif [[ -f "$legacy_yaml" ]]; then
+          refuse_symlink "$legacy_yaml"
+          seed="$legacy_yaml"
         fi
       fi
     fi
@@ -129,15 +144,7 @@ apply() {
   "") die "apply needs --layer user|team|local" ;;
   *) die "unknown layer '$LAYER' (user, team or local)" ;;
   esac
-  # A repository can commit a symlink at a team or local path; reading or
-  # writing through it would reach a file outside the repository.
-  if [[ "$LAYER" != user ]]; then
-    local p="$target"
-    while [[ "$p" == "$ROOT"/* ]]; do
-      [[ -L "$p" ]] && die "refusing $target: $p is a symlink"
-      p=$(dirname "$p")
-    done
-  fi
+  [[ "$LAYER" == user ]] || refuse_symlink "$target"
   ((${#PAIRS[@]})) || die "apply needs at least one <key>=<value>"
 
   local source_file="$target"

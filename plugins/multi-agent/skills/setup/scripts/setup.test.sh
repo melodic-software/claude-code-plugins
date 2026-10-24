@@ -133,6 +133,24 @@ assert_eq "a symlinked team file is refused" 2 "$?"
 assert_eq "the symlink target is untouched" outside "$(cat "$T/symlink/victim")"
 assert_contains "the refusal names the symlink" "$(cat "$T/symlink.err")" 'is a symlink'
 
+# A symlinked legacy file is not read as a seed.
+fixture seedlink
+mkdir -p "$T/seedlink/repo/.claude"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/seedlink/victim"
+ln -s "$T/seedlink/victim" "$T/seedlink/repo/.claude/multi-agent.yaml"
+out="$(run seedlink apply --layer team roles.verifier.effort=high)"
+assert_eq "a symlinked .claude seed is refused" 2 "$?"
+assert_lacks "the symlinked seed is not in the preview" "$out" 'effort: low'
+assert_contains "the seed refusal names the symlink" "$(cat "$T/seedlink.err")" 'is a symlink'
+
+fixture mdlink
+mkdir -p "$T/mdlink/repo/docs/conventions"
+printf '```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n' >"$T/mdlink/victim"
+ln -s "$T/mdlink/victim" "$T/mdlink/repo/docs/conventions/multi-agent.md"
+out="$(run mdlink apply --layer team roles.verifier.effort=high)"
+assert_eq "a symlinked docs seed is refused" 2 "$?"
+assert_lacks "the symlinked docs seed is not in the preview" "$out" 'effort: low'
+
 fixture user
 out="$(run user apply --layer user --write fanout.model=sonnet)"
 assert_contains "user layer goes under the home" "$out" "wrote: $T/user/home/.claude/multi-agent.yaml"
