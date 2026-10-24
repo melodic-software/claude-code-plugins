@@ -600,15 +600,20 @@ def _immediate_enqueue(
     identity: str,
     lane_prs_at: Callable[[str], str | None] | None,
 ) -> bool:
-    """`native_auto_merge`'s case with no auto-merge event: every enqueue is
-    the identity's, the read holds all of them, and `merge.lane-prs` was
-    native at the merge commit's first parent."""
-    if not merge.queued or lane_prs_at is None:
+    """`native_auto_merge`'s case with no auto-merge event: at least one
+    enqueue, every one the identity's, the read holds all of them, and
+    `merge.lane-prs` was native at the merge commit's first parent."""
+    if lane_prs_at is None:
         return False
     timeline = json_object(pr.get("timelineItems"))
     if json_object(timeline.get("pageInfo")).get("hasPreviousPage") is not False:
         return False
-    for item in json_array(timeline.get("nodes")):
+    # No enqueue recorded is no evidence of one, so the loop below must not
+    # pass with nothing in it.
+    enqueues = json_array(timeline.get("nodes"))
+    if not enqueues:
+        return False
+    for item in enqueues:
         event = json_object(item)
         if _actor_key(event.get("actor")) != identity:
             return False

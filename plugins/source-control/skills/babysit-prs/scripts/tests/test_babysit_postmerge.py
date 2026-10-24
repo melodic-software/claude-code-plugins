@@ -1061,6 +1061,16 @@ class ImmediateEnqueueNativeArm(CheckCase):
             enqueue(APP_ACTOR, APP_ACTOR),
         )
 
+    def test_no_recorded_enqueue_needs_the_pin(self) -> None:
+        # A timeline with no enqueue in it (lagging, or never recorded) is no
+        # evidence of the identity's enqueue; the identity's mergedBy keeps
+        # the merge the identity's.
+        self.assert_pin_required(
+            "native",
+            timelineItems={"pageInfo": {"hasPreviousPage": False}, "nodes": []},
+            mergedBy=APP_ACTOR,
+        )
+
     def test_enqueues_older_than_the_read_need_the_pin(self) -> None:
         self.assert_pin_required("native", earlier=True)
 
