@@ -873,52 +873,95 @@ def make_judge(cfg: RunConfig, workdir: Path, votes: int = 3):
     return judge
 
 
-def run_once(case: dict, arm: str, reader: str, index: int, base_repo: Path, cfg: RunConfig, out_dir: Path) -> dict:
-    """Seed, write, read and grade one run; copy its traces to `out_dir`; remove the run dir
-    and its project keys. Returns the graded run (`error` set when it must be excluded)."""
+def _reader_workspace(case: dict, run: dict, run_dir: Path, copy_dir: Path, cfg: RunConfig) -> dict:
+    """A private copy of the written workspace for a second reader, re-pointed at its own
+    stub `gh` log and its own bare remote, so the two readers never see each other's acts."""
     import shutil
 
-    run_dir = cfg.root / "runs" / case["name"] / arm / reader / str(index)
+    shutil.copytree(run_dir, copy_dir, symlinks=True)
+    env = child_env(dict(os.environ), tmpdir=cfg.tmpdir, stub_bin=str(copy_dir / "bin"), gh_config=str(copy_dir / "gh-config"))
+    write_stub_gh(copy_dir / "bin", copy_dir / "gh-fixture.json", copy_dir / "gh-calls.log", case["seed"]["gh_fixture"], cfg.python)
+    (copy_dir / "gh-calls.log").write_text("", encoding="utf-8")
+    repo = copy_dir / "repo"
+    _git(cfg.call or default_call, repo, env, "remote", "set-url", "origin", str(copy_dir / "origin.git"))
+    rebase = lambda path: Path(str(path).replace(str(run_dir), str(copy_dir), 1))  # noqa: E731
+    return {**run, "repo": repo, "env": env, "chain": [rebase(p) for p in run["chain"]], "rebase": rebase}
+
+
+def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Path, cfg: RunConfig, out_dir: Path) -> list[dict]:
+    """Seed and write once, then resume each reader on its own copy of the written workspace
+    and grade it. Copies traces to `out_dir`; removes run dirs and project keys. Returns one
+    graded run per reader (`error` set when it must be excluded)."""
+    import shutil
+
+    run_dir = cfg.root / "runs" / case["name"] / arm / str(index)
     if run_dir.exists():
         shutil.rmtree(run_dir)
     start = time.monotonic()
-    graded = {"case": case["name"], "arm": arm, "reader": reader, "index": index, "probes": {}, "error": None}
-    run = None
+    results = []
+    run = written = None
+    keep_root = out_dir / case["name"] / arm / str(index)
+    keep_root.mkdir(parents=True, exist_ok=True)
     try:
         run = seed_run(case, run_dir, base_repo, cfg)
         written = write_stage(case, arm, run, cfg)
-        if written.get("excluded"):
-            graded["error"] = written["excluded"]
-            return graded
-        read = read_stage(case, arm, reader, run, written, cfg)
-        if read.get("excluded"):
-            graded["error"] = read["excluded"]
-            return graded
-        graded["probes"] = grade_run(case, arm, reader, run, written, read, make_judge(cfg, run_dir))
-        graded["writer_tokens"] = written["writer_tokens"]
-        graded["reader_tokens"] = read["main"]["tokens"]
-        graded["m1"] = written["writer_tokens"]["m1"] + read["main"]["tokens"]["m1"]
+        log = run_dir / "gh-calls.log"
+        if log.is_file():
+            shutil.move(log, keep_root / "writer-gh-calls.log")
+            log.write_text("", encoding="utf-8")
+        workspaces = {}
+        if not written.get("excluded"):
+            for reader in readers[1:]:
+                workspaces[reader] = _reader_workspace(case, run, run_dir, run_dir.with_name(f"{index}-{reader}"), cfg)
+        if readers:
+            workspaces[readers[0]] = {**run, "rebase": lambda path: path}
+        for reader in readers:
+            graded = {"case": case["name"], "arm": arm, "reader": reader, "index": index, "probes": {}, "error": None}
+            results.append(graded)
+            if written.get("excluded"):
+                graded["error"] = written["excluded"]
+                continue
+            space = workspaces[reader]
+            mine = dict(written)
+            if mine.get("handoff"):
+                mine["handoff"] = space["rebase"](mine["handoff"])
+            if mine.get("delivery") and space["repo"] != run["repo"]:
+                mine["delivery"] = mine["delivery"].replace(str(run_dir), str(space["repo"].parent))
+            read = read_stage(case, arm, reader, space, mine, cfg)
+            if read.get("excluded"):
+                graded["error"] = read["excluded"]
+                continue
+            graded["probes"] = grade_run(case, arm, reader, space, mine, read, make_judge(cfg, space["repo"].parent))
+            graded["writer_tokens"] = written["writer_tokens"]
+            graded["reader_tokens"] = read["main"]["tokens"]
+            graded["m1"] = written["writer_tokens"]["m1"] + read["main"]["tokens"]["m1"]
+            keep = keep_root / reader
+            keep.mkdir(parents=True, exist_ok=True)
+            (keep / "reader-events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in read["main"]["events"]), encoding="utf-8")
+            (keep / "followup.txt").write_text(read["followup_text"], encoding="utf-8")
+            if (space["repo"].parent / "gh-calls.log").is_file():
+                shutil.copy(space["repo"].parent / "gh-calls.log", keep / "gh-calls.log")
     finally:
-        graded["seconds"] = round(time.monotonic() - start, 1)
-        keep = out_dir / case["name"] / arm / reader / str(index)
-        keep.mkdir(parents=True, exist_ok=True)
+        seconds = round(time.monotonic() - start, 1)
+        for graded in results:
+            graded["seconds"] = seconds
         if run is not None:
-            for name in ("gh-calls.log",):
-                if (run_dir / name).is_file():
-                    shutil.copy(run_dir / name, keep / name)
             if run["keydir"].is_dir():
                 for transcript in run["keydir"].glob("*.jsonl"):
-                    shutil.copy(transcript, keep / transcript.name)
+                    shutil.copy(transcript, keep_root / transcript.name)
             handoffs = run["repo"] / ".work" / "handoffs"
             for produced in handoffs.glob("*-handoff-*.md") if handoffs.is_dir() else ():
                 if produced not in run["chain"]:
-                    shutil.copy(produced, keep / produced.name)
+                    shutil.copy(produced, keep_root / produced.name)
+            if written and written.get("delivery"):
+                (keep_root / "delivery.txt").write_text(written["delivery"], encoding="utf-8")
             shutil.rmtree(run["keydir"], ignore_errors=True)
             cache = Path(run["env"].get("HOME", str(Path.home()))) / ".cache" / "claude-cli-nodejs" / run["keydir"].name
             shutil.rmtree(cache, ignore_errors=True)
-        (keep / "graded.json").write_text(json.dumps(graded, indent=2, default=str) + "\n", encoding="utf-8")
-        shutil.rmtree(run_dir, ignore_errors=True)
-    return graded
+        (keep_root / "graded.json").write_text(json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8")
+        for path in run_dir.parent.glob(f"{index}*"):
+            shutil.rmtree(path, ignore_errors=True)
+    return results
 
 
 # --- command line ------------------------------------------------------------------
@@ -970,22 +1013,25 @@ def cmd_run(args) -> int:
         return 3
     base = build_base(Path(args.repo_root), cfg.root, cfg)
     cases = load_cases(Path(args.evals_dir), args.case)
-    jobs = [
-        (case, arm, reader, index)
-        for case in cases
-        for arm in args.arm
-        for reader in args.reader
-        if reader in case["reader"]["readers"] and not (reader == "codex" and arm == "compact")
-        for index in range(args.runs)
-    ]
-    print(f"{len(jobs)} runs: {len(cases)} cases x arms {args.arm} x readers {args.reader} x {args.runs}", flush=True)
+    jobs = []
+    for case in cases:
+        for arm in args.arm:
+            readers = [
+                reader
+                for reader in args.reader
+                if reader in case["reader"]["readers"] and not (reader == "codex" and arm == "compact")
+            ]
+            jobs += [(case, arm, readers, index) for index in range(args.runs) if readers]
+    reads = sum(len(job[2]) for job in jobs)
+    print(f"{len(jobs)} writer runs, {reads} reader runs: {len(cases)} cases x arms {args.arm} x readers {args.reader} x {args.runs}", flush=True)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        for graded in pool.map(lambda job: run_once(*job, base, cfg, out_dir), jobs):
-            results.append(graded)
-            print(json.dumps({k: graded.get(k) for k in ("case", "arm", "reader", "index", "error", "m1", "seconds")}), flush=True)
+        for graded_runs in pool.map(lambda job: run_once(*job, base, cfg, out_dir), jobs):
+            for graded in graded_runs:
+                results.append(graded)
+                print(json.dumps({k: graded.get(k) for k in ("case", "arm", "reader", "index", "error", "m1", "seconds")}), flush=True)
     (out_dir / "graded.jsonl").open("a", encoding="utf-8").write("".join(json.dumps(r, default=str) + "\n" for r in results))
     return 0
 

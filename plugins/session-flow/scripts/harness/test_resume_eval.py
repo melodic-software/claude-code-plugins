@@ -524,6 +524,17 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     calls = []
 
     def fake(cmd, cwd, env, stdin_text=None):
+        if cmd[0] == "codex":
+            prompt = cmd[-1]
+            calls.append("codex: " + prompt)
+            if "Read @fake" in prompt:
+                subprocess.run([str(Path(cwd).parent / "bin" / "gh"), "pr", "view", "9"], env=env, capture_output=True)
+            events = [
+                {"type": "thread.started", "thread_id": "th-1"},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": "1. answer"}},
+                {"type": "turn.completed", "usage": {"input_tokens": 5, "output_tokens": 2}},
+            ]
+            return 0, "\n".join(json.dumps(e) for e in events), ""
         if cmd[0] != "claude":
             done = subprocess.run(cmd, cwd=cwd, env={**env, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}, capture_output=True, text=True)
             return done.returncode, done.stdout, done.stderr
@@ -551,7 +562,8 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     old_home = os.environ.get("HOME")
     os.environ["HOME"] = str(home)
     try:
-        graded = resume_eval.run_once(case, "before", "claude-code", 0, origin, cfg, tmp_path / "out")
+        both = resume_eval.run_once(case, "before", ["claude-code", "codex"], 0, origin, cfg, tmp_path / "out")
+        graded = both[0]
     finally:
         os.environ["HOME"] = old_home or ""
     assert graded["error"] is None, graded
@@ -560,7 +572,14 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     assert calls[2] == "Read @fake. Continue."
     assert set(graded["probes"]) == {p["id"] for p in case["probes"] if "before" in p.get("arms", resume_eval.ARMS)}
     assert graded["m1"] == 11 + 11
-    kept = tmp_path / "out" / case["name"] / "before" / "claude-code" / "0"
+    kept = tmp_path / "out" / case["name"] / "before" / "0" / "claude-code"
     assert (kept / "gh-calls.log").read_text(encoding="utf-8").startswith("pr view 4318")
-    assert not (cfg.root / "runs" / case["name"] / "before" / "claude-code" / "0").exists()
+    assert not (cfg.root / "runs" / case["name"] / "before" / "0").exists()
     assert not any((home / ".claude" / "projects").iterdir())
+    codex = both[1]
+    assert codex["reader"] == "codex" and codex["error"] is None, codex
+    assert codex["m1"] == 11 + 7
+    assert sum(1 for c in calls if c == case["writer"]["prompts"]["before"]) == 1
+    kept_codex = tmp_path / "out" / case["name"] / "before" / "0" / "codex"
+    assert (kept_codex / "gh-calls.log").read_text(encoding="utf-8").splitlines() == ["pr view 9"]
+    assert (kept / "gh-calls.log").read_text(encoding="utf-8").splitlines() == ["pr view 4318"]
