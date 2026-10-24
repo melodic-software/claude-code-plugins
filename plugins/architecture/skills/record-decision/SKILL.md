@@ -62,6 +62,11 @@ it **not obvious from the code**, so a later reader would have to ask why? Was i
 live alternative**, beating a workable option for a stated reason? Is it **costly to undo**, so
 backing it out would take real rework?
 
+Kinds of decision that qualify: architectural shape; integration patterns between contexts;
+technology choices that carry lock-in; boundary and scope decisions; deliberate deviations from the
+obvious path; constraints not visible in the code; rejected alternatives when the rejection is not
+obvious.
+
 When the decision plainly fails the test, say so once and offer to skip. The human's call wins: if
 they still want the record, write it.
 
@@ -95,6 +100,9 @@ Do not create, rename, or renumber any other file. Report duplicates and leave t
 1. List the rungs searched, so the human can see the search was real and where it stopped.
 2. Offer two or three common shapes, each naming a directory, a numbering scheme, and a minimal
    section set.
+   One shape to offer is a one-paragraph ADR: a short title and 1-3 sentences giving the context,
+   the decision and why; status, considered options and consequences are optional and appear only
+   when they add something.
 3. Point at the upstream catalog URL below so the human can read templates and pick one.
 4. Stop. Write nothing: no directory, no file, no placeholder. Done when the report is delivered and
    `git status --porcelain` is exactly what it was before the invocation.

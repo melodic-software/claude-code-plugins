@@ -2589,7 +2589,7 @@ jobs:
           rcfile: .shellcheckrc
       # The eval-coverage gate's suite reads `shfmt --to-json` and exits 2 when
       # shfmt is missing, so this job installs the same v3.14.1 pin as
-      # check-skills. The shfmt and DuckDB downloads are cached by version (four
+      # check-skills. The shfmt, DuckDB and lefthook downloads are cached by version (four
       # red main runs in two weeks were these downloads failing), and a miss
       # retries transient failures. `--no-progress-meter` instead of `-s` keeps
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
@@ -2599,7 +2599,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
-          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5
+          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2
       - name: Install pinned shfmt
         env:
           SHFMT_VERSION: v3.14.1
@@ -2689,6 +2689,17 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
+      # The guardrails remote's end-to-end suite runs real lefthook against a
+      # stand-in remote; a broken lefthook-remote.yml would block every
+      # consumer's commits, so it fails here instead of skipping
+      # (GUARDRAILS_REQUIRE_LEFTHOOK).
+      - name: Install pinned lefthook
+        run: |
+          if [[ "$(jq -r --arg leg "$LEG" '.[$leg] // ""' <<<"$LEG_PLAN")" != *lefthook* ]]; then
+            echo "No suite on this leg runs lefthook."
+            exit 0
+          fi
+          bash .github/scripts/pr-require-checks/install-lefthook.sh
       - name: Save the pinned tool downloads
         if: github.ref == 'refs/heads/main' && steps.tools_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -2710,6 +2721,8 @@ jobs:
           # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
           VISUAL_COMPARE_REQUIRE: '1'
           VISUAL_COMPARE_DEPS_DIR: .work
+          # The guardrails remote's end-to-end cases fail on a missing lefthook here instead of skipping green.
+          GUARDRAILS_REQUIRE_LEFTHOOK: '1'
           # On main (schedule, dispatch) a failing suite in
           # scripts/run-plugin-tests-advisory.txt warns instead of failing the
           # leg; pull requests and merge groups still fail on it.

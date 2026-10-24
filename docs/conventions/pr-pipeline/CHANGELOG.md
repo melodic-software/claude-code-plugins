@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## [4.15.0] - 2026-10-24
+
+### Changed
+
+- resolve-config no longer adds `.github/**` to `merge.diff-check.denied-paths`; it still adds the config file's own path and the trusted-actor list. A lanes App pull request touching `.github/scripts`, `.github/actions` or another `.github` path off the merge gate's HIGH floor is no longer held by report-outcome's `Hold:` line, `enable-auto-merge` or `ci-status`, and merges on the two review lanes (owner direction 2026-10-23). The lanes App's token never carries the `workflows` permission, so no lanes App push changes a workflow file; another identity with write access can still push one after auto-merge is armed. Hold paths now match case-insensitively, as the merge gate's `glob_match` does, so `.github/codeowners` or `.github/actions/Resolve-Config/` holds. The floor also holds `.github/actions/check-kill-switch/**`, whose output writer check-trusted-trigger and resolve-config load; a test walks both actions' imports and fails on any file the floor does not hold.
+- `merge-holds.mjs` no longer holds every `plugin.json` and `marketplace.json` path-wide. Its hold-path floor is the forced paths plus the merge gate's HIGH floor (`babysit_risk.HIGH_FLOOR`), and `ci-status` compares a changed manifest base against head as the gate's manifest review does (`manifestChanges`, the rule of `babysit_risk._manifest_changes`): an executable `plugin.json` key or `experimental.monitors`, a marketplace plugin added, removed, renamed or re-sourced or a marketplace `name` change, a removed, renamed or copied manifest, and a side that does not read or parse or repeats a key hold; a `userConfig` default or version change merges. `enable-auto-merge` arms such a change once the gate's risk score (`evidence --lane-reviews`) allows it. ci-status now hands the module each file's status and the base commit.
+
+- Intake admission also takes issues whose Uncertainty is Knowable (`admission-rules.json`), which the run lane already runs research-first (owner decision 2026-10-24, amending Q51 criterion 3).
+
+- The intake, pr-unblock and pr-verify lanes run on their own funding roles' secrets instead of the `automations` pair. `intake-triage.yml` passes `role: intake` with `INTAKE_CLAUDE_API_KEY` and `INTAKE_CLAUDE_CODE_OAUTH_TOKEN`, and its intake reusable pins ci-workflows [`b0ecc27`](https://github.com/melodic-software/ci-workflows/commit/b0ecc273abe492d12f2efa98ee4741a84c219ed2), whose runner-policy contract names that role ([standards#863](https://github.com/melodic-software/standards/pull/863)). Every Claude job in `pr-unblock.yml` and the fix-docs jobs in `pr-refine.yml` pass `role: pr-unblock` with `PR_UNBLOCK_*`, and both `pr-verify.yml` jobs pass `role: pr-verify` with `PR_VERIFY_*`. Each run's `credential=` now names its own role's secret. `.github/lane-funding.json` lists the new secrets, the read-run secret allowlist in `scripts/check-read-caller-keys.mjs` admits `PR_UNBLOCK_*` in place of `AUTOMATIONS_*`, and `callers.test.mjs` fails when a catalog lane reads another role's secret or passes a `role:` other than its own ([pr-pipeline README, Funding](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#funding)).
+
+### Fixed
+
+- An issue-lane run that waited in its slot while a change to `work-resolve-issue.yml` or `pr-run-activity-write.yml` merged no longer fails red as `workflow-stale`. The read runner's `workflow-current` step sets `stale=true` and ends green with a warning, the `Stop on stale workflow files` step runs, and `go` is `false`, so no model turn, earlier-work check, outcome marker or caller job follows, and lane telemetry counts no failure. work-unblock's hourly sweep finds that step in the run's job listing and re-fires the issue on main's files, once per version of the two lane workflow files, as it does a failed run. The sweep reads each run's job listing once, shared by its checks.
+
+- The address-feedback scope rule (`thread-scope.mjs`) no longer lets a fix edit a plugin's control or instruction files through the plugin-wide arm; it excludes the same control paths the pull-request-files arm does.
+
 ## [4.14.1] - 2026-10-24
 
 ### Changed

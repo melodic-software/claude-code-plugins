@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-10-24
+
+### Added
+
+- `/developer-experience:build-cli` CLI contract gains five rules for a control CLI: no inherited handles on a started child, one JSON document on `--json` stdout for a composite command, finding the real app process behind a wrapper pid, rejecting bad flags and ids fast, and naming the override mechanism the app honors. Each carries a source pointer, an as-of date and a recheck trigger. A new eval case checks that a review flags a child started with inherited handles.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added

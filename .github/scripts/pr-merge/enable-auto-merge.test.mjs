@@ -22,13 +22,16 @@ import {
   DISARM_MUTATION,
   HUMAN_VETO,
   PULLS_QUERY,
+  UNLABELED_QUERY,
   decide,
+  liftedByPerson,
   READER_EVENTS,
   main,
   pythonRoom,
   readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
@@ -91,11 +94,19 @@ const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], ru
 const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
-function world(pulls, { failArm = false } = {}) {
+// armErrors: per pull request id, the errors its arm sends throw, in order.
+// filesError: what every changed-files GET throws.
+function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null } = {}) {
+  const noteThrows = [...noteErrors];
+  const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
-  const github = async (method, path, body) => {
-    calls.push({ method, path, body });
+  const notes = [];
+  const github = async (method, path, body, headers) => {
+    calls.push({ method, path, body, headers });
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
+    if (method === "GET" && listing && filesError) {
+      throw filesError;
+    }
     if (method === "GET" && listing) {
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
@@ -105,6 +116,15 @@ function world(pulls, { failArm = false } = {}) {
     // number plus 1000.
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
+    }
+    // The refusal note: a comment posted or edited, and the label.
+    const note = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/(?:([0-9]+)\/(comments|labels)|comments\/([0-9]+))$/.exec(path);
+    if (note && (method === "POST" || method === "PATCH")) {
+      notes.push({ method, path, body });
+      if (noteThrows.length > 0) {
+        throw noteThrows.shift();
+      }
+      return {};
     }
     assert.equal(`${method} ${path}`, "POST /graphql");
     if (body.query === PULL_OPENED_QUERY) {
@@ -118,9 +138,19 @@ function world(pulls, { failArm = false } = {}) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
     }
+    if (body.query === UNLABELED_QUERY) {
+      const nodes = pulls.find((candidate) => candidate.number === body.variables.number)?.unlabeled ?? [];
+      return { data: { repository: { pullRequest: { timelineItems: { totalCount: nodes.length, nodes } } } } };
+    }
     if (body.query === DETAIL_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
       return { data: { repository: { pullRequest: detail(found?.discussion) } } };
+    }
+    if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
+      throw armThrows[body.variables.id].shift();
+    }
+    if (body.query === DISARM_MUTATION && disarmError) {
+      throw disarmError;
     }
     if (body.query === ARM_MUTATION && failArm) {
       throw new Error("POST /graphql (GraphQL errors) failed with status 200");
@@ -140,23 +170,169 @@ function world(pulls, { failArm = false } = {}) {
   };
   const writes = () =>
     calls
-      .filter(({ method, body }) => method === "POST" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
-  return { github, writes, verify, verified, calls };
+  return { github, writes, verify, verified, calls, notes };
 }
 
 async function run(pulls, env = {}, options = {}, lane = ROOM) {
-  const { github, writes, verify, verified } = world(pulls, options);
+  const { github, writes, verify, verified, calls, notes } = world(pulls, options);
   const lines = [];
+  const slept = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane) });
-    return { code, writes: writes(), lines, verified };
+    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
+    return { code, writes: writes(), lines, verified, slept, calls, notes };
   } finally {
     console.log = log;
   }
 }
+
+// The refusal note's two bodies, written out by hand: the gate's reasons
+// marker on its own line, the head named on the next, the reason fenced.
+const laneNote = (reason) =>
+  [
+    "<!-- babysit-merge-risk -->",
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. The lanes clear this reason on their own; the next scheduled run judges it again.`,
+    "",
+    "```text",
+    reason,
+    "```",
+  ].join("\n");
+const personNote = (reason) =>
+  [
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
+    "<!-- babysit-merge-risk -->",
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`,
+    "",
+    "```text",
+    reason,
+    "```",
+  ].join("\n");
+const ISSUES = "/repos/melodic-software/claude-code-plugins/issues";
+const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
+  databaseId: 77,
+  author: { __typename: "Bot", login: LANES.login },
+  body,
+  createdAt: "2026-10-23T10:00:00Z",
+  updatedAt,
+  authorAssociation: "NONE",
+});
+const HOLD_PATH_REASON = "it changes docs/held.md, a hold path";
+const MISSING = { refusal: "verify:missing", needsHuman: false, head: HEAD, ineligible: null, reviews: null };
+const MISSING_REASON = "pr-merge's gate refuses its verifier verdict (verify:missing)";
+
+test("a refusal a person must clear is commented on and labeled human-gated", async () => {
+  const held = pull(1, { files: [{ filename: "docs/held.md" }] });
+  const { code, writes, notes } = await run([held]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("a verifier refusal the gate marks needsHuman is a person's; one it does not is a lane's", async () => {
+  const human = { refusal: "verify:spec-changed", needsHuman: true, head: HEAD, ineligible: null, reviews: null };
+  const { notes } = await run([pull(1, { verdict: human }), pull(2, { verdict: MISSING })]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote("pr-merge's gate refuses its verifier verdict (verify:spec-changed)") } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(MISSING_REASON) } },
+  ]);
+});
+
+test("a refusal a lane clears is commented on, with no label", async () => {
+  const { code, notes } = await run([pull(1, { verdict: MISSING })]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+const unlabeled = (at, typename = "User", name = "needs-human") => ({ createdAt: at, actor: { __typename: typename, login: "someone" }, label: { name } });
+
+test("an unchanged refusal writes nothing, and a label a person removed stays off", async () => {
+  const lane = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
+  const person = pull(2, {
+    files: [{ filename: "docs/held.md" }],
+    discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] },
+    unlabeled: [unlabeled("2026-10-23T10:30:00Z", "User", "Needs-Human")],
+  });
+  const { code, notes } = await run([lane, person]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, []);
+});
+
+test("a person's refusal comment standing without its label gets the label back", async () => {
+  // An earlier run's label write failed: no removal at all, a bot's, a
+  // person's before the comment last changed, or another label's.
+  for (const removals of [[], [unlabeled("2026-10-23T10:30:00Z", "Bot")], [unlabeled("2026-10-23T09:59:00Z")], [unlabeled("2026-10-23T10:30:00Z", "User", "do-not-merge")]]) {
+    const person = pull(2, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] }, unlabeled: removals });
+    const { code, notes } = await run([person]);
+    assert.equal(code, 0);
+    assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
+  }
+});
+
+test("a timeline not read whole puts no label back", () => {
+  assert.equal(liftedByPerson({ totalCount: 101, nodes: [] }, "needs-human", "2026-10-23T10:00:00Z"), true);
+  assert.equal(liftedByPerson(null, "needs-human", "2026-10-23T10:00:00Z"), true);
+  assert.equal(liftedByPerson({ totalCount: 0, nodes: [] }, "needs-human", "2026-10-23T10:00:00Z"), false);
+});
+
+test("a changed refusal edits the one comment instead of posting another", async () => {
+  const moved = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } });
+  const { notes } = await run([moved]);
+  assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+test("a risk hold is a lane's until its comment has stood an hour unchanged, then a person's", async () => {
+  const risk = { refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews: "evidence-unbound:claude-review" };
+  const reason = "pr-merge's gate holds it on its risk score (evidence-unbound:claude-review)";
+  const at = (updatedAt) => pull(1, { verdict: risk, discussion: { comments: [lanesSaid(laneNote(reason), updatedAt)] } });
+  const now = () => Date.parse("2026-10-23T11:00:00Z");
+  assert.deepEqual((await run([pull(1, { verdict: risk })], {}, { now })).notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(reason) } }]);
+  assert.deepEqual((await run([at("2026-10-23T10:01:00Z")], {}, { now })).notes, []);
+  assert.deepEqual((await run([at("2026-10-23T10:00:00Z")], {}, { now })).notes, [
+    { method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(reason) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("an armed pull request, an event run and report-only write no refusal note", async () => {
+  assert.deepEqual((await run([pull(1)])).notes, []);
+  const armedHeld = pull(2, { autoMergeRequest: {}, files: [{ filename: "docs/held.md" }] });
+  const event = await run([armedHeld], { EVENT_NAME: "pull_request" });
+  assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_2" }]);
+  assert.deepEqual(event.notes, []);
+  const reported = await run([pull(3, { verdict: MISSING })], { REPORT_ONLY: "true" });
+  assert.deepEqual(reported.notes, []);
+  assert.ok(reported.lines.includes("enable-auto-merge: #3 would note its refusal (report-only)"));
+});
+
+test("a disarmed pull request gets the note after the disarm", async () => {
+  const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING });
+  const { writes, notes } = await run([armed]);
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+test("a failed disarm writes no note, since the pull request is still armed", async () => {
+  const armed = pull(1, { autoMergeRequest: {}, files: [{ filename: "docs/held.md" }] });
+  const { code, writes, notes, lines } = await run([armed], {}, { disarmError: new GitHubError(200, "POST /graphql (GraphQL errors)") });
+  assert.equal(code, 1);
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+  assert.deepEqual(notes, []);
+  assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 disarm")));
+});
+
+test("a refusal comment that fails on the network is not sent again", async () => {
+  const { code, notes, slept } = await run([pull(1, { verdict: MISSING })], {}, { noteErrors: [closed()] });
+  assert.equal(code, 1);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+  assert.deepEqual(slept, []);
+});
 
 test("a lanes App pull request with no hold is armed, squash, at the head it read", async () => {
   const { code, writes } = await run([pull(7)]);
@@ -232,6 +408,92 @@ test("a failed arm fails the run and still reaches the next pull request", async
     { mutation: "disarm", id: "PR_2" },
   ]);
   assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm")));
+});
+
+// undici's shape for a dropped socket: a "fetch failed" TypeError whose cause
+// carries the code and the socket's message.
+const reset = () => new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
+
+// The socket GitHub closed while the connection sat idle: undici's
+// UND_ERR_SOCKET "other side closed".
+const closed = () => new TypeError("fetch failed", { cause: Object.assign(new Error("other side closed"), { code: "UND_ERR_SOCKET" }) });
+
+test("an arm that fails on the network is sent again after a capped wait and arms", async () => {
+  const { code, writes, lines, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), closed()] } });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, Array(3).fill({ mutation: "arm", id: "PR_1", head: HEAD }));
+  // Two resends, each waiting no longer than the 8 s cap.
+  assert.equal(slept.length, 2);
+  assert.ok(slept.every((ms) => ms >= 0 && ms <= 8000));
+  assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+});
+
+test("the resend waits are full jitter under caps of 4 s, then 8 s", async () => {
+  const errors = () => ({ PR_1: [reset(), reset()] });
+  assert.deepEqual((await run([pull(1)], {}, { armErrors: errors(), random: () => 1 })).slept, [4000, 8000]);
+  assert.deepEqual((await run([pull(1)], {}, { armErrors: errors(), random: () => 0 })).slept, [0, 0]);
+});
+
+test("a GET that fails on the network is left to the client's own retry, not sent again here", async () => {
+  const { calls, slept, writes } = await run([pull(1)], {}, { filesError: reset() });
+  assert.equal(calls.filter(({ method }) => method === "GET").length, 1);
+  assert.deepEqual(slept, []);
+  assert.deepEqual(writes, []);
+});
+
+test("an arm that fails three times on the network fails the run, naming the cause", async () => {
+  const { code, writes, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), reset(), reset(), reset()] } });
+  assert.equal(code, 1);
+  assert.equal(writes.length, 3);
+  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: ECONNRESET read ECONNRESET)"));
+});
+
+test("one pull request whose arm still fails leaves it unarmed and the next is still armed", async () => {
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [closed(), closed(), closed()] } });
+  assert.equal(code, 1);
+  assert.deepEqual(writes.at(-1), { mutation: "arm", id: "PR_2", head: HEAD });
+  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET other side closed)"));
+  assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
+  assert.ok(!lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+});
+
+test("each network trigger alone is sent again, and an error with another code is not", async () => {
+  const coded = (code) => Object.assign(new Error("socket"), { cause: Object.assign(new Error("x"), { code }) });
+  for (const error of [new TypeError("fetch failed"), coded("ETIMEDOUT"), coded("UND_ERR_CONNECT_TIMEOUT"), Object.assign(new Error("socket"), { cause: new Error("other side closed") })]) {
+    const { code, writes } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
+    assert.equal(code, 0);
+    assert.equal(writes.length, 2);
+  }
+  const { code, writes } = await run([pull(1)], {}, { armErrors: { PR_1: [coded("EPIPE_NOT_LISTED")] } });
+  assert.equal(code, 1);
+  assert.equal(writes.length, 1);
+});
+
+test("the resend warning names the arm and its pull request", async () => {
+  const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [closed()] } });
+  assert.ok(lines.some((line) => line.startsWith("::warning::enable-auto-merge: POST /graphql (arm) for PR_1 failed (TypeError UND_ERR_SOCKET)")));
+});
+
+test("every request asks GitHub to close its connection after answering", async () => {
+  const { calls } = await run([pull(1)]);
+  assert.ok(calls.length > 1);
+  assert.ok(calls.every(({ headers }) => headers?.Connection === "close"));
+});
+
+test("an arm GitHub answers 4xx, or with GraphQL errors, is not sent again", async () => {
+  for (const error of [new GitHubError(422, "POST /graphql"), new GitHubError(200, "POST /graphql (GraphQL errors)")]) {
+    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
+    assert.equal(code, 1);
+    assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+    assert.deepEqual(slept, []);
+  }
+});
+
+test("a logged cause has any token in it scrubbed", async () => {
+  const leak = new TypeError("fetch failed", { cause: Object.assign(new Error("bad header Bearer ghs_abc123 sent github_pat_11AB_cd"), { code: "UND_ERR_SOCKET" }) });
+  const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [leak, leak, leak] } });
+  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET bad header *** sent ***)"));
+  assert.ok(!lines.some((line) => line.includes("ghs_abc123") || line.includes("github_pat_")));
 });
 
 test("a bad bot login or repository fails red", async () => {
@@ -405,6 +667,7 @@ test("a manifest change arms only when the gate's risk score allows it", () => {
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: review }), {
     action: "none",
     reason: "pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)",
+    clears: "risk",
   });
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: review }).action, "disarm");
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), { action: "arm", reason: "no hold" });
@@ -418,6 +681,7 @@ test("a cost path holds until the body links the owner's cost decision", async (
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
     action: "none",
     reason: "it changes infra/Pulumi.prod.yaml, a cost path",
+    clears: "person",
   });
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
   assert.equal(decide(pull(1), options, { ...detail(), files, costDecision: COST_LINK, verify: PASSED }).action, "arm");

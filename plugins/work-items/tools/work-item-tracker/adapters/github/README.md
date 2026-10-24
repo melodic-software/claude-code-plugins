@@ -6,6 +6,7 @@
 - [Resolve item ID](#resolve-item-id)
 - [List items](#list-items)
 - [Search items](#search-items)
+- [List pull requests](#list-pull-requests)
 - [View item](#view-item)
 - [List item comments](#list-item-comments)
 - [Close item](#close-item)
@@ -121,6 +122,20 @@ FILTER='.[] | select(.pull_request | not) | select((.title | ascii_downcase) as 
 gh api --paginate 'repos/{owner}/{repo}/issues?state=all&per_page=100' | jq -r --arg q "<terms>" "$FILTER" | tr -d '\r'
 ```
 <!-- rest-search-filter:end -->
+
+## List pull requests
+
+"List items" and `list-items` return issues only. Open pull requests carrying a label (bare `gh`):
+
+```bash
+gh pr list --label "$LABEL" --state open \
+  --json number,title,state,labels,assignees,author,createdAt,url \
+  --limit "${LIMIT:-100}" | tr -d '\r'
+```
+
+A pull request is an issue to the REST API, so "List item comments" and the seam's REST lease
+verbs take its number unchanged. Comment with `gh pr comment <N>` and edit labels with
+`gh pr edit <N>`, using the flags "Comment on item" and "Edit labels / assignees" name.
 
 ## View item
 
