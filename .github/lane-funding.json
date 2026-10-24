@@ -72,15 +72,15 @@
       ]
     },
     {
-      "id": "automations",
-      "secretPrefix": "AUTOMATIONS",
-      "tokenSecret": "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN",
-      "keySecret": "AUTOMATIONS_CLAUDE_API_KEY",
+      "id": "maintenance",
+      "secretPrefix": "MAINTENANCE",
+      "tokenSecret": "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN",
+      "keySecret": "MAINTENANCE_CLAUDE_API_KEY",
       "keyed": false,
       "category": "maintenance",
       "lanes": [
-        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "claude-code-action", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "claude-code-action", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]
