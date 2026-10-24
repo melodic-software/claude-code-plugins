@@ -187,6 +187,10 @@ asserts:
   absence.
   Pointer: <https://code.claude.com/docs/llms.txt>. As of: 2026-10-01. Recheck trigger: that URL
   stops serving the full page index.
+- **Every absence statement is scoped to the pages the run actually read.** A row or prose line
+  saying no page states something names the corpus it searched, and names any page the corpus
+  index lists that the run could not fetch or read. An unread page is a gap the statement
+  discloses, never a page it covers.
 - **Every non-zero result names its match site(s).** A recorded count plus a filename histogram is
   still unfalsifiable: a reader who replays the command gets the same number and still cannot tell
   whether anyone read the matching lines. A row whose hit set was **sampled** rather than read in
@@ -268,6 +272,9 @@ asserts:
   bare-name near-miss, disclosed per the near-miss rule, and neither an API surface nor a harness
   surface. The hostname half of the same rule is the `prUrlTemplate` / `skipWebFetchPreflight`
   pair above.)
+  **A bare lever or feature word is not a request parameter.** Prose naming a lever or feature
+  ("effort", "deferred loading") without the literal request parameter does not name an API
+  surface, so such a row is `cc-applicable`, not `mixed`.
 - **A claim is the whole table row, including its Example cell,** on settings-style three-part
   tables (Name / Description / Example). The Example cell is part of the claim's own quoted
   text for the four-surface letter rule above. A row whose Example names an API request
@@ -295,6 +302,10 @@ asserts:
   and carries its own tag and evidence. A row never carries two tags. Where a clause cannot be
   read without the other, each row quotes the whole sentence and its tag line names the clause
   the tag covers; that is the only case where a tag covers less than its row's quote.
+- **A docs page that states one clause but not another splits the row too.** When a row's own
+  evidence shows a docs page stating one of its clauses and not the other, the row splits by
+  clause, so the documented clause cites the page and the other keeps its own basis. A near-miss
+  never removes the `vendor-claimed` marker: only a page stating the clause's own assertion does.
 - **Row-local reachability: a cited site no recorded command produces has been asserted, not
   disclosed.** A `file.md:NN` in a row's evidence counts as disclosed only when some command
   recorded in that same row produces it; otherwise the row says so explicitly, and an explicit
@@ -327,6 +338,12 @@ asserts:
   the marker.
   Pointer: <https://platform.claude.com/llms.txt>. As of: 2026-10-01. Recheck trigger: that URL
   stops serving the docs page index.
+- **A prescribed method no docs page states is vendor-claimed.** A directive that prescribes a
+  method or structure no docs page states carries `vendor-claimed`. A directive that applies a
+  documented method to a new case carries `unverified-inference` only.
+- **A clause the docs contradict keeps the marker.** It carries `vendor-claimed` plus a
+  "contradicted by" note naming the contradicting page and line. A "contradicted by" note without
+  `vendor-claimed` is correct only when another docs page states the clause.
 
 **Blog row classes.** A blog row takes its tag from what it asserts, never from where it sits on
 the page (a figure, a caption, a summary box):
