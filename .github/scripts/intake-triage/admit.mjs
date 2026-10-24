@@ -285,6 +285,16 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
+// Whether UNTRUSTED holds the issue: the label is on it, or its newest add or
+// removal of the label is a removal by neither a listed human (`humans`, ids)
+// nor the lanes App (`isApp(actor)`). Admission and the issue lane's gate
+// both judge provenance here. Pure.
+export function untrustedHold({ labels, events, humans, isApp }) {
+  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
+  const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
+  return names(labels).includes(UNTRUSTED) || removedByOther;
+}
+
 // Whether events[a] happened before events[b]: by created_at when both have
 // one and they differ, else by their order as listed.
 const before = (events, a, b) => {
@@ -348,11 +358,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   } else if (!rules.types.includes(type)) {
     refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"]].join(", ")}`);
   }
-  // The hold also stands when its newest event is a removal by neither a
-  // listed human nor the lanes App.
-  const untrustedEvent = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
-  const removedByOther = untrustedEvent?.event === "unlabeled" && !humans.has(untrustedEvent.actor?.id) && !(appId !== undefined && untrustedEvent.actor?.id === appId);
-  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
+  if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
   }
   if (!rules.sizes.includes(verdict.dimensions?.size)) {

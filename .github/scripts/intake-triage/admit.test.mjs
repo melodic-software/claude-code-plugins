@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, openPullsNaming, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, openPullsNaming, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -771,5 +771,25 @@ describe("noteUnrunnable", () => {
     const changed = fakeGitHub({ issue: HELD, comments: own(`${ADMIT_MARKER}\nold`) });
     await note(changed);
     assert.match(writes(changed.calls)[0], /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
+  });
+});
+
+describe("untrustedHold", () => {
+  const LABEL = "work-class: untrusted-provenance";
+  const humans = new Set([1]);
+  const isApp = (actor) => actor?.id === 9;
+  const event = (kind, id, name = LABEL) => ({ event: kind, label: { name }, actor: { id } });
+  test("the label on the issue holds it", () => {
+    assert.equal(untrustedHold({ labels: [{ name: LABEL }], events: [], humans, isApp }), true);
+    assert.equal(untrustedHold({ labels: [LABEL], events: [], humans, isApp }), true);
+  });
+  test("a newest removal by neither a listed human nor the App still holds it; theirs lifts it", () => {
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 5)], humans, isApp }), true);
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 1)], humans, isApp }), false);
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 9)], humans, isApp }), false);
+    assert.equal(untrustedHold({ labels: [], events: [event("unlabeled", 5), event("labeled", 1, "other")], humans, isApp }), true);
+  });
+  test("an issue never labeled is not held", () => {
+    assert.equal(untrustedHold({ labels: [{ name: "agent-ready" }], events: [event("labeled", 5, "agent-ready")], humans, isApp }), false);
   });
 });

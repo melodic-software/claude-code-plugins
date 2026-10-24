@@ -1531,6 +1531,43 @@ test("a run the blocker gate skipped still waits on a blocker closed without doi
   }
 });
 
+// The admit job's provenance stop is final: the sweep never re-fires it and
+// adds no needs-human (admission's refusal path hands it to a person).
+const UNTRUSTED_STOPPED = [
+  {
+    name: "admit",
+    conclusion: "success",
+    steps: [
+      { name: "Wait for open blockers", conclusion: "success" },
+      { name: "Stop on untrusted provenance", conclusion: "success" },
+    ],
+  },
+  { name: "pick-slot", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+];
+
+test("a run the gate stopped on untrusted provenance is never re-fired, past any wait or bound, and gets no needs-human", async () => {
+  for (const ended of ["2026-10-16T10:05:00Z", "2026-10-15T00:00:00Z"]) {
+    const { github, actions, calls } = stalledRun({ jobs: UNTRUSTED_STOPPED, conclusion: "success", ended });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], ended);
+  }
+});
+
+test("an agent-ready issue whose untrusted-provenance label someone unlisted removed is never re-fired or handed to a person", async () => {
+  const untrusted = { name: "work-class: untrusted-provenance" };
+  const events = [
+    added("2026-10-16T08:00:00Z", OWNER),
+    { event: "labeled", label: untrusted, actor: LANES_BOT, created_at: "2026-10-16T08:00:01Z" },
+    { event: "unlabeled", label: untrusted, actor: { id: 999999, login: "stranger" }, created_at: "2026-10-16T08:00:02Z" },
+  ];
+  for (const runs of [[], [laneRun()]]) {
+    const { github, actions, calls } = failedRun({ runs, events });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], `${runs.length} run(s)`);
+  }
+});
+
 test("a stranded issue with an open blocker is neither re-fired nor handed to a person", async () => {
   const { github, actions, calls } = failedRun({ runs: [], events: [added("2026-10-16T08:00:00Z", OWNER)], blockedBy: { 30: [issue(31)] } });
   assert.equal(await sweep({ github, actions }), 0);
@@ -1728,6 +1765,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   }
   assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
   assert.ok(steps(caller.admit).includes("Wait for open blockers"));
+  assert.ok(steps(caller.admit).includes("Stop on untrusted provenance"));
   assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));

@@ -37,12 +37,14 @@
 // those files gets one comment saying why and needs-human instead. Both share
 // limits.restarts-per-run.
 //
-// The lane skips an issue with an open blocker and keeps agent-ready on
+// The lane skips an issue a blocker still blocks and keeps agent-ready on
 // (check-blockers.mjs), so the close path above, which leaves an agent-ready
-// issue alone, never re-runs it. The sweep does: an agent-ready issue with an
-// open blocker is never re-fired, stranded or handed to a person, and a run
-// the blocker gate skipped is re-fired like a run that did no work once no
-// blocker is open.
+// issue alone, never re-runs it. The sweep does: an agent-ready issue a
+// blocker still blocks is never re-fired, stranded or handed to a person, and
+// a run the blocker gate skipped is re-fired like a run that did no work once
+// none blocks. A run the gate stopped on untrusted provenance, or an issue
+// whose untrusted-provenance label someone unlisted removed, is never
+// re-fired and gets no needs-human: admission's refusal reaches a person.
 //
 // On `schedule` it sweeps instead: every issue closed in the last
 // LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
@@ -143,7 +145,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -166,6 +168,8 @@ const STALE_STEP = "Stop on stale workflow files";
 // The admit job's step that skips a run while the issue has an open blocker,
 // or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
 const BLOCKER_STEP = "Wait for open blockers";
+// The admit job's step a run stops at for good on untrusted provenance.
+const UNTRUSTED_STEP = "Stop on untrusted provenance";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -649,6 +653,17 @@ function jobLister(actions, repo) {
 
 const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
 
+// Whether one of `runs` stopped at the admit job's provenance stop.
+async function stoppedUntrusted(jobsOf, runs) {
+  for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
+    const admit = namedJobs(await jobsOf(run), "admit");
+    if (admit.some((job) => (job?.steps ?? []).some((step) => step?.name === UNTRUSTED_STEP && step.conclusion === "success"))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Whether one of `runs` ended green at the read runner's stale-workflow stop.
 async function stoppedStale(jobsOf, runs) {
   for (const run of runs.filter((item) => item.conclusion === "success" && RUN_ID.test(String(item.id)))) {
@@ -836,6 +851,13 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
+  // The lane stops for good on an issue untrusted provenance holds
+  // (check-blockers.mjs), so one is never re-fired or handed to a person here:
+  // admission's refusal path takes it to a person. The label itself is a hold
+  // above; this is the removal by someone unlisted.
+  if (untrustedHold({ labels: [], events, humans, isApp: (actor) => actor?.login === bot })) {
+    return { reason: `${UNTRUSTED} was last removed by neither a listed human nor the lanes App` };
+  }
   // The lane skips an issue a blocker still blocks (check-blockers.mjs), so
   // one is never re-fired or handed to a person while one does.
   const closes = new Map();
@@ -887,6 +909,9 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   // When the newest of its runs ended: every clock below starts there.
   const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
   const jobsOf = jobLister(actions, repo);
+  if (await stoppedUntrusted(jobsOf, runs)) {
+    return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
+  }
   const stalled = await didNoWork(jobsOf, runs);
   if (stalled) {
     const due = ended + limits["reset-clamp-min"] * HOUR_MS;
