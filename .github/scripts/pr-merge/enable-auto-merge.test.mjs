@@ -92,11 +92,12 @@ const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], ru
 const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
-function world(pulls, { failArm = false, armErrors = [] } = {}) {
-  const armThrows = [...armErrors];
+// armErrors: per pull request id, the errors its arm sends throw, in order.
+function world(pulls, { failArm = false, armErrors = {} } = {}) {
+  const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
-  const github = async (method, path, body) => {
-    calls.push({ method, path, body });
+  const github = async (method, path, body, headers) => {
+    calls.push({ method, path, body, headers });
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && listing) {
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
@@ -124,8 +125,8 @@ function world(pulls, { failArm = false, armErrors = [] } = {}) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
       return { data: { repository: { pullRequest: detail(found?.discussion) } } };
     }
-    if (body.query === ARM_MUTATION && armThrows.length > 0) {
-      throw armThrows.shift();
+    if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
+      throw armThrows[body.variables.id].shift();
     }
     if (body.query === ARM_MUTATION && failArm) {
       throw new Error("POST /graphql (GraphQL errors) failed with status 200");
@@ -151,14 +152,14 @@ function world(pulls, { failArm = false, armErrors = [] } = {}) {
 }
 
 async function run(pulls, env = {}, options = {}, lane = ROOM) {
-  const { github, writes, verify, verified } = world(pulls, options);
+  const { github, writes, verify, verified, calls } = world(pulls, options);
   const lines = [];
   const slept = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
     const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms) });
-    return { code, writes: writes(), lines, verified, slept };
+    return { code, writes: writes(), lines, verified, slept, calls };
   } finally {
     console.log = log;
   }
@@ -244,28 +245,62 @@ test("a failed arm fails the run and still reaches the next pull request", async
 // carries the code and the socket's message.
 const reset = () => new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
 
-test("an arm that fails once on the network is sent again after a short wait and arms", async () => {
-  const { code, writes, lines, slept } = await run([pull(1)], {}, { armErrors: [reset()] });
+// The socket GitHub closed while the connection sat idle: undici's
+// UND_ERR_SOCKET "other side closed".
+const closed = () => new TypeError("fetch failed", { cause: Object.assign(new Error("other side closed"), { code: "UND_ERR_SOCKET" }) });
+
+test("an arm that fails on the network is sent again after a capped wait and arms", async () => {
+  const { code, writes, lines, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), closed()] } });
   assert.equal(code, 0);
-  assert.deepEqual(writes, [
-    { mutation: "arm", id: "PR_1", head: HEAD },
-    { mutation: "arm", id: "PR_1", head: HEAD },
-  ]);
-  assert.equal(slept.length, 1);
-  assert.ok(slept[0] >= 2000 && slept[0] <= 5000);
+  assert.deepEqual(writes, Array(3).fill({ mutation: "arm", id: "PR_1", head: HEAD }));
+  // Two resends, each waiting no longer than the 8 s cap.
+  assert.equal(slept.length, 2);
+  assert.ok(slept.every((ms) => ms >= 0 && ms <= 8000));
   assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
 });
 
-test("an arm that fails twice on the network fails the run, naming the cause", async () => {
-  const { code, writes, lines } = await run([pull(1)], {}, { armErrors: [reset(), reset()] });
+test("an arm that fails three times on the network fails the run, naming the cause", async () => {
+  const { code, writes, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), reset(), reset(), reset()] } });
   assert.equal(code, 1);
-  assert.equal(writes.length, 2);
+  assert.equal(writes.length, 3);
   assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: ECONNRESET read ECONNRESET)"));
+});
+
+test("one pull request whose arm still fails leaves it unarmed and the next is still armed", async () => {
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [closed(), closed(), closed()] } });
+  assert.equal(code, 1);
+  assert.deepEqual(writes.at(-1), { mutation: "arm", id: "PR_2", head: HEAD });
+  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET other side closed)"));
+  assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
+  assert.ok(!lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+});
+
+test("each network trigger alone is sent again, and an error with another code is not", async () => {
+  const coded = (code) => Object.assign(new Error("socket"), { cause: Object.assign(new Error("x"), { code }) });
+  for (const error of [new TypeError("fetch failed"), coded("ETIMEDOUT"), coded("UND_ERR_CONNECT_TIMEOUT"), Object.assign(new Error("socket"), { cause: new Error("other side closed") })]) {
+    const { code, writes } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
+    assert.equal(code, 0);
+    assert.equal(writes.length, 2);
+  }
+  const { code, writes } = await run([pull(1)], {}, { armErrors: { PR_1: [coded("EPIPE_NOT_LISTED")] } });
+  assert.equal(code, 1);
+  assert.equal(writes.length, 1);
+});
+
+test("the resend warning names the arm and its pull request", async () => {
+  const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [closed()] } });
+  assert.ok(lines.some((line) => line.startsWith("::warning::enable-auto-merge: POST /graphql (arm) for PR_1 failed (fetch failed (cause: UND_ERR_SOCKET other side closed))")));
+});
+
+test("every request asks GitHub to close its connection after answering", async () => {
+  const { calls } = await run([pull(1)]);
+  assert.ok(calls.length > 1);
+  assert.ok(calls.every(({ headers }) => headers?.Connection === "close"));
 });
 
 test("an arm GitHub answers 4xx, or with GraphQL errors, is not sent again", async () => {
   for (const error of [new GitHubError(422, "POST /graphql"), new GitHubError(200, "POST /graphql (GraphQL errors)")]) {
-    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: [error] });
+    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
     assert.equal(code, 1);
     assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
     assert.deepEqual(slept, []);
@@ -274,7 +309,7 @@ test("an arm GitHub answers 4xx, or with GraphQL errors, is not sent again", asy
 
 test("a logged cause has any token in it scrubbed", async () => {
   const leak = new TypeError("fetch failed", { cause: Object.assign(new Error("bad header Bearer ghs_abc123 sent"), { code: "UND_ERR_SOCKET" }) });
-  const { lines } = await run([pull(1)], {}, { armErrors: [leak, leak] });
+  const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [leak, leak, leak] } });
   assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET bad header *** sent)"));
   assert.ok(!lines.some((line) => line.includes("ghs_abc123")));
 });

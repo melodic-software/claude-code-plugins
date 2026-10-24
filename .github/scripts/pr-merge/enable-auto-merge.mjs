@@ -64,8 +64,11 @@
 //   review hold. Read only after the verdict allows.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
-// that fails any rule is disarmed. A read or write that fails on the network
-// is sent once more (retryOnce). While merge.report-only is true it reports
+// that fails any rule is disarmed. Each request opens its own connection, and
+// a read or write that fails on the network is sent up to twice more
+// (withRetry). One whose arm or disarm still fails is left as it was, named
+// with its cause, and the run goes on to the rest, then exits 1. While
+// merge.report-only is true it reports
 // each decision and writes nothing.
 //
 // Environment:
@@ -153,34 +156,52 @@ export const DISARM_MUTATION = `mutation($id: ID!) {
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-// A network failure undici raises before any answer: its "fetch failed"
-// TypeError, or one of these cause codes. An HTTP answer (a 4xx included) and
-// a GraphQL error are GitHubErrors, never this.
+// A network failure, with no answer from GitHub: undici's "fetch failed"
+// TypeError, which every failure of Node's fetch is whatever its cause, or any
+// error whose cause has one of these codes or undici's "other side closed".
+// An HTTP answer (a 4xx included) and a GraphQL error are GitHubErrors with
+// no cause, never this.
 const TRANSIENT_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "UND_ERR_SOCKET", "UND_ERR_CONNECT_TIMEOUT"]);
-export const transient = (error) => (error?.name === "TypeError" && error.message === "fetch failed") || TRANSIENT_CODES.has(error?.cause?.code);
-export const RETRY_DELAY_MS = 3000;
+export const transient = (error) =>
+  (error?.name === "TypeError" && error.message === "fetch failed") ||
+  TRANSIENT_CODES.has(error?.cause?.code) ||
+  error?.cause?.message === "other side closed";
+// At most three attempts. Before each resend, a full-jitter wait: a random
+// share of 4 s, then of 8 s, so the waits sum to at most 12 s.
+export const RETRY_CAPS_MS = Object.freeze([4000, 8000]);
 // An error's message with its cause's code and message, any token scrubbed:
 // undici puts a whole header value in some messages.
 export function describe(error) {
   const cause = error?.cause;
   const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : String(error?.message ?? error);
-  return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+/g, "***"));
+  return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+|github_pat_\w+/g, "***"));
 }
-// `github` with a POST that fails on the network sent once more after
-// RETRY_DELAY_MS. A GET is left to createGitHub's own retry
-// (retryServerErrors), which resends only GETs. A second arm is pinned to the
-// same expectedHeadOid, so it can arm only the head the run read.
-export function retryOnce(github, sleep) {
-  return async (method, ...rest) => {
-    try {
-      return await github(method, ...rest);
-    } catch (error) {
-      if (method === "GET" || !transient(error)) {
-        throw error;
+// `github` with every request on a connection of its own, and a POST that
+// fails on the network sent again (RETRY_CAPS_MS). `Connection: close` closes
+// each socket after its answer, so no request goes out on a pooled one that
+// sat idle through a verifier read and that GitHub has since closed. A GET is
+// left to createGitHub's own retry (retryServerErrors), which resends only
+// GETs. A resent arm is pinned to the same expectedHeadOid, so it can arm
+// only the head the run read. When the lost answer was a success, the resend
+// may arm or disarm a pull request already in that state; should GitHub
+// answer that with an error, the run reports it and exits 1 with the state
+// right, and the next run reads it as it is.
+export function withRetry(github, { sleep, random = Math.random }) {
+  return async (method, path, body, headers = {}, options) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await github(method, path, body, { Connection: "close", ...headers }, options);
+      } catch (error) {
+        const cap = RETRY_CAPS_MS[attempt];
+        if (method === "GET" || cap === undefined || !transient(error)) {
+          throw error;
+        }
+        const wait = Math.round(random() * cap);
+        const what = body?.query === ARM_MUTATION ? " (arm)" : body?.query === DISARM_MUTATION ? " (disarm)" : "";
+        const pull = body?.variables?.number ?? body?.variables?.id;
+        console.log(`::warning::enable-auto-merge: ${method} ${path}${what}${pull === undefined ? "" : ` for ${pull}`} failed (${describe(error)}); sending it again in ${wait} ms (retry ${attempt + 1} of ${RETRY_CAPS_MS.length})`);
+        await sleep(wait);
       }
-      console.log(`::warning::enable-auto-merge: ${method} ${rest[0]} failed (${describe(error)}); sending it again in ${RETRY_DELAY_MS} ms`);
-      await sleep(RETRY_DELAY_MS);
-      return github(method, ...rest);
     }
   };
 }
@@ -408,7 +429,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
+export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -425,7 +446,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const write = env.REPORT_ONLY === "false";
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
-    github = retryOnce(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }), sleep);
+    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }), { sleep, random });
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
@@ -437,7 +458,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         lane = readRoom(await (room ?? pythonRoom(env))());
       } catch (error) {
         lane = readRoom(null);
-        lane.unreadable = escapeCommand(error?.message ?? error);
+        lane.unreadable = describe(error);
       }
       console.log(`enable-auto-merge: lane room: ${escapeCommand(JSON.stringify(lane))}`);
     }
@@ -502,7 +523,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         try {
           evidence = await verify(pull, lane?.rung);
         } catch (error) {
-          console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${escapeCommand(error?.message ?? error)}`);
+          console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
         }
         ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
       }
