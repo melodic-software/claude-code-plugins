@@ -1,6 +1,7 @@
 """Contract tests for resume_eval.py. No test reaches the API or a CLI."""
 
 import json
+import os
 
 import resume_eval
 
@@ -487,3 +488,62 @@ def test_project_key_matches_the_cli_directory_naming():
         resume_eval.project_key("/srv/eval/.resume-eval/run-1")
         == "-srv-eval--resume-eval-run-1"
     )
+
+
+def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
+    """Real git and real seeding; every `claude` call is faked."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    here = Path(resume_eval.__file__).resolve().parent
+    case = resume_eval.load_cases(here.parents[1] / "evals", ["re-stale-github-fact"])[0]
+    origin = tmp_path / "base"
+    origin.mkdir()
+    (origin / "README.md").write_text("base\n", encoding="utf-8")
+    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "chore: base"]):
+        subprocess.run(["git", *args], cwd=origin, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=origin, check=True)
+    calls = []
+
+    def fake(cmd, cwd, env, stdin_text=None):
+        if cmd[0] != "claude":
+            done = subprocess.run(cmd, cwd=cwd, env={**env, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}, capture_output=True, text=True)
+            return done.returncode, done.stdout, done.stderr
+        prompt = cmd[-1]
+        calls.append(prompt)
+        if prompt.startswith("/session-flow:handoff"):
+            made = Path(cwd) / ".work" / "handoffs" / "29990101T000000Z-handoff-fake.md"
+            made.write_text("# fake handoff\n", encoding="utf-8")
+            text = "`/clear`, then copy everything between the dashed lines:\n\n" + "─" * 20 + "\nRead @fake. Continue.\n" + "─" * 20
+        elif prompt.startswith("Answer each question"):
+            text = "1. answer"
+        else:
+            text = "ok"
+            if "Read @fake" in prompt:
+                subprocess.run([str(Path(cwd).parent / "bin" / "gh"), "pr", "view", "4318"], env=env, capture_output=True)
+        events = [
+            {"type": "system", "subtype": "init", "session_id": "sess-1"},
+            {"type": "assistant", "message": {"id": f"m{len(calls)}", "content": [{"type": "text", "text": text}], "usage": {"input_tokens": 10, "output_tokens": 1}}},
+            {"type": "result", "result": text, "num_turns": 1, "is_error": False, "session_id": "sess-1"},
+        ]
+        return 0, "\n".join(json.dumps(e) for e in events), ""
+
+    cfg = resume_eval.RunConfig(root=tmp_path / "root", tmpdir=str(tmp_path), copies={"before": "/c/before"}, codex_model="m", call=fake, python=sys.executable)
+    home = tmp_path / "home"
+    old_home = os.environ.get("HOME")
+    os.environ["HOME"] = str(home)
+    try:
+        graded = resume_eval.run_once(case, "before", "claude-code", 0, origin, cfg, tmp_path / "out")
+    finally:
+        os.environ["HOME"] = old_home or ""
+    assert graded["error"] is None, graded
+    assert calls[0] == case["writer"]["interrupt"]["text"]
+    assert calls[1] == case["writer"]["prompts"]["before"]
+    assert calls[2] == "Read @fake. Continue."
+    assert set(graded["probes"]) == {p["id"] for p in case["probes"] if "before" in p.get("arms", resume_eval.ARMS)}
+    assert graded["m1"] == 11 + 11
+    kept = tmp_path / "out" / case["name"] / "before" / "claude-code" / "0"
+    assert (kept / "gh-calls.log").read_text(encoding="utf-8").startswith("pr view 4318")
+    assert not (cfg.root / "runs" / case["name"] / "before" / "claude-code" / "0").exists()
+    assert not any((home / ".claude" / "projects").iterdir())
