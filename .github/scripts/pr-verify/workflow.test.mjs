@@ -46,8 +46,8 @@ const KEY_CLASS = "${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-
 const KEY_REPORT_IF =
   "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')";
 const CREDENTIAL = {
-  [KEY]: ["api-key", "AUTOMATIONS_CLAUDE_API_KEY"],
-  [SUB]: ["subscription-token", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"],
+  [KEY]: ["api-key", "PR_VERIFY_CLAUDE_API_KEY"],
+  [SUB]: ["subscription-token", "PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN"],
 };
 
 test("the upload is each job's only artifact step and follows the written verdict", () => {
@@ -88,10 +88,10 @@ test("the concurrency group is per PR and head and never cancels a running judgm
 });
 
 // The judgment on ci-workflows' run-claude-cli (docs/conventions/pr-pipeline/README.md,
-// Funding: pr-verify takes the automations role), under the launcher's input
+// Funding: pr-verify takes the pr-verify role), under the launcher's input
 // contract (its action.yml: managed settings while sudo works, then runner
 // isolation) and the deny rules that keep the model on its data files.
-test("each job judges on run-claude-cli as the automations role with its one secret", () => {
+test("each job judges on run-claude-cli as the pr-verify role with its one secret", () => {
   const pins = new Set();
   for (const job of JOBS) {
     const judge = step("Judge the pull request", job);
@@ -99,7 +99,7 @@ test("each job judges on run-claude-cli as the automations role with its one sec
     assert.equal(PIN.exec(uses)?.[1], "run-claude-cli", job);
     pins.add(uses);
     assert.equal(input(judge, "lane"), "pr-verify", job);
-    assert.equal(input(judge, "role"), "automations", job);
+    assert.equal(input(judge, "role"), "pr-verify", job);
     const [own, secret] = CREDENTIAL[job];
     const [other] = CREDENTIAL[job === KEY ? SUB : KEY];
     assert.equal(input(judge, own), `\${{ secrets.${secret} }}`, job);
@@ -127,7 +127,7 @@ test("each secret appears only in its own job", () => {
     assert.ok(jobText(job).includes(`secrets.${own}`), job);
     assert.ok(!jobText(job).includes(`secrets.${other}`), job);
   }
-  assert.doesNotMatch(text, /secrets\.(?!AUTOMATIONS_CLAUDE_API_KEY\b|AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN\b)/);
+  assert.doesNotMatch(text, /secrets\.(?!PR_VERIFY_CLAUDE_API_KEY\b|PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\b)/);
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
 });
 
@@ -193,8 +193,8 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
   // reaches the script through env, never interpolated.
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(leg)[1];
   assert.equal(run.split("\n")[0], '          case "$LANE_CLASS" in');
-  assert.match(run, /^ {12}auth\) echo "::warning::the API refused the automations role's API key \(AUTOMATIONS_CLAUDE_API_KEY\), class auth; the owner must replace the secret" ;;$/m);
-  assert.match(run, /^ {12}\*\) echo "::warning::the automations role's API key \(AUTOMATIONS_CLAUDE_API_KEY\) hit a credit stop; rotate a spare key in" ;;$/m);
+  assert.match(run, /^ {12}auth\) echo "::warning::the API refused the pr-verify role's API key \(PR_VERIFY_CLAUDE_API_KEY\), class auth; the owner must replace the secret" ;;$/m);
+  assert.match(run, /^ {12}\*\) echo "::warning::the pr-verify role's API key \(PR_VERIFY_CLAUDE_API_KEY\) hit a credit stop; rotate a spare key in" ;;$/m);
   assert.doesNotMatch(run, /\$\{\{/);
   assert.ok(run.lastIndexOf("::warning::") < run.indexOf("check-key-leg"));
   assert.equal(index("Check the key leg", SUB), -1);
@@ -217,7 +217,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .split("\n")
           .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
           .join("\n")
-          .replace(/AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN/g, "AUTOMATIONS_CLAUDE_API_KEY")
+          .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
           .replace(`if: ${KEY_REPORT_IF}`, "if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'")
           .replace(`known-failure-class: ${KEY_CLASS}`, "known-failure-class: ${{ steps.judge.outputs.lane-class }}")
