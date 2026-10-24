@@ -429,10 +429,12 @@ export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number
 export const COMMENT_EDITED_QUERY = "query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt } } }";
 
 // Whether `text` names pull request `number` as `#<number>`: not part of a
-// longer number, and not after a letter, digit, `_`, `/`, `.` or `-`, so
-// `owner/repo#<number>` does not count (babysit_merge_policy.names_pull).
+// longer number, and not after a letter, digit, `_`, `#`, `&`, `/`, `.` or
+// `-`, so neither `owner/repo#<number>` nor `&#<number>` counts
+// (babysit_merge_policy.names_pull; the review lanes' hold step excludes the
+// same characters but `.` and `-`).
 export function namesPull(text, number) {
-  return Number.isSafeInteger(number) && new RegExp(`(?:^|[^A-Za-z0-9_/.-])#${number}(?:[^0-9]|$)`).test(String(text ?? ""));
+  return Number.isSafeInteger(number) && new RegExp(`(?:^|[^A-Za-z0-9_#&/.-])#${number}(?:[^0-9]|$)`).test(String(text ?? ""));
 }
 
 // The first comment link in `body`, outside HTML comments, that records the
@@ -441,10 +443,12 @@ export function namesPull(text, number) {
 // id is in `humans` (trusted-actors.json), as ci-status's cost-only review
 // hold step names one. A decision binds to one pull request and covers every
 // head of it: the comment is on the pull request, or on its linked issue in
-// `repo` (the one closing issue, else with none the one refsIssue names),
-// newer than the pull request and naming it (namesPull); by a User, not
-// through an App; never edited; its first line `**Decision recorded.** Cost:`.
-// `github(method, path, body)` reads; a read that fails clears nothing.
+// `repo` (the one closing issue, else with none the one refsIssue names, read
+// to be an issue and not a pull request), newer than the pull request and
+// naming it (namesPull); by a User, not through an App; never edited; its
+// first line `**Decision recorded.** Cost:`. `github(method, path, body)`
+// reads; a failed read of the pull request or the Refs target decides
+// nothing, and one of a comment or its edit state skips that comment.
 export async function costDecision(github, repo, number, body, humans) {
   const links = [...String(body ?? "").replaceAll(HTML_COMMENT, "").matchAll(DECISION_LINK)].filter(
     (link) => `${link[1]}/${link[2]}`.toLowerCase() === String(repo).toLowerCase(),
@@ -461,16 +465,30 @@ export async function costDecision(github, repo, number, body, humans) {
   }
   const opened = Date.parse(pull?.createdAt);
   const closing = pull?.closingIssuesReferences;
-  const issue =
-    closing?.totalCount === 0
-      ? refsIssue(body)
-      : closing?.totalCount === 1 && closing.nodes?.length === 1 && String(closing.nodes[0]?.repository?.nameWithOwner).toLowerCase() === repo.toLowerCase()
-        ? closing.nodes[0].number
-        : null;
+  const refs = closing?.totalCount === 0 ? refsIssue(body) : null;
+  let issue =
+    refs ??
+    (closing?.totalCount === 1 && closing.nodes?.length === 1 && String(closing.nodes[0]?.repository?.nameWithOwner).toLowerCase() === repo.toLowerCase()
+      ? closing.nodes[0].number
+      : null);
+  let checked = refs === null;
   for (const link of links) {
     const target = Number(link[3]);
     if (target !== number && target !== issue) {
       continue;
+    }
+    if (target !== number && !checked) {
+      // A Refs number may name a pull request; only an issue is consulted.
+      try {
+        const read = await github("GET", `/repos/${repo}/issues/${refs}`);
+        issue = read?.number === refs && read.pull_request == null ? refs : null;
+      } catch {
+        return null;
+      }
+      checked = true;
+      if (issue === null) {
+        continue;
+      }
     }
     try {
       const comment = await github("GET", `/repos/${repo}/issues/comments/${link[4]}`);

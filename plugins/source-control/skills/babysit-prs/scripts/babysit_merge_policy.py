@@ -1966,13 +1966,16 @@ COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueCo
 
 def names_pull(text: Any, number: Any) -> bool:
     """Whether `text` names pull request `number` as `#<number>`: not part of
-    a longer number, and not after a letter, digit, `_`, `/`, `.` or `-`, so
-    `owner/repo#<number>` (another repository's) does not count. ASCII
-    classes only, as merge-holds.mjs `namesPull` and ci-status read it."""
+    a longer number, and not after a letter, digit, `_`, `#`, `&`, `/`, `.`
+    or `-`, so neither `owner/repo#<number>` (another repository's) nor an
+    `&#<number>` entity counts. ASCII classes only, as merge-holds.mjs
+    `namesPull` and ci-status read it."""
     if not isinstance(number, int) or isinstance(number, bool):
         return False
     return (
-        re.search(rf"(?:^|[^A-Za-z0-9_/.-])#{number}(?:[^0-9]|$)", str(text or ""))
+        re.search(
+            rf"(?:^|[^A-Za-z0-9_#&/.-])#{number}(?:[^0-9]|$)", str(text or "")
+        )
         is not None
     )
 

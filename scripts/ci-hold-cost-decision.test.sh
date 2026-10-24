@@ -96,6 +96,7 @@ case "$*" in
 *'-X POST'*/issues/6419/comments*) failing post ;;
 */issues/6419/comments*) failing comments; printf '%s\n' "$STUB_COMMENTS" ;;
 */issues/comments/*) failing decision; from "$STUB_DECISIONS" "$(key comments "$@")" ;;
+*/issues/[0-9]*) failing issue; from "$STUB_ISSUES" "$(key issues "$@")" ;;
 */actions/workflows/*/runs*)
   failing runs
   [[ "$*" == *'branch=fix%2Fcost&'* ]] || exit 1
@@ -155,6 +156,7 @@ reset() {
   STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
   export STUB_DECISIONS
   export STUB_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
+  export STUB_ISSUES='{"9306":{"number":9306}}'
   export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":0,"nodes":[]}}}}}'
   STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
   STUB_COMMENTS="[$(comment "$OWNER" 2026-10-23T05:40:00Z 'A comment.')]"
@@ -293,7 +295,7 @@ says() {
 reset
 says 'accepted for another change.'
 expect "a closing-issue decision that names no pull request clears nothing" no no no
-for text in 'accepted for #64190.' 'accepted for #641.' 'accepted for x/r#6419.' 'accepted for pull 6419.'; do
+for text in 'accepted for #64190.' 'accepted for #641.' 'accepted for x/r#6419.' 'accepted for pull 6419.' 'accepted for &#6419;' 'accepted for ##6419.'; do
   says "$text"
   expect "a closing-issue decision reading '$text' clears nothing" no no no
 done
@@ -312,7 +314,12 @@ expect "a Refs-issue decision naming the pull request by someone off the list cl
 says 'accepted for #6419.'
 export STUB_FAIL=module
 expect "an unreadable base merge-holds.mjs clears nothing" no no no "the Refs line could not be read"
+export STUB_FAIL=issue
+expect "an unreadable Refs issue clears nothing" no no no "the Refs issue is unreadable"
 export STUB_FAIL=''
+export STUB_ISSUES='{"9306":{"number":9306,"pull_request":{"url":"x"}}}'
+expect "a Refs number that names a pull request consults no issue and clears nothing" no no no
+export STUB_ISSUES='{"9306":{"number":9306}}'
 for body in "Refs: #9306
 Refs: #9307" "Refs: #9306, #9307" '```
 Refs: #9306

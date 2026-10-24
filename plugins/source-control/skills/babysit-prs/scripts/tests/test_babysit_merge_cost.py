@@ -93,6 +93,8 @@ class CostDecision(unittest.TestCase):
             "for owner/repo#99.",
             "for x#99.",
             "for pull 99.",
+            "for &#99;",
+            "for ##99.",
         ):
             with self.subTest(text):
                 comment = _comment(body=f"**Decision recorded.** Cost: ok {text}")

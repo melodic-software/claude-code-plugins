@@ -3127,9 +3127,9 @@ jobs:
     # queue up to four verdict lookups and their run reads more), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
-    # decision, about eight, and two more per review run since the window
-    # opened, plus the base-config checkout's fetch (seconds; its retries
-    # replace the contents reads' 15 s each).
+    # decision, about eight (nine on a Refs issue), and two more per review
+    # run since the window opened, plus the base-config checkout's fetch
+    # (seconds; its retries replace the contents reads' 15 s each).
     timeout-minutes: 11
     env:
       # gh_read's wait budget: a rate-limit wait must end by
@@ -3564,9 +3564,10 @@ jobs:
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
-      #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue).
-      #   A second closing issue counts for nothing, and an owner decision on
-      #   the issue for another change cannot clear this hold.
+      #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
+      #   read to be an issue and not a pull request. A second closing issue
+      #   counts for nothing, and an owner decision on the issue for another
+      #   change cannot clear this hold.
       # It then outputs cleared=true and the decision link, and, with the label
       # on, posts one comment citing the decision and removes the label. A
       # GITHUB_TOKEN removal starts no run, so the steps below read the label
@@ -3645,6 +3646,7 @@ jobs:
           issues=" $(jq -r --arg repo "$repo" '.data.repository.pullRequest.closingIssuesReferences
             | select(.totalCount == 1) | .nodes[]
             | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)) | .number | tostring' <<<"$closing" 2>/dev/null) "
+          refs=
           if [ "$(jq -r '.data.repository.pullRequest.closingIssuesReferences.totalCount' <<<"$closing" 2>/dev/null)" = 0 ]; then
             jq -r '.body // ""' <<<"$pr" >"$RUNNER_TEMP/cost-hold-body.txt" || keep "the pull request body is unreadable"
             # shellcheck disable=SC2016 # JavaScript, not shell
@@ -3656,11 +3658,18 @@ jobs:
             issues=" $refs "
           fi
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
-          decision='' decision_id=''
+          decision='' decision_id='' refs_read=
           while IFS=$'\t' read -r link owner name number id; do
             [ -n "$link" ] || continue
             [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
             [ "$number" = "$PR_NUMBER" ] || [[ $issues == *" $number "* ]] || continue
+            # A Refs number may name a pull request; only an issue is consulted.
+            if [ "$number" != "$PR_NUMBER" ] && [ -n "$refs" ] && [ -z "$refs_read" ]; then
+              target=$(read_api "repos/$repo/issues/$refs") || keep "the Refs issue is unreadable"
+              refs_read=1
+              jq -e --argjson n "$refs" '.number == $n and .pull_request == null' <<<"$target" >/dev/null 2>&1 || issues=' '
+              [[ $issues == *" $number "* ]] || continue
+            fi
             comment=$(read_api "repos/$repo/issues/comments/$id") || continue
             jq -e --arg number "$number" --arg pr "$PR_NUMBER" --argjson humans "$humans" --argjson opened "$opened" '
               (.issue_url // "" | endswith("/issues/\($number)"))
@@ -3668,7 +3677,7 @@ jobs:
               and (.user.id as $id | $humans | index($id) != null)
               and (.body // "" | sub("\\A\\s+"; "") | test("\\A\\*\\*Decision recorded\\.\\*\\*[ \\t]+Cost:"))
               and ($number == $pr or ((.created_at | fromdateiso8601) > $opened
-                and (.body // "" | test("(?:^|[^A-Za-z0-9_/.-])#\($pr)(?:[^0-9]|$)"))))' <<<"$comment" >/dev/null 2>&1 || continue
+                and (.body // "" | test("(?:^|[^A-Za-z0-9_#&/.-])#\($pr)(?:[^0-9]|$)"))))' <<<"$comment" >/dev/null 2>&1 || continue
             node=$(jq -r .node_id <<<"$comment")
             # shellcheck disable=SC2016 # GraphQL variables, not shell
             edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue

@@ -40,9 +40,9 @@ const comment = (changes = {}) => ({
 });
 
 // A GitHub that answers the decision reads: the pull request's creation time
-// and closing issues, comment 7, and its edit time. `fail` names a read that
-// throws.
-function world({ row = comment(), closing = [{ number: 40, repository: { nameWithOwner: REPO } }], node, created = PR_CREATED, fail } = {}) {
+// and closing issues, issue 40 (`target`), comment 7, and its edit time.
+// `fail` names a read that throws.
+function world({ row = comment(), closing = [{ number: 40, repository: { nameWithOwner: REPO } }], node, created = PR_CREATED, target = { number: 40 }, fail } = {}) {
   const reads = [];
   const github = async (method, path, body) => {
     const read = body?.query === PULL_OPENED_QUERY ? "pull" : body?.query === COMMENT_EDITED_QUERY ? "edited" : `${method} ${path}`;
@@ -57,6 +57,9 @@ function world({ row = comment(), closing = [{ number: 40, repository: { nameWit
     if (read === "edited") {
       assert.deepEqual(body.variables, { id: "IC_7" });
       return { data: { node: node === undefined ? { lastEditedAt: null } : node } };
+    }
+    if (read === "GET /repos/owner/repo/issues/40") {
+      return target;
     }
     assert.equal(read, "GET /repos/owner/repo/issues/comments/7");
     return row;
@@ -85,7 +88,7 @@ test("one on the linked issue clears only when its text names the pull request",
   for (const text of ["for #99.", "(#99)", "#99", "see #99, then"]) {
     assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}` }) })).link, LINK, text);
   }
-  for (const text of ["for another change.", "for #98.", "for #990.", "for owner/repo#99.", "for x#99.", "for pull 99."]) {
+  for (const text of ["for another change.", "for #98.", "for #990.", "for owner/repo#99.", "for x#99.", "for pull 99.", "for &#99;", "for ##99."]) {
     assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}` }) })).link, null, text);
   }
 });
@@ -100,6 +103,21 @@ test("with no closing issue, one on the issue the Refs line names counts the sam
   }
   // A closing issue wins over the Refs line, as babysit's _linked_issue reads it.
   assert.equal((await decide(refs, { closing: [{ number: 12, repository: { nameWithOwner: REPO } }] })).link, null);
+});
+
+test("a Refs number that names a pull request, or cannot be read, consults no issue", async () => {
+  const refs = `Refs: #40\n\nCost decision: ${LINK}\n`;
+  const { link, reads } = await decide(refs, { closing: [], target: { number: 40, pull_request: { url: "x" } } });
+  assert.equal(link, null);
+  assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/40"]);
+  assert.equal((await decide(refs, { closing: [], target: { number: 41 } })).link, null);
+  assert.equal((await decide(refs, { closing: [], fail: "GET /repos/owner/repo/issues/40" })).link, null);
+  // The pull request's own decision still counts, with no read of the Refs target.
+  const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
+  const mine = await decide(`Refs: #40\n\n${own}\n`, { closing: [], row, target: { number: 40, pull_request: {} } });
+  assert.equal(mine.link, own);
+  assert.ok(!mine.reads.includes("GET /repos/owner/repo/issues/40"));
 });
 
 test("a body with no covering link reads nothing", async () => {

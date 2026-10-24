@@ -355,6 +355,14 @@ DECISIONS = {
         _link(ISSUE, "issues"),
         _comment(ISSUE, body=f"{DECISION} for x/r#7."),
     ),
+    "on the closing issue, naming it only as an entity": (
+        _link(ISSUE, "issues"),
+        _comment(ISSUE, body=f"{DECISION} for &#7;"),
+    ),
+    "on the closing issue, naming it only after a #": (
+        _link(ISSUE, "issues"),
+        _comment(ISSUE, body=f"{DECISION} for ##7."),
+    ),
     "on the closing issue, naming it, by someone else": (
         _link(ISSUE, "issues"),
         _comment(ISSUE, body=f"{DECISION} for #7.", user=OTHER),
@@ -437,6 +445,8 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             answers["on the closing issue after the pull request, naming it"]
         )
         self.assertIsNone(answers["on the closing issue, naming no pull request"])
+        self.assertIsNone(answers["on the closing issue, naming it only as an entity"])
+        self.assertIsNone(answers["on the closing issue, naming it only after a #"])
         self.assertIsNone(answers["edited"])
 
 
