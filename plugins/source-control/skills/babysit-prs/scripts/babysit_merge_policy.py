@@ -1640,8 +1640,11 @@ def _timeline(
 
 
 def _untrusted(label: Any) -> bool:
-    """`label` is the untrusted-provenance label, in any case or padding."""
-    return str(label or "").strip().casefold() == UNTRUSTED_PROVENANCE_LABEL
+    """`label` is the untrusted-provenance label, in any case or whitespace,
+    so a variant spelling still holds."""
+    return "".join(str(label or "").split()).casefold() == "".join(
+        UNTRUSTED_PROVENANCE_LABEL.split()
+    )
 
 
 def _untrusted_removed_by_non_human(

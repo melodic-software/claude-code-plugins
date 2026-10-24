@@ -1069,11 +1069,12 @@ class Eligibility(unittest.TestCase):
 
     def test_an_untrusted_provenance_issue_is_held(self) -> None:
         # The trust hold stays (owner decision, option a), in any case or
-        # padding, beside any other label.
+        # whitespace, beside any other label.
         for label in (
             "work-class: untrusted-provenance",
             "Work-Class: Untrusted-Provenance",
             " work-class: untrusted-provenance ",
+            "work-class:untrusted-provenance",
         ):
             with self.subTest(label):
                 eligibility_fake(

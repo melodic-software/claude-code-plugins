@@ -2999,6 +2999,12 @@ class OneUnattendedMergeInFlight(Unattended):
                 self.queued = [PR]
                 self.eligible = policy.Eligibility(True, None, work_class, 40)
                 _, out = self.run_main()
+                # The only refusal left is the in-flight one its own entry
+                # sets up.
+                self.assertEqual(
+                    out["unattended"]["reason"],
+                    f"in-flight:identity-entry-queued:#{PR}",
+                )
                 self.assertNotIn(f"dequeue:[{PR}]", self.log)
                 self.assertNotIn(
                     str(PR), out["unattended"].get("writes", {}).get("holds", {})

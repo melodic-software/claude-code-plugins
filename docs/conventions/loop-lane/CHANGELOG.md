@@ -7,9 +7,12 @@ table (§3); drift found by that audit is recorded here.
 
 ## [12.5.0] - 2026-10-24
 
-Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+Minor. Describes a change in the unattended merge gate's own contract (the babysit-prs scripts);
+the babysit loop's C4/C5 partition floor, the topology, escalation contract, capability tiers and
+§4 invariants are unchanged.
 
-- **Autonomy ladder.** The unattended merge gate reads no work class: no class caps its rung or
+- **Autonomy ladder.** The C4/C5 floor is scoped to the babysit loop's partition. The unattended
+  merge gate reads no work class: no class caps its rung or
   selects its promotion cells. Its one class-named check is the trust hold on an issue carrying
   `work-class: untrusted-provenance` (#9668).
 

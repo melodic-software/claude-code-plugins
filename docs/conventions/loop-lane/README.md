@@ -49,8 +49,8 @@ Merge authority is a configurable ladder with the safest rung shipped by default
 every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
 authorship test. A PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
 human, or a worker authored it; bot authorship alone is never sufficient. C3 and unclassified items
-stay human-gated regardless of author, by default. **No rung, no tracked config, and no invocation
-argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
+stay human-gated regardless of author, by default. **In the babysit loop's partition, no rung, no
+tracked config, and no invocation argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
 promotion contract, under which they never promote: "No merge rung reaches these cells, and no
 evidence predicate exists for them"
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#suggested-default-predicates)).
