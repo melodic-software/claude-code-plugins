@@ -882,6 +882,20 @@ test("the pre-filter keeps a candidate whose issue has more comments than the pa
   assert.deepEqual(kept.map((c) => c.pull.number), [10]);
 });
 
+test("an auto-merge PR's spec re-run wins the last place under the cap over another PR's CI set", async () => {
+  await withTrustedList(async (env) => {
+    // PRs 3 and 4 have re-runs in flight, so one place is left. PR 2 has a
+    // lost CI run and a lower number; PR 5 waits for auto-merge and its pass
+    // the spec changed under.
+    const { setup } = specChanged({ edited: "2026-10-19T19:45:00Z", number: 5 });
+    const pulls = [pr(2), pr(3), pr(4), pr(5, { autoMerge: { merge_method: "squash" } })];
+    const runs = [...setup.runs, run(102, sha(2)), run(103, sha(3), { status: "in_progress", attempt: 2 }), run(104, sha(4), { status: "in_progress", attempt: 2 })];
+    const { code, reruns } = await reconcile({ ...setup, pulls, runs, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+  });
+});
+
 test("a spec read that fails re-runs nothing and leaves the run green", async (t) => {
   t.mock.method(console, "log", () => {});
   await withTrustedList(async (env) => {

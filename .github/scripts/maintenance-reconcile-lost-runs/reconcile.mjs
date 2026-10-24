@@ -465,6 +465,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
     }
   }
+  // Spec re-runs join the CI sets in the PRs' merge-critical order. A PR
+  // holds at most one entry: a spec re-run only when it has no CI set.
+  const position = new Map(pulls.map((p, i) => [p.number, i]));
+  ready.sort((a, b) => position.get(a[0].pr) - position.get(b[0].pr));
   const created = encodeURIComponent(`>=${new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
   const lanes = [];
   for (const lanePath of RECORDED_LANES) {
