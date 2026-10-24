@@ -1665,11 +1665,11 @@ and any change holds. An attended gate run reads both fresh. Without the variabl
 ## Review-lane holds
 
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
-`hold-label: needs-human`, and no `hold-paths`, to ci-workflows' `pr-review-cli.yml`. Their
+`hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
 status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
-comment when the review returns a hold: `cost` (the code lane, only for a real charge: a runner
-that is not free or infrastructure as code) or `critical-security`. A changed path alone holds
-nothing. The security lane reads the takeover paths (the trusted-actor list, the
+comment when the review returns a hold: `cost` (only for a real charge, as the wrapper's prompt
+defines it) or `critical-security`. `hold-paths` only sends the files it names to extra security
+scrutiny: a changed path alone holds nothing. The security lane reads the takeover paths (the trusted-actor list, the
 `check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions,
 `CODEOWNERS`, `.gitmodules`) with extra scrutiny, and a change there that lets someone outside the
 trusted set gain trust is a CRITICAL finding, which holds.

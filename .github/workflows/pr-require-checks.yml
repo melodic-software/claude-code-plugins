@@ -574,7 +574,7 @@ jobs:
       # zizmor is a wheel in the pinned, hash-locked requirements file, so this
       # install is what puts the Actions security lint on PATH.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -1284,7 +1284,7 @@ jobs:
       # gate, which fails closed if the module is missing rather than clearing
       # files it never parsed, so this install is load-bearing, not convenience.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -1573,7 +1573,7 @@ jobs:
       # if the module is missing rather than clearing files they never parsed,
       # so this install is load-bearing, not convenience.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -2160,7 +2160,7 @@ jobs:
       # The pinned interpreter and requirements: the fleet grammar gate probes a
       # collector that runs python3.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -2569,7 +2569,7 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -2780,7 +2780,7 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache

@@ -120,14 +120,22 @@ test("each seal takes a fresh ephemeral key and a fresh nonce", () => {
 
 // The read runner's run job carries each payload at most at its cap and seals
 // them all into the chunks its outputs map (pr-run-activity-read.yml's carry
-// and seal steps). A review-threads skill's replies and a dependency-review
-// skill's verdict are never carried together, so each run's payloads at their
-// caps, with incompressible bytes, still fit: the real sealer, at the caps
-// and chunk count read from that file.
+// and seal steps). A review-threads skill's replies, a dependency-review
+// skill's verdict and an issue run's outcome files are never carried
+// together, so each run's payloads at their caps, with incompressible bytes,
+// still fit: the real sealer, at the caps and chunk count read from that file.
 test("the read runner's payloads, each at its cap, seal into the chunks its run job carries", (t) => {
   const workflow = readFileSync(path.join(HERE, "../../workflows/pr-run-activity-read.yml"), "utf8");
   const caps = Object.fromEntries([...workflow.matchAll(/^ +carry [a-z-]+ "\$[A-Z_]+(?:\/[a-z.-]+)?" ([a-z.-]+) ([0-9]+)$/gm)].map((m) => [m[1], Number(m[2])]));
-  assert.deepEqual(caps, { "reply.txt": 16384, "act-turns.json": 32768, "patch.diff": 262144, "replies.jsonl": 49152, "dependency-verdict.json": 49152 });
+  assert.deepEqual(caps, {
+    "reply.txt": 16384,
+    "act-turns.json": 32768,
+    "patch.diff": 262144,
+    "replies.jsonl": 49152,
+    "dependency-verdict.json": 49152,
+    "work-outcome.json": 49152,
+    "lane.json": 4096,
+  });
   // One of the two, never both: an if/elif in the carry step.
   assert.match(workflow, /\n +if \[ -n "\$REPLIES_FILE" \]; then\n +carry replies [^\n]+\n +elif \[ -n "\$VERDICT_FILE" \]; then\n +carry dependency-verdict [^\n]+\n +fi\n/);
   const seal = /- name: Seal the reply, run fields and patch for the scan job\n[\s\S]*?payloads: \|\n((?: {12}.*\n)+) {10}job-id: run\n {10}max-chunks: ([0-9]+)\n/.exec(workflow);
@@ -145,8 +153,8 @@ test("the read runner's payloads, each at its cap, seal into the chunks its run 
       "max-chunks": seal[2],
     });
   const shared = ["reply.txt", "act-turns.json", "patch.diff"];
-  for (const exclusive of ["replies.jsonl", "dependency-verdict.json"]) {
-    const result = sealOf([...shared, exclusive]);
+  for (const exclusive of [["replies.jsonl"], ["dependency-verdict.json"], ["work-outcome.json", "lane.json"]]) {
+    const result = sealOf([...shared, ...exclusive]);
     assert.equal(result.status, 0, `${exclusive}: ${result.stdout}`);
     assert.ok(Number(result.outputs["sealed-length"]) <= Number(seal[2]) * CHUNK, exclusive);
     assert.equal(Object.keys(result.outputs).length, 1 + Math.ceil(Number(result.outputs["sealed-length"]) / CHUNK), exclusive);
