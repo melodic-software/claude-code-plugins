@@ -25,7 +25,7 @@ before that jump**, or this short-circuit surfaces a looping handoff with its `/
 missing while step 4 claims to present it.
 
 **A shape-2 candidate carries its own resume prompt; print it from the file.** When the
-frontmatter has `handoff_shape: 2`, the file ends with a `## Resume prompt` section storing the
+frontmatter has `handoff_shape: 2` or `3`, the file ends with a `## Resume prompt` section storing the
 rails prompt exactly as the producer emitted it: the resume region, plus the goal region when a
 goal applied, in the emitted order. Surface that whole section at step 4 as the recovered prompt,
 never just the first rail pair: run
@@ -122,8 +122,10 @@ written in other repos, since transcripts are indexed by session, not repo.
 from a directory that is not the worked-in repo but has its own handoffs dir, the glob returns
 conforming `type: handoff` files from unrelated sessions and the target is not among them. Nothing
 here can reject a same-cwd, different-repo candidate, because a handoff file records no repository
-identity: the frontmatter `structure.md` defines carries `type`, `date`, `topic`, `session_id`,
-and `previous_handoff`, and none of those names a repo. So prefer the transcript scan whenever this
+identity in shape 1 or 2: their frontmatter carries `type`, `date`, `topic`, `session_id` and
+`previous_handoff`, and none of those names a repo. A shape-3 file adds `chain_root`, `hop`,
+`archive`, `archive_from` and `repo`, the repository identity its `Handoff origin:` line carries.
+So prefer the transcript scan whenever this
 rung's candidates are merely recent rather than clearly this work's, and never present a glob
 candidate as repo-verified. Do not read the repository off the producer transcript as a
 substitute: that transcript may be absent, which is why transcripts are the reliable index over

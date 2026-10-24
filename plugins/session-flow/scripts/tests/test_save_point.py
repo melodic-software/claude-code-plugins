@@ -2580,6 +2580,15 @@ def edit(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
 
 
+def _sections_by_hand(text: str) -> dict[str, str]:
+    """Each `## ` section body of a file, trimmed of blank edge lines."""
+    found: dict[str, str] = {}
+    for chunk in text.split("\n## ")[1:]:
+        title, _, body = chunk.partition("\n")
+        found[title] = body.strip("\n")
+    return found
+
+
 def test_shape3_is_what_new_writes_by_default(tmp_path):
     repo = make_repo(tmp_path)
     made = run(*new_args(repo, tmp_path, "--no-previous", shape=None))
@@ -2690,9 +2699,10 @@ def test_shape3_goal_appends_a_new_amendment_below_the_copied_section(tmp_path):
     )
     result = strict(hop2)
     assert result.returncode == 0, out(result)
-    goal = _section_body(hop2, "Original goal")
-    assert goal.startswith(_section_body(hop1, "Original goal").rstrip("\n"))
-    assert goal.rstrip("\n").endswith(amendment)
+    goal = _sections_by_hand(hop2.read_text(encoding="utf-8"))["Original goal"]
+    carried = _sections_by_hand(hop1.read_text(encoding="utf-8"))["Original goal"]
+    assert goal.startswith(carried + "\n")
+    assert goal.endswith(amendment)
 
 
 def test_shape3_crlf_predecessor_goal_compares_by_line_content(tmp_path):
@@ -2886,7 +2896,7 @@ def test_shape3_first_split_dereferences_the_root_goal(tmp_path):
     )
     assert ask in text
     assert "Opening ask: see" not in text
-    assert "Next action serves it by" not in _section_body(hot, "Original goal")
+    assert "Next action serves it by" not in _sections_by_hand(text)["Original goal"]
     hot.write_text(shape3_fill(text), encoding="utf-8", newline="\n")
     result = run("validate", str(hot))
     assert result.returncode == 0, out(result)
@@ -2895,15 +2905,6 @@ def test_shape3_first_split_dereferences_the_root_goal(tmp_path):
     pointer = run("validate", str(hot))
     assert pointer.returncode == 1, out(pointer)
     assert "Opening ask" in out(pointer) and HOP1 in out(pointer), out(pointer)
-
-
-def _sections_by_hand(text: str) -> dict[str, str]:
-    """Each `## ` section body of a file, trimmed of blank edge lines."""
-    found: dict[str, str] = {}
-    for chunk in text.split("\n## ")[1:]:
-        title, _, body = chunk.partition("\n")
-        found[title] = body.strip("\n")
-    return found
 
 
 def test_shape3_first_split_of_a_370kb_predecessor_moves_sections_verbatim(tmp_path):
@@ -2939,7 +2940,7 @@ def test_shape3_prior_sessions_keeps_the_last_three_rows(tmp_path):
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
     paths = s3_chain(repo, tmp_path, [SID_A, SID_B, SID_C, SID_D, SID_E])
-    body = _section_body(paths[-1], "Prior sessions")
+    body = _sections_by_hand(paths[-1].read_text(encoding="utf-8"))["Prior sessions"]
     rows = [line for line in body.split("\n") if line.startswith("| 2026")]
     assert [row.rstrip(" |").rsplit("| ", 1)[-1] for row in rows] == [HOP2, HOP3, HOP4]
     archived = hop_file(handoffs, HOP1, 5, SID_E).read_text(encoding="utf-8")
@@ -2982,3 +2983,23 @@ def test_shape3_predecessor_is_never_continued_as_shape2(tmp_path):
     assert made.returncode == 1, err(made)
     assert "shape 3" in err(made), err(made)
     assert not (repo / ".work" / "handoffs" / HOP2).exists()
+
+
+def test_shape3_after_a_shape1_predecessor_points_at_its_root_and_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    handoffs.mkdir()
+    legacy = handoffs / LEGACY
+    shutil.copy(FIXTURES / "legacy-14" / "handoffs" / LEGACY, legacy)
+    before = legacy.read_bytes()
+    hot = s3_hop(repo, tmp_path, legacy, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert legacy.read_bytes() == before
+    text = hot.read_text(encoding="utf-8")
+    assert f"\nprevious_handoff: {LEGACY}\n" in text
+    assert f"\nchain_root: {LEGACY}\n" in text and "\nhop: 2\n" in text
+    pointer = f"Opening ask: see {LEGACY} § Original goal (shape-1 root, no verbatim ask recorded)"
+    assert pointer in text
+    archived = hop_file(handoffs, LEGACY, 2, SID_B).read_text(encoding="utf-8")
+    assert "## Constraints that must hold\n" in archived
+    result = strict(hot)
+    assert result.returncode == 0, out(result)

@@ -466,6 +466,9 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
             session_id,
             "--now",
             _when(pred, hop),
+            # The audited chains are shape 2; the cases rebuild that shape.
+            "--shape",
+            "2",
         ]
         args += ["--previous", str(previous)] if previous else ["--no-previous"]
         made = run_save_point(args)

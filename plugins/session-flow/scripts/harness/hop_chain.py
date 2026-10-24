@@ -320,7 +320,19 @@ def parse_iso(stamp: str) -> float | None:
 # 20-hop chain and what lets `--dry-run` hand `emit` and `validate` a real file.
 
 
-DELETED_SLOTS = ("goal-first", "goal-after", "below-rail")
+DELETED_SLOTS = (
+    "goal-first",
+    "goal-after",
+    "below-rail",
+    "goal-new",
+    "rules-new",
+    "preferences-new",
+)
+# Shape 3: hop 1 writes the chain's current rules, sized like a shape-2 hop 1's
+# Constraints, and later hops rewrite rules in place rather than add them (an
+# assumption: no audit measures how many rules stay current; AUDIT.md Q3 finds
+# the problem is supersession, not volume). Every hop adds one trail line.
+SHAPE3_RULES = CUMULATIVE_ENTRIES_PER_HOP
 CUMULATIVE_SLOTS = ("constraints", "side-effects", "decisions", "abandoned", "findings")
 PADDED_SLOTS = (
     "brief",
@@ -419,6 +431,18 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
                     "Report lines and chars/4 tokens for the generated file.",
                 ]
             )
+            continue
+        if slot == "rules":
+            out.extend(
+                f"- [R{i + 1}] {filler_line(slot, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
+                for i in range(SHAPE3_RULES)
+            )
+            continue
+        if slot == "preferences":
+            out.append("None. A generated chain records no standing preference.")
+            continue
+        if slot in ("trail", "trail-new"):
+            out.append(f"- [h{hop}] {filler_line(slot, counter, size.width)}")
             continue
         if slot.endswith("-new") and slot[: -len("-new")] in CUMULATIVE_SLOTS:
             base = slot[: -len("-new")]
@@ -1163,9 +1187,10 @@ def report(outcome: ChainOutcome) -> int:
 # --- --budget ---------------------------------------------------------------
 
 
-def generate_chain(root: Path, hops: int) -> list[Path]:
-    """Generate `hops` handoff files through the real `save_point.py new`, each
-    filled with deterministic filler, each validated strictly."""
+def generate_chain(root: Path, hops: int, shape: int = 2) -> list[Path]:
+    """Generate `hops` handoff files of `shape` through the real
+    `save_point.py new`, each filled with deterministic filler, each validated
+    strictly."""
     repo = root / "repo"
     memory = repo / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
@@ -1196,6 +1221,8 @@ def generate_chain(root: Path, hops: int) -> list[Path]:
             session_id,
             "--now",
             when,
+            "--shape",
+            str(shape),
         ]
         args += ["--previous", str(previous)] if previous else ["--no-previous"]
         made = run_save_point(args)
@@ -1242,9 +1269,9 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
     root = work_dir / "budget"
     rmtree(root)
     try:
-        files = generate_chain(root, BUDGET_HOPS)
+        files = generate_chain(root / "shape2", BUDGET_HOPS)
         print(
-            f"generated {len(files)} hops through save_point.py new; every hop validates strictly"
+            f"generated {len(files)} shape-2 hops through save_point.py new; every hop validates strictly"
         )
         print("hop\tlines\tchars\ttokens_chars_div_4\tsource")
         for hop in BUDGET_REPORT_HOPS:
@@ -1263,6 +1290,19 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
         if not low <= growth <= high:
             print(
                 f"budget: median growth {growth} bytes is outside the audited band",
+                file=sys.stderr,
+            )
+            return 1
+        from save_point import HOT_FILE_MAX_BYTES
+
+        hot = generate_chain(root / "shape3", BUDGET_HOPS, shape=3)
+        hot_sizes = [len(path.read_bytes()) for path in hot]
+        print(f"shape 3: {len(hot)} hot files validate strictly")
+        for hop in BUDGET_REPORT_HOPS:
+            print(f"{hop}\t{hot_sizes[hop - 1]} bytes\tshape-3 hot file")
+        if max(hot_sizes) > HOT_FILE_MAX_BYTES:
+            print(
+                f"budget: a projected shape-3 hot file reaches {max(hot_sizes)} bytes by hop {BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
                 file=sys.stderr,
             )
             return 1
