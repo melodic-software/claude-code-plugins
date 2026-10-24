@@ -63,9 +63,10 @@ export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
-const UNTRUSTED = "work-class: untrusted-provenance";
+// The one work class that holds an issue for a person (owner Q85, #9668).
+export const UNTRUSTED = "work-class: untrusted-provenance";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
-const LISTS = ["types", "types-under-parent", "classes", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {

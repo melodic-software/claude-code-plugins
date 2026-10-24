@@ -699,7 +699,7 @@ describe("run", () => {
       ],
     });
     // Owner decision Q85 (#9668): the kept class no longer holds the issue.
-    assert.notEqual((await go(fake)).outcome, "needs-decision");
+    assert.equal((await go(fake)).outcome, "ready");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 

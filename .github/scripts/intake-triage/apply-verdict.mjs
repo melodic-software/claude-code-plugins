@@ -62,7 +62,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, loadRules, noteUnrunnable } from "./admit.mjs";
+import { admit, loadRules, noteUnrunnable, UNTRUSTED } from "./admit.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -81,8 +81,6 @@ export const DIMENSIONS = Object.freeze({
   uncertainty: "Uncertainty",
 });
 const FLAGS = new Set(["intent", "security", "cost"]);
-// The one class that holds an issue for a person; the writer never takes it off.
-const UNTRUSTED = "work-class: untrusted-provenance";
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
