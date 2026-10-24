@@ -118,8 +118,13 @@ when the count is above zero and unchanged across two polls, which keeps a late 
 flip's snapshot. Skip the wait when the head is unchanged, but still run the `HEAD_SHA`
 assignment, which the flip block reads.
 
+`HEAD_SHA` is the local `git rev-parse HEAD`, never a forge read: right after a push the forge can
+still return the pre-push head, which would skip the wait and point the guarded flip at a commit
+with no verify record. After a successful `push-branch.sh`, or the 2.5.2 fast-forward when nothing
+was pushed, the local head is the PR's head, and it is the commit the verify gate recorded.
+
 ```bash
-HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
+HEAD_SHA=$(git rev-parse HEAD) || exit 1
 if [ "$HEAD_SHA" != "$HEAD_BEFORE" ]; then
   FOUND=0 PREV=0
   for _ in $(seq 18); do   # 18 polls x 5 s = 90 s

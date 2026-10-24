@@ -237,8 +237,9 @@ the checkout to push (loop-lane convention, "Lane write identity"). For a fork h
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
-**Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. When
-its head commit is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
+**Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. Take
+the head commit from local `git rev-parse HEAD`, the commit just pushed, not from the forge, whose
+read can still return the pre-push head. When it is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
 push of local commits moved it), wait up to 90 seconds, polling every
 5, for CI runs to exist for the new head commit and their count to hold steady across two polls.
 The wait counts the head's runs from every workflow, so it needs no CI workflow name
