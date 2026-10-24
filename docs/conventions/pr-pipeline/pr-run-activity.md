@@ -944,7 +944,9 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      `no-model-turn`, escalating nothing (no model turn: a credit stop on both calls, a broker
      refusal, the kill switch). The dispatcher dispatches a head whose newest reply job skipped
      `no-model-turn` again on its next trigger, a review or `pr-verify` run completing at that
-     head; the round cap bounds those retries;
+     head, or the half-hourly sweep after each scheduled `pr-unblock-dispatch.yml` run, which
+     dispatches one such head per tick through its newest completed review run and stops after
+     three `no-model-turn` skips at a head; the round cap bounds those retries;
    - refuses a `replies.jsonl` whose SHA-256 is not the scan job's (`review-replies-sha256`) as
      `feedback-invalid`;
    - validates the whole artifact: `run.json` with the select job's SHA-256
@@ -965,9 +967,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
      signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
      line the reply's evidence cites inside one of the fix commit's hunks,
-     or for a thread on a skill's `SKILL.md` any file in that skill's directory. Otherwise it
-     posts no reply and escalates `feedback-not-landed`: a push that was superseded, refused,
-     escalated or held made no such commit;
+     or for a thread on a skill's `SKILL.md` any file in that skill's directory. With no such
+     commit in the range and no patch written this round, as on a retry after a round whose fix
+     landed but whose replies did not post, each `VALID` thread's fix is instead the newest
+     earlier commit on the PR of the same kind (the lanes App's, the push job's trailer,
+     `web-flow`, `valid`), committed after the thread's newest comment by the reviewer, the
+     verifier or the lane, that changed the thread's path or, for a `SKILL.md`, a file in its
+     skill's directory, and a line the reply's evidence cites in a file no later commit on the PR
+     changed, and that no lane reply already names as a fix. Otherwise it posts no reply and escalates `feedback-not-landed`: a push
+     that was superseded, refused, escalated or held made no such commit;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that
      is resolved, on another PR, or whose comments are not exactly the ones the model job read;
    - re-reads `git/ref heads/<head ref>` right before each post and each resolve, since the

@@ -1100,7 +1100,7 @@ const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
 
 // Every open PR that closes the issue, across pages, so no number of other
 // PRs can push a trusted one out of reach.
-async function closingPulls(github, { owner, name, number }, maxPages = 50) {
+export async function closingPulls(github, { owner, name, number }, maxPages = 50) {
   const nodes = [];
   let after = null;
   for (let page = 1; page <= maxPages; page += 1) {
