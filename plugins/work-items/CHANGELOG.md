@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.0] - 2026-10-24
+
+### Changed
+
+- `/work-items:work` and `/work-items:ship run` (per-item PRs) read the item's human-merge hold before `/source-control:pull-request create --pushed` and pass its `Hold:` line as `--hold`, so the PR opens with it before any flip, and no longer dispatch their own `ready --unattended`: `create --pushed` now runs `ready` itself when `pr_open_state` resolves `ready`. An unreadable hold, or project instructions that reserve the ready flip for a person, pass `--draft`. The evals are updated to match.
+
 ## [3.2.2] - 2026-10-23
 
 ### Changed
