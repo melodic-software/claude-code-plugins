@@ -601,7 +601,7 @@ The schema checks each file's shape. The config reader also rejects:
 - an activity named `run` or `report`, `pr-run-activity`'s own job names;
 - any `extends:` value ([Not settled yet](#not-settled-yet)).
 
-The reader also adds the config file's own path, `.github/**` and the trusted-actor list to
+The reader also adds the config file's own path and the trusted-actor list to
 `merge.diff-check.denied-paths`, whatever the config says.
 
 ## Concurrency
@@ -1124,12 +1124,13 @@ hold paths, so one added after arming stops the merge without waiting for this j
 `Fail a lanes App pull request its body or a member holds` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
-`merge.diff-check.denied-paths` plus the paths resolve-config always adds and the rest of the merge
-gate's HIGH floor (`CODEOWNERS`, `.gitmodules`, every `.claude-plugin/plugin.json` and the
-root `.claude-plugin/marketplace.json`), on each pull request
+`merge.diff-check.denied-paths` plus the paths resolve-config always adds and the merge gate's
+HIGH floor (`babysit_risk.HIGH_FLOOR`), and holds a plugin manifest or marketplace manifest
+change the gate's manifest review holds, both sides read and compared key by key as the gate
+compares them (`manifestChanges`), on each pull request
 event and in the merge queue, where a red group removes the pull request. A push that adds a hold
-path fails `ci-status` on its own head. A person on the trusted-actor list (as main has it) lifts a
-hold path by approving that head: their newest review of it that approves, requests changes or was
+path or such a manifest change fails `ci-status` on its own head. A person on the trusted-actor list
+(as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
 body hold or veto, and arming still skips the pull request, so that person merges it.
 Both also hold a pull request that changes one of the merge gate's cost paths
@@ -1139,8 +1140,9 @@ approval does not lift that hold. Only the owner's cost decision does, read as t
 line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
 the pull request opened, linked from the body. That body edit re-runs `ci-status`. The module is read at the pull request's base commit, so a lanes App pull
 request whose base predates the module fails `ci-status` closed until it is updated with main.
-Its own changes are held: `merge-holds.mjs` and this workflow sit under `.github/**`, a path
-resolve-config always denies, so a lanes App pull request cannot weaken the rule and merge itself. A body edit re-runs
+A pull request cannot weaken its own check, since the step runs the module as its base has it; a
+change to `merge-holds.mjs` merges on the review lanes, and the lanes App's token, which carries no
+`workflows` permission, cannot push a change to this workflow. A body edit re-runs
 `ci-status` at once. A comment does not, so a veto posted while armed takes effect when the queue
 builds the group, and after a person lifts one with a later comment, `ci-status` needs a re-run.
 

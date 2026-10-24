@@ -1,7 +1,7 @@
 {
   "merge": {
     "diff-check": {
-      "denied-paths": [".github/**", "docs/held.md"]
+      "denied-paths": ["docs/held.md", "docs/conventions/pr-pipeline.yaml", ".github/standards/trusted-actors/trusted-actors.json"]
     }
   }
 }

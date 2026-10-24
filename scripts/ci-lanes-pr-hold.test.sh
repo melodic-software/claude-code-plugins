@@ -90,8 +90,10 @@ fi
 # then prints each row of STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON
 # arrays) as one line, as `--jq '.[] | @json'` does. A contents read of
 # pr-pipeline.yaml prints STUB_CONFIG, or answers 404 when STUB_NO_CONFIG is
-# set. A files read prints each row of STUB_FILES (a JSON array of
-# [path, renamed-from?] arrays) as one line. A contents read of
+# set. A files read answers STUB_FILES (a JSON array of [path,
+# renamed-from or null, status] arrays, status renamed with a renamed-from
+# path and modified otherwise) as the files API's rows, through the step's
+# own --jq. A contents read of
 # trusted-actors.json prints the working tree's list, or answers 404 when
 # STUB_NO_ACTORS is set. An artifacts read by name prints the run ids
 # STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
@@ -137,7 +139,9 @@ sys.stdout.buffer.write(buffer.getvalue())' "$record"
   [[ -z "${STUB_NO_CONFIG:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
   printf '%s\n' "$STUB_CONFIG"
   ;;
-*/pulls/*/files\?*) rows "$STUB_FILES" ;;
+*/pulls/*/files\?*)
+  jq -c '[.[] | {filename: .[0], previous_filename: .[1], status: (.[2] // (if .[1] then "renamed" else "modified" end))}]' <<<"$STUB_FILES" | jq -r "${*: -1}"
+  ;;
 */contents/.github/standards/trusted-actors/trusted-actors.json*)
   [[ -z "${STUB_NO_ACTORS:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
   cat "$STUB_ACTORS"
@@ -188,7 +192,7 @@ expect() {
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
-    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
+    GITHUB_REPOSITORY=o/r GITHUB_API_URL=http://127.0.0.1:9 RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
     LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -279,24 +283,42 @@ STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]'
 expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
-STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/workflows/x.yml"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/workflows/x.yml, a hold path"
-STUB_FILES='[[".github/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes .github/x%0A::stop-commands::t, a hold path"
-STUB_FILES='[["docs/guide.md"],[".github/workflows/.x.yml"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a dot-prefixed file under a floor tree fails" 1 3 "it changes .github/workflows/.x.yml, a hold path"
-for held in CODEOWNERS docs/CODEOWNERS .gitmodules plugins/p/.claude-plugin/plugin.json; do
+STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
+STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1')"
+expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
+STUB_FILES='[["docs/guide.md"],[".github/actions/check-trusted-trigger/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a dot-prefixed file under a floor tree fails" 1 3 "it changes .github/actions/check-trusted-trigger/.x.mjs, a hold path"
+for held in CODEOWNERS docs/CODEOWNERS .gitmodules .github/standards/trusted-actors/README.md .github/actions/resolve-config/resolve.mjs; do
   STUB_FILES="[[\"$held\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the merge gate's HIGH floor holds $held" 1 3 "it changes $held, a hold path"
 done
+# The rest of .github merges on the review lanes (owner direction
+# 2026-10-23); the lanes App's token cannot push a workflow file.
+for path in .github/workflows/x.yml .github/scripts/pr-merge/merge-holds.mjs .github/actions/other/action.yml; do
+  STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
+  expect "$path is no hold path" 0 3 "no hold path"
+done
+# A manifest is compared base against head, read from the contents API,
+# which this test does not answer, so a manifest change holds as unreadable;
+# test_merge_holds_sync.py checks each comparison against the gate's.
+STUB_FILES='[["plugins/p/.claude-plugin/plugin.json"]]' STUB_PULL="$(pull 'Closes #1')"
+expect "a manifest whose sides do not read holds" 1 3 "it changes plugins/p/.claude-plugin/plugin.json (contents unreadable), a manifest change that needs review"
+STUB_FILES='[[".claude-plugin/marketplace.json",null,"removed"]]' STUB_PULL="$(pull 'Closes #1')"
+expect "a removed manifest holds" 1 3 "it changes .claude-plugin/marketplace.json (removed manifest)"
+if grep -qF "[.filename, .previous_filename, .status]" <<<"$step" && grep -qxF "          export BASE_SHA" <<<"$step"; then
+  ok "the step hands merge-holds.mjs each file's status and the base commit"
+else
+  fail "the step does not hand merge-holds.mjs each file's status and the base commit"
+fi
 STUB_FILES='[["docs/conventions/pr-pipeline.yaml"]]' STUB_PULL="$(pull 'Closes #1')"
 expect "the pipeline config is held by the floor" 1 3 "it changes docs/conventions/pr-pipeline.yaml, a hold path"
-STUB_FILES='[[".github/workflows/x.yml"]]'
+STUB_FILES='[["docs/held/x.md"]]'
 KYLE_OK="$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")"
 STUB_REVIEWS="[$KYLE_OK]"
 expect "a trusted person's approval of the head lifts a hold path" 0 3 "kyle-sexton approved this head, which lifts its hold path"
 STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$BASE")]"
-expect "an approval of an earlier head does not lift it" 1 3 "it changes .github/workflows/x.yml, a hold path"
+expect "an approval of an earlier head does not lift it" 1 3 "it changes docs/held/x.md, a hold path"
 STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 CHANGES_REQUESTED 2026-10-23T12:00:00Z "$SHA")]"
 expect "a later request for changes by the same person takes the lift back" 1 3 "a hold path"
 STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 COMMENTED 2026-10-23T12:00:00Z "$SHA")]"
@@ -476,8 +498,8 @@ STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
 expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"
 expect "in the merge queue, a lifted veto passes" 0 3
-STUB_ISSUE='' STUB_FILES='[[".github/workflows/x.yml"]]'
-expect "in the merge queue, a hold path fails the group" 1 3 "it changes .github/workflows/x.yml, a hold path"
+STUB_ISSUE='' STUB_FILES='[["docs/held/x.md"]]'
+expect "in the merge queue, a hold path fails the group" 1 3 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/guide.md"]]'
 export REF="refs/heads/main"
 expect "a merge-group ref with no pull request fails closed without a call" 1 0 "::error::cannot read a pull request number"
