@@ -369,12 +369,18 @@ jobs:
           fi
           # The re-run started, so a read that fails or still shows attempt 1
           # is retried for about three minutes, and a step that cannot confirm
-          # attempt 2 fails instead of leaving that attempt unrecorded.
+          # attempt 2 fails instead of leaving that attempt unrecorded. A read
+          # refused for a rate limit is never retried.
           for wait in 0 5 10 20 30 45 60; do
             sleep "$wait"
-            if attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt); then
+            if attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt 2>"$RUNNER_TEMP/rerun-stderr"); then
               [ "$attempt" = 1 ] || break
             else
+              cat "$RUNNER_TEMP/rerun-stderr" >&2
+              if grep -qi 'rate limit' "$RUNNER_TEMP/rerun-stderr"; then
+                echo "::error title=GitHub rate limit::the read-back of run $RUN_ID's re-run was rate limited; nothing more is sent and nothing recorded"
+                exit 1
+              fi
               attempt=
             fi
           done
@@ -1838,7 +1844,15 @@ jobs:
           set -euo pipefail
           for _ in $(seq 13); do
             sleep 180
-            state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + .head_sha + " " + (.conclusion // "")') || continue
+            if ! state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + .head_sha + " " + (.conclusion // "")' 2>"$RUNNER_TEMP/wait-stderr"); then
+              cat "$RUNNER_TEMP/wait-stderr" >&2
+              # A read refused for a rate limit is never retried.
+              if grep -qi 'rate limit' "$RUNNER_TEMP/wait-stderr"; then
+                echo "::error title=GitHub rate limit::the read of run $RUN_ID was rate limited; nothing more is sent"
+                exit 1
+              fi
+              continue
+            fi
             read -r status head_sha conclusion <<<"$state"
             if [ "$status" = completed ]; then
               echo "run $RUN_ID completed: $conclusion"

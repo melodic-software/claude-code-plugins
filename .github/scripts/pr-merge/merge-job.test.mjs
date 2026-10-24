@@ -943,7 +943,8 @@ const runRerun = (attempts, { refuse = false, runId = "11" } = {}) => {
         `if [ "$3" = POST ]; then ${refuse ? 'echo "HTTP 403" >&2; exit 1' : "exit 0"}; fi\n` +
         `n=$(($(cat "${dir}/reads" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/reads"\n` +
         `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
-        `if [ "$v" = x ]; then echo "HTTP 502" >&2; exit 1; fi\necho "$v"\n`,
+        `if [ "$v" = x ]; then echo "HTTP 502" >&2; exit 1; fi\n` +
+        `if [ "$v" = limited ]; then echo "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" >&2; exit 1; fi\necho "$v"\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
@@ -1041,6 +1042,14 @@ test("the re-run step fails visibly when it cannot confirm attempt 2 after the r
     );
     assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 1 + 7);
   }
+});
+
+test("a rate-limited read-back stops the re-run step red after one read", () => {
+  const run = runRerun([1, "limited", 2]);
+  assert.equal(run.status, 1, run.stdout);
+  assert.equal(run.record, "");
+  assert.match(run.stdout, /::error title=GitHub rate limit::the read-back of run 11's re-run was rate limited/);
+  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 2);
 });
 
 test("the re-run step refuses a run id that is not a number", () => {
