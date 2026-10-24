@@ -48,6 +48,16 @@
 // counts only check runs started after the pr-verify run was created
 // (notesSince, read back from the API) and skips the head's handled record.
 //
+// A round whose reply job skipped no-model-turn releases its head only for
+// the next review or pr-verify completion there, which may never come. So a
+// completed scheduled pr-unblock-dispatch.yml run, the half-hourly tick, also
+// starts the file, and main() sweeps (sweepNoModelTurn): each open lanes App
+// PR into main whose head's newest reply check skipped no-model-turn, fewer
+// than SWEEP_HEAD_CAP times at that head, is decided as above with the
+// newest completed review run at that head as the upstream (reviewRunAt),
+// which the record names. A sweep dispatches at most once, since the
+// dispatched-run record names one upstream and one run, and keeps no record.
+//
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
 // Actions cache): a head whose check runs handle it for good, once a reply
@@ -98,6 +108,16 @@ export const DEFAULTS = Object.freeze({
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+
+// The tick whose completion starts the sweep.
+export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
+// No-model-turn rounds at one head after which the sweep stops sending it
+// (judgment: a third round with no model turn points at a cause a retry does
+// not clear; the select job's round cap may end it sooner).
+export const SWEEP_HEAD_CAP = 3;
+
+const startOf = (run) => Date.parse(run.started_at ?? "");
+const isNoModelTurn = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: no-model-turn";
 
 // The SHA the newest marker of `lane` written by the marker author names, or "".
 export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAuthorId) {
@@ -285,12 +305,11 @@ export async function dispatchFeedback({
   // round posted its round marker, so the select job's round cap ends it. A
   // limit stop is never released: limit-stop.mjs still holds the head until
   // its reset and counts it toward limits.limit-stops-per-head.
-  const startOf = (run) => Date.parse(run.started_at ?? "");
   let replies = [];
   if (anyHandles(existing, { now, limits: resolved.limits })) {
     replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
     const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-    if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
+    if (isNoModelTurn(newest)) {
       const cut = startOf(newest);
       existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
     }
@@ -322,6 +341,51 @@ export async function dispatchFeedback({
   record.dispatched.set(head, { number, runId: id });
   log(`dispatched #${number} head ${head} upstream run ${upstreamRunId} workflow_run_id=${id}`);
   return { number, workflowRunId: id };
+}
+
+// The sweep: the first open lanes App PR into main whose head's newest
+// reply check skipped no-model-turn, under SWEEP_HEAD_CAP such checks, that
+// dispatchFeedback dispatches for the head's newest completed review run.
+// Returns dispatchFeedback's result with that run's id, or null.
+export async function sweepNoModelTurn({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
+  const pulls = (await api.listOpenPulls(settings.base)).filter(
+    (pull) => pull.user?.id === appSenderId && pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
+  );
+  for (const pull of pulls) {
+    const head = pull.head.sha;
+    let dispatched = null;
+    try {
+      dispatched = await sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest });
+    } catch (error) {
+      // One PR's failed read leaves the PRs after it to the sweep.
+      log(`::warning::#${pull.number}: the sweep could not decide head ${head}: ${error.message}`);
+    }
+    if (dispatched !== null) {
+      return dispatched;
+    }
+  }
+  log("sweep: no head whose last round had no model turn to dispatch");
+  return null;
+}
+
+async function sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest }) {
+  const replies = await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId });
+  const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
+  if (!isNoModelTurn(newest)) {
+    return null;
+  }
+  const skips = replies.filter(isNoModelTurn).length;
+  if (skips >= SWEEP_HEAD_CAP) {
+    log(`skip: #${pull.number}: head ${head} skipped no-model-turn ${skips} times, the sweep's cap`);
+    return null;
+  }
+  const upstream = await reviewRunAt({ api, head, settings });
+  if (upstream === null) {
+    log(`skip: #${pull.number}: head ${head} has no completed review run`);
+    return null;
+  }
+  const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream });
+  return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 
 const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
@@ -436,6 +500,17 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
+    async listOpenPulls(base) {
+      const pulls = [];
+      for (let page = 1; page <= 10; page += 1) {
+        const batch = await request(`${repo}/pulls?state=open&base=${encodeURIComponent(base)}&per_page=100&page=${page}`);
+        pulls.push(...batch);
+        if (batch.length < 100) {
+          return pulls;
+        }
+      }
+      throw new Error(`more than 1000 open PRs into ${base}`);
+    },
     // The newest completed pull_request runs of a workflow file at a head.
     async listCompletedRuns(path, head) {
       const query = new URLSearchParams({ head_sha: head, event: "pull_request", status: "completed", per_page: "10" });
@@ -506,6 +581,33 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       fetch: budget.fetch,
     });
   let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  const common = {
+    api: client,
+    repository: env.GITHUB_REPOSITORY,
+    runId: env.GITHUB_RUN_ID,
+    appSenderId: Number(env.APP_SENDER_ID),
+    // The base checkout's list, the one resolve-config reads beside it.
+    trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
+    humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
+    resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
+    log,
+  };
+  const summary = () => {
+    if (budget) {
+      log(budget.summary());
+    }
+  };
+  if (upstream?.path === SWEEP_WORKFLOW) {
+    if (upstream.event !== "schedule") {
+      log(`skip: run ${upstream.id} is not a scheduled tick`);
+      return 0;
+    }
+    const swept = await sweepNoModelTurn(common).finally(summary);
+    if (swept !== null) {
+      appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n`);
+    }
+    return 0;
+  }
   let notesSince = null;
   if (upstream?.path === VERIFY_WORKFLOW) {
     const head = env.VERIFY_HEAD_SHA ?? "";
@@ -522,24 +624,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       return 0;
     }
   }
-  const dispatched = await dispatchFeedback({
-    api: client,
-    record,
-    repository: env.GITHUB_REPOSITORY,
-    runId: env.GITHUB_RUN_ID,
-    upstream,
-    notesSince,
-    appSenderId: Number(env.APP_SENDER_ID),
-    // The base checkout's list, the one resolve-config reads beside it.
-    trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
-    humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
-    resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
-    log,
-  }).finally(() => {
-    if (budget) {
-      log(budget.summary());
-    }
-  });
+  const dispatched = await dispatchFeedback({ ...common, record, upstream, notesSince }).finally(summary);
   if (dispatched !== null) {
     appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\nupstream-run-id=${upstream.id}\n`);
   }

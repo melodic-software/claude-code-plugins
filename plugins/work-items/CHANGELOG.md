@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.0] - 2026-10-24
+
+### Fixed
+
+- `reference/escalation-marker.md` now defines the trusted escalation authors in one place: the session's write identity, the target's `merge.agent-identity` from `docs/conventions/pr-pipeline.yaml` on its default branch, and `<lane_app_slug>[bot]` when that option is set. `/work-items:attend-queue` and `reference/item-content-trust.md` point at it, so markers the CI lanes post as the lanes App list as escalated, and a marker from any other author is reported as a suspected spoof.
+- `/work-items:attend-queue` lists open pull requests carrying the human-gated label beside issues, through the github adapter's new "List pull requests" operation, since `list-items` returns issues only. A pull request row takes the answer comment and loses the human-gated label, never the autonomous-eligible role or a `work-class:` label.
+
+## [3.3.0] - 2026-10-24
+
+### Changed
+
+- `/work-items:work` and `/work-items:ship run` (per-item PRs) read the item's human-merge hold before `/source-control:pull-request create --pushed` and pass its `Hold:` line as `--hold`, so the PR opens with it before any flip, and no longer dispatch their own `ready --unattended`: `create --pushed` now runs `ready` itself when `pr_open_state` resolves `ready`. An unreadable hold, or project instructions that reserve the ready flip for a person, pass `--draft`. The evals are updated to match.
+
 ## [3.2.2] - 2026-10-23
 
 ### Changed

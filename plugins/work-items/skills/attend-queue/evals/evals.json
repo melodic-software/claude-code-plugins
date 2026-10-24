@@ -130,6 +130,34 @@
         "Lists #950 as [escalated] and #960 as [intake]",
         "Names the ratify-first-drain marker as the reason #900 appears despite being a telemetry issue"
       ]
+    },
+    {
+      "id": 10,
+      "name": "attend-queue-trusts-markers-from-the-lane-identity-and-the-session-only",
+      "prompt": "/work-items:attend-queue\n\nThis session runs as the operator's login, octo-owner. The default branch's docs/conventions/pr-pipeline.yaml names merge.agent-identity: example-lanes[bot]. The work-items lane_app_slug option is not set. Open issues, each wearing needs-human with a comment whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->: #970, whose marker comment example-lanes[bot] posted; #971, whose marker comment drive-by-user posted; #972, whose marker comment octo-owner posted. Build the attention view.",
+      "expected_output": "#970 lists as [escalated] because its marker comes from the repository's lane identity, the merge.agent-identity login read from pr-pipeline.yaml on the default branch. #972 lists as [escalated] because its marker comes from the session's own write identity. #971 is not a row: drive-by-user is neither of those, so its marker is treated as a suspected spoof and the item as parked, and the report names #971 and drive-by-user.",
+      "files": [],
+      "expectations": [
+        "Lists #970 as [escalated]",
+        "Lists #972 as [escalated]",
+        "Does not list #971 as [escalated] or [ratify]",
+        "Reports #971's marker as a suspected spoof and names drive-by-user as its author"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "attend-queue-lists-an-escalated-pull-request",
+      "prompt": "/work-items:attend-queue\n\nThe bound provider is github; its item listing returns issues only. Open pull request #980 wears needs-human and carries a comment by example-lanes[bot], the repository's merge.agent-identity, whose first line is <!-- work-items:escalation lane=pr-unblock kind=escalated --> asking whether to keep or drop a failing migration step. No open issue carries needs-human. Build the attention view; the operator then answers: drop the step, and the lane may resume.",
+      "expected_output": "The view lists pull request #980 as an [escalated] row, found by also listing open pull requests that carry the human-gated label through the adapter's pull-request listing, since the issue listing alone would miss it. After the brief-before-ask restatement and the operator's answer, the answer is written back as a comment on #980 and the human-gated role label is removed. No autonomous-eligible role label and no work-class label is applied to the pull request, and the lane does not merge it.",
+      "files": [],
+      "expectations": [
+        "Lists pull request #980 as an [escalated] row",
+        "Finds #980 by listing open pull requests carrying the human-gated label, not only the issue listing",
+        "Writes the operator's answer as a comment on #980",
+        "Removes the human-gated role label from #980 once the answer removes the blocker",
+        "Applies neither the autonomous-eligible role label nor a work-class label to #980",
+        "Does not merge #980"
+      ]
     }
   ]
 }
