@@ -345,6 +345,7 @@ const LIMITS = {
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
+  "worker-job-ceiling": 8,
   // The fix-ci defaults the owner chose (2026-10-18 interview).
   "fix-ci-per-run": 2,
   "fix-ci-restarts": 1,
@@ -355,7 +356,7 @@ const LIMITS = {
   "admission-min-per-hour": 1,
 };
 
-test("limits: a config with no limits leaf resolves today's twelve values", () => {
+test("limits: a config with no limits leaf resolves today's thirteen values", () => {
   assert.deepEqual(run(fixture("valid.yaml")).limits, LIMITS);
 });
 
@@ -367,7 +368,7 @@ test("limits: a set leaf overrides its default and leaves the others", () => {
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": 1 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "fix-docs-per-run": 0 }, { "fix-docs-per-run": 21 }, { "admission-window-hours": 24 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": 1 }, { "worker-job-ceiling": 0 }, { "worker-job-ceiling": 51 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "fix-docs-per-run": 0 }, { "fix-docs-per-run": 21 }, { "admission-window-hours": 24 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });

@@ -35,7 +35,6 @@ import {
   readChecks,
   readFunding,
   readOutcome,
-  readStop,
 } from "./report-outcome.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
@@ -48,15 +47,16 @@ const DESCRIPTION = {
   failure: "Failed in the work lane run.",
   error: "Did not finish, or was not reported, in the work lane run.",
 };
-const STOPS = { "turn-cap": "Stopped at the turn cap.", timeout: "Stopped at the job's time limit." };
 const FUNDING = "Stopped on the lane's funding.";
 
 // The statuses to post, in order; none without a lane branch. A null outcome
 // is a reused branch whose run's report this run never read: only this run's
 // report-outcome posts, so the statuses the earlier run posted on the same
-// head stand. `stop` and `funding` are the runner's records, which name the
-// cause only for a run that left no outcome of its own; funding wins.
-export function plan({ outcome, branch, resolveResult, reportResult, stop = null, funding = null }) {
+// head stand. `funding` is the runner's record, which names the cause only
+// for a run that left no outcome of its own. Whether a run stopped at its
+// job's time limit is report-outcome's call from the Actions API, so no
+// lane.json class names a stop here.
+export function plan({ outcome, branch, resolveResult, reportResult, funding = null }) {
   if (!branch) {
     return [];
   }
@@ -91,7 +91,7 @@ export function plan({ outcome, branch, resolveResult, reportResult, stop = null
       }
     }
   }
-  const cause = outcome.unread === true ? (funding !== null ? FUNDING : stop !== null ? STOPS[stop.cause] : null) : null;
+  const cause = outcome.unread === true && funding !== null ? FUNDING : null;
   return [...states].map(([activity, state]) => ({
     context: `pipeline/${activity}`,
     state,
@@ -164,7 +164,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
       branch,
       resolveResult: env.RESOLVE_RESULT,
       reportResult: env.REPORT_RESULT,
-      stop: readStop(dir),
       funding: readFunding(dir),
     });
     if (!statuses.length) {

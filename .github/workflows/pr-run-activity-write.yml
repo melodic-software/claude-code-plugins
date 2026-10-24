@@ -78,6 +78,15 @@ on:
         required: false
         type: string
         default: ""
+      run-minutes:
+        description: >-
+          Issue mode, report-outcome: the model step's timeout in minutes
+          (resolve-config's run-minutes for the issue). report-outcome counts
+          a stop as the job's time limit only when the Actions API shows that
+          step ran this long. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -1793,6 +1802,8 @@ jobs:
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # Checked against the four reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          # Parsed by report-outcome; anything but a whole number reads as unknown.
+          WORKER_RUN_MINUTES: ${{ inputs.run-minutes }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}

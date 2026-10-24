@@ -1850,7 +1850,7 @@ every hour (and on a manual run from `main`) with no model. It reads the signals
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
-| 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|no-progress ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:no-progress` |
+| 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|timeout\|no-progress\|job-ceiling\|stalled ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:timeout`, `lane-stop:no-progress`, `lane-stop:job-ceiling`, `lane-stop:stalled` |
 
 An issue's first body line is `<!-- factory-monitor key=<key> fp=<fingerprint> -->`; the body names
 the signal, the owning area and the key, and carries the evidence inside a text fence as inert lines.
@@ -1987,7 +1987,7 @@ App may push to one PR; the next fix-ci run hands it to a person before any mode
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all twelve
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all thirteen
 with defaults.
 
 | Key | Default | What it sets |
@@ -1999,6 +1999,7 @@ with defaults.
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, and the failed or `not-applicable` `fix-ci` runs across base moves, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
+| `worker-job-ceiling` | 8 | Jobs an issue run may roll over into at its time limit since a listed human last added `agent-ready`; the next stop goes to a person. At most 50. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
@@ -2011,10 +2012,12 @@ config themselves. A config the resolver refuses fails the two dispatchers befor
 the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
-No leaf bounds how often an issue run that stopped at its turn cap or a job's time limit
-restarts: work-unblock restarts it from its lane branch whenever the stopped job committed new
-work, and a job that committed none goes back to the admission queue (`admission-deferred`)
-without `needs-human` ([Issue mode](pr-run-activity.md#issue-mode)).
+An issue run has no turn or time cap of its own: a job that stops at its time limit after
+committing new work rolls over into a new job from its lane branch, up to `worker-job-ceiling`
+roll-overs since a listed human last added `agent-ready`, and the next stop goes to a person. A
+job that committed none goes back to the admission queue (`admission-deferred`) without
+`needs-human`, and a second such stop in a row goes to a person
+([Issue mode](pr-run-activity.md#issue-mode)).
 
 ## WIP cap
 

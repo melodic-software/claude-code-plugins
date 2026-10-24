@@ -115,6 +115,13 @@
           "default": 60,
           "description": "The issue lane's WIP cap when the lane merge rate cannot be read; otherwise wip.target-lead-time-hours sets it."
         },
+        "worker-job-ceiling": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 8,
+          "description": "Jobs an issue run may roll over into (stops at a job's time limit that committed new work) since a listed human last added agent-ready; the next such stop hands the issue to a person."
+        },
         "fix-ci-per-run": {
           "type": "integer",
           "minimum": 1,

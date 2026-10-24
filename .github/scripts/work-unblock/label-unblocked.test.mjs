@@ -1005,12 +1005,17 @@ const capNote = (at, run = 7, outcome = "turn-cap") => ({
   created_at: at,
 });
 
-test("an issue a turn-cap or timeout stop left with new work is restarted, however many stops came before", async () => {
+test("an issue a turn-cap or timeout stop left with new work is restarted up to limits.worker-job-ceiling roll-overs", async () => {
   for (const outcome of ["turn-cap", "timeout"]) {
-    const earlier = [1, 2, 3, 4, 5, 6].map((n) => capNote(`2026-10-16T0${n}:30:00Z`, n, outcome));
-    const { github, calls } = stopped({ comments: [note(), ...earlier, capNote("2026-10-16T11:55:00Z", 7, outcome)] });
-    assert.equal(await sweep({ github }), 0);
-    assert.deepEqual(writes(calls), restarted(30), outcome);
+    const earlier = [1, 2, 3, 4, 5, 6, 7].map((n) => capNote(`2026-10-16T0${n}:30:00Z`, n, outcome));
+    const eighth = stopped({ comments: [note(), ...earlier, capNote("2026-10-16T11:55:00Z", 8, outcome)] });
+    assert.equal(await sweep({ github: eighth.github }), 0);
+    assert.deepEqual(writes(eighth.calls), restarted(30), outcome);
+    // A ninth roll-over marker (report-outcome hands that stop back, so this
+    // one is forged or stale) restarts nothing.
+    const ninth = stopped({ comments: [note(), ...earlier, capNote("2026-10-16T08:45:00Z", 8, outcome), capNote("2026-10-16T11:55:00Z", 9, outcome)] });
+    assert.equal(await sweep({ github: ninth.github }), 0);
+    assert.deepEqual(writes(ninth.calls), [], outcome);
   }
 });
 

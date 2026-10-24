@@ -119,6 +119,7 @@ jobs:
       slot: ${{ steps.slot.outputs.slot }}
       capped: ${{ steps.wip.outputs.capped }}
       timeout-minutes: ${{ steps.dimensions.outputs.timeout-minutes }}
+      run-minutes: ${{ steps.dimensions.outputs.run-minutes }}
       issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
       skip-reason: ${{ steps.dimensions.outputs.skip-reason }}
     steps:
@@ -486,7 +487,7 @@ jobs:
           echo "checks=$record" >>"$GITHUB_OUTPUT"
 
   report-outcome:
-    needs: [resolve-issue, apply-issue-patch, run-checks]
+    needs: [pick-slot, resolve-issue, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
     # any model turn, once the run chose to run the skill; a run that failed
     # after that still reports, with apply-issue-patch's branch when it made
@@ -517,3 +518,6 @@ jobs:
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
       # Why apply-issue-patch committed nothing, so the hand-back names it.
       escalation-reason: ${{ needs.apply-issue-patch.outputs.escalation-reason }}
+      # The model step's timeout, so report-outcome can tell from the Actions
+      # API whether the step ran its whole time budget.
+      run-minutes: ${{ needs.pick-slot.outputs.run-minutes }}

@@ -291,9 +291,10 @@ export function throughputFindings({ now, sweep = null, laneMerges = null }) {
 }
 
 // work-resolve-issue's stops that need a person to know: out of funding, the
-// usage limit, or a run stopped with no new commit. A turn-cap or timeout stop
-// that committed work restarts on its own, so it is no finding.
-const LANE_STOPS = new Set(["funding", "limited", "no-progress"]);
+// usage limit, a job that rolled over at its time limit (or an older turn-cap
+// stop), a run stopped with no new commit, and the two hand-backs that bound
+// a long run: past the job ceiling, or two stops in a row with no commit.
+const LANE_STOPS = new Set(["funding", "limited", "turn-cap", "timeout", "no-progress", "job-ceiling", "stalled"]);
 
 export function laneStopFindings({ laneStops = [] }) {
   const groups = new Map();

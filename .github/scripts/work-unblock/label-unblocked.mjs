@@ -987,11 +987,19 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  // report-outcome keeps agent-ready after a turn-cap or timeout stop only
-  // when the run committed new work, so each restart follows progress; a stop
-  // with none is re-queued instead (no-progress), never restarted here.
+  // report-outcome keeps agent-ready after a timeout stop only when the run
+  // committed new work, within limits.worker-job-ceiling roll-overs since a
+  // listed human last added agent-ready; the count here bounds a forged or
+  // stale marker the same way. A stop with no new commit is re-queued
+  // instead (no-progress), never restarted here.
   if (marker?.outcome === "turn-cap" || marker?.outcome === "timeout") {
-    return { reason: null, resets: marker.at };
+    const humanSince = events
+      .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
+      .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+    const rollovers = markers.filter((item) => (item.outcome === "turn-cap" || item.outcome === "timeout") && item.at > humanSince).length;
+    return rollovers > limits["worker-job-ceiling"]
+      ? { reason: `${rollovers} roll-overs since a person last added ${LABEL}` }
+      : { reason: null, resets: marker.at };
   }
   const funding = marker?.outcome === "funding";
   if (!funding && marker?.outcome !== "limited") {

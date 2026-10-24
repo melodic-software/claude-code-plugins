@@ -33,28 +33,28 @@ test("a run that pushed back or stopped is a failed resolve-issue", () => {
   }
 });
 
-// The plan's fixed text for a run that reached its turn cap: the cause, never
-// the run's words, and only when the run left no outcome of its own.
-test("a run stopped at its turn cap or time limit says so in the resolve-issue description", () => {
-  const unread = { exit: "stopped", steps: [], unread: true };
-  const status = (outcome, stop) =>
-    plan({ outcome, branch: BRANCH, resolveResult: "failure", reportResult: "success", stop }).find(
-      (s) => s.context === "pipeline/resolve-issue",
-    );
-  assert.deepEqual(status(unread, { cause: "turn-cap", cap: 75 }), {
-    context: "pipeline/resolve-issue",
-    state: "failure",
-    description: "Stopped at the turn cap.",
-  });
-  assert.equal(status(unread, { cause: "timeout", cap: null }).description, "Stopped at the job's time limit.");
-  assert.equal(status(unread, null).description, "Failed in the work lane run.");
-  assert.equal(status({ exit: "stopped", steps: [] }, { cause: "turn-cap", cap: 75 }).description, "Failed in the work lane run.");
+// Code the run executed can rewrite lane.json, so its turn-cap or timeout
+// class names no cause on the status: whether the job hit its time limit is
+// report-outcome's call from the Actions API.
+test("a lane.json stop class leaves the resolve-issue description as a plain failure", async () => {
+  for (const cls of ["max-turns", "timeout"]) {
+    await withOutcome({ "lane.json": JSON.stringify({ branch: BRANCH, class: cls, "max-turns": "75" }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-123-1$/, 200, { object: { sha: SHA } }],
+        ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), RESOLVE_RESULT: "failure" }, fetch }), 0);
+      const resolve = calls.find((c) => c.method === "POST" && c.body.context === "pipeline/resolve-issue").body;
+      assert.equal(resolve.state, "failure", cls);
+      assert.equal(resolve.description, "Failed in the work lane run.", cls);
+    });
+  }
 });
 
-// A funding stop names its cause instead of a failure or the turn cap.
+// A funding stop names its cause instead of a plain failure.
 test("a run stopped on the lane's funding says so in the resolve-issue description", () => {
   const unread = { exit: "stopped", steps: [], unread: true };
-  const status = plan({ outcome: unread, branch: BRANCH, resolveResult: "failure", reportResult: "success", stop: { cause: "turn-cap", cap: 75 }, funding: { regain: null } }).find(
+  const status = plan({ outcome: unread, branch: BRANCH, resolveResult: "failure", reportResult: "success", funding: { regain: null } }).find(
     (s) => s.context === "pipeline/resolve-issue",
   );
   assert.equal(status.description, "Stopped on the lane's funding.");

@@ -736,11 +736,13 @@ limits:
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12
-  # No leaf bounds restarts of an issue run that stopped at its turn cap or a
-  # job's time limit (owner decision C13): work-unblock restarts it from its
-  # lane branch whenever the stopped job committed new work, and a job that
-  # committed none goes back to the admission queue instead, with no person
-  # asked (report-outcome).
+  # An issue run has no turn or time cap of its own (owner decision C13): a
+  # job that reaches its time limit after committing new work rolls over into
+  # a new job from its lane branch. At most this many roll-overs since a
+  # listed human last added agent-ready, about 48 hours at 6 hours a job; the
+  # next stop hands the issue to a person (owner decision Q97). Two
+  # consecutive stops with no new commit hand it to a person too.
+  worker-job-ceiling: 8
   # Share of the lane's hourly merge rate admitted per hour. The queued cap
   # (check-wip-cap) is the larger of this rate and admission-min-per-hour,
   # times wip.merge-rate-window-hours; at it, past wip.pause-from, new

@@ -59,6 +59,7 @@ permissions, and passes no App key.
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `run-minutes` | `''` | Write file, issue mode, `report-outcome`: the model step's timeout (resolve-config's `run-minutes` for the issue), so report-outcome can tell from the Actions API whether the step ran its whole budget; anything but a whole number leaves the stop unknown |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the select job's `run-sha256` output |
@@ -1844,24 +1845,33 @@ the escalation marker. What changes from the PR flow:
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
   Comments that keep `agent-ready` open with the outcome marker alone.
-  A run that wrote no readable outcome file and whose lane record has class `max-turns` (a
-  turn-cap stop) or `timeout` (its model step ran its whole `run-minutes`, the job timeout less
-  the minutes the save steps need, so the patch and lane record still upload) is a stop. When the
-  stopped job made progress, which report-outcome reads from the API, not from `lane.json`: this
-  run's own lane branch exists and its tip is a lanes-App commit, so apply-issue-patch committed
-  new work, and that commit changes a file other than the progress note. Then the comment's outcome marker is
-  `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->` or
-  `<!-- work-resolve-issue outcome=timeout run=<run id> -->`, it names the branch, keeps
-  `agent-ready` and adds no label, and the work-unblock sweep restarts the issue from that branch
-  as it does after a limit stop, with no count. A stop with no new commit is not restarted: its
-  marker is `outcome=no-progress`, and report-outcome adds `admission-deferred` and removes
-  `agent-ready`, so the next sweep re-admits it through the queue, with no `needs-human` and no
-  escalation marker. A stop whose patch apply-issue-patch refused hands back like `stopped`.
-  `lane.json` carries the run's `max-turns` for the cap, and the `pipeline/resolve-issue` status
-  reads "Stopped at the turn cap." or "Stopped at the job's time limit.". The run keeps its
-  progress note, `.lane-progress.md` at the checkout root, in its change, so it rides the lane
-  branch to the next job; the activity's `scripts/check-lane-progress-note.sh --check` keeps a
-  done run that left it from opening a PR. A run that exited
+  A run that wrote no readable outcome file stopped at its job's time limit when the Actions API
+  shows that its run job's model step (`resolve-issue / run`, step `Run the skill activity`) ran
+  its whole `run-minutes`: the job timeout less the minutes the save steps need, so the patch
+  still uploads. report-outcome reads this from the API with the caller's `run-minutes` input,
+  never from `lane.json`, whose class code the run executed can rewrite. A job or step the API
+  does not list, or a missing budget, leaves the stop unknown, and the run hands back like
+  `stopped` with `needs-human`. A stop at the time limit then branches on progress, also read from
+  the API: this run's own lane branch exists, its tip is a lanes-App commit (apply-issue-patch
+  commits only a non-empty patch), and that commit changes a file other than the progress note.
+  - With progress the job rolls over: the marker is `<!-- work-resolve-issue outcome=timeout run=<run id> -->`,
+    the comment names the branch, `agent-ready` stays with no label added, and the work-unblock
+    sweep restarts the issue from that branch as it does after a limit stop. At most
+    `limits.worker-job-ceiling` roll-overs count since a listed human last added `agent-ready`
+    (the App's and other labelers' adds reset nothing); the next stop hands back with
+    `outcome=job-ceiling`, `needs-human` and a comment naming the job count, linking the progress
+    note on the branch and listing the bullets under its Next steps heading.
+  - With none it is not restarted: the marker is `outcome=no-progress`, report-outcome removes
+    `agent-ready` and then adds `admission-deferred`, and the next sweep re-admits it through the
+    queue, with no `needs-human` and no escalation marker. When the newest stop marker since that
+    human's `agent-ready` is already `no-progress`, it hands back instead with `outcome=stalled`,
+    `needs-human` and a comment naming both runs and the note. A roll-over in between resets that
+    streak.
+  - A stop whose patch apply-issue-patch refused hands back like `stopped`.
+
+  The run keeps its progress note, `.lane-progress.md` at the checkout root, in its change, so it
+  rides the lane branch to the next job; the activity's `scripts/check-lane-progress-note.sh
+  --check` keeps a done run that left it from opening a PR. A run that exited
   non-zero, wrote no readable outcome file, and whose result carries `api_error_status` 400 with
   "regain access on <date>" (a spend limit or no credit) or 401 (a disabled key) is a funding
   stop, whatever its class or turn cap (`lane.json` carries `failed`, `api-error-status` and

@@ -22,10 +22,11 @@ import {
   readFunding,
   readChecks,
   readOutcome,
-  readStop,
+  stopHistory,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
+import { LIMIT_DEFAULTS } from "./limits.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 // The first line of every hand-back comment: the attended queue's escalation
@@ -1376,14 +1377,22 @@ test("main does not take another account's copy of the marker as its own", async
   });
 });
 
-// A stopped run (owner decision C13): a run the classifier recorded as class
-// max-turns or timeout, with no outcome of its own. No count bounds its
-// restarts; the one loop guard is progress. A run that committed new work
-// keeps agent-ready, and its marker (`outcome=turn-cap cap=<n> run=<id>` or
-// `outcome=timeout run=<id>`) names the cause and the branch, so work-unblock
-// restarts it from that branch. One that committed nothing is not restarted:
-// `outcome=no-progress`, agent-ready off and admission-deferred on, so the
-// next sweep re-queues it, and no person is asked.
+// A stopped run (owner decisions C13 and Q97): a run that left no outcome of
+// its own and whose model step, as the Actions API shows it, ran its whole
+// time budget. A job that committed new work rolls over into a new job (marker
+// `outcome=timeout run=<id>`, agent-ready kept), at most
+// limits.worker-job-ceiling times since a listed human last added
+// agent-ready; the next such stop goes to a person (`outcome=job-ceiling`).
+// One with no new commit is re-queued (`outcome=no-progress`), and a second in
+// a row goes to a person (`outcome=stalled`). lane.json's class decides
+// nothing: code the run executed can rewrite it.
+const OWNER = { id: 153232337, login: "kyle-sexton" };
+const added = (at, actor = { id: 1, login: "melodic-automation-lanes[bot]" }) => ({
+  event: "labeled",
+  label: { name: "agent-ready" },
+  actor,
+  created_at: at,
+});
 const capped = (overrides = {}) =>
   decide({
     outcome: readOutcome("/nonexistent/work-outcome.json"),
@@ -1391,56 +1400,98 @@ const capped = (overrides = {}) =>
     issueLabels: ["agent-ready"],
     branch: BRANCH,
     changedFiles: [],
-    stop: { cause: "turn-cap", cap: 75 },
+    stop: { cause: "timeout" },
     progress: true,
     runId: "555",
     checks: NO_CHECKS,
+    runUrlOf: (id) => (id ? `https://example/o/r/actions/runs/${id}` : ""),
+    runUrl: "https://example/o/r/actions/runs/555",
+    note: { url: "https://example/o/r/blob/work-resolve-issue/issue-77-123-1/.lane-progress.md", next: ["Wire the reader", "Add its test"] },
     ...overrides,
   });
 
-test("a run at its turn cap that committed new work keeps agent-ready and names the cap and branch, however often it stopped", () => {
+test("a job at its time limit that committed new work rolls over, keeping agent-ready", () => {
   const plan = capped();
-  assert.equal(plan.action, "turn-cap");
-  assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
-  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap cap=75 run=555 -->\n"), plan.comment);
-  assert.match(plan.comment, /turn cap 75 reached/);
-  assert.ok(plan.comment.includes(BRANCH));
-  assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
-});
-
-test("a run at its job's time limit that committed new work resumes like a turn-cap stop", () => {
-  const plan = capped({ stop: { cause: "timeout", cap: null } });
   assert.equal(plan.action, "timeout");
   assert.deepEqual(plan.addLabels, []);
   assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=timeout run=555 -->\n"), plan.comment);
   assert.match(plan.comment, /time limit/);
   assert.ok(plan.comment.includes(BRANCH));
+  assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
   assert.equal(parseOutcomeMarker(plan.comment).outcome, "timeout");
 });
 
-test("a stopped run with no new commit is re-queued, not restarted, and no person is asked", () => {
-  for (const overrides of [{ progress: false }, { branch: "" }, { stop: { cause: "timeout", cap: null }, progress: false }]) {
+test("the 8th roll-over restarts and the 9th stop goes to a person with the job count and the note's next steps", () => {
+  const eighth = capped({ rollovers: 7 });
+  assert.equal(eighth.action, "timeout");
+  const ninth = capped({ rollovers: 8 });
+  assert.equal(ninth.action, "hand-back");
+  assert.deepEqual(ninth.addLabels, ["needs-human"]);
+  assert.deepEqual(ninth.removeLabels, ["agent-ready"]);
+  assert.ok(ninth.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=job-ceiling run=555 -->\n"), ninth.comment);
+  assert.match(ninth.comment, /job 9\b/);
+  assert.match(ninth.comment, /8 times/);
+  assert.ok(ninth.comment.includes("/blob/work-resolve-issue/issue-77-123-1/.lane-progress.md"), ninth.comment);
+  assert.ok(ninth.comment.includes("- Wire the reader") && ninth.comment.includes("- Add its test"), ninth.comment);
+  // The ceiling is the config's.
+  assert.equal(capped({ rollovers: 3, limits: { ...LIMIT_DEFAULTS, "worker-job-ceiling": 3 } }).action, "hand-back");
+});
+
+test("a stopped job with no new commit is re-queued, not restarted, and no person is asked", () => {
+  for (const overrides of [{ progress: false }, { branch: "" }, { progress: false, previousStop: { outcome: "timeout", run: "400" } }]) {
     const plan = capped(overrides);
     assert.equal(plan.action, "no-progress", JSON.stringify(overrides));
     assert.deepEqual(plan.addLabels, ["admission-deferred"]);
     assert.deepEqual(plan.removeLabels, ["agent-ready"]);
-    assert.ok(!plan.addLabels.includes("needs-human"));
     assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=555 -->\n"), plan.comment);
     assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
   }
 });
 
-test("a resumed run with no new commit marks its no-progress marker resumed", () => {
-  const plan = capped({ branch: "", resumed: "work-resolve-issue/issue-77-100-1", progress: false });
-  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=555 branch=resumed -->"), plan.comment);
-  assert.equal(parseOutcomeMarker(plan.comment).onResumed, true);
+test("a second no-progress stop in a row goes to a person, naming both runs and the note", () => {
+  const plan = capped({ progress: false, branch: "", previousStop: { outcome: "no-progress", run: "400" } });
+  assert.equal(plan.action, "hand-back");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.ok(plan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stalled run=555 -->\n"), plan.comment);
+  assert.ok(plan.comment.includes("https://example/o/r/actions/runs/400"), plan.comment);
+  assert.ok(plan.comment.includes("https://example/o/r/actions/runs/555"), plan.comment);
+  assert.ok(plan.comment.includes(".lane-progress.md"), plan.comment);
 });
 
-// A patch apply-issue-patch refused can never land, so restarting would only
-// stop again: it hands back like stopped.
-test("a stopped run whose patch apply-issue-patch refused goes to a person", () => {
+test("a no-progress stop followed by a progress stop resets the streak", () => {
+  // The newest stop since the person's agent-ready was a roll-over, so this
+  // no-progress stop is the first in a row.
+  const comments = [
+    { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=no-progress run=400 -->", created_at: "2026-10-17T03:00:00Z" },
+    { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=timeout run=401 -->", created_at: "2026-10-17T09:00:00Z" },
+  ];
+  const events = [added("2026-10-17T01:00:00Z", OWNER)];
+  const history = stopHistory({ comments, events, bot: BOT, humans: HUMANS, runId: "555" });
+  assert.deepEqual(history, { rollovers: 1, previousStop: { outcome: "timeout", run: "401" } });
+  assert.equal(capped({ progress: false, ...history }).action, "no-progress");
+});
+
+test("the roll-over count and the streak start again at a listed human's agent-ready, not another labeler's", () => {
+  const marker = (outcome, run, at, login = BOT) => ({ user: { login }, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->`, created_at: at });
+  const comments = [
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => marker("timeout", String(n), `2026-10-16T0${n}:30:00Z`)),
+    marker("no-progress", "9", "2026-10-16T09:30:00Z"),
+    marker("timeout", "10", "2026-10-17T02:00:00Z"),
+    marker("timeout", "11", "2026-10-17T03:00:00Z", "stranger"),
+    marker("timeout", "555", "2026-10-17T04:00:00Z"),
+  ];
+  const humanReAdd = [added("2026-10-16T00:00:00Z", OWNER), added("2026-10-17T01:00:00Z", OWNER)];
+  assert.deepEqual(stopHistory({ comments, events: humanReAdd, bot: BOT, humans: HUMANS, runId: "555" }), {
+    rollovers: 1,
+    previousStop: { outcome: "timeout", run: "10" },
+  });
+  // The App's or an unlisted triager's re-add resets nothing.
+  const otherReAdd = [added("2026-10-16T00:00:00Z", OWNER), added("2026-10-17T01:00:00Z"), added("2026-10-17T01:30:00Z", { id: 42, login: "triager" })];
+  assert.equal(stopHistory({ comments, events: otherReAdd, bot: BOT, humans: HUMANS, runId: "555" }).rollovers, 9);
+});
+
+test("a stopped job whose patch apply-issue-patch refused goes to a person", () => {
   const plan = capped({ branch: "", progress: false, escalation: "patch-protected-path" });
   assert.equal(plan.action, "hand-back");
   assert.deepEqual(plan.addLabels, ["needs-human"]);
@@ -1449,14 +1500,14 @@ test("a stopped run whose patch apply-issue-patch refused goes to a person", () 
 
 // Code the run executed can forge lane.json, so a class beside an outcome the
 // skill wrote never overrides it.
-test("a forged turn-cap class beside a readable outcome keeps that outcome", () => {
+test("a stop record beside a readable outcome keeps that outcome", () => {
   assert.equal(capped({ outcome: done }).action, "open-pr");
   const stoppedPlan = capped({ outcome: { exit: "stopped", reason: "The tests cannot run here.", title: "", summary: "" } });
   assert.ok(stoppedPlan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped run=555 -->"), stoppedPlan.comment);
 });
 
-test("the turn-cap, timeout and no-progress markers read back with their run", () => {
-  for (const outcome of ["turn-cap", "timeout", "no-progress"]) {
+test("the stop markers read back with their run", () => {
+  for (const outcome of ["turn-cap", "timeout", "no-progress", "stalled", "job-ceiling"]) {
     assert.deepEqual(parseOutcomeMarker(`<!-- work-resolve-issue outcome=${outcome} run=555 -->\ntext`), {
       outcome,
       resets: null,
@@ -1466,52 +1517,91 @@ test("the turn-cap, timeout and no-progress markers read back with their run", (
   }
 });
 
-test("lane.json's max-turns and timeout classes are the stop record; any other class is none", () => {
-  for (const [lane, expected] of [
-    [{ branch: "", class: "max-turns", "max-turns": "75" }, { cause: "turn-cap", cap: 75 }],
-    [{ branch: "", class: "max-turns", "max-turns": "75; rm" }, { cause: "turn-cap", cap: null }],
-    [{ branch: "", class: "timeout", "max-turns": "75" }, { cause: "timeout", cap: null }],
-    [{ branch: "", class: "rate-limit", "max-turns": "75" }, null],
-  ]) {
-    withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readStop(dir), expected, JSON.stringify(lane)));
-  }
-});
-
 const STOP_TIP = {
   author: { login: "melodic-automation-lanes[bot]", type: "Bot" },
   committer: { login: "web-flow" },
   commit: { verification: { verified: true, reason: "valid" } },
   files: [{ filename: "plugins/x/skills/y/SKILL.md" }, { filename: ".lane-progress.md" }],
 };
-const stopLane = (cls) => JSON.stringify({ branch: BRANCH, class: cls, resets: "", "max-turns": "75" });
-const STOP_ROUTES = (tip = STOP_TIP, comments = []) => [
+// The Actions API's view of the run job: its model step ran `minutes`.
+const jobsAnswer = (minutes, { name = "resolve-issue / run", step = "Run the skill activity" } = {}) => ({
+  jobs: [
+    {
+      name,
+      run_attempt: 1,
+      steps: minutes === null ? [] : [{ name: step, conclusion: "failure", started_at: "2026-10-17T00:00:00Z", completed_at: new Date(Date.parse("2026-10-17T00:00:00Z") + minutes * 60_000).toISOString() }],
+    },
+  ],
+});
+const NOTE = Buffer.from("# Progress\n\n## Done\n\n- the reader\n\n## Next steps\n\n- Wire the reader\n- Add its test\n").toString("base64");
+const STOP_ROUTES = ({ tip = STOP_TIP, comments = [], jobs = jobsAnswer(340), events = [] } = {}) => [
   ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+  ["GET", /\/actions\/runs\/123\/jobs$/, 200, jobs],
   ["GET", /\/issues\/77\/comments$/, 200, comments],
+  ["GET", /\/issues\/77\/events$/, 200, events],
   ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-123-1$/, 200, { object: { sha: "c".repeat(40) } }],
   ["GET", /\/commits\/c{40}$/, 200, tip],
+  ["GET", /\/contents\/\.lane-progress\.md$/, 200, { content: NOTE }],
   ["POST", /\/issues\/77\/comments$/, 201, {}],
   ["POST", /\/issues\/77\/labels$/, 200, []],
   ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
 ];
+const stopLane = (cls) => JSON.stringify({ branch: BRANCH, class: cls, resets: "", "max-turns": "75" });
+const stopEnv = (dir) => ({ ...env(dir), WORKER_RUN_MINUTES: "340" });
 
-test("main on a timeout stop whose own branch holds a lanes-App commit comments once and keeps agent-ready", async () => {
-  await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
-    const { fetch, calls } = fakeFetch(STOP_ROUTES());
-    assert.equal(await main({ env: env(dir), fetch }), 0);
-    const writes = calls.filter((c) => c.method !== "GET");
-    assert.equal(writes.length, 1);
-    assert.ok(writes[0].body.body.startsWith("<!-- work-resolve-issue outcome=timeout run=123 -->"), writes[0].body.body);
-  });
+test("main on a job whose model step ran its whole budget, with a lanes-App commit, rolls it over once", async () => {
+  // lane.json's class is not what decides: an empty one rolls over the same.
+  for (const cls of ["timeout", ""]) {
+    await withAsyncDir({ "lane.json": stopLane(cls) }, async (dir) => {
+      const { fetch, calls } = fakeFetch(STOP_ROUTES());
+      assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
+      const writes = calls.filter((c) => c.method !== "GET");
+      assert.equal(writes.length, 1, cls);
+      assert.ok(writes[0].body.body.startsWith("<!-- work-resolve-issue outcome=timeout run=123 -->"), writes[0].body.body);
+    });
+  }
+});
+
+test("a forged lane.json stop class has no effect: a step that did not run its budget is handed back like stopped", async () => {
+  for (const cls of ["timeout", "max-turns"]) {
+    await withAsyncDir({ "lane.json": stopLane(cls) }, async (dir) => {
+      const { fetch, calls } = fakeFetch(STOP_ROUTES({ jobs: jobsAnswer(12) }));
+      assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.ok(comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped run=123 -->"), comment);
+      assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
+    });
+  }
+});
+
+test("a step the jobs API does not list makes the stop unknown: no restart, needs-human", async () => {
+  for (const jobs of [jobsAnswer(null), jobsAnswer(340, { step: "Another step" }), jobsAnswer(340, { name: "other / job" }), { jobs: [] }, {}]) {
+    await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
+      const { fetch, calls } = fakeFetch(STOP_ROUTES({ jobs }));
+      assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.match(comment, /outcome=stopped run=123/, JSON.stringify(jobs));
+      assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
+    });
+  }
+  // A missing or malformed budget is unknown too, and the API is never asked.
+  for (const minutes of ["", "abc", "0"]) {
+    await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
+      const { fetch, calls } = fakeFetch(STOP_ROUTES());
+      assert.equal(await main({ env: { ...env(dir), WORKER_RUN_MINUTES: minutes }, fetch }), 0);
+      assert.ok(!calls.some((c) => c.path.includes("/actions/")), minutes);
+      assert.match(calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body, /outcome=stopped/);
+    });
+  }
 });
 
 test("main on a stop whose branch tip is not the lanes App's re-queues it with no needs-human", async () => {
-  await withAsyncDir({ "lane.json": stopLane("max-turns") }, async (dir) => {
-    const { fetch, calls } = fakeFetch(STOP_ROUTES({ ...STOP_TIP, author: { login: "stranger" } }));
-    assert.equal(await main({ env: env(dir), fetch }), 0);
+  await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
+    const { fetch, calls } = fakeFetch(STOP_ROUTES({ tip: { ...STOP_TIP, author: { login: "stranger" } } }));
+    assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=123 -->"), comment);
     assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["admission-deferred"] });
-    assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
     // The marker comes before the label moves, so work-unblock reads the removal as a re-queue;
     // agent-ready comes off before admission-deferred goes on, so the deferred sweep never sees
     // both and drops the deferral as "already agent-ready", leaving the issue with neither.
@@ -1526,8 +1616,8 @@ test("main on a stop whose branch tip is not the lanes App's re-queues it with n
 test("main on a stop whose own commit changes only the progress note re-queues it", async () => {
   for (const files of [[{ filename: ".lane-progress.md" }], [], undefined]) {
     await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
-      const { fetch, calls } = fakeFetch(STOP_ROUTES({ ...STOP_TIP, files }));
-      assert.equal(await main({ env: env(dir), fetch }), 0);
+      const { fetch, calls } = fakeFetch(STOP_ROUTES({ tip: { ...STOP_TIP, files } }));
+      assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
       assert.match(comment, /outcome=no-progress run=123/, JSON.stringify(files));
     });
@@ -1538,7 +1628,7 @@ test("main on a stop that names another run's branch, or none, counts no progres
   for (const branch of ["work-resolve-issue/issue-77-99-1", ""]) {
     await withAsyncDir({ "lane.json": JSON.stringify({ branch, class: "timeout" }) }, async (dir) => {
       const { fetch, calls } = fakeFetch(STOP_ROUTES());
-      assert.equal(await main({ env: env(dir), fetch }), 0);
+      assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
       assert.match(comment, /outcome=no-progress run=123/, branch);
       assert.ok(!calls.some((c) => c.path.includes("/git/ref/")), branch);
@@ -1546,11 +1636,28 @@ test("main on a stop that names another run's branch, or none, counts no progres
   }
 });
 
+test("main at the ninth stop since a person's agent-ready hands back with the note's next steps", async () => {
+  const comments = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+    user: { login: BOT },
+    body: `<!-- work-resolve-issue outcome=timeout run=${n} -->`,
+    created_at: `2026-10-16T0${n}:30:00Z`,
+  }));
+  await withAsyncDir({ "lane.json": stopLane("timeout"), "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch(STOP_ROUTES({ comments, events: [added("2026-10-16T00:00:00Z", OWNER)] }));
+    assert.equal(await main({ env: { ...stopEnv(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.match(comment, /outcome=job-ceiling run=123/);
+    assert.ok(comment.includes("https://example/o/r/blob/work-resolve-issue/issue-77-123-1/.lane-progress.md"), comment);
+    assert.ok(comment.includes("- Wire the reader"), comment);
+  });
+});
+
 test("main on a rerun after its stop marker never posts it twice", async () => {
-  await withAsyncDir({ "lane.json": stopLane("max-turns") }, async (dir) => {
-    const own = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=123 -->", created_at: "2026-10-17T05:00:00Z" };
-    const { fetch, calls } = fakeFetch(STOP_ROUTES(STOP_TIP, [own]));
-    assert.equal(await main({ env: env(dir), fetch }), 0);
+  await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
+    const own = { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=timeout run=123 -->", created_at: "2026-10-17T05:00:00Z" };
+    const { fetch, calls } = fakeFetch(STOP_ROUTES({ comments: [own] }));
+    assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
     assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
   });
 });
