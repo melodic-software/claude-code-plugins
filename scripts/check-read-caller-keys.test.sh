@@ -174,9 +174,9 @@ run_case "a read caller passing the pr-unblock role's Claude Code OAuth token pa
 run_case "a read caller passing the pr-unblock role's Claude API key passes" 0 \
   "printf '      claude-api-key: \${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}\n' >>$CALLER"
 
-run_case "a read caller passing the automations role's Claude API key fails" 1 \
-  "printf '      claude-api-key: \${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}\n' >>$CALLER" \
-  "$CALLER:11: reads secrets.AUTOMATIONS_CLAUDE_API_KEY, which is not on the read-run allowlist"
+run_case "a read caller passing the maintenance role's Claude API key fails" 1 \
+  "printf '      claude-api-key: \${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}\n' >>$CALLER" \
+  "$CALLER:11: reads secrets.MAINTENANCE_CLAUDE_API_KEY, which is not on the read-run allowlist"
 
 run_case "a read caller passing another role's Claude API key fails" 1 \
   "printf '      claude-api-key: \${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}\n' >>$CALLER" \

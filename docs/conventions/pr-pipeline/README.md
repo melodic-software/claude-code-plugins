@@ -1928,7 +1928,7 @@ waits on an owner decision and a per-week Fable allowance for the lanes.
 ## Funding
 
 Each Claude lane's runs are paid by one funding role. There are six: `reviews` for both review
-lanes, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, and `automations` for the lanes outside
+lanes, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, and `maintenance` for the lanes outside
 the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
