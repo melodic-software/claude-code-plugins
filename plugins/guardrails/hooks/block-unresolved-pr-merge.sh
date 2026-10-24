@@ -80,8 +80,10 @@
 # `-X`/`--method` value from an expansion (`gh pr $VERB`, `-X "$M"` on a merge
 # route) is blocked as unresolvable, since either may be the merge. A `gh pr
 # merge` with no -R and no URL is blocked when the command also changes directory
-# (`cd`, `pushd`, `popd`) or names GH_REPO, because the repository it merges in is
-# then not the session's. A repo written `HOST/OWNER/REPO` is read without the
+# (`cd`, `pushd`, `popd`, PowerShell's `Set-Location`, `Push-Location`,
+# `Pop-Location`, `sl`) or names GH_REPO or GH_HOST (quotes dropped, so
+# `export GH_RE""PO=x` counts), because the repository it merges in is then not
+# the session's. A repo written `HOST/OWNER/REPO` is read without the
 # host, passing a host other than github.com as `--hostname`. A 404 on the PR or
 # its branch lookup, for a repo the command wrote, is blocked rather than run
 # unchecked; a repo taken from the working directory still fails open. The branch
@@ -178,8 +180,8 @@ BUPM_UNRESOLVED=""
 BUPM_MERGES=0 # merge paths found in the command
 BUPM_BT=0     # 1: the command holds a backtick
 BUPM_CONT=0   # 1: merge-shaped text continued with a backslash-newline
-BUPM_CD=0     # 1: a segment changes directory (cd, pushd, popd)
-BUPM_GHREPO=0 # 1: the command text names GH_REPO
+BUPM_CD=0     # 1: a segment changes directory (cd, pushd, popd, Set-Location)
+BUPM_GHREPO=0 # 1: the command text names GH_REPO or GH_HOST
 BUPM_HOST=""  # a host other than github.com that qualified the repo
 
 # _bupm_literal <word>: true when the word holds no expansion the guard
@@ -386,7 +388,9 @@ _bupm_is_cd() {
     *) break ;;
     esac
   done
-  case "${1-}" in cd | pushd | popd | chdir) return 0 ;; *) return 1 ;; esac
+  # PowerShell's cmdlets and their `sl` alias too, which it matches in any case.
+  local w="${1-}"
+  case "${w,,}" in cd | pushd | popd | chdir | set-location | push-location | pop-location | sl) return 0 ;; *) return 1 ;; esac
 }
 
 # hook::bash_parse_segments callback: one segment's argv words. Counts the
@@ -481,7 +485,9 @@ else
   _bupm_bare="${_bupm_joined//[\"\'\\]/}"
   [[ "$_bupm_joined" == *merge* || "$_bupm_joined" == *enqueue* ||
     "$_bupm_bare" == *merge* || "$_bupm_bare" == *enqueue* ]] || exit 0
-  [[ "$_bupm_lc" == *gh_repo* ]] && BUPM_GHREPO=1
+  # The bare copy too: `export GH_RE""PO=x` sets GH_REPO.
+  [[ "$_bupm_lc" == *gh_repo* || "$_bupm_bare" == *gh_repo* ||
+    "$_bupm_lc" == *gh_host* || "$_bupm_bare" == *gh_host* ]] && BUPM_GHREPO=1
   # A backtick or a line continuation in merge-shaped text is refused below
   # without parsing; in PowerShell a backtick is the escape character, not a
   # substitution, and a backslash is not a continuation.
@@ -681,7 +687,7 @@ if [[ "$BUPM_FORM" == gh-pr-merge && -z "$BUPM_REPO" && ! "$BUPM_SEL" =~ ^https?
   ((BUPM_CD)) &&
     _bupm_refuse_target "the command changes directory before the merge and names no -R repository, so the merge may not run in the session's repository"
   ((BUPM_GHREPO)) &&
-    _bupm_refuse_target "the command names GH_REPO and no -R repository, so the merge may not run in the session's repository"
+    _bupm_refuse_target "the command names GH_REPO or GH_HOST and no -R repository, so the merge may not run in the session's repository"
 fi
 
 # A GraphQL mutation must name its PR by a literal node id the guard can

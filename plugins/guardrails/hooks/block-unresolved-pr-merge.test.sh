@@ -770,6 +770,8 @@ unresolvable "cd before a merge with no -R" 'cd ../other && gh pr merge 42 --squ
 unresolvable "pushd before a merge with no -R" 'pushd other >/dev/null; gh pr merge 42'
 unresolvable "GH_REPO before the merge" 'GH_REPO=other/repo gh pr merge 42 --squash'
 unresolvable "exported GH_REPO" 'export GH_REPO=other/repo; gh pr merge 42'
+unresolvable "exported GH_REPO spelled with quotes" 'export GH_RE""PO=other/repo; gh pr merge 42'
+unresolvable "GH_HOST before the merge" 'GH_HOST=ghe.example.com gh pr merge 42'
 scenario none none green green
 run "cd, then a merge with -R" 'cd other && gh pr merge 42 -R acme/widgets --squash' 0
 assert_contains "cd with -R -> reads that repo" "$(calls)" "repos/acme/widgets/pulls/42"
@@ -871,6 +873,16 @@ scenario unresolved none green green
 run_ps "PowerShell: gh pr merge" 'gh pr merge 42 --squash' 2
 scenario unresolved none green green
 run_ps "PowerShell: gh.exe pr merge after ;" 'Set-Location C:\repo; gh.exe pr merge 42' 2
+# Item 3 on PowerShell: a directory change with no -R is refused before any read.
+for c in 'Set-Location ..\other; gh pr merge 42 --squash' 'Push-Location other; gh pr merge 42' \
+  'Pop-Location; gh pr merge 42' 'sl other; gh pr merge 42' 'set-location other; gh pr merge 42'; do
+  scenario none none green green
+  run_ps "PowerShell: $c" "$c" 2
+  assert_contains "PowerShell: $c -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+  assert_absent "PowerShell: $c -> never asked gh" "$(calls)" "pulls/"
+done
+scenario none none green green
+run_ps "PowerShell: Set-Location, then a merge with -R" 'Set-Location other; gh pr merge 42 -R acme/widgets' 0
 scenario none none green green
 run_ps "PowerShell: a backtick escape is not a substitution" 'gh pr merge 42 -R acme/widgets --body "line`nnext"' 0
 scenario unresolved requested failed failed
