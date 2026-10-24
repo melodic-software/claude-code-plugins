@@ -33,6 +33,11 @@ before the first attempt.
    goal's counter, a tally of failures and a tally of finished work units.
 3. **A clean checkout.** `git status --porcelain` in your checkout prints nothing. Refuse
    otherwise and name the files: the loop starts from a commit, and uncommitted work is not in it.
+4. **Optional: a holdout harness `/performance:snapshot` froze**, a second command that prints the
+   same three numbers on inputs the main harness does not use. It needs its own `Frozen:` line in
+   the baseline report with `discriminate: exit 0`, worded like item 2; send the run back to
+   `/performance:snapshot baseline` when the line is missing. **Absent means off**: the run behaves
+   exactly as it does without this item, and nothing below that mentions the holdout applies.
 
 ## Set up, before the first attempt
 
@@ -56,6 +61,12 @@ before the first attempt.
 4. **Starting measurement.** Run the harness once in each worktree. The counters agree, the error
    counts are zero and the work counts match, or the harness is not stable enough to climb on:
    stop and say which number differed.
+5. **Holdout, only when item 4 is given.** Write `holdout.json` in the slice, holding the
+   holdout's `Frozen:` command and sha; like `keep-rule.json` it is never edited during the run.
+   It is not a key of `keep-rule.json`, which `decide` accepts only with its three keys. Then run
+   the holdout once in each worktree as step 4 does: the counters agree, the error counts are zero
+   and the work counts match, or stop and say which number differed. This is a stability check
+   only; its number is never compared at the end. Run the holdout nowhere else until the run ends.
 
 ## One attempt
 
@@ -66,14 +77,15 @@ before the first attempt.
    build removes N-1 parses" qualifies. "The renderer does too much" does not: it names no code
    path and predicts no number.
 3. **Make one change** in `<climb-path>` that tests that hypothesis and nothing else. Never edit
-   the harness files.
+   the harness files, the holdout harness included. Never read holdout output while forming a
+   hypothesis; holdout numbers never go into `log.tsv`, so `show` carries none.
 4. **Commit it** on `climb/<goal-slug>`, staging the changed files by name.
 5. **Run the project's tests** in `<climb-path>`. Record `pass` or `fail`.
 6. **Measure both arms in one sitting.** Run the snapshot harness `ab.sh` with `--a` running the
    harness in `<baseline-path>` and `--b` running it in `<climb-path>`, at the goal's iterations and
    percentiles. `ab.sh` discards each arm's output, so also run the harness once in each worktree
    and read its counter, error count and work count. Never compare against a number stored from an
-   earlier attempt; the baseline arm is re-measured every time.
+   earlier attempt; the baseline arm is re-measured every time. Never run the holdout harness here.
 7. **Decide**: `python3 "${CLAUDE_PLUGIN_ROOT}/skills/climb/scripts/climb_log.py" decide --rule <slice>/keep-rule.json --before <baseline counter> --after <attempt counter>`.
    Settle the verdict in this order, stopping at the first line that applies:
    1. Tests failed, the error count rose, or the work count differs from the baseline's:
@@ -135,6 +147,17 @@ those same three items. The person starts the run with that condition.
 
 ## Finish
 
+0. **Holdout, only when item 4 is given.** Both worktrees sit at the last kept sha. When it equals
+   the start sha, skip the measurement and report `Holdout:   not run (nothing kept)`. Otherwise
+   run `git -C <baseline-path> checkout --detach <start-sha>`, then run the holdout once in each
+   worktree, by absolute path, and read its counter, error count and work count; no `ab.sh` run
+   is needed. Call `decide --rule <slice>/keep-rule.json --before <holdout counter on the start sha>
+   --after <holdout counter on the last kept sha>`: `kept` reports `held`, `reverted` reports
+   `did not hold`. As in step 7.1, a rose error count or a differing work count reports
+   `did not hold` whatever `decide` prints. A run whose kept attempts are all simplifications
+   (step 7.3) reports whatever `decide` prints; a `did not hold` there says only that the holdout
+   showed no gain. The holdout informs and never reverts: a gain that did not hold is still the
+   climb's result. Do this before step 1 removes the worktrees.
 1. Remove both worktrees with `git worktree remove <path>`. The branch `climb/<goal-slug>` stays
    and holds the kept commits in commit order. `git worktree remove` refuses a worktree with
    modified tracked files or untracked files that `.gitignore` does not cover; ignored files do not
@@ -148,6 +171,7 @@ Log:       <absolute path to log.tsv>
 Counter:   <counter>, <direction>; Realistic target <Realistic target>
 Moved:     <start value> -> <last kept value> (<percent change>)
 Evidence:  min_attempts <n>; logged <n>: kept <k>, reverted <r>
+Holdout:   <held|did not hold>; start sha <n> -> last kept sha <n>   (only when a holdout was given; with errors or work counts that differ, name them)
 Next idea: <the untried hypothesis most likely to move the counter, or "none left">
 Changes, oldest first, one line each:
   <sha> <change> (<files> files, +<added> -<removed>)

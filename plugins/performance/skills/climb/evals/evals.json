@@ -90,6 +90,34 @@
         "Says the person types that command; the skill does not start it",
         "Creates no worktree, branch or keep rule"
       ]
+    },
+    {
+      "id": 8,
+      "name": "no-holdout-behaves-as-before",
+      "prompt": "/performance:climb site-build-template-parses. The goal, min_attempts 6 and the frozen harness are ready. No holdout harness was given, though ./bench/other-inputs.sh exists in the repo and was never frozen. The run has ended after two kept attempts. Write the final report.",
+      "expected_output": "Runs and reports exactly as without a holdout: ./bench/other-inputs.sh is not treated as a holdout because it was never frozen, no holdout.json is written, no second harness is measured at set-up or at the end, and the Finish report has no Holdout line.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes no holdout.json and measures no second harness at set-up or at the end",
+        "Treats the absent holdout as off, with the run unchanged",
+        "Prints no Holdout line in the final report"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "holdout-measured-only-at-start-and-end",
+      "prompt": "/performance:climb site-build-template-parses. Besides the frozen harness there is a holdout harness command, frozen with discriminate: exit 0. Start sha a1b2c3d, last kept sha 9f8e7d6. At the end the holdout read 40 parses on the start sha and 31 on the last kept sha, errors 0 and 412 pages in both, keep rule lower with gain_floor 0. Attempt 3 is next: should it run the holdout to pick its hypothesis?",
+      "expected_output": "Records the holdout command and sha in holdout.json beside keep-rule.json at set-up and checks its stability once in each worktree. Does not run or read the holdout during attempts, so attempt 3 takes its hypothesis from the main harness and the log. At the end, with the baseline worktree moved to a1b2c3d, calls decide with before 40 and after 31, which prints kept, and reports holdout: held with both numbers, before removing the worktrees. The holdout never reverts anything.",
+      "files": [],
+      "expectations": [
+        "Does not run or read the holdout during attempts or when choosing a hypothesis",
+        "Writes the holdout command and sha to holdout.json, not to keep-rule.json",
+        "Moves the baseline worktree to the start sha a1b2c3d with git checkout --detach before measuring the holdout at the end",
+        "Measures the holdout on the start sha and the last kept sha at the end, before removing the worktrees",
+        "Reports holdout held with both numbers, 40 and 31, from decide with the keep rule",
+        "Does not revert a kept gain because of the holdout"
+      ]
     }
   ]
 }
