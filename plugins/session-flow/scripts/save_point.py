@@ -1375,7 +1375,10 @@ def _dereferenced_goal(pred: Doc, root: str) -> list[str]:
         if ask:
             lines[at : at + 1] = ask
     elif not any(line.startswith("Opening ask:") for line in lines):
-        lines += ["", f"{ASK_POINTER}{root} § Original goal (shape-1 root, no verbatim ask recorded)"]
+        lines += [
+            "",
+            f"{ASK_POINTER}{root} § Original goal (shape-1 root, no verbatim ask recorded)",
+        ]
     return lines
 
 
@@ -2763,7 +2766,20 @@ def cmd_new(args: argparse.Namespace) -> int:
     else:
         content = build_skeleton_3(**common)
         root, hop, _ = _chain_position(pred, target.name)
+        # The root comes from the predecessor's frontmatter: hold it to a bare
+        # handoff name so no `../` lands the hop file outside the archive.
+        if not HANDOFF_NAME_RE.match(root):
+            return _die(
+                1,
+                f"predecessor's chain_root (or first chain: entry) {root!r} is not a bare <TS>-handoff-<topic>.md name; no hop file written",
+            )
         hop_path = hop_file_path(handoffs, root, hop, session_id)
+        archive_root = (handoffs / ARCHIVE_DIR).resolve()
+        if archive_root not in hop_path.resolve().parents:
+            return _die(
+                1,
+                f"hop file {_posix(hop_path)} resolves outside {archive_root.as_posix()}",
+            )
         if hop_path.exists():
             # A retry of the same session rewrites its own hop file; any other
             # session's file, a fork's sibling included, is never touched.
@@ -2812,7 +2828,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_new = sub.add_parser(
-        "new", help="write a skeleton (shape 3 by default) with every deterministic field filled"
+        "new",
+        help="write a skeleton (shape 3 by default) with every deterministic field filled",
     )
     p_new.add_argument("--topic", required=True, help="kebab slug for the filename")
     group = p_new.add_mutually_exclusive_group(required=True)

@@ -3003,3 +3003,30 @@ def test_shape3_after_a_shape1_predecessor_points_at_its_root_and_validates(tmp_
     assert "## Constraints that must hold\n" in archived
     result = strict(hot)
     assert result.returncode == 0, out(result)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (f"chain_root: {HOP1}", "chain_root: ../../../escaped.md"),
+        (f"chain_root: {HOP1}", "chain_root: 20260901T100000Z-handoff-x/../../../../escaped.md"),
+    ],
+)
+def test_shape3_new_refuses_a_chain_root_that_leaves_the_archive(tmp_path, old, new):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    edit(hop1, old, new)
+    before = sorted(p.as_posix() for p in tmp_path.rglob("*"))
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert made.returncode == 1, err(made)
+    assert "chain_root" in err(made), err(made)
+    assert sorted(p.as_posix() for p in tmp_path.rglob("*")) == before
+
+
+def test_shape2_to_3_new_refuses_a_chain_entry_that_leaves_the_archive(tmp_path):
+    handoffs = _good_chain_memory(tmp_path)
+    edit(handoffs / HOP3, f"chain:\n  - {HOP1}\n", "chain:\n  - ../../../escaped.md\n")
+    before = sorted(p.as_posix() for p in tmp_path.rglob("*"))
+    made = _new_in(handoffs, tmp_path, handoffs / HOP3, SID_D, "2026-09-10T10:00:00Z")
+    assert made.returncode == 1, err(made)
+    assert sorted(p.as_posix() for p in tmp_path.rglob("*")) == before
