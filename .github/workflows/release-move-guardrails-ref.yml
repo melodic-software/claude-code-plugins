@@ -3,7 +3,7 @@ name: release-move-guardrails-ref
 # Moves refs/heads/guardrails-release to main's newest guardrails release: the commit that
 # changed the `version` in plugins/guardrails/.claude-plugin/plugin.json. Consumers' lefthook
 # remotes fetch the guardrails git hooks from that branch (entries.json `remote.ref`), so they run
-# released code only. Every repository that adopted the remote runs what this branch points at.
+# code from main, a guardrails release unless a manual run names another commit. Every repository that adopted the remote runs what this branch points at.
 #
 # - Runs on main only: a push to main that touches the manifest, or a manual run from main,
 #   optionally naming a commit on main. Any other ref fails the job.
@@ -63,6 +63,11 @@ jobs:
           MAIN: ${{ github.sha }}
           TARGET: ${{ inputs.sha }}
         run: |
+          # Consumers fetch the ref by its short name, and git takes a tag of that name over the branch.
+          if [ -n "$(git ls-remote origin refs/tags/guardrails-release)" ]; then
+            echo "::error::a tag named guardrails-release exists and shadows the branch for every consumer; delete it"
+            exit 1
+          fi
           current=""
           rc=0
           git ls-remote --exit-code origin refs/heads/guardrails-release >/dev/null || rc=$?

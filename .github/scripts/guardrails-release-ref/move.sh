@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The commit refs/heads/guardrails-release moves to: the branch consumers' lefthook remotes fetch
 # the guardrails git hooks from (plugins/guardrails/git-hooks/entries.json `remote.ref`), so it
-# holds only released guardrails code.
+# holds only commits on main.
 #
 #   move.sh <main-sha> [<target>] [<current>]
 #
