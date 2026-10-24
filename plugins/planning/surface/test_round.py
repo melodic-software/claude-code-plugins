@@ -273,7 +273,10 @@ class TestRefusals(DirCase):
 
     def test_short_recommendation_does_not_warn(self):
         q = question(
-            "Q4", stage="interview", basis="The code already does this. Judgment"
+            "Q4",
+            stage="interview",
+            dependsOn=[],
+            basis="The code already does this. Judgment",
         )
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
@@ -1075,6 +1078,99 @@ class TestReviseDepends(DirCase):
         q = self.q("Q3")
         self.assertEqual(q["contentRev"], 1)
         self.assertEqual([h["kind"] for h in q["history"][-2:]], ["revise", "depends"])
+
+
+class TestDeclaredDepends(DirCase):
+    """add and add-round warn when a question omits dependsOn or names a question still open in
+    its own round; requireDepends (here the data dir's settings.json) refuses both."""
+
+    def strict(self):
+        (self.dir / "settings.json").write_text(
+            json.dumps({"requireDepends": True}), encoding="utf-8"
+        )
+
+    def add(self, q):
+        return self.rp("add", "--file", self.file("q.json", q))
+
+    def test_add_without_depends_exits_0_with_a_warning_naming_the_id(self):
+        rc, out, err = self.add(question("Q4", round=1))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q4 declares no dependsOn", err)
+        self.assertIn('"dependsOn": []', err)
+        self.assertNotIn("dependsOn", self.q("Q4"))
+
+    def test_an_empty_list_or_depends_none_declares_it_independent(self):
+        rc, out, err = self.add(question("Q4", round=1, dependsOn=[]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("dependsOn", err)
+        self.assertEqual(self.q("Q4")["dependsOn"], [])
+        flags = ["--id", "Q5", "--short", "S", "--title", "T?", "--rec", "Yes."]
+        flags += ["--commit", "none", "--alt", "a:No", "--alt", "b:Later"]
+        rc, out, err = self.rp("add", *flags, "--depends", "none")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("dependsOn", err)
+        self.assertEqual(self.q("Q5")["dependsOn"], [])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_add_naming_an_open_question_of_its_own_round_warns(self):
+        rc, out, err = self.add(question("Q4", round=1, dependsOn=["Q3"]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q4 depends on Q3, open in the same round (1)", err)
+        self.assertEqual(self.q("Q4")["dependsOn"], ["Q3"])
+
+    def test_a_decided_or_earlier_round_prerequisite_does_not_warn(self):
+        at = "2026-10-01T00:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": "Q3", "kind": "accept", "alt": None, "text": "", "at": at}]
+        )
+        rc, out, err = self.add(question("Q4", round=1, dependsOn=["Q3"]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("depends on", err)
+        rc, out, err = self.add(question("Q5", round=2, dependsOn=["Q1"]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("depends on", err)
+
+    def test_add_round_warns_on_each_omission_and_a_prerequisite_in_the_same_file(self):
+        spec = {
+            "questions": [
+                question("Q4", dependsOn=[]),
+                question("Q5", dependsOn=["Q4"]),
+                question("Q6"),
+            ]
+        }
+        rc, out, err = self.rp(
+            "add-round", "--file", self.file("r.json", spec), "--round", "2"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q5 depends on Q4, open in the same round (2)", err)
+        self.assertIn("warning: Q6 declares no dependsOn", err)
+        self.assertNotIn("Q4 declares", err)
+        later = self.file("r3.json", {"questions": [question("Q7")]})
+        rc, out, err = self.rp("add-round", "--file", later, "--round", "3", "--check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q7 declares no dependsOn", err)
+
+    def test_require_depends_refuses_both_and_writes_nothing(self):
+        self.strict()
+        out = self.assert_refused("add", "--file", self.file("q.json", question("Q4")))
+        self.assertIn("refused: Q4 declares no dependsOn", out)
+        self.assertIn("(requireDepends)", out)
+        q = question("Q4", round=1, dependsOn=["Q3"])
+        out = self.assert_refused("add", "--file", self.file("q.json", q))
+        self.assertIn("refused: Q4 depends on Q3, open in the same round (1)", out)
+        pair = [question("Q4", dependsOn=[]), question("Q5", dependsOn=["Q4"])]
+        spec = {"questions": pair}
+        out = self.assert_refused(
+            "add-round", "--file", self.file("r.json", spec), "--round", "2"
+        )
+        self.assertIn("refused: Q5 depends on Q4", out)
+        spec = {"questions": [question("Q4")]}
+        self.assert_refused("add-round", "--file", self.file("r.json", spec))
+        ops = {"ops": [{"op": "add", "question": question("Q4")}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+        rc, out, err = self.add(question("Q4", dependsOn=[]))
+        self.assertEqual(rc, 0, out + err)
 
 
 class TestRecChangeStampsPageSeq(DirCase):
