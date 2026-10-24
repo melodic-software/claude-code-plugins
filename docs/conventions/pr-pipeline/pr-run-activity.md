@@ -1821,9 +1821,12 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
-  removes `agent-ready`. Each comment opens with the marker
+  removes `agent-ready`. Every comment that adds the human-gated label opens with the attended
+  queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
+  so `/work-items:attend-queue` lists the issue, and then the outcome marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
+  Comments that keep `agent-ready` open with the outcome marker alone.
   A run that wrote no readable outcome file and whose lane record has class `max-turns` is a
   turn-cap stop: the comment opens with `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
   and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person

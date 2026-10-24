@@ -29,6 +29,9 @@ import {
 } from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
+// The first line of every hand-back comment: the attended queue's escalation
+// marker in the grammar of plugins/work-items/reference/escalation-marker.md.
+const ESC = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\n";
 
 // The run-checks job's `checks` output for `branch` at `tip`, and the ref
 // read main compares that tip with. A test puts it in the outcome directory as
@@ -708,7 +711,7 @@ for (const [reason, step] of [
       assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
       assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-      assert.match(comment, new RegExp(`^<!-- work-resolve-issue outcome=${reason} run=123 -->`));
+      assert.match(comment, new RegExp(`^${ESC}<!-- work-resolve-issue outcome=${reason} run=123 -->`));
       assert.equal(parseOutcomeMarker(comment).outcome, reason);
       assert.ok(comment.includes(step), comment);
       assert.ok(comment.includes("https://example/o/r/actions/runs/123"), comment);
@@ -807,7 +810,7 @@ test("main on done opens no PR and hands the issue back when the runner's checks
         assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")), label);
         assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] }, label);
         const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
-        assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped run=123 -->"), comment);
+        assert.ok(comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped run=123 -->"), comment);
       },
     );
   }
@@ -946,7 +949,7 @@ test("main on a resumed done with no commit of its own and no check results hand
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
       const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
-      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), comment);
+      assert.ok(comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped"), comment);
       assert.match(comment, /resumed .* no new commit/);
       assert.ok(comment.includes(RESUMED), comment);
       assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
@@ -1014,7 +1017,7 @@ test("main on a resumed done hands back when its branch's checks fail, moved, or
         assert.equal(await main({ env: env(dir), fetch }), 0, label);
         assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")), label);
         const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
-        assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), `${label}: ${comment}`);
+        assert.ok(comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped"), `${label}: ${comment}`);
         assert.ok(comment.includes(RESUMED), `${label}: ${comment}`);
       },
     );
@@ -1047,7 +1050,7 @@ test("main closes a resumed branch's new PR whose head is not the tip the runner
       assert.deepEqual(calls.find((c) => c.method === "PATCH" && c.path.endsWith("/pulls/90"))?.body, { state: "closed" });
       assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] });
       const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
-      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), comment);
+      assert.ok(comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped"), comment);
       assert.ok(comment.includes(CHECKED_TIP), comment);
     },
   );
@@ -1346,7 +1349,7 @@ test("a run at its turn cap with no restart left hands back, naming the cap", ()
     assert.equal(plan.action, "hand-back");
     assert.deepEqual(plan.addLabels, ["needs-human"]);
     assert.deepEqual(plan.removeLabels, ["agent-ready"]);
-    assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap cap=75 run=555 -->\n"), plan.comment);
+    assert.ok(plan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=turn-cap cap=75 run=555 -->\n"), plan.comment);
     assert.match(plan.comment, /turn cap 75 reached/);
   }
 });
@@ -1362,7 +1365,7 @@ test("a run at its turn cap that committed nothing names no branch", () => {
 test("a forged turn-cap class beside a readable outcome keeps that outcome", () => {
   assert.equal(capped({ outcome: done }).action, "open-pr");
   const stoppedPlan = capped({ outcome: { exit: "stopped", reason: "The tests cannot run here.", title: "", summary: "" } });
-  assert.ok(stoppedPlan.comment.startsWith("<!-- work-resolve-issue outcome=stopped run=555 -->"), stoppedPlan.comment);
+  assert.ok(stoppedPlan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped run=555 -->"), stoppedPlan.comment);
 });
 
 test("the turn-cap marker reads back with its run", () => {
@@ -1978,7 +1981,7 @@ test("hand-back markers carry run= and read back with it", () => {
     { exit: "pushback", reason: "Which file?", title: "", summary: "" },
   ]) {
     const plan = decide({ outcome, issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
-    assert.ok(plan.comment.startsWith(`<!-- work-resolve-issue outcome=${outcome.exit} run=555 -->\n`), plan.comment);
+    assert.ok(plan.comment.startsWith(`${ESC}<!-- work-resolve-issue outcome=${outcome.exit} run=555 -->\n`), plan.comment);
     assert.deepEqual(parseOutcomeMarker(plan.comment), { outcome: outcome.exit, resets: null, run: "555", onResumed: false });
   }
 });
@@ -2526,4 +2529,40 @@ test("the runner records an empty result list when the activity lists no checks"
   const run = runChecks({ goodFragment: true, checks: [] });
   assert.equal(run.status, 0, run.stdout);
   assert.deepEqual(run.checks.results, []);
+});
+
+// /work-items:attend-queue lists an issue as escalated only from a comment
+// whose first line is exactly the escalation marker (work-items reference
+// escalation-marker.md), so every plan that adds the human-gated label opens
+// with it, and a plan that keeps agent-ready for a restart carries none.
+test("every hand-back opens with the attended queue's escalation marker, and a restart carries none", () => {
+  const plain = { issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" };
+  const handBacks = [
+    decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } }),
+    decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }),
+    decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-protected-path" }),
+    capped({ limits: { "turn-cap-restarts": 0 } }),
+  ];
+  for (const plan of handBacks) {
+    assert.deepEqual(plan.addLabels, ["needs-human"], plan.comment);
+    assert.equal(plan.comment.split("\n")[0], "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->", plan.comment);
+  }
+  const restarts = [
+    capped(),
+    decideFunding({ funding: { regain: null } }),
+    decideFunding({ limit: { resets: Date.parse("2026-10-17T18:00:00Z") }, now: Date.parse("2026-10-17T12:00:00Z") }),
+  ];
+  for (const plan of restarts) {
+    assert.deepEqual(plan.addLabels, [], plan.comment);
+    assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
+  }
+});
+
+test("an outcome marker reads back after the escalation marker line, and after no other line", () => {
+  const outcome = "<!-- work-resolve-issue outcome=stopped run=9 -->\nWhy.";
+  const read = { outcome: "stopped", resets: null, run: "9", onResumed: false };
+  assert.deepEqual(parseOutcomeMarker(`<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\n${outcome}`), read);
+  assert.deepEqual(parseOutcomeMarker(`<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r\n${outcome}`), read);
+  assert.equal(parseOutcomeMarker(`<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${outcome}`), null);
+  assert.equal(parseOutcomeMarker(`Quoting <!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\n${outcome}`), null);
 });
