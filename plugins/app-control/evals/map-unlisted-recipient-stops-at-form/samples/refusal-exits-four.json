@@ -11,6 +11,18 @@
     {
       "answer": "The send command exits with code 4 and prints the refused floor.",
       "why": "exit with code wording"
+    },
+    {
+      "answer": "It refuses with exit code: 4.",
+      "why": "colon form"
+    },
+    {
+      "answer": "The command exits non-zero (`4`) and sends nothing.",
+      "why": "non-zero with the code in parentheses"
+    },
+    {
+      "answer": "The send command returns 4 without sending.",
+      "why": "returns wording"
     }
   ],
   "fail": [
