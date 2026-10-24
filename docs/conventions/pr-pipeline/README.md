@@ -1799,8 +1799,8 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
   checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
   as data. It returns at most three findings, each citing at least one `path`, `line` and exact
   `quote` from main.
-- **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
-  line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
+- **file**, a script with no model and `issues: write`, drops a finding whose slice, workflow or job
+  is not one its unit's data shows, or when any quote is not on its line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
   job and the error signature with numbers, SHAs and times removed, kept as the last line of the
   issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
   is skipped; any other closed match, whatever its age, is reopened with a comment carrying the

@@ -1,9 +1,10 @@
-// The lane sweep's file job: checks every claim against main, fingerprints
+// The lane sweep's file job: binds every finding to the unit it came from,
+// checks every claim against main, fingerprints
 // each finding, reads the issues earlier sweeps filed, and files, comments,
 // reopens or skips per planFiling. No model. Writes with the job's own token, one call at
 // a time, 1 s apart, within its call budget.
 import { appendFileSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
@@ -23,7 +24,27 @@ import {
 export const FILER_LOGIN = "github-actions[bot]";
 const LABELS = ["needs-triage", "source: lane-sweep"];
 
-export function prepareItems({ findingsDir, baseDir }) {
+// The job names a unit's data shows: failed jobs of slice A, sampled jobs of
+// slice D. Slice C names pull requests, not workflows, so it binds neither.
+export function unitJobs(unit) {
+  if (unit.slice === "A") return (unit.runs ?? []).flatMap((r) => (r.failed_jobs ?? []).map((j) => j.name));
+  if (unit.slice === "D") return (unit.sampled_success_runs ?? []).flatMap((r) => (r.jobs ?? []).map((j) => j.name));
+  return null;
+}
+
+// Why a finding does not belong to the unit it came from, else null. The
+// judge reads CI text that can steer it, and slice, workflow and job set the
+// fingerprint, so each must be what collect wrote for the unit.
+export function unitMismatch(finding, unit) {
+  if (finding.slice !== unit.slice) return "slice-not-unit";
+  const jobs = unitJobs(unit);
+  if (jobs === null) return null;
+  if (finding.workflow !== unit.workflow) return "workflow-not-unit";
+  if (!jobs.includes(finding.job)) return "job-not-in-unit";
+  return null;
+}
+
+export function prepareItems({ findingsDir, unitsDir, baseDir }) {
   const items = [];
   const dropped = [];
   for (const entry of readdirSync(findingsDir).sort()) {
@@ -34,6 +55,14 @@ export function prepareItems({ findingsDir, baseDir }) {
       dropped.push({ unit: entry, title: null, reason: "unreadable" });
       continue;
     }
+    let unit = null;
+    if (/^[acd][1-8]$/.test(String(data.unit))) {
+      try {
+        unit = JSON.parse(readFileSync(join(unitsDir, `${data.unit}.json`), "utf8"));
+      } catch {
+        unit = null;
+      }
+    }
     for (const finding of Array.isArray(data.findings) ? data.findings : []) {
       const bad = validateFinding(finding);
       if (bad.length > 0) {
@@ -42,6 +71,11 @@ export function prepareItems({ findingsDir, baseDir }) {
           title: String(finding?.title ?? ""),
           reason: bad.join(","),
         });
+        continue;
+      }
+      const mismatch = unit ? unitMismatch(finding, unit) : "unit-unreadable";
+      if (mismatch) {
+        dropped.push({ unit: data.unit, title: finding.title, reason: mismatch });
         continue;
       }
       const failed = finding.evidence
@@ -148,6 +182,7 @@ async function main() {
 
   const { items, dropped } = prepareItems({
     findingsDir: env.FINDINGS_DIR,
+    unitsDir: join(dirname(env.OPEN_ITEMS_PATH), "units"),
     baseDir: env.BASE_DIR,
   });
   const existing = [];
