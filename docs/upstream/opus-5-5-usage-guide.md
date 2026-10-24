@@ -103,7 +103,7 @@ their own.
 | Topic | Ours | Verdict |
 |---|---|---|
 | The current Opus and the `opus` alias (pointer: [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of 2026-09-23) | New `plugins/playbooks/reference/model-adaptation/opus-5-5.md`; live docs (official-docs, plugin-philosophy, loop-lane README) updated | ADOPT |
-| Opus 5 and Opus 4.8 chapters | Kept while they are fallback targets for a flagged request (pointer: [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback), as of 2026-09-28). Each chapter carries its own record of this at its top. #4349 stays open until that section no longer names them | KEEP, TRACK #4349 |
+| Opus 5 and Opus 4.8 chapters | Kept while they are fallback targets for a flagged request (pointer: [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback), as of 2026-09-28). Each chapter carries its own record of this at its top. The `model-fallback-targets-watch` row in `.github/recurring-schedule.json` rechecks that section monthly | KEEP, TRACK `model-fallback-targets-watch` |
 
 ## Decisions and follow-ups
 
@@ -120,7 +120,7 @@ Filed:
 - #4346 regenerate the fable-5 doctrine for Fable 5.1.
 - #4347 Sonnet 5.5 adaptation chapter, on release.
 - #4348 Haiku 5.5 adaptation chapter, on release.
-- #4349 retire the Opus 5 and Opus 4.8 chapters once they stop being fallback targets
-  (open: as of 2026-09-28 the trigger has not fired; recheck when model-config "Automatic
-  model fallback" no longer names them).
+- `model-fallback-targets-watch` (`.github/recurring-schedule.json`) retires the Opus 5 and
+  Opus 4.8 chapters once they stop being fallback targets (as of 2026-09-28 the trigger has
+  not fired; the row rechecks model-config "Automatic model fallback" monthly).
 - #4351 three skill descriptions over the 1024-codepoint limit (already on `main`).
