@@ -269,15 +269,15 @@ function runtimeDir(platform) {
   return env.XDG_RUNTIME_DIR ? join(env.XDG_RUNTIME_DIR, 'ccd') : join(os.homedir(), '.cache', 'ccd');
 }
 
+const checkSession = (session) => {
+  if (!/^[\w-]{1,32}$/.test(session)) throw new UsageError('--session takes 1-32 letters, digits, _ or -');
+};
+
 /**
  * Where a session listens. POSIX: a socket in the private runtime directory.
  * Windows: a named pipe, which any local account could squat under a guessable
  * name, so `launch` records a random suffix in a file only this user reads.
  */
-const checkSession = (session) => {
-  if (!/^[\w-]{1,32}$/.test(session)) throw new UsageError('--session takes 1-32 letters, digits, _ or -');
-};
-
 export function endpoint(session, platform = process.platform, { fresh = false } = {}) {
   checkSession(session);
   const dir = privateDir(runtimeDir(platform));
