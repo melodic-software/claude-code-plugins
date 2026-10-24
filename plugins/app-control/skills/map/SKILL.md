@@ -97,6 +97,8 @@ alive, looked up by the pid in drive's launch record, never by name.
 
 - A step that fails because the control skill is wrong (a handle, a route, a precondition): fix
   the files and run again.
+- A step that would send to anyone not on the recipient allowlist stops at the form and never
+  presses send.
 - A failed sign-in stops proving. Never retry that account in this session; the outcome is
   unproven, with drive's evidence for that step.
 - A healthy app that still fails: written but unproven, with drive's evidence. Never call it done.
