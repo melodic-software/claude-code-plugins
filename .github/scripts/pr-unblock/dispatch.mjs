@@ -7,11 +7,14 @@
 // It lists open PRs into main, keeps the non-draft, same-repository ones
 // whose mergeable state is CONFLICTING (re-querying UNKNOWN a bounded number
 // of times), skips a PR whose resolve-conflicts run is still queued or going,
-// or whose current head already carries a pr-unblock check run (one the usage
-// limit stopped stops counting once its limit resets, see limit-stop.mjs),
-// and dispatches pr-unblock.yml on main for at most maxDispatch of them,
-// lowest PR number first. Labels and authors are left to the lane's own
-// config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
+// a held PR (do-not-merge, or the human-gated label unless another lane's
+// escalation put it on: gate-source.mjs prHold), or one whose current head
+// already carries a pr-unblock check run that handles it (limit-stop.mjs: a
+// limit stop stops counting once its limit resets, a failed run until
+// limit-stops-per-head failures stand on the head, and a skip while held
+// once the hold is gone), and dispatches pr-unblock.yml on main for at most
+// maxDispatch of them, lowest PR number first. Authors are left to the lane's
+// own config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
 // (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
@@ -33,6 +36,7 @@ import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs"
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { commentItems, listLabelEvents, prHold } from "./gate-source.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
@@ -54,6 +58,9 @@ export const DEFAULTS = Object.freeze({
   // at about a minute (judgment).
   unknownRetries: 5,
   unknownDelayMs: 10_000,
+  // resolve-conflicts's applies-when labels-absent and the human-gated label
+  // (docs/conventions/pr-pipeline.yaml), checked before its check runs are read.
+  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
 });
 
 // The run id form the record's readers accept.
@@ -108,6 +115,9 @@ export async function dispatchConflicting({
   limits,
   listed,
   record = emptyRecord(),
+  holdLabels = DEFAULTS.holdLabels,
+  gateLabel = "needs-human",
+  appSenderId,
 }) {
   const nodes = listed ?? (await listAll(api, base));
   // A recorded head is skipped whatever its mergeable state, so it is neither
@@ -164,15 +174,30 @@ export async function dispatchConflicting({
     }
     let handled;
     try {
+      const { held, why } = await prHold({
+        labels: (node.labels?.nodes ?? []).map((label) => label?.name),
+        holdLabels,
+        gateLabel,
+        head: node.headRefOid,
+        activity,
+        appId: appSenderId,
+        readTimeline: async () => [...commentItems(await api.listIssueComments(node.number)), ...(await api.listLabelEvents(node.number))],
+      });
+      // Not recorded: the hold can come off with the head unchanged.
+      if (held) {
+        log(`skip #${node.number}: ${why}`);
+        continue;
+      }
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      handled = anyHandles(existing, { now, limits });
-      if (permanentlyHandles(existing)) {
+      const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      handled = anyHandles(existing, { now, ...options });
+      if (permanentlyHandles(existing, options)) {
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
       failed += 1;
       log(
-        `::error::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}`,
+        `::error::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}`,
       );
       continue;
     }
@@ -307,6 +332,10 @@ export function createGitHubApi({
     async getCommit(sha) {
       return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
     },
+    // A held PR's timeline pieces (gate-source.mjs): its issue comments and
+    // label events.
+    listIssueComments: (number) => paginate(`issues/${Number(number)}/comments`),
+    listLabelEvents: (number) => listLabelEvents({ graphql, repository, number: Number(number) }),
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,
@@ -452,7 +481,17 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   const listed = await listAll(client, DEFAULTS.base);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
-  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now, listed, record });
+  // The human-gated label another lane's escalation may leave on for
+  // resolve-conflicts, fix-ci and fix-docs; null when unreadable, so it holds.
+  const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
+  let gateLabel = null;
+  try {
+    gateLabel = baseHumanGatedLabel(env);
+  } catch (error) {
+    log(`::warning::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); it holds every PR it is on`);
+  }
+  const gate = { gateLabel, appSenderId };
+  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now, listed, record, ...gate });
   const reviews = await dispatchDependencyReviews({
     api: client,
     runId: env.GITHUB_RUN_ID,

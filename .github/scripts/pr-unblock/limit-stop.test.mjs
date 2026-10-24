@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { anyHandles, limitResetsAt } from "./limit-stop.mjs";
+import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 
 const HOUR = 3_600_000;
 const ENDED = "2026-10-17T10:00:00Z";
@@ -100,4 +100,40 @@ test("the resolved limits set how many reset limit stops handle a head", () => {
 test("a failed run with no summary record handles the head, however long ago it ended", () => {
   assert.equal(anyHandles([run()], { now: ended + 30 * 24 * HOUR }), true);
   assert.equal(anyHandles([posted(LIMIT, { id: 1 }), run(2)], { now: ended + 6 * HOUR }), true);
+  assert.equal(permanentlyHandles([run()]), true);
+});
+
+// resolve-conflicts opts in: a failed run is retried, every failure (limit
+// stops included) counting toward limit-stops-per-head (3 by default).
+test("with failures retried, failed runs stop handling the head until three of them stand on it", () => {
+  const now = ended + HOUR;
+  const options = { now, failuresRetry: true };
+  assert.equal(anyHandles([run(1)], options), false);
+  assert.equal(anyHandles([run(1), run(2)], options), false);
+  assert.equal(anyHandles([run(1), posted(LIMIT, { id: 2 }), run(3)], { ...options, now: ended + 6 * HOUR }), true);
+  assert.equal(anyHandles([run(1), run(2), run(3)], options), true);
+  assert.equal(anyHandles([run(1), run(2)], { ...options, limits: SET }), true, "the resolved cap of 1");
+  assert.equal(permanentlyHandles([run(1), run(2)], { failuresRetry: true }), false);
+  assert.equal(permanentlyHandles([run(1), run(2), run(3)], { failuresRetry: true }), true);
+});
+
+test("with failures retried, an unreset limit stop or any run that did not fail still handles the head", () => {
+  const options = { now: ended + HOUR, failuresRetry: true };
+  assert.equal(anyHandles([posted(LIMIT, { id: 1 })], options), true);
+  assert.equal(anyHandles([run(1), { ...run(2), conclusion: "success" }], options), true);
+  assert.equal(permanentlyHandles([run(1), { ...run(2), conclusion: "success" }], { failuresRetry: true }), true);
+});
+
+// The neutral check report-check-run posts for a skip whose reason is
+// awaiting-human (decide.mjs: "Skipped: <reason>"), as a held PR leaves it.
+const heldSkip = { id: 9, status: "completed", conclusion: "neutral", completed_at: ENDED, output: { title: "Skipped: awaiting-human" } };
+
+test("with held skips released, an awaiting-human skip does not handle the head", () => {
+  const now = ended + HOUR;
+  assert.equal(anyHandles([heldSkip], { now }), true, "by default it handles the head");
+  assert.equal(permanentlyHandles([heldSkip]), true);
+  assert.equal(anyHandles([heldSkip], { now, heldSkipsRelease: true }), false);
+  assert.equal(permanentlyHandles([heldSkip], { heldSkipsRelease: true }), false);
+  const other = { ...heldSkip, output: { title: "Skipped: not-applicable" } };
+  assert.equal(anyHandles([other], { now, heldSkipsRelease: true }), true, "another skip still handles it");
 });

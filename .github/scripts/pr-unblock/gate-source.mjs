@@ -141,6 +141,61 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
   return result("lane-escalation", `${escalations.length} lane escalation(s) by the lanes App since it added ${label}`);
 }
 
+// The Reason line report-escalation.sh writes into its escalation comment.
+const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
+
+// The activity a reason resumes, as report-escalation.sh maps it.
+export const escalationActivity = (reason) =>
+  reason.startsWith("feedback-")
+    ? "address-feedback"
+    : reason.startsWith("dependency-")
+      ? "review-dependency"
+      : reason.startsWith("ci-fix-")
+        ? "fix-ci"
+        : "resolve-conflicts";
+
+// Whether `activity` may work a PR while its human-gated `label` stays on: only
+// when gateSource reads a lane escalation and no escalation since the label
+// went on is `activity`'s own, so one lane's escalation does not stop the
+// others. `why` is a fixed phrase, safe to log.
+export function laneEscalationAllows({ timeline, label, head, isLanesApp, activity }) {
+  const gate = gateSource({ timeline, label, head, isLanesApp });
+  if (gate.source !== "lane-escalation") {
+    return { allowed: false, why: `${label} is not a lane escalation (${gate.source})` };
+  }
+  const { since } = labelHistory(timeline, label);
+  const appComments = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));
+  const reasons = escalationsSince(appComments, since).map(({ body }) => body.map((line) => REASON_LINE.exec(line.trim())?.[1]).find(Boolean));
+  if (reasons.some((reason) => reason === undefined)) {
+    return { allowed: false, why: `a lane escalation since ${label} went on names no reason` };
+  }
+  if (reasons.some((reason) => escalationActivity(reason) === activity)) {
+    return { allowed: false, why: `${activity} escalated it` };
+  }
+  return { allowed: true, why: "" };
+}
+
+// Whether a PR carrying `labels` is held for `activity`: any of `holdLabels`
+// but the human-gated `gateLabel` holds it; `gateLabel` holds it unless
+// laneEscalationAllows reads `readTimeline()` (called only then) as another
+// lane's escalation. A null gateLabel (unreadable) or no lanes App id holds.
+// laneEscalated is true when the label is on and this activity works past it.
+export async function prHold({ labels, holdLabels, gateLabel, head, activity, appId, readTimeline }) {
+  const hard = labels.find((name) => holdLabels.includes(name) && name !== gateLabel);
+  if (hard !== undefined) {
+    return { held: true, laneEscalated: false, why: `held by ${hard}` };
+  }
+  if (gateLabel === null || !labels.includes(gateLabel)) {
+    return { held: false, laneEscalated: false, why: "" };
+  }
+  if (!Number.isSafeInteger(appId) || appId < 1) {
+    return { held: true, laneEscalated: false, why: `held by ${gateLabel}` };
+  }
+  const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
+  const { allowed, why } = laneEscalationAllows({ timeline: await readTimeline(), label: gateLabel, head, isLanesApp, activity });
+  return allowed ? { held: false, laneEscalated: true, why: "" } : { held: true, laneEscalated: false, why: `held by ${gateLabel}: ${why}` };
+}
+
 const LABEL_EVENTS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
