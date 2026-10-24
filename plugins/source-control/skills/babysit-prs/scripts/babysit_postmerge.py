@@ -2288,18 +2288,24 @@ def disarm_identity_pulls(
     that the agent identity both opened and armed, appending each number to
     `disarmed` as it goes. A pull request a person armed, or one the identity
     did not open, is left armed. Every one is tried; a failed one does not
-    stop the rest. Raises `PostMergeReadError` on a read that is not every
-    open pull request, or `PostMergeWriteError` naming every failed one."""
+    stop the rest. A read past the page limit still disarms what it found,
+    then raises `PostMergeReadError`; otherwise `PostMergeWriteError` names
+    every failed one."""
     owner, name = _split_repo(repo)
     key = _login_key(identity)
     armed: list[tuple[str, int]] = []
     cursor = None
+    overflow = False
     for _ in range(ARMED_PAGE_LIMIT):
         data = _graphql(
             ARMED_QUERY, "armed pull requests", o=owner, r=name, b=branch, c=cursor
         )
         pulls = json_object(json_object(data.get("repository")).get("pullRequests"))
-        for pr in (json_object(n) for n in json_array(pulls.get("nodes"))):
+        nodes = pulls.get("nodes")
+        page = pulls.get("pageInfo")
+        if not is_json_array(nodes) or not is_json_object(page):
+            raise PostMergeReadError("armed pull requests: the listing did not read")
+        for pr in (json_object(n) for n in nodes):
             request = pr.get("autoMergeRequest")
             if (
                 is_json_object(request)
@@ -2307,14 +2313,11 @@ def disarm_identity_pulls(
                 and _actor_key(request.get("enabledBy")) == key
             ):
                 armed.append((str(pr.get("id")), pr.get("number")))
-        page = json_object(pulls.get("pageInfo"))
         if not page.get("hasNextPage"):
             break
         cursor = page.get("endCursor")
     else:
-        raise PostMergeReadError(
-            f"armed pull requests: more than {ARMED_PAGE_LIMIT} pages of open pull requests"
-        )
+        overflow = True
     failed: list[str] = []
     for pr_id, number in armed:
         try:
@@ -2326,6 +2329,12 @@ def disarm_identity_pulls(
             continue
         if disarmed is not None:
             disarmed.append(number)
+    if overflow:
+        failed.insert(
+            0,
+            f"armed pull requests: more than {ARMED_PAGE_LIMIT} pages of open pull requests",
+        )
+        raise PostMergeReadError("; ".join(failed))
     if failed:
         raise PostMergeWriteError("; ".join(failed))
 

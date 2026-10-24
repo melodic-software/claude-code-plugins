@@ -797,9 +797,9 @@ jobs:
       # hears of a full run this workflow dispatched only when the push job
       # sends it, and not of one the merge job or post-merge-dispatch started:
       # a run started with GITHUB_TOKEN raises no workflow_run event. So the check runs again
-      # with --remediate under the lane token, which files the record (or
-      # comments on it, reopening it on a new sighting) and dequeues the
-      # lane's merge-queue entries. The lane token holds no Actions
+      # with --remediate under the lane token, which disarms the lane's armed
+      # pull requests, dequeues the lane's merge-queue entries and files the
+      # record (or comments on it, reopening it on a new sighting). The lane token holds no Actions
       # permission, so the re-run and dispatch --remediate also attempts fail
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.

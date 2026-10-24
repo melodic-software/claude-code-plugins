@@ -2921,10 +2921,7 @@ UNATTENDED_QUEUE_QUERY = (
     "mergeQueue(branch:$b){entries(first:100){totalCount nodes{enqueuedAt position "
     "enqueuer{__typename login} pullRequest{id number}}}}}}"
 )
-DISARM_MUTATION = (
-    "mutation($id:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$id})"
-    "{clientMutationId}}"
-)
+DISARM_MUTATION = postmerge.DISARM_MUTATION
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
 
 

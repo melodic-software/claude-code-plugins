@@ -194,6 +194,10 @@ class FakeGh:
         self.queue: list[dict[str, Any]] = []
         # Open pull requests into the branch, as the armed read returns them.
         self.open_pulls: list[dict[str, Any]] = []
+        # True: every armed page says another follows.
+        self.open_pulls_endless = False
+        # Armed pages served in order, one per read, when set.
+        self.armed_pages: list[dict[str, Any]] = []
         self.issues: list[dict[str, Any]] = []
         self.comments: dict[int, list[dict[str, Any]]] = {}
         self.fail_reads: set[str] = set()
@@ -402,9 +406,13 @@ class FakeGh:
             return completed(
                 {"data": {"disablePullRequestAutoMerge": {"clientMutationId": None}}}
             )
+        if "PostMergeArmed" in joined and self.armed_pages:
+            return completed(
+                {"data": {"repository": {"pullRequests": self.armed_pages.pop(0)}}}
+            )
         if "PostMergeArmed" in joined:
             page = {
-                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "pageInfo": {"hasNextPage": self.open_pulls_endless, "endCursor": "c"},
                 "nodes": self.open_pulls,
             }
             return completed({"data": {"repository": {"pullRequests": page}}})
@@ -2450,6 +2458,49 @@ class Remediation(CheckCase):
         self.assertEqual(report["disarmed"], [])
         self.assertTrue(report["errors"][0].startswith("disarm: armed pull requests"))
         self.assertEqual(report["dequeued"], [7010])
+
+    def test_an_armed_listing_past_the_page_limit_still_disarms_what_it_read(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.armed_pulls()
+        self.gh.open_pulls_endless = True
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertTrue(len(self.disarms()) >= 1)
+        self.assertIn(7020, report["disarmed"])
+        self.assertTrue(
+            report["errors"][0].startswith("disarm: armed pull requests: more than")
+        )
+
+    def test_the_armed_listing_follows_the_cursor_on_the_judged_branch(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.gh.armed_pages = [
+            {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                "nodes": [armed_pull("PR_p1", 7040, author=HUMAN, armer=HUMAN)],
+            },
+            {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "nodes": [armed_pull("PR_p2", 7041, author=APP_ACTOR, armer=APP_ACTOR)],
+            },
+        ]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7041])
+        reads = [c for c in self.gh.calls if "PostMergeArmed" in " ".join(c)]
+        self.assertEqual(len(reads), 2)
+        self.assertIn("c=c1", reads[1])
+        self.assertIn(f"b={verdict.branch}", reads[0])
+
+    def test_a_malformed_armed_page_is_an_error(self) -> None:
+        verdict = self.failing_verdict()
+        self.gh.armed_pages = [{"pageInfo": {"hasNextPage": False}, "nodes": None}]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [])
+        self.assertTrue(
+            report["errors"][0].startswith("disarm: armed pull requests: the listing")
+        )
 
     def test_no_failure_disarms_nothing(self) -> None:
         self.gh.merged = [identity_merge()]
