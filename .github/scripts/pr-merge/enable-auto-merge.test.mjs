@@ -1,10 +1,11 @@
 // Expected values come from the native-merge plan's arm-merge item and the
 // owner answers on it: a lanes App pull request is armed for native auto-merge (squash, at the head
 // read) with no session, and is never armed, or is disarmed, while it carries
-// a `Hold:` line, do-not-merge or the human-gated label. A Refs pull request
-// is merged by a person (report-outcome.mjs), so it is never armed. The body
-// hold is the gate's own rule, babysit_merge_policy.BODY_MERGE_HOLD_RE, so the
-// parity test reads its verdicts from Python.
+// a `Hold:` line, do-not-merge or the human-gated label. Its issue link is
+// the gate's own rule (docs/conventions/pr-pipeline/README.md, "Eligibility":
+// one closing issue, or one plain `Refs: #<n>` issue), read through the gate's
+// Python, as is the body hold, babysit_merge_policy.BODY_MERGE_HOLD_RE, so
+// the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -24,9 +25,11 @@ import {
   decide,
   READER_EVENTS,
   main,
+  pythonRoom,
+  readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
-import { VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
@@ -73,7 +76,19 @@ const said = (login, body, at, association = "OWNER", typename = "User") => ({
   createdAt: at,
   authorAssociation: association,
 });
-const PASSED = { refusal: null, head: HEAD };
+const PASSED = { refusal: null, head: HEAD, ineligible: null, reviews: null };
+const COST_LINK = `https://github.com/${REPO}/issues/1040#issuecomment-7`;
+const COST_COMMENT = {
+  issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
+  user: { login: "kyle-sexton", id: 5, type: "User" },
+  performed_via_github_app: null,
+  body: "**Decision recorded.** Cost: approve it.",
+  node_id: "IC_7",
+  created_at: "2026-10-22T12:00:00Z",
+};
+// lane-room's answer for a lane with room: nothing in flight of five.
+const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], rung: "C2" };
+const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
 function world(pulls, { failArm = false } = {}) {
@@ -85,7 +100,20 @@ function world(pulls, { failArm = false } = {}) {
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
     }
+    // The cost decision reads (merge-holds.costDecision): the owner's comment
+    // 7 on pull request 40's closing issue, and each pull request closes its own
+    // number plus 1000.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
+      return COST_COMMENT;
+    }
     assert.equal(`${method} ${path}`, "POST /graphql");
+    if (body.query === PULL_OPENED_QUERY) {
+      const nodes = [{ number: body.variables.number + 1000, repository: { nameWithOwner: REPO } }];
+      return { data: { repository: { pullRequest: { createdAt: "2026-10-22T10:00:00Z", closingIssuesReferences: { totalCount: 1, nodes } } } } };
+    }
+    if (body.query === COMMENT_EDITED_QUERY) {
+      return { data: { node: { lastEditedAt: null } } };
+    }
     if (body.query === PULLS_QUERY) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
@@ -108,22 +136,22 @@ function world(pulls, { failArm = false } = {}) {
     if (found?.verdict instanceof Error) {
       throw found.verdict;
     }
-    return found?.verdict ?? { refusal: null, head };
+    return found?.verdict ?? { refusal: null, head, ineligible: null, reviews: null };
   };
   const writes = () =>
     calls
-      .filter(({ method, body }) => method === "POST" && body.query !== PULLS_QUERY && body.query !== DETAIL_QUERY)
+      .filter(({ method, body }) => method === "POST" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
-  return { github, writes, verify, verified };
+  return { github, writes, verify, verified, calls };
 }
 
-async function run(pulls, env = {}, options = {}) {
+async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const { github, writes, verify, verified } = world(pulls, options);
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify });
+    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane) });
     return { code, writes: writes(), lines, verified };
   } finally {
     console.log = log;
@@ -169,15 +197,13 @@ test("an armed pull request that now holds is disarmed", async () => {
   ]);
 });
 
-test("only the lanes App's ready Closes pull requests from this repository are armed", async () => {
+test("only the lanes App's ready pull requests from this repository are armed", async () => {
   const { writes } = await run([
     pull(1, { author: { __typename: "User", login: "kyle-sexton" } }),
     pull(2, { author: { __typename: "Bot", login: "dependabot" } }),
     pull(3, { author: { __typename: "User", login: "melodic-automation-lanes" } }),
     pull(4, { isDraft: true }),
     pull(5, { isCrossRepository: true }),
-    pull(6, { body: "Refs: #12\n\n## Summary" }),
-    pull(7, { body: "## Summary\n\nCloses #12" }),
     pull(8, { headRefOid: "abc" }),
     pull(9, { labels: { totalCount: 101, nodes: [] } }),
   ]);
@@ -253,7 +279,7 @@ test("the body hold agrees with the gate's BODY_MERGE_HOLD_RE", () => {
 // The body the issue lane opens its pull request with (report-outcome.mjs
 // decide), so a change to either side that stops a clean lane pull request
 // from arming, or arms a held one, fails here.
-test("report-outcome's own pull request body arms, and its hold and Refs bodies do not", () => {
+test("report-outcome's own Closes and Refs pull request bodies arm, and its hold bodies do not", () => {
   const plan = (overrides) =>
     decideOutcome({
       outcome: { exit: "done", reason: "", title: "docs(work-items): fix a typo", summary: "Fixed it." },
@@ -274,7 +300,7 @@ test("report-outcome's own pull request body arms, and its hold and Refs bodies 
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
   assert.equal(verdict({ changedFiles: [".github/workflows/x.yml"] }).action, "none");
-  assert.equal(verdict({ outcome: { exit: "done", reason: "", title: "t", summary: "s", link: "refs" } }).action, "none");
+  assert.deepEqual(verdict({ outcome: { exit: "done", reason: "", title: "t", summary: "s", link: "refs" } }), { action: "arm", reason: "no hold" });
 });
 
 // The gate's human veto (babysit_merge.human_veto_logins): each member's
@@ -360,6 +386,49 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     { mutation: "disarm", id: "PR_2" },
     { mutation: "arm", id: "PR_5", head: HEAD },
   ]);
+});
+
+// The gate scores the marketplace manifest HIGH (babysit_risk.is_manifest_path),
+// so it is a hold path like every plugin manifest.
+test("a pull request whose head changes the marketplace manifest is not armed, or is disarmed", () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const files = ["docs/a.md", ".claude-plugin/marketplace.json"];
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
+    action: "none",
+    reason: "it changes .claude-plugin/marketplace.json, a hold path",
+  });
+  assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
+});
+
+// The gate holds a cost path (babysit_risk.COST_PATHS) until the body links
+// the owner's cost decision (babysit_merge_policy.cost_decision).
+test("a cost path holds until the body links the owner's cost decision", async () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const files = ["infra/Pulumi.prod.yaml"];
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
+    action: "none",
+    reason: "it changes infra/Pulumi.prod.yaml, a cost path",
+  });
+  assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
+  assert.equal(decide(pull(1), options, { ...detail(), files, costDecision: COST_LINK, verify: PASSED }).action, "arm");
+
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
+  const cost = [{ filename: "plugins/multi-agent/reference/defaults.yaml" }];
+  const decided = `Closes #1040\n\nCost decision: ${COST_LINK}`;
+  const { writes } = await run(
+    [pull(40, { files: cost, body: decided }), pull(41, { files: cost }), pull(42, { files: cost, body: decided })],
+    { TRUSTED_ACTORS: join(dir, "actors.json") },
+  );
+  // Pull request 41 links no decision; 42 closes a different issue, so pull
+  // request 40's decision does not cover it.
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_40", head: HEAD }]);
+  // A changed file's name cannot start a workflow command on its own line.
+  const { lines } = await run([pull(43, { files: [{ filename: "x\n::warning::forged/main.tf" }] })]);
+  assert.ok(lines.some((line) => line.includes("x ::warning::forged/main.tf, a cost path")));
+  assert.ok(!lines.some((line) => /(^|\n)::warning::/.test(line)));
+  // Not on the trusted-actor list, the commenter decides nothing.
+  assert.deepEqual((await run([pull(40, { files: cost, body: decided })], { TRUSTED_ACTORS: "/nonexistent/actors.json" })).writes, []);
 });
 
 // ci-status runs merge-holds.mjs on the live files with the base config's
@@ -450,7 +519,14 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
   assert.match(verifyHold({ refusal: null, head: "c".repeat(40) }, HEAD), /another head/);
   assert.match(verifyHold(null, HEAD), /could not be read/);
   assert.match(verifyHold({ head: HEAD }, HEAD), /could not be read/);
-  assert.match(verifyHold({ refusal: "verify:too-old", head: HEAD }, HEAD), /verify:too-old/);
+  assert.match(verifyHold({ refusal: "verify:too-old", head: HEAD, ineligible: null }, HEAD), /verify:too-old/);
+  // The link's answer: a refusal names it, and a line without one allows nothing.
+  assert.match(verifyHold({ refusal: "verify:ineligible", head: HEAD, ineligible: "refs-issues:2" }, HEAD), /does not take its issue link \(refs-issues:2\)/);
+  assert.match(verifyHold({ refusal: null, head: HEAD }, HEAD), /issue link could not be read/);
+  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: false }, HEAD), /issue link could not be read/);
+  // The review lanes' answer: a hold names it, and a line without one allows nothing.
+  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" }, HEAD), /holds it on its risk score \(security-finding: 1 open\)/);
+  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /risk score could not be read/);
 });
 
 // The merge queue's check (merge-holds.mjs verdictHold): a pass counts only
@@ -535,7 +611,8 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     exits: "import sys\nsys.stderr.write('boom\\n')\nsys.exit(1)\n",
     garbage: "print('not json')\n",
     other: `import json\nprint(json.dumps({"refusal": None, "head": "${"c".repeat(40)}"}))\n`,
-    passes: `import json, sys\nassert sys.argv[-4:-2] == ["--base-sha", "${"d".repeat(40)}"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
+    unlinked: `import json, sys\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
+    passes: `import json, sys\nassert sys.argv[2:4] == ["--lane-link", "--lane-reviews"] and sys.argv[-6:-2] == ["--base-sha", "${"d".repeat(40)}", "--rung", "C2"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None}))\n`,
   };
   for (const [name, body] of Object.entries(scripts)) {
     writeFileSync(join(dir, `${name}.py`), body);
@@ -545,6 +622,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     ["exits", [{ mutation: "disarm", id: "PR_2" }]],
     ["garbage", [{ mutation: "disarm", id: "PR_2" }]],
     ["other", [{ mutation: "disarm", id: "PR_2" }]],
+    ["unlinked", [{ mutation: "disarm", id: "PR_2" }]],
     ["passes", [{ mutation: "arm", id: "PR_1", head: HEAD }]],
   ]) {
     const { github, writes } = world([pull(1), pull(2, { autoMergeRequest: armed })]);
@@ -552,10 +630,291 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     const log = console.log;
     console.log = () => {};
     try {
-      await main({ env, github });
+      await main({ env, github, room: room() });
     } finally {
       console.log = log;
     }
     assert.deepEqual(writes(), want, name);
   }
+});
+
+// The issue link through the gate's own CLI (`evidence --lane-link`) and rule
+// (babysit_merge_policy._linked_issue), GitHub's answers stubbed at gh and the
+// verdict a pass at the head, so only the link decides. Expected values are
+// docs/conventions/pr-pipeline/README.md "Eligibility": one closing issue, or
+// one plain `Refs: #<n>` issue; two `Refs:` issues refuse; a failed read refuses.
+test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs or a failed read", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-link-"));
+  const wrapper = join(dir, "lane_link.py");
+  writeFileSync(
+    wrapper,
+    `import json, os, subprocess, sys
+sys.path.insert(0, os.environ["SCRIPTS"])
+from unittest import mock
+import babysit_merge_policy as policy
+import babysit_postmerge as postmerge
+import babysit_verify_evidence as ve
+
+PULLS = json.loads(os.environ["PULLS"])
+
+def gh(args, **_):
+    n = next(a for a in args if a.startswith("n="))[2:]
+    def ok(data):
+        return subprocess.CompletedProcess(args, 0, json.dumps({"data": {"repository": data}}), "")
+    if any("issueOrPullRequest" in a for a in args):
+        node = {"__typename": "Issue", "number": int(n), "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}}
+        return ok({"issueOrPullRequest": node})
+    found = PULLS[n]
+    if found.get("error"):
+        return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+    nodes = [{"number": c, "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}} for c in found["closing"]]
+    return ok({"pullRequest": {"body": found["body"], "closingIssuesReferences": {"totalCount": len(nodes), "nodes": nodes}}})
+
+def passes(self, number, head, pr=None):
+    return ve.Evidence(None, head, (ve.Verdict(head, "pass", 1),), 0)
+
+argv = sys.argv[1:]
+pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base):
+    sys.exit(ve.main(argv))
+`,
+  );
+  const body = (text) => `${text}\n\n## Summary\n\nDone.`;
+  const pulls = {
+    1: { body: body("Closes #11"), closing: [11] },
+    2: { body: body("Refs: #12"), closing: [] },
+    3: { body: body("Refs: #12\nRefs: #13"), closing: [] },
+    4: { body: body("Refs: #12"), closing: [], error: true },
+    5: { body: body("Refs: #12\nRefs: #13"), closing: [] },
+  };
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const { github, writes } = world([1, 2, 3, 4].map((n) => pull(n, { body: pulls[n].body })).concat(pull(5, { body: pulls[5].body, autoMergeRequest: armed })));
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, PULLS: JSON.stringify(pulls), VERIFY_EVIDENCE_SCRIPT: wrapper };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    assert.equal(await main({ env, github, room: room() }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "arm", id: "PR_2", head: HEAD },
+    { mutation: "disarm", id: "PR_5" },
+  ]);
+  assert.ok(lines.some((line) => /#3 left: pr-merge's lane does not take its issue link \(refs-issues:2\)/.test(line)), lines.join("\n"));
+  assert.ok(lines.some((line) => /#4 left: pr-merge's lane does not take its issue link \(unreadable: /.test(line)), lines.join("\n"));
+});
+
+// An event run reads no link and no verdict, so it never disarms an armed
+// Refs pull request on its link; the scheduled run judges it.
+test("an event run leaves an armed Refs pull request armed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const { writes, verified } = await run([pull(1, { autoMergeRequest: armed, body: "Refs: #12\n\n## Summary" })], { EVENT_NAME: "pull_request_target" });
+  assert.deepEqual(writes, []);
+  assert.deepEqual(verified, []);
+});
+
+// The gate's run-level refusals, which native auto-merge would skip
+// (babysit_merge_policy.lane_room): a demotion record or a rung held off
+// stops the lane, and merge.max-in-flight caps what is in flight.
+test("while the gate holds its lane off, nothing is armed and armed lane pull requests are disarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  for (const refusal of ["rung-off:demotion", "rung-off:rungCap", "post-merge:failure:red-main#40"]) {
+    const { writes, verified, lines } = await run(
+      [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" }, autoMergeRequest: armed })],
+      {},
+      {},
+      { ...ROOM, refusal },
+    );
+    assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], refusal);
+    // A held lane reads no verdict.
+    assert.deepEqual(verified, [], refusal);
+    assert.ok(lines.some((line) => line.includes(`#1 left: pr-merge's gate holds its lane off (${refusal})`)), refusal);
+  }
+});
+
+test("at merge.max-in-flight nothing more is armed, counting armed pull requests the queue has not taken", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  // Four in flight by the gate's count, one armed and not queued: the cap of five is reached.
+  let result = await run([pull(1), pull(2, { autoMergeRequest: armed })], {}, {}, { ...ROOM, count: 4, cap: 5 });
+  assert.deepEqual(result.writes, []);
+  assert.deepEqual(result.verified, [2]);
+  assert.ok(result.lines.some((line) => /#1 left: merge\.max-in-flight is 5 and 5 merges are in flight/.test(line)));
+  // An armed pull request already in the queue is in the gate's count, not counted twice.
+  result = await run([pull(1), pull(2, { autoMergeRequest: armed })], {}, {}, { ...ROOM, count: 4, cap: 5, queued: [2] });
+  assert.deepEqual(result.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  // Each arm in the run counts: three in flight of five arms two of three.
+  result = await run([pull(1), pull(2), pull(3)], {}, {}, { ...ROOM, count: 3, cap: 5 });
+  assert.deepEqual(
+    result.writes.map(({ id }) => id),
+    ["PR_1", "PR_2"],
+  );
+});
+
+// Unknown holds: a room that cannot be read (no post-merge report, a failed
+// read) holds as the gate's refusal does, so an armed lane pull request is
+// disarmed rather than left to merge while the gate refuses.
+test("a room that cannot be read arms nothing and disarms every armed lane pull request", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" }, autoMergeRequest: armed })];
+  for (const lane of [{ ...ROOM, unreadable: "post-merge answer missing or unreadable" }, { refusal: null }, null]) {
+    const { writes, verified, lines } = await run(pulls, {}, {}, lane);
+    assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], JSON.stringify(lane));
+    assert.deepEqual(verified, [], JSON.stringify(lane));
+    assert.ok(lines.some((line) => line.includes("#2 disarmed: the lane's room could not be read")), JSON.stringify(lane));
+  }
+  const { github, writes } = world(pulls);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({
+      env: ENV,
+      github,
+      verify: async ({ headRefOid: head }) => ({ refusal: null, head, ineligible: null, reviews: null }),
+      room: async () => {
+        throw new Error("lane-room exited 1");
+      },
+    });
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [{ mutation: "disarm", id: "PR_2" }]);
+});
+
+// An event run reads no room, so it never disarms on one.
+test("an event run leaves an armed lane pull request armed whatever the room", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const { writes } = await run([pull(2, { autoMergeRequest: armed })], { EVENT_NAME: "pull_request_target" }, {}, null);
+  assert.deepEqual(writes, []);
+});
+
+test("an event run reads no room", async () => {
+  let asked = 0;
+  const { github } = world([pull(1)]);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({
+      env: { ...ENV, EVENT_NAME: "pull_request_target" },
+      github,
+      room: async () => {
+        asked += 1;
+        return ROOM;
+      },
+    });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(asked, 0);
+});
+
+test("readRoom takes only lane-room's shape", () => {
+  assert.deepEqual(readRoom(ROOM), ROOM);
+  for (const bad of [null, "x", { ...ROOM, cap: 0 }, { ...ROOM, count: -1 }, { ...ROOM, queued: ["3"] }, { ...ROOM, refusal: 1 }, { ...ROOM, unreadable: undefined }]) {
+    assert.ok(readRoom(bad).unreadable, JSON.stringify(bad));
+  }
+});
+
+test("pythonRoom passes the post-merge report, the rung cap as read, and the reader's token", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-"));
+  const script = join(dir, "room.py");
+  writeFileSync(
+    script,
+    `import json, os, sys
+print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "budget": os.environ.get("API_BUDGET_TOKEN")}))
+`,
+  );
+  const env = { PATH: process.env.PATH, GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: script, POSTMERGE_RESULT: "/tmp/post-merge.json", GH_TOKEN: "lane", BABYSIT_VERIFY_GH_TOKEN: "job" };
+  // An empty cap is no cap, so it is passed; an unset one is not, which the gate reads as off.
+  assert.deepEqual(await pythonRoom({ ...env, RUNG_CAP: "" })(), {
+    argv: ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--rung-cap", ""],
+    token: "job",
+    budget: "github-token",
+  });
+  assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+});
+
+// The gate holds on the security lane's open CRITICAL findings
+// (babysit_risk LANES, security-finding) and on a review not bound to the
+// head, whether or not the lane applied its hold label.
+test("a review-lane hold the gate reads arms nothing and disarms an armed pull request", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const held = { refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" };
+  const { writes, lines } = await run([
+    pull(1, { verdict: held }),
+    pull(2, { autoMergeRequest: armed, verdict: { ...held, reviews: "evidence-unbound:claude-security-review: marker-missing" } }),
+    pull(3, { verdict: { refusal: null, head: HEAD, ineligible: null } }),
+    pull(4),
+  ]);
+  assert.deepEqual(writes, [
+    { mutation: "disarm", id: "PR_2" },
+    { mutation: "arm", id: "PR_4", head: HEAD },
+  ]);
+  assert.ok(lines.some((line) => line.includes("#1 left: pr-merge's gate holds it on its risk score (security-finding: 1 open)")));
+  assert.ok(lines.some((line) => line.includes("#3 left: its risk score could not be read")));
+});
+
+// The gate's whole risk score through its own CLI and scorer
+// (babysit_risk.score, holding), the reads stubbed: only a regular file that
+// stays regular may rate below HIGH, so a symlink or a submodule pointer a
+// lane pull request adds holds, and a plain documentation change arms.
+test("a lane pull request adding a symlink or a submodule pointer is not armed, or is disarmed; a doc change arms", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-risk-"));
+  const wrapper = join(dir, "risk.py");
+  writeFileSync(
+    wrapper,
+    `import json, os, sys
+sys.path.insert(0, os.environ["SCRIPTS"])
+from unittest import mock
+import babysit_merge
+import babysit_merge_policy as policy
+import babysit_verify_evidence as ve
+from babysit_risk import ChangedFile, LaneEvidence
+
+KINDS = json.loads(os.environ["KINDS"])
+DOC = ChangedFile("docs/guide.md", None, "modified", 1, 1, True, "100644", "100644", patch="@@ -1 +1 @@\\n-old\\n+new")
+EXTRA = {
+    "doc": (),
+    "symlink": (ChangedFile("docs/link", None, "added", 1, 0, True, "120000", "000000"),),
+    "submodule": (ChangedFile("vendor/lib", None, "modified", 1, 1, False, "160000", "160000"),),
+}
+number = int(sys.argv[-2])
+pr = {"number": number, "head": {"sha": sys.argv[-1]}, "base": {"sha": "d" * 40, "repo": {"private": False}}}
+lanes = (LaneEvidence("claude-review", True, None, 0), LaneEvidence("claude-security-review", True, None, 0, False, 0))
+config = policy.PipelineConfig("c" * 40, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")
+with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
+    mock.patch.object(ve.Reader, "evidence", lambda self, n, h, pr=None: ve.Evidence(None, h, (), 0)), \\
+    mock.patch.object(policy, "read_config_at", lambda repo, sha: config), \\
+    mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), \\
+    mock.patch.object(policy, "pull_request", lambda repo, n: pr), \\
+    mock.patch.object(policy, "changed_files", lambda repo, p: ((DOC, *EXTRA[KINDS[str(number)]]), True)), \\
+    mock.patch.object(policy, "with_contents", lambda repo, p, f: f), \\
+    mock.patch.object(policy, "pulumi_dirs_at", lambda repo, p: ()), \\
+    mock.patch.object(policy, "permission_reader", lambda repo: (lambda login: None)), \\
+    mock.patch.object(babysit_merge, "_lane_evidence", lambda *args: (lanes, [])):
+    sys.exit(ve.main(sys.argv[1:]))
+`,
+  );
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const kinds = { 1: "doc", 2: "symlink", 3: "submodule" };
+  const { github, writes } = world([pull(1), pull(2), pull(3, { autoMergeRequest: armed })]);
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, KINDS: JSON.stringify(kinds), VERIFY_EVIDENCE_SCRIPT: wrapper };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    assert.equal(await main({ env, github, room: room() }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "disarm", id: "PR_3" },
+  ]);
+  assert.ok(lines.some((line) => /#2 left: pr-merge's gate holds it on its risk score \(.*docs\/link/.test(line)), lines.join("\n"));
+  assert.ok(lines.some((line) => /#3 disarmed: pr-merge's gate holds it on its risk score \(.*vendor\/lib/.test(line)), lines.join("\n"));
 });

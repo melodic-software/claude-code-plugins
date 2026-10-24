@@ -95,8 +95,11 @@ fi
 # trusted-actors.json prints the working tree's list, or answers 404 when
 # STUB_NO_ACTORS is set. An artifacts read by name prints the run ids
 # STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
-# the step's own --jq; a run read prints that id's entry of STUB_RUNS, or
-# answers 404.
+# the step's own --jq, each artifact's id ten times its run's; a run read
+# prints that id's entry of STUB_RUNS, or answers 404. An artifact archive
+# holds STUB_RECORD as its verdict.json (one judging #1, closing, by
+# default), or answers 404 when STUB_NO_RECORD is set; the closing-issues
+# query answers STUB_CLOSING (#1 of o/r by default) through the step's --jq.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -106,6 +109,22 @@ discussion() {
   [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
 }
 case "$*" in
+"api graphql "*closingIssuesReferences*)
+  closing=${STUB_CLOSING:-}
+  [[ -n "$closing" ]] || closing='{"totalCount":1,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}}]}'
+  jq -c --argjson closing "$closing" \
+    '{data: {repository: {pullRequest: {closingIssuesReferences: $closing}}}}' <<<null | jq -c "${*: -1}"
+  ;;
+*/actions/artifacts/*/zip)
+  [[ -z "${STUB_NO_RECORD:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+  record=${STUB_RECORD:-}
+  [[ -n "$record" ]] || record='{"linked_issues":[{"number":1}],"spec_kind":"closes"}'
+  python3 -c 'import io, sys, zipfile
+buffer = io.BytesIO()
+with zipfile.ZipFile(buffer, "w") as archive:
+    archive.writestr("verdict.json", sys.argv[1])
+sys.stdout.buffer.write(buffer.getvalue())' "$record"
+  ;;
 "api graphql "*)
   [[ -z "${STUB_DISARM_FAILS:-}" ]] || { echo 'gh: Resource not accessible by integration' >&2; exit 1; }
   echo '{"data":{}}'
@@ -132,8 +151,8 @@ case "$*" in
   # The step's own --jq filter, the last argument, runs over a listing that
   # also holds an expired artifact of that name and an unexpired one whose
   # name only starts with it, both of run 11, which neither may count.
-  jq -c --arg name "$name" '{artifacts: ([.[$name][]? | {name: $name, expired: false, workflow_run: {id: .}}]
-    + [{name: $name, expired: true, workflow_run: {id: 11}}, {name: ($name + "-i1"), expired: false, workflow_run: {id: 11}}])}' \
+  jq -c --arg name "$name" '{artifacts: ([.[$name][]? | {name: $name, id: (. * 10), expired: false, workflow_run: {id: .}}]
+    + [{name: $name, id: 110, expired: true, workflow_run: {id: 11}}, {name: ($name + "-i1"), id: 110, expired: false, workflow_run: {id: 11}}])}' \
     <<<"${STUB_ARTIFACTS:-{\}}" | jq -r "${*: -1}"
   ;;
 */actions/runs/*)
@@ -169,7 +188,8 @@ expect() {
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
-    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
+    LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -195,6 +215,26 @@ STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"Use
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
 expect "a user account with the lanes App's login is not the lanes App" 0 0 "not the lanes App's"
+
+# The lanes kill switch stops every lanes App pull request, and only those.
+for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
+  STUB_PULL="$(pull 'Closes #1')"
+  export "${kill?}"
+  expect "with $kill, a lanes App pull request fails" 1 0 "the lanes kill switch is on"
+  STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+  expect "with $kill, a person's pull request is not held by it" 0 0 "not the lanes App's"
+  STUB_PULL="$(pull 'Closes #1' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}')"
+  expect "with $kill, a Dependabot pull request is not held by it" 0 0 "not the lanes App's"
+  STUB_PULL="$(pull 'Closes #1')"
+  unset KILL REPO_KILL
+done
+# shellcheck disable=SC2016 # a literal workflow expression, not shell
+if grep -qF 'LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}' <<<"$step" &&
+  grep -qF 'LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}' <<<"$step"; then
+  ok "the step reads both kill switches from the vars context"
+else
+  fail "the step does not read both kill switches from the vars context"
+fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
 expect "a Hold: line in the body fails" 1 3 "::error::#7: its body holds it"
@@ -348,6 +388,27 @@ if [[ "$(lookups)" -eq 1 ]]; then
 else
   fail "a plain-named pass took $(lookups) lookups"
 fi
+# The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
+# after arming to close or name another issue holds the group.
+NO_CLOSING='{"totalCount":0,"nodes":[]}'
+export STUB_CLOSING STUB_RECORD STUB_NO_RECORD
+STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
+expect "in the merge queue, a Refs pull request whose pass judged that issue passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":1,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}}]}'
+expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Closes #2" 1 3 "its link changed since pr-verify passed it: it closes #2, and the pass judged #1 (refs)"
+STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
+expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 3 "its link changed since pr-verify passed it"
+STUB_PULL="$(pull $'Refs: #1\nRefs: #3')" STUB_CLOSING="$NO_CLOSING"
+expect "in the merge queue, a body naming two Refs issues holds" 1 3 "it names no issue pr-merge's lane takes"
+STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='{"totalCount":2,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
+expect "in the merge queue, a body closing two issues holds" 1 3 "it does not close exactly one issue in this repository"
+STUB_CLOSING='' STUB_RECORD='{"verdict":"pass"}'
+expect "in the merge queue, a record with no linked issues holds" 1 3 "its verifier pass's record could not be read"
+STUB_RECORD='' STUB_NO_RECORD=1
+expect "in the merge queue, a record that does not download fails closed" 1 3 "could not read the verdict of artifact 110"
+STUB_NO_RECORD='' STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
+expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no body hold, no member veto and no hold path."
+STUB_RECORD='' STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes-$DIGEST\":[11]}"
 expect "in the merge queue, a digest-named pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
 STUB_ARTIFACTS='{}'

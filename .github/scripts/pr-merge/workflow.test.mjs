@@ -168,7 +168,62 @@ test("the last verifier read enable-auto-merge starts ends inside its step's tim
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
   assert.ok(step, "the arm step names its timeout");
-  assert.ok(VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
+  // The room read, then the verdict budget and the last read it starts.
+  assert.ok(VERIFY_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
+});
+
+test("enable-auto-merge logs both tokens' readings at job end, before the token is revoked", () => {
+  const arm = job("enable-auto-merge");
+  const block = /- name: Log the API budget at job end\n([\s\S]*?)(?=\n {6}- name: |$)/.exec(arm)?.[1];
+  assert.ok(block, "a job-end budget step");
+  assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
+  assert.match(block, /^ {8}id: budget-end\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n/);
+  assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
+  // The reader's gh calls read into both names.
+  const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(step, /\n {10}API_BUDGET_TOKEN: lanes-app\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Log the API budget at job end"));
+  assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
+});
+
+// The lane's room (lane-room) reads this run's post-merge report, which
+// post-merge-dispatch keeps, rather than running the check a third time per
+// scheduled run, and the rung cap as the merge job passes it: an unset cap
+// holds the lane off, so a step that drops it would disarm every lane pull
+// request.
+test("enable-auto-merge reads the lane's room from this run's post-merge-dispatch report and the rung cap", () => {
+  const dispatch = job("post-merge-dispatch");
+  const keep = /- name: Keep the post-merge report for enable-auto-merge\n([\s\S]*?)(?=\n {6}- name: |\n*$)/.exec(dispatch)?.[1];
+  assert.ok(keep, "post-merge-dispatch keeps its report");
+  assert.match(keep, /uses: actions\/upload-artifact@[0-9a-f]{40} /);
+  assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge\.json\n {10}retention-days: 1\n/);
+  const arm = job("enable-auto-merge");
+  assert.match(arm, /^ {4}# [\s\S]*?\n {4}needs: \[post-merge-dispatch\]\n/);
+  assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);
+  // No check of its own: the report comes from this run's job alone.
+  assert.doesNotMatch(arm, /python3 [^\n]*babysit_postmerge\.py/);
+  const read = /- name: Read this run's post-merge report\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
+  assert.ok(read, "a download of the report");
+  assert.match(read, /uses: actions\/download-artifact@[0-9a-f]{40} /);
+  assert.match(read, /\n {10}name: pr-merge-post-merge-report\n/);
+  // Not 'success': a step after the kept report can fail the job.
+  assert.match(read, /needs\.post-merge-dispatch\.result != 'skipped'/);
+  assert.doesNotMatch(read, /run-id|github-token|repository:/);
+  const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);
+  assert.match(step, /\n {10}RUNG_CAP: \$\{\{ vars\.CLAUDE_LANES_MERGE_RUNG_CAP \}\}\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Read this run's post-merge report") < names.indexOf("Arm and disarm auto-merge"));
+});
+
+test("enable-auto-merge's step timeouts fit inside its job's", () => {
+  const arm = job("enable-auto-merge");
+  const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(arm)[1]);
+  const steps = [...arm.matchAll(/\n {8}timeout-minutes: ([0-9]+)\n/g)].map((m) => Number(m[1]));
+  assert.ok(steps.length >= 4, "the post-merge check, the cache restore, the arm step and the budget step name timeouts");
+  assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
 });
 
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
@@ -186,7 +241,7 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["contents: read", "actions: read", "id-token: write"],
+    ["contents: read", "actions: read", "pull-requests: read", "checks: read", "issues: read", "id-token: write"],
   );
   // The verifier evidence is read as the gate reads it: the job's
   // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and

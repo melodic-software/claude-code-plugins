@@ -8,8 +8,6 @@
 // A pull request is armed only when all of these hold:
 // - The lanes App opened it (merge.agent-identity), into main, from a branch
 //   of this repository, and it is not a draft.
-// - Its body opens with `Closes #<issue>`: a `Refs:` pull request is merged
-//   by a person (report-outcome.mjs).
 // - It carries no hold: no `do-not-merge` and no human-gated label (the
 //   tracker's role label, `needs-human` by default), and no body hold
 //   (merge-holds.mjs).
@@ -22,14 +20,21 @@
 //   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
 //   ci-status also runs on every lanes App pull request event and merge
 //   group, so a push after arming is held without waiting for this job.
+// - Its head changes no cost path, unless its body links the owner's cost
+//   decision: merge-holds.costHold and costDecision, which ci-status runs too.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
 //   by a user account keeps it off until a person turns it on again.
-// - pr-merge's gate would take its verifier verdict at the head just read:
-//   babysit_verify_evidence.py `evidence` refuses nothing (verifyHold), so a
-//   pr-verify PASS or PASS-NOTES stands at that head, no FAIL is at it, no
-//   earlier FAIL is uncleared, FAILs sit at fewer than merge.max-verify-fails
-//   heads, and the spec is unchanged and trusted. Only the scheduled run and
-//   a hand-started one read it (READER_EVENTS), last, for a pull request
+// - pr-merge's gate would take its issue link and its verifier verdict at the
+//   head just read: babysit_verify_evidence.py `evidence --lane-link` refuses
+//   nothing (verifyHold). The link is the gate's own rule
+//   (babysit_merge_policy._linked_issue): one closing issue in this
+//   repository, or, with none, the one issue its plain `Refs: #<issue>` lines
+//   name. Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
+//   at it, no earlier FAIL is uncleared, FAILs sit at fewer than
+//   merge.max-verify-fails heads, and the spec is unchanged and trusted. A
+//   read that fails, or a line without the link's answer, refuses. Only the
+//   scheduled run and
+//   a hand-started one read them (READER_EVENTS), last, for a pull request
 //   every other rule would arm or keep armed, sharing one artifact listing
 //   and run cache in the run. An event run (the issue lane, a person's edit,
 //   unlabel or ready) never arms and reads no verdict: it only disarms on a
@@ -38,6 +43,25 @@
 //   head, so a new head is armed only after the reader judges it, and in the
 //   merge queue it checks the pass again at the head it merges
 //   (merge-holds.mjs verdictHold).
+// - pr-merge's gate would let its lane merge one more now: babysit_verify_evidence.py
+//   `lane-room` (babysit_merge_policy.lane_room) reads, once per reader run,
+//   the run-level refusals the gate applies to every lane candidate. While
+//   the gate holds the lane off (a demotion record, merge.rung, the loop
+//   setting or the rung cap off, a post-merge failure, another authority)
+//   nothing is armed and every armed lanes App pull request is disarmed.
+//   Below merge.max-in-flight, counting the merge queue's lane entries, the
+//   lane's unverified merges and the armed pull requests not yet queued, it
+//   arms; at the cap it arms nothing more. A room that cannot be read (no
+//   post-merge report, a failed read) holds as a refusal does: nothing is
+//   armed and every armed lanes App pull request is disarmed.
+// - pr-merge's gate would not hold it on its risk score: `evidence
+//   --lane-reviews --rung <the room's rung>` runs the gate's scorer
+//   (babysit_risk.score, holding) over the inputs the gate builds, the
+//   review lanes' evidence bound to the head included. So an open CRITICAL
+//   security finding or a review not bound to the head (whether or not the
+//   lane applied its hold label), a symlink, submodule or other non-regular
+//   mode, a high path, the manifest review, the trust gate and the cost
+//   review hold. Read only after the verdict allows.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
 // that fails any rule is disarmed. While merge.report-only is true it reports
@@ -52,19 +76,25 @@
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
 //                        label (default .base/.work-item-tracker.json)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
+//   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
+//                        decision (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
+//   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
+//   RUNG_CAP             vars.CLAUDE_LANES_MERGE_RUNG_CAP (empty is no cap;
+//                        unset holds the lane off, as the gate reads it)
 //   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token (the
 //                        job's GITHUB_TOKEN), saved listing, head-ref map and
 //                        run cache, as the gate's
 //   GITHUB_API_URL
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, pathHold, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, costDecision, costHold, humansOf, pathHold, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -73,7 +103,6 @@ const SHA = /^[0-9a-f]{40}$/;
 const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 // babysit_merge_policy.MERGE_HOLD_LABELS, plus the human-gated label.
 const HOLD_LABELS = Object.freeze(["do-not-merge"]);
-const CLOSES = /^Closes #[1-9][0-9]*\r?$/;
 // 100 pull requests a page; more than this many open is a listing the run
 // stops on rather than one it reads only part of.
 const MAX_PAGES = 10;
@@ -82,6 +111,8 @@ const MAX_PAGES = 10;
 const MAX_FILE_PAGES = 3;
 const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 
+// Into main, by name: the gate reads the default branch live
+// (babysit_merge_policy._base_refusal), while this assumes it is main.
 export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
@@ -133,13 +164,7 @@ export function holdReason(pull, humanGated) {
     return `it carries ${label}`;
   }
   const body = String(pull.body ?? "");
-  if (BODY_HOLD.test(body)) {
-    return "its body holds it";
-  }
-  if (!CLOSES.test(body.split("\n")[0])) {
-    return "its body does not open with Closes #<issue>";
-  }
-  return null;
+  return BODY_HOLD.test(body) ? "its body holds it" : null;
 }
 
 const whole = (connection) => Array.isArray(connection?.nodes) && connection.totalCount <= connection.nodes.length;
@@ -161,6 +186,17 @@ export function discussionHold(detail) {
   return vetoes.length ? `${vetoes.join(", ")} asked not to merge it` : null;
 }
 
+// The trusted-actor list's people; an unreadable list names none, so no cost
+// decision clears.
+function trustedHumans(env) {
+  try {
+    const { actors } = JSON.parse(readFileSync(env.TRUSTED_ACTORS || ".base/.github/standards/trusted-actors/trusted-actors.json", "utf8"));
+    return humansOf(actors);
+  } catch {
+    return new Set();
+  }
+}
+
 async function changedFiles(github, slug, number) {
   const paths = [];
   for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
@@ -178,7 +214,7 @@ async function changedFiles(github, slug, number) {
   return null;
 }
 
-// Why the gate's verifier `evidence` (babysit_verify_evidence.py's report)
+// Why the gate's `evidence --lane-link` (babysit_verify_evidence.py's report)
 // keeps a pull request at `head` from merging, or null when it allows it.
 export function verifyHold(evidence, head) {
   if (evidence === null || typeof evidence !== "object" || !("refusal" in evidence)) {
@@ -187,18 +223,35 @@ export function verifyHold(evidence, head) {
   if (evidence.head !== head) {
     return "its verifier verdict was read at another head";
   }
-  return evidence.refusal === null ? null : `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
+  if (typeof evidence.ineligible === "string") {
+    return `pr-merge's lane does not take its issue link (${escapeCommand(evidence.ineligible)})`;
+  }
+  if (evidence.refusal !== null) {
+    return `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
+  }
+  // A line without the link's or the reviews' answer read neither: it allows nothing.
+  if (evidence.ineligible !== null) {
+    return "its issue link could not be read";
+  }
+  if (typeof evidence.reviews === "string") {
+    return `pr-merge's gate holds it on its risk score (${escapeCommand(evidence.reviews)})`;
+  }
+  return evidence.reviews === null ? null : "its risk score could not be read";
 }
 
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
 export function pythonVerify(env) {
-  const verify = async ({ number, headRefOid: head, baseRefOid: base }) => {
+  // `rung`: the lane room's effective rung, which the gate scores at.
+  const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
     if (!SHA.test(String(base))) {
       throw new Error("its base commit is not a commit SHA");
     }
     // --base-sha: the gate's FAIL cap, the lower of the base's and main's.
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    if (typeof rung === "string") {
+      args.push("--rung", rung);
+    }
     const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
@@ -208,14 +261,56 @@ export function pythonVerify(env) {
   return verify;
 }
 
+// The gate's run-level answer for its lane (babysit_verify_evidence.py
+// `lane-room`), read with the reader's Actions token when it has one, as the
+// merge job reads the post-merge check, so the reads stay off the lane App's
+// quota.
+export function pythonRoom(env) {
+  return async () => {
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "lane-room", "--repo", env.GITHUB_REPOSITORY, "--postmerge-result", env.POSTMERGE_RESULT ?? ""];
+    if (env.RUNG_CAP !== undefined) {
+      args.push("--rung-cap", env.RUNG_CAP);
+    }
+    const token = env.BABYSIT_VERIFY_GH_TOKEN;
+    const roomEnv = token ? { ...env, GH_TOKEN: token, API_BUDGET_TOKEN: "github-token" } : env;
+    const done = spawnSync("python3", args, { encoding: "utf8", env: roomEnv, timeout: VERIFY_TIMEOUT_MS });
+    if (done.status !== 0) {
+      throw new Error(`babysit_verify_evidence.py lane-room exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+    }
+    return JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+  };
+}
+
+// `lane-room`'s answer as the run applies it, or an unreadable one when it is
+// not of that shape: { refusal, unreadable, count, cap, queued }.
+export function readRoom(answer) {
+  const text = (value) => value === null || typeof value === "string";
+  const whole = (value, least) => Number.isSafeInteger(value) && value >= least;
+  if (
+    answer === null ||
+    typeof answer !== "object" ||
+    !text(answer.refusal) ||
+    !text(answer.unreadable) ||
+    !whole(answer.count, 0) ||
+    !whole(answer.cap, 1) ||
+    !Array.isArray(answer.queued) ||
+    !answer.queued.every((number) => whole(number, 1)) ||
+    typeof answer.rung !== "string"
+  ) {
+    return { refusal: null, unreadable: "its answer is not lane-room's", count: 0, cap: 1, queued: [], rung: "off" };
+  }
+  return answer;
+}
+
 // The runs that read the verifier verdict and so may arm: the schedule, and a
 // hand-started run, which a person starts to retry a pull request that looks
 // stuck.
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
 // The reader's per pull request limit, and when the run stops starting one:
-// a read started at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS,
-// 9 minutes, inside the step's 10 (pr-merge.yml), so no read is cut off and
-// the rest of the pull requests are left for the next run.
+// the room read (at most VERIFY_TIMEOUT_MS) comes first, then a read started
+// at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS, 13 minutes in
+// all, inside the step's 14 (pr-merge.yml), so no read is cut off and the
+// rest of the pull requests are left for the next run.
 export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
 
@@ -245,7 +340,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (detail === null) {
     return { action: "none", reason: "its discussion did not read" };
   }
-  const vetoed = pathHold(detail.files, holdPaths) ?? discussionHold(detail);
+  const vetoed = pathHold(detail.files, holdPaths) ?? costHold(detail.files, detail.costDecision) ?? discussionHold(detail);
   if (vetoed !== null) {
     return { action: armed ? "disarm" : "none", reason: vetoed };
   }
@@ -280,7 +375,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify } = {}) {
+export async function main({ env = process.env, github, verify, room } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -301,11 +396,50 @@ export async function main({ env = process.env, github, verify } = {}) {
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
+    const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
+    // Only a reader run arms, so only it reads the room.
+    let lane = null;
+    if (reads) {
+      try {
+        lane = readRoom(await (room ?? pythonRoom(env))());
+      } catch (error) {
+        lane = readRoom(null);
+        lane.unreadable = escapeCommand(error?.message ?? error);
+      }
+      console.log(`enable-auto-merge: lane room: ${escapeCommand(JSON.stringify(lane))}`);
+    }
+    // After the room read, so the verdict reads keep their whole budget.
     const deadline = Date.now() + VERIFY_BUDGET_MS;
+    // Merges in flight: the gate's count, plus each armed lanes App pull
+    // request the queue has not taken yet, which GitHub enqueues on its own.
+    let inFlight = lane === null ? 0 : lane.count + pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
+    // Why the room keeps `pull` from arming, with `disarm` when it also turns
+    // an armed one off; null when it has room.
+    const roomHold = (pull) => {
+      if (lane === null || !lanes(pull)) {
+        return null;
+      }
+      if (lane.refusal !== null) {
+        return { disarm: true, reason: `pr-merge's gate holds its lane off (${lane.refusal})` };
+      }
+      // An unknown room holds as a refusal does: unknown holds.
+      if (lane.unreadable !== null) {
+        return { disarm: true, reason: `the lane's room could not be read (${lane.unreadable})` };
+      }
+      if (pull.autoMergeRequest != null) {
+        return null;
+      }
+      return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
+    };
     let failed = 0;
     for (const pull of pulls) {
       let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
       let detail = null;
+      // Checked before the reads, so a held lane spends none.
+      const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
+      if (held !== null) {
+        ({ action, reason } = { action: held.disarm && pull.autoMergeRequest != null ? "disarm" : "none", reason: held.reason });
+      }
       if (action === "read" && !reads && pull.autoMergeRequest == null) {
         ({ action, reason } = { action: "none", reason: "only a scheduled or hand-started run arms it, on the gate's verifier verdict" });
       }
@@ -314,7 +448,9 @@ export async function main({ env = process.env, github, verify } = {}) {
           const variables = { owner: repo[1], name: repo[2], number: pull.number };
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
           if (detail !== null) {
-            detail = { ...detail, files: await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number) };
+            const files = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env)) : null;
+            detail = { ...detail, files, costDecision: decision };
           }
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${escapeCommand(error?.message ?? error)}`);
@@ -331,20 +467,28 @@ export async function main({ env = process.env, github, verify } = {}) {
       } else if (action === "verify") {
         let evidence = null;
         try {
-          evidence = await verify(pull);
+          evidence = await verify(pull, lane?.rung);
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${escapeCommand(error?.message ?? error)}`);
         }
         ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
       }
+      // A pull request armed earlier in this run counts toward the cap.
+      const full = action === "arm" ? roomHold(pull) : null;
+      if (full !== null) {
+        ({ action, reason } = { action: "none", reason: full.reason });
+      }
+      if (action === "arm") {
+        inFlight += 1;
+      }
       if (action === "none") {
         if (reason !== "not the lanes App's") {
-          console.log(`enable-auto-merge: #${pull.number} left: ${reason}`);
+          console.log(`enable-auto-merge: #${pull.number} left: ${escapeCommand(reason)}`);
         }
         continue;
       }
       if (!write) {
-        console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${reason}`);
+        console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${escapeCommand(reason)}`);
         continue;
       }
       try {
@@ -353,7 +497,7 @@ export async function main({ env = process.env, github, verify } = {}) {
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
         } else {
           await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
-          console.log(`enable-auto-merge: #${pull.number} disarmed: ${reason}`);
+          console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
         }
       } catch (error) {
         failed += 1;

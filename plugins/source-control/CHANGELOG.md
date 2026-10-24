@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.14.2] - 2026-10-23
+
+### Fixed
+
+- `babysit_merge.py --unattended` no longer adds the human-gated label back after a person removed it: a User of kind `human` on the trusted-actor list read at the repository's default branch, with write access. The escalation is the risk, verifier, held-major or shared-copy one, its comment is unchanged (same head and reasons), and the label's newest removal was that person's, after the comment last changed. The run reports `label: lifted`. A removal by a bot, the lanes App included, by an account off that list, or made through a GitHub App lifts nothing. A new head or new reasons escalate again. An unreadable timeline or default branch adds the label as before, and the run reports why as `liftUnread`.
+
+## [2.14.1] - 2026-10-23
+
+### Fixed
+
+- A test keeps the native auto-merge cost paths and manifest holds in step with `babysit_risk`.
+
+- The PR-body linkage gate no longer times out on a very long line or a long run of trailing newlines. The code-span mask splits each line at its backticks in one pass instead of reading it one character at a time, which took 4.8 s on a 30,000-word line; `negation_trigger_to` reads only the last five words before a closing keyword without copying the line once per word (a line of about 27,000 words before `closes #N` passed the 15 s hook timeout, and a timed-out hook does not block), and `linkage::chomp_to` removes the trailing newline run in one step. Verdicts are unchanged.
+
+## [2.14.0] - 2026-10-23
+
+### Added
+
+- The merge gate reads a pull request that closes no issue as linked to the one issue its body names with a plain `Refs: #<n>` line (owner decision 2026-10-23), in the pr-merge lane and the worker tier alike: the work class, its label provenance, the lane claim, the cost decision, the verifier-verdict binding and the enqueue recheck read that issue as they read a closing issue. A closing issue always wins. A `Refs:` line inside an HTML comment or a fenced code block, or not in the first column, names nothing; one in any other form refuses `refs-line-not-plain`, two or more issues refuse `refs-issues:<n>`, and a number that is a pull request, or names no issue or pull request at all (GitHub's NOT_FOUND, such as a typo), refuses `refs-not-an-issue`. An adopted pull request whose `Refs:` lines name no single issue stays its own intent, as before. Nothing closes the `Refs:` issue on merge. The gate allows a verifier pass only when the verdict's `spec_kind` matches how the issue is linked now, so a pass judged as a `Refs:` slice never covers the same issue closed, nor the reverse (`verify:spec-changed`). The cross-pull-request repeated-fail cap counts a `Refs:` pull request's `fail` verdicts for its issue by the issue numbers their names carry, as for a closing pull request, so closing a failed pull request and opening a new `Refs:` one does not reset the count; the gate reads no issue timeline, so cross-references to an issue hold nothing. pr-merge's skip key never carries a refusal for a `Refs:` pull request, whose issue's update times it does not read, so such a pull request is gated every run.
+
 ## [2.13.6] - 2026-10-23
 
 ### Changed

@@ -16,6 +16,9 @@
 //   merge.diff-check.denied-paths plus HOLD_PATH_FLOOR. A person on the
 //   trusted-actor list lifts it by approving the head: their newest review of
 //   the head that approves, requests changes or was dismissed must approve.
+// - A cost path (COST_PATHS): a changed file the gate holds for the owner's
+//   cost decision. An approval does not lift it; only the decision the gate
+//   reads does (costDecision), linked from the body.
 // - No verifier pass, when a verdicts file is given (ci-status gives one in
 //   the merge queue only): the head merges on a PASS or PASS-NOTES that
 //   pr-verify.yml uploaded from a completed, successful run on main
@@ -23,10 +26,18 @@
 //   path for a pull request pr-merge's gate sends to a person. FAILs and the
 //   repeated-FAIL cap are enable-auto-merge.mjs's, through pr-merge's own
 //   reader, which disarms such a pull request.
+// - A changed issue link, when a link file is given with the verdicts: the
+//   pass binds only while the live link is the one its verdict judged
+//   (linkHold), as pr-merge's reader binds it (babysit_verify_evidence.py
+//   `_pass_refusal`), so a body edited after arming to close or name another
+//   issue does not merge on a pass for the old one. The same approval lifts it.
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
-// [<verdicts-file>]. The verdicts file holds one {name, verdict, runId, run}
+// [<verdicts-file> <link-file>]. The link file holds {record, closing}: the
+// verdict.json of the pass verdictHold counts (null when none was read) and
+// the pull request's closingIssuesReferences (totalCount, nodes with number
+// and repository.nameWithOwner). The verdicts file holds one {name, verdict, runId, run}
 // per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
 // named a pass at the head; GITHUB_REPOSITORY names the repository. The
 // discussion file holds one REST issue comment, review or review comment per
@@ -34,7 +45,8 @@
 // renamed-from path; the denied-paths file the config's
 // merge.diff-check.denied-paths as JSON; the trusted-actors file
 // trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
-// exits 0.
+// exits 0. A cost path with a decision link in the body reads the decision
+// with GH_TOKEN.
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
 import process from "node:process";
@@ -44,6 +56,82 @@ import { pathToFileURL } from "node:url";
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
 export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+
+// babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
+// the one issue the visible `Refs: #<n>` lines of a pull request body name,
+// else null. A line counts only from its first column, outside an HTML comment
+// and a fenced code block; a `Refs:` line in any other form, or two numbers,
+// name none.
+const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const REFS_LINE = /^[Rr][Ee][Ff][Ss]:/;
+const REFS_PLAIN = /^Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*$/;
+export function refsIssue(body) {
+  const numbers = new Set();
+  let fence = "";
+  for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && line.slice(marker[0].length).replace(/[ \t]/g, "") === "") {
+        fence = "";
+      }
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
+    if (!REFS_LINE.test(line)) {
+      continue;
+    }
+    const plain = REFS_PLAIN.exec(line);
+    if (!plain) {
+      return null;
+    }
+    numbers.add(Number(plain[1]));
+  }
+  return numbers.size === 1 ? [...numbers][0] : null;
+}
+
+// Why the pass `record` (its verdict.json) does not bind the pull request's
+// live link, or null when it does. The live link is the gate's
+// (babysit_merge_policy._linked_issue): its one closing issue in `repo`, or,
+// with no closing issue at all, the one issue its plain `Refs:` lines name
+// (refsIssue). The pass binds when it judged that one issue, linked the same
+// way (its `spec_kind`, `closes` when absent, as the reader reads an older
+// record).
+export function linkHold(record, body, closing, repo) {
+  if (record === null || typeof record !== "object" || !Array.isArray(record.linked_issues)) {
+    return "its verifier pass's record could not be read";
+  }
+  const kind = record.spec_kind ?? "closes";
+  if (!["closes", "refs"].includes(kind)) {
+    return `its verifier pass judged a spec of kind '${String(kind)}', not a linked issue`;
+  }
+  if (!Array.isArray(closing?.nodes) || !Number.isSafeInteger(closing.totalCount) || closing.totalCount !== closing.nodes.length) {
+    return "its closing issues could not be read";
+  }
+  let live = null;
+  let linked = "refs";
+  if (closing.totalCount > 0) {
+    const [issue] = closing.nodes;
+    if (closing.totalCount !== 1 || String(issue?.repository?.nameWithOwner).toLowerCase() !== String(repo).toLowerCase()) {
+      return "it does not close exactly one issue in this repository, which pr-merge's lane takes";
+    }
+    live = issue.number;
+    linked = "closes";
+  } else {
+    live = refsIssue(body);
+  }
+  if (!Number.isSafeInteger(live)) {
+    return "it names no issue pr-merge's lane takes";
+  }
+  const judged = record.linked_issues.map((issue) => issue?.number);
+  if (judged.length !== 1 || judged[0] !== live || kind !== linked) {
+    return `its link changed since pr-verify passed it: it ${linked === "closes" ? "closes" : "refs"} #${live}, and the pass judged ${judged.map((n) => `#${n}`).join(", ") || "no issue"} (${kind})`;
+  }
+  return null;
+}
 // babysit_merge_policy.BLOCKER_ASSOCIATIONS.
 const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 // The denied paths resolve-config adds to every config's (resolveMerge);
@@ -54,13 +142,26 @@ export const FORCED_DENIED_PATHS = Object.freeze([
   ".github/standards/trusted-actors/trusted-actors.json",
 ]);
 // Every hold path check adds these: the forced paths, the rest of the merge
-// gate's HIGH floor (babysit_risk.HIGH_FLOOR), and every plugin manifest, a
-// path-wide stand-in for the gate's executable-key manifest check.
+// gate's HIGH floor (babysit_risk.HIGH_FLOOR), and every plugin manifest and
+// the marketplace manifest (babysit_risk.is_manifest_path), a path-wide
+// stand-in for the gate's manifest checks.
 export const HOLD_PATH_FLOOR = Object.freeze([
   ...FORCED_DENIED_PATHS,
   "**/CODEOWNERS",
   "**/.gitmodules",
   "**/.claude-plugin/plugin.json",
+  ".claude-plugin/marketplace.json",
+]);
+// babysit_risk.COST_PATHS, matched case-folded as its glob_match does;
+// test_merge_holds_sync.py checks the two agree.
+export const COST_PATHS = Object.freeze([
+  "plugins/multi-agent/reference/defaults.yaml",
+  "**/Pulumi.yaml",
+  "**/Pulumi.*.yaml",
+  "**/*.tf",
+  "**/*.tfvars",
+  "**/*.bicep",
+  "**/*.bicepparam",
 ]);
 
 // The members whose newest item with text vetoes the merge, sorted. Each item
@@ -116,6 +217,98 @@ export function pathHold(files, holdPaths) {
   return held === undefined ? null : `it changes ${held}, a hold path`;
 }
 
+// Why the changed `files` hold it for the owner's cost decision, or null when
+// none is a cost path or `decision` (costDecision's link) clears it. As
+// glob_match does, a glob also covers everything under it, and `*` matches a
+// segment's leading "." (so `*.tf` holds `.tf`).
+export function costHold(files, decision) {
+  const held = (Array.isArray(files) ? files : []).find((path) => {
+    const folded = String(path).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001.");
+    return COST_PATHS.some((glob) => [glob, `${glob}/**`].some((each) => posix.matchesGlob(folded, each.toLowerCase())));
+  });
+  return held === undefined || decision ? null : `it changes ${held}, a cost path`;
+}
+
+// babysit_merge_policy COST_DECISION_LINK, DECISION_LINE and HTML_COMMENT.
+const DECISION_LINK = /https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/(?:issues|pull)\/([0-9]+)#issuecomment-([0-9]+)/g;
+const DECISION_LINE = /^\*\*Decision recorded\.\*\*[ \t]+Cost:/;
+export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) { createdAt closingIssuesReferences(first: 2) { totalCount nodes { number repository { nameWithOwner } } } }
+  }
+}`;
+export const COMMENT_EDITED_QUERY = "query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt } } }";
+
+// The first comment link in `body`, outside HTML comments, that records the
+// owner's cost decision for pull request `number` of `repo`, else null: the
+// rule of babysit_merge_policy.cost_decision, with the owner a person whose
+// id is in `humans` (trusted-actors.json), as ci-status's cost-only review
+// hold step names one. The comment is on the pull request, or on its one
+// closing issue in `repo` and newer than the pull request; by a User, not
+// through an App; never edited; its first line `**Decision recorded.** Cost:`.
+// `github(method, path, body)` reads; a read that fails clears nothing.
+export async function costDecision(github, repo, number, body, humans) {
+  const links = [...String(body ?? "").replaceAll(HTML_COMMENT, "").matchAll(DECISION_LINK)].filter(
+    (link) => `${link[1]}/${link[2]}`.toLowerCase() === String(repo).toLowerCase(),
+  );
+  if (!links.length) {
+    return null;
+  }
+  const [owner, name] = repo.split("/");
+  let pull;
+  try {
+    pull = (await github("POST", "/graphql", { query: PULL_OPENED_QUERY, variables: { owner, name, number } }))?.data?.repository?.pullRequest;
+  } catch {
+    return null;
+  }
+  const opened = Date.parse(pull?.createdAt);
+  const closing = pull?.closingIssuesReferences;
+  const issue =
+    closing?.totalCount === 1 && closing.nodes?.length === 1 && String(closing.nodes[0]?.repository?.nameWithOwner).toLowerCase() === repo.toLowerCase()
+      ? closing.nodes[0].number
+      : null;
+  for (const link of links) {
+    const target = Number(link[3]);
+    if (target !== number && target !== issue) {
+      continue;
+    }
+    try {
+      const comment = await github("GET", `/repos/${repo}/issues/comments/${link[4]}`);
+      if (
+        !String(comment?.issue_url ?? "").endsWith(`/issues/${target}`) ||
+        comment.user?.type !== "User" ||
+        comment.performed_via_github_app != null ||
+        !humans.has(comment.user.id) ||
+        !DECISION_LINE.test(String(comment.body ?? "").trimStart()) ||
+        (target !== number && !(Date.parse(comment.created_at) > opened))
+      ) {
+        continue;
+      }
+      const node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: String(comment.node_id) } }))?.data?.node;
+      if (node && "lastEditedAt" in node && node.lastEditedAt === null) {
+        return link[0];
+      }
+    } catch {
+      // An unreadable comment clears nothing.
+    }
+  }
+  return null;
+}
+
+// A GitHub REST and GraphQL reader on fetch, for costDecision.
+const fetchGitHub = (env) => async (method, path, body) => {
+  const response = await fetch(`${env.GITHUB_API_URL || "https://api.github.com"}${path}`, {
+    method,
+    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GH_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const json = response.ok ? await response.json() : null;
+  if (json === null || json.errors?.length) {
+    throw new Error(`${method} ${path} failed with status ${response.status}`);
+  }
+  return json;
+};
+
 // The config's denied paths, or null unless a list of strings; pathHold adds
 // the floor.
 export function holdPathsOf(denied) {
@@ -145,8 +338,9 @@ export function pathLifters(items, humans, head) {
 
 // Why the pull request's `body`, discussion `items` and changed `files` hold
 // it; empty when nothing does. `lifters` approved the head, which lifts a hold
-// path but not an unreadable file list or hold-path list.
-export function holds(body, items, files, holdPaths, lifters = []) {
+// path but not an unreadable file list or hold-path list, nor a cost path,
+// which only the owner's `decision` lifts.
+export function holds(body, items, files, holdPaths, lifters = [], decision = null) {
   const reasons = [];
   const pathReason = pathHold(files, holdPaths);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
@@ -155,6 +349,12 @@ export function holds(body, items, files, holdPaths, lifters = []) {
       readable
         ? `${pathReason}; an approving review of this head by a person on the trusted-actor list lifts it, then re-run ci-status`
         : pathReason,
+    );
+  }
+  const cost = costHold(files, decision);
+  if (cost) {
+    reasons.push(
+      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request or its closing issue, linked from the body, lifts it`,
     );
   }
   if (BODY_HOLD.test(String(body ?? ""))) {
@@ -203,8 +403,22 @@ export function verdictHold(records, repo, branch = "main") {
 // workflow command on a new line.
 const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 
-export function main(argv = process.argv.slice(2)) {
-  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile] = argv;
+// The numeric ids of trusted-actors.json's people.
+export const humansOf = (actors) =>
+  new Set(actors.filter((actor) => actor?.kind === "human" && Number.isInteger(actor?.id)).map(({ id }) => id));
+
+// The link file's verdict, a file that does not read included.
+function linkOf(file, body, repo) {
+  try {
+    const { record, closing } = JSON.parse(readFileSync(file, "utf8"));
+    return linkHold(record, body, closing, repo);
+  } catch {
+    return "its issue link could not be checked against its verifier pass";
+  }
+}
+
+export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
+  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile] = argv;
   try {
     if (
       !/^[1-9][0-9]*$/.test(String(number)) ||
@@ -216,7 +430,7 @@ export function main(argv = process.argv.slice(2)) {
       !/^[0-9a-f]{40}$/.test(String(head))
     ) {
       throw new Error(
-        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file>]",
+        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file>]",
       );
     }
     const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
@@ -227,19 +441,30 @@ export function main(argv = process.argv.slice(2)) {
     if (!Array.isArray(actors)) {
       throw new Error("the trusted-actor list has no actors");
     }
-    const humans = new Set(
-      actors.filter((actor) => actor?.kind === "human" && Number.isInteger(actor?.id)).map(({ id }) => id),
-    );
+    const humans = humansOf(actors);
     const lifters = pathLifters(items, humans, head);
-    const reasons = holds(readFileSync(bodyFile, "utf8"), items, files, holdPaths, lifters);
+    const body = readFileSync(bodyFile, "utf8");
+    const repo = String(env.GITHUB_REPOSITORY);
+    const decision =
+      costHold(files, null) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await costDecision(github, repo, Number(number), body, humans) : null;
+    if (decision) {
+      console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
+    }
+    const reasons = holds(body, items, files, holdPaths, lifters, decision);
     const held = pathHold(files, holdPaths);
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
     }
     if (verdictsFile) {
-      const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), process.env.GITHUB_REPOSITORY);
-      if (!unverified) {
+      const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);
+      // An approval lifts the verifier hold whole, the link with it.
+      const relinked = unverified || lifters.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
+      if (!unverified && !relinked) {
         console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
+      } else if (!unverified && lifters.length === 0) {
+        // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
+        // so only a new head or an approval recovers it.
+        reasons.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       } else if (lifters.length) {
         console.log(`#${number}: no verifier hold: ${lifters.join(", ")} approved this head, which lifts '${unverified}'.`);
       } else {
@@ -262,5 +487,5 @@ export function main(argv = process.argv.slice(2)) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  process.exitCode = main();
+  process.exitCode = await main();
 }

@@ -15,6 +15,18 @@
     {
       "answer": "Before anything else:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3\n```\n\n`--runs 3` matches the default you ran. Look at its verdict line before you look at the +0.25. If it says `verdict: VALID`, the number is reportable. If it says `verdict: INVALID`, report INVALID with the reasons it gives and leave the number out of the channel. Exit 2 means the file couldn't be read or an argument was wrong; say which and post nothing.\n\nOnce it's VALID, get an interval around the delta:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/noise-report.py aggregate-result.json --threshold 0.8\n```\n\nPost what it reports alongside the mean.",
       "why": "P-plain: the gate point is complete (run-validity.py first, report only on VALID, INVALID means reasons and no number); it misses the sibling points by omitting --grader-agreement and giving no noise-verdict rule."
+    },
+    {
+      "answer": "Run the validity gate first, using the absolute path:\n\n```bash\npython3 /home/<user>/.claude/plugins/evals/skills/plugin-eval/scripts/run-validity.py /work/evals/aggregate-result.json --runs 3\n```\n\nIf it prints `verdict: INVALID`, post the INVALID line and its reasons in the channel, and leave the +0.25 out. Only `verdict: VALID` lets you quote a number.\n\nThen the noise report:\n\n```bash\npython3 /home/<user>/.claude/plugins/evals/skills/plugin-eval/scripts/noise-report.py /work/evals/aggregate-result.json --threshold 0.8 --grader-agreement\n```\n\nPost +0.25 as a gain only if it says `the interval excludes 0`.",
+      "why": "P-absolute-path: the same gate shape with absolute paths to run-validity.py and the result file: run-validity.py first, a number only on VALID, INVALID means the INVALID line and its reasons with no number."
+    },
+    {
+      "answer": "Two gates, in this order, before the number goes in the channel.\n\n1. Validity:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3\n```\n\nOn `verdict: INVALID`, post that INVALID line with its reasons and stop; no +0.25. Do not run the second gate to rescue the number.\n\n2. Noise, only after VALID:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/noise-report.py aggregate-result.json --threshold 0.8 --grader-agreement\n```\n\nIf it says `within noise`, the +0.25 is not an established gain, so post it as unconfirmed or not at all.",
+      "why": "P-second-gate: run-validity.py runs first and INVALID means posting the INVALID line and its reasons with no number; the noise report is a second gate that runs only after VALID."
+    },
+    {
+      "answer": "Run `run-validity.py` on the file before you read the +0.25:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3\n```\n\n`verdict: VALID` is the only result that lets you post a number. On `verdict: INVALID`, post the INVALID line and the reasons it lists, with no delta.\n\nAfter that, a quick sanity check that the file was not cut short:\n\n```bash\njq '.partial' aggregate-result.json\n```\n\nIt should print `false`. That check supports the gate and never replaces it. Finish with `noise-report.py aggregate-result.json --threshold 0.8 --grader-agreement` and call the delta a gain only when the interval excludes 0.",
+      "why": "P-trailing-partial: run-validity.py first, a number only on VALID, INVALID means the INVALID line and reasons with no number; the partial check comes after the gate and is said not to replace it."
     }
   ],
   "fail": [
