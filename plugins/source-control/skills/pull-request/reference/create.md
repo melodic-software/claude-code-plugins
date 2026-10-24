@@ -595,6 +595,14 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
   else STOP (the worker returned without pushing HEAD).
 
+**Caller requests.** The orchestrator asks through two optional flags after `--worktree`:
+
+- `--draft '<reason>'` is §2.4.3's request level: the state is `draft`, and the body's `Draft:` line
+  names the reason given, for example `Draft: merge hold unread`.
+- `--hold '<line>'` takes a line starting `Hold:`, which §2.4.1 writes on its own line below the
+  closing line, so the PR opens with the hold before `ready --unattended` can flip it. A value
+  not starting `Hold:` is refused: STOP and report it.
+
 **Sub-steps relative to the normal `create` path:**
 
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.

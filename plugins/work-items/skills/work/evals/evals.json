@@ -177,12 +177,12 @@
       "id": 13,
       "name": "work-reads-merge-hold-before-create-pushed",
       "prompt": "/work-items:work\n\nRun autonomously. The worker returned worktree /work/wt-734 for item #734, committed and pushed, and the pre-PR diff gate passed. A maintainer with write access commented `Hold: a human merges this` on #734. The PR is not open yet. What does the orchestrator do, in order?",
-      "expected_output": "Before create --pushed it runs merge-hold.sh for #734, which exits 0 and prints the Hold: line. It then opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-734, and right after that returns it adds the Hold: line below the closing line by reading the current body and writing the combined body back, never a bare body replacement. It dispatches no ready of its own and does not merge; a person merges the PR.",
+      "expected_output": "Before create --pushed it runs merge-hold.sh for #734, which exits 0 and prints the Hold: line. It then opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-734 --hold 'Hold: a human merges this', so the PR opens with the Hold: line below the closing line, before any ready flip, and it edits no body afterwards. It dispatches no ready of its own and does not merge; a person merges the PR.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs merge-hold.sh for #734 before create --pushed",
-        "Adds the printed Hold: line right after create --pushed returns, by a read-modify-write of the body",
+        "Passes the printed Hold: line to create --pushed as --hold, not as a body edit after it returns",
         "Dispatches no second ready after create --pushed",
         "Does not merge the PR"
       ]
