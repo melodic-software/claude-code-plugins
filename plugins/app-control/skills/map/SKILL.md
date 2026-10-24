@@ -155,7 +155,7 @@ conversion moves out of.
 1. **Find** the control skill, or the legacy map to convert.
 2. **Decide.** From the repository root, with the directory as one quoted argument:
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" check --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
-   A pending conversion runs regardless of a `skip` line.
+   A pending conversion, a feature id or a handed-in lesson runs regardless of a `skip` line.
 3. **Refuse** an attended-only control skill when unattended.
 4. **Source wave.** One read-only subagent per feature file, in waves of at most 6 at once; the cap
    is fixed here.
