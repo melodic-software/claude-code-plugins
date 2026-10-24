@@ -153,7 +153,9 @@ Otherwise, and after a lane that does not ship, fix it here:
    The PR body names the gap, the standard and its basis, and how the change was verified, and
    it states the issue linkage up front: `Closes #N` when the improvement settles a known issue,
    otherwise `No related issue: improve-one-thing against <standard>`. An unattended run passes
-   that line in, so the create step has nothing to ask.
+   that line in, so the create step has nothing to ask. An unattended run whose caller's prompt
+   does not authorize the ready flip also passes `--draft 'ready flip not authorized'`, since
+   create otherwise runs `ready --unattended` itself when the open state resolves `ready`.
 7. **Ready.** For a PR still in draft, follow the repository's own rule for when the author marks a PR ready (some
    repositories run review and test lanes only on ready PRs). Interactive: offer the flip.
    Unattended: flip through `/source-control:pull-request ready --unattended` only when the caller's prompt

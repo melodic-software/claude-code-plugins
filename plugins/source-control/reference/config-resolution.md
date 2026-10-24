@@ -159,24 +159,25 @@ reads the file itself, through a script where the key names one below.
   `/source-control:pull-request ready`, which merges the base, runs the reviews and the verify
   gate, and flips it, while `draft` leaves that flip for later. The state meanings are in
   [create.md](../skills/pull-request/reference/create.md#243-create-pr) §2.4.3. Resolution, lowest first, where a later level wins:
-  1. the default, `draft` (a repository opts into `ready`);
+  1. the default, `ready` (a consumer opts into `draft`);
   2. the `pr_open_state` `userConfig` value (the per-user level);
   3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level);
-  4. an invocation that asks for a draft or names the PR a multi-session container (the request
-     level).
+  4. an invocation that asks for a draft, passes `--draft '<reason>'`, or names the PR a
+     multi-session container (the request level).
 
   The repository level is read at the pull request's base branch, never from the working tree or
   the head branch, with the same `contents?ref=<base-branch>` read the
   [review-bot triage rubric](#review-bot-triage-rubric-docsconventionssource-controlmd) uses: a
   branch must not choose its own state. It is not applicable at the home directory
   or outside a git working tree. An unattended run (a loop lane, a CI lane, a `dontAsk` session, a
-  dispatched worker or orchestrator, any `--pushed` run) leaves a draft whatever the value
-  resolves to, and reports that a `ready` was set and not used. A value other than
+  dispatched worker or orchestrator, any `--pushed` run) follows the resolved value like an
+  attended run; `ready --unattended`'s holds still apply. A value other than
   `draft` or `ready` at either level is reported, naming the level, and resolves to `draft`: an
   unknown value never flips a PR ready for review. A `pr_open_state` H2 in any
   `source-control.md` layer is not read. `create` reports which level supplied the value. The
-  `userConfig` option declares `draft` as its default, so a substituted `draft` is reported as the
-  default level: the two give the same result.
+  `userConfig` option declares `ready` as its default, so a substituted `ready` is reported as the
+  default level (the two give the same result) and a substituted `draft` as the `userConfig`
+  level.
 - `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
   `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
   and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a

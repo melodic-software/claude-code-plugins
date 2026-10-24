@@ -941,7 +941,6 @@ function resolveMerge(merge = {}, configPath) {
     ...new Set([
       ...(diffCheck["denied-paths"] ?? []),
       configPath,
-      ".github/**",
       TRUSTED_ACTORS_PATH,
     ]),
   ];
