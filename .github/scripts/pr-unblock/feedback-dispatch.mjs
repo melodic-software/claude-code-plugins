@@ -1,5 +1,6 @@
-// Starts pr-unblock's address-feedback activity on a lanes App PR once both
-// review lanes have reviewed its current head and left an unresolved thread.
+// Starts pr-unblock's address-feedback activity on a lanes App PR, or a session
+// PR (a trusted person's), once both review lanes have reviewed its current
+// head and left an unresolved thread.
 // Run by .github/workflows/pr-feedback-dispatch.yml on workflow_run, after the
 // kill switch. From the event file it takes only the upstream run's id, path,
 // event, repositories and head SHA, which a re-run does not change, so reading
@@ -14,8 +15,17 @@
 // - the upstream run is a completed pull_request run of a review workflow,
 //   by exact path, in this repository and on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
-//   current head, and the lanes App opened it;
+//   current head, and the lanes App opened it, or a trusted person did (a
+//   session PR) while the base config sets adoption.feedback-idle-minutes;
 // - it carries no do-not-merge label;
+// - a session PR carries no owner `Hold:` body line, and its head was pushed
+//   at least feedback-idle-minutes ago (the earliest completed review run
+//   at the head), unless a trusted person's labeled event put lanes-may-fix
+//   on it (sessionHold). Its author's reply on a thread, unless a fix
+//   request, still keeps that thread from the lane (threadAuthors), and a
+//   push while the lane works stops the round's push and reply jobs at the
+//   trigger gate, behind which apply-patch.mjs skip-moved-head and its
+//   fast-forward-only write never overwrite it;
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
@@ -52,11 +62,14 @@
 // the next review or pr-verify completion there, which may never come. So a
 // completed scheduled pr-unblock-dispatch.yml run, the half-hourly tick, also
 // starts the file, and main() sweeps (sweepNoModelTurn): each open lanes App
-// PR into main whose head's newest reply check skipped no-model-turn, fewer
-// than SWEEP_HEAD_CAP times at that head, is decided as above with the
-// newest completed review run at that head as the upstream (reviewRunAt),
-// which the record names. A sweep dispatches at most once, since the
-// dispatched-run record names one upstream and one run, and keeps no record.
+// or session PR into main whose head's newest reply check skipped
+// no-model-turn, fewer than SWEEP_HEAD_CAP times at that head, and each
+// session PR whose head has no address-feedback check run, is decided as
+// above with the newest completed review run at that head as the upstream
+// (reviewRunAt), which the record names. A session PR's review completion
+// starts no dispatch job, so the sweep is its path. A sweep dispatches at
+// most once, since the dispatched-run record names one upstream and one run,
+// and keeps no record.
 //
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
@@ -72,7 +85,7 @@ import { pathToFileURL } from "node:url";
 
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
-import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
+import { BODY_HOLD, commentItems, gateSource, labelHistory, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -116,6 +129,10 @@ export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
 // not clear; the select job's round cap may end it sooner).
 export const SWEEP_HEAD_CAP = 3;
 
+// The label a trusted person puts on a session PR to let address-feedback
+// work it without waiting for the authoring session to go idle.
+export const MAY_FIX_LABEL = "lanes-may-fix";
+
 const startOf = (run) => Date.parse(run.started_at ?? "");
 const isNoModelTurn = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: no-model-turn";
 
@@ -150,14 +167,52 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, r
 
 export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
 
+// The completed pull_request review runs at `head`, any conclusion.
+export async function reviewRunsAt({ api, head, settings = DEFAULTS }) {
+  return (await Promise.all(settings.reviewWorkflows.map((path) => api.listCompletedRuns(path, head))))
+    .flat()
+    .filter((run) => run.head_sha === head && run.event === "pull_request");
+}
+
 // The newest completed review run at `head` that reviewed something (not
 // skipped or cancelled), or null.
-export async function reviewRunAt({ api, head, settings = DEFAULTS }) {
-  const runs = (await Promise.all(settings.reviewWorkflows.map((path) => api.listCompletedRuns(path, head))))
-    .flat()
-    .filter((run) => run.head_sha === head && run.event === "pull_request" && !["skipped", "cancelled"].includes(run.conclusion));
-  runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
-  return runs[0] ?? null;
+export async function reviewRunAt({ api, head, settings = DEFAULTS, runs = null }) {
+  const reviewed = (runs ?? (await reviewRunsAt({ api, head, settings }))).filter((run) => !["skipped", "cancelled"].includes(run.conclusion));
+  reviewed.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
+  return reviewed[0] ?? null;
+}
+
+// adoption.feedback-idle-minutes from the base config, or null when unset.
+async function idleMinutesOf(loadAdoption) {
+  const minutes = (await loadAdoption())?.["feedback-idle-minutes"];
+  return Number.isSafeInteger(minutes) && minutes > 0 ? minutes : null;
+}
+
+// Why a session PR (one a trusted person opened, whose authoring session may
+// still push) is not worked now, or "" when it is: an owner `Hold:` line
+// holds it; a lanes-may-fix label whose newest labeled event a trusted person
+// made lets it through at once; otherwise the head must have been pushed at
+// least `idleMinutes` ago. The push time is the earliest completed review
+// run's creation at the head (a pull_request run starts on the push), so a
+// lane's own push restarts the wait too; an unreadable time is not idle.
+async function sessionHold({ api, pull, head, trustedHumans, idleMinutes, now, reviewRuns, settings }) {
+  if (BODY_HOLD.test(String(pull.body ?? ""))) {
+    return "carries an owner Hold: line";
+  }
+  if ((pull.labels ?? []).some((label) => label.name === MAY_FIX_LABEL)) {
+    const { labeled } = labelHistory(await api.listLabelEvents(pull.number), MAY_FIX_LABEL);
+    if (labeled?.actor?.type === "User" && trustedHumans.has(labeled.actor.id)) {
+      return "";
+    }
+  }
+  const runs = reviewRuns ?? (await reviewRunsAt({ api, head, settings }));
+  const pushed = Math.min(...runs.map((run) => Date.parse(run.created_at ?? "")).map((time) => (Number.isNaN(time) ? Infinity : time)));
+  const minutes = Math.floor((now - pushed) / 60_000);
+  if (!(minutes >= idleMinutes)) {
+    const ago = Number.isFinite(minutes) ? `${minutes} minute(s) ago` : "at an unreadable time";
+    return `the authoring session pushed head ${head} ${ago}, under adoption.feedback-idle-minutes (${idleMinutes})`;
+  }
+  return "";
 }
 
 // pr-unblock.yml's run-name, which names the activity and the PR.
@@ -177,6 +232,9 @@ export async function dispatchFeedback({
   now = Date.now(),
   record = emptyRecord(),
   notesSince = null,
+  loadAdoption = async () => ({}),
+  reviewRuns = null,
+  reviewThreads = null,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -224,8 +282,10 @@ export async function dispatchFeedback({
   if (pull.draft !== false) {
     return skip(`#${number} is a draft`);
   }
-  if (pull.user?.id !== appSenderId) {
-    return skip(`#${number} was not opened by the lanes App`);
+  // A trusted person's PR is a session PR: worked only under sessionHold.
+  const session = pull.user?.id !== appSenderId;
+  if (session && !trustedHumans.has(pull.user?.id)) {
+    return skip(`#${number} was not opened by the lanes App or a trusted person`);
   }
   const sent = record.dispatched.get(head);
   if (sent?.number === number) {
@@ -243,12 +303,22 @@ export async function dispatchFeedback({
   if (held.length > 0) {
     return skip(`#${number} is labeled ${held.join(", ")}`);
   }
+  if (session) {
+    const idleMinutes = await idleMinutesOf(loadAdoption);
+    if (idleMinutes === null) {
+      return skip(`#${number} is a trusted person's PR and adoption.feedback-idle-minutes is not set`);
+    }
+    const why = await sessionHold({ api, pull, head, trustedHumans, idleMinutes, now, reviewRuns, settings });
+    if (why !== "") {
+      return skip(`#${number}: ${why}`);
+    }
+  }
   const comments = await api.listIssueComments(number);
   const unreviewed = settings.markerLanes.filter((lane) => markedHead(comments, lane, settings.markerAuthorId) !== head);
   if (unreviewed.length > 0) {
     return skip(`#${number}: ${unreviewed.join(", ")} has not marked head ${head} reviewed`);
   }
-  const threads = await api.listReviewThreads(number);
+  const threads = reviewThreads ?? (await api.listReviewThreads(number));
   // A human-gated PR dispatches only for a thread a trusted person with
   // write access asked the lane to fix, unless a lane escalation put the
   // label on and no review lane holds the PR. The label stays on either way:
@@ -343,19 +413,34 @@ export async function dispatchFeedback({
   return { number, workflowRunId: id };
 }
 
-// The sweep: the first open lanes App PR into main whose head's newest
-// reply check skipped no-model-turn, under SWEEP_HEAD_CAP such checks, that
-// dispatchFeedback dispatches for the head's newest completed review run.
+// The sweep: the first open PR into main that dispatchFeedback dispatches
+// for its head's newest completed review run, among the lanes App's PRs and
+// session PRs (a trusted person's, while adoption.feedback-idle-minutes is
+// set) whose head's newest reply check skipped no-model-turn, under
+// SWEEP_HEAD_CAP such checks, and the session PRs whose head has no
+// address-feedback check run yet. A review completion on a session PR's
+// branch starts no dispatch job (pr-feedback-dispatch.yml), and right after
+// a push the session is not idle anyway, so this is a session PR's path.
+// A session PR held by a hold label or an owner Hold: line costs no read,
+// and one with no unresolved review thread one read.
 // Returns dispatchFeedback's result with that run's id, or null.
-export async function sweepNoModelTurn({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
-  const pulls = (await api.listOpenPulls(settings.base)).filter(
-    (pull) => pull.user?.id === appSenderId && pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
+export async function sweepNoModelTurn({ api, repository, appSenderId, log, settings = DEFAULTS, trustedHumans = new Set(), loadAdoption = async () => ({}), ...rest }) {
+  const open = (await api.listOpenPulls(settings.base)).filter(
+    (pull) => pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
   );
+  const isSession = (pull) =>
+    pull.user?.id !== appSenderId &&
+    trustedHumans.has(pull.user?.id) &&
+    !(pull.labels ?? []).some((label) => settings.holdLabels.includes(label.name)) &&
+    !BODY_HOLD.test(String(pull.body ?? ""));
+  // Read once, and only when a session PR is open.
+  const sessions = open.some(isSession) && (await idleMinutesOf(loadAdoption)) !== null;
+  const pulls = open.filter((pull) => pull.user?.id === appSenderId || (sessions && isSession(pull)));
   for (const pull of pulls) {
     const head = pull.head.sha;
     let dispatched = null;
     try {
-      dispatched = await sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest });
+      dispatched = await sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest: { ...rest, trustedHumans, loadAdoption } });
     } catch (error) {
       // One PR's failed read leaves the PRs after it to the sweep.
       log(`::warning::#${pull.number}: the sweep could not decide head ${head}: ${error.message}`);
@@ -369,22 +454,36 @@ export async function sweepNoModelTurn({ api, repository, appSenderId, log, sett
 }
 
 async function sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest }) {
+  // Most session PRs have no open thread: one read settles them each tick.
+  const session = pull.user?.id !== appSenderId;
+  const reviewThreads = session ? await api.listReviewThreads(pull.number) : null;
+  if (session && !reviewThreads.some((thread) => thread.isResolved === false)) {
+    return null;
+  }
   const replies = await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId });
   const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-  if (!isNoModelTurn(newest)) {
+  if (isNoModelTurn(newest)) {
+    const skips = replies.filter(isNoModelTurn).length;
+    if (skips >= SWEEP_HEAD_CAP) {
+      log(`skip: #${pull.number}: head ${head} skipped no-model-turn ${skips} times, the sweep's cap`);
+      return null;
+    }
+  } else if (
+    pull.user?.id === appSenderId ||
+    // A check dispatchFeedback would not count (the gate's untrusted-trigger
+    // skip, a reset limit stop) leaves a session PR's head to the sweep,
+    // its only path; dispatchFeedback decides again with the config's limits.
+    anyHandles(await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId }), { now: rest.now ?? Date.now() })
+  ) {
     return null;
   }
-  const skips = replies.filter(isNoModelTurn).length;
-  if (skips >= SWEEP_HEAD_CAP) {
-    log(`skip: #${pull.number}: head ${head} skipped no-model-turn ${skips} times, the sweep's cap`);
-    return null;
-  }
-  const upstream = await reviewRunAt({ api, head, settings });
+  const reviewRuns = await reviewRunsAt({ api, head, settings });
+  const upstream = await reviewRunAt({ api, head, settings, runs: reviewRuns });
   if (upstream === null) {
     log(`skip: #${pull.number}: head ${head} has no completed review run`);
     return null;
   }
-  const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream });
+  const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream, reviewRuns, reviewThreads });
   return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 
@@ -563,7 +662,19 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
-export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line) } = {}) {
+// The base config's `adoption` section as set; a config that cannot be read
+// works no session PR this run.
+async function baseAdoption(env, log) {
+  try {
+    const { adoptionFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+    return adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+  } catch (error) {
+    log(`::warning::cannot read the base config's adoption section (${error.message}); no session PR is worked this run`);
+    return {};
+  }
+}
+
+export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line), loadAdoption, now } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -591,6 +702,12 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     log,
+    // Read at most once, and only for a trusted person's PR.
+    loadAdoption: (() => {
+      let read = null;
+      return () => (read ??= (loadAdoption ?? (() => baseAdoption(env, log)))());
+    })(),
+    ...(now === undefined ? {} : { now }),
   };
   const summary = () => {
     if (budget) {

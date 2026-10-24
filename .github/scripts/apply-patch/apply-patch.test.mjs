@@ -918,6 +918,27 @@ test("under the review-threads row a head that moved since the model job skips s
   assert.deepEqual(api.calls, []);
 });
 
+// A session PR's authoring session may push while the lane works: the lane
+// never overwrites that push. Pushed between the select job and the push
+// job, it supersedes the patch even when it touches no patched path;
+// pushed after the push job read the branch, the fast-forward-only write is
+// never made.
+test("under the review-threads row a session push after the select job skips superseded-sha, and one before the write is not overwritten", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
+  const kept = { keptThreads: keptOf([{ path: "README.md" }]) };
+  writeFileSync(join(fix.repo, "notes.md"), "the session's own work\n");
+  const session = commitAll(fix.repo, "session push");
+  const before = fakeApi(fix.repo, session);
+  assert.deepEqual(await pushWith(fix, before, { row: row("review-threads"), headSha: session, patchHeadSha: fix.head, context: kept }), { outcome: "superseded" });
+  assert.deepEqual(writes(before), []);
+  const during = fakeApi(fix.repo, fix.head, { branch: session });
+  await assert.rejects(pushWith(fix, during, { row: row("review-threads"), context: kept }), /moved/);
+  assert.equal(during.calls.some((call) => call.updateRef || call.createCommit), false);
+  const quiet = fakeApi(fix.repo, fix.head);
+  assert.equal((await pushWith(fix, quiet, { row: row("review-threads"), context: kept })).outcome, "pushed");
+  assert.equal(quiet.calls.find((call) => call.updateRef).updateRef.force, false, "the write fast-forwards only");
+});
+
 // --- fix-ci's refusals, one test each ---
 
 const ciPush = (fix, api, extra = {}) => pushWith(fix, api, { row: row("ci-context"), ...extra });

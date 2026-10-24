@@ -89,6 +89,7 @@ function fakeApi({
   workflowRunId = 38779200001,
   permissions = { "kyle-sexton": "admin" },
   labelEvents = [],
+  reviewRuns = null,
 } = {}) {
   const calls = { dispatch: [], permission: [], labelEvents: 0 };
   return {
@@ -123,6 +124,8 @@ function fakeApi({
     // A run that names no check is the address-feedback one.
     listCheckRuns: async ({ checkName }) => checkRuns.filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName),
     listWorkflowRuns: async () => workflowRuns,
+    // The completed review runs at a head, the first review workflow's only.
+    listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns ?? [upstreamRun(run)]) : []),
     async dispatchWorkflow(request) {
       calls.dispatch.push(request);
       return { workflowRunId };
@@ -147,7 +150,7 @@ const resolvedLane = ({ laneEnabled = true, slots = {}, applies = true, skipReas
   return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected };
 };
 
-async function decide(api, resolved = resolvedLane()) {
+async function decide(api, resolved = resolvedLane(), options = {}) {
   const lines = [];
   const asked = [];
   const result = await dispatchFeedback({
@@ -162,6 +165,7 @@ async function decide(api, resolved = resolvedLane()) {
       return resolved;
     },
     log: (line) => lines.push(line),
+    ...options,
   });
   return { result, lines, asked };
 }
@@ -1127,11 +1131,13 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   return api;
 }
 
-async function sweepMain(t, api, tick = TICK) {
+async function sweepMain(t, api, tick = TICK, { trusted = false, ...session } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
   writeFileSync(output, "");
+  const actors = join(dir, "trusted.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
   const lines = [];
   await main(
     {
@@ -1141,10 +1147,10 @@ async function sweepMain(t, api, tick = TICK) {
       GITHUB_OUTPUT: output,
       GITHUB_EVENT_PATH: eventFile(dir, tick),
       APP_SENDER_ID: String(APP_ID),
-      TRUSTED_ACTORS: noActors(dir),
+      TRUSTED_ACTORS: trusted ? actors : noActors(dir),
       DISPATCH_RECORD: join(dir, "record.json"),
     },
-    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), ...session },
   );
   return { output: readFileSync(output, "utf8"), lines };
 }
@@ -1214,4 +1220,137 @@ test("a PR the sweep cannot read is logged and the next PR is still swept", asyn
   assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
   assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
   assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("502")), lines.join("\n"));
+});
+
+// Session PRs: a trusted person's PR, which the authoring session may still
+// push to. address-feedback works it once that session has not pushed for
+// adoption.feedback-idle-minutes, or at once when a trusted person put the
+// lanes-may-fix label on; never past an owner `Hold:` line or do-not-merge.
+const NOW = Date.parse("2026-10-24T18:00:00Z");
+const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
+const SESSION = { now: NOW, loadAdoption: async () => ({ "feedback-idle-minutes": 30 }) };
+const sessionPull = (overrides = {}) => pull({ user: { id: KYLE.databaseId }, body: "Closes #1", ...overrides });
+// The review runs at the head, the earliest created when the head was pushed.
+const pushedRuns = (...minutes) => minutes.map((m, i) => upstreamRun({ id: 900 + i, created_at: minutesAgo(m) }));
+const mayFix = { name: "lanes-may-fix" };
+const labeledBy = (actor, at = minutesAgo(5)) => ({ event: "labeled", label: mayFix, actor, created_at: at });
+const KYLE_ACTOR = { login: "kyle-sexton", id: KYLE.databaseId, type: "User" };
+const STRANGER_ACTOR = { login: "stranger", id: STRANGER.databaseId, type: "User" };
+
+test("a session PR whose head was pushed under feedback-idle-minutes ago is skipped", async () => {
+  const api = fakeApi({ pulls: sessionPull(), reviewRuns: pushedRuns(10) });
+  const { result, lines } = await decide(api, resolvedLane(), SESSION);
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.match(lines.at(-1), /pushed head [0-9a-f]{40} 10 minute\(s\) ago, under adoption\.feedback-idle-minutes \(30\)/);
+});
+
+test("a session PR idle for feedback-idle-minutes since its head was pushed dispatches, measured from the earliest review run", async () => {
+  const idle = fakeApi({ pulls: sessionPull(), reviewRuns: pushedRuns(5, 30) });
+  assert.deepEqual((await decide(idle, resolvedLane(), SESSION)).result, { number: 42, workflowRunId: "38779200001" });
+  const unreadable = fakeApi({ pulls: sessionPull(), reviewRuns: [upstreamRun({ created_at: "" })] });
+  assert.equal((await decide(unreadable, resolvedLane(), SESSION)).result, null, "an unreadable push time is not idle");
+});
+
+test("a session PR a trusted person labeled lanes-may-fix dispatches without waiting", async () => {
+  const api = fakeApi({ pulls: sessionPull({ labels: [mayFix] }), reviewRuns: pushedRuns(2), labelEvents: [labeledBy(KYLE_ACTOR)] });
+  assert.deepEqual((await decide(api, resolvedLane(), SESSION)).result, { number: 42, workflowRunId: "38779200001" });
+  assert.equal(api.calls.labelEvents, 1);
+});
+
+test("lanes-may-fix put on by an untrusted actor, a Bot, or taken off counts as no label", async () => {
+  for (const [label, labels, events] of [
+    ["an untrusted person", [mayFix], [labeledBy(STRANGER_ACTOR)]],
+    ["a trusted id typed as a Bot", [mayFix], [labeledBy({ ...KYLE_ACTOR, type: "Bot" })]],
+    ["a trusted person's label re-added by a stranger", [mayFix], [labeledBy(KYLE_ACTOR, minutesAgo(9)), labeledBy(STRANGER_ACTOR, minutesAgo(4))]],
+    ["no label event read", [mayFix], []],
+    ["the label is no longer on", [], [labeledBy(KYLE_ACTOR)]],
+  ]) {
+    const api = fakeApi({ pulls: sessionPull({ labels }), reviewRuns: pushedRuns(2), labelEvents: events });
+    const { result, lines } = await decide(api, resolvedLane(), SESSION);
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /under adoption\.feedback-idle-minutes/, label);
+  }
+  // The idle rule still applies past an untrusted label.
+  const idle = fakeApi({ pulls: sessionPull({ labels: [mayFix] }), reviewRuns: pushedRuns(45), labelEvents: [labeledBy(STRANGER_ACTOR)] });
+  assert.deepEqual((await decide(idle, resolvedLane(), SESSION)).result, { number: 42, workflowRunId: "38779200001" });
+});
+
+test("an owner Hold: line or do-not-merge holds a session PR, label or not", async () => {
+  for (const [label, overrides] of [
+    ["Hold: line", { body: "Closes #1\n\nHold: I am still on this", labels: [mayFix] }],
+    ["indented hold: after a CR", { body: "Closes #1\r  hold: wait" }],
+    ["do-not-merge", { labels: [mayFix, { name: "do-not-merge" }] }],
+  ]) {
+    const api = fakeApi({ pulls: sessionPull(overrides), reviewRuns: pushedRuns(120), labelEvents: [labeledBy(KYLE_ACTOR)] });
+    const { result, lines } = await decide(api, resolvedLane(), SESSION);
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /Hold:|do-not-merge/, label);
+  }
+  // A lanes App PR's own `Hold: a human merges this` holds the merge, not this lane.
+  const lane = fakeApi({ pulls: pull({ body: "Hold: a human merges this" }) });
+  assert.deepEqual((await decide(lane, resolvedLane(), SESSION)).result, { number: 42, workflowRunId: "38779200001" });
+});
+
+test("without adoption.feedback-idle-minutes no session PR is worked, and a trusted App's or stranger's PR never is", async () => {
+  const unset = fakeApi({ pulls: sessionPull(), reviewRuns: pushedRuns(600) });
+  const { result, lines } = await decide(unset, resolvedLane(), { ...SESSION, loadAdoption: async () => ({ "idle-hours": 24 }) });
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /feedback-idle-minutes is not set/);
+  for (const id of [CLAUDE.databaseId, STRANGER.databaseId]) {
+    const api = fakeApi({ pulls: sessionPull({ user: { id } }), reviewRuns: pushedRuns(600) });
+    let loaded = false;
+    const out = await decide(api, resolvedLane(), { ...SESSION, loadAdoption: async () => ((loaded = true), { "feedback-idle-minutes": 30 }) });
+    assert.equal(out.result, null);
+    assert.match(out.lines.at(-1), /not opened by the lanes App or a trusted person/);
+    assert.equal(loaded, false, "the config is read only for a trusted person's PR");
+  }
+});
+
+test("the sweep dispatches an idle session PR whose head has no address-feedback round yet", async (t) => {
+  const open = sessionPull();
+  const reviewRuns = { [HEAD]: pushedRuns(40) };
+  const api = sweepApi({ openPulls: open, checksAt: {}, reviewRuns });
+  const { output } = await sweepMain(t, api, TICK, { trusted: true, ...SESSION });
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42"]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=900\n");
+});
+
+test("the sweep leaves a session PR that is not idle, held, already handled at its head, or whose config is unset", async (t) => {
+  for (const [label, options, session = SESSION] of [
+    ["pushed 10 minutes ago", { openPulls: sessionPull(), checksAt: {}, reviewRuns: { [HEAD]: pushedRuns(10) } }],
+    ["a Hold: line", { openPulls: sessionPull({ body: "Hold: mine" }), checksAt: {}, reviewRuns: { [HEAD]: pushedRuns(90) } }],
+    ["a round already answered", { openPulls: sessionPull(), checksAt: { [HEAD]: [roundRun("address-feedback", "success", "Passed", minutesAgo(20))] }, reviewRuns: { [HEAD]: pushedRuns(90) } }],
+    ["config unset", { openPulls: sessionPull(), checksAt: {}, reviewRuns: { [HEAD]: pushedRuns(90) } }, { ...SESSION, loadAdoption: async () => ({}) }],
+  ]) {
+    const api = sweepApi(options);
+    const { output } = await sweepMain(t, api, TICK, { trusted: true, ...session });
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("the sweep reads no API for a session PR it can reject from the PR list", async (t) => {
+  const api = sweepApi({ openPulls: sessionPull({ body: "Hold: mine" }), checksAt: {}, reviewRuns: {} });
+  api.listCheckRuns = async () => assert.fail("a held session PR reads no check run");
+  const { output } = await sweepMain(t, api, TICK, { trusted: true, ...SESSION });
+  assert.equal(output, "");
+});
+
+test("the sweep still takes a session PR whose head carries only the gate's untrusted-trigger skip", async (t) => {
+  const skipped = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "neutral", output: { title: "Skipped: untrusted-trigger" }, started_at: minutesAgo(35) };
+  const api = sweepApi({ openPulls: sessionPull(), checksAt: { [HEAD]: [skipped] }, reviewRuns: { [HEAD]: pushedRuns(40) } });
+  await sweepMain(t, api, TICK, { trusted: true, ...SESSION });
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42"]);
+});
+
+test("a session PR with no unresolved thread costs the sweep one read", async (t) => {
+  const api = sweepApi({ openPulls: sessionPull(), checksAt: {}, reviewRuns: { [HEAD]: pushedRuns(90) } });
+  let reads = 0;
+  api.listReviewThreads = async () => ((reads += 1), [thread([CLAUDE], true)]);
+  api.listCheckRuns = async () => assert.fail("no check run is read");
+  api.listCompletedRuns = async () => assert.fail("no review run is read");
+  const { output } = await sweepMain(t, api, TICK, { trusted: true, ...SESSION });
+  assert.equal(output, "");
+  assert.equal(reads, 1);
 });

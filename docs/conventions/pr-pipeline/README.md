@@ -166,7 +166,7 @@ on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-host
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
 this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
-PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
+PR or it is a session PR (below), it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
 finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
@@ -190,6 +190,30 @@ runs the base's resolve-config for that PR and head with `address-feedback` sele
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
 id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
+
+A session PR is one a person on the trusted-actor list (`kind: human`) opened, which the session
+that wrote it may still push to (owner rule, 2026-10-24: after `agent-ready` a person is needed only
+for unclear or changed intent, a high security risk, or induced cost). While the base config sets
+`adoption.feedback-idle-minutes` ([Adoption](#adoption)), `address-feedback` works it as above when
+no body line starts with `Hold:` (read as [Adoption](#adoption) reads it) and either a trusted
+person (a `User` on the list) made the newest `labeled` event of the `lanes-may-fix` label still on
+it, or its head was pushed at least `feedback-idle-minutes` ago. The push time is the creation of the
+earliest completed review run at the head, since a `pull_request` run starts on the push; an
+unreadable time is not idle, and a lane's own push restarts the wait. A label anyone else added
+counts as no label. A trusted App's PR is not a session PR. A review completion on a session PR's
+branch starts no dispatch job (the job takes only `work-resolve-issue/issue-` branches), so the
+half-hourly sweep is its path: each tick it also takes a session PR whose head no
+`pr-unblock / address-feedback` check run has counted, reading nothing for one a hold label or a
+`Hold:` line holds and only its threads for one with no unresolved thread, and dispatches at most one
+PR per tick in all. The session and the lane never push over each other. The session author's own
+reply on a thread, unless a fix request, keeps that thread from the lane (`address-feedback.mjs`
+`threadAuthors`). A session push after the select job read the head moves the PR off the reviewed
+head, so the push and reply jobs' trigger gate refuses them (`untrusted-actor`, a commit the lanes
+App did not sign follows the gated head), which posts a neutral `untrusted-trigger` check and
+escalates nothing. Behind the gate, `apply-patch.mjs` skips `superseded-sha` under the
+`review-threads` row's `skip-moved-head`, and a push after it read the branch fails its
+fast-forward-only ref update. Such a round spends one model call and posts no round marker, so it
+does not count toward `loop.review-rounds`; the next idle window at the new head starts the next.
 
 It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-verify.yml` on
 `main` uploaded a `fail` verdict, its `post-verify-notes` job (a base job with no model, holding
@@ -2189,6 +2213,7 @@ hold.
 |---|---|---|
 | `idle-hours` | none | Hours both a person's PR and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
 | `spec-from-body-apps` | `[]` | App ids whose PR bodies a script writes; such a PR closing no issue is judged against its title and body. |
+| `feedback-idle-minutes` | none | Minutes since a session PR's head was pushed before `address-feedback` works it; 1 to 1440. A trusted person's `lanes-may-fix` label skips the wait. Absent: no session PR ([Lanes](#lanes)). |
 
 ## Red main
 

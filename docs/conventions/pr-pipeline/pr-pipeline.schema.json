@@ -264,6 +264,12 @@
           "maximum": 720,
           "description": "Hours both a person's pull request (its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
         },
+        "feedback-idle-minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440,
+          "description": "Minutes since a trusted person's pull request head was pushed (its earliest completed review run) before address-feedback works the review threads on it; a lanes-may-fix label a trusted person added skips the wait. Absent: address-feedback works no such pull request."
+        },
         "spec-from-body-apps": {
           "type": "array",
           "uniqueItems": true,

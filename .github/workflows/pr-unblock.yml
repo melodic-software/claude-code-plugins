@@ -12,8 +12,11 @@ name: pr-unblock
 # conflicts and hands them on as a patch, and a script job commits the merge.
 # address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
-# PR with unresolved reviewer-bot threads; a base job keeps the threads, a read
-# model job answers them, and script jobs push its patch and post its replies.
+# PR with unresolved reviewer-bot threads, and from its half-hourly sweep for a
+# trusted person's PR once its session is idle (adoption.feedback-idle-minutes)
+# or a trusted person labeled it lanes-may-fix; a base job keeps the threads, a
+# read model job answers them, and script jobs push its patch and post its
+# replies.
 # review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or

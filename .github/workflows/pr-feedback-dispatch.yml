@@ -29,7 +29,12 @@ name: pr-feedback-dispatch
 # whose last address-feedback round had no model turn and dispatches one such
 # head again, through its newest completed review run, at most once per tick
 # (feedback-dispatch.mjs sweepNoModelTurn). That round released the head only
-# for a next review or pr-verify completion, which may never come. Taking
+# for a next review or pr-verify completion, which may never come. The same
+# sweep takes a trusted person's PR (a session PR) whose head no round has
+# worked, once its session has not pushed for adoption.feedback-idle-minutes
+# or a trusted person labeled it lanes-may-fix: its review completions start
+# no dispatch job (the branch filter below), and right after a push its
+# session is not idle anyway. Taking
 # the tick's completion rather than a schedule of this file's own keeps
 # every dispatch a workflow_run dispatcher's, the one kind the gate and the
 # broker trust with a review run as its upstream.
@@ -152,7 +157,8 @@ jobs:
     # cancelled one (most often superseded by a newer push) finished no review.
     # The lanes App opens PRs only from work-resolve-issue lane branches
     # (work-resolve-issue/report-outcome.mjs), so a review run on any other
-    # branch is not on a lanes App PR. A pr-verify run dispatches only once its
+    # branch is not on a lanes App PR; a session PR on such a branch is the
+    # sweep's. A pr-verify run dispatches only once its
     # notes are on the PR, and a pr-unblock-dispatch.yml run sweeps only when
     # its schedule started it on main. A job skipped here starts no runner.
     if: >-

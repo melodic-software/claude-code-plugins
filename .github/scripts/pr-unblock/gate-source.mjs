@@ -34,6 +34,11 @@ const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$
 // report-escalation.sh writes the label, then the comment, retrying the
 // comment for up to 15 seconds; a minute covers that (judgment).
 export const PAIRED_MS = 60_000;
+// A PR body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
+// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
+// included, with a bare CR as a line break too. An owner's such line holds
+// the lanes off the PR.
+export const BODY_HOLD = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 export const lines = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
 export const same = (a, b) => String(a ?? "").toLowerCase() === String(b).toLowerCase();

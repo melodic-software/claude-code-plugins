@@ -28,7 +28,7 @@
 
 import { reconcilerOwns } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
-import { prHold } from "./gate-source.mjs";
+import { BODY_HOLD, prHold } from "./gate-source.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -58,10 +58,6 @@ const HELD_SKIP = "Skipped: awaiting-human";
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
-// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
-// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
-// included, with a bare CR as a line break too.
-const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 // The tracker's human-gated label from .work-item-tracker.json's text, as
 // pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
@@ -196,7 +192,7 @@ export function skipReason(
   }
   // The lanes App's own PRs carry `Hold: a human merges this`, which holds the
   // merge, not a CI fix; an owner's Hold: line holds the lane off entirely.
-  if (owner && HOLD_LINE.test(String(node.body ?? ""))) {
+  if (owner && BODY_HOLD.test(String(node.body ?? ""))) {
     return "held by a Hold: line";
   }
   if (owner && !ownerIdle(node, adoption.idleHours, now)) {
