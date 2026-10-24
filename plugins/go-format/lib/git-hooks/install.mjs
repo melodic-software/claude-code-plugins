@@ -611,10 +611,10 @@ function remoteFetched(info, plugin) {
   const { git_url: url, ref, config } = plugin.remote;
   const names = [ref.replaceAll("-", "--").replaceAll("/", "-"), ref];
   const root = path.join(path.dirname(info.excludeFile), "lefthook-remotes");
-  if (names.some((name) => readText(path.join(root, `${repoName(url)}-${name}`, config)) !== null)) return true;
-  // A lefthook that names its cache directory another way: any fetched copy of
-  // this repository that holds the config.
-  const dirs = existsSync(root) ? readdirSync(root).filter((d) => d.startsWith(`${repoName(url)}-`)) : [];
+  const prefixes = names.map((name) => `${repoName(url)}-${name}`);
+  // A cache directory with a suffix after the ref counts too; another ref's, or
+  // another repository's whose name extends this one, does not.
+  const dirs = existsSync(root) ? readdirSync(root).filter((d) => prefixes.some((p) => d === p || d.startsWith(`${p}-`))) : [];
   return dirs.some((d) => readText(path.join(root, d, config)) !== null);
 }
 

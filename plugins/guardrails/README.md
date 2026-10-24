@@ -116,7 +116,7 @@ committed `lefthook.yml`, so every clone runs the hooks from this marketplace re
 credentials. With husky or plain hooks it commits copies under
 `.githooks/guardrails/`. A clone whose fetched remote no longer parses (every commit and
 `lefthook install` then fail with a YAML error) recovers, once the fix is on `main`, with
-`rm -rf "$(git rev-parse --git-path info)/lefthook-remotes/claude-code-plugins-main" && lefthook install`.
+`rm -rf "$(git rev-parse --git-path info)"/lefthook-remotes/claude-code-plugins-* && lefthook install`.
 Each entry blocks only on what the commit or push adds. A clone that does not want an
 entry declines it through `/guardrails:setup` (`install.mjs decline --entry <name>`),
 which also removes the entry's registration when it is already installed.
