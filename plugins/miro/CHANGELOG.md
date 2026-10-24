@@ -3,6 +3,26 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.17] - 2026-10-24
+
+### Fixed
+
+- The README and `setup` skill's pointer records for where a plugin MCP server's startup error is shown now name `claude --debug=mcp` as well as `claude --debug`, and the debug log path, as the live Debug your configuration page now states. The as-of date is 2026-10-24.
+
+## [0.6.16] - 2026-10-24
+
+### Changed
+
+- **Bump ip-address from 10.7.2 to 10.7.4 in /plugins/miro/server** (#9131).
+
+## [0.6.15] - 2026-10-24
+
+### Changed
+
+- **build: Bump body-parser from 2.3.0 to 2.4.0 in /plugins/miro/server** (#9502).
+
+- **build: Bump fast-uri from 3.1.8 to 3.1.9 in /plugins/miro/server** (#9511).
+
 ## [0.6.14] - 2026-10-20
 
 ### Changed

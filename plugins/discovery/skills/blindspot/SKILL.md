@@ -53,13 +53,18 @@ understanding rather than the agent's.
      constraints they'd violate, historical decisions they'd re-litigate, adjacent code their change
      would break.
    - **Domain lane**. Build a lightweight vocabulary ladder grounded in sources fetched this session
-     (repo files, official docs), never bare training recall.
+     (repo files, official docs), never bare training recall. Right after the ladder, add a block of
+     the quality axes experts judge the work by, with a worked good-vs-bad example per axis, each
+     grounded in a source fetched this session. The axes are their own block ahead of the cards, not
+     a card type. Each axis becomes a prompt-fix line in the improved prompt, which the user keeps or
+     deletes like any other fix. A criterion the user's framing never named may also appear as a
+     **Missing concept** card.
 3. **Output. Blindspot cards.** One card per blindspot, typed by the kind of gap it is (Landmine /
    History / Convention / Missing concept): the gap, why it matters here, and a copyable prompt-fix
    line. Close by assembling the fixes into ONE improved implementation prompt the user can run next.
 4. **Escalate when depth warranted**, a domain too deep for a lightweight ladder gets a recommendation
-   to run proper external research (`/discovery:research`) or whatever structured-learning capability
-   the environment provides.
+   to learn it in a structured way: `/education:teach topic <domain>` when it is among the available
+   skills, otherwise proper external research (`/discovery:research`).
 
 ## Output format
 
@@ -95,8 +100,8 @@ duplicating that responsibility here.
 
 ## Gotchas
 
-- **Presenting training recall as domain fact**, the domain lane grounds its vocabulary ladder in
-  sources fetched this session (repo files, official docs). Bare recall is the failure mode this
+- **Presenting training recall as domain fact**, the domain lane grounds its vocabulary ladder
+  and quality axes with good-vs-bad examples in sources fetched this session (repo files, official docs). Bare recall is the failure mode this
   skill exists to avoid, not commit.
 - **Surfacing the agent's gaps instead of the user's**. Cards name what the USER's framing missed,
   calibrated to their intake disclosure, not a generic audit of the area.
@@ -110,5 +115,5 @@ duplicating that responsibility here.
   `/discovery:explore` via the Skill tool when the findings double as stage-1 exploration.
 - **Does not make changes**. It surfaces blindspots and coaches a prompt. Execution is a separate step.
 - **Does not run open-ended external research**, the domain lane fetches official docs to ground a
-  lightweight vocabulary ladder; anything deeper routes to `/discovery:research`, invoked via the
+  lightweight vocabulary ladder and quality axes with good-vs-bad examples; anything deeper routes to `/discovery:research`, invoked via the
   Skill tool.

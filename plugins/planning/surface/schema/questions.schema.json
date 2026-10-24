@@ -157,8 +157,8 @@
                 "description": "A held superseded-by-plan row's proposal and prior answer, as import-ledger read them from the escaped row; read in place of the resolution."
               },
               "wasForm": {
-                "enum": ["plain", "answer"],
-                "description": "The form the prior answer had before the plan superseded it (a plain cell, or an `answer` field), as the row's `was plain::` or `was answer::` named it; export-ledger writes it back."
+                "enum": ["plain", "answer", "named"],
+                "description": "The form the prior answer had before the plan superseded it (a plain cell, an `answer` field alone, or several named fields held whole), as the row's `was plain::`, `was answer::` or `was named::` named it; export-ledger writes it back."
               }
             }
           }

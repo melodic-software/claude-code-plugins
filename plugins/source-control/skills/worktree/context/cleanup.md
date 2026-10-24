@@ -137,7 +137,10 @@ plugin's marketplace repository), run it for a git-tracked candidate once both g
 cleared (for a locked candidate, including the `stale` proof) and the file-lock release has run. Read the entry and derive `WORKSPACE_ID` and `WORKSPACE_ROOT` exactly as
 [create.md § Workspace environment setup](create.md#workspace-environment-setup) steps 2 and 3 do,
 then run `down` once through the Bash tool from the candidate's root:
-`cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <down command>`.
+`(cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <down command>)`.
+Keep the parentheses: the subshell stops the directory change from persisting, because the shell
+keeps its directory between calls and a session left inside the candidate makes the later `rmdir`
+fail as busy.
 Skip it, and say why, for a worktree whose stage reads untrusted input (the rule in
 [create.md § Workspace environment setup](create.md#workspace-environment-setup) step 1) and when no entry or no `down` line is found; an orphaned-directory candidate has no
 worktree to run it in. A non-zero exit is reported with the command and the exit code, and the removal continues

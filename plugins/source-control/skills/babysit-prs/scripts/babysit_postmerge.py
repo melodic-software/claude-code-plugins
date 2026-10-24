@@ -303,6 +303,8 @@ class PostMergeVerdict:
     # for a fresh run.
     hold: str | None = None
     recover_dispatch: bool = False
+    # When the earliest quarantine that excused a failing suite expires.
+    excuses_expire_at: datetime | None = None
 
     @property
     def ok(self) -> bool:
@@ -370,6 +372,9 @@ class PostMergeVerdict:
             "needsDispatch": self.needs_dispatch,
             "warnings": list(self.warnings),
             "branch": self.branch,
+            "excusesExpireAt": (
+                self.excuses_expire_at.isoformat() if self.excuses_expire_at else None
+            ),
         }
 
 
@@ -1047,6 +1052,9 @@ class _Context:
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
+    # Per live branch tip, the clone's copy of the branch when the compare
+    # API read it as that tip's ancestor, else None (`_tip_bridge`).
+    bridge_cache: dict[str, str | None] = field(default_factory=dict)
     baseline_cache: dict[tuple[str, datetime], frozenset[str] | None] = field(
         default_factory=dict
     )
@@ -1070,6 +1078,9 @@ class _Context:
     quarantine_issues: dict[str, dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
+    # The earliest time a quarantine that excused a failing suite expires,
+    # after which the same runs judge differently (`excuse_until`).
+    excuses_expire_at: datetime | None = None
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
     # The lane records file (`LANE_RECORDS_ENV`), its records once loaded,
@@ -1164,16 +1175,18 @@ class _Context:
             return frozenset()
         issues = self._quarantine_issues()
         days = self._quarantine_days(run.head_sha)
-        return frozenset(
-            check
-            for check, suites in named.items()
-            if any(
-                not is_gate_suite(suite)
-                and (issue := issues.get(suite)) is not None
-                and self.now >= _time(issue.get("created_at")) + timedelta(days=days)
-                for suite in suites
-            )
-        )
+        expired: set[str] = set()
+        for check, suites in named.items():
+            for suite in suites:
+                issue = None if is_gate_suite(suite) else issues.get(suite)
+                if issue is None:
+                    continue
+                ends = _time(issue.get("created_at")) + timedelta(days=days)
+                if self.now >= ends:
+                    expired.add(check)
+                else:
+                    self.excuse_until(ends)
+        return frozenset(expired)
 
     def demoting(
         self, run: Run, attempt: int, checks: frozenset[str]
@@ -1205,16 +1218,26 @@ class _Context:
                         demote.add(check)
                         continue
                     issue = issues.get(suite)
-                    if issue is not None and self.now >= _time(
-                        issue.get("created_at")
-                    ) + timedelta(days=days):
+                    ends = (
+                        None
+                        if issue is None
+                        else _time(issue.get("created_at")) + timedelta(days=days)
+                    )
+                    if ends is not None and self.now >= ends:
                         demote.add(check)
                     else:
+                        if ends is not None:
+                            self.excuse_until(ends)
                         excused.append(Quarantine(suite, sighting, run.head_sha))
         for q in excused:
             self.quarantines[(q.suite, q.run_url)] = q
         self.demoting_cache[key] = frozenset(demote)
         return self.demoting_cache[key]
+
+    def excuse_until(self, ends: datetime) -> None:
+        """Note a quarantine excuse that holds until `ends`."""
+        if self.excuses_expire_at is None or ends < self.excuses_expire_at:
+            self.excuses_expire_at = ends
 
     def failing_suites(
         self, run_id: int, attempt: int, check: str
@@ -1664,26 +1687,71 @@ class _Context:
         """Whether `sha` is `ancestor` or has it in its history: from a local
         full-history clone when one holds both commits, else from the compare
         API, whose `ahead` or `identical` status means `ancestor` is reachable
-        from `sha`, which is what `git merge-base --is-ancestor` tests."""
+        from `sha`, which is what `git merge-base --is-ancestor` tests. For the
+        branch tip the clone lacks (the branch moved after it was made), an
+        ancestor of the clone's copy of the branch is an ancestor of the tip
+        when that copy is (`_tip_bridge`), so one compare answers them all."""
         key = (ancestor, sha)
         if key not in self.contains_cache:
             if ancestor == sha:
                 self.contains_cache[key] = True
             elif (local := self._local_contains(ancestor, sha)) is not None:
                 self.contains_cache[key] = local
+            elif (
+                sha == self.branch_tip
+                and (bridge := self._tip_bridge(sha)) is not None
+                and self._local_contains(ancestor, bridge) is True
+            ):
+                self.contains_cache[key] = True
             else:
-                compare = _read(
-                    [
-                        "api",
-                        f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}",
-                    ],
-                    f"compare {ancestor[:12]}...{sha[:12]}",
-                )
-                self.contains_cache[key] = json_object(compare).get("status") in (
-                    "ahead",
-                    "identical",
-                )
+                self.contains_cache[key] = self._compare(ancestor, sha)
         return self.contains_cache[key]
+
+    def _compare(self, ancestor: str, sha: str) -> bool:
+        """The compare API's answer to `contains`; a failed read raises."""
+        compare = _read(
+            ["api", f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}"],
+            f"compare {ancestor[:12]}...{sha[:12]}",
+        )
+        return json_object(compare).get("status") in ("ahead", "identical")
+
+    def _tip_bridge(self, tip: str) -> str | None:
+        """The first full-history clone's copy of the branch, read from
+        `refs/remotes/origin/<branch>` or else `refs/heads/<branch>`, when the
+        compare API reads it as an ancestor of `tip`; else None. Read once per
+        tip. A failed compare is None, not an error: each record then gets
+        its own compare, which raises on its own failure."""
+        if tip not in self.bridge_cache:
+            bridge = None
+            if self.local_clones is None:
+                self.local_clones = _full_history_clones()
+            refs = (f"refs/remotes/origin/{self.branch}", f"refs/heads/{self.branch}")
+            local = next(
+                (
+                    out.strip()
+                    for root in self.local_clones
+                    for ref in refs
+                    if (
+                        out := policy._git(
+                            root,
+                            "rev-parse",
+                            "--verify",
+                            "--quiet",
+                            f"{ref}^{{commit}}",
+                        )
+                    )
+                    and _FULL_SHA.fullmatch(out.strip())
+                ),
+                None,
+            )
+            # A local tip leaves only the record's commit missing: no bridge.
+            if local is not None and local != tip:
+                try:
+                    bridge = local if self._compare(local, tip) else None
+                except PostMergeReadError:
+                    bridge = None
+            self.bridge_cache[tip] = bridge
+        return self.bridge_cache[tip]
 
     def _local_contains(self, ancestor: str, sha: str) -> bool | None:
         """`git merge-base --is-ancestor` in the first local clone that can
@@ -2182,6 +2250,7 @@ def check(
         warnings=tuple(warnings),
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
+        excuses_expire_at=ctx.excuses_expire_at,
     )
 
 
@@ -3095,6 +3164,92 @@ def gate_from_report(report: dict[str, Any]) -> policy.PostMergeGate:
     return policy.PostMergeGate(
         refusal, report, lambda merge: getattr(merge, "number", None) in verified
     )
+
+
+def gate_reader(
+    repo: str, self_logins: Collection[str], *, lane_merges_only: bool
+) -> Callable[[datetime, str], policy.PostMergeGate]:
+    """The merge gate's `post_merge(floor, identity)`: this check from
+    `floor`, as `gate_from_report` reads it."""
+
+    def post_merge(floor: datetime, identity: str) -> policy.PostMergeGate:
+        verdict = check(
+            repo,
+            agent_identity=identity,
+            is_human=_default_is_human(repo, identity, self_logins),
+            merged_since=floor,
+            pinned_sha=pin_reader(repo, identity),
+            lane_merges_only=lane_merges_only,
+        )
+        return gate_from_report(verdict.report())
+
+    return post_merge
+
+
+VERIFYING_WORKFLOWS = frozenset(
+    f".github/workflows/{w}" for w in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW)
+)
+
+
+def pending_runs_unchanged(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Whether `check` would judge `shared`'s unverified merges as it did,
+    from one run listing: no full or canary run on `branch` created since the
+    earliest of them completed or was re-run since `computed_at` (less
+    `policy.SINCE_CLOCK_MARGIN`), none has passed `DISPATCH_DEADLINE`, after
+    which a missing dispatch or pin is a failure, and no quarantine that
+    excused a failing suite has expired (`excusesExpireAt`; an answer
+    without the field is False). Those are `_judge`'s time-based excuses. A
+    run started since and still running only stays pending. A listing that
+    cannot be read or is not whole, or an entry without a merge time, is
+    False."""
+    pending = [
+        m
+        for m in map(json_object, json_array(shared.gate.report.get("autoMerges")))
+        if m.get("verified") is not True
+    ]
+    report = shared.gate.report
+    if not pending or "excusesExpireAt" not in report:
+        return False
+    now = now or datetime.now(UTC)
+    try:
+        earliest = min(_time(m.get("mergedAt")) for m in pending)
+        excuse = report["excusesExpireAt"]
+        if now > earliest + DISPATCH_DEADLINE or (
+            excuse is not None and now >= _time(excuse)
+        ):
+            return False
+        owner, name = _split_repo(repo)
+        created = quote(
+            f">={earliest.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+        )
+        payload = json_object(
+            _read(
+                [
+                    "api",
+                    f"repos/{owner}/{name}/actions/runs?branch={quote(branch, safe='')}"
+                    f"&created={created}&per_page=100",
+                ],
+                "verifying runs",
+            )
+        )
+        runs = json_array(payload.get("workflow_runs"))
+        if payload.get("total_count") != len(runs):
+            return False
+        since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
+        return not any(
+            run.get("path") in VERIFYING_WORKFLOWS
+            and run.get("status") == "completed"
+            and _time(run.get("updated_at")) >= since
+            for run in map(json_object, runs)
+        )
+    except PostMergeReadError:
+        return False
 
 
 def read_shared(path: str) -> policy.SharedPostMerge | None:
