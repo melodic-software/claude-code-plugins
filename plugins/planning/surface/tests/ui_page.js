@@ -22,6 +22,14 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
 
+    // G7: the round's restate card sits above the round's first question and on no other
+    await pick("Q1");
+    const rs = await page.evaluate(() => { const c = document.getElementById("roundRestate"), h = document.querySelector("#dscroll .dhead");
+      return {text: c ? c.textContent.replace(/\s+/g, " ").trim() : "", above: !!c && !!h && !!(c.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING), refs: c ? c.querySelectorAll("button.ref").length : 0}; });
+    ok("G7: the round's restate card is above the first question, with its open branches", /Nothing is decided yet/.test(rs.text) && rs.above && rs.refs === 9, JSON.stringify(rs));
+    await pick("Q2");
+    ok("G7: a later question of the round shows no restate card", await page.$("#roundRestate") === null);
+
     // #7749: the Source text quote shows open and above the recommendation; a question without one renders as before
     for (const [w, h] of [[1440, 900], [390, 844]]) {
       await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);

@@ -56,6 +56,33 @@ def question(qid, **extra):
     return q
 
 
+STOCK_RESTATE = {
+    "text": "Earlier rounds are settled. These branches are open. This round turns on them.",
+    "decided": [],
+    "open": [],
+}
+
+
+def with_restates(data):
+    """`data` (a round file or an ops file) with STOCK_RESTATE on every add-round that adds questions and names no `restate`."""
+    if not isinstance(data, dict):
+        return data
+    if data.get("questions") and "restate" not in data:
+        return {**data, "restate": STOCK_RESTATE}
+    if isinstance(data.get("ops"), list):
+        ops = [
+            {**op, "restate": STOCK_RESTATE}
+            if isinstance(op, dict)
+            and op.get("op") == "add-round"
+            and op.get("questions")
+            and "restate" not in op
+            else op
+            for op in data["ops"]
+        ]
+        return {**data, "ops": ops}
+    return data
+
+
 def base_doc():
     """A v2.1-shaped questions.json: no schemaVersion, two groups, three questions."""
     return {
@@ -115,6 +142,9 @@ class DirCase(unittest.TestCase):
         return run_round(self.dir, *args, env=env)
 
     def file(self, name, data):
+        """Write `data` as JSON; a round with questions and no `restate` gets a stock one, so
+        tests about other things post rounds as a real session would (G7)."""
+        data = with_restates(data)
         path = self.tmp / name
         path.write_text(json.dumps(data), encoding="utf-8")
         return str(path)
@@ -3930,6 +3960,65 @@ class TestCliHygiene(DirCase):
 
         for op in r.OP_ARGS:
             self.assertIn(op, out)
+
+
+class TestRoundRestate(DirCase):
+    """G7: a round with questions opens with a restate, as R1 requires `commits`."""
+
+    def spec(self, **restate):
+        body = {"text": "Q1 is settled. Q4 is open. The round turns on Q4.", "decided": ["Q1"], "open": ["Q4"]}
+        body.update(restate)
+        return {"questions": [question("Q4", round=2)], "restate": body}
+
+    def post(self, spec, *extra):
+        path = self.tmp / "restate-round.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        return str(path)
+
+    def test_a_round_without_restate_is_refused_naming_the_field(self):
+        path = self.post({"questions": [question("Q4", round=2)]})
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("restate", out)
+
+    def test_more_than_three_sentences_is_refused(self):
+        path = self.post(self.spec(text="One. Two. Three. Four."))
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("restate", out)
+        self.assertIn("4 sentences", out)
+
+    def test_decided_and_open_must_name_known_questions(self):
+        path = self.post(self.spec(open=["Q99"]))
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("Q99", out)
+
+    def test_a_valid_restate_is_stored_on_the_round(self):
+        rc, out, err = self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual((entry["round"], entry["stage"]), (2, "interview"))
+        self.assertEqual(entry["restate"]["decided"], ["Q1"])
+        self.assertEqual(entry["restate"]["open"], ["Q4"])
+        self.assertIn("Q4 is open", entry["restate"]["text"])
+
+    def test_the_activity_feed_posts_a_needs_you_entry(self):
+        self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertTrue(self.doc()["activity"][-1].get("asks"))
+
+    def test_apply_refuses_a_round_without_restate(self):
+        path = self.post({"ops": [{"op": "add-round", "questions": [question("Q4")]}]})
+        out = self.assert_refused("apply", "--file", path)
+        self.assertIn("restate", out)
+
+    def test_a_round_without_questions_needs_no_restate(self):
+        path = self.post({"groups": [{"id": "g3", "title": "T"}]})
+        rc, out, err = self.rp("add-round", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("rounds", self.doc())
+
+    def test_a_file_without_rounds_still_validates(self):
+        self.assertNotIn("rounds", self.doc())
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
 
 
 if __name__ == "__main__":

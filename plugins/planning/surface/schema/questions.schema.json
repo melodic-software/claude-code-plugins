@@ -16,8 +16,32 @@
       "type": "array",
       "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/visual"}
     },
+    "rounds": {
+      "description": "One entry per round `add-round` opened with questions, oldest first: the restate the page pins above the round's first question. A file without it loads unchanged.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["round", "stage", "at", "restate"],
+        "additionalProperties": false,
+        "properties": {
+          "round": {"type": "integer"},
+          "stage": {"type": "string"},
+          "at": {"type": "string"},
+          "restate": {
+            "type": "object",
+            "required": ["text", "decided", "open"],
+            "additionalProperties": false,
+            "properties": {
+              "text": {"type": "string"},
+              "decided": {"type": "array", "items": {"type": "string"}},
+              "open": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
     "notes": {"type": "array", "items": {"$ref": "#/$defs/line"}},
-    "handled": {"type": "array", "items": {"type": "integer"}},
+    "handled":{"type": "array", "items": {"type": "integer"}},
     "handledSeq": {"type": "integer"},
     "status": {
       "description": "What Claude is doing now, set and cleared by the set-status op.",

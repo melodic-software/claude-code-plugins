@@ -2,7 +2,9 @@
 
 python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also follow the command)
   add             add a question (from --file JSON or flags)
-  add-round       add several groups, questions and visuals from one JSON file, in one write;
+  add-round       add several groups, questions and visuals from one JSON file, in one write; a round
+                  with questions carries a `restate` ({text: at most 3 sentences, decided: [ids],
+                  open: [ids]}) the page pins above its first question;
                   --sync-ledger F then syncs F's register rows, --check writes nothing
   group           add or update a question group
   group-order     reorder the groups (every group id once, in the new order)
@@ -154,6 +156,7 @@ LOGGED_OPS = {
     "finish",
 }
 BASIS_SENTENCES = 3
+RESTATE_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 ASKS_USER = re.compile(
@@ -731,8 +734,61 @@ def op_add(d, doc, a):
     return touched, "; ".join([f"added {a.question['id']}", *notes])
 
 
+def checked_round_restate(restate):
+    """The round's restate, or a refusal: markdown of at most RESTATE_SENTENCES sentences plus the
+    `decided` and `open` question id lists (G7, as R1 does for `commits`)."""
+    if not isinstance(restate, dict):
+        sys.exit(
+            "refused: a round with questions needs a restate: "
+            '{"text": "<=3 sentences: what is decided, which branches are open, what this '
+            'round turns on", "decided": [ids], "open": [ids]} (G7)'
+        )
+    extra = sorted(set(restate) - {"text", "decided", "open"})
+    if extra:
+        sys.exit(f"refused: unknown restate keys {extra} (known: text, decided, open)")
+    text = restate.get("text")
+    if not isinstance(text, str) or not text.strip():
+        sys.exit("refused: restate needs a non-empty text (G7)")
+    text = capped("restate text", text.strip(), TEXT_CAP)
+    n = len([s for s in re.split(r"(?<=[.!?])\s+", text) if s])
+    if n > RESTATE_SENTENCES:
+        sys.exit(
+            f"refused: restate text has {n} sentences; the limit is {RESTATE_SENTENCES} (G7)"
+        )
+    out = {"text": text}
+    for key in ("decided", "open"):
+        ids = restate.get(key)
+        if not isinstance(ids, list) or not all(isinstance(i, str) and i for i in ids):
+            sys.exit(f"refused: restate {key} is a list of question ids (G7)")
+        out[key] = list(dict.fromkeys(ids))
+    return out
+
+
+def store_round_restate(doc, qs, restate):
+    """Record the restate for the round the new questions open, replacing an earlier one for it."""
+    known = {q["id"] for q in doc["questions"]}
+    for key in ("decided", "open"):
+        unknown = [i for i in restate[key] if i not in known]
+        if unknown:
+            sys.exit(f"refused: restate {key} names unknown questions: {', '.join(unknown)}")
+    first = qs[0]
+    entry = {
+        "round": first.get("round", 1),
+        "stage": first.get("stage", "interview"),
+        "at": now(),
+        "restate": restate,
+    }
+    rounds = [
+        r
+        for r in doc.get("rounds") or []
+        if (r.get("round"), r.get("stage")) != (entry["round"], entry["stage"])
+    ]
+    doc["rounds"] = [*rounds, entry]
+
+
 def op_add_round(d, doc, a):
-    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}: meta, groups, then questions in file order."""
+    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...], "restate": {...}}: meta, groups, then questions in file order; a round with questions needs its restate."""
+    restate = checked_round_restate(a.restate) if a.questions else None
     doc.pop("finished", None)
     before = newest_round(doc)
     meta = a.meta
@@ -759,6 +815,9 @@ def op_add_round(d, doc, a):
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
+    if restate:
+        store_round_restate(doc, a.questions, restate)
+        a.needsAnswer = True
     warn_stale_summaries(doc, a.questions or [])
     warn_stage(doc, a.questions or [])
     if meta is not None:
@@ -1511,11 +1570,12 @@ def cmd_add(d, a):
 
 def cmd_add_round(d, a):
     spec = read_input(a.file, "round file", as_json=True)
-    a.meta, a.groups, a.questions, a.visuals = (
+    a.meta, a.groups, a.questions, a.visuals, a.restate = (
         spec.get("meta"),
         spec.get("groups"),
         spec.get("questions"),
         spec.get("visuals"),
+        spec.get("restate"),
     )
     if a.check:
         doc = load(d)
@@ -1594,6 +1654,8 @@ OP_ARGS = {
             "groups": None,
             "questions": None,
             "visuals": None,
+            "restate": None,
+            "needsAnswer": False,
             "repoint": False,
             "replaceTitle": False,
         },
@@ -1731,7 +1793,7 @@ def apply_ops_file(d, name, claimed):
         lines.append(f"{op['op']}: {msg}")
         if op["op"] in LOGGED_OPS:
             logged.append((op["op"], msg, t))
-        asks = asks or (op["op"] == "note-reply" and args.needsAnswer)
+        asks = asks or (op["op"] in ("note-reply", "add-round") and args.needsAnswer)
     summarize(doc, logged, asks)
     lint_questions(doc, added)
     for op in spec["ops"]:
