@@ -643,8 +643,10 @@ if [[ "$BUPM_FORM" == graphql ]]; then
   _bupm_api graphql -f query='query($id:ID!){node(id:$id){... on PullRequest{number repository{nameWithOwner}}}}' \
     -f id="$BUPM_NODE" --jq '.data.node | "\(.repository.nameWithOwner) \(.number)"' || {
     # A literal id with gh unauthenticated fails open like the other paths (#7376);
-    # any other failed read of the node still fails closed.
-    [[ "$BUPM_ERR" =~ (Bad\ credentials|HTTP\ 401|gh\ auth\ login|not\ logged\ in|authentication) ]] &&
+    # any other failed read of the node still fails closed. Only gh's own
+    # not-logged-in phrasings match: a 403 that merely mentions authentication
+    # (SSO, SAML, a proxy) is not a missing login.
+    [[ "$BUPM_ERR" =~ (Bad\ credentials|HTTP\ 401|gh\ auth\ login|not\ logged\ in) ]] &&
       _bupm_unchecked "node $BUPM_NODE: $BUPM_ERR"
     _bupm_refuse "node $BUPM_NODE could not be read: $BUPM_ERR"
   }

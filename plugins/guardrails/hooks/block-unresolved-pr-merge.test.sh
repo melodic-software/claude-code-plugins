@@ -53,6 +53,10 @@ if [[ -f "$fix/fail" ]]; then
   echo "gh: Bad credentials (HTTP 401)" >&2
   exit 1
 fi
+if [[ -f "$fix/auth_forbidden" ]]; then
+  echo "gh: Resource protected by organization SAML enforcement; authentication required (HTTP 403)" >&2
+  exit 1
+fi
 case "$endpoint" in
 graphql)
   if [[ -f "$fix/graphql_refused" ]]; then
@@ -542,6 +546,10 @@ scenario none none green green
 rm -f "$FIX/graphql_node.json"
 run "literal node id that cannot be read for another reason: fails closed" "$GQL_LITERAL" 2
 assert_contains "unreadable node -> names the node" "$ERR" "PR_kwDOabc"
+scenario none none green green
+touch "$FIX/auth_forbidden"
+run "literal node id, 403 that mentions authentication: fails closed" "$GQL_LITERAL" 2
+assert_contains "403 mentioning authentication -> names the node" "$ERR" "PR_kwDOabc"
 # gh missing (#7376): a literal id fails open with the notice on both channels;
 # a non-literal id still blocks.
 # gh_missing <tool> <command>: the hook with no gh on PATH.
