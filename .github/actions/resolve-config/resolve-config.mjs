@@ -152,7 +152,7 @@ async function gatherFacts(
     facts.draft = event.pull_request?.draft ?? (await fetchPull()).draft;
   }
   // An issues event has no PR: labels come from the issue (the payload's, or
-  // read now for labels-absent and admission).
+  // read now for labels-absent).
   const issue = eventName === "issues" ? event.issue : undefined;
   if (issue !== undefined) {
     if (needed.includes("fieldValues")) {
