@@ -24,6 +24,7 @@ import {
   rotated,
   HUMAN_VETO,
   PULLS_QUERY,
+  THREAD_PAGE_QUERY,
   UNLABELED_QUERY,
   decide,
   liftedByPerson,
@@ -36,7 +37,7 @@ import {
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
@@ -183,6 +184,14 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
       const nodes = all.slice(start, start + 2);
       return { data: { repository: { pullRequest: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } } };
     }
+    // The rest of a cut review thread's comments, by the thread's id, two to
+    // a page.
+    if (body.query === THREAD_PAGE_QUERY) {
+      const all = pulls.flatMap((candidate) => Object.entries(candidate.threads ?? {})).find(([id]) => id === body.variables.id)?.[1] ?? [];
+      const start = body.variables.after === null ? 0 : Number(body.variables.after);
+      const nodes = all.slice(start, start + 2);
+      return { data: { node: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } };
+    }
     if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
       throw armThrows[body.variables.id].shift();
     }
@@ -207,7 +216,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, COMMENT_DELETED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, COMMENT_DELETED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }
@@ -880,6 +889,64 @@ test("a comment list the detail cut is read whole", async () => {
   ]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
   assert.ok(lines.includes("enable-auto-merge: #2 left: kyle-sexton asked not to merge it"), lines.join("\n"));
+});
+
+// A review thread whose comments the detail cut is read whole by its id, so
+// a veto in its first comments still holds.
+test("a review thread's comment list the detail cut is read whole, page by page", async () => {
+  const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
+  // Another member's only comment, the oldest, so only a whole read sees it.
+  const veto = said("other-member", "do not merge", "2026-10-22T09:00:00Z", "MEMBER");
+  const cut = (id, comments) => ({ ...detail(), reviewThreads: page([{ id, comments: { totalCount: comments.length, nodes: comments.slice(-1) } }]) });
+  const { writes, lines, calls } = await run([
+    pull(1, { cutDiscussion: cut("T1", chatter), threads: { T1: chatter } }),
+    pull(2, { cutDiscussion: cut("T2", [veto, ...chatter]), threads: { T2: [veto, ...chatter] } }),
+  ]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.ok(lines.includes("enable-auto-merge: #2 left: other-member asked not to merge it"), lines.join("\n"));
+  const pages = calls.filter(({ body }) => body?.query === THREAD_PAGE_QUERY).map(({ body }) => body.variables);
+  assert.deepEqual(pages, [
+    { id: "T1", after: null },
+    { id: "T1", after: "2" },
+    { id: "T2", after: null },
+    { id: "T2", after: "2" },
+  ]);
+});
+
+// A list longer than the read caps (30 discussion pages, 10 label pages, by
+// enable-auto-merge.mjs's MAX_DISCUSSION_PAGES and MAX_LABEL_PAGES) stops the
+// read, and a pull request it stopped on is not armed.
+test("a discussion or label list past its page cap arms nothing", async () => {
+  const comments = (count) => Array.from({ length: count }, (_, index) => said("kyle-sexton", `note ${index}`, "2026-10-23T01:00:00Z"));
+  const cutOf = (all) => ({ ...detail({ comments: all }), comments: { totalCount: all.length, nodes: all.slice(-1) } });
+  const names = (count) => Array.from({ length: count }, (_, index) => `area-${index}`);
+  const cutLabels = (all) => ({ totalCount: all.length, nodes: all.slice(0, 100).map((name) => ({ name })) });
+  const { writes, lines } = await run([
+    // 60 comments are 30 pages of two; 62 need a 31st.
+    pull(1, { discussion: { comments: comments(60) }, cutDiscussion: cutOf(comments(60)) }),
+    pull(2, { discussion: { comments: comments(62) }, cutDiscussion: cutOf(comments(62)) }),
+    // 999 labels end on a short 10th page; 1000 fill it, so an 11th is unread.
+    pull(3, { labels: cutLabels(names(999)), allLabels: names(999) }),
+    pull(4, { labels: cutLabels(names(1000)), allLabels: names(1000) }),
+  ]);
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "arm", id: "PR_3", head: HEAD },
+  ]);
+  assert.ok(lines.some((line) => line.startsWith("enable-auto-merge: #2 discussion did not read: ") && line.includes("a discussion list longer than 3000")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("enable-auto-merge: #4 labels did not read whole: ") && line.includes("more than 1000 labels")), lines.join("\n"));
+});
+
+// A deleted account reads as a null author or editor, which counts as a
+// person (merge-holds.personWrote), so a hold it wrote still holds.
+test("a deleted author or editor counts as a person who wrote the body", () => {
+  const edits = (...editors) => ({ totalCount: editors.length, nodes: editors.map((editor) => ({ editor })) });
+  const bot = { __typename: "Bot" };
+  assert.equal(personWrote({ author: bot, userContentEdits: edits() }), false);
+  assert.equal(personWrote({ author: bot, userContentEdits: edits(bot) }), false);
+  assert.equal(personWrote({ author: null, userContentEdits: edits() }), true);
+  assert.equal(personWrote({ author: bot, userContentEdits: edits(null) }), true);
+  assert.equal(personWrote(null), true);
 });
 
 // The lanes App's own body text holds nothing; a person's edit does.
