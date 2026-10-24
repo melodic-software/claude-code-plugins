@@ -64,7 +64,6 @@ const LIVE_FACTS = {
   changedTargets: ["docs/guide.md"],
   // resolve-issue applies only while its issue carries agent-ready.
   labels: ["agent-ready"],
-  workClasses: [],
   mergeable: "conflicting",
   draft: false,
   // A listed human set the issue Small, Low and Known (the org's option ids).

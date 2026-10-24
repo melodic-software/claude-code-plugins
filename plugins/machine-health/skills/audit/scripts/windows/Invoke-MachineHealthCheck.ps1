@@ -48,6 +48,12 @@ Print a human-readable summary instead of emitting the run snapshot JSON.
 .PARAMETER SampleSeconds
 Sampling window, in seconds, for checks that sample over time (top-processes).
 
+.PARAMETER Scheduled
+An unattended monthly run. latest.json then also carries new_finding_keys, the
+FindingKeys absent from the previous latest.json (Get-NewFindingKey), and
+discovery_path, <OutputBase>/reports/discovery-<runStamp>.md, the research
+notes file the audit session writes; the report names that file.
+
 .PARAMETER ElevatedResultPath
 An elevated pass's result file to import through Import-ElevatedResult; the
 imported check ids are listed in the snapshot's elevated_checks.
@@ -68,6 +74,7 @@ param(
     [Parameter(ParameterSetName = 'Standard')] [switch] $DryRun,
     [Parameter(ParameterSetName = 'Standard')] [switch] $Human,
     [Parameter(ParameterSetName = 'Standard')] [switch] $Force,
+    [Parameter(ParameterSetName = 'Standard')] [switch] $Scheduled,
     [switch] $SkipBanner,
     [ValidateRange(5, 60)] [int] $SampleSeconds = 15,
     [Parameter(ParameterSetName = 'Standard')] [ValidateNotNullOrEmpty()] [string] $ElevatedResultPath,
@@ -77,6 +84,8 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
+# The console code page (often 437) mangles characters such as ® (into "r"); the reader expects UTF-8.
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $libRoot = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libRoot 'Resolve-SkillRoot.ps1')
@@ -233,8 +242,8 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
     exit 0
 }
 
-# Approval state is a standard-run read: it creates the state folder and may migrate,
-# so it loads only past the elevated-pass branch.
+# Approval state is a standard-run read that creates the state folder, so it loads only past
+# the elevated-pass branch.
 . (Join-Path $libRoot 'Get-ApprovalState.ps1')
 
 # Plugin state never goes into a cloud-synced folder; see the StateBase
@@ -592,10 +601,9 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
     $todoPath = Get-TodoPath -StateBase $StateBase
     $queuedTodoTitles = [System.Collections.Generic.List[string]]::new()
-    # Get-ApprovalState creates the state folder and may run the one-time checkbox migration,
-    # so a synced StateBase skips it.
+    # Get-ApprovalState creates the state folder, so a synced StateBase skips it.
     $approvalState = if ($stateWritable) {
-        Get-ApprovalState -StateDir $stateDir -TodoPath $todoPath -LogPath $runLog
+        Get-ApprovalState -StateDir $stateDir -LogPath $runLog
     } else {
         New-DefaultApprovalState
     }
@@ -760,14 +768,21 @@ modules. Harmless to ignore.
     # Per-run (not per-day) filename: a same-day rerun must not overwrite the
     # earlier report, since each run also writes a distinct history entry.
     $reportPath = Join-Path $reportsDir "health-$runStamp.md"
-    $snapshot = New-RunSnapshot -RunId $runId -HostName $hostname -OsVersion $osVersion -Elevated $elevated `
+    $latestPath = Join-Path $stateDir 'latest.json'
+    $discovery = @{}
+    if ($Scheduled) {
+        $discovery = @{
+            NewFindingKeys = @(Get-NewFindingKey -PreviousPath $latestPath -Checks @($checkResults))
+            DiscoveryPath  = Join-Path $reportsDir "discovery-$runStamp.md"
+        }
+    }
+    $snapshot = New-RunSnapshot @discovery -RunId $runId -HostName $hostname -OsVersion $osVersion -Elevated $elevated `
         -RunMode $RunMode -DryRun $effectiveDry -Checks @($checkResults) -Remediations @($remediationAttempts) `
         -DiscoveredChecks @($discoveredChecks) -UrlsCalled @($urlsCalled) -DurationSeconds $durationSeconds `
         -RunStamp $runStamp -ReportPath $reportPath -PagePath (Get-CheckupViewPath -StateBase $StateBase -RunStamp $runStamp) `
         -CadenceDeferredCount @($selection.skipped).Count
     if ($ElevatedResultPath) { $snapshot['elevated_checks'] = $elevatedChecks }
 
-    $latestPath = Join-Path $stateDir 'latest.json'
     if ($stateWritable) {
         $snapshot | ConvertTo-Json -Depth 20 | Out-File -LiteralPath $latestPath -Encoding utf8 -Force
         Write-MachineHealthLog "wrote_latest_json path=$latestPath"
@@ -890,6 +905,9 @@ $glanceRows
     }
 
     $discoverySection = Get-DiscoveryMarkdown -Proposals $discoveredChecks
+    if ($Scheduled -and $stateWritable) {
+        $discoverySection +="`n`nResearch notes on this run's new findings: ``$($discovery.DiscoveryPath)``"
+    }
     $openQuestions = Get-OpenQuestionsMarkdown -QueuedTitle $queuedTodoTitles.ToArray() -TodoPath $todoPath
 
     $appendixSection = try {

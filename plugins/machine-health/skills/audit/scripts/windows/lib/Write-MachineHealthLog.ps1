@@ -6,7 +6,7 @@ Append a timestamped line to a machine-health log file.
 
 .DESCRIPTION
 Canonical log-line writer for machine-health. Dot-sourced by both the
-orchestrator (run.log) and library helpers (egress, approval migration).
+orchestrator (run.log) and library helpers (egress, approvals).
 
 Fail-safe: an empty or missing $LogPath silently returns; an Add-Content
 failure logs to Write-Verbose rather than throwing. Callers that need
