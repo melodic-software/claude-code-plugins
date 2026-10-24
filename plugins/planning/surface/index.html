@@ -937,9 +937,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!S.online && !S.finished && !S.connFailed) return ["connecting", "Connecting"]; // neutral until a connection attempt has failed
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
     if (S.finished) return ["rest", "Finished"];
-    const l = S.listener || {};
-    if (!(l.waiters > 0) && (l.lease || l.state === "reading")) { // Claude holds the lease or the bridge reports the session reading, and no watcher waits
-      const d = pending().find(delivered);
+    const l = S.listener || {}, d = pending().find(delivered);
+    if (!(l.waiters > 0) && (l.lease || (l.state === "reading" && d))) { // Claude holds the lease, or the bridge reports the session reading an event still unhandled, and no watcher waits
       return ["working", d ? "Claude is working on " + subject(d) : "Claude is working"];
     }
     if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
