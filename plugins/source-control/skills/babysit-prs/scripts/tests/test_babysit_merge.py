@@ -1887,6 +1887,16 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         self.assertEqual(self.writes, [])
         self.assertEqual(result["rebase"], "already-requested")
 
+    def test_a_live_human_stop_posts_nothing(self) -> None:
+        with (
+            mock.patch.object(
+                refresh, "human_stop_blocks_automation", side_effect=[False, True]
+            ),
+            self.assertRaisesRegex(RuntimeError, "human review stop"),
+        ):
+            self._run()
+        self.assertEqual(self.writes, [])
+
     def test_a_dry_run_posts_nothing(self) -> None:
         result = self._run(apply=False)
         self.assertEqual(self.writes, [])

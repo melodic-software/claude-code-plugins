@@ -290,6 +290,8 @@ def request_dependabot_rebase(
     if not args.apply:
         result["rebase"] = "would-request"
         return result
+    if human_stop_blocks_automation(fetch_current_human_stop(repo, number, current)):
+        raise RuntimeError("human review stop is active; refusing the rebase request")
     require_worker_lease(args, state_dir, repo, number, renew=True)
     gh_json(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
