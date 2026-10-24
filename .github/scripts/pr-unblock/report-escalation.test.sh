@@ -101,8 +101,8 @@ comment() { printf '[{"body":%s,"user":{"login":"%s","type":"%s"}}]' "$(jq -Rs .
 # bot_marker <head> [reason]: the lanes App's escalation comment for that head and reason.
 bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-unresolved-conflict}"'`' 'melodic-automation-lanes[bot]' Bot; }
 
-# Rejected reasons: workflow-files is the retired name, the rest are not in the enum.
-for reason in workflow-files bogus '' 'repeat-cap ' REPEAT-CAP; do
+# Rejected reasons: workflow-files and dependency-workflow-held are retired names, the rest are not in the enum.
+for reason in workflow-files dependency-workflow-held bogus '' 'repeat-cap ' REPEAT-CAP; do
   setup '[]' '[]'
   run "$reason"
   check "rejects reason [$reason]: exit" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
@@ -115,7 +115,7 @@ for reason in protected-path-conflict workflow-staged unexpected-path-staged rep
   feedback-partial feedback-incomplete feedback-disputed \
   feedback-unadjudicated feedback-question-intent feedback-question-design feedback-question-security \
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \
-  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-held dependency-fix-refused \
+  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused \
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-protected-path ci-fix-not-applied ci-fix-escalated \
   conflict-patch-invalid conflict-patch-not-applied conflict-patch-protected-path; do
   setup '[]' '[]'
@@ -146,7 +146,7 @@ ALL_REASONS=(protected-path-conflict workflow-staged unexpected-path-staged repe
   feedback-partial feedback-incomplete feedback-disputed
   feedback-unadjudicated feedback-question-intent feedback-question-design feedback-question-security
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate
-  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-held dependency-fix-refused
+  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-protected-path ci-fix-not-applied ci-fix-escalated
   conflict-patch-invalid conflict-patch-not-applied conflict-patch-protected-path)
 
