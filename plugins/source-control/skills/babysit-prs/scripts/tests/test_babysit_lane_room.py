@@ -15,7 +15,6 @@ import io
 import json
 import pathlib
 import sys
-import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from unittest import mock
@@ -23,6 +22,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy  # noqa: E402
+import babysit_postmerge as pm  # noqa: E402
 import babysit_verify_evidence as ve  # noqa: E402
 
 REPO = "example-org/example-repo"
@@ -39,7 +39,9 @@ NEW_FLOOR = FLOOR + timedelta(minutes=1)
 PENDING = {
     "readable": True,
     "ok": True,
-    "autoMerges": [{"number": 5, "verified": False}],
+    "autoMerges": [
+        {"number": 5, "verified": False, "mergedAt": "2026-10-01T00:00:00Z"}
+    ],
 }
 STALE_NOW = FLOOR + timedelta(minutes=3)
 
@@ -82,14 +84,13 @@ def shared(
 
 class Recheck:
     """A fake post-merge check: `gate` or `error`, with each floor and
-    identity it was asked for, and each answer shared."""
+    identity it was asked for."""
 
     def __init__(
         self, gate: policy.PostMergeGate | None = None, error: Exception | None = None
     ) -> None:
         self.gate, self.error = gate, error
         self.asked: list[tuple[datetime, str]] = []
-        self.shared: list[policy.SharedPostMerge] = []
 
     def post_merge(self, floor: datetime, identity: str) -> policy.PostMergeGate:
         self.asked.append((floor, identity))
@@ -98,8 +99,17 @@ class Recheck:
         assert self.gate is not None
         return self.gate
 
-    def share(self, answer: policy.SharedPostMerge) -> None:
-        self.shared.append(answer)
+
+def run(
+    workflow: str, *, status: str, updated: datetime, created: datetime = FLOOR
+) -> dict[str, object]:
+    """One row of the actions runs listing."""
+    return {
+        "path": f".github/workflows/{workflow}",
+        "status": status,
+        "created_at": created.isoformat(),
+        "updated_at": updated.isoformat(),
+    }
 
 
 class LaneRoom(unittest.TestCase):
@@ -114,7 +124,10 @@ class LaneRoom(unittest.TestCase):
         now: datetime = NOW,
         demotion_changed: bool = False,
         post_merge: object = None,
-        share: object = None,
+        runs_unchanged: object = None,
+        head: str = NEW_MAIN,
+        config_commit: str = MAIN,
+        fresh_floor: datetime = NEW_FLOOR,
         head_error: Exception | None = None,
         fresh_demotion: policy.Demotion | None = None,
     ) -> policy.LaneRoom:
@@ -141,7 +154,9 @@ class LaneRoom(unittest.TestCase):
             ),
             # shared_refusal's reads: the answer's own config commit and main
             # head, so only its age and demotion decide.
-            mock.patch.object(policy, "newest_config_commit", return_value=MAIN),
+            mock.patch.object(
+                policy, "newest_config_commit", return_value=config_commit
+            ),
             mock.patch.object(policy, "_get", return_value=(200, {"sha": MAIN})),
             # The recompute's reads at the default branch head: a newer head,
             # no demotion record, and a later floor than the old answer's.
@@ -149,7 +164,7 @@ class LaneRoom(unittest.TestCase):
                 policy,
                 "_default_branch_head",
                 side_effect=head_error,
-                return_value=("main", NEW_MAIN),
+                return_value=("main", head),
             ),
             mock.patch.object(policy, "permission_reader"),
             mock.patch.object(
@@ -157,11 +172,11 @@ class LaneRoom(unittest.TestCase):
                 "read_demotion",
                 return_value=fresh_demotion or policy.Demotion(False, None, ()),
             ),
-            mock.patch.object(policy, "merged_since_floor", return_value=NEW_FLOOR),
+            mock.patch.object(policy, "merged_since_floor", return_value=fresh_floor),
         ):
             kwargs = {"post_merge": post_merge} if post_merge is not None else {}
-            if share is not None:
-                kwargs["share"] = share
+            if runs_unchanged is not None:
+                kwargs["runs_unchanged"] = runs_unchanged
             result = policy.lane_room(
                 REPO,
                 answer if answer is not None else shared(),
@@ -241,14 +256,13 @@ class LaneRoom(unittest.TestCase):
                 room = self.room(
                     shared(report=PENDING),
                     post_merge=recheck.post_merge,
-                    share=recheck.share,
                     **kwargs,  # type: ignore[arg-type]
                 )
                 self.assertIsNone(room.refusal)
                 self.assertTrue(room.unreadable)
         self.assertFalse(self.seen, "no in-flight read after an unusable answer")
         # Only an unverified-stale answer is read again.
-        self.assertEqual((recheck.asked, recheck.shared), ([], []))
+        self.assertEqual(recheck.asked, [])
 
     def test_a_lane_merge_the_answer_does_not_count_is_unreadable(self) -> None:
         # The gate's reuse rule (shared_refusal) reads afresh when a lane
@@ -262,13 +276,13 @@ class LaneRoom(unittest.TestCase):
 
         recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
         with mock.patch.object(policy, "shared_refusal", side_effect=refusal):
-            room = self.room(post_merge=recheck.post_merge, share=recheck.share)
+            room = self.room(post_merge=recheck.post_merge)
         self.assertEqual(
             (room.refusal, room.unreadable),
             (None, "post-merge answer new-merge:#7"),
         )
         self.assertFalse(self.seen, "no in-flight read after an unusable answer")
-        self.assertEqual((recheck.asked, recheck.shared), ([], []))
+        self.assertEqual(recheck.asked, [])
         # Bound as the gate binds a candidate at the default branch head.
         self.assertEqual(
             {
@@ -301,7 +315,6 @@ class LaneRoom(unittest.TestCase):
             shared(report=PENDING),
             now=STALE_NOW,
             post_merge=recheck.post_merge,
-            share=recheck.share,
         )
         self.assertEqual(
             (room.refusal, room.unreadable, room.count, room.cap, room.rung),
@@ -312,21 +325,6 @@ class LaneRoom(unittest.TestCase):
         # The in-flight count judges merges by the fresh answer, from its floor.
         self.assertIs(self.seen["verified"], fresh.verified)
         self.assertEqual(self.seen["merged_since"], NEW_FLOOR)
-        # Written back once, bound to the head and time it was read at.
-        self.assertEqual(len(recheck.shared), 1)
-        written = recheck.shared[0]
-        self.assertEqual(
-            (
-                written.main_sha,
-                written.computed_at,
-                written.floor,
-                written.identity,
-                written.lane_merges_only,
-                written.self_logins,
-                written.gate,
-            ),
-            (NEW_MAIN, STALE_NOW, NEW_FLOOR, IDENTITY, True, frozenset(), fresh),
-        )
 
     def test_a_recompute_that_finds_a_failure_refuses(self) -> None:
         # A verification failure after computedAt still holds the lane off.
@@ -340,14 +338,11 @@ class LaneRoom(unittest.TestCase):
             shared(report=PENDING),
             now=STALE_NOW,
             post_merge=recheck.post_merge,
-            share=recheck.share,
         )
         self.assertEqual(
             (room.refusal, room.unreadable), ("post-merge:failure:red-main#5", None)
         )
         self.assertFalse(self.seen, "no in-flight read after a refusal")
-        # A readable failure goes back to the file, as the gate's does.
-        self.assertEqual(len(recheck.shared), 1)
 
     def test_a_demotion_record_filed_since_holds_a_recomputed_room_off(
         self,
@@ -359,7 +354,6 @@ class LaneRoom(unittest.TestCase):
             shared(report=PENDING),
             now=STALE_NOW,
             post_merge=recheck.post_merge,
-            share=recheck.share,
             fresh_demotion=policy.Demotion(True, "record-open", (8,)),
         )
         self.assertEqual(room.refusal, "rung-off:demotion")
@@ -378,7 +372,6 @@ class LaneRoom(unittest.TestCase):
                     shared(report=PENDING),
                     now=STALE_NOW,
                     post_merge=recheck.post_merge,
-                    share=recheck.share,
                 )
                 self.assertIsNone(room.refusal)
                 self.assertTrue(
@@ -387,23 +380,102 @@ class LaneRoom(unittest.TestCase):
                     ),
                     room.unreadable,
                 )
-                self.assertEqual(recheck.shared, [], "nothing unreadable is written")
         # A head that cannot be read is a failed recompute too.
         recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
         room = self.room(
             shared(report=PENDING),
             now=STALE_NOW,
             post_merge=recheck.post_merge,
-            share=recheck.share,
             head_error=policy.PolicyReadError("head 502"),
         )
         self.assertIsNone(room.refusal)
         self.assertTrue(room.unreadable)
-        self.assertEqual((recheck.asked, recheck.shared), ([], []))
+        self.assertEqual(recheck.asked, [])
         # With no check to run, it stays unreadable as before.
         room = self.room(shared(report=PENDING), now=STALE_NOW)
         self.assertEqual(room.unreadable, "post-merge answer unverified-stale")
         self.assertFalse(self.seen, "no in-flight read after an unusable answer")
+
+    def current(self, **kwargs: object) -> tuple[policy.LaneRoom, Recheck, list]:
+        """The room for a pending answer read three minutes on, with the
+        default branch head, config commit and demotion all as it was read
+        unless `kwargs` moves one; `runs` is what the run check answers."""
+        runs = kwargs.pop("runs", True)
+        asked: list[tuple[object, str]] = []
+
+        def runs_unchanged(answer: object, branch: str) -> bool:
+            asked.append((answer, branch))
+            return runs(answer, branch) if callable(runs) else bool(runs)
+
+        recheck = Recheck(
+            kwargs.pop("gate", policy.PostMergeGate(None, PENDING, lambda merge: False))
+        )
+        room = self.room(
+            kwargs.pop("answer", shared(report=PENDING)),
+            now=STALE_NOW,
+            post_merge=recheck.post_merge,
+            runs_unchanged=runs_unchanged,
+            **{"head": MAIN, **kwargs},  # type: ignore[arg-type]
+        )
+        return room, recheck, asked
+
+    def test_an_answer_nothing_has_moved_since_is_kept_without_a_check(
+        self,
+    ) -> None:
+        answer = shared(report=PENDING)
+        room, recheck, asked = self.current(answer=answer)
+        self.assertEqual(
+            (room.refusal, room.unreadable, room.count, room.cap), (None, None, 2, 5)
+        )
+        self.assertEqual(recheck.asked, [], "no full post-merge check")
+        self.assertEqual(asked, [(answer, "main")])
+        # Counted from the kept answer: its floor and its verified merges.
+        self.assertEqual(self.seen["merged_since"], FLOOR)
+        self.assertIs(self.seen["verified"], answer.gate.verified)
+
+    def test_anything_moved_since_reads_the_answer_again(self) -> None:
+        cases = {
+            "(a) main's head moved": dict(head=NEW_MAIN),
+            # The same floor, so the gate's reuse rule does not refuse first.
+            "(b) the config commit moved": dict(
+                config_commit="f" * 40, fresh_floor=FLOOR
+            ),
+            "(c) a demotion record changed": dict(demotion_changed=True),
+            "(d) a verifying run reached a conclusion": dict(runs=False),
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(name):
+                room, recheck, _ = self.current(**kwargs)
+                self.assertEqual(len(recheck.asked), 1, "one full post-merge check")
+                self.assertEqual((room.refusal, room.unreadable), (None, None))
+
+    def test_a_pending_dispatch_run_that_completed_red_refuses(self) -> None:
+        # The case the two-minute rule exists for: main's head has not moved,
+        # but merge #5's dispatch run finished red after the answer was read.
+        listing = {
+            "total_count": 1,
+            "workflow_runs": [
+                run(
+                    "pr-require-checks.yml",
+                    status="completed",
+                    updated=STALE_NOW - timedelta(seconds=30),
+                )
+            ],
+        }
+        failed = {
+            "readable": True,
+            "ok": False,
+            "failures": [{"signal": "dispatch", "number": 5}],
+        }
+        with mock.patch.object(pm, "_read", return_value=listing):
+            room, recheck, _ = self.current(
+                runs=lambda answer, branch: pm.pending_runs_unchanged(
+                    REPO, answer, branch, now=STALE_NOW
+                ),
+                gate=policy.PostMergeGate("failure:dispatch#5", failed, None),
+            )
+        self.assertEqual(len(recheck.asked), 1)
+        self.assertEqual(room.refusal, "post-merge:failure:dispatch#5")
 
     def test_an_active_demotion_is_not_re_read(self) -> None:
         # Already refusing: a changed record cannot make it allow.
@@ -435,6 +507,72 @@ class LaneRoom(unittest.TestCase):
                 self.assertTrue(room.unreadable)
 
 
+class PendingRunsUnchanged(unittest.TestCase):
+    """(d): the verifying runs of the answer's unverified merges, from one
+    listing. Expected from the check's own rule (`_judge`): a full or canary
+    run that reaches a conclusion changes the verdict, one still running
+    leaves it pending, and past `DISPATCH_DEADLINE` a merge with no dispatch
+    run fails."""
+
+    def unchanged(
+        self, rows: list[dict[str, object]], *, total: int | None = None, now=STALE_NOW
+    ) -> tuple[bool, list[list[str]]]:
+        calls: list[list[str]] = []
+
+        def read(args: list[str], label: str) -> dict[str, object]:
+            calls.append(args)
+            return {
+                "total_count": len(rows) if total is None else total,
+                "workflow_runs": rows,
+            }
+
+        with mock.patch.object(pm, "_read", side_effect=read):
+            answer = pm.pending_runs_unchanged(
+                REPO, shared(report=PENDING), "main", now=now
+            )
+        return answer, calls
+
+    def test_runs_still_running_or_finished_before_the_answer_hold(self) -> None:
+        rows = [
+            run("pr-require-checks.yml", status="in_progress", updated=STALE_NOW),
+            run(
+                "post-merge-detect-silent-revert.yml",
+                status="queued",
+                updated=STALE_NOW,
+            ),
+            # Finished before the answer was read (less the clock margin).
+            run(
+                "post-merge-detect-silent-revert.yml",
+                status="completed",
+                updated=FLOOR - policy.SINCE_CLOCK_MARGIN - timedelta(seconds=1),
+            ),
+            # Another workflow's run judges nothing.
+            run("ci-status.yml", status="completed", updated=STALE_NOW),
+        ]
+        answer, calls = self.unchanged(rows)
+        self.assertTrue(answer)
+        # One listing call, of runs on main created since merge #5.
+        self.assertEqual(len(calls), 1)
+        self.assertIn("branch=main", calls[0][1])
+        self.assertIn("created=%3E%3D2026-10-01T00%3A00%3A00Z", calls[0][1])
+
+    def test_a_conclusion_since_a_partial_listing_or_the_deadline_moves_it(
+        self,
+    ) -> None:
+        done = run("pr-require-checks.yml", status="completed", updated=STALE_NOW)
+        canary = run(
+            "post-merge-detect-silent-revert.yml", status="completed", updated=FLOOR
+        )
+        self.assertFalse(self.unchanged([done])[0])
+        self.assertFalse(self.unchanged([canary])[0])
+        self.assertFalse(self.unchanged([], total=101)[0])
+        self.assertFalse(
+            self.unchanged([], now=FLOOR + pm.DISPATCH_DEADLINE + timedelta(seconds=1))[
+                0
+            ]
+        )
+
+
 class LaneRoomCommand(unittest.TestCase):
     def test_it_prints_the_room_from_the_post_merge_report(self) -> None:
         seen: list[object] = []
@@ -447,10 +585,10 @@ class LaneRoomCommand(unittest.TestCase):
             *,
             lane_rung_cap: str | None,
             post_merge: object,
-            share: object,
+            runs_unchanged: object,
         ) -> policy.LaneRoom:
             seen.append((repo, answer, lane_rung_cap))
-            hooks.update(post_merge=post_merge, share=share)
+            hooks.update(post_merge=post_merge, runs_unchanged=runs_unchanged)
             return policy.LaneRoom(count=1, cap=5, queued=frozenset({3}), rung="C2")
 
         out = io.StringIO()
@@ -487,30 +625,7 @@ class LaneRoomCommand(unittest.TestCase):
             },
         )
         self.assertTrue(callable(hooks["post_merge"]))
-
-    def test_a_recompute_is_written_back_to_the_report_it_read(self) -> None:
-        # The gate's write-back: the next reader of the same file reuses it.
-        hooks: dict[str, object] = {}
-
-        def room(repo: str, answer: object, **kwargs: object) -> policy.LaneRoom:
-            hooks.update(kwargs)
-            return policy.LaneRoom()
-
-        with tempfile.TemporaryDirectory() as tmp:
-            path = str(pathlib.Path(tmp) / "post-merge.json")
-            with (
-                mock.patch.object(policy, "lane_room", side_effect=room),
-                contextlib.redirect_stdout(io.StringIO()),
-            ):
-                ve.main(["lane-room", "--repo", REPO, "--postmerge-result", path])
-            answer = shared(report={**PENDING, "ok": True})
-            hooks["share"](answer)  # type: ignore[operator]
-            back = ve.postmerge.read_shared(path)
-        assert back is not None
-        self.assertEqual(
-            (back.main_sha, back.identity, back.floor, back.computed_at),
-            (MAIN, IDENTITY, FLOOR, FLOOR),
-        )
+        self.assertTrue(callable(hooks["runs_unchanged"]))
 
     def test_a_missing_report_is_unreadable(self) -> None:
         out = io.StringIO()

@@ -54,8 +54,8 @@
 //   arms; at the cap it arms nothing more. A room that cannot be read (no
 //   post-merge report, a failed read) holds as a refusal does: nothing is
 //   armed and every armed lanes App pull request is disarmed. A report past
-//   its reuse age only for a lane merge still unverified is checked again
-//   first, as the gate does. A held room raises one warning annotation and
+//   its reuse age only for a lane merge still unverified is kept while
+//   nothing it was read from has moved, else checked again as the gate does. A held room raises one warning annotation and
 //   one step-summary line naming why and each lane pull request it left
 //   unarmed.
 // - pr-merge's gate would not hold it on its risk score: `evidence

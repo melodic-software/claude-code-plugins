@@ -4490,6 +4490,29 @@ class LaneRoom:
         }
 
 
+def _still_current(
+    repo: str,
+    default: str,
+    identity: str,
+    shared: SharedPostMerge,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool],
+) -> bool:
+    """Whether the post-merge check would answer `shared` again, in order:
+    the default branch head is its `main_sha`, the head's config commit is its
+    `config_sha` (with the demotion unchanged, the same floor), no demotion
+    record was filed or changed since (`_demotion_changed`), and
+    `runs_unchanged`: none of its unverified merges' verifying runs reached a
+    conclusion since. Raises `PolicyReadError`."""
+    owner, name = _split_repo(repo)
+    _, head = _default_branch_head(repo, default)
+    return (
+        head == shared.main_sha
+        and newest_config_commit(repo, head) == shared.config_sha
+        and not _demotion_changed(owner, name, shared, identity)
+        and runs_unchanged(shared, default)
+    )
+
+
 def _recompute_shared(
     repo: str,
     default: str,
@@ -4536,16 +4559,18 @@ def lane_room(
     lane_rung_cap: str | None,
     now: datetime | None = None,
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
-    share: Callable[[SharedPostMerge], object] | None = None,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
 ) -> LaneRoom:
     """Whether the pr-merge lane may merge one more of its own pull requests
     now, for native auto-merge, which skips `assess`: the run-level refusals
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
-    `post_merge` and `share` are `assess`'s: an answer refused only as
-    `unverified-stale` is read again as the gate reads it (`_recompute_shared`),
-    and a readable one goes to `share` and stands in for `shared`.
+    `post_merge` is `assess`'s: an answer refused only as `unverified-stale`
+    is kept when nothing it was read from has moved (`_still_current`, with
+    `runs_unchanged(shared, branch)` for its unverified merges' runs), else
+    read again as the gate reads it (`_recompute_shared`), and a readable
+    one stands in for `shared`.
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
@@ -4562,9 +4587,9 @@ def lane_room(
     not reuse (`shared_refusal`): too old (a re-run job downloads the run's
     first report, up to a day old), a demotion record filed or changed
     since, or a lane merge landed since that it does not count. An
-    `unverified-stale` one is read again instead, since a lane merge's
-    verifying run may have passed or failed since; a read that fails or is
-    not readable leaves it `unreadable`."""
+    `unverified-stale` one is kept or read again instead, since a lane
+    merge's verifying run may have passed or failed since; a read that fails
+    or is not readable leaves it `unreadable`."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
     try:
@@ -4593,17 +4618,24 @@ def lane_room(
         now=now,
     )
     if unusable == "unverified-stale" and post_merge is not None:
+        # Kept when nothing it was read from moved, else read again.
         try:
-            fresh = _recompute_shared(
-                repo, default, identity, shared.self_logins, post_merge, now
+            current = runs_unchanged is not None and _still_current(
+                repo, default, identity, shared, runs_unchanged
             )
-        except (RuntimeError, ValueError, OSError) as exc:
-            return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
-        if fresh is None:
-            return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
-        if share is not None:
-            share(fresh)
-        shared, unusable = fresh, None
+        except (RuntimeError, ValueError, OSError):
+            current = False
+        if not current:
+            try:
+                fresh = _recompute_shared(
+                    repo, default, identity, shared.self_logins, post_merge, now
+                )
+            except (RuntimeError, ValueError, OSError) as exc:
+                return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
+            if fresh is None:
+                return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
+            shared = fresh
+        unusable = None
     if unusable:
         return LaneRoom(unreadable=f"post-merge answer {unusable}")
     if shared.gate.refusal:

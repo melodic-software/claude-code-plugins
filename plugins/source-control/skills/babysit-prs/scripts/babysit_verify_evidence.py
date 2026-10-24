@@ -108,7 +108,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import functools
 import hashlib
 import io
 import json
@@ -1550,7 +1549,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     (`merge_policy.lane_room`, `LaneRoom.report`), from this run's
     `babysit_postmerge.py` report and the `CLAUDE_LANES_MERGE_RUNG_CAP` value
     the workflow read (empty is no cap; missing holds the rung off). A report
-    refused only as `unverified-stale` is checked again and written back."""
+    refused only as `unverified-stale` is kept while nothing it was read from
+    has moved, else checked again."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -1576,9 +1576,12 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             args.repo,
             shared,
             lane_rung_cap=args.rung_cap,
-            # The gate's recompute and write-back, bound as the room binds.
+            # The gate's recompute, bound as the room binds, and the one run
+            # listing that spares it while the pending merges' runs hold.
             post_merge=postmerge.gate_reader(args.repo, (), lane_merges_only=True),
-            share=functools.partial(postmerge.write_shared, args.postmerge_result),
+            runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
+                args.repo, answer, branch
+            ),
         )
         print(json.dumps(answer.report()))
         return 0

@@ -3117,6 +3117,64 @@ def gate_reader(
     return post_merge
 
 
+VERIFYING_WORKFLOWS = frozenset(
+    f".github/workflows/{w}" for w in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW)
+)
+
+
+def pending_runs_unchanged(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Whether `check` would judge `shared`'s unverified merges as it did,
+    from one run listing: no full or canary run on `branch` created since the
+    earliest of them completed or was re-run since `computed_at` (less
+    `policy.SINCE_CLOCK_MARGIN`), and none has passed `DISPATCH_DEADLINE`,
+    after which a missing dispatch or pin is a failure. A run started since
+    and still running only stays pending. A listing that cannot be read or
+    is not whole, or an entry without a merge time, is False."""
+    pending = [
+        m
+        for m in map(json_object, json_array(shared.gate.report.get("autoMerges")))
+        if m.get("verified") is not True
+    ]
+    if not pending:
+        return False
+    try:
+        earliest = min(_time(m.get("mergedAt")) for m in pending)
+        if (now or datetime.now(UTC)) > earliest + DISPATCH_DEADLINE:
+            return False
+        owner, name = _split_repo(repo)
+        created = quote(
+            f">={earliest.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+        )
+        payload = json_object(
+            _read(
+                [
+                    "api",
+                    f"repos/{owner}/{name}/actions/runs?branch={quote(branch, safe='')}"
+                    f"&created={created}&per_page=100",
+                ],
+                "verifying runs",
+            )
+        )
+        runs = json_array(payload.get("workflow_runs"))
+        if payload.get("total_count") != len(runs):
+            return False
+        since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
+        return not any(
+            run.get("path") in VERIFYING_WORKFLOWS
+            and run.get("status") == "completed"
+            and _time(run.get("updated_at")) >= since
+            for run in map(json_object, runs)
+        )
+    except PostMergeReadError:
+        return False
+
+
 def read_shared(path: str) -> policy.SharedPostMerge | None:
     """The run's shared answer from this script's own report at `path`, or
     None when it is missing, malformed, unreadable as a verdict, or has no

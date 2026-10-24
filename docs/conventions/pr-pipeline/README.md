@@ -1114,8 +1114,10 @@ waits for the same run's `post-merge-dispatch` job and reads the lane's room fro
 report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report, or
 one the gate would not reuse (`shared_refusal`: too old, a demotion record changed since, or a lane
 merge landed since that it does not count), it holds as a refusal does; one past the gate's
-two-minute reuse age only because a lane merge is still unverified is checked again and written
-back, as the gate does, and holds only when that check cannot be read): while the gate holds its lane off (a demotion record,
+two-minute reuse age only because a lane merge is still unverified is kept while main's head, its
+config commit, the demotion records and the unverified merges' full and canary runs are as they
+were (no run reached a conclusion since, and no merge is past the six-hour dispatch deadline), and
+otherwise checked again as the gate does, holding only when that check cannot be read): while the gate holds its lane off (a demotion record,
 `merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
 nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
 counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue
