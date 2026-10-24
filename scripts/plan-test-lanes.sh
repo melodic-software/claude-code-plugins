@@ -216,9 +216,13 @@ exclusions=() outside=() rows=()
 read_list::into exclusions "$EXCLUSIONS_LIST" --comments inline || exit 2
 read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
 
+# Triggers beyond its own directory for a package in the outside list: the
+# workflow whose drift its parity and workflow tests catch.
+declare -A OUTSIDE_TRIGGERS=([.github/scripts/pr-verify]=".github/workflows/pr-verify.yml")
+
 # Every Node package as `<package> <owner> [<trigger>]`.
 packages="$SUBPROJECTS"
-for p in "${outside[@]}"; do packages+=$'\n'"$p $p/"; done
+for p in "${outside[@]}"; do packages+=$'\n'"$p $p/${OUTSIDE_TRIGGERS[$p]:+ ${OUTSIDE_TRIGGERS[$p]}}"; done
 
 # owner_package <suite>: the package whose owner directory holds <suite>.
 owner_package() {

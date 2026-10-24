@@ -28,6 +28,8 @@ import {
   READER_EVENTS,
   main,
   pythonRoom,
+  LANE_ROOM_TIMEOUT_MS,
+  VERIFY_TIMEOUT_MS,
   readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
@@ -615,7 +617,9 @@ test("report-outcome's own Closes and Refs pull request bodies arm, and its hold
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
   assert.equal(verdict({ changedFiles: [".github/workflows/x.yml"] }).action, "none");
-  assert.deepEqual(verdict({ outcome: { exit: "done", reason: "", title: "t", summary: "s", link: "refs" } }), { action: "arm", reason: "no hold" });
+  const refs = { outcome: { exit: "done", reason: "", title: "t", summary: "s", remaining: ["Part B"] } };
+  assert.ok(plan(refs).body.startsWith("Refs: #77\n"));
+  assert.deepEqual(verdict(refs), { action: "arm", reason: "no hold" });
 });
 
 // The gate's human veto (babysit_merge.human_veto_logins): each member's
@@ -1230,6 +1234,18 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
     budget: "github-token",
   });
   assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+});
+
+test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a kill as unreadable", async () => {
+  const seen = [];
+  const killed = (_cmd, _args, options) => {
+    seen.push(options.timeout);
+    return { status: null, signal: "SIGTERM", stdout: "", stderr: "" };
+  };
+  await assert.rejects(pythonRoom({ GITHUB_REPOSITORY: REPO }, killed)(), /lane-room exited SIGTERM/);
+  assert.deepEqual(seen, [8 * 60_000]);
+  assert.equal(LANE_ROOM_TIMEOUT_MS, 8 * 60_000);
+  assert.equal(VERIFY_TIMEOUT_MS, 4 * 60_000);
 });
 
 // The gate holds on the security lane's open CRITICAL findings

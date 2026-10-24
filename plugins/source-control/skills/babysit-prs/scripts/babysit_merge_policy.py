@@ -3935,11 +3935,15 @@ def _demotion_changed(
 ) -> bool:
     """Whether anything `read_demotion` reads may differ from the shared
     answer, in one REST call: an issue updated since the answer was computed
-    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that a
-    record filer opened, or that is a known record. Creating, editing,
-    closing or reopening an issue updates it, so no new or changed record
-    escapes. A full page or an unreadable
-    one counts as changed."""
+    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that is a
+    known record, or that a record filer opened and `read_demotion` could
+    count as one: its body carries the marker now, or it may have been edited
+    since it was opened (`updated_at` differs from `created_at`, or either is
+    unreadable), so an earlier revision could. Creating, editing, closing or
+    reopening an issue updates it. REST timestamps are whole seconds, so a
+    marker stripped within the second its issue was opened escapes until the
+    next fresh `read_demotion`; no code here edits a record's body. A full
+    page or an unreadable one counts as changed."""
     since = (
         (shared.computed_at - SINCE_CLOCK_MARGIN)
         .astimezone(UTC)
@@ -3954,8 +3958,16 @@ def _demotion_changed(
     for issue in map(json_object, issues):
         if "pull_request" in issue:
             continue
-        author = _login_key(json_object(issue.get("user")).get("login"))
-        if author in filers or issue.get("number") in shared.demotion.records:
+        if issue.get("number") in shared.demotion.records:
+            return True
+        if _login_key(json_object(issue.get("user")).get("login")) not in filers:
+            continue
+        if DEMOTION_MARKER in str(issue.get("body") or ""):
+            return True
+        try:
+            if _time(issue.get("updated_at")) != _time(issue.get("created_at")):
+                return True
+        except PolicyReadError:
             return True
     return False
 
@@ -4069,6 +4081,11 @@ def shared_refusal(
     return None
 
 
+def not_open_refusal(state: object) -> str:
+    """The gate's blocker for a pull request whose GraphQL state is not OPEN."""
+    return f"state={state} (not OPEN)"
+
+
 def assess(
     repo: str,
     number: int,
@@ -4083,6 +4100,7 @@ def assess(
     shared: SharedPostMerge | None = None,
     share: Callable[[SharedPostMerge], object] | None = None,
     human_gated: str | None = None,
+    stop_when_closed: bool = False,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -4121,8 +4139,11 @@ def assess(
     adopted pull request in the lane (`adoption_refusal`); None adopts none.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
-    promoted. `self_logins` names only lane or bot self identities (see
-    `is_human`). Raises `PolicyReadError` when the pull request or either
+    promoted. With `stop_when_closed`, a pull request the REST record reads
+    as merged refuses (`not_open_refusal`) once the identity and the readers
+    the queue sweep needs are read, before the demotion and post-merge
+    reads: the gate holds it on the same blocker.
+    `self_logins` names only lane or bot self identities (see `is_human`). Raises `PolicyReadError` when the pull request or either
     pipeline config cannot be read, because the agent identity is then
     unknown. A default branch head config that cannot be parsed, or names
     another identity, is a stop (`StopReadError`).
@@ -4236,6 +4257,10 @@ def assess(
         "permission": permission,
     }
     inputs.update(permission=permission, self_logins=self_logins)
+    if stop_when_closed and pr.get("state") == "closed" and pr.get("merged") is True:
+        # The queue sweep still runs on what is read so far: this may be the
+        # run's last candidate. A merge is final; a closed one can reopen.
+        return replace(stopped, reason=not_open_refusal("MERGED"))
     # The run's shared answer stands in for the demotion, floor and post-merge
     # reads when it is bound to this run; otherwise they are read here.
     reuse = None

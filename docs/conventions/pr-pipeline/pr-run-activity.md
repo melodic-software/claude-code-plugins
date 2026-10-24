@@ -1875,8 +1875,10 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
   and committed by `web-flow`; the PR body's Verification section says so. Otherwise it hands the issue to a person,
   naming the resumed branch. On `done` it opens a ready (not draft) PR from the branch whose
-  body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
-  `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
+  body starts `Closes #<n>` (or `Refs: #<n>`, with a `## Remaining work` section listing them,
+  when the outcome's `remaining` names parts of the issue the PR leaves for later work; a
+  `remaining` that is not 1 to 20 strings with text counts as none, and the run's `link` field
+  decides nothing), puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
