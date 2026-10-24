@@ -2,29 +2,19 @@
 
 <#
 .SYNOPSIS
-Load the per-user ApprovalState from $OutputBase/state/approvals.json.
-First-run migrates checked boxes from the legacy TODO.md and
-persists the result. Subsequent runs read approvals.json directly.
+Load the per-user ApprovalState from $StateDir/approvals.json.
 
 .DESCRIPTION
 Fail-safe posture: any error (missing file, permission denied, malformed
 JSON, schema violation) logs a warning and returns defaults (nothing
 approved). A single broken approvals.json must not prevent the rest of
-the audit from running.
-
-Known remediation ids recognized for TODO.md -> approvals.json migration:
-
-    clear-temp-files         <- matched on 'Clear-TempFiles' near [x]
-    restart-stopped-service  <- matched on 'Restart-StoppedService' near [x]
-
-Migration is one-shot: it triggers only when approvals.json is missing.
-After migration, TODO.md checkboxes are ignored permanently.
+the audit from running. No other file is read: an approval exists only
+where Set-ApprovalState wrote it.
 #>
 
 . (Join-Path $PSScriptRoot 'Assert-ApprovalState.ps1')
 . (Join-Path $PSScriptRoot 'Read-SharedText.ps1')
 . (Join-Path $PSScriptRoot 'Write-MachineHealthLog.ps1')
-. (Join-Path $PSScriptRoot 'Write-StateFile.ps1')
 
 function New-DefaultApprovalState {
     [CmdletBinding()]
@@ -37,73 +27,11 @@ function New-DefaultApprovalState {
     }
 }
 
-function Read-ApprovalsFromTodo {
-    [CmdletBinding()]
-    [OutputType([pscustomobject])]
-    param(
-        [Parameter(Mandatory = $true)] [string] $TodoPath
-    )
-
-    if (-not (Test-Path -LiteralPath $TodoPath)) { return $null }
-
-    $migrations = [ordered]@{}
-    try {
-        $lines = Get-Content -LiteralPath $TodoPath -ErrorAction Stop
-    } catch {
-        Write-Verbose "Read-ApprovalsFromTodo: unable to read TODO.md. $($_.Exception.Message)"
-        return $null
-    }
-
-    foreach ($line in $lines) {
-        if ($line -notmatch '\[x\]') { continue }
-        if ($line -match 'Restart-StoppedService|restart-stopped-service') {
-            $migrations['restart-stopped-service'] = $true
-        }
-        if ($line -match 'Clear-TempFiles|clear-temp-files') {
-            $migrations['clear-temp-files'] = $true
-        }
-    }
-
-    if ($migrations.Count -eq 0) { return $null }
-
-    $stamp = (Get-Date).ToString('o')
-    # One backslash, not two: PowerShell double-quoted strings do not treat `\`
-    # as an escape character, so `\\` here would persist a literal `HOST\\user`.
-    $approvedBy = "$env:COMPUTERNAME\$env:USERNAME"
-    $rem = [ordered]@{}
-    foreach ($id in $migrations.Keys) {
-        $rem[$id] = [pscustomobject]@{
-            approved    = $true
-            approved_at = $stamp
-            approved_by = $approvedBy
-            notes       = 'Migrated from TODO.md'
-        }
-    }
-
-    $sha = $null
-    try {
-        $sha = (Get-FileHash -LiteralPath $TodoPath -Algorithm 'SHA256' -ErrorAction Stop).Hash
-    } catch {
-        Write-Verbose "Read-ApprovalsFromTodo: unable to hash TODO.md. $($_.Exception.Message)"
-    }
-
-    return [pscustomobject]@{
-        schema_version = '1.0'
-        remediations   = [pscustomobject]$rem
-        migration      = [pscustomobject]@{
-            migrated_from_todo_md = $true
-            migrated_at           = $stamp
-            source_checksum       = $sha
-        }
-    }
-}
-
 function Get-ApprovalState {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true)] [string] $StateDir,
-        [string] $TodoPath,
         [string] $LogPath
     )
 
@@ -131,28 +59,6 @@ function Get-ApprovalState {
             Write-Warning "Get-ApprovalState: '$approvalsPath' invalid, using defaults. $($_.Exception.Message)"
             Write-MachineHealthLog -LogPath $LogPath -Message "approvals_invalid $approvalsPath $($_.Exception.Message)"
             return (New-DefaultApprovalState)
-        }
-    }
-
-    if ($TodoPath) {
-        $migrated = Read-ApprovalsFromTodo -TodoPath $TodoPath
-        if ($null -ne $migrated) {
-            try {
-                $migratedJson = $migrated | ConvertTo-Json -Depth 10
-                # An approvals.json that appeared since the existence test wins over the migration.
-                $written = Write-StateFile -Path $approvalsPath -Update {
-                    param($Current)
-                    if ($null -eq $Current) { $migratedJson }
-                }.GetNewClosure()
-                if (-not $written) { return (Get-ApprovalState -StateDir $StateDir -LogPath $LogPath) }
-                Write-MachineHealthLog -LogPath $LogPath `
-                    -Message "approvals_migrated source=$TodoPath dest=$approvalsPath"
-            } catch {
-                Write-Warning "Get-ApprovalState: migration write failed. $($_.Exception.Message)"
-                Write-MachineHealthLog -LogPath $LogPath `
-                    -Message "approvals_migration_write_failed $($_.Exception.Message)"
-            }
-            return $migrated
         }
     }
 

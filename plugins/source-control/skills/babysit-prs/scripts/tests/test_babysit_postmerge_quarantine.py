@@ -380,6 +380,27 @@ class AffectedSet(AffectedBase):
         self.red_dispatch(bash_log((FLAKY, False)), step="Install pinned shfmt")
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
+    def test_a_leg_listing_no_failed_step_demotes(self) -> None:
+        # A pin of the safe answer: with no failed step listed (the jobs API
+        # can answer a completed job with no steps or a cut list), no suite
+        # can be named, so an out-of-set failure excuses nothing. The full
+        # list keeps the quarantine excuse.
+        cases = {
+            "no steps": ([], ["dispatch"]),
+            "a list cut before the suite step": (
+                [{"name": "Set up job", "conclusion": "success"}],
+                ["dispatch"],
+            ),
+            "the full list": (None, []),
+        }
+        for label, (steps, expected) in cases.items():
+            with self.subTest(label):
+                self.setUp()
+                self.red_dispatch(bash_log((FLAKY, False)))
+                if steps is not None:
+                    self.gh.jobs[(11, 2)][0]["steps"] = steps
+                self.assertEqual([f.signal for f in self.check().failures], expected)
+
     def test_an_unreadable_log_demotes(self) -> None:
         self.red_dispatch(bash_log((FLAKY, False)))
         del self.fake.logs[112]

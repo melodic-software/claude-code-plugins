@@ -5,6 +5,7 @@
 // of the named workflow file, and only for a PR whose head
 // check-trusted-trigger would trust.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -41,8 +42,16 @@ const pr = (number, { user = OWNER, draft = false, repo = REPO, ref = `fix/${num
   head: { sha: sha(number), ref, repo: { full_name: repo } },
 });
 const denial = (path) => `lane-token-denied: the broker answered 403 with reason workflow-modified: ${path} differs from refs/heads/main`;
+const TOKEN_STEP = "Request the lane token";
+// A failed job's steps as the jobs API lists them in full: a job failing at a
+// later step ran the token step first, and it succeeded.
+const fullSteps = (step) => [
+  { name: "Check the trigger", conclusion: "success" },
+  ...(step === TOKEN_STEP ? [] : [{ name: TOKEN_STEP, conclusion: "success" }]),
+  { name: step, conclusion: "failure" },
+];
 // A failed pr-unblock run dispatched on main for PR `number`; `job` is its
-// failed job, `annotations` that job's.
+// failed job, `annotations` that job's. `steps` replaces the job's step list.
 const run = (
   id,
   {
@@ -50,7 +59,11 @@ const run = (
     event = "workflow_dispatch",
     title = `pr-unblock resolve-conflicts #${number}`,
     headBranch = "main",
-    step = "Request the lane token",
+    step = TOKEN_STEP,
+    steps = fullSteps(step),
+    // The write runner's job as the jobs API names it (`<caller> / run`).
+    jobName = "apply-conflict-patch / run",
+    conclusion = "failure",
     messages = [denial(UNBLOCK)],
     actor = ACTIONS_BOT,
     rerunner = actor,
@@ -67,7 +80,7 @@ const run = (
   display_title: title,
   repository: { full_name: REPO },
   head_repository: { full_name: REPO },
-  job: { id: id * 10, conclusion: "failure", steps: [{ name: "Check the trigger", conclusion: "success" }, { name: step, conclusion: "failure" }] },
+  job: { id: id * 10, name: jobName, conclusion, steps },
   annotations: messages.map((message) => ({ annotation_level: "failure", message })),
 });
 // The failed check a dispatched run's report job posts on the PR's head.
@@ -299,6 +312,52 @@ test("a run for another PR or off main, a failure at another step, or another br
     assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
     assert.deepEqual(pushes(w.calls), [], JSON.stringify(runOptions));
     assert.deepEqual(posts(w.calls), [], JSON.stringify(runOptions));
+  }
+});
+
+test("a failed job whose step list lacks the token step is judged by its annotations; one listing the token step as passed is not", async () => {
+  // The jobs API can answer a completed job with no steps or a cut list.
+  for (const steps of [[], [{ name: "Check the trigger", conclusion: "success" }]]) {
+    const w = refusedWorld([pr(9)], { runOptions: { steps } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.equal(pushes(w.calls).length, 1, JSON.stringify(steps));
+    assert.equal(posts(w.calls).length, 1, JSON.stringify(steps));
+  }
+  // The full list shows the token step passed, so even a refusal annotation
+  // re-fires nothing.
+  const full = refusedWorld([pr(9)], { runOptions: { step: "Run the skill activity" } });
+  assert.equal(await main({ env, github: full.github, actions: full.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(full.calls), []);
+  assert.deepEqual(posts(full.calls), []);
+});
+
+const annotationReads = (calls) => calls.filter((call) => /\/check-runs\/\d+\/annotations/.test(call));
+
+test("a job that is no write runner job, or did not fail, has its annotations unread even with no steps listed", async () => {
+  // fix-ci / run is the read runner's job: it runs the model over PR content
+  // and requests no lane token, so its annotations are never trusted.
+  for (const runOptions of [
+    { jobName: "fix-ci / run", steps: [] },
+    { jobName: "apply-conflict-patch / report", steps: [] },
+    { conclusion: "success", steps: [] },
+  ]) {
+    const w = refusedWorld([pr(9)], { runOptions });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(annotationReads(w.calls), [], JSON.stringify(runOptions));
+    assert.deepEqual(pushes(w.calls), [], JSON.stringify(runOptions));
+    assert.deepEqual(posts(w.calls), [], JSON.stringify(runOptions));
+  }
+});
+
+test("every pr-unblock job that calls the write runner is read when its steps are missing", async () => {
+  // The callers come from pr-unblock.yml itself, so a new one is covered.
+  const yml = readFileSync(join(HERE, "../../workflows/pr-unblock.yml"), "utf8");
+  const callers = [...yml.matchAll(/^ {2}([a-z0-9-]+):\n(?:(?! {2}\S).*\n)*? {4}uses: \.\/\.github\/workflows\/pr-run-activity-write\.yml/gm)].map((m) => m[1]);
+  assert.ok(callers.includes("apply-conflict-patch") && callers.length >= 8, JSON.stringify(callers));
+  for (const caller of callers) {
+    const w = refusedWorld([pr(9)], { runOptions: { jobName: `${caller} / run`, steps: [] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.equal(pushes(w.calls).length, 1, caller);
   }
 });
 
