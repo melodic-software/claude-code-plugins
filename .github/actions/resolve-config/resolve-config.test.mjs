@@ -681,48 +681,33 @@ test("on an issues event, labels-absent reads the issue's labels now", async () 
   assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7"]);
 });
 
-// An agent-ready issue under a class admission predicate. `labelsNow` is what
-// GET /issues/7 answers when the run reads the labels; no comment is read.
-function classIssue(labelsNow) {
-  const { env } = workspace();
-  issueEvent(env, { number: 7, labels: [{ name: "agent-ready" }, { name: "work-class: read-only" }], updated_at: "2026-10-20T00:00:00Z" });
-  withPredicate(env, { events: ["labeled"], admission: { classes: ["work-class: read-only"] } });
-  return {
-    env,
-    ...fakeGitHub({
-      "/repos/melodic-software/claude-code-plugins/issues/7": () => ({ number: 7, labels: labelsNow.map((name) => ({ name })) }),
-    }),
-  };
-}
-
-test("a listed class read now admits the issue, with no comment read", async () => {
-  const { env, github, calls } = classIssue(["agent-ready", "work-class: read-only"]);
-  assert.equal(await main({ env, github }), 0);
-  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
-  assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7"]);
-});
-
-test("a held class added after the label event refuses the issue", async () => {
-  const { env, github } = classIssue(["agent-ready", "work-class: read-only", "work-class: scoped"]);
-  assert.equal(await main({ env, github }), 0);
-  const outputs = readOutputs(env.GITHUB_OUTPUT);
-  assert.equal(outputs.applies, "false");
-  assert.equal(outputs["skip-reason"], "not-applicable");
-});
-
-// The retired `ratified` key is no admission rule, so the schema refuses it.
-test("an admission predicate with no classes fails the schema", async (t) => {
-  for (const admission of [{ ratified: true }, { ratified: false }]) {
+// No predicate reads a work class: an agent-ready issue with no class and
+// one with a structural class both apply, read now from the issue.
+test("an agent-ready issue applies whatever work class it carries, or none", async () => {
+  for (const labelsNow of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
     const { env } = workspace();
-    withPredicate(env, { admission });
-    await assertFailsRed(t, env, /fails the schema/);
+    issueEvent(env, { number: 7, labels: [{ name: "agent-ready" }], updated_at: "2026-10-20T00:00:00Z" });
+    withPredicate(env, { events: ["labeled"], labels: ["agent-ready"], "labels-absent": ["needs-human"] });
+    const { github } = fakeGitHub({
+      "/repos/melodic-software/claude-code-plugins/issues/7": () => ({ number: 7, labels: labelsNow.map((name) => ({ name })) }),
+    });
+    assert.equal(await main({ env, github }), 0);
+    assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true", labelsNow.join());
   }
 });
 
-test("a work-classes predicate fails red: no run supplies work classes yet", async (t) => {
-  const { env } = workspace();
-  withPredicate(env, { "work-classes": ["C2"] });
-  await assertFailsRed(t, env, /needs workClasses/);
+// The work-class keys are gone, so a config that still gates on a class fails
+// the schema rather than gating nothing in silence.
+test("an admission or work-classes predicate fails the schema", async (t) => {
+  for (const predicate of [
+    { admission: { classes: ["work-class: read-only"] } },
+    { admission: { ratified: true } },
+    { "work-classes": ["C2"] },
+  ]) {
+    const { env } = workspace();
+    withPredicate(env, predicate);
+    await assertFailsRed(t, env, /fails the schema/);
+  }
 });
 
 // valid.yaml's fix-prose (lane pr-refine) with prepare: merge-base and `extra`.
