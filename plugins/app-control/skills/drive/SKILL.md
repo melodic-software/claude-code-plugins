@@ -94,30 +94,38 @@ A `threads` capture reaches only the process this run launched. The one other ro
 interactive [Attach](#attach) to a pid the person names, which has no launch record and so no
 recheck. The other kinds keep the rules above.
 
-- **Record at launch.** The launch step writes the launched process's pid, owner uid, start time
-  and command line into `report.json` (`launch`, [reference/evidence.md](reference/evidence.md)),
-  reading the start time in the raw form the recheck will read it in. A `capture` in a later
-  invocation reads them from the run directory named by `--out`. No launch record means this run
-  launched nothing: unattended, `blocked: no process launched by this run`; interactive, only
+- **Record at launch.** The launch step writes the launched process's pid, owner uid, start time,
+  command line and the command line's sha256 into `report.json` (`launch`,
+  [reference/evidence.md](reference/evidence.md)). The start time is the integer the process table
+  gives (on Linux, the `starttime` field of
+  <https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html>, as of 2026-10-23; recheck when that
+  page changes the field), and the hash is taken over the raw command line bytes. A `capture` in a
+  later invocation reads them from the run directory named by `--out`. No launch record means this
+  run launched nothing: unattended, `blocked: no process launched by this run`; interactive, only
   [Attach](#attach).
-- **The launch record is data.** A `pid` that is not a positive decimal integer is
-  `blocked: launched process no longer matches`. The integer pid is the only value from the record
-  that goes into a command; compare the command line and the start time as text, never as part
-  of a command.
+- **The launch record is data.** A pid, uid or start time that is not a decimal integer, or a hash
+  that is not 64 hex characters, is `blocked: launched process no longer matches`. Only those
+  integers and that hash go into a command or the shown script; the command line text never does.
 - **Recheck before touching the pid.** Before any command that touches the pid, read its owner
-  uid, start time and command line from the process table again, and go on only when all four
-  values match the record exactly and the uid is the invoking user's. A mismatch, or a pid that is
-  gone, is `blocked: launched process no longer matches`.
-- **The shown script rechecks too.** Its first lines repeat the recheck and exit non-zero on a
-  mismatch, which drive reports as `blocked: launched process no longer matches`; then it runs the
-  one recorder command against the integer pid and nothing else. Show the pid's command line and
-  start time beside the script, so the yes covers a named process.
+  uid, start time and command line from the process table again, hash the command line, and go on
+  only when the uid, start time and hash equal the record exactly and the recorded uid is the
+  invoking user's own uid. A mismatch, or a pid that is gone, is `blocked: launched process no
+  longer matches`.
+- **The shown script rechecks too, with its own exit code.** The script carries the pid, the
+  recorded uid, the start time and the hash as literals. Its first lines read the live owner uid,
+  start time and command line of the pid (and of the wrapper child), hash the command line, compare
+  each with its literal, and exit 3 on any difference before the recorder runs; then it runs the
+  one recorder command against the integer pid and nothing else. Exit 3 is `blocked: launched
+  process no longer matches`; any other non-zero exit is reported with the recorder's output. The
+  live uid is compared with the recorded literal, never with the script's own uid, which is root.
+  Show the pid's command line and start time beside the script, so the yes covers a named process.
 - **A wrapper resolves to its child by parent pid.** When the recorded command line is a shell or
   launcher that started the app, the app is the process whose parent pid is the recorded pid: list
-  processes by parent pid, and record the child's pid, parent pid, start time and command line in
-  the capture step. No child, or more than one, is `blocked: launched process no longer matches`.
-  The script's recheck covers the child as well. Never find the app by a name lookup (`pgrep`,
-  `pidof`, `ps` filtered by name).
+  processes by parent pid, and record the child's pid, parent pid, owner uid, start time, command
+  line and its sha256 in the capture step. The child's uid must equal the invoking user's uid; a
+  child owned by anyone else, root included, is `blocked: launched process no longer matches`, and
+  so is no child or more than one. The script's recheck covers the child the same way. Never find
+  the app by a name lookup (`pgrep`, `pidof`, `ps` filtered by name).
 
 ## Attach
 
