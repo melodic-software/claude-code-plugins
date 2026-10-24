@@ -26,8 +26,8 @@
 // no flag. One that listed a flag, or no App verdict comment at all (an issue
 // held before these comments), holds, and the new comment carries the flag or
 // the missing record forward. A held verdict writes that comment before its
-// labels and writes no label when the comment write fails, so no hold lands
-// without its record; needs-human, and
+// labels and, when the comment write fails, adds no label and takes off only
+// `status: ready`, so no hold lands without its record; needs-human, and
 // a hold the triage run (github-actions[bot], the reusable's escalation), a
 // person, or an unread setter set, holds. The
 // `needs-triage` floor label is taken off after the verdict is written.
@@ -461,7 +461,9 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
   // A held verdict's reasons comment goes before its labels, so a hold never
   // lands without the record of whether it was flagged (earlierFlags): when
-  // the comment write fails, no label changes and the caller fails the job.
+  // the comment write fails, no hold, class or floor label changes and the
+  // caller fails the job; `status: ready` still comes off, since taking it off
+  // adds no hold.
   // A ready verdict's comment names admission's outcome, so it goes after; a
   // failed one stops neither the reword nor the summary.
   let reasonsError = null;
@@ -476,11 +478,14 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     await say(null);
   }
   const labeled = reasonsError === null;
+  const unready = plan.remove.filter((name) => name === READY);
   if (labeled) {
     const floor = plan.remove.filter((name) => name === NEEDS_TRIAGE);
     await removeLabels(github, base, plan.remove.filter((name) => name !== NEEDS_TRIAGE));
     await addLabels(github, base, plan.add);
     await removeLabels(github, base, floor);
+  } else {
+    await removeLabels(github, base, unready);
   }
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
@@ -520,7 +525,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     labeled
       ? `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`
-      : "- Labels: none written, since the reasons comment was not",
+      : `- Labels added: none, since the reasons comment was not written; removed: ${unready.join(", ") || "none"}`,
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),

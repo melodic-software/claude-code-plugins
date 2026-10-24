@@ -1129,6 +1129,34 @@ describe("run", () => {
     });
   }
 
+  // Taking status: ready off adds no hold, so it needs no record and never waits on one.
+  for (const [name, comments, failing] of [
+    ["a failed post", [], "POST /repos/o/r/issues/7/comments"],
+    ["a failed edit", [unflagged()], "PATCH /repos/o/r/issues/comments/51"],
+  ]) {
+    test(`a flagged re-triage of an issue at status: ready with ${name} still takes status: ready off and adds no hold`, async () => {
+      const fake = fakeGitHub({
+        issue: { labels: [{ name: READY }] },
+        comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] })), ...comments],
+      });
+      const github = async (method, path, body) => {
+        if (`${method} ${path}` === failing) {
+          fake.calls.push({ method, path, body });
+          throw new GitHubError(403, failing);
+        }
+        return fake.github(method, path, body);
+      };
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+      assert.ok(result.reasonsError, "the run fails");
+      const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
+      assert.deepEqual(
+        labelWrites.map(({ method, path }) => `${method} ${path}`),
+        [`DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(READY)}`],
+      );
+      assert.match(result.summary, /removed: status: ready/);
+    });
+  }
+
   test("a failed edit of the reasons comment on a ready verdict still rewords the lane comment and reports the failure", async () => {
     const fake = fakeGitHub({ comments: [laneComment(), unflagged()] });
     const github = async (method, path, body) => {
