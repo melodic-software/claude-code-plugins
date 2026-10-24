@@ -217,7 +217,9 @@ emit_fragments() {
 
 # Split fragments into command segments on shell command separators and
 # command-substitution / subshell boundaries, one segment per line. `$(` is
-# rewritten first so its `(` isn't double-counted by the class below.
+# rewritten first so its `(` isn't double-counted by the class below. The split
+# is quote-blind: a separator inside a quoted prompt still cuts it, and a
+# segment that then starts with a known bin is scanned. Accepted residual.
 split_segments() {
   sed -E 's/\$\(/\n/g; s/(\|\||&&|[;|&`()])/\n/g'
 }
@@ -270,10 +272,36 @@ extract_candidates() {
     #     does NOT end the chain — a positional can sit mid-chain (e.g.
     #     `dotnet list <SLN> package`). Only shaped lowercase words join the chain,
     #     keeping junk out of the verified `<bin> <chain> --help` invocation.
+    #   - A quoted argument (`-p "<prompt>"`, a positional prompt, `--x="a b"`)
+    #     is one argument: no word inside it is a flag or a subcommand. `read -a`
+    #     split it on blanks, so quote state is carried across tokens; `q` holds
+    #     the open quote. `\"` does not close a double quote. Builtins only.
     local -a chain=() seg_flags=()
-    local chain_done=0 k tk fl ct
+    local chain_done=0 k tk fl ct q="" bare dq sq
     for ((k = idx + 1; k < ${#toks[@]}; k++)); do
       tk="${toks[k]}"
+      bare="${tk//\\\"/}"
+      if [[ -n "$q" ]]; then
+        [[ "$bare" == *"$q"* ]] && q=""
+        continue
+      fi
+      dq="${bare//[^\"]/}"
+      sq="${bare//[^\']/}"
+      if [[ "$tk" == [\"\']* ]]; then
+        # Opens with a quote: the whole token is (part of) a quoted argument.
+        if [[ "$tk" == \"* ]]; then
+          ((${#dq} % 2)) && q='"'
+        else
+          ((${#sq} % 2)) && q="'"
+        fi
+        continue
+      fi
+      # A quote opened mid-token (`--x="a`) swallows the tokens up to its close.
+      if ((${#dq} % 2)); then
+        q='"'
+      elif ((${#sq} % 2)); then
+        q="'"
+      fi
       case "$tk" in
       --)
         break
