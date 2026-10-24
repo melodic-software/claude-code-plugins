@@ -81,7 +81,8 @@ post nothing else):
 1. PR is closed or not open
 2. PR is a draft
 3. Change is trivial/automated with no meaningful review surface; a change in a
-   hold class ("Reporting") never is
+   hold class ("Reporting") or to a file matching a glob the wrapper lists under
+   `TRUSTED PATHS:` never is
 4. This head already has a successful review from this lane that still applies
 
 ## Criteria
