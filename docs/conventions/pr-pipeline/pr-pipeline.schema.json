@@ -156,6 +156,18 @@
           "maximum": 100,
           "default": 1,
           "description": "Admissions per hour the queued cap never falls below: it is at least this rate times wip.merge-rate-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
+        },
+        "api": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "GitHub API margins per pool, each a share of the limit the pool's x-ratelimit-limit header reports. A graphql call reads `graphql`; any other call reads the entry its token names. Unset fields take the defaults in $defs/api-pool and $defs/api-content-pool.",
+          "properties": {
+            "github-token": { "$ref": "#/$defs/api-pool" },
+            "lanes-app": { "$ref": "#/$defs/api-pool" },
+            "graphql": { "$ref": "#/$defs/api-pool" },
+            "owner-token": { "$ref": "#/$defs/api-pool" },
+            "content-creation": { "$ref": "#/$defs/api-content-pool" }
+          }
         }
       }
     },
@@ -291,6 +303,63 @@
     "models": { "$ref": "#/$defs/models" }
   },
   "$defs": {
+    "api-pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plan": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.7,
+          "description": "Share of the pool's limit the lanes plan to spend."
+        },
+        "writer-pause": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.4,
+          "description": "Share of the limit left at which writers pause."
+        },
+        "breaker": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "description": "Share of the limit left at which the hub sets the repository kill switch."
+        },
+        "read-floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.1,
+          "description": "Share of the limit left below which a job stops its non-essential reads."
+        }
+      }
+    },
+    "api-content-pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Content-creating writes (comments, labels, issues, pull requests): no header reports this limit, so it is set here.",
+      "properties": {
+        "plan": { "$ref": "#/$defs/api-pool/properties/plan" },
+        "writer-pause": { "$ref": "#/$defs/api-pool/properties/writer-pause" },
+        "breaker": { "$ref": "#/$defs/api-pool/properties/breaker" },
+        "read-floor": { "$ref": "#/$defs/api-pool/properties/read-floor" },
+        "per-minute": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 80,
+          "description": "Content-creating requests GitHub allows per minute."
+        },
+        "per-hour": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 500,
+          "description": "Content-creating requests GitHub allows per hour."
+        }
+      }
+    },
     "name": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",

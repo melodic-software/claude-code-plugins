@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## [4.20.0] - 2026-10-24
+
+### Added
+
+- `limits.api` sets GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the limit the pool's `x-ratelimit-limit` header reports: `plan` (0.7), `writer-pause` (0.4), `breaker` (0.2) and `read-floor` (0.1); `content-creation` adds `per-minute` (80) and `per-hour` (500). The defaults live only in the schema. resolve-config passes the block through as set.
+
+### Changed
+
+- Every lane GitHub call made through createGitHub, the dispatchers' budgetedFetch or the ci-status gh wrapper goes through one rate guard (`.github/actions/log-api-budget/rate-guard.mjs` and its shell port in `api-budget.bash`). A response that shows a pool exhausted (remaining 0, a 403 or 429 naming a rate limit, retry-after, or a GraphQL `RATE_LIMITED` error) stops that pool, or every pool for a secondary limit, until its reset for the rest of the job: later calls are refused without a request, and the step fails red with an error naming the reset. Under `read-floor` left it warns once. ci-status's gh_read no longer sends a probe request while limited.
+- intake-label-needs-triage reads the org and repository kill switches, as intake-triage does; either one stops its API reads and its label.
+
 ## [4.19.6] - 2026-10-24
 
 ### Changed

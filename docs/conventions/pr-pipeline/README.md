@@ -2001,6 +2001,7 @@ with defaults.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the limit the pool's `x-ratelimit-limit` header reports: `plan`, `writer-pause`, `breaker` and `read-floor`, plus `per-minute` and `per-hour` for `content-creation`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`), which the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) reads; resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base

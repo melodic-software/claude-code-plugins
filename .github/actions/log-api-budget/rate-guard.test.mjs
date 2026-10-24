@@ -1,0 +1,229 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import { apiLimits, classify, createRateLimitLatch, entryOf, poolOf, RateLimitStop } from "./rate-guard.mjs";
+
+const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
+const SCHEMA_PATH = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
+const NOW = VECTORS.vector_now * 1000;
+const READ_FLOOR = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
+
+function withDir(fn) {
+  const dir = mkdtempSync(join(tmpdir(), "rate-guard-"));
+  try {
+    return fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("the vectors file holds at least twelve well-formed vectors", () => {
+  assert.ok(Number.isInteger(VECTORS.vector_now));
+  assert.ok(VECTORS.vectors.length >= 12);
+  for (const vector of VECTORS.vectors) {
+    assert.deepEqual(Object.keys(vector.input).sort(), ["body", "headers", "status", "url"], vector.name);
+    assert.deepEqual(Object.keys(vector.expect).sort(), ["latched", "low", "pool", "reset", "reset_source"], vector.name);
+    assert.ok(Object.keys(vector.input.headers).every((name) => name === name.toLowerCase()), vector.name);
+  }
+});
+
+for (const vector of VECTORS.vectors) {
+  test(`vector: ${vector.name}`, () => {
+    assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR }), vector.expect);
+  });
+}
+
+test("classify reads a Headers object as it reads a plain one", () => {
+  const vector = VECTORS.vectors.find((v) => v.expect.reset_source === "retry-after");
+  const headers = new Headers(vector.input.headers);
+  assert.deepEqual(classify({ ...vector.input, headers }, { now: NOW, readFloor: READ_FLOOR }), vector.expect);
+});
+
+test("defaults come from the schema: a changed schema default changes the module's", () =>
+  withDir((dir) => {
+    const schema = JSON.parse(readFileSync(SCHEMA_PATH, "utf8"));
+    const live = apiLimits({ resolvedPath: "", schemaPath: SCHEMA_PATH });
+    schema.$defs["api-pool"].properties["read-floor"].default = 0.25;
+    schema.$defs["api-content-pool"].properties["per-minute"].default = 7;
+    const path = join(dir, "schema.json");
+    writeFileSync(path, JSON.stringify(schema));
+    const changed = apiLimits({ resolvedPath: "", schemaPath: path });
+    for (const name of ["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]) {
+      assert.equal(changed[name]["read-floor"], 0.25, name);
+      assert.notEqual(live[name]["read-floor"], 0.25, name);
+    }
+    assert.equal(changed["content-creation"]["per-minute"], 7);
+    assert.equal(changed["github-token"]["per-minute"], undefined);
+  }));
+
+test("a resolved config's limits.api overrides the schema default for that field only", () =>
+  withDir((dir) => {
+    const path = join(dir, "resolved.json");
+    writeFileSync(path, JSON.stringify({ limits: { api: { "lanes-app": { "read-floor": 0.3 } } } }));
+    const limits = apiLimits({ resolvedPath: path });
+    const defaults = apiLimits({ resolvedPath: "" });
+    assert.equal(limits["lanes-app"]["read-floor"], 0.3);
+    assert.equal(limits["lanes-app"].plan, defaults["lanes-app"].plan);
+    assert.deepEqual(limits["github-token"], defaults["github-token"]);
+  }));
+
+test("poolOf and entryOf name the resource and its config entry", () => {
+  assert.equal(poolOf("https://api.github.com/graphql"), "graphql");
+  assert.equal(poolOf("https://api.github.com/search/issues?q=a"), "search");
+  assert.equal(poolOf("https://api.github.com/search/code?q=a"), "code_search");
+  assert.equal(poolOf("https://api.github.com/repos/o/r/pulls"), "core");
+  assert.equal(entryOf("graphql", "lanes-app"), "graphql");
+  assert.equal(entryOf("core", "lanes-app"), "lanes-app");
+  assert.equal(entryOf("core", undefined), "github-token");
+});
+
+// A fake GitHub: answers in order, counting requests.
+function fakeGitHub(answers) {
+  const sent = [];
+  return {
+    sent,
+    fetch: async (url, init = {}) => {
+      sent.push(`${init.method ?? "GET"} ${url}`);
+      const [status, headers = {}, body = {}] = answers.shift() ?? [200];
+      return new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers });
+    },
+  };
+}
+
+function latchFor({ now = NOW } = {}) {
+  const lines = [];
+  let failed = 0;
+  const clock = { now };
+  const latch = createRateLimitLatch({
+    now: () => clock.now,
+    log: (line) => lines.push(line),
+    fail: () => {
+      failed += 1;
+    },
+    limits: () => apiLimits({ resolvedPath: "" }),
+  });
+  return { latch, lines, clock, failed: () => failed };
+}
+
+const PRIMARY = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" }, { message: "API rate limit exceeded for installation ID 1." }];
+const URL_A = "https://api.github.com/repos/o/r/pulls/1";
+const URL_B = "https://api.github.com/repos/o/r/issues/2";
+
+test("a limited response sends no second request, and the error names the reset", async () => {
+  const gh = fakeGitHub([PRIMARY, [200]]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A)).status, 403);
+  await assert.rejects(fetch(URL_B), (error) => error instanceof RateLimitStop && error.message.includes("2026-10-23T10:33:20Z"));
+  assert.deepEqual(gh.sent, [`GET ${URL_A}`]);
+  assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("2026-10-23T10:33:20Z")));
+  assert.ok(failed() >= 1);
+});
+
+test("retry-after is honoured: refused before it ends, sent after", async () => {
+  const gh = fakeGitHub([[403, { "retry-after": "120" }, { message: "You have exceeded a secondary rate limit." }], [200]]);
+  const { latch, clock } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  clock.now = NOW + 119_000;
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.equal(gh.sent.length, 1);
+  clock.now = NOW + 121_000;
+  assert.equal((await fetch(URL_B)).status, 200);
+  assert.equal(gh.sent.length, 2);
+});
+
+test("a primary limit on core leaves graphql open; a secondary one stops every pool", async () => {
+  const gh = fakeGitHub([PRIMARY, [200], [403, { "retry-after": "60" }, { message: "secondary rate limit" }]]);
+  const { latch } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  assert.equal((await fetch("https://api.github.com/graphql", { method: "POST" })).status, 200);
+  await fetch("https://api.github.com/graphql", { method: "POST" });
+  await assert.rejects(fetch("https://api.github.com/graphql", { method: "POST" }), RateLimitStop);
+  assert.equal(gh.sent.length, 3);
+});
+
+test("under the read floor: one warning, no failure, calls still go, belowFloor reports it", async () => {
+  const low = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "450", "x-ratelimit-reset": "1792751600" }];
+  const gh = fakeGitHub([low, low]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await fetch(URL_B);
+  assert.equal(gh.sent.length, 2);
+  assert.equal(lines.filter((line) => line.startsWith("::warning::")).length, 1);
+  assert.equal(failed(), 0);
+  assert.equal(latch.belowFloor(URL_A), true);
+  assert.equal(latch.belowFloor("https://api.github.com/graphql"), false);
+});
+
+test("a 403 Resource not accessible keeps its old behaviour: returned, no latch, no failure", async () => {
+  const refused = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000" }, { message: "Resource not accessible by integration" }];
+  const gh = fakeGitHub([refused, [200]]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A)).status, 403);
+  assert.equal((await fetch(URL_B)).status, 200);
+  assert.equal(gh.sent.length, 2);
+  assert.equal(failed(), 0);
+  assert.deepEqual(lines, []);
+});
+
+test("graphql 200 with RATE_LIMITED latches graphql", async () => {
+  const gh = fakeGitHub([[200, {}, { errors: [{ type: "RATE_LIMITED" }] }]]);
+  const { latch } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch("https://api.github.com/graphql", { method: "POST" });
+  await assert.rejects(fetch("https://api.github.com/graphql", { method: "POST" }), RateLimitStop);
+  assert.equal(gh.sent.length, 1);
+});
+
+test("without a readable schema the latch still stops, and says the floor is unchecked", async () => {
+  const lines = [];
+  const latch = createRateLimitLatch({
+    now: () => NOW,
+    log: (line) => lines.push(line),
+    fail: () => {},
+    limits: () => {
+      throw new Error("ENOENT");
+    },
+  });
+  const gh = fakeGitHub([PRIMARY]);
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await assert.rejects(fetch(URL_B), RateLimitStop);
+  assert.ok(lines.some((line) => line.includes("read floor is not checked")));
+});
+
+// The process-wide stop, end to end in a child process: createGitHub trips the
+// shared latch, then budgetedFetch's next call is refused without a request,
+// and the process exits 1 although main set exitCode 0.
+test("one limit stops every helper in the process, and the process exits red", () => {
+  const script = `
+    import { createGitHub } from "./.github/actions/check-trusted-trigger/check-trusted-trigger.mjs";
+    import { budgetedFetch } from "./.github/scripts/pr-unblock/request-budget.mjs";
+    let sent = 0;
+    const fetchImpl = async () => {
+      sent += 1;
+      return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+        status: 403,
+        headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(Math.floor(Date.now() / 1000) + 3600), "x-ratelimit-limit": "5000" },
+      });
+    };
+    const github = createGitHub({ token: "t", fetchImpl });
+    await github("GET", "/repos/o/r").catch(() => {});
+    const budget = budgetedFetch({ fetch: fetchImpl, log: () => {}, maxWaitMs: 0 });
+    const refused = await budget.fetch("https://api.github.com/repos/o/r/pulls").then(() => "sent", (error) => error.name);
+    console.log("sent=" + sent + " refused=" + refused);
+    process.exitCode = 0;
+  `;
+  const root = new URL("../../../", import.meta.url).pathname;
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8", env: { ...process.env, RESOLVED_CONFIG: "" } });
+  assert.match(run.stdout, /sent=1 refused=RateLimitStop/);
+  assert.match(run.stdout, /::error::GET \/repos\/o\/r|::error::GET https:\/\/api\.github\.com\/repos\/o\/r /);
+  assert.equal(run.status, 1);
+});

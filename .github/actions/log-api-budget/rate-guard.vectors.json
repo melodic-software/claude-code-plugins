@@ -1,0 +1,155 @@
+{
+  "vector_now": 1792748000,
+  "vectors": [
+    {
+      "name": "primary 403: remaining 0 stops the resource until x-ratelimit-reset",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/pulls/1",
+        "status": 403,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "API rate limit exceeded for installation ID 1." }
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792751600, "pool": "core" }
+    },
+    {
+      "name": "primary 429 on graphql: remaining 0 stops the graphql resource",
+      "input": {
+        "url": "https://api.github.com/graphql",
+        "status": 429,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792750000", "x-ratelimit-resource": "graphql" },
+        "body": { "message": "API rate limit exceeded" }
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792750000, "pool": "graphql" }
+    },
+    {
+      "name": "200 with remaining 0: the next call would be refused, so stop now",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792749000", "x-ratelimit-resource": "core" },
+        "body": []
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792749000, "pool": "core" }
+    },
+    {
+      "name": "secondary 403 with retry-after stops every pool for retry-after seconds",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues/1/comments",
+        "status": 403,
+        "headers": { "retry-after": "120", "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "You have exceeded a secondary rate limit. Please wait a few minutes before you try again." }
+      },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748120, "pool": "*" }
+    },
+    {
+      "name": "429 with retry-after and no message",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 429, "headers": { "retry-after": "30" }, "body": "" },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748030, "pool": "*" }
+    },
+    {
+      "name": "retry-after on any status is honoured",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 503, "headers": { "retry-after": "5" }, "body": "" },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748005, "pool": "*" }
+    },
+    {
+      "name": "secondary 403 by message alone waits the documented minute, every pool",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues",
+        "status": 403,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "You have exceeded a secondary rate limit." }
+      },
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "*" }
+    },
+    {
+      "name": "rate-limit 403 with no headers at all waits the minute, every pool",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 403, "headers": {}, "body": "{\"message\":\"API rate limit exceeded for installation ID 1.\"}" },
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "*" }
+    },
+    {
+      "name": "both retry-after and an exhausted window: the later time wins",
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 403,
+        "headers": { "retry-after": "60", "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "API rate limit exceeded" }
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792751600, "pool": "*" }
+    },
+    {
+      "name": "graphql 200 with errors type RATE_LIMITED stops graphql until the reset",
+      "input": {
+        "url": "https://api.github.com/graphql",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792750000", "x-ratelimit-resource": "graphql" },
+        "body": { "data": null, "errors": [{ "type": "RATE_LIMITED", "message": "API rate limit exceeded for installation ID 1." }] }
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792750000, "pool": "graphql" }
+    },
+    {
+      "name": "graphql RATE_LIMITED with no headers: graphql pool from the url, the minute",
+      "input": { "url": "https://api.github.com/graphql", "status": 200, "headers": {}, "body": { "errors": [{ "type": "RATE_LIMITED" }] } },
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "graphql" }
+    },
+    {
+      "name": "403 Resource not accessible is a refusal, not a rate limit",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues/1/labels",
+        "status": 403,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "Resource not accessible by integration" }
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "rate-limit words on a 404 are not a signal",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 404, "headers": {}, "body": { "message": "rate limit docs not found" } },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "200 at 9% remaining is low headroom",
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "450", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": true, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "200 at exactly 10% remaining is not yet low",
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "500", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "200 at 11% remaining is not low",
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "550", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": {}
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "200 with no rate-limit headers is neither latched nor low",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 200, "headers": {}, "body": {} },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "search remaining 0 stops only the search pool",
+      "input": {
+        "url": "https://api.github.com/search/issues?q=x",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "30", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792748040" },
+        "body": { "items": [] }
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792748040, "pool": "search" }
+    }
+  ]
+}
