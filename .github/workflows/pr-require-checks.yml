@@ -3239,7 +3239,17 @@ jobs:
               case $arg in
                 # --paginate prints a header block per page, which could not be told
                 # from body text that looks like one: left as it is.
-                -i | --include | --silent | --slurp | --paginate) api_budget_pass "$@"; return ;;
+                --silent | --slurp | --paginate) api_budget_pass "$@"; return ;;
+                # The caller reads the headers itself: the guard reads them too, and
+                # the output goes on unchanged.
+                -i | --include)
+                  out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
+                  command gh "$@" >"$out" || rc=$?
+                  api_budget_observe "$out" "$pool" "gh $*"
+                  cat "$out"
+                  rm -f "$out"
+                  return "$rc"
+                  ;;
                 *) ;;
               esac
             done

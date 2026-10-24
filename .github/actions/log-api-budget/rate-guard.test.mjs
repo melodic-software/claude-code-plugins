@@ -104,6 +104,7 @@ function latchFor({ now = NOW } = {}) {
       failed += 1;
     },
     limits: () => apiLimits({ resolvedPath: "" }),
+    stopFile: null,
   });
   return { latch, lines, clock, failed: () => failed };
 }
@@ -188,6 +189,7 @@ test("without a readable schema the latch still stops, and says the floor is unc
     now: () => NOW,
     log: (line) => lines.push(line),
     fail: () => {},
+    stopFile: null,
     limits: () => {
       throw new Error("ENOENT");
     },
@@ -222,8 +224,23 @@ test("one limit stops every helper in the process, and the process exits red", (
     process.exitCode = 0;
   `;
   const root = new URL("../../../", import.meta.url).pathname;
-  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8", env: { ...process.env, RESOLVED_CONFIG: "" } });
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, encoding: "utf8", env: { ...process.env, RESOLVED_CONFIG: "", RUNNER_TEMP: "" } });
   assert.match(run.stdout, /sent=1 refused=RateLimitStop/);
   assert.match(run.stdout, /::error::GET \/repos\/o\/r|::error::GET https:\/\/api\.github\.com\/repos\/o\/r /);
   assert.equal(run.status, 1);
 });
+
+// The job-wide stop: a latch writes its stop to the file the gh wrapper
+// shares, and a later step's latch, or the wrapper, starts from it.
+test("a stop is written to the job's stop file, and a later latch refuses from it", async () =>
+  withDir(async (dir) => {
+    const stopFile = join(dir, "api-budget", "stop");
+    const options = { now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile };
+    const gh = fakeGitHub([PRIMARY]);
+    const first = createRateLimitLatch(options).guard(gh.fetch);
+    await first(URL_A);
+    assert.equal(readFileSync(stopFile, "utf8"), "core 1792751600\n");
+    const later = createRateLimitLatch(options).guard(gh.fetch);
+    await assert.rejects(later(URL_B), RateLimitStop);
+    assert.equal(gh.sent.length, 1);
+  }));

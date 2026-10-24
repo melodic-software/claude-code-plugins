@@ -8,7 +8,8 @@
 // (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit).
 // So once a response shows a pool exhausted, the latch sends no further call
 // to that pool before its reset for the rest of the process, logs an error
-// naming the reset, and the process exits red. A response under the pool's
+// naming the reset, and the process exits red. The stop also goes in the
+// job's stop file, so later steps, the gh wrapper's included, keep it. A response under the pool's
 // read-floor share left logs a warning once; belowFloor lets a caller skip a
 // read it can do without.
 //
@@ -17,7 +18,8 @@
 // which this module reads at load: the schema holds the only copy.
 // rate-guard.vectors.json pins classify's decisions for every port.
 
-import { readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import process from "node:process";
 
 // GitHub's documented rate-limit signals, same page: a 403 or 429 whose
@@ -149,13 +151,33 @@ function failProcess() {
   }
 }
 
+// The job's stop file, which api-budget.bash's gh wrapper shares: lines
+// `<pool> <reset epoch>`. A latch starts from the stops an earlier step wrote
+// and appends its own, so one stop holds for the whole job.
+const STOP_FILE = process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "api-budget", "stop") : null;
+
+function readStops(path) {
+  const stops = new Map();
+  let text = "";
+  try {
+    text = path ? readFileSync(path, "utf8") : "";
+  } catch {
+    text = "";
+  }
+  for (const [, pool, reset] of text.matchAll(/^([a-z_]+|\*) (\d{1,12})$/gm)) {
+    stops.set(pool, Math.max(stops.get(pool) ?? 0, Number(reset)));
+  }
+  return stops;
+}
+
 export function createRateLimitLatch({
   now = () => Date.now(),
   log = (line) => console.log(line),
   fail = failProcess,
   limits = () => apiLimits(),
+  stopFile = STOP_FILE,
 } = {}) {
-  const stops = new Map();
+  const stops = readStops(stopFile);
   const low = new Map();
   const warned = new Set();
   let config;
@@ -197,6 +219,14 @@ export function createRateLimitLatch({
     low.set(pool, verdict.low);
     if (verdict.latched) {
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
+      if (stopFile) {
+        try {
+          mkdirSync(dirname(stopFile), { recursive: true });
+          appendFileSync(stopFile, `${verdict.pool} ${verdict.reset}\n`);
+        } catch {
+          // The in-process stop still holds.
+        }
+      }
       log(
         `::error::${method} ${url} hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status}):` +
           ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); this step fails`,

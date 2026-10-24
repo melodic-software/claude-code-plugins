@@ -8,7 +8,7 @@ import { budgetedFetch } from "./request-budget.mjs";
 // stops the next nor fails this process.
 const budgeted = (options) =>
   budgetedFetch({
-    latch: createRateLimitLatch({ now: options.now ?? (() => Date.now()), log: () => {}, fail: () => {}, limits: () => ({}) }),
+    latch: createRateLimitLatch({ now: options.now ?? (() => Date.now()), log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null }),
     ...options,
   });
 
