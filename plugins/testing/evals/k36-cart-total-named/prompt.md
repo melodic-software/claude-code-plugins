@@ -22,7 +22,7 @@ Acceptance criteria:
 1. An empty cart totals 0.
 2. The total is the sum of `unit_price_cents * qty` over every line.
 3. A line with a quantity of 10 or more gets 10% off that line, rounded half up to a whole cent
-   (11 units at 1005 cents total 9950, not 9949).
+   (15 units at 3 cents total 41, not 40).
 4. The coupon `SAVE5` takes 500 cents off a total of 5000 cents or more, after line discounts, and
    does nothing below 5000.
 5. Any other coupon code raises `ValueError`, and the cart is unchanged.

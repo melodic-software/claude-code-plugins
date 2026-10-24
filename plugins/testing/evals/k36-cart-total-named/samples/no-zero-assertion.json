@@ -21,6 +21,10 @@
     {
       "answer": "class T(unittest.IsolatedAsyncioTestCase):\n    async def test_runs(self):\n        await something()\n\n    def test_value(self):\n        self.assertEqual(Cart().total_cents(), 0)\n",
       "why": "an assertion-free test followed by an async definition"
+    },
+    {
+      "answer": "class T(unittest.TestCase):\n    def test_runs(self) -> None:\n        Cart().total_cents()\n",
+      "why": "an annotated test method with no assertion"
     }
   ]
 }
