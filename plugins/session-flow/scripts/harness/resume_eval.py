@@ -255,8 +255,15 @@ def state_change_label(block: dict) -> str | None:
     return None
 
 
-def reader_tokens(events: list[dict]) -> dict:
-    """Token metrics of a Claude Code stream-json run up to its first state change.
+def writer_tokens(events: list[dict]) -> dict:
+    """`reader_tokens` over the whole run: a writer's own writes (the handoff file, its
+    slots) are its work, not the end of what it spent."""
+    return reader_tokens(events, whole=True)
+
+
+def reader_tokens(events: list[dict], *, whole: bool = False) -> dict:
+    """Token metrics of a Claude Code stream-json run up to its first state change
+    (with `whole`, of the entire run).
 
     m1: input + cache creation + cache read + output summed per call (the ship-rule metric).
     m2: context at the last counted call plus summed output. m3: m1 without cache reads.
@@ -276,11 +283,9 @@ def reader_tokens(events: list[dict]) -> dict:
                 for key in TOKEN_KEYS
             }
         for block in message.get("content") or []:
-            if block.get("type") == "tool_use":
+            if block.get("type") == "tool_use" and not state_change:
                 state_change = state_change_label(block)
-                if state_change:
-                    break
-        if state_change:
+        if state_change and not whole:
             break
     calls = list(seen.values())
     last = calls[-1] if calls else dict.fromkeys(TOKEN_KEYS, 0)
@@ -882,7 +887,7 @@ def _write_hop(
         if reason := exclusion_reason(code, out, err, events):
             return {"excluded": f"focus: {reason}"}
         focus = final_text(events).strip()
-        focus_tokens = reader_tokens(events)
+        focus_tokens = writer_tokens(events)
         code, out, err, events = _claude(
             cfg,
             run,
@@ -913,7 +918,7 @@ def _write_hop(
     )
     if reason := exclusion_reason(code, out, err, events):
         return {"excluded": f"writer: {reason}"}
-    measured = reader_tokens(events)
+    measured = writer_tokens(events)
     tokens = {"m1": measured["m1"], "m3": measured["m3"]}
     reply = final_text(events)
     if arm == "free-hand":

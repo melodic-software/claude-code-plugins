@@ -996,3 +996,19 @@ def test_removing_one_run_leaves_runs_whose_index_shares_its_prefix(tmp_path):
         (arm / name).mkdir(parents=True)
     resume_eval.remove_run_dirs(arm / "1")
     assert sorted(p.name for p in arm.iterdir()) == ["10", "10-codex", "11", "2"]
+
+
+def test_writer_tokens_count_the_whole_writer_run_past_its_writes():
+    def call(msg_id, tokens, *blocks):
+        usage = {key: tokens for key in resume_eval.TOKEN_KEYS}
+        return {
+            "type": "assistant",
+            "message": {"id": msg_id, "usage": usage, "content": list(blocks)},
+        }
+
+    write = {"type": "tool_use", "name": "Write", "input": {"file_path": "h.md"}}
+    events = [call("m1", 10, write), call("m2", 5), call("m3", 1)]
+    per_call = len(resume_eval.TOKEN_KEYS)
+    assert resume_eval.reader_tokens(events)["m1"] == 10 * per_call
+    assert resume_eval.writer_tokens(events)["m1"] == 16 * per_call
+    assert resume_eval.writer_tokens(events)["calls"] == 3
