@@ -174,6 +174,18 @@ condition 1 and the actor and author parts of condition 2).
   github-actions[bot] upstream at any other attempt, or with no record, stops with
   `untrusted-actor`. This run's own re-runner is then checked as above.
 
+  `ci-status-rerun-workflow` adds a second recorder for the upstream run only:
+  `pr-feedback-dispatch.yml`'s `rerun-ci-status` job, which uploads
+  `rerun-ci-status-<run id>-<attempt>-<head_sha>` immediately before it re-runs a ci-status job,
+  naming the attempt that re-run starts. A github-actions[bot] upstream at attempt 2 or later is
+  checked as above against `GET /actions/runs/{id}/attempts/{attempt}` and that name (at attempt 2
+  the reconciler's name is read first), except that the recording run's `event` must be
+  `workflow_run` and its `actor` is not checked, since such a run runs the default branch's file,
+  and the window runs from the record: the run started no later than the artifact's `created_at`,
+  and the attempt started at most ten minutes after it. The job can poll for ten minutes before
+  it uploads, so a window from the run's start would refuse it. This run's own github-actions[bot]
+  re-runner is never vouched for by this record.
+
   Residuals: whether one run can write another run's artifacts is unverified, as for the
   dispatcher record. A re-run that waits in a queue past the ten-minute window is refused, red;
   a person re-runs it. More than 1,000 forged artifacts of one name would push the real record
