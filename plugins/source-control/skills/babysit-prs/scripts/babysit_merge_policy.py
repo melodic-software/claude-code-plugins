@@ -2324,6 +2324,9 @@ def lane_eligibility(
 # A commit's file list stops at this many entries, so a full one may hide more.
 COMMIT_FILES_LIMIT = 300
 CI_STATUS_CHECK = "ci-status"
+# GitHub Actions, the app the ruleset requires `ci-status` from; another app's
+# run of that name, with any start time it chooses, never decides the gate.
+ACTIONS_APP_ID = 15368
 
 
 def is_dependabot_pull_request(pr: Mapping[str, Any]) -> bool:
@@ -2540,14 +2543,24 @@ def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
 
 def _ci_status(owner: str, name: str, head: str) -> str:
     """`success`, `pending`, or the conclusion of a finished `ci-status` run on
-    `head` that did not succeed; `unreadable` when the runs cannot be read."""
+    `head` that did not succeed; `unreadable` when the runs cannot be read.
+    `filter=latest` keeps the latest run of each check suite, so a re-triggered
+    workflow leaves an older run beside a newer one: the runs that started last
+    decide, and any failure among them decides, as it does among all runs when
+    one has no readable start time. Only GitHub Actions' runs are read."""
     status, payload = _get(
         f"repos/{owner}/{name}/commits/{head}/check-runs"
-        f"?check_name={CI_STATUS_CHECK}&filter=latest&per_page=100"
+        f"?check_name={CI_STATUS_CHECK}&app_id={ACTIONS_APP_ID}&filter=latest&per_page=100"
     )
     runs = [json_object(r) for r in json_array(json_object(payload).get("check_runs"))]
     if status != 200 or not SHA_RE.fullmatch(head):
         return "unreadable"
+    try:
+        started = [_time(r.get("started_at")) for r in runs]
+    except PolicyReadError:
+        started = []
+    if started:
+        runs = [r for r, s in zip(runs, started, strict=True) if s == max(started)]
     if not runs or any(r.get("status") != "completed" for r in runs):
         return "pending"
     failed = [

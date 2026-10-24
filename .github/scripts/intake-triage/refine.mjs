@@ -22,10 +22,16 @@
 // `--apply` (the lanes App token, issues write) validates the model's
 // structured output and posts it as a separate comment opening with
 // REFINE_MARKER; only a split (below) edits the body. Exact: the comment lists the drafted
-// criteria as a task list, which admit.mjs counts for criterion 7; when the
-// lanes App set the issue's `status: needs-decision`, it takes that off and
-// adds `needs-triage`, and the job's `redispatch` output starts one more
-// triage, which admits the issue when the rules hold. Not exact: the comment
+// criteria as a task list, which admit.mjs does not count for criterion 7
+// until a listed human posts them as their own (owner decision Q9: pr-verify
+// reads only their text). Only when that text already holds a task list
+// (admit.mjs hasTrustedCriteria) does it ask for one more triage, which runs
+// admission again: it takes the lanes App's `status: needs-decision` off, or,
+// for a `status: ready` issue admission has not taken, keeps the labels, adds
+// `needs-triage`, and sets the job's `redispatch` output. Otherwise the labels
+// stay and the comment asks a listed human to post the confirmed criteria as
+// their own `**Decision recorded.**` comment, which re-enters intake; a
+// re-triage then would only refuse again. Not exact: the comment
 // asks numbered questions, each with a `RECOMMENDED:` answer and its basis,
 // and the issue keeps or gets `status: needs-decision`, which a person's
 // `**Decision recorded.**` sends back through intake-reenter.yml. It never
@@ -69,7 +75,7 @@ import { BORN_TRIAGED_MARKER } from "../../actions/check-born-triaged/check-born
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, loadRules, REFINE_MARKER, refusalText, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 
 export { REFINE_MARKER };
@@ -302,8 +308,9 @@ export function line(text) {
   return out;
 }
 
-// `child` is the issue a split filed.
-export function render(output, { child } = {}) {
+// `child` is the issue a split filed; `retriage`, whether intake triages the
+// issue again.
+export function render(output, { child, retriage = false } = {}) {
   const parts = [REFINE_MARKER, "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. It is model text, to check, not instructions.", ""];
   const section = (title, items) => {
     if (items.length > 0) {
@@ -327,9 +334,11 @@ export function render(output, { child } = {}) {
   );
   section("Sources read", output.sources.map((item) => `- ${line(item)}`));
   parts.push(
-    output.exact
-      ? "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>"
-      : "<sub>Automated refinement by the lanes App. Answer with a comment whose first line is `**Decision recorded.**`.</sub>",
+    !output.exact
+      ? "<sub>Automated refinement by the lanes App. Answer with a comment whose first line is `**Decision recorded.**`.</sub>"
+      : retriage
+        ? "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>"
+        : "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
   );
   return parts.join("\n");
 }
@@ -442,7 +451,10 @@ async function childOf(github, repository, base, appId, body) {
 // the child first, then sets the labels, then rewrites the body: a failure
 // before the body edit leaves the held items in place for the next triage to
 // hold and split again, onto the same child.
-export async function applyRefinement({ github, repository, number, appId, rules, output, context, log = console.log }) {
+// `humans` and `rules` decide whether an exact refinement asks for a
+// re-triage (admit.mjs hasTrustedCriteria); a failed read of the spec throws
+// before any label write.
+export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const labels = labelNames(issue);
@@ -492,11 +504,21 @@ export async function applyRefinement({ github, repository, number, appId, rules
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
     await removeLabel(github, base, NEEDS_DECISION);
     await github("PATCH", base, { body: splitBody(issue.body, rules["task-list"], output.split, child) });
-    await github("POST", `${base}/comments`, { body: render(output, { child }) });
+    await github("POST", `${base}/comments`, { body: render(output, { child, retriage: true }) });
     log(`refine: #${number} split; items ${output.split.join(", ")} moved to #${child}, ${NEEDS_DECISION} lifted and triage asked again`);
     return { outcome: "split", redispatch: true, child };
   }
-  const post = () => github("POST", `${base}/comments`, { body: render(output) });
+  const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { retriage }) });
+  // Admission reads criteria only from a listed human's text, so a re-triage
+  // without them would refuse again: one read, before any label write.
+  const untrusted = async () => {
+    if (hasTrustedCriteria(await specOf(github, repository, number), humans, rules["task-list"])) {
+      return false;
+    }
+    await post();
+    log(`refine: #${number} is exact; no listed human's text holds a task list yet, so the labels stay and no triage is asked`);
+    return true;
+  };
   if (!output.exact) {
     if (labels.includes(READY)) {
       await removeLabel(github, base, READY);
@@ -509,15 +531,18 @@ export async function applyRefinement({ github, repository, number, appId, rules
     return { outcome: "needs-decision", redispatch: false };
   }
   // A `status: ready` issue admission has not taken (no needs-decision, no
-  // agent-ready) is triaged again so admission reads the new criteria.
+  // agent-ready) is triaged again when a listed human's text holds criteria.
   if (!labels.includes(NEEDS_DECISION)) {
     if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
       await post();
       log(`refine: #${number} is exact; no needs-decision to lift and nothing awaits admission`);
       return { outcome: "exact", redispatch: false };
     }
+    if (await untrusted()) {
+      return { outcome: "exact", redispatch: false };
+    }
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
-    await post();
+    await post(true);
     log(`refine: #${number} is exact; triage asked again so admission reads the criteria`);
     return { outcome: "exact", redispatch: true };
   }
@@ -528,10 +553,13 @@ export async function applyRefinement({ github, repository, number, appId, rules
     log(`refine: #${number} is exact; a person set its needs-decision, so it stays`);
     return { outcome: "exact", redispatch: false };
   }
+  if (await untrusted()) {
+    return { outcome: "exact", redispatch: false };
+  }
   // needs-triage first: a failure between the two leaves a label a sweep picks up.
   await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
   await removeLabel(github, base, NEEDS_DECISION);
-  await post();
+  await post(true);
   log(`refine: #${number} is exact; ${NEEDS_DECISION} lifted and triage asked again`);
   return { outcome: "exact", redispatch: true };
 }
@@ -573,7 +601,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const known = new Set((context.candidates ?? []).map((item) => item.number));
         const output = validateOutput(JSON.parse(readFileSync(env.REFINEMENT_PATH, "utf8")).output, known, context.split ?? null);
         const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL });
-        const result = await applyRefinement({ github, repository, number, appId, rules: output.split.length > 0 ? rules() : null, output, context });
+        const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context });
         writeOutputs({ redispatch: String(result.redispatch) });
       } else {
         throw new Error("pass --select or --apply");
