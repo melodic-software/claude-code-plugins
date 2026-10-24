@@ -126,6 +126,23 @@ describe("decide", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
   });
 
+  // Owner decision Q85 (#9668): the work class gates nothing.
+  test("admits a structural class, a class outside `classes` and no class", () => {
+    for (const workClass of ["work-class: structural", "work-class: anything-goes", null]) {
+      assert.deepEqual(decide(facts({ verdict: { ...VERDICT, workClass } })), { verdict: "admit", reasons: [] }, String(workClass));
+    }
+  });
+
+  test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
+    const event = (kind, id) => ({ event: kind, label: { name: "work-class: untrusted-provenance" }, actor: { id } });
+    const refused = decide(facts({ events: [event("labeled", APP), event("unlabeled", OUTSIDER)] }));
+    assert.equal(refused.verdict, "refuse");
+    assert.match(refused.reasons.join(), /untrusted-provenance work needs a person/);
+    for (const remover of [HUMAN, APP]) {
+      assert.deepEqual(decide(facts({ events: [event("labeled", APP), event("unlabeled", remover)] })), { verdict: "admit", reasons: [] }, String(remover));
+    }
+  });
+
   test("admits Uncertainty Knowable, which the lane researches first", () => {
     const verdict = { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "knowable" } };
     assert.deepEqual(decide(facts({ verdict })), { verdict: "admit", reasons: [] });
@@ -175,7 +192,12 @@ describe("decide", () => {
       },
       /Size large/,
     ],
-    ["criterion 3: a structural class", { verdict: { ...VERDICT, workClass: "work-class: structural" } }, /work-class: structural/],
+    ["criterion 3: untrusted-provenance work", { verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" } }, /untrusted-provenance work needs a person/],
+    [
+      "criterion 3: an untrusted-provenance label on the issue",
+      { issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) },
+      /untrusted-provenance work needs a person/,
+    ],
     ["criterion 7: no task list to check", { issue: issueOf({ body: "Make the README better." }) }, /no trusted-human acceptance criteria: .*confirmed `- \[ \]` criteria/],
     [
       "criterion 8: a duplicate label",
@@ -294,6 +316,34 @@ describe("decide", () => {
       }),
     );
     assert.equal(result.verdict, "skip");
+  });
+
+  // A removal bars admission only until triage or a listed human marks the
+  // issue ready again after it.
+  describe("an agent-ready removal and a later status: ready", () => {
+    const removed = (at) => ({ event: "unlabeled", label: { name: AGENT_READY }, actor: { id: HUMAN }, created_at: at });
+    const marked = (at, id = APP) => ({ event: "labeled", label: { name: READY }, actor: { id }, created_at: at });
+    const verdictFor = (events) => decide(facts({ events })).verdict;
+
+    test("a removal with no later status: ready skips", () => {
+      assert.equal(verdictFor([marked("2026-10-20T00:00:00Z"), removed("2026-10-21T00:00:00Z")]), "skip");
+    });
+    test("a removal then a later status: ready is decided", () => {
+      assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z")]), "admit");
+      assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z", HUMAN)]), "admit");
+    });
+    test("the newest removal counts", () => {
+      assert.equal(verdictFor([removed("2026-10-19T00:00:00Z"), marked("2026-10-20T00:00:00Z"), removed("2026-10-21T00:00:00Z")]), "skip");
+      assert.equal(verdictFor([removed("2026-10-19T00:00:00Z"), removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z")]), "admit");
+    });
+    test("events compare by when they happened, else by their order", () => {
+      assert.equal(verdictFor([marked("2026-10-21T00:00:00Z"), removed("2026-10-20T00:00:00Z")]), "admit");
+      assert.equal(verdictFor([{ ...removed(), created_at: undefined }, { ...marked(), created_at: undefined }]), "admit");
+      assert.equal(verdictFor([{ ...marked(), created_at: undefined }, { ...removed(), created_at: undefined }]), "skip");
+    });
+    test("a status: ready added by neither a listed human nor the lanes App does not lift it", () => {
+      assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z", OUTSIDER)]), "skip");
+    });
   });
 
   test("issue text cannot admit: a quoted task list does not count, so the issue is refused", () => {
@@ -706,7 +756,7 @@ describe("noteUnrunnable", () => {
   });
   test("an issue whose agent-ready was removed before gets no note", async () => {
     const fake = fakeGitHub({ issue: HELD, events: [{ event: "unlabeled", label: { name: AGENT_READY } }] });
-    assert.deepEqual(await note(fake), { outcome: "skipped", reasons: [`${AGENT_READY} was removed before`] });
+    assert.deepEqual(await note(fake), { outcome: "skipped", reasons: [`${AGENT_READY} was removed and ${READY} not added since`] });
     assert.deepEqual(writes(fake.calls), []);
   });
   test("a repeated run leaves an unchanged note alone, and edits a changed one in place", async () => {

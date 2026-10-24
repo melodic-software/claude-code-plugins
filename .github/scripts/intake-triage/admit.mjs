@@ -11,8 +11,9 @@
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision;
-// - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
-//   `sizes` and `uncertainty`;
+// - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
+//   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
+//   work; no other work class gates admission (owner Q85, #9668);
 // - 7 (with owner decision Q9, #8999): a `task-list` line, the criteria the
 //   lane checks, in text pr-verify will read: the body or a comment written,
 //   and last edited if ever, by a listed human (resolve-pr.mjs linkedIssues).
@@ -46,8 +47,9 @@
 // work-unblock admits it when its blocker closes. A refused issue loses it
 // too. The sweep runs these rules itself only on an issue a listed human
 // marked (added admission-deferred to an issue with `status: ready`). An
-// issue already agent-ready, or whose agent-ready was ever removed, is left
-// alone. Issue text can only
+// issue already agent-ready is left alone, and so is one whose agent-ready
+// was removed until the lanes App or a listed human adds `status: ready`
+// after the newest removal. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
 import { readFileSync } from "node:fs";
 
@@ -62,8 +64,10 @@ export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
+// The one work class that holds an issue for a person (owner Q85, #9668).
+export const UNTRUSTED = "work-class: untrusted-provenance";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
-const LISTS = ["types", "types-under-parent", "classes", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
@@ -244,14 +248,37 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// Why admission leaves an issue alone whatever its verdict, or null: a person
-// already added agent-ready, or it was removed once. Pure.
-export function admissionSettled(labels, events) {
+// Whether events[a] happened before events[b]: by created_at when both have
+// one and they differ, else by their order as listed.
+const before = (events, a, b) => {
+  const [at, bt] = [Date.parse(events[a]?.created_at), Date.parse(events[b]?.created_at)];
+  return Number.isFinite(at) && Number.isFinite(bt) && at !== bt ? at < bt : a < b;
+};
+
+// Whether an agent-ready removal still stands: the newest event `isRemoval`
+// accepts has no `status: ready` add after it that `isMark` accepts (by
+// default, any). A lane's escalation or a person's removal keeps the issue out
+// until triage or a person marks it ready again. Pure.
+export function removalStands(events, isRemoval, isMark = () => true) {
+  const removals = events.flatMap((event, index) => (isRemoval(event, index) ? [index] : []));
+  if (removals.length === 0) {
+    return false;
+  }
+  const newest = removals.reduce((a, b) => (before(events, a, b) ? b : a));
+  return !events.some(
+    (event, index) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === READY && isMark(event) && before(events, newest, index),
+  );
+}
+
+// Why admission leaves an issue alone whatever its verdict, or null: it is
+// already agent-ready, or its agent-ready was removed and no `status: ready`
+// `isMark` accepts was added since (removalStands). Pure.
+export function admissionSettled(labels, events, isMark) {
   if (labels.includes(AGENT_READY)) {
     return `already ${AGENT_READY}`;
   }
-  if (events.some((event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY)) {
-    return `${AGENT_READY} was removed before`;
+  if (removalStands(events, (event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY, isMark)) {
+    return `${AGENT_READY} was removed and ${READY} not added since`;
   }
   return null;
 }
@@ -262,7 +289,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
   }
-  const settled = admissionSettled(labels, events);
+  // Only the App's or a listed human's status: ready lifts a removal: the
+  // App's agent-ready starts a credentialed run.
+  const settled = admissionSettled(labels, events, (event) => humans.has(event.actor?.id) || (appId !== undefined && event.actor?.id === appId));
   if (settled) {
     return { verdict: "skip", reasons: [settled] };
   }
@@ -282,8 +311,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   } else if (!rules.types.includes(type)) {
     refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"]].join(", ")}`);
   }
-  if (!rules.classes.includes(verdict.workClass)) {
-    refuse.push(`${verdict.workClass} is not one of ${rules.classes.join(", ")}`);
+  // The hold also stands when its newest event is a removal by neither a
+  // listed human nor the lanes App.
+  const untrustedEvent = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
+  const removedByOther = untrustedEvent?.event === "unlabeled" && !humans.has(untrustedEvent.actor?.id) && !(appId !== undefined && untrustedEvent.actor?.id === appId);
+  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
+    refuse.push(`${UNTRUSTED} work needs a person`);
   }
   if (!rules.sizes.includes(verdict.dimensions?.size)) {
     refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);

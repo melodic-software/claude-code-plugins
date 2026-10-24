@@ -53,6 +53,31 @@ const RECONCILER_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 // run, the attempt the re-run starts, and the run's head SHA.
 export const rerunRecordName = (runId, headSha) => `reconcile-rerun-${runId}-${RERUN_ATTEMPT}-${headSha}`;
 
+// The artifact pr-feedback-dispatch.yml's rerun-ci-status job uploads just
+// before it re-runs a ci-status job: the run, the attempt the re-run starts,
+// and the run's head SHA.
+export const ciStatusRerunRecordName = (runId, attempt, headSha) => `rerun-ci-status-${runId}-${attempt}-${headSha}`;
+
+// Who may record a github-actions[bot] re-run: the run's path, the attempts it
+// starts, its record's name, how its run must have started, and what bounds the
+// window. The reconciler's window runs from its run's start; rerun-ci-status
+// may poll for minutes first, so its window runs from the record's upload.
+const reconcilerRecorder = (workflow) => ({
+  workflow,
+  attempts: (attempt) => attempt === RERUN_ATTEMPT,
+  name: (runId, _attempt, headSha) => rerunRecordName(runId, headSha),
+  started: (run, isListedHuman) => RECONCILER_EVENTS.has(run.event) && (run.event === "schedule" || isListedHuman(run.actor)),
+  fromRecord: false,
+});
+// A workflow_run run runs the default branch's file, whoever's run started it.
+const ciStatusRerunRecorder = (workflow) => ({
+  workflow,
+  attempts: (attempt) => attempt >= RERUN_ATTEMPT,
+  name: ciStatusRerunRecordName,
+  started: (run) => run.event === "workflow_run",
+  fromRecord: true,
+});
+
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class GitHubError extends Error {
@@ -801,22 +826,30 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
 // RECORD_WAIT_MS for any lag in the artifact list. Every refusal is refuse:
 // untrusted-rerunner for this run, as for an unlisted re-runner, and
 // untrusted-actor for an upstream run, as for an unlisted actor.
-async function verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep, refuse = "untrusted-rerunner" }) {
+//
+// The same check runs for each recorder whose attempts include runAttempt
+// (reconcilerRecorder, ciStatusRerunRecorder), reading that attempt and that
+// recorder's record name; a rerun-ci-status run must be a workflow_run run,
+// and its record uploaded after it started, no later than the attempt started
+// and at most WINDOW_MS before it.
+async function verifyRecordedRerun({ github, repository, event, list, deniedIds, recorders, runId, runAttempt, sleep, refuse = "untrusted-rerunner" }) {
   const defaultBranch = event.repository?.default_branch;
+  const attempt = Number(runAttempt);
+  const usable = RUN_ATTEMPT.test(runAttempt) ? recorders.filter((recorder) => recorder.workflow !== "" && recorder.attempts(attempt)) : [];
   if (
     deniedIds.has(ACTIONS_BOT_ID) ||
     !RUN_ID.test(runId) ||
-    runAttempt !== String(RERUN_ATTEMPT) ||
+    usable.length === 0 ||
     typeof defaultBranch !== "string" ||
     !HEAD_REF.test(defaultBranch)
   ) {
     throw new Stop(refuse);
   }
-  const own = await readOrRefuse(github, `/repos/${repository}/actions/runs/${runId}/attempts/${RERUN_ATTEMPT}`, refuse);
+  const own = await readOrRefuse(github, `/repos/${repository}/actions/runs/${runId}/attempts/${attempt}`, refuse);
   const ownStarted = timeOf(own.run_started_at);
   if (
     String(own.id) !== runId ||
-    own.run_attempt !== RERUN_ATTEMPT ||
+    own.run_attempt !== attempt ||
     own.triggering_actor?.id !== ACTIONS_BOT_ID ||
     own.repository?.full_name !== repository ||
     !SHA.test(own.head_sha ?? "") ||
@@ -824,28 +857,30 @@ async function verifyReconcilerRerun({ github, repository, event, list, deniedId
   ) {
     throw new Stop(refuse);
   }
-  const name = rerunRecordName(runId, own.head_sha);
   const isListedHuman = (user) =>
     Number.isInteger(user?.id) && list.humans.has(user.id) && !deniedIds.has(user.id);
   // Anyone's run can upload an artifact of this name, so each candidate's run
-  // is read and judged, at most RECORD_MAX_CANDIDATES of them; one that cannot
-  // be read does not vouch.
-  let candidates = 0;
-  const vouches = async (artifact) => {
+  // is read and judged, at most RECORD_MAX_CANDIDATES of them per record name;
+  // one that cannot be read does not vouch. A name past its cap returns null:
+  // the next recorder's name is still read, and past the last one it refuses.
+  const candidates = new Map();
+  const vouches = async (artifact, recorder, name) => {
+    const recorded = timeOf(artifact?.created_at);
     if (
       !isPlainObject(artifact) ||
       artifact.name !== name ||
       artifact.expired !== false ||
       !Number.isSafeInteger(artifact.workflow_run?.id) ||
-      !(timeOf(artifact.created_at) <= ownStarted)
+      !(recorded <= ownStarted)
     ) {
       return false;
     }
-    if (candidates >= RECORD_MAX_CANDIDATES) {
-      console.log(`check-trusted-trigger: reconciler record: over ${RECORD_MAX_CANDIDATES} candidate runs, refusing (run ${runId})`);
-      throw new Stop(refuse);
+    const count = candidates.get(name) ?? 0;
+    if (count >= RECORD_MAX_CANDIDATES) {
+      console.log(`check-trusted-trigger: re-run record ${name}: over ${RECORD_MAX_CANDIDATES} candidate runs (run ${runId})`);
+      return null;
     }
-    candidates += 1;
+    candidates.set(name, count + 1);
     let run;
     try {
       run = await readOrRefuse(github, `/repos/${repository}/actions/runs/${artifact.workflow_run.id}`, refuse);
@@ -856,40 +891,49 @@ async function verifyReconcilerRerun({ github, repository, event, list, deniedId
     const trusted =
       run.id === artifact.workflow_run.id &&
       run.repository?.full_name === repository &&
-      run.path === reconcilerWorkflow &&
+      run.path === recorder.workflow &&
       run.head_branch === defaultBranch &&
-      RECONCILER_EVENTS.has(run.event) &&
-      (run.event === "schedule" || isListedHuman(run.actor)) &&
+      recorder.started(run, isListedHuman) &&
       SHA.test(run.head_sha ?? "") &&
       Number.isInteger(run.run_attempt) &&
       run.run_attempt >= 1 &&
       (run.run_attempt === 1 || isListedHuman(run.triggering_actor)) &&
       started <= ownStarted &&
-      ownStarted <= started + WINDOW_MS;
+      (recorder.fromRecord ? started <= recorded && ownStarted <= recorded + WINDOW_MS : ownStarted <= started + WINDOW_MS);
     if (!trusted) {
       return false;
     }
     await requireOnDefaultBranch(github, repository, defaultBranch, run.head_sha, refuse);
     return true;
   };
-  const listingPath = `/repos/${repository}/actions/artifacts?name=${name}&per_page=100`;
   for (let read = 0; read < 2; read += 1) {
     if (read > 0) {
-      console.log(`check-trusted-trigger: reconciler record: absent, re-read (run ${runId})`);
+      console.log(`check-trusted-trigger: re-run record: absent, re-read (run ${runId})`);
       await sleep(RECORD_WAIT_MS);
     }
-    for (let page = 1; page <= RECORD_MAX_PAGES; page += 1) {
-      const body = await readOrRefuse(github, `${listingPath}&page=${page}`, refuse);
-      if (!Array.isArray(body.artifacts)) {
-        throw new Stop(refuse);
-      }
-      for (const artifact of body.artifacts) {
-        if (await vouches(artifact)) {
-          return;
+    for (const [index, recorder] of usable.entries()) {
+      const name = recorder.name(runId, attempt, own.head_sha);
+      const listingPath = `/repos/${repository}/actions/artifacts?name=${name}&per_page=100`;
+      pages: for (let page = 1; page <= RECORD_MAX_PAGES; page += 1) {
+        const body = await readOrRefuse(github, `${listingPath}&page=${page}`, refuse);
+        if (!Array.isArray(body.artifacts)) {
+          throw new Stop(refuse);
         }
-      }
-      if (body.artifacts.length < 100) {
-        break;
+        for (const artifact of body.artifacts) {
+          const verdict = await vouches(artifact, recorder, name);
+          if (verdict === true) {
+            return;
+          }
+          if (verdict === null) {
+            if (index === usable.length - 1) {
+              throw new Stop(refuse);
+            }
+            break pages;
+          }
+        }
+        if (body.artifacts.length < 100) {
+          break;
+        }
       }
     }
   }
@@ -965,6 +1009,7 @@ export async function evaluateTrigger({
   runId = "",
   runAttempt = "",
   reconcilerWorkflow = "",
+  ciStatusRerunWorkflow = "",
   dispatchedWorkflow = "",
   github,
   sleep = defaultSleep,
@@ -1050,34 +1095,39 @@ export async function evaluateTrigger({
   } else if (expectedUpstreamHead !== "") {
     throw new Stop("untrusted-actor");
   } else {
-    // A CI run the reconciler re-ran is started by github-actions[bot] at
-    // attempt RERUN_ATTEMPT; that actor is vouched for only by its record, and
-    // every other actor must still be listed.
+    // A CI run the reconciler or rerun-ci-status re-ran is started by
+    // github-actions[bot]; that actor is vouched for only by a record of a
+    // recorder whose attempts include it, and every other actor must still be
+    // listed.
     const upstream = eventName === "workflow_run" ? event.workflow_run : undefined;
+    const recorders = [reconcilerRecorder(reconcilerWorkflow), ciStatusRerunRecorder(ciStatusRerunWorkflow)].filter(
+      (recorder) => recorder.workflow !== "",
+    );
     const upstreamRerun =
-      reconcilerWorkflow !== "" &&
       upstream?.triggering_actor?.id === ACTIONS_BOT_ID &&
-      upstream.run_attempt === RERUN_ATTEMPT;
+      Number.isInteger(upstream.run_attempt) &&
+      recorders.some((recorder) => recorder.attempts(upstream.run_attempt));
     const vouched = upstreamRerun ? [event.sender, upstream.actor] : actors;
     if (!vouched.every((actor) => isListed(ids, actor))) {
       throw new Stop("untrusted-actor");
     }
     if (upstreamRerun) {
-      await verifyReconcilerRerun({
+      await verifyRecordedRerun({
         github,
         repository,
         event,
         list,
         deniedIds,
-        reconcilerWorkflow,
+        recorders,
         runId: String(upstream.id),
-        runAttempt: String(RERUN_ATTEMPT),
+        runAttempt: String(upstream.run_attempt),
         sleep,
         refuse: "untrusted-actor",
       });
     }
     if (reconcilerWorkflow !== "" && String(triggeringActor).toLowerCase() === "github-actions[bot]") {
-      await verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep });
+      const reconciler = [reconcilerRecorder(reconcilerWorkflow)];
+      await verifyRecordedRerun({ github, repository, event, list, deniedIds, recorders: reconciler, runId, runAttempt, sleep });
     } else {
       await checkRerunner({ github, repository, runId, runAttempt, pool: ids, deniedIds });
     }
@@ -1144,6 +1194,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
       runId: env.GITHUB_RUN_ID ?? "",
       runAttempt: env.GITHUB_RUN_ATTEMPT ?? "",
       reconcilerWorkflow: env.RECONCILER_WORKFLOW ?? "",
+      ciStatusRerunWorkflow: env.CI_STATUS_RERUN_WORKFLOW ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
       sleep,
       attemptTimeoutMs,
