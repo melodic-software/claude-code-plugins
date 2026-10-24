@@ -4067,6 +4067,11 @@ def shared_refusal(
     return None
 
 
+def not_open_refusal(state: object) -> str:
+    """The gate's blocker for a pull request whose GraphQL state is not OPEN."""
+    return f"state={state} (not OPEN)"
+
+
 def assess(
     repo: str,
     number: int,
@@ -4081,6 +4086,7 @@ def assess(
     shared: SharedPostMerge | None = None,
     share: Callable[[SharedPostMerge], object] | None = None,
     human_gated: str | None = None,
+    stop_when_closed: bool = False,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -4119,13 +4125,21 @@ def assess(
     adopted pull request in the lane (`adoption_refusal`); None adopts none.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
-    promoted. `self_logins` names only lane or bot self identities (see
-    `is_human`). Raises `PolicyReadError` when the pull request or either
+    promoted. With `stop_when_closed`, a pull request the REST record reads
+    as closed refuses right after that read (`not_open_refusal`), before any
+    config or post-merge read: the gate holds it on the same blocker.
+    `self_logins` names only lane or bot self identities (see `is_human`). Raises `PolicyReadError` when the pull request or either
     pipeline config cannot be read, because the agent identity is then
     unknown. A default branch head config that cannot be parsed, or names
     another identity, is a stop (`StopReadError`).
     """
     pr = pull_request(repo, number)
+    if stop_when_closed and pr.get("state") == "closed":
+        return UnattendedPolicy(
+            not_open_refusal("MERGED" if pr.get("merged") is True else "CLOSED"),
+            enabled=False,
+            inputs={"pr": pr, "authority": authority},
+        )
     base_ref = str(json_object(pr.get("base")).get("ref"))
     base_sha = str(json_object(pr.get("base")).get("sha"))
     config = read_config_at(repo, base_sha)

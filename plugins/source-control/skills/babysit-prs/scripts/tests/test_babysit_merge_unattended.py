@@ -417,7 +417,11 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
     )
 
     def _vetoes(self, result: dict[str, Any]) -> list[str]:
-        return [b for b in result["blockers"] if "human blocking comment" in b or "human merge veto" in b]
+        return [
+            b
+            for b in result["blockers"]
+            if "human blocking comment" in b or "human merge veto" in b
+        ]
 
     def test_a_human_do_not_merge_comment_holds(self) -> None:
         result = _evaluate(
@@ -471,7 +475,9 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
 
     def test_a_later_comment_from_the_same_person_lifts_the_veto(self) -> None:
         veto = _comment(
-            "maintainer", "Do not merge until the release is cut.", at="2026-10-12T10:00:00Z"
+            "maintainer",
+            "Do not merge until the release is cut.",
+            at="2026-10-12T10:00:00Z",
         )
         lifted = _comment(
             "maintainer", "Release is out, go ahead.", at="2026-10-12T11:00:00Z"
@@ -533,8 +539,13 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
                     "body": "Do not merge.",
                     "created_at": "2026-10-12T10:00:00Z",
                 }
-                for kwargs in ({"issue_comments": [veto]}, {"review_comments": [inline]}):
-                    result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
+                for kwargs in (
+                    {"issue_comments": [veto]},
+                    {"review_comments": [inline]},
+                ):
+                    result = _evaluate(
+                        fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs
+                    )
                     self.assertEqual(
                         len(self._vetoes(result)), int(holds), result["blockers"]
                     )
@@ -810,6 +821,8 @@ class Unattended(unittest.TestCase):
         self.pr_head_ref = "feat"
         # REST `mergeable_state`; "dirty" is a conflict with the base.
         self.pr_mergeable_state: str | None = None
+        # The REST `state` and `merged` fields; None leaves them out.
+        self.pr_rest_state: tuple[str, bool] | None = None
         # The pull request's commits and the compare answers, by endpoint,
         # for the Dependabot rebase request; None leaves the reads unfaked.
         self.pr_commits: list[dict[str, Any]] | None = None
@@ -899,6 +912,11 @@ class Unattended(unittest.TestCase):
             "mergeable_state": self.pr_mergeable_state,
             "user": self.pr_user,
             "labels": self.pr_labels,
+            **(
+                {"state": self.pr_rest_state[0], "merged": self.pr_rest_state[1]}
+                if self.pr_rest_state
+                else {}
+            ),
         }
         kills = list(self.kill)
         self.capture = mock.Mock(side_effect=self._capture)
@@ -1870,6 +1888,39 @@ class AllInputsGood(Unattended):
         self.dispatch.assert_called_once_with("owner/repo", ref="main")
         self.assertIs(out["unattended"]["dispatched"], True)
         self.assertEqual(code, 10)
+
+    def test_a_landed_entry_read_back_dispatches_with_the_pr_read_as_merged(
+        self,
+    ) -> None:
+        # The REST record says merged too: a state directory can hold a
+        # recorded request, so the closed stop stays off and the dispatch runs.
+        self.flight = policy.InFlight(False, f"unverified-auto-merge:#{PR}")
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.pr_rest_state = ("closed", True)
+        self.prior = {
+            "queued": True,
+            "head": HEAD,
+            "status": "merged",
+            "verification": {"verified": True, "mismatches": []},
+            "requestedAt": "2026-10-12T10:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as state:
+            code, out = self.run_main("--state-dir", state)
+        self.assertIs(out["merged"], True)
+        self.dispatch.assert_called_once_with("owner/repo", ref="main")
+        self.post_check.assert_called_once()
+        self.assertEqual(code, 10)
+
+    def test_a_merged_pr_with_no_state_dir_skips_the_post_merge_check(self) -> None:
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.pr_rest_state = ("closed", True)
+        code, out = self.run_main()
+        self.post_check.assert_not_called()
+        self.assertEqual(code, 10)
+        self.assertIs(out["merged"], False)
+        self.assertIn("state=MERGED (not OPEN)", out["blockers"])
+        self.assertEqual(self.log, [])
+        self.dequeue.assert_not_called()
 
     def test_a_landed_entry_read_back_under_a_cap_with_room_exits_zero(self) -> None:
         # At a cap of 5 the landed merge leaves room, so no refusal stands.
@@ -4337,7 +4388,10 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                         ]
                     }
                 ]
-            if endpoint == f"repos/owner/repo/check-runs/{job}/annotations?per_page=100":
+            if (
+                endpoint
+                == f"repos/owner/repo/check-runs/{job}/annotations?per_page=100"
+            ):
                 message = (
                     f"claude-lane-review-complete lane={lane} sha={HEAD}"
                     " findings=0 inline=0 scope=whole"

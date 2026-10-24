@@ -1047,6 +1047,9 @@ class _Context:
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
+    # Per live branch tip, the clone's copy of the branch when the compare
+    # API read it as that tip's ancestor, else None (`_tip_bridge`).
+    bridge_cache: dict[str, str | None] = field(default_factory=dict)
     baseline_cache: dict[tuple[str, datetime], frozenset[str] | None] = field(
         default_factory=dict
     )
@@ -1664,26 +1667,70 @@ class _Context:
         """Whether `sha` is `ancestor` or has it in its history: from a local
         full-history clone when one holds both commits, else from the compare
         API, whose `ahead` or `identical` status means `ancestor` is reachable
-        from `sha`, which is what `git merge-base --is-ancestor` tests."""
+        from `sha`, which is what `git merge-base --is-ancestor` tests. For the
+        branch tip the clone lacks (the branch moved after it was made), an
+        ancestor of the clone's copy of the branch is an ancestor of the tip
+        when that copy is (`_tip_bridge`), so one compare answers them all."""
         key = (ancestor, sha)
         if key not in self.contains_cache:
             if ancestor == sha:
                 self.contains_cache[key] = True
             elif (local := self._local_contains(ancestor, sha)) is not None:
                 self.contains_cache[key] = local
+            elif (
+                sha == self.branch_tip
+                and (bridge := self._tip_bridge(sha)) is not None
+                and self._local_contains(ancestor, bridge) is True
+            ):
+                self.contains_cache[key] = True
             else:
-                compare = _read(
-                    [
-                        "api",
-                        f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}",
-                    ],
-                    f"compare {ancestor[:12]}...{sha[:12]}",
-                )
-                self.contains_cache[key] = json_object(compare).get("status") in (
-                    "ahead",
-                    "identical",
-                )
+                self.contains_cache[key] = self._compare(ancestor, sha)
         return self.contains_cache[key]
+
+    def _compare(self, ancestor: str, sha: str) -> bool:
+        """The compare API's answer to `contains`; a failed read raises."""
+        compare = _read(
+            ["api", f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}"],
+            f"compare {ancestor[:12]}...{sha[:12]}",
+        )
+        return json_object(compare).get("status") in ("ahead", "identical")
+
+    def _tip_bridge(self, tip: str) -> str | None:
+        """The first full-history clone's copy of the branch, read from
+        `refs/remotes/origin/<branch>` or else `refs/heads/<branch>`, when the
+        compare API reads it as an ancestor of `tip`; else None. Read once per
+        tip. A failed compare is None, not an error: each record then gets
+        its own compare, which raises on its own failure."""
+        if tip not in self.bridge_cache:
+            bridge = None
+            if self.local_clones is None:
+                self.local_clones = _full_history_clones()
+            refs = (f"refs/remotes/origin/{self.branch}", f"refs/heads/{self.branch}")
+            local = next(
+                (
+                    out.strip()
+                    for root in self.local_clones
+                    for ref in refs
+                    if (
+                        out := policy._git(
+                            root,
+                            "rev-parse",
+                            "--verify",
+                            "--quiet",
+                            f"{ref}^{{commit}}",
+                        )
+                    )
+                    and _FULL_SHA.fullmatch(out.strip())
+                ),
+                None,
+            )
+            if local is not None:
+                try:
+                    bridge = local if self._compare(local, tip) else None
+                except PostMergeReadError:
+                    bridge = None
+            self.bridge_cache[tip] = bridge
+        return self.bridge_cache[tip]
 
     def _local_contains(self, ancestor: str, sha: str) -> bool | None:
         """`git merge-base --is-ancestor` in the first local clone that can

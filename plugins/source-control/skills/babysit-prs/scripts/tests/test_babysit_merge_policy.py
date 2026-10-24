@@ -2247,6 +2247,46 @@ class Assess(unittest.TestCase):
         self.assertIs(result.promoted, True)
         self.assertEqual(result.report()["credentials"], "identity-only")
 
+    def test_a_closed_pull_request_stops_before_any_later_read(self) -> None:
+        gh = self.readable()
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        for merged, state in ((True, "MERGED"), (False, "CLOSED")):
+            with self.subTest(state=state):
+                gh.calls.clear()
+                pr = gh.rest[f"repos/{REPO}/pulls/1"]
+                pr.update(state="closed", merged=merged)
+                result = self.assess(
+                    post_merge=later, promotion=later, stop_when_closed=True
+                )
+                later.assert_not_called()
+                self.assertEqual(gh.calls, [["api", f"repos/{REPO}/pulls/1"]])
+                # The gate's own blocker for a pull request that is not open.
+                self.assertEqual(result.reason, f"state={state} (not OPEN)")
+                self.assertIs(result.enabled, False)
+                self.assertNotIn("identity", result.inputs)
+
+    def test_a_closed_pull_request_is_read_in_full_without_the_stop(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=True)
+        self.all_clear()
+        seen: list[Any] = []
+        self.assess(
+            post_merge=lambda floor, who: seen.append(who) or gate(),
+            promotion=lambda s: PROMOTED,
+        )
+        self.assertEqual(seen, [IDENTITY])
+
+    def test_an_open_pull_request_is_read_in_full_with_the_stop(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="open", merged=False)
+        self.all_clear()
+        result = self.assess(
+            post_merge=lambda floor, who: gate(),
+            promotion=lambda s: PROMOTED,
+            stop_when_closed=True,
+        )
+        self.assertIsNone(result.reason)
+
     def test_config_is_read_at_the_pull_requests_base_sha(self) -> None:
         gh = self.readable()
         self.all_clear()
