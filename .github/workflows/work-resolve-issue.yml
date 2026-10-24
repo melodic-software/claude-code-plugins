@@ -242,8 +242,8 @@ jobs:
   apply-issue-patch:
     needs: resolve-issue
     if: >-
-      ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true'
-      && needs.resolve-issue.outputs.patch-state == 'written' }}
+      ${{ !cancelled() && needs.resolve-issue.outputs.scan-issue-run-started == 'true'
+      && needs.resolve-issue.outputs.scan-patch-state == 'written' }}
     permissions:
       contents: read
       pull-requests: read
@@ -261,13 +261,13 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      patch-state: ${{ needs.resolve-issue.outputs.patch-state }}
-      patch-sha256: ${{ needs.resolve-issue.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.resolve-issue.outputs.patch-attempt }}
+      patch-state: ${{ needs.resolve-issue.outputs.scan-patch-state }}
+      patch-sha256: ${{ needs.resolve-issue.outputs.scan-patch-sha256 }}
+      patch-attempt: ${{ needs.resolve-issue.outputs.scan-patch-attempt }}
       patch-activity: resolve-issue
-      patch-base-sha: ${{ needs.resolve-issue.outputs.base-sha }}
-      patch-resume-tip: ${{ needs.resolve-issue.outputs.resume-tip }}
-      reply-attempt: ${{ needs.resolve-issue.outputs.reply-attempt }}
+      patch-base-sha: ${{ needs.resolve-issue.outputs.scan-base-sha }}
+      patch-resume-tip: ${{ needs.resolve-issue.outputs.scan-resume-tip }}
+      reply-attempt: ${{ needs.resolve-issue.outputs.scan-reply-attempt }}
 
   # One `pipeline/<activity>` commit status per lane step on the lane branch's
   # head (post-statuses.mjs). No step is skipped on them; a failing one holds
@@ -276,8 +276,8 @@ jobs:
   report-statuses:
     needs: [resolve-issue, apply-issue-patch, run-checks, report-outcome]
     if: >-
-      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
-      || needs.resolve-issue.outputs.reuse-branch != '') }}
+      ${{ !cancelled() && (needs.resolve-issue.outputs.scan-issue-run-started == 'true'
+      || needs.resolve-issue.outputs.scan-reuse-branch != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -310,8 +310,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
-          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
-          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.resume-branch }}
+          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.scan-reuse-branch }}
+          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.scan-resume-branch }}
           RUNNER_CHECKS: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
           RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
@@ -332,8 +332,9 @@ jobs:
   run-checks:
     needs: [resolve-issue, apply-issue-patch]
     if: >-
-      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
-      || needs.resolve-issue.outputs.reuse-branch != '') }}
+      ${{ !cancelled() && ((needs.resolve-issue.outputs.scan-issue-run-started == 'true'
+      && needs.resolve-issue.outputs.scan-outcome-uploaded == 'true')
+      || needs.resolve-issue.outputs.scan-reuse-branch != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -364,10 +365,10 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
-      # For lane.json, which names the branch. A skill run always uploads the
-      # outcome; a reuse may have none.
+      # For lane.json, which names the branch. A skill run reaches this job
+      # only when the scan uploaded the outcome; a reuse may have none.
       - name: Download the issue outcome
-        continue-on-error: ${{ needs.resolve-issue.outputs.reuse-branch != '' }}
+        continue-on-error: ${{ needs.resolve-issue.outputs.scan-reuse-branch != '' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: work-outcome-${{ github.event.issue.number }}
@@ -381,8 +382,8 @@ jobs:
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           RUN_ID: ${{ github.run_id }}
-          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
-          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.resume-branch }}
+          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.scan-reuse-branch }}
+          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.scan-resume-branch }}
           LANE_FILE: ${{ runner.temp }}/work-outcome/lane.json
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $RUN_ID =~ ^[1-9][0-9]*$ ]] || exit 1
@@ -484,17 +485,19 @@ jobs:
   report-outcome:
     needs: [resolve-issue, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
-    # any model turn, once the run chose to run the skill; a run that failed
-    # after that still reports, with apply-issue-patch's branch when it made
-    # one.
+    # any model turn, once the run chose to run the skill, and reaches this
+    # file through the read runner's issue-fields job, which checks it and
+    # every other issue output read here (the patch outputs come from its
+    # scan job); a run that failed after that
+    # still reports, with apply-issue-patch's branch when it made one.
     # reuse-branch, also runner-computed, names a lane branch an earlier run
     # left with commits and no report: the work was skipped, a read-only
     # summary pass described the branch, and this opens the PR from it.
     # Needing resolve-issue waits for every job of that call, the summary job
     # included; !cancelled() runs this whether that job failed or skipped.
     if: >-
-      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
-      || needs.resolve-issue.outputs.reuse-branch != '') }}
+      ${{ !cancelled() && (needs.resolve-issue.outputs.scan-issue-run-started == 'true'
+      || needs.resolve-issue.outputs.scan-reuse-branch != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -509,7 +512,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      reuse-branch: ${{ needs.resolve-issue.outputs.reuse-branch }}
+      reuse-branch: ${{ needs.resolve-issue.outputs.scan-reuse-branch }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
       # Why apply-issue-patch committed nothing, so the hand-back names it.
       escalation-reason: ${{ needs.apply-issue-patch.outputs.escalation-reason }}
