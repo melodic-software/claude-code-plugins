@@ -226,9 +226,14 @@ const RESTARTS = new Set(["limited", "refired", "turn-cap", "timeout", "funding"
 function isRestart(events, index, markers, bot) {
   const removal = events[index];
   const at = Date.parse(removal.created_at);
-  const newest = markers.filter((marker) => marker.at <= at).at(-1)?.outcome;
+  const newestMarker = markers.filter((marker) => marker.at <= at).at(-1);
+  const newest = newestMarker?.outcome;
+  // Only report-outcome's own removal right after the marker: once agent-ready
+  // was added again since, a later App removal (a hand-off to triage) stops.
   if (removal.actor?.login === bot && newest === "no-progress") {
-    return true;
+    return !events
+      .slice(0, index)
+      .some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) >= newestMarker.at);
   }
   if (removal.actor?.login !== bot || !RESTARTS.has(newest)) {
     return false;

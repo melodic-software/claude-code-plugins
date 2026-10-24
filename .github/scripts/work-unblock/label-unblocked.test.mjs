@@ -1035,7 +1035,8 @@ test("the App's remove-and-re-add after a turn-cap or timeout stop is a restart,
 // a person's removal of agent-ready still stops it.
 test("a no-progress stop is re-queued: the deferred sweep admits it again, with no needs-human", async (t) => {
   t.mock.method(console, "log", () => {});
-  const requeue = (removedBy) =>
+  const removal = (actor, at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor, created_at: at });
+  const requeue = (removedBy, later = []) =>
     world({
       deferred: [issue(25, { labels: ["admission-deferred"] })],
       issues: { 25: issue(25, { labels: ["admission-deferred"] }) },
@@ -1044,8 +1045,9 @@ test("a no-progress stop is re-queued: the deferred sweep admits it again, with 
       events: {
         25: [
           added("2026-10-16T05:00:00Z", OWNER),
-          { event: "labeled", label: { name: "admission-deferred" }, actor: LANES_BOT, created_at: "2026-10-16T08:00:01Z" },
-          { event: "unlabeled", label: { name: "agent-ready" }, actor: removedBy, created_at: "2026-10-16T08:00:02Z" },
+          removal(removedBy, "2026-10-16T08:00:01Z"),
+          { event: "labeled", label: { name: "admission-deferred" }, actor: LANES_BOT, created_at: "2026-10-16T08:00:02Z" },
+          ...later,
         ],
       },
     });
@@ -1056,6 +1058,12 @@ test("a no-progress stop is re-queued: the deferred sweep admits it again, with 
   const person = requeue(OWNER);
   assert.equal(await sweep({ github: person.github }, PAUSING), 0);
   assert.ok(!writes(person.calls).includes(labeled(25)), writes(person.calls).join("\n"));
+  // Re-admitted after the marker, then the App took agent-ready off again (a
+  // hand-off to triage after a person rejected the run's PR): that removal
+  // stops the lane like any other, so the issue is not admitted again.
+  const handedOff = requeue(LANES_BOT, [added("2026-10-16T09:00:00Z"), removal(LANES_BOT, "2026-10-16T12:00:00Z")]);
+  assert.equal(await sweep({ github: handedOff.github }, PAUSING), 0);
+  assert.ok(!writes(handedOff.calls).includes(labeled(25)), writes(handedOff.calls).join("\n"));
 });
 
 // A funding stop (ci-workflows#781): report-outcome keeps agent-ready and
