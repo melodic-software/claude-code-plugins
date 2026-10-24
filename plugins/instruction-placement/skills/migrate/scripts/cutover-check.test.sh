@@ -477,7 +477,7 @@ OUT=$(bash "$SCRIPT" --repo "$NESTED" --sources "$REAL_SOURCES" \
 assert_contains "a nested path under another owner is not resolved" "$OUT" "is not anthropics/claude-code-action (owner 'evil')"
 assert_not_contains "and never borrows the forged version" "$OUT" "installs CLI 9.9.9"
 
-# A tag or branch resolved live is labelled mutable; a full SHA is not.
+# A tag or branch resolved live is labeled mutable; a full SHA is not.
 MUTABLE="$TMP/mutablepin"
 make_repo "$MUTABLE"
 mkdir -p "$MUTABLE/.github/workflows"
@@ -489,7 +489,7 @@ rc=0
 OUT=$(bash "$SCRIPT" --repo "$MUTABLE" --sources "$REAL_SOURCES" \
   --action-fetch 'printf "CLAUDE_CODE_VERSION=\"2.1.290\"\n"' \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
-assert_contains "a live-resolved branch pin is labelled mutable" "$OUT" "(base-action/action.yml at main, a mutable ref read as of now)"
+assert_contains "a live-resolved branch pin is labeled mutable" "$OUT" "(base-action/action.yml at main, a mutable ref read as of now)"
 
 # A ref the script cannot parse must not prefix-match the release map's first
 # row and borrow its CLI version.
