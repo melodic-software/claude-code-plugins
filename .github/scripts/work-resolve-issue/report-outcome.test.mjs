@@ -1,7 +1,8 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
 // means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
 // with a Conventional Commits title (the run's, else one from the issue title), no
-// label (the class lives on the issue only), and the hold line for
+// class label (the class lives on the issue only), `eval: run` only when the issue's
+// done-when asks for a measured eval pass, and the hold line for
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment, add needs-human and remove agent-ready.
 import assert from "node:assert/strict";
@@ -822,6 +823,51 @@ test("main on done opens a ready PR from the branch and adds no label to it", as
       assert.ok(pull.body.startsWith("Closes #77\n"));
       assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
+    },
+  );
+});
+
+for (const [what, body, labeled] of [
+  ["a done-when asking for a measured eval labels the PR eval: run", "## Done when\n\n- [ ] Every shipped description and body was measured.\n", true],
+  ["a done-when with no measured eval puts no label on the PR", "## Done when\n\n- [ ] `/evals:validate` passes on the suite.\n", false],
+]) {
+  test(`main on done: ${what}`, async () => {
+    await withDir(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch([
+          ["GET", /\/issues\/77$/, 200, { ...ISSUE[2], body }],
+          branchTip(),
+          ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+          ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+          ["GET", /\/pulls$/, 200, []],
+          ["POST", /\/pulls$/, 201, { number: 90 }],
+          ["POST", /\/issues\/90\/labels$/, 200, []],
+        ]);
+        assert.equal(await main({ env: env(dir), fetch }), 0);
+        const label = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels"));
+        assert.deepEqual(label?.body, labeled ? { labels: ["eval: run"] } : undefined);
+      },
+    );
+  });
+}
+
+test("main on done keeps the opened PR when the eval: run label write fails", async () => {
+  await withDir(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, 200, { ...ISSUE[2], body: "## Done when\n\n- [ ] Run a measured `claude plugin eval` pass.\n" }],
+        branchTip(),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+        ["POST", /\/issues\/90\/labels$/, 403, { message: "Forbidden" }],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels")));
+      assert.ok(!calls.some((c) => c.method === "PATCH" || c.path.startsWith("/repos/o/r/issues/77/")));
     },
   );
 });

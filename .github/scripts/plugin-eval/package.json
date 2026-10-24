@@ -1,0 +1,7 @@
+{
+  "name": "plugin-eval",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

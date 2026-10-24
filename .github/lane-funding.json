@@ -90,7 +90,7 @@
       "keyed": false,
       "category": "maintenance",
       "lanes": [
-        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]
