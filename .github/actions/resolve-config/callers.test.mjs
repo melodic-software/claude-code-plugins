@@ -886,18 +886,19 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   assert.equal(apply.with["patch-activity"], "resolve-issue");
   assert.equal(apply.secrets, undefined, "the apply job gets no Claude credential");
   for (const [input, output] of [
-    ["patch-state", "patch-state"],
-    ["patch-sha256", "patch-sha256"],
-    ["patch-attempt", "patch-attempt"],
-    ["patch-base-sha", "base-sha"],
-    ["patch-resume-tip", "resume-tip"],
+    ["patch-state", "scan-patch-state"],
+    ["patch-sha256", "scan-patch-sha256"],
+    ["patch-attempt", "scan-patch-attempt"],
+    ["patch-base-sha", "scan-base-sha"],
+    ["patch-resume-tip", "scan-resume-tip"],
+    ["reply-attempt", "scan-reply-attempt"],
   ]) {
     assert.equal(apply.with[input], `\${{ needs.resolve-issue.outputs.${output} }}`, input);
   }
   assert.equal(apply.concurrency.group, "work-resolve-issue-write-${{ github.event.issue.number }}");
   assert.equal(apply.concurrency.queue, "max");
   const runs = (started, state) =>
-    evaluate(apply.if, { "needs.resolve-issue.outputs.issue-run-started": started, "needs.resolve-issue.outputs.patch-state": state });
+    evaluate(apply.if, { "needs.resolve-issue.outputs.scan-issue-run-started": started, "needs.resolve-issue.outputs.scan-patch-state": state });
   assert.equal(runs("true", "written"), true);
   assert.equal(runs("true", "empty"), false, "an empty patch makes no branch");
   assert.equal(runs("true", ""), false);
@@ -1591,7 +1592,7 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
   const guarded = run.steps.filter((s) => /^actions\/upload-artifact@|\/report-lane-outcome@/.test(String(s.uses ?? "")) || s.id === "patch");
   assert.deepEqual(
     guarded.map((s) => s.id ?? s.name),
-    ["lane-record", "Record the launcher's lane outcome", "patch", "reply-upload", "patch-upload", "Upload the issue outcome"],
+    ["lane-record", "Record the launcher's lane outcome", "patch"],
   );
   for (const step of guarded) {
     for (const [name, context] of Object.entries(handoffs)) {
@@ -2035,10 +2036,13 @@ const scanSteps = () => workflow("pr-run-activity-read.yml").jobs.scan.steps;
 const writesSummary = (step) => /GITHUB_STEP_SUMMARY|core\.summary/.test(`${step.run ?? ""}${step.with?.script ?? ""}`);
 const isUpload = (step) => String(step.uses ?? "").startsWith("actions/upload-artifact@");
 
-test("pr-run-activity-read.yml: in PR mode the model job uploads nothing and writes no step summary", () => {
+test("pr-run-activity-read.yml: the model job uploads nothing in either mode, and writes no step summary in PR mode", () => {
   const steps = runSteps();
+  assert.deepEqual(steps.filter(isUpload).map((s) => s.name), [], "every upload is the scan job's");
   const out = steps.filter((step) => isUpload(step) || writesSummary(step));
-  assert.ok(out.length >= 4, out.map((s) => s.name).join(", "));
+  // The one summary left is an issue-mode gate skill's verdict, which no
+  // issue lane runs (resolve-issue is no gate).
+  assert.deepEqual(out.map((s) => s.name), ["Check the gate skill's verdict"]);
   // claude-code-action runs only in issue mode, so a PR run's act-skill is skipped.
   const actSkill = steps.find((s) => s.id === "act-skill");
   assert.equal(atStep(actSkill.if, prRun(actSkill.if, { "steps.config.outputs.kind": "skill" })), false);
@@ -2062,7 +2066,7 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   const { jobs } = workflow("pr-run-activity-read.yml");
   const scan = jobs.scan;
   assert.equal(scan["runs-on"], "ubuntu-24.04");
-  assert.equal(scan.needs, "run");
+  assert.deepEqual(scan.needs, ["run", "issue-fields"]);
   assert.deepEqual(scan.permissions, { contents: "read" });
   assert.equal(scan.environment, "pr-pipeline-scan-carrier");
   assert.deepEqual(stepSecrets(scan), ["scan-carrier-private-key"], "the one secret in the job");
@@ -2104,12 +2108,14 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   const steps = scanSteps();
   const at = (id) => steps.findIndex((step) => step.id === id);
   const scan = at("leak-scan");
-  assert.equal(steps[0].name, "Assert the default branch is set");
-  assert.deepEqual(["base", "key", "open", "decode"].map(at), [1, 2, 3, 4]);
+  assert.deepEqual(steps.slice(0, 2).map((step) => step.id ?? step.name), ["Require the checked issue fields", "Assert the default branch is set"]);
+  assert.deepEqual(["base", "key", "open", "decode"].map(at), [2, 3, 4, 5]);
   assert.ok(at("decode") < scan);
   const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
-  assert.equal(outputs.length, 5);
+  assert.equal(outputs.length, 6);
   const context = (clean) => ({
+    "inputs.issue-number": "7",
+    "steps.decode.outputs.outcome": "true",
     "steps.leak-scan.outputs.clean": clean,
     "steps.decode.outputs.reply": "true",
     "steps.decode.outputs.patch": "true",
@@ -2861,12 +2867,12 @@ function withInputs(step, values) {
 
 // Runs the carry step, then the seal step as the composite runs it, on the
 // given files; returns the two steps' outputs and their log.
-function carry(t, files, { publicLine = CARRIER.publicLine } = {}) {
+function carry(t, files, { publicLine = CARRIER.publicLine, issue = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "carry-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const temp = join(root, "temp");
   const workspace = join(root, "workspace");
-  for (const dir of ["skill-reply", "patch", "seal-lane-output"]) mkdirSync(join(temp, dir), { recursive: true });
+  for (const dir of ["skill-reply", "patch", "seal-lane-output", "work-outcome"]) mkdirSync(join(temp, dir), { recursive: true });
   mkdirSync(workspace);
   // The copy step's sealer and key, from the base.
   for (const file of ["action.yml", "seal.mjs"]) writeFileSync(join(temp, "seal-lane-output", file), readFileSync(new URL(`seal-lane-output/${file}`, ACTIONS)));
@@ -2885,6 +2891,8 @@ function carry(t, files, { publicLine = CARRIER.publicLine } = {}) {
     PATCH_FILE: join(temp, "patch", "patch.diff"),
     CARRY_DIR: join(temp, "carry"),
     SEAL_DIR: join(temp, "seal-lane-output"),
+    // The step's issue-mode expression, as the runner would expand it.
+    OUTCOME_DIR: issue ? join(temp, "work-outcome") : "",
     GITHUB_WORKSPACE: workspace,
     GITHUB_OUTPUT: output,
   });
@@ -2992,12 +3000,17 @@ function openStep(t, runOutputs, { privateText = CARRIER.privateText, runId = CA
 
 // The env the check step reads, built from the run job's outputs as the
 // runner would pass them, and OPEN_DIR from the open step's outcome.
-function decodeEnv(runOutputs, inputs = { "issue-number": "" }, open = { status: 1, ran: false }) {
+function decodeEnv(runOutputs, inputs = { "issue-number": "" }, open = { status: 1, ran: false }, issueFields = {}) {
   const step = scanSteps().find((s) => s.id === "decode");
   const env = {};
   for (const [name, expression] of Object.entries(step.env)) {
     const output = OUTPUT_EXPRESSION.exec(expression);
     const input = /^\$\{\{ inputs\.([\w-]+) \}\}$/.exec(expression);
+    const checked = /^\$\{\{ needs\.issue-fields\.outputs\.([\w-]+) \}\}$/.exec(expression);
+    if (checked) {
+      env[name] = issueFields[checked[1]] ?? "";
+      continue;
+    }
     if (name === "OPEN_DIR") {
       const temp = open.dir ? open.dir.slice(0, -"/scan-in".length) : "/unused";
       env[name] = evaluate(expression.replace("format('{0}/scan-in', runner.temp)", JSON.stringify(`${temp}/scan-in`)), { "steps.open.outcome": open.ran ? (open.status === 0 ? "success" : "failure") : "skipped" });
@@ -3030,8 +3043,8 @@ async function scanIn(t, runOutputs, options) {
 
 // The run job's outputs after a PR-mode skill run, from the real carry and
 // seal steps and the run job's output map.
-function runOutputsAfterCarry(t, files) {
-  const { outputs, seal } = carry(t, files);
+function runOutputsAfterCarry(t, files, options) {
+  const { outputs, seal } = carry(t, files, options);
   const { jobs } = workflow("pr-run-activity-read.yml");
   const mapped = {};
   for (const [name, expression] of Object.entries(jobs.run.outputs)) {
@@ -3078,6 +3091,237 @@ test("scan job: the reply, run fields and patch round-trip sealed from the run j
   const stopped = await scanIn(t, { go: "false", "kill-proceed": "true", "trigger-proceed": "false", "trigger-reason": "untrusted-actor" });
   assert.equal(stopped.open.ran, false);
   assert.deepEqual([stopped.failed, stopped.outputs.reply, stopped.outputs.patch], [null, "false", "false"]);
+});
+
+// Issue mode seals its outcome files with the reply, run fields and patch.
+// The cap on all of them is five chunks: GitHub caps a job's outputs at 1 MB,
+// counted as UTF-16, and five 98304-character chunks are about 0.94 MB
+// (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax,
+// jobs.<job_id>.outputs). So every payload at its cap still seals.
+test("scan job: an issue run's outcome files round-trip sealed with every payload at its cap, within five chunks", async (t) => {
+  const { randomBytes } = await import("node:crypto");
+  const at = (bytes) => Buffer.alloc(bytes, "a");
+  const files = {
+    "skill-reply/reply.txt": at(16384),
+    "skill-reply/act-turns.json": at(32768),
+    "patch/patch.diff": randomBytes(262144),
+    "work-outcome/work-outcome.json": randomBytes(49152),
+    "work-outcome/lane.json": at(4096),
+  };
+  const { seal } = carry(t, files, { issue: true });
+  assert.equal(seal.status, 0, JSON.stringify(seal.outputs));
+  assert.ok(Number(seal.outputs["sealed-length"]) <= 5 * 98304, seal.outputs["sealed-length"]);
+  const runOutputs = runOutputsAfterCarry(t, files, { issue: true });
+  const open = openStep(t, runOutputs);
+  assert.equal(open.status, 0, open.log);
+  const { outputs, failed, files: decoded } = await decode(t, decodeEnv(runOutputs, { "issue-number": "7" }, open));
+  assert.equal(failed, null);
+  assert.deepEqual(Object.keys(decoded).sort(), ["act-turns.json", "lane.json", "patch.diff", "reply.txt", "work-outcome.json"]);
+  assert.deepEqual(decoded["work-outcome.json"], files["work-outcome/work-outcome.json"]);
+  assert.deepEqual([outputs.outcome, outputs.patch], ["true", "true"]);
+  // One byte over the outcome's cap publishes nothing.
+  const over = runOutputsAfterCarry(t, { ...files, "patch/patch.diff": "", "work-outcome/work-outcome.json": at(49153) }, { issue: true });
+  assert.equal(over["carry-work-outcome-bytes"], "49153");
+  const overOpen = openStep(t, over);
+  const refused = await decode(t, decodeEnv({ ...over, "patch-collected": "empty" }, { "issue-number": "7" }, overOpen));
+  assert.match(refused.failed, /^too-large: the work-outcome is 49153 bytes/);
+  // A PR-mode run carries no outcome: one that does publishes nothing.
+  const pr = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "ok\n", "work-outcome/lane.json": "{}" }, { issue: true });
+  const prOpen = openStep(t, pr);
+  assert.equal(prOpen.status, 0, prOpen.log);
+  const prDecoded = await decode(t, decodeEnv(pr, { "issue-number": "" }, prOpen));
+  assert.match(prDecoded.failed, /^payload-mismatch: a PR-mode run carried an issue outcome/);
+  // The collect step cuts the model's outcome file at that same cap.
+  const collect = runSteps().find((s) => s.name === "Collect the issue outcome");
+  assert.match(collect.run, /head -c 49152 "\$SCRATCH_OUTCOME"/);
+  assert.ok(runSteps().indexOf(collect) < runSteps().findIndex((s) => s.id === "carry"), "collected before it is carried");
+});
+
+test("scan job: a credential in the issue outcome blocks every upload", async (t) => {
+  const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{"summary": "${KEY}"}\n`));
+  assert.equal(clean, "false");
+  assert.match(failed, /rotate this credential/);
+  const upload = scanSteps().find((s) => s.id === "outcome-upload");
+  const runs = (clean) => evaluate(upload.if, { "inputs.issue-number": "7", "steps.leak-scan.outputs.clean": clean, "steps.decode.outputs.outcome": "true" });
+  assert.deepEqual([runs("true"), runs("false"), runs("")], [true, false, false]);
+  assert.equal(upload.with.name, "work-outcome-${{ inputs.issue-number }}");
+});
+
+// The issue-fields job: the run job's issue fields reach the caller only
+// through it, held to their closed sets and the combinations the run job's
+// steps make, with any branch claim re-derived by the earlier-work check
+// ([h16]: nothing that picks the commit a patch applies to takes a run job
+// output unchecked).
+const issueFieldsJob = () => workflow("pr-run-activity-read.yml").jobs["issue-fields"];
+async function issueStep(env) {
+  const step = issueFieldsJob().steps.find((s) => s.id === "issue");
+  const outputs = {};
+  let failed = null;
+  const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
+  const { createRequire } = await import("node:module");
+  const full = { LANE: "work-resolve-issue", ISSUE_NUMBER: "7", STARTED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: "b".repeat(40), ...env };
+  await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, {}, SCAN_CONTEXT, { env: full });
+  return { outputs, failed };
+}
+
+// Liveness: the job that hands issue-run-started to the caller runs whatever
+// the run job's result but skipped, in issue mode only, and holds no
+// environment, so a cancelled or timed-out run job, or a scan job the
+// environment never admits, still leaves the report job its gate.
+test("pr-run-activity-read.yml: issue-fields runs after any run job result but skipped, with no environment, and every issue output is its", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  const job = read.jobs["issue-fields"];
+  assert.equal(job.needs, "run");
+  assert.equal(job.environment, undefined);
+  assert.deepEqual(job.permissions, { contents: "read", "pull-requests": "read" });
+  assert.match(job.if, /^always\(\)/);
+  for (const result of ["success", "failure", "cancelled"]) {
+    assert.equal(evaluate(job.if.replace(/^always\(\) && /, ""), { "inputs.issue-number": "7", "needs.run.result": result }), true, result);
+  }
+  assert.equal(evaluate(job.if.replace(/^always\(\) && /, ""), { "inputs.issue-number": "7", "needs.run.result": "skipped" }), false);
+  assert.equal(evaluate(job.if.replace(/^always\(\) && /, ""), { "inputs.issue-number": "", "needs.run.result": "success" }), false);
+  // A refusal ends the job green, so its outputs reach the caller.
+  for (const step of job.steps) assert.equal(step["continue-on-error"], true, step.name);
+  const outputs = read.on.workflow_call.outputs;
+  for (const name of ["issue-run-started", "reuse-branch", "resume-branch", "resume-tip", "base-sha"]) {
+    assert.equal(outputs[`scan-${name}`].value, `\${{ jobs.issue-fields.outputs.${name} }}`, name);
+  }
+  assert.equal(job.outputs["issue-run-started"], "${{ steps.issue.outputs.issue-run-started }}");
+  for (const name of ["checked", "reuse-branch", "resume-branch", "resume-tip", "base-sha", "start-sha"]) {
+    assert.equal(job.outputs[name], `\${{ steps.checked.outputs.${name} }}`, name);
+  }
+  // The scan job publishes nothing in issue mode unless the fields were checked.
+  const require = read.jobs.scan.steps[0];
+  assert.equal(require.name, "Require the checked issue fields");
+  assert.equal(spawnSync("bash", ["-c", require.run], { env: { PATH: process.env.PATH, CHECKED: "" } }).status, 1);
+  assert.equal(spawnSync("bash", ["-c", require.run], { env: { PATH: process.env.PATH, CHECKED: "true" } }).status, 0);
+});
+
+test("issue-fields: the issue step holds each field to its closed set and to the combinations the run job makes", async () => {
+  const base = "b".repeat(40);
+  const tip = "c".repeat(40);
+  const branch = "work-resolve-issue/issue-7-123-1";
+  const fresh = await issueStep({});
+  assert.equal(fresh.failed, null);
+  assert.deepEqual(fresh.outputs, { "issue-run-started": "true", claimed: "false", "reuse-branch": "", "resume-branch": "", "resume-tip": "", "base-sha": base });
+  const resumed = await issueStep({ RESUME_BRANCH: branch, RESUME_TIP: tip });
+  assert.deepEqual([resumed.failed, resumed.outputs.claimed, resumed.outputs["resume-tip"]], [null, "true", tip]);
+  const reused = await issueStep({ STARTED: "false", REUSE_BRANCH: branch });
+  assert.deepEqual([reused.failed, reused.outputs.claimed, reused.outputs["reuse-branch"]], [null, "true", branch]);
+  // A refused field sets only issue-run-started.
+  for (const [name, env] of [
+    ["another issue's branch", { RESUME_BRANCH: "work-resolve-issue/issue-8-123-1", RESUME_TIP: tip }],
+    ["another lane's branch", { STARTED: "false", REUSE_BRANCH: "pr-unblock/issue-7-123-1" }],
+    ["a base that is no commit id", { BASE_SHA: "main" }],
+    ["a reuse that started the skill", { REUSE_BRANCH: branch }],
+    ["a reuse beside a resume", { STARTED: "false", REUSE_BRANCH: branch, RESUME_BRANCH: branch, RESUME_TIP: tip }],
+    ["a resume tip with no branch", { RESUME_TIP: tip }],
+    ["a resume branch with no tip", { RESUME_BRANCH: branch }],
+    ["a resume that started no skill", { STARTED: "false", RESUME_BRANCH: branch, RESUME_TIP: tip }],
+    ["a started run with no base", { BASE_SHA: "" }],
+  ]) {
+    const result = await issueStep(env);
+    assert.match(String(result.failed), /^bad-output: /, name);
+    assert.deepEqual(result.outputs, { "issue-run-started": env.STARTED ?? "true" }, name);
+  }
+  const unset = await issueStep({ STARTED: "" });
+  assert.match(String(unset.failed), /^bad-output: the run job's issue-run-started/);
+  assert.deepEqual(unset.outputs, {});
+});
+
+// Branch eligibility: a branch claim is published only when the default-tip
+// earlier-work check, run again, chooses the same reuse branch, resume branch
+// and tip; the check's own rules (App commits, not behind, not rejected)
+// then hold for the branch the caller gets.
+test("issue-fields: a branch claim is published only when the re-derived earlier-work check chooses the same branch and tip", (t) => {
+  const job = issueFieldsJob();
+  const prior = job.steps.find((s) => s.id === "prior");
+  assert.match(prior.run, /node \.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior$/m);
+  assert.equal(job.steps.find((s) => s.id === "base").with.ref, "${{ github.event.repository.default_branch }}");
+  const checked = job.steps.find((s) => s.id === "checked");
+  assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "true", "steps.prior.outcome": "failure" }), false, "a claim whose re-derive failed");
+  assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "false", "steps.prior.outcome": "skipped" }), true, "no claim needs no re-derive");
+  const root = mkdtempSync(join(tmpdir(), "issue-fields-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const branch = "work-resolve-issue/issue-7-123-1";
+  const tip = "c".repeat(40);
+  const base = "b".repeat(40);
+  const publish = (claim, priorLines) => {
+    const priorOut = join(root, "prior");
+    const output = join(root, "output");
+    writeFileSync(priorOut, priorLines);
+    writeFileSync(output, "");
+    const result = runStep(checked, root, { CLAIMED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: base, ...claim, PRIOR_OUT: priorOut, GITHUB_OUTPUT: output });
+    return { status: result.status, stdout: result.stdout, outputs: outputLines(output) };
+  };
+  const resume = { RESUME_BRANCH: branch, RESUME_TIP: tip };
+  const same = publish(resume, `proceed=true\nreuse-branch=\nresume-branch=${branch}\nresume-tip=${tip}\nresume-cause=turn-cap\n`);
+  assert.equal(same.status, 0, same.stdout);
+  assert.deepEqual(same.outputs, { checked: "true", "reuse-branch": "", "resume-branch": branch, "resume-tip": tip, "base-sha": base, "start-sha": tip });
+  for (const [name, lines] of [
+    ["another tip", `proceed=true\nreuse-branch=\nresume-branch=${branch}\nresume-tip=${"e".repeat(40)}\n`],
+    ["no resume now (the branch is behind, rejected or not the App's)", "proceed=true\nreuse-branch=\n"],
+    ["another branch", `proceed=true\nreuse-branch=\nresume-branch=work-resolve-issue/issue-7-124-1\nresume-tip=${tip}\n`],
+  ]) {
+    const result = publish(resume, lines);
+    assert.equal(result.status, 1, name);
+    assert.match(result.stdout, /^::error::bad-output: /m, name);
+    assert.deepEqual(result.outputs, {}, name);
+  }
+  const reuse = publish({ REUSE_BRANCH: branch }, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+  assert.equal(reuse.status, 1, "a reuse the check does not choose");
+  const fresh = publish({ CLAIMED: "false" }, "");
+  assert.deepEqual([fresh.status, fresh.outputs["start-sha"]], [0, base]);
+});
+
+// lane.json is the runner's record: an issue run that started carries it,
+// naming no branch yet and exactly the branch the run resumed
+// (report-outcome.mjs reads branch and resume from it).
+test("scan job: an issue run that started must carry lane.json, with no branch and the checked resume", async (t) => {
+  const lane = (fields) => JSON.stringify({ branch: "", class: "", resets: "", "max-turns": "50", resume: "", failed: "false", "api-error-status": "", "error-text": "", ...fields });
+  const branch = "work-resolve-issue/issue-7-123-1";
+  const decodeIssue = async (files, issueFields) => {
+    const outputs = runOutputsAfterCarry(t, files, { issue: true });
+    const open = openStep(t, outputs);
+    return decode(t, decodeEnv({ ...outputs, "patch-collected": "" }, { "issue-number": "7" }, open, issueFields));
+  };
+  const started = { "issue-run-started": "true", "resume-branch": "" };
+  assert.equal((await decodeIssue({ "work-outcome/lane.json": lane({}) }, started)).failed, null);
+  assert.equal((await decodeIssue({ "work-outcome/lane.json": lane({ resume: branch }) }, { ...started, "resume-branch": branch })).failed, null);
+  for (const [name, files, fields] of [
+    ["no lane.json", { "skill-reply/reply.txt": "ok\n" }, started],
+    ["a branch already named", { "work-outcome/lane.json": lane({ branch }) }, started],
+    ["a resume the run did not make", { "work-outcome/lane.json": lane({ resume: branch }) }, started],
+    ["no resume on a resumed run", { "work-outcome/lane.json": lane({}) }, { ...started, "resume-branch": branch }],
+    ["lane.json that does not parse", { "work-outcome/lane.json": "{" }, started],
+  ]) {
+    const { failed } = await decodeIssue(files, fields);
+    assert.match(String(failed), /^payload-mismatch: /, name);
+  }
+  // A run that did not start (a reuse or a stale stop) carries nothing.
+  assert.equal((await decodeIssue({ "skill-reply/reply.txt": "ok\n" }, { "issue-run-started": "false" })).failed, null);
+});
+
+// The reuse summary job runs code from the default branch tip only, and
+// takes its branch and base from the issue-fields job's checked outputs.
+test("pr-run-activity-read.yml: the reuse summary job takes code from the default branch tip and its branch and base from issue-fields", () => {
+  const job = workflow("pr-run-activity-read.yml").jobs.summary;
+  assert.deepEqual(job.needs, ["run", "issue-fields"]);
+  assert.equal(job.steps.find((s) => s.id === "base").with.ref, "${{ github.event.repository.default_branch }}");
+  const text = JSON.stringify(job);
+  assert.doesNotMatch(text, /needs\.run\.outputs/);
+  const ctx = (checked, reuse) => ({ "needs.issue-fields.outputs.checked": checked, "needs.issue-fields.outputs.reuse-branch": reuse, "github.event.repository.default_branch": "main" });
+  const runs = (c) => evaluate(job.if.replace(/^\$\{\{ |\s*\}\}$/g, "").replace(/!cancelled\(\) && /, ""), c);
+  assert.equal(runs(ctx("true", "work-resolve-issue/issue-7-1-1")), true);
+  assert.equal(runs(ctx("", "work-resolve-issue/issue-7-1-1")), false, "an unchecked reuse branch runs no summary");
+});
+
+test("work-resolve-issue.yml: every resolve-issue output a job reads is the read runner's scan or issue-fields job's", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
+  const names = [...new Set([...JSON.stringify(jobs).matchAll(/needs\.resolve-issue\.outputs\.([\w-]+)/g)].map((m) => m[1]))].sort();
+  assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
 });
 
 test("scan job: a re-run at another attempt of the same run opens; a bundle from another run, or opened with another key, fails closed without rotation", async (t) => {
@@ -3250,19 +3494,12 @@ test("scan job: the verdict is built from the run job's checked outputs, never f
   assert.ok(!runSteps().some((s) => /verdict/i.test(s.name ?? "") && s.name !== "Check the gate skill's verdict"));
 });
 
-test("pr-run-activity-read.yml: the patch and reply outputs come from the scan job in PR mode and the run job in issue mode, and every caller's reads resolve", () => {
+test("pr-run-activity-read.yml: the patch and reply outputs come from the scan job alone, and every caller's reads resolve", () => {
   const read = workflow("pr-run-activity-read.yml");
   const outputs = read.on.workflow_call.outputs;
   for (const name of ["patch-state", "patch-sha256", "patch-attempt", "reply-attempt"]) {
-    assert.equal(outputs[name].value, `\${{ jobs.scan.outputs.${name} || jobs.run.outputs.${name} }}`, name);
-    assert.ok(Object.hasOwn(read.jobs.scan.outputs, name) && Object.hasOwn(read.jobs.run.outputs, name), name);
-  }
-  // In PR mode the run job's own patch outputs stay empty, so the scan job's alone count.
-  const runPatchState = read.jobs.run.outputs["patch-state"];
-  assert.equal(atStep(runPatchState, prRun(runPatchState, { "steps.patch-upload.outcome": "skipped", "steps.patch.outputs.state": "empty" })), "");
-  for (const id of ["patch-upload", "reply-upload"]) {
-    const step = read.jobs.run.steps.find((s) => s.id === id);
-    assert.equal(atStep(step.if, prRun(step.if, { "steps.patch.outputs.state": "written", "steps.act-key.outcome": "success" })), false, id);
+    for (const exposed of [name, `scan-${name}`]) assert.equal(outputs[exposed].value, `\${{ jobs.scan.outputs.${name} }}`, exposed);
+    assert.ok(Object.hasOwn(read.jobs.scan.outputs, name) && !Object.hasOwn(read.jobs.run.outputs, name), name);
   }
   // Every output a caller of the read runner reads is one the read runner declares.
   for (const file of ["pr-unblock.yml", "work-resolve-issue.yml"]) {
@@ -3566,7 +3803,7 @@ test("report job: the PR number comes from the caller or the event, a run job pr
 
 test("scan job: an empty default branch fails closed before the opener is checked out", (t) => {
   const steps = scanSteps();
-  const assertStep = steps[0];
+  const assertStep = steps.find((s) => s.name === "Assert the default branch is set");
   const base = steps.find((s) => s.id === "base");
   assert.equal(assertStep.name, "Assert the default branch is set");
   assert.equal(assertStep.if, base.if, "runs whenever the checkout would");
@@ -4942,7 +5179,7 @@ test("pr-refine.yml: apply-docs-patch reads no read-runner run-job output and ta
   const runOutputs = Object.entries(workflow("pr-run-activity-read.yml").on.workflow_call.outputs)
     .filter(([, output]) => /\bjobs\.run\.outputs\./.test(output.value))
     .map(([name]) => name);
-  assert.ok(["patch-state", "patch-sha256", "head-sha"].every((name) => runOutputs.includes(name)), runOutputs.join(" "));
+  assert.ok(runOutputs.includes("head-sha"), runOutputs.join(" "));
   const read = [...JSON.stringify(apply).matchAll(/needs\.(fix-docs(?:-subscription)?)\.outputs\.([\w-]+)/g)]
     .filter(([, , output]) => runOutputs.includes(output))
     .map(([ref]) => ref);
