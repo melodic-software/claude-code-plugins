@@ -12,9 +12,7 @@
 # the head, so it holds only what the activity changed after the merge.
 # Prints `state=empty` (no change, no patch file) or `state=written`, then
 # `sha256=<hex>` of the patch file (empty when there is none): lines for
-# $GITHUB_OUTPUT. Exit 2 for bad arguments, 1 when git fails, 3 when a scrub
-# stub name the head does not track holds anything but an empty regular file
-# (nothing printed, no patch file).
+# $GITHUB_OUTPUT. Exit 2 for bad arguments, 1 when git fails.
 #
 # The activity ran in this checkout and could write its .git, so git never
 # reads that directory's config, hooks or info files: it runs against a fresh
@@ -63,19 +61,18 @@ paths=(':(top)' ':(top,exclude).lane')
 # The CLI's Bash, under the environment scrub run-claude-cli sets, leaves
 # these as empty files at the top of the checkout, hidden only by an
 # .git/info/exclude this repository never reads. One the head does not track
-# is left out while it is still empty; with content, or as a link or
-# directory, it is refused, since it is no stub. Names as of CLI 2.1.304,
+# is left out of the patch; with content, or as a link or directory, it is
+# named on stderr, and still left out: several are credential files
+# (.npmrc, .env*), which no patch carries. Names as of CLI 2.1.304,
 # which documents none; recheck when run-claude-cli's cli-version pin moves.
 stubs=(bunfig.toml package.json .npmrc .yarnrc .yarnrc.yml .gitmodules package-lock.json yarn.lock
   pnpm-lock.yaml .env .env.local .env.development .env.development.local .env.test .env.test.local
   .env.production .env.production.local)
 for name in "${stubs[@]}"; do
   "${g[@]}" cat-file -e "$from:$name" 2>/dev/null && continue
-  if [[ ! -L $work/$name && -f $work/$name && ! -s $work/$name ]]; then
-    paths+=(":(top,exclude,literal)$name")
-  elif [[ -L $work/$name || -e $work/$name ]]; then
-    echo "collect-patch.sh: $name is not an empty file the head lacks, so no patch is written" >&2
-    exit 3
+  paths+=(":(top,exclude,literal)$name")
+  if [[ -L $work/$name || (-e $work/$name && ! (-f $work/$name && ! -s $work/$name)) ]]; then
+    echo "collect-patch.sh: $name is not an empty file the head lacks; it is left out of the patch" >&2
   fi
 done
 

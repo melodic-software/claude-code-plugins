@@ -218,22 +218,31 @@ run_collect
 check 'stubs and an edit: state is written' written "$(field state)"
 check 'stubs and an edit: the edit is in the patch' 1 "$(in_patch edit.txt)"
 check 'stubs and an edit: only the edit is in the patch' 1 "$(grep -c '^diff --git ' "$PATCH")"
-refused() {
+# A stub name the head lacks that holds content, or is a link or directory,
+# is dropped from the patch and named on stderr; the rest of the change is
+# still written.
+dropped() {
+  put edit.txt 'one\nTWO\n'
   run_collect
-  check "$1: exit 3" 3 "$RC"
-  check "$1: nothing on stdout" '' "$OUT"
-  check "$1: no patch file" no "$([[ -e $PATCH ]] && echo yes || echo no)"
+  check "$1: exit 0" 0 "$RC"
+  check "$1: state is written" written "$(field state)"
+  check "$1: only the edit is in the patch" 1 "$(grep -c '^diff --git ' "$PATCH")"
+  check "$1: the edit is in the patch" 1 "$(in_patch edit.txt)"
 }
 new_repo
 stubs
 put .env 'TOKEN=x\n'
-refused 'a new .env with content'
+dropped 'a new .env with content'
 new_repo
 ln -s keep.txt "$R/.npmrc"
-refused 'a new .npmrc that is a symbolic link'
+dropped 'a new .npmrc that is a symbolic link'
 new_repo
 mkdir "$R/.yarnrc"
-refused 'a new .yarnrc that is a directory'
+put .yarnrc/x 'y\n'
+dropped 'a new .yarnrc that is a directory'
+new_repo
+put package.json '{"name":"x"}\n'
+dropped 'a new package.json with content'
 new_repo
 put package.json '{}\n'
 put .env ''

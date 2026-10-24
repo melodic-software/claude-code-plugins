@@ -18,8 +18,8 @@
 #    script under LC_ALL=C, so the common version-bump collision needs no
 #    model and the three runs of a round sort alike.
 # 3. Snapshot the index (stage 0 and unmerged entries) to <out-dir>, list the
-#    unmerged paths, and escalate when one is a protected path (a workflow,
-#    submodule config or a settings file), or when one is a conflict a model
+#    unmerged paths, and escalate when one is a protected path (a workflow or
+#    a settings file), or when one is a conflict a model
 #    cannot resolve from markers: a side missing (modify or rename against
 #    delete) or no markers in the file (binary).
 # 4. For a clean or conflicted merge, write the conflict tree, T0: the
@@ -56,9 +56,9 @@ die() {
 TRAILER_VALUE=pr-unblock/resolve-conflicts
 OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 # Conflicts the lane does not resolve, matched on the lower-cased path: a
-# workflow, which the lane token cannot push, submodule config and a settings
-# file.
-PROTECTED_RE='^\.github/workflows/|(^|/)(\.gitmodules|settings[^/]*\.json)$'
+# workflow, which the lane token cannot push, and a settings file, which a
+# review job could load before review.
+PROTECTED_RE='^\.github/workflows/|(^|/)settings[^/]*\.json$'
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
 # <, then a run of =, then a run of >, the outer two followed by a space or the
 # line end. apply-patch.mjs's hasConflictMarkers holds the same rule.

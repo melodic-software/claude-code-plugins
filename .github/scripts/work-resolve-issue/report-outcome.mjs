@@ -45,9 +45,12 @@
 //             The runner's check results are listed and never stop it: the
 //             PR always carries the hold line, so a human reads them.
 //   refused  a done run whose patch apply-issue-patch refused
-//             (ESCALATION_REASON patch-protected-path, patch-invalid or
-//             patch-not-applied) hands back like stopped, naming the reason;
-//             patch-empty changes nothing, as the run committed nothing.
+//             (ESCALATION_REASON patch-invalid or patch-not-applied) hands
+//             back like stopped, naming the reason; patch-protected-path (the
+//             patch was all withheld kept paths, posted as a proposed diff)
+//             comments that the apply is pending, adds no label and removes
+//             agent-ready; patch-empty changes nothing, as the run committed
+//             nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
 //             (DIMENSION_SKIP): comments the next step with an
 //             outcome=<reason> marker, adds the human-gated label, removes
@@ -374,7 +377,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 // apply-issue-patch's escalation reasons, each with why the patch did not land.
 export const PATCH_REASONS = {
   "patch-empty": "the run wrote no change",
-  "patch-protected-path": "the patch changes a path the issue lane may not push: a workflow, a CODEOWNERS file, submodule config or a settings file",
+  "patch-protected-path": "the patch changes only paths the issue lane withholds from its push: a workflow, a settings file, a symbolic link or a gitlink",
   "patch-invalid": "the run's output was not a valid patch to push: missing, too large, made on another commit, or carrying a credential shape",
   "patch-not-applied": "the patch did not apply to the commit the run started from",
 };
@@ -681,6 +684,20 @@ export function decide({
   if (turnCap && outcome.unread) {
     const restart = turnCapRestarts < limits["turn-cap-restarts"];
     return turnCapPlan({ issueNumber, branch, cap: turnCap.cap, restart, humanLabel, runId, runUrl, onResumed });
+  }
+  // The run's patch was all kept paths: apply-issue-patch withheld it whole
+  // and posted it as a proposed diff, which waits on an automated apply, so
+  // no person is asked and agent-ready comes off so the lane does not run it
+  // again.
+  if (outcome.exit === "done" && escalation === "patch-protected-path") {
+    const lines = [
+      `<!-- work-resolve-issue outcome=kept-paths${runId ? ` run=${runId}` : ""} -->`,
+      `The run's change touched only paths the lane withholds from its push (${PATCH_REASONS[escalation]}). Its patch is posted on this issue as a proposed diff, pending an automated apply.`,
+    ];
+    if (runUrl) {
+      lines.push("", `Run: ${runUrl}`);
+    }
+    return { action: "hand-back", exit: "kept-paths", issueNumber, comment: lines.join("\n"), addLabels: [], removeLabels: ["agent-ready"] };
   }
   // apply-issue-patch refused the run's patch: its work never landed, so no
   // PR opens, from a resumed branch either.
@@ -1235,7 +1252,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // A hand-back plan's edits. The label first, so a failed comment still leaves
 // the issue with a person.
 async function applyHandBack(github, repo, plan) {
-  await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels });
+  if (plan.addLabels.length > 0) {
+    await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels });
+  }
   for (const name of plan.removeLabels) {
     await github("DELETE", `${repo}/issues/${plan.issueNumber}/labels/${encodeURIComponent(name)}`).catch((error) =>
       console.log(`report-outcome: could not remove ${name}: ${error.message}`),

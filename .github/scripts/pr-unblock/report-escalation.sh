@@ -61,7 +61,7 @@ die() {
 }
 
 case ${ESCALATION_REASON:-} in
-  protected-path-conflict) why='a conflicted path is a workflow, submodule config or a settings file, which the lane does not resolve' ;;
+  protected-path-conflict) why='a conflicted path is a workflow or a settings file, which the lane does not resolve' ;;
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
   unexpected-path-staged) why='the conflict resolution changes a path outside the conflicted ones, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
@@ -87,12 +87,12 @@ case ${ESCALATION_REASON:-} in
   ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;
   ci-fix-empty) why='the lane changed nothing that fixes the failing checks' ;;
   ci-fix-invalid) why='the CI fix the lane wrote did not pass validation, so it was not pushed' ;;
-  ci-fix-protected-path) why='the CI fix changes a path the lane does not push: .github/workflows/, CODEOWNERS, .gitmodules or a settings file' ;;
+  ci-fix-protected-path) why='the CI fix changes a path its row does not admit' ;;
   ci-fix-not-applied) why='the CI fix did not apply to the head it was written for, so it was not pushed' ;;
   ci-fix-escalated) why='the lane could not fix every failing check; its run log names each one and why' ;;
   conflict-patch-invalid) why='the conflict resolution the lane wrote did not pass validation, so the merge was not pushed' ;;
   conflict-patch-not-applied) why='the conflict resolution did not apply to the merge it was written for, so the merge was not pushed' ;;
-  conflict-patch-protected-path) why='the conflict resolution changes a path the lane does not push: .github/workflows/, CODEOWNERS, .gitmodules or a settings file' ;;
+  conflict-patch-protected-path) why='the conflict resolution changes a path the lane does not push in a merge: .github/workflows/, a settings file, a symbolic link or a gitlink' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 case $ESCALATION_REASON in

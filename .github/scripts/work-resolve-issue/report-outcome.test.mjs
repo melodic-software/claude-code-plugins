@@ -605,7 +605,6 @@ test("done with no branch is stopped, since nothing was committed", () => {
 // apply-issue-patch's escalation reason: a done run whose patch was refused
 // committed something that never landed, and the person sees why.
 for (const [reason, why] of [
-  ["patch-protected-path", /a path the issue lane may not push/],
   ["patch-invalid", /not a valid patch/],
   ["patch-not-applied", /did not apply/],
 ]) {
@@ -621,10 +620,23 @@ for (const [reason, why] of [
 }
 
 test("a refused patch on a resumed run hands back instead of opening the PR from the resumed branch", () => {
-  const plan = decideDone({ branch: "", resumed: "work-resolve-issue/issue-77-100-1", checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] }, escalation: "patch-protected-path" });
+  const plan = decideDone({ branch: "", resumed: "work-resolve-issue/issue-77-100-1", checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] }, escalation: "patch-invalid" });
   assert.equal(plan.action, "hand-back");
-  assert.ok(plan.comment.includes("`patch-protected-path`"), plan.comment);
+  assert.ok(plan.comment.includes("`patch-invalid`"), plan.comment);
   assert.ok(plan.comment.includes("Partial work is on the branch `work-resolve-issue/issue-77-100-1`"), plan.comment);
+});
+
+// A patch that changed only kept paths (a workflow, a settings file) pushed
+// nothing: the kept part waits on its automated apply, so no person is asked.
+test("done whose patch was all kept paths (patch-protected-path) adds no human label, takes agent-ready off and says the apply is pending", () => {
+  const plan = decideDone({ branch: "", escalation: "patch-protected-path", runUrl: "https://example/o/r/actions/runs/123" });
+  assert.equal(plan.action, "hand-back");
+  assert.equal(plan.exit, "kept-paths");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
+  assert.match(plan.comment, /pending an automated apply/);
+  assert.doesNotMatch(plan.comment, /work-items:escalation/);
+  assert.ok(plan.comment.includes("https://example/o/r/actions/runs/123"), plan.comment);
 });
 
 test("patch-empty changes no plan: a done run with no commit, a resumed run, or a pushback", () => {
@@ -782,9 +794,9 @@ test("main on done with apply-issue-patch's escalation reason hands the issue ba
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-invalid" }, fetch }), 0);
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-    assert.ok(comment.includes("`patch-protected-path`"), comment);
+    assert.ok(comment.includes("`patch-invalid`"), comment);
     assert.doesNotMatch(comment, /committed nothing/);
     assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
   });
@@ -2582,7 +2594,7 @@ test("every hand-back opens with the attended queue's escalation marker, and a r
   const handBacks = [
     decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }),
-    decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-protected-path" }),
+    decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-invalid" }),
     capped({ limits: { "turn-cap-restarts": 0 } }),
   ];
   for (const plan of handBacks) {
