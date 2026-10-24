@@ -12,6 +12,7 @@ import json
 import os
 import queue
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -404,6 +405,28 @@ class TestClient(BridgeCase):
             sb.end_watcher(self.dir, 1)
             sb.end_watcher(self.dir, None)
         kill.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "needs POSIX bash")
+    def test_end_watcher_stops_only_the_watcher_of_the_full_data_dir_path(self):
+        # Same last path component in every topic, and one path a prefix of another.
+        topics = [self.tmp / n / "interview-surface" for n in ("a", "b")]
+        topics.append(self.tmp / "a" / "interview-surface-2")
+        procs = []
+        for t in topics:
+            t.mkdir(parents=True)
+            p = subprocess.Popen(
+                ["bash", "-c", "sleep 30; :", str(t.parent / "watch.sh"), str(t)]
+            )
+            self.addCleanup(p.kill)
+            procs.append(p)
+        time.sleep(0.2)
+        sb.end_watcher(topics[0], procs[0].pid)
+        self.assertEqual(procs[0].wait(timeout=5), -signal.SIGTERM)
+        sb.end_watcher(topics[0], procs[1].pid)
+        sb.end_watcher(topics[0], procs[2].pid)
+        time.sleep(0.3)
+        self.assertIsNone(procs[1].poll())
+        self.assertIsNone(procs[2].poll())
 
 
 @unittest.skipUnless(
