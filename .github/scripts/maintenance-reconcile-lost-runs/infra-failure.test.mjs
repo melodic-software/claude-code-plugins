@@ -130,6 +130,33 @@ test("a finished job's list is whole only when every step is done and it ends wi
   assert.equal(infraCause(stale), "");
 });
 
+// A runner that dies leaves its job's list cut at the running step, with no
+// "Complete job"; GitHub records why on the job's check run, as
+// maintenance-monitor-signals reads it.
+const died = (message, level = "failure") => ({
+  ...cut,
+  status: "completed",
+  annotations: [{ annotation_level: level, message }],
+});
+
+test("a lost-runner job with a cut list and no Complete job is still a lost runner, from its annotations", () => {
+  for (const message of [
+    "The hosted runner: GitHub Actions 7 lost communication with the server. Anything in your workflow that terminates the runner process can cause this error.",
+    "The runner has received a shutdown signal. This can happen when the runner service is stopped.",
+  ]) {
+    assert.equal(stepsKnown(died(message)), false);
+    assert.equal(infraCause(died(message)), "lost runner");
+    assert.equal(infraOnly([died(message)]), true);
+  }
+});
+
+test("a tail-cut job with no runner-loss annotation stays unknown", () => {
+  assert.equal(infraCause({ ...cut, status: "completed" }), "");
+  assert.equal(infraCause(died("Process completed with exit code 1.")), "");
+  assert.equal(infraCause(died("The runner has received a shutdown signal.", "warning")), "");
+  assert.equal(infraOnly([{ ...cut, status: "completed", annotations: [] }]), false);
+});
+
 test("the reconciler keeps a run whose failed jobs' steps did not list, inside its re-run window", () => {
   const now = Date.parse("2026-10-19T20:00:00Z");
   const run = (attempt, created = "2026-10-19T19:00:00Z") => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: created });

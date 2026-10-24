@@ -108,6 +108,10 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
       const found = byId.get(Number(latest[1]))?.jobs ?? [];
       return { total_count: found.length, jobs: found };
     }
+    const notes = /^\/repos\/[^/]+\/[^/]+\/check-runs\/([0-9]+)\/annotations\?per_page=100$/.exec(path);
+    if (method === "GET" && notes) {
+      return runs.flatMap((r) => r.jobs ?? []).find((j) => j.id === Number(notes[1]))?.notes ?? [];
+    }
     const one = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)(\/rerun|\/rerun-failed-jobs)?$/.exec(path);
     if (one && method === "GET") {
       return byId.get(Number(one[1]));
@@ -641,6 +645,23 @@ test("a failed run at attempt 2 whose failed job's steps did not list is not re-
     assert.equal(code, 0);
     assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
   }
+});
+
+test("a failed run at attempt 2 whose cut job lost its runner is re-run as infra, from the job's annotations", async () => {
+  const steps = [
+    { name: "Set up job", status: "completed", conclusion: "success" },
+    { name: "Run the suites", status: "in_progress", conclusion: null },
+  ];
+  const lost = { id: 77, name: "lint-repo", status: "completed", conclusion: "failure", runner_id: 7, steps };
+  const message = "The hosted runner: GitHub Actions 7 lost communication with the server.";
+  const { failedJobReruns, calls } = await reconcile({
+    pulls: [pr(1)],
+    runs: [failed(101, sha(1), { jobs: [{ ...lost, notes: [{ annotation_level: "failure", message }] }], attempt: 2, updated: "2026-10-19T19:00:00Z" })],
+  });
+  assert.deepEqual(failedJobReruns, [101]);
+  assert.ok(calls.includes(`GET /repos/${REPO}/check-runs/77/annotations?per_page=100`));
+  const { calls: plain } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: [lost], attempt: 2, updated: "2026-10-19T19:00:00Z" })] });
+  assert.deepEqual(plain.filter((c) => c.startsWith("POST ")), []);
 });
 
 test("a run where only ci-status failed is not re-run", async () => {

@@ -92,6 +92,13 @@ export function stepsKnown(job) {
   return gap === -1 || steps.slice(gap).every((step) => /^(Post |Complete job$)/.test(String(step?.name ?? "")));
 }
 
+// A runner that dies cuts its job's list as the API can, so it is told apart
+// by the job's check-run annotations (job.annotations, read by the caller):
+// GitHub's own failure message, as maintenance-monitor-signals matches it.
+const LOST_RUNNER = /lost communication with the server|runner has received a shutdown signal/i;
+const lostRunnerNoted = (job) =>
+  Array.isArray(job?.annotations) && job.annotations.some((a) => a?.annotation_level === "failure" && LOST_RUNNER.test(String(a.message ?? "")));
+
 // True when a failed lane job's steps cannot be read, so whether the run's
 // failures are infra is unknown.
 const stepsUnread = (jobs) =>
@@ -103,7 +110,13 @@ export function infraCause(job) {
   if (job?.conclusion === "cancelled" || job?.conclusion === "timed_out") {
     return "time limit";
   }
-  if (job?.conclusion !== "failure" || !stepsKnown(job)) {
+  if (job?.conclusion !== "failure") {
+    return "";
+  }
+  if (lostRunnerNoted(job)) {
+    return "lost runner";
+  }
+  if (!stepsKnown(job)) {
     return "";
   }
   const { steps } = job;

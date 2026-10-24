@@ -400,7 +400,15 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
             if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
               throw new Error(`run ${r.id}'s job listing is not one complete page`);
             }
-            return listed.jobs;
+            // A failed job whose steps did not list in full may have lost its
+            // runner; its annotations tell (infra-failure.mjs infraCause).
+            return Promise.all(
+              listed.jobs.map(async (job) =>
+                job?.conclusion === "failure" && !stepsKnown(job) && Number.isSafeInteger(job.id)
+                  ? { ...job, annotations: await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`) }
+                  : job,
+              ),
+            );
           }),
         );
       }
