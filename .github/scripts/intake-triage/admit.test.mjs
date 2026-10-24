@@ -134,7 +134,6 @@ describe("decide", () => {
   const refusals = [
     ["criterion 2: a type the rules do not list", { issue: issueOf({ type: { name: "Epic" } }) }, /type Epic/],
     ["criterion 2: an issue with no type", { issue: issueOf({ type: null }) }, /type none/],
-    ["criterion 2: a Feature with no parent", { issue: issueOf({ type: { name: "Feature" } }) }, /Feature.*parent/],
     [
       "criterion 2: a Feature under a parent no listed human filed",
       {
@@ -210,6 +209,11 @@ describe("decide", () => {
         }),
       }),
     );
+    assert.deepEqual(result, { verdict: "admit", reasons: [] });
+  });
+
+  test("admits a Feature with no parent", () => {
+    const result = decide(facts({ issue: issueOf({ type: { name: "Feature" } }), parent: null }));
     assert.deepEqual(result, { verdict: "admit", reasons: [] });
   });
 
