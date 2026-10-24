@@ -122,7 +122,7 @@ Emitted by the orchestrator at the end of every run. Overwrites the previous sna
     "report_path":       { "type": ["string", "null"], "description": "The markdown report this run writes." },
     "page_path":         { "type": ["string", "null"], "description": "Where this run's decision page is built; no file is there when the build fails or Node.js is missing." },
     "cadence_deferred_count": { "type": "integer", "minimum": 0, "description": "Checks this run deferred by cadence; the delta against the prior run discloses them." },
-    "new_finding_keys":  { "type": "array", "items": { "type": "string" }, "description": "Present only on a -Scheduled run: the unmuted FindingKeys under each check whose previous latest.json entry is present and not UNKNOWN or SKIPPED, and does not hold them. Empty on a first run." },
+    "new_finding_keys":  { "type": "array", "items": { "type": "string" }, "description": "Present only on a -Scheduled run: the unmuted FindingKeys under each check whose previous latest.json entry lists detail.items and is not SKIPPED, and does not hold them. Empty on a first run." },
     "discovery_path":    { "type": "string", "description": "Present only on a -Scheduled run: <OutputBase>/reports/discovery-<run_stamp>.md, the research notes the audit session writes for the new findings; the report and the decision page name it." }
   }
 }

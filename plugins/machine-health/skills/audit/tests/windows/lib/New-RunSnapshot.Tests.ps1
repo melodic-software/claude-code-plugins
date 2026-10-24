@@ -8,7 +8,7 @@ Get-NewFindingKey, the per-check baseline diff against the previous latest.json.
 .DESCRIPTION
 Expected keys are worked out by hand from each fixture under the rule in the
 Get-NewFindingKey help: a key is new when this run lists it unmuted under a check
-whose previous entry is present and not UNKNOWN or SKIPPED, and that entry lacks it.
+whose previous entry lists detail.items and is not SKIPPED, and that entry lacks it.
 #>
 
 BeforeAll {
@@ -52,11 +52,9 @@ Describe 'Get-NewFindingKey' -Tag 'lib' {
         @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:C)
     }
 
-    It 'takes no baseline from a check whose previous reading was <Severity>' -ForEach @(
-        @{ Severity = 'UNKNOWN' }, @{ Severity = 'SKIPPED' }
-    ) {
+    It 'takes no baseline from a check that was SKIPPED before' {
         $previous = Write-Previous @(
-            (Get-FixtureCheck -Id 'x' -Severity $Severity -Items @(Get-FixtureItem $script:A))
+            (Get-FixtureCheck -Id 'x' -Severity 'SKIPPED' -Items @(Get-FixtureItem $script:A))
             (Get-FixtureCheck -Id 'y' -Severity 'OK' -Items @(Get-FixtureItem $script:A))
         )
         $now = @(
@@ -65,6 +63,26 @@ Describe 'Get-NewFindingKey' -Tag 'lib' {
         )
 
         @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:D)
+    }
+
+    It 'takes no baseline from a previous entry that listed no items, such as a timed-out check' {
+        $previous = Write-Previous @(
+            [pscustomobject]@{ id = 'x'; severity = 'UNKNOWN'; detail = [pscustomobject]@{ reason = 'timeout' } }
+            (Get-FixtureCheck -Id 'y' -Severity 'OK' -Items @(Get-FixtureItem $script:A))
+        )
+        $now = @(
+            (Get-FixtureCheck -Id 'x' -Severity 'WARN' -Items @(Get-FixtureItem $script:C))
+            (Get-FixtureCheck -Id 'y' -Severity 'WARN' -Items @(Get-FixtureItem $script:D))
+        )
+
+        @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:D)
+    }
+
+    It 'keeps the baseline of an UNKNOWN check that still listed items, as an unelevated partial read does' {
+        $previous = Write-Previous @(Get-FixtureCheck -Id 'x' -Severity 'UNKNOWN' -Items @(Get-FixtureItem $script:A))
+        $now = @(Get-FixtureCheck -Id 'x' -Severity 'UNKNOWN' -Items @((Get-FixtureItem $script:A), (Get-FixtureItem $script:C)))
+
+        @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:C)
     }
 
     It 'returns an empty list when the previous file is <Case>' -ForEach @(

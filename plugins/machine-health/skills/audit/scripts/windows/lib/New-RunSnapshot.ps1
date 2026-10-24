@@ -95,8 +95,9 @@ function Get-CheckItemKey {
 The FindingKeys this run lists that the previous latest.json did not.
 
 .DESCRIPTION
-A check's baseline is its previous checks[] entry, used only when that entry's
-severity is not UNKNOWN or SKIPPED. A key is new when this run lists it under a
+A check's baseline is its previous checks[] entry, used only when that entry
+lists detail.items and is not SKIPPED. An UNKNOWN entry that still listed items
+counts: unelevated runs read some checks only in part. A key is new when this run lists it under a
 check with a baseline, unmuted, and the baseline does not hold it. A check with
 no baseline adds nothing, so a missing or unreadable previous file gives an
 empty list. Read before latest.json is overwritten.
@@ -118,7 +119,8 @@ function Get-NewFindingKey {
     $baseline = @{}
     foreach ($check in @(Get-SnapshotField $previous 'checks')) {
         $id = Get-SnapshotField $check 'id'
-        if ($id -isnot [string] -or (Get-SnapshotField $check 'severity') -in @('UNKNOWN', 'SKIPPED')) { continue }
+        $items = Get-SnapshotField (Get-SnapshotField $check 'detail') 'items'
+        if ($id -isnot [string] -or $null -eq $items -or (Get-SnapshotField $check 'severity') -eq 'SKIPPED') { continue }
         $baseline[$id] = [System.Collections.Generic.HashSet[string]]::new([string[]](Get-CheckItemKey $check))
     }
     $new = [System.Collections.Generic.List[string]]::new()
