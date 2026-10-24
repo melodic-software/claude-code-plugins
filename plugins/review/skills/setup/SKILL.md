@@ -41,13 +41,17 @@ review-digest concern that `/review:explain-change` reads (schema:
 `${CLAUDE_PLUGIN_ROOT}/schemas/review-digest.schema.json`; keys and layers: the review-digest
 convention in the marketplace repository). The shared `setup-apply.mjs` writer does not check list
 keys (`blast_radius`, `risk_paths`), so `apply` writes this file itself, only when the operator asks
-to change a digest setting: create it at `<convention home>/review-digest.yaml` (default
-`docs/conventions/`) with only the keys the operator names, values taken from the schema's allowed
-values, list globs in double quotes, or edit the named lines of the existing file and show the diff
-first. Then read it back with
-`node "${CLAUDE_PLUGIN_ROOT}/skills/explain-change/scripts/digest-policy.mjs" < facts.json` on a
-pull request's facts and report any `warnings` line naming the file. The old `json config` block and
-`.claude/review-digest.json` are never written.
+to change a digest setting: create it at `docs/conventions/review-digest.yaml`, the one path the
+reader looks at whatever convention home the repository binds, with only the keys the operator
+names, values taken from the schema's allowed values, list globs in double quotes, or edit the
+named lines of the existing file and show the diff first. Then read the written file back from the
+working tree and check it against the schema: no key the schema does not list, `digest_policy` one
+of its values, the counts unquoted whole numbers, `blast_radius` only its levels, `risk_paths` at
+most 64 globs of at most 256 characters. Report each value that fails, quoting the key and value.
+Do not read it back through `digest-policy.mjs`: that script reads the team file only from a pull
+request's base commit, never the working tree, so it ignores an uncommitted file and warns that it
+is not on the base commit. Tell the operator the setting takes effect once the file is merged into
+the base branch. The old `json config` block and `.claude/review-digest.json` are never written.
 
 ## Repository settings
 
