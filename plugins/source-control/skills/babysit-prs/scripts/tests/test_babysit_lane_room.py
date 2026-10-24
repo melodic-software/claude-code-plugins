@@ -580,6 +580,17 @@ class PendingRunsUnchanged(unittest.TestCase):
         self.assertIn("branch=main", calls[0][1])
         self.assertIn("created=%3E%3D2026-10-01T00%3A00%3A00Z", calls[0][1])
 
+    def test_the_clock_margin_is_sixty_seconds_of_skew(self) -> None:
+        # computedAt is stamped before the runs are read, so the margin covers
+        # only clock skew: 60 s (owner decision on #9602).
+        def finished(before: timedelta) -> dict[str, object]:
+            return run(
+                "pr-require-checks.yml", status="completed", updated=FLOOR - before
+            )
+
+        self.assertFalse(self.unchanged([finished(timedelta(seconds=59))])[0])
+        self.assertTrue(self.unchanged([finished(timedelta(seconds=61))])[0])
+
     def test_a_conclusion_since_a_partial_listing_or_the_deadline_moves_it(
         self,
     ) -> None:

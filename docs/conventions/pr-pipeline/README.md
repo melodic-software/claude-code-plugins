@@ -1123,8 +1123,10 @@ with the lane records the last run kept, holding only when that check cannot be 
 nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
 counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue
 has not taken, nothing more is armed; a room that cannot be read (no report, a failed read) holds
-as a refusal does. A held room raises one warning annotation and one step-summary line naming why
-and each lanes App pull request it left unarmed, and no comment on the pull requests.
+as a refusal does. A held room raises one warning annotation and step-summary line naming why and
+each lanes App pull request it left unarmed or, report-only, that a disarm would have turned off,
+and one error annotation and summary line naming each one still armed because its disarm failed;
+it posts no comment on the pull requests.
 Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
 saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and

@@ -55,9 +55,11 @@
 //   post-merge report, a failed read) holds as a refusal does: nothing is
 //   armed and every armed lanes App pull request is disarmed. A report past
 //   its reuse age only for a lane merge still unverified is kept while
-//   nothing it was read from has moved, else checked again as the gate does. A held room raises one warning annotation and
-//   one step-summary line naming why and each lane pull request it left
-//   unarmed.
+//   nothing it was read from has moved, else checked again as the gate
+//   does. A held room raises one warning annotation and step-summary line
+//   naming why and each lane pull request left unarmed or, report-only,
+//   that a disarm would have turned off, and one error and summary line
+//   naming each one still armed because its disarm failed.
 // - pr-merge's gate would not hold it on its risk score: `evidence
 //   --lane-reviews --rung <the room's rung>` runs the gate's scorer
 //   (babysit_risk.score, holding) over the inputs the gate builds, the
@@ -638,8 +640,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       }
       return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
     };
-    // The lane pull requests the room's refusal or unread room left unarmed.
-    const roomHeld = [];
+    // Each lane pull request the room's refusal or unread room holds, by
+    // what became of it: unarmed (never armed, or disarmed), armed (its
+    // disarm failed, so the hold is not enforced) or report-only (a disarm
+    // would have run).
+    const roomHeld = new Map();
     let failed = 0;
     const minutes = riskEscalationMinutes(env.RESOLVED_CONFIG ?? "");
     // A reader run's per pull request refusal (a hold path or cost hold, or
@@ -690,7 +695,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       // Checked before the reads, so a held lane spends none.
       const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
       if (held?.disarm) {
-        roomHeld.push(pull.number);
+        roomHeld.set(pull.number, pull.autoMergeRequest != null ? "armed" : "unarmed");
       }
       if (held !== null) {
         ({ action, reason } = { action: held.disarm && pull.autoMergeRequest != null ? "disarm" : "none", reason: held.reason });
@@ -744,6 +749,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         continue;
       }
       if (!write) {
+        if (roomHeld.get(pull.number) === "armed") {
+          roomHeld.set(pull.number, "report-only");
+        }
         console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${escapeCommand(reason)}`);
         await note(pull, detail, { clears, reason });
         continue;
@@ -765,6 +773,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
         } else {
           await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
+          if (roomHeld.has(pull.number)) {
+            roomHeld.set(pull.number, "unarmed");
+          }
           console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
         }
       } catch (error) {
@@ -777,17 +788,29 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         await note(pull, detail, { clears, reason });
       }
     }
-    // One annotation and one summary line per run, not a comment per pull
-    // request: the room is read again every scheduled run.
-    if (roomHeld.length > 0) {
-      const text = escapeCommand(`${laneHeld}; left unarmed: ${roomHeld.map((number) => `#${number}`).join(", ")}`);
-      console.log(`::warning title=enable-auto-merge::${text}`);
-      if (env.GITHUB_STEP_SUMMARY) {
-        try {
-          appendFileSync(env.GITHUB_STEP_SUMMARY, `enable-auto-merge: ${text}\n`);
-        } catch (error) {
-          console.log(`enable-auto-merge: the step summary was not written: ${describe(error)}`);
-        }
+    // One warning (and an error while a disarm failed) and their summary
+    // lines per run, not a comment per pull request: the room is read again
+    // every scheduled run.
+    const held = (state) => [...roomHeld].filter(([, outcome]) => outcome === state).map(([number]) => `#${number}`).join(", ");
+    const lines = [];
+    const warned = [
+      ["left unarmed", held("unarmed")],
+      ["report-only, a disarm would have run", held("report-only")],
+    ].filter(([, numbers]) => numbers);
+    if (warned.length > 0) {
+      lines.push(["warning", escapeCommand(`${laneHeld}; ${warned.map(([what, numbers]) => `${what}: ${numbers}`).join("; ")}`)]);
+    }
+    if (held("armed")) {
+      lines.push(["error", escapeCommand(`${laneHeld}; still armed, its disarm failed, so the hold is not enforced: ${held("armed")}`)]);
+    }
+    for (const [level, text] of lines) {
+      console.log(`::${level} title=enable-auto-merge::${text}`);
+    }
+    if (lines.length > 0 && env.GITHUB_STEP_SUMMARY) {
+      try {
+        appendFileSync(env.GITHUB_STEP_SUMMARY, lines.map(([, text]) => `enable-auto-merge: ${text}\n`).join(""));
+      } catch (error) {
+        console.log(`enable-auto-merge: the step summary was not written: ${describe(error)}`);
       }
     }
     return failed === 0 ? 0 : 1;

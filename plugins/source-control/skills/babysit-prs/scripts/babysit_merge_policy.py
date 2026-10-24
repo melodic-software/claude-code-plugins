@@ -3868,8 +3868,11 @@ SHARED_BINDING_REFUSALS = frozenset(
         "config-unreadable",
     }
 )
-# Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
-SINCE_CLOCK_MARGIN = timedelta(minutes=5)
+# Clock skew alone: a runner clock may run ahead of GitHub's, so `since`
+# starts this much earlier. `computed_at` is stamped before the reads it
+# covers (pr-merge run 40060427179: its step started 03:58:09.10Z and
+# stamped 03:58:09.27Z), so no read time needs covering.
+SINCE_CLOCK_MARGIN = timedelta(seconds=60)
 
 
 @dataclass(frozen=True)
