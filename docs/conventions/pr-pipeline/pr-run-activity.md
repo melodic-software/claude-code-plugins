@@ -1899,8 +1899,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   on; every issue output reaches the caller through the
   [issue-fields job](#the-issue-fields-job)'s checks.
 - `resolve-issue` passes `ISSUE_LANE_CLAUDE_API_KEY` alone. Its handoff skips the read file's scan
-  job, so `resolve-issue-handoff`, with only `actions: read` and no checkout, reads this run's jobs
-  through the Actions API once: when `resolve-issue / broker-check` shows the broker's allow,
+  job, so `resolve-issue-handoff` runs the default branch tip's `handoff-evidence.sh handed-off`
+  as the pr-unblock handoff jobs run it, deciding from job conclusions alone: when
+  `resolve-issue / broker-allowed` succeeded (the broker step, when that job is absent),
   `resolve-issue / run` succeeded and `resolve-issue / scan` never ran, `resolve-issue-subscription`
   runs the activity again on `ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN` alone, with `fallback: handoff`,
   in the same slot. A stale-workflow stop, an earlier run's work and a reuse still run the scan

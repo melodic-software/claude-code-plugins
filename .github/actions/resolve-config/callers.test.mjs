@@ -5710,10 +5710,12 @@ test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-confli
 // `scan` its run and scan jobs' conclusions; a scan of null is left out of
 // the listing. The subscription call's own jobs are listed too, and no read
 // may count them.
-function issueListing({ broker = "success", run = "success", scan = "skipped" } = {}) {
+// `marker` adds the first call's broker-allowed job with that conclusion.
+function issueListing({ broker = "success", run = "success", scan = "skipped", marker = null } = {}) {
   const jobs = [
     { name: "admit", conclusion: "success", steps: [] },
     { name: "resolve-issue / broker-check", conclusion: broker === "failure" ? "failure" : "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: broker }] },
+    ...(marker === null ? [] : [{ name: "resolve-issue / broker-allowed", conclusion: marker, steps: [] }]),
     { name: "resolve-issue / run", conclusion: run, steps: [] },
     { name: "resolve-issue / issue-fields", conclusion: "success", steps: [] },
     { name: "resolve-issue-subscription / run", conclusion: "success", steps: [] },
@@ -5721,33 +5723,6 @@ function issueListing({ broker = "success", run = "success", scan = "skipped" } 
   ];
   if (scan !== null) jobs.push({ name: "resolve-issue / scan", conclusion: scan, steps: [] });
   return { total_count: jobs.length, jobs };
-}
-
-// Runs the handoff step with a gh stub that answers the listing through the
-// step's own --jq filter, as readPosted does.
-function readHandoff(t, step, listing, { fail = false } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "issue-handoff-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  mkdirSync(join(root, "bin"));
-  writeFileSync(join(root, "listing.json"), JSON.stringify(listing));
-  writeFileSync(
-    join(root, "bin", "gh"),
-    `#!/bin/bash\nprintf '%s\\n' "$*" >>"${join(root, "calls")}"\n${fail ? "exit 1\n" : ""}` +
-      `while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then filter=$2; fi; shift; done\njq -r "$filter" "${join(root, "listing.json")}"\n`,
-    { mode: 0o755 },
-  );
-  const output = join(root, "out");
-  writeFileSync(output, "");
-  const result = runStep(step, root, {
-    PATH: `${join(root, "bin")}:${process.env.PATH}`,
-    GITHUB_REPOSITORY: "o/r",
-    GITHUB_RUN_ID: "99",
-    GH_TOKEN: "x",
-    GITHUB_OUTPUT: output,
-    CALL: step.env.CALL,
-  });
-  const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
-  return { status: result.status, outputs: outputLines(output), calls };
 }
 
 // The plan's handoff rule (#9624's follow-up, phase 6b): the read runner
@@ -5777,19 +5752,23 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   const { fallback, ...same } = sub.with;
   assert.deepEqual(same, jobs["resolve-issue"].with, "the fallback call runs the same activity on the same inputs");
   assert.deepEqual(sub.concurrency, jobs["resolve-issue"].concurrency, "in the same slot");
-  // The handoff job: one shell step on a read-only token, no secret, no checkout.
+  // The handoff job: the default branch tip's handoff-evidence.sh on
+  // read-only tokens, no secret, as every pr-unblock handoff job runs it.
   assert.equal(handoff.needs, "resolve-issue");
   for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
     assert.equal(evaluate(handoff.if, { "needs.resolve-issue.result": result }), runs, result);
   }
-  assert.deepEqual(handoff.permissions, { actions: "read" });
+  assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}" });
-  assert.equal(handoff.steps.length, 1);
-  assert.equal(handoff.steps[0].uses, undefined);
+  assert.equal(handoff.steps.length, 2);
+  assert.deepEqual(handoff.steps[0], workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps[0], "the same sparse checkout");
   assert.deepEqual(stepSecrets(handoff), []);
   assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
-  const step = handoff.steps[0];
-  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALL: "resolve-issue" });
+  const step = handoff.steps[1];
+  assert.equal(step.id, "handoff");
+  assert.equal(step.uses, undefined);
+  assert.equal(step.run, "bash .base/.github/scripts/lib/handoff-evidence.sh handed-off");
+  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: "resolve-issue" });
   for (const [name, listing, handedOff] of [
     ["a handoff, its scan job listed as skipped", issueListing(), "true"],
     ["a handoff, its scan job not listed", issueListing({ scan: null }), "true"],
@@ -5799,13 +5778,34 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
     ["a broker refusal, which skips the run job", issueListing({ broker: "failure", run: "skipped" }), "false"],
     ["a run job that failed or timed out", issueListing({ run: "failure", scan: "success" }), "false"],
     ["a cancelled run job", issueListing({ run: "cancelled" }), "false"],
+    ["a handoff after broker-allowed succeeded", issueListing({ marker: "success" }), "true"],
+    ["a kill switch, broker-allowed skipped", issueListing({ broker: "skipped", marker: "skipped" }), "false"],
   ]) {
-    const read = readHandoff(t, step, listing);
+    const read = readPosted(t, step, listing);
     assert.equal(read.status, 0, name);
     assert.deepEqual(read.outputs, { "handed-off": handedOff }, name);
   }
-  assert.match(readHandoff(t, step, issueListing()).calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
-  const failed = readHandoff(t, step, issueListing(), { fail: true });
+  assert.match(readPosted(t, step, issueListing()).calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+  // Sandbox run 40118275531: the broker step's conclusion read null for
+  // minutes after its job ended, so the handoff read false and the
+  // subscription call never ran. broker-allowed decides at once.
+  const lagged = readPosted(t, step, lagging(issueListing({ marker: "success" })));
+  assert.deepEqual(lagged.outputs, { "handed-off": "true" });
+  assert.equal(lagged.calls.trim().split("\n").length, 1, "job-level evidence needs one read");
+  // With no broker-allowed job, a null broker step is read again until it settles.
+  const settled = readPosted(t, step, [lagging(issueListing(), null), issueListing()]);
+  assert.deepEqual(settled.outputs, { "handed-off": "true" });
+  assert.equal(settled.calls.trim().split("\n").length, 2);
+  // Never settled: fails closed with one error line and no output.
+  const never = readPosted(t, step, lagging(issueListing()));
+  assert.notEqual(never.status, 0);
+  assert.deepEqual(never.outputs, {});
+  assert.equal(never.stdout.split("\n").filter((line) => line.startsWith("::error::")).length, 1);
+  // A forged run job step of the broker's name is never the allow.
+  const forged = issueListing({ broker: "skipped" });
+  forged.jobs.find((job) => job.name === "resolve-issue / run").steps = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
+  assert.deepEqual(readPosted(t, step, forged).outputs, { "handed-off": "false" });
+  const failed = readPosted(t, step, issueListing(), { fail: true });
   assert.notEqual(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
 });

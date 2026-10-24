@@ -210,17 +210,19 @@ jobs:
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # Whether resolve-issue handed off, read from this run's jobs through the
-  # Actions API, never from a resolve-issue output. A call handed off when
-  # the broker allowed it, its run job succeeded, and its scan job never ran:
-  # the read runner skips the scan job only on its run job's handed-off
-  # output (a run that stopped on stale workflow files, an earlier run's work
-  # or a reuse still runs it). That output comes from the key-presence step,
-  # which runs before any model turn, and run-claude-cli's handoff, which it
-  # sets after restoring the step files, but the run job runs the model's
-  # commands and could still forge it, so a forged handoff starts one
-  # subscription run at most. A
-  # failed read fails this job and starts no second call; report-outcome
-  # then reports the first call, which uploaded no outcome.
+  # Actions API by the default branch tip's handoff-evidence.sh, never from a
+  # resolve-issue output. A call handed off when its broker-allowed job
+  # succeeded, its run job succeeded, and its scan job never ran: the read
+  # runner skips the scan job only on its run job's handed-off output (a run
+  # that stopped on stale workflow files, an earlier run's work or a reuse
+  # still runs it). Every one of those is a job conclusion, which the jobs
+  # listing returns as the job ends. That output comes from the key-presence
+  # step, which runs before any model turn, and run-claude-cli's handoff,
+  # which it sets after restoring the step files, but the run job runs the
+  # model's commands and could still forge it, so a forged handoff starts one
+  # subscription run at most. A failed read fails this job and starts no
+  # second call; report-outcome then reports the first call, which uploaded
+  # no outcome.
   resolve-issue-handoff:
     needs: resolve-issue
     if: ${{ !cancelled() && needs.resolve-issue.result != 'skipped' }}
@@ -228,25 +230,25 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
     steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - name: Read whether resolve-issue handed off
         id: handoff
         env:
           GH_TOKEN: ${{ github.token }}
-          CALL: resolve-issue
-        run: |
-          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
-            --jq '.jobs[] | (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)"),
-              "\(.conclusion // "none") \(.name)"')
-          scan=$(sed -n "s|^\([a-z_]*\) $CALL / scan\$|\1|p" <<<"$names")
-          handed=false
-          if grep -qxF "allowed $CALL / broker-check" <<<"$names" && grep -qxF "success $CALL / run" <<<"$names" &&
-            { [ -z "$scan" ] || [ "$scan" = skipped ]; }; then
-            handed=true
-          fi
-          echo "handed-off=$handed" >>"$GITHUB_OUTPUT"
+          CALLS: resolve-issue
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
   # The subscription fallback, a second call on new VMs in the same slot: it
   # runs only on resolve-issue-handoff's read, holds the OAuth token alone,
