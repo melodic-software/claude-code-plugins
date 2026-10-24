@@ -1375,8 +1375,8 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   const launcher = { uses: "anthropics/claude-code-action@abc", with: { claude_code_oauth_token: "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}" } };
   const admit = (step = { id: "gate", uses: TRUSTED_TRIGGER }) => ({ outputs: { proceed: "${{ steps.gate.outputs.proceed }}" }, steps: [step] });
   const gates = (on, jobs) => Object.fromEntries(gatedTriggerJobs(["f.yml"], () => ({ on, jobs })));
-  const intake = (uses, ids) => ({ uses, with: { "allowed-author-ids": ids }, secrets: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } });
-  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@d02b8697e092705153f0996549b05f95a446bb52";
+  const intake = (uses, ids) => ({ uses, with: { "allowed-author-ids": ids }, secrets: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}" } });
+  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@b0ecc273abe492d12f2efa98ee4741a84c219ed2";
   const cases = {
     "ungated issues job": [{ issues: { types: ["labeled"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
     "ungated issue_comment job": [{ issue_comment: { types: ["created"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
