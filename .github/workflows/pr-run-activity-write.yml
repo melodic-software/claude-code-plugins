@@ -357,17 +357,18 @@ on:
         default: ""
       patch-base-sha:
         description: >-
-          Issue mode, apply-patch: the model job's base-sha output, the default
-          branch commit a new run's patch was made on; the new lane branch
-          starts there.
+          Issue mode, apply-patch: the read runner's scan-base-sha output, the
+          default branch commit a new run's patch was made on, as its
+          issue-fields job checked it; the new lane branch starts there.
         required: false
         type: string
         default: ""
       patch-resume-tip:
         description: >-
-          Issue mode, apply-patch: the model job's resume-tip output, the
-          earlier lane branch tip a resumed run's patch was made on; the new
-          lane branch starts there instead. Empty otherwise.
+          Issue mode, apply-patch: the read runner's scan-resume-tip output,
+          the earlier lane branch tip a resumed run's patch was made on, as its
+          issue-fields job re-derived it; the new lane branch starts there
+          instead. Empty otherwise.
         required: false
         type: string
         default: ""
