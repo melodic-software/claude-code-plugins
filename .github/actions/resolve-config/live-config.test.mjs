@@ -33,7 +33,6 @@ const FACTS = {
   changedPaths: ["docs/guide.md"],
   changedTargets: ["docs/guide.md"],
   labels: [],
-  workClasses: [],
   mergeable: "conflicting",
   draft: false,
   fieldValues: [

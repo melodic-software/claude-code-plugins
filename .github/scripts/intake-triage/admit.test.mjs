@@ -65,13 +65,13 @@ const facts = (overrides = {}) => ({
 });
 
 describe("decide", () => {
-  // Owner decision Q9 (#8999): pr-verify judges a lane PR only against text a
-  // listed human wrote and last edited (resolve-pr.mjs linkedIssues), so an
-  // issue with no such body or comment fails verify at every head.
+  // pr-verify judges a lane PR only against text a listed human wrote and
+  // last edited, and the refinement on their issue (resolve-pr.mjs
+  // linkedIssues), so an issue with no such text fails verify at every head.
   describe("trusted-human acceptance criteria", () => {
     const appIssue = issueOf({ user: { id: APP } });
     const NO_SPEC =
-      "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment (owner Q9, #8999)";
+      "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
     const goAhead = written(USER(HUMAN), { body: "Go ahead." });
 
     test("an App-authored issue with criteria only in its body is refused", () => {
@@ -383,24 +383,48 @@ describe("decide", () => {
     assert.equal(result.verdict, "refuse");
   });
 
-  // The App's refinement comment is model text pr-verify does not read yet, so
-  // its task list admits nothing; on a human-filed issue it parks the issue for
-  // owner Q78 (the refinement counts as spec) instead of asking a person.
+  // On an issue a listed human wrote, pr-verify reads intake's newest
+  // refinement comment while the lanes App's text is unedited, so its task
+  // list counts; nothing else the App wrote does.
   describe("criterion 7 and the lanes App's refinement comment", () => {
     const thin = issueOf({ body: "Make the README skill count right." });
-    const refinement = (body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => written(APP_ACTOR, { body });
+    const refinement = (body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`, extra = {}) => written(APP_ACTOR, { body, ...extra });
     const NO_SPEC = /^no trusted-human acceptance criteria: /;
+    const refused = (spec, issue = thin) => {
+      const result = decide(facts({ issue, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), NO_SPEC);
+    };
 
-    test("a thin human-filed issue whose only task list is the App's refinement waits for Q78, not admitted", () => {
-      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [refinement()]) }));
-      assert.equal(result.verdict, "wait");
-      assert.deepEqual(result.pulls, []);
-      assert.match(result.reasons.join(), /lanes App's refinement, which counts once owner Q78 lands/);
+    test("a thin issue a listed human filed is admitted on the App's newest unedited refinement comment", () => {
+      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement()]) })), { verdict: "admit", reasons: [] });
+      // The newest one is read: an older one holding the only task list does not count.
+      refused(humanSpec(thin, [refinement(), refinement(`${REFINE_MARKER}\nNo criteria here.`)]));
+      assert.equal(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement(`${REFINE_MARKER}\nNone.`), refinement()]) })).verdict, "admit");
     });
 
-    test("the same issue with no task list anywhere is refused", () => {
-      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [refinement(`${REFINE_MARKER}\n**Refinement.**\n\nNo criteria.`)]) }));
-      assert.equal(result.verdict, "refuse");
+    test("an edited refinement, or one that is not the newest unedited, does not count", () => {
+      refused(humanSpec(thin, [refinement(undefined, { editor: APP_ACTOR })]));
+      refused(humanSpec(thin, [refinement(), refinement(undefined, { editor: APP_ACTOR })]));
+    });
+
+    test("a refinement on an issue the App filed, or whose body someone else last edited, does not count", () => {
+      refused({ ...written(APP_ACTOR, { body: thin.body }), comments: [refinement()] }, issueOf({ body: thin.body, user: { id: APP } }));
+      refused({ ...written(USER(HUMAN), { body: thin.body, editor: APP_ACTOR }), comments: [refinement()] });
+    });
+
+    test("a refinement whose marker is not exactly the first text does not count", () => {
+      for (const body of [` ${REFINE_MARKER}\n- [ ] x`, `${REFINE_MARKER.toUpperCase()}\n- [ ] x`, `- [ ] x\n${REFINE_MARKER}`, `${ADMIT_MARKER}\n- [ ] x`]) {
+        refused(humanSpec(thin, [refinement(body)]));
+      }
+    });
+
+    test("a marked comment by anyone but the lanes App does not count as a refinement", () => {
+      for (const author of [{ __typename: "Bot", databaseId: 41898282 }, USER(OUTSIDER), { __typename: "User", databaseId: APP }]) {
+        refused(humanSpec(thin, [written(author, { body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.` })]));
+      }
+      // Without the App's id nothing it wrote counts.
+      const result = decide(facts({ issue: thin, appId: undefined, spec: humanSpec(thin, [refinement()]) }));
       assert.match(result.reasons.join(), NO_SPEC);
     });
 
@@ -429,6 +453,7 @@ describe("decide", () => {
     for (const [name, author] of [
       ["github-actions[bot]", { __typename: "Bot", databaseId: 41898282 }],
       ["an outsider", USER(OUTSIDER)],
+      ["the App", APP_ACTOR],
     ]) {
       test(`a task list from ${name} does not count`, () => {
         const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(author)]) }));
@@ -436,12 +461,6 @@ describe("decide", () => {
         assert.match(result.reasons.join(), NO_SPEC);
       });
     }
-
-    test("a task list from the App does not admit; it parks the issue for Q78", () => {
-      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(APP_ACTOR)]) }));
-      assert.equal(result.verdict, "wait");
-      assert.doesNotMatch(result.reasons.join(), NO_SPEC);
-    });
   });
 });
 
@@ -625,13 +644,13 @@ describe("admit", () => {
     assert.match(writes(fake.calls).at(-1), /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
   });
 
-  test("a thin issue waits on the App's refinement alone, keeping status: ready, and is admitted on a listed human's confirmed criteria", async () => {
+  test("a thin issue a listed human filed is admitted on the App's refinement alone or on a listed human's confirmed criteria", async () => {
     const thin = issueOf({ body: "Make the README skill count right." });
     const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.` });
-    const fake = fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement]) });
-    const refined = await go(fake);
-    assert.equal(refined.outcome, "waiting");
-    assert.ok(!writes(fake.calls).some((call) => call.includes(NEEDS_DECISION) || call.includes("status%3A%20ready")), writes(fake.calls).join("\n"));
+    const refined = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement]) }));
+    assert.equal(refined.outcome, "admitted");
+    const edited = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [{ ...refinement, editor: APP_ACTOR, lastEditedAt: "2026-10-20T00:00:00Z" }]) }));
+    assert.equal(edited.outcome, "refused");
     const confirmed = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement, written(USER(HUMAN), { body: "- [ ] Line 3 says nineteen." })]) }));
     assert.equal(confirmed.outcome, "admitted");
   });
