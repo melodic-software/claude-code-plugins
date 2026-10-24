@@ -70,7 +70,8 @@
 // refusal a person must clear (a hold or cost path, an issue link the lane
 // does not take, a verdict the gate marks needsHuman, a risk hold whose
 // comment has stood merge.risk-escalation-minutes) also gets the
-// human-gated label, once; clear-escalations never removes it under native,
+// human-gated label, put back while the comment stands unless a person
+// removed it since; clear-escalations never removes it under native,
 // so the person removes it after fixing the reason. Holds a person already
 // set (labels, a body hold, a veto), the room and failed reads write nothing.
 // Arming passes the head just read as expectedHeadOid, so a push in between
@@ -380,10 +381,38 @@ export function refusalWrites(pull, comments, { clears, reason }, { bot, label, 
   const person = refusalBody(true, reason, pull.headRefOid, label);
   const stood = prior?.body === lane && now - Date.parse(String(prior.updatedAt ?? prior.createdAt)) >= minutes * 60_000;
   const body = clears === "person" || (clears === "risk" && (prior?.body === person || stood)) ? person : lane;
+  // A person's comment already standing while the label is off (a pull
+  // request carrying it never gets here: holdReason holds it): the label
+  // goes back on unless a person removed it after the comment last changed,
+  // which the caller reads from the timeline (`liftedSince`).
   if (prior?.body === body) {
-    return null;
+    return body === person ? { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) } : null;
   }
   return { body, commentId: prior?.databaseId ?? null, label: body === person ? label : null };
+}
+
+// The newest label removals on a pull request, for refusalWrites' lift check.
+export const UNLABELED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      timelineItems(itemTypes: [UNLABELED_EVENT], last: 100) { totalCount nodes { ... on UnlabeledEvent { createdAt actor { __typename login } label { name } } } }
+    }
+  }
+}`;
+
+// Whether a person removed `label` at or after `since`, from UNLABELED_QUERY's
+// timeline; a timeline not read whole counts as removed, so an unknown never
+// puts back a label a person may have taken off.
+export function liftedByPerson(timeline, label, since) {
+  if (!Array.isArray(timeline?.nodes) || !(timeline.totalCount <= timeline.nodes.length)) {
+    return true;
+  }
+  return timeline.nodes.some(
+    (event) =>
+      event?.actor?.__typename === "User" &&
+      String(event?.label?.name).toLowerCase() === String(label).toLowerCase() &&
+      Date.parse(String(event?.createdAt)) >= Date.parse(since),
+  );
 }
 
 // The gate's own reader, one process per pull request; the run shares its
@@ -603,6 +632,17 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       }
       const base = `/repos/${repo[0]}/issues`;
       try {
+        if (writes.body === null) {
+          const variables = { owner: repo[1], name: repo[2], number: pull.number };
+          const timeline = (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables }))?.data?.repository?.pullRequest?.timelineItems;
+          if (liftedByPerson(timeline, writes.label, writes.liftedSince)) {
+            console.log(`enable-auto-merge: #${pull.number} left unlabeled: a person removed ${escapeCommand(writes.label)} after its refusal comment, or the timeline did not read whole`);
+            return;
+          }
+          await github("POST", `${base}/${pull.number}/labels`, { labels: [writes.label] });
+          console.log(`enable-auto-merge: #${pull.number} labeled ${writes.label} again: its refusal comment stands and no person removed the label`);
+          return;
+        }
         await (writes.commentId === null
           ? github("POST", `${base}/${pull.number}/comments`, { body: writes.body })
           : github("PATCH", `${base}/comments/${writes.commentId}`, { body: writes.body }));

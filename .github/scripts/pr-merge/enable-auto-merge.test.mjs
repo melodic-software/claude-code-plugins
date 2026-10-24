@@ -22,7 +22,9 @@ import {
   DISARM_MUTATION,
   HUMAN_VETO,
   PULLS_QUERY,
+  UNLABELED_QUERY,
   decide,
+  liftedByPerson,
   READER_EVENTS,
   main,
   pythonRoom,
@@ -132,6 +134,10 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
     }
+    if (body.query === UNLABELED_QUERY) {
+      const nodes = pulls.find((candidate) => candidate.number === body.variables.number)?.unlabeled ?? [];
+      return { data: { repository: { pullRequest: { timelineItems: { totalCount: nodes.length, nodes } } } } };
+    }
     if (body.query === DETAIL_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
       return { data: { repository: { pullRequest: detail(found?.discussion) } } };
@@ -157,7 +163,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes };
 }
@@ -237,12 +243,35 @@ test("a refusal a lane clears is commented on, with no label", async () => {
   assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
 });
 
+const unlabeled = (at, typename = "User", name = "needs-human") => ({ createdAt: at, actor: { __typename: typename, login: "someone" }, label: { name } });
+
 test("an unchanged refusal writes nothing, and a label a person removed stays off", async () => {
   const lane = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
-  const person = pull(2, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } });
+  const person = pull(2, {
+    files: [{ filename: "docs/held.md" }],
+    discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] },
+    unlabeled: [unlabeled("2026-10-23T10:30:00Z", "User", "Needs-Human")],
+  });
   const { code, notes } = await run([lane, person]);
   assert.equal(code, 0);
   assert.deepEqual(notes, []);
+});
+
+test("a person's refusal comment standing without its label gets the label back", async () => {
+  // An earlier run's label write failed: no removal at all, a bot's, a
+  // person's before the comment last changed, or another label's.
+  for (const removals of [[], [unlabeled("2026-10-23T10:30:00Z", "Bot")], [unlabeled("2026-10-23T09:59:00Z")], [unlabeled("2026-10-23T10:30:00Z", "User", "do-not-merge")]]) {
+    const person = pull(2, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] }, unlabeled: removals });
+    const { code, notes } = await run([person]);
+    assert.equal(code, 0);
+    assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
+  }
+});
+
+test("a timeline not read whole puts no label back", () => {
+  assert.equal(liftedByPerson({ totalCount: 101, nodes: [] }, "needs-human", "2026-10-23T10:00:00Z"), true);
+  assert.equal(liftedByPerson(null, "needs-human", "2026-10-23T10:00:00Z"), true);
+  assert.equal(liftedByPerson({ totalCount: 0, nodes: [] }, "needs-human", "2026-10-23T10:00:00Z"), false);
 });
 
 test("a changed refusal edits the one comment instead of posting another", async () => {
