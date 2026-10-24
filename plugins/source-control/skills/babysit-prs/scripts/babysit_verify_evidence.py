@@ -1548,7 +1548,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     pr-merge lane may merge one more of its own pull requests now
     (`merge_policy.lane_room`, `LaneRoom.report`), from this run's
     `babysit_postmerge.py` report and the `CLAUDE_LANES_MERGE_RUNG_CAP` value
-    the workflow read (empty is no cap; missing holds the rung off)."""
+    the workflow read (empty is no cap; missing holds the rung off). A report
+    refused only as `unverified-stale` is kept while nothing it was read from
+    has moved, else checked again."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -1570,7 +1572,17 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
-        answer = merge_policy.lane_room(args.repo, shared, lane_rung_cap=args.rung_cap)
+        answer = merge_policy.lane_room(
+            args.repo,
+            shared,
+            lane_rung_cap=args.rung_cap,
+            # The gate's recompute, bound as the room binds, and the one run
+            # listing that spares it while the pending merges' runs hold.
+            post_merge=postmerge.gate_reader(args.repo, (), lane_merges_only=True),
+            runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
+                args.repo, answer, branch
+            ),
+        )
         print(json.dumps(answer.report()))
         return 0
     if (

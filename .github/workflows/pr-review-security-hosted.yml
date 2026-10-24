@@ -13,10 +13,9 @@ name: pr-review-security-hosted
 # after a handoff) and the secret-handling model; per its header, this caller
 # owns the triggers, concurrency, and the GITHUB_TOKEN permission grant.
 #
-# There is no workflow-level path gating. The reusable skips, with a green
-# check, a review whose files in scope are all documentation (the
-# `docs-only-paths` passed below). A `.github/claude-security-paths` file is
-# no longer read.
+# There is no workflow-level path gating. The `docs-only-paths` passed below
+# is empty, so a documentation-only pull request is reviewed too. A
+# `.github/claude-security-paths` file is no longer read.
 #
 # NEVER add workflow-level `paths:`/`paths-ignore:` to this caller: a check
 # whose workflow never triggers is missing, not green, so a required check
@@ -172,7 +171,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@b49ac366bb3426039363a6927c41512e44533808 # v0.65.1
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@f1096608192c54cfb3dc252e36670e6f86700b9b # v0.65.5
     with:
       lane: security
       publish: comments
@@ -184,12 +183,11 @@ jobs:
       # reviewed. Where the repository does not set this variable the value is
       # empty and the reusable reviews no bot.
       allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-      # A review whose files in scope all match is skipped with a green check.
-      # Agent instruction files never count as documentation.
-      docs-only-paths: |
-        docs/**/*.md
-        **/README.md
-        **/CHANGELOG.md
+      # Empty: the security lane reviews every change, documentation included.
+      # A skipped review binds no evidence to the head, so pr-merge scored a
+      # docs-only pull request medium and held it for a person; a review with
+      # no findings binds to the head and scores low.
+      docs-only-paths: ''
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
       # fails while the label is on. The review holds only for its hold
       # classes; a changed file matching hold-paths holds as trust-gate

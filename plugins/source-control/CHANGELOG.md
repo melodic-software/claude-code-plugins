@@ -3,6 +3,44 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.7] - 2026-10-24
+
+### Fixed
+
+- `/source-control:worktree cleanup` now runs the workspace environment `down` command in a subshell, `(cd '<WORKSPACE_ROOT>' && env ... <down command>)`. The bare `cd` persisted between Bash calls and left the session inside the worktree it was about to remove, so the later `rmdir` failed with Device or resource busy.
+
+## [3.0.6] - 2026-10-24
+
+### Changed
+
+- The post-merge check asks the compare API once per branch tip when the branch moved after the gate's local clone was made, instead of once for every lane record. It compares the clone's copy of the branch with the live tip, and a record whose run head is on that copy is on the tip with no further call. A record off that copy, a diverged tip or an unreadable compare still gets its own compare, so every verdict is unchanged and every failed read still refuses.
+- An unattended gate run with no `--state-dir` (how the pr-merge lane runs) stops a pull request the REST record reads as merged before its demotion and post-merge reads, on the blocker it already gave it (`state=MERGED (not OPEN)`), instead of running the post-merge check first. The identity and queue readers are still read, so its queue sweep still dequeues a held entry. The verdict is unchanged. A closed pull request that was not merged, which can reopen, and any run with a state directory, where a recorded merge request's read-back needs the full policy, are read in full as before.
+
+### Fixed
+
+- The pr-merge gate no longer drops the run's shared post-merge answer (`postMergeShared: unused:demotion-changed`) because an ordinary issue `github-actions[bot]` or the agent identity opened since the answer was computed. `babysit_merge_policy._demotion_changed` now counts such an issue only when `read_demotion` could count it as a demotion record: its body carries the demotion marker, or it may have been edited since it was opened (`updated_at` differs from `created_at`, or either is missing or unreadable). A known record still counts whenever it is updated, and a full or unreadable issue page still counts as changed. Each candidate then skips its own demotion read, floor and post-merge check.
+
+## [3.0.5] - 2026-10-24
+
+### Fixed
+
+- `babysit_verify_evidence.py lane-room` no longer reports the lane's room unreadable when the run's post-merge answer is past the gate's two-minute reuse age only because a lane merge is still unverified (`unverified-stale`). It keeps the answer when nothing it was read from has moved: main's head, its config commit, the demotion records, and the unverified merges' full and canary runs (`babysit_postmerge.pending_runs_unchanged`, one run listing: none reached a conclusion since, none is past the dispatch deadline, and no quarantine that excused a failing suite has expired). Otherwise it runs the post-merge check again as the gate does (`babysit_merge_policy.lane_room` with the gate's `post_merge`), so a failure found since still refuses. A check that fails or cannot be read leaves the room unreadable, and every other refusal reads as before. `babysit_postmerge.gate_reader` is the one post-merge reader the gate and the room share. The post-merge report now carries `excusesExpireAt`, when the earliest quarantine that excused a failing suite expires. `SINCE_CLOCK_MARGIN` is now 60 seconds, which covers clock skew only, because `computedAt` is stamped before the reads it covers. It applies to the demotion re-check and to the run check.
+
+## [3.0.4] - 2026-10-24
+
+### Fixed
+
+- pr-merge's Dependabot gate now decides `ci-status` on the run that started last at the head. A re-triggered workflow leaves an older red `ci-status` run beside the newer green one (the check-runs `filter=latest` read keeps one per check suite), and the gate refused a green pull request on the stale failure. A newer run still pending waits. Runs that started at the same time, or any run with no readable start time, keep the old rule that any failure decides. Only GitHub Actions' `ci-status` runs are read, so another app's run of that name cannot outrank the real one with a later start time.
+
+- babysit-prs never merges the base into a Dependabot head (a `dependabot/` branch Dependabot opened). A commit by anyone else stops Dependabot's own rebases, drops the PR's changelog-fragment exemption and fails the Dependabot merge tier's commit check. The unattended enqueue, for a stale Dependabot head that is not an eligible Dependabot update, and `refresh_pr_branch.py --apply` now post one comment per base tip instead of calling `update-branch`, and hold the PR as `dependabot-rebase-requested`: `@dependabot rebase` when every commit is Dependabot's, `@dependabot recreate` when the other commits are only base merges GitHub made (Dependabot refuses to rebase a branch someone else committed to). At most one request is posted an hour, unless the head conflicts with its base. A head with any other commit gets no comment and holds as `dependabot-branch-edited`, because a recreate would discard that commit.
+- The pull-request skill's behind-branch step and its base refresh before ready point at the Dependabot exception, and that exception now names `@dependabot recreate` for a branch whose only foreign commits are base merges.
+
+## [3.0.3] - 2026-10-24
+
+### Fixed
+
+- The Dependabot classifier (`babysit_dependabot.py`) now reads a security update's version jump from its own verified commit subject when the commit metadata names the package and version but carries no `update-type`, so a patch such as `fast-uri` 3.1.8 to 3.1.9 is no longer held as an unreadable version. The subject must open with `Bump <name> from <a> to <b>` for the same package and version; the editable PR title is never read for it, and a group subject, a missing metadata version or an unreadable subject version still holds.
+
 ## [3.0.2] - 2026-10-24
 
 ### Fixed

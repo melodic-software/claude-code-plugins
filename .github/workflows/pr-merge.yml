@@ -1364,7 +1364,7 @@ jobs:
       queue: max
     runs-on: ubuntu-24.04
     # Above the sum of its steps' timeouts (workflow.test.mjs checks it).
-    timeout-minutes: 25
+    timeout-minutes: 30
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -1378,6 +1378,7 @@ jobs:
         with:
           ref: refs/heads/main
           path: .base
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
@@ -1496,11 +1497,24 @@ jobs:
           name: pr-merge-post-merge-report
           path: ${{ runner.temp }}/post-merge
 
+      # The lane records earlier checks proved, as post-merge-dispatch reads
+      # them, for a room whose post-merge answer must be checked again: the
+      # check answers those records with no read. Any error leaves no file,
+      # and the check reads each record. Rules: lane-records.mjs.
+      - name: Read the lane records the last run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+        run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
         if: steps.lane-token.outputs.token != ''
-        timeout-minutes: 14
+        timeout-minutes: 18
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
@@ -1514,6 +1528,8 @@ jobs:
           # rung cap as the merge job passes it, empty meaning no cap.
           POSTMERGE_RESULT: ${{ runner.temp }}/post-merge/post-merge.json
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
+          # The lane records read above, for the room's post-merge check.
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           # Name the two tokens' rate-limit readings for the reader's gh calls
           # (api-budget.bash): the lane token by default, the job token for
           # the Actions reads that carry it.

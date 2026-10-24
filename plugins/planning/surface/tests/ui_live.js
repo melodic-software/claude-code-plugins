@@ -17,8 +17,9 @@ async page => { // an open tab shows every change Claude applies without a reloa
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
-    // Q3 is accepted from the page, so its event waits for Claude to handle it.
+    // Q3 is accepted from the page with a note, so its event waits for Claude to handle it (the server auto-handles a plain accept).
     await page.click('.rail-list .qbtn[data-q="Q3"]'); await page.waitForTimeout(200);
+    await page.fill("#note", "Fine for now"); await page.waitForTimeout(200);
     await page.click("#qhead"); await page.keyboard.press("a"); await page.keyboard.press("Control+Enter");
     ok("Q3 shows Sent to Claude after the page's accept", await until(() => /Sent/.test(document.querySelector('.rail-list .qbtn[data-q="Q3"]').textContent)), await rail("Q3"));
     await page.click('.rail-list .qbtn[data-q="Q1"]'); await page.waitForTimeout(200);

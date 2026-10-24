@@ -117,7 +117,7 @@ reader applies.
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -1113,12 +1113,20 @@ review, the trust gate and the cost review all hold. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
 report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report, or
 one the gate would not reuse (`shared_refusal`: too old, a demotion record changed since, or a lane
-merge landed since that it does not count), it holds as a refusal does): while the gate holds its lane off (a demotion record,
+merge landed since that it does not count), it holds as a refusal does; one past the gate's
+two-minute reuse age only because a lane merge is still unverified is kept while main's head, its
+config commit, the demotion records and the unverified merges' full and canary runs are as they
+were (no run reached a conclusion since, no merge is past the six-hour dispatch deadline, and no
+quarantine that excused a failing suite has expired), and otherwise checked again as the gate does,
+with the lane records the last run kept, holding only when that check cannot be read): while the gate holds its lane off (a demotion record,
 `merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
 nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
 counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue
 has not taken, nothing more is armed; a room that cannot be read (no report, a failed read) holds
-as a refusal does.
+as a refusal does. A held room raises one warning annotation and step-summary line naming why and
+each lanes App pull request it left unarmed or, report-only, that a disarm would have turned off,
+and one error annotation and summary line naming each one still armed because its disarm failed;
+it posts no comment on the pull requests.
 Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
 saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and

@@ -304,5 +304,188 @@ class Contains(unittest.TestCase):
         self.assertEqual(set(local_verdicts), {True, False})
 
 
+class LiveRepo:
+    """The compare and branch-ref endpoints, answered from a live repository's
+    real ancestry: a SHA it lacks is a 404, as GitHub answers one. `failing`
+    names compare bases that fail, and `all_fail` fails every compare."""
+
+    def __init__(self, root: pathlib.Path, branch: str = "main") -> None:
+        self.root = root
+        self.branch = branch
+        self.failing: set[str] = set()
+        self.all_fail = False
+        self.calls: list[list[str]] = []
+
+    def compares(self) -> list[list[str]]:
+        return [c for c in self.calls if "/compare/" in c[1]]
+
+    def known(self, sha: str) -> bool:
+        return (
+            subprocess.run(
+                ["git", "-C", str(self.root), "cat-file", "-e", f"{sha}^{{commit}}"],
+                capture_output=True,
+                env=GIT_ENV,
+            ).returncode
+            == 0
+        )
+
+    def __call__(
+        self, args: list[str], **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        self.calls.append(args)
+        if args[1].endswith(f"/git/ref/heads/{self.branch}"):
+            tip = git(self.root, "rev-parse", f"refs/heads/{self.branch}")
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps({"object": {"sha": tip}}), ""
+            )
+        base, head = args[1].split("/compare/")[1].split("...")
+        if (
+            self.all_fail
+            or base in self.failing
+            or not (self.known(base) and self.known(head))
+        ):
+            return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
+        if base == head:
+            status = "identical"
+        elif base in set(git(self.root, "rev-list", head).split()):
+            status = "ahead"
+        elif head in set(git(self.root, "rev-list", base).split()):
+            status = "behind"
+        else:
+            status = "diverged"
+        return subprocess.CompletedProcess(args, 0, json.dumps({"status": status}), "")
+
+
+class TipMoved(unittest.TestCase):
+    """The branch moved after the local clone was made: its live tip is not in
+    the clone, so every lane record's `_lane_sender` check asks whether its
+    run's head is on a tip only the compare API knows. Fixture: live main
+    m0..m19 with side commit s1 off m3; the clone is made at m19; then live
+    main gains n1 and n2. The verdict for each record must equal a
+    compare-only judgment."""
+
+    REPO = "example-org/example-repo"
+    EVENTS = frozenset({"workflow_dispatch"})
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        live = self.live = pathlib.Path(self.tmp.name) / "live"
+        live.mkdir()
+        git(live, "init", "-q", "-b", "main")
+        self.mains = [commit(live, f"m{i}") for i in range(20)]
+        git(live, "checkout", "-q", "-b", "side", self.mains[3])
+        self.s1 = commit(live, "s1")
+        git(live, "checkout", "-q", "main")
+        self.clone = pathlib.Path(self.tmp.name) / "clone"
+        subprocess.run(
+            ["git", "clone", "-q", live.as_uri(), str(self.clone)],
+            check=True,
+            env=GIT_ENV,
+        )
+        self.n1 = commit(live, "n1")
+        self.n2 = commit(live, "n2")
+
+    def record(self, sha: str) -> dict[str, object]:
+        return {
+            "path": pm.LANE_DISPATCH_WORKFLOW,
+            "event": "workflow_dispatch",
+            "head_branch": "main",
+            "repository": {"full_name": self.REPO},
+            "head_repository": {"full_name": self.REPO},
+            "head_sha": sha,
+        }
+
+    def judge(
+        self, shas: list[str], clones: list[pathlib.Path], api: LiveRepo
+    ) -> list[bool]:
+        with (
+            mock.patch.object(pm, "gh_capture", api),
+            mock.patch.object(pm.policy, "_history_checkouts", return_value=clones),
+        ):
+            ctx = pm._Context(
+                owner="example-org", name="example-repo", identity="x", branch="main"
+            )
+            return [ctx._lane_sender(self.record(s), self.EVENTS) for s in shas]
+
+    def compare_only(self, shas: list[str]) -> list[bool]:
+        return self.judge(shas, [], LiveRepo(self.live))
+
+    def test_records_on_the_old_tip_cost_one_compare_in_all(self) -> None:
+        shas = [*self.mains, self.n1, self.s1]
+        api = LiveRepo(self.live)
+        verdicts = self.judge(shas, [self.clone], api)
+        self.assertEqual(verdicts, self.compare_only(shas))
+        self.assertEqual(verdicts, [True] * 21 + [False])
+        # One compare from the clone's main to the live tip answers every
+        # record on the old tip; n1 (not in the clone) and s1 (not on the
+        # old tip) are asked on their own.
+        self.assertEqual(len(api.compares()), 3, api.compares())
+        self.assertIn(f"compare/{self.mains[-1]}...{self.n2}", api.compares()[0][1])
+
+    def test_a_force_moved_tip_falls_back_to_one_compare_per_record(self) -> None:
+        git(self.live, "reset", "-q", "--hard", self.mains[5])
+        self.x1 = commit(self.live, "x1")
+        shas = list(self.mains)
+        api = LiveRepo(self.live)
+        verdicts = self.judge(shas, [self.clone], api)
+        self.assertEqual(verdicts, self.compare_only(shas))
+        self.assertEqual(verdicts, [True] * 6 + [False] * 14)
+        # The bridge compare reads diverged, so it carries no answer.
+        self.assertEqual(len(api.compares()), 1 + len(shas))
+
+    def test_an_unreadable_bridge_falls_back_to_one_compare_per_record(self) -> None:
+        shas = list(self.mains)
+        api = LiveRepo(self.live)
+        api.failing.add(self.mains[-1])
+        verdicts = self.judge(shas[:-1], [self.clone], api)
+        self.assertEqual(verdicts, [True] * 19)
+        self.assertEqual(len(api.compares()), 1 + 19)
+
+    def test_a_failed_record_compare_still_raises(self) -> None:
+        api = LiveRepo(self.live)
+        api.all_fail = True
+        with self.assertRaises(pm.PostMergeReadError):
+            self.judge([self.mains[0]], [self.clone], api)
+
+    def test_a_record_off_the_old_tip_but_on_the_live_tip_is_true(self) -> None:
+        # Live main merges side after the clone was made: s1 is off the
+        # clone's copy of main, so only its own compare can answer True.
+        git(self.live, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+        shas = [self.mains[0], self.s1, self.n1]
+        api = LiveRepo(self.live)
+        verdicts = self.judge(shas, [self.clone], api)
+        self.assertEqual(verdicts, self.compare_only(shas))
+        self.assertEqual(verdicts, [True, True, True])
+
+    def test_a_tip_the_clone_holds_spends_no_bridge_compare(self) -> None:
+        # The tip is local; only the record's commit is missing from the clone.
+        tmp = pathlib.Path(self.tmp.name) / "older"
+        subprocess.run(
+            ["git", "clone", "-q", self.live.as_uri(), str(tmp)],
+            check=True,
+            env=GIT_ENV,
+        )
+        api = LiveRepo(self.live)
+        with (
+            mock.patch.object(pm, "gh_capture", api),
+            mock.patch.object(pm.policy, "_history_checkouts", return_value=[tmp]),
+        ):
+            ctx = pm._Context(
+                owner="example-org", name="example-repo", identity="x", branch="main"
+            )
+            tip = ctx._branch_tip()
+            with self.assertRaises(pm.PostMergeReadError):
+                ctx.contains(UNKNOWN, tip)
+        # One compare for the unknown record (a 404), none for a bridge.
+        self.assertEqual(len(api.compares()), 1, api.compares())
+
+    def test_no_clone_asks_every_record(self) -> None:
+        shas = [*self.mains, self.n1, self.s1]
+        api = LiveRepo(self.live)
+        self.judge(shas, [], api)
+        self.assertEqual(len(api.compares()), len(shas))
+
+
 if __name__ == "__main__":
     unittest.main()
