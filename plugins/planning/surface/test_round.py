@@ -1257,12 +1257,53 @@ class TestStatus(DirCase):
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
         lines = out.splitlines()
-        self.assertIn("First group: 0 of 2 closed; open: Q2 Short Q2", lines)
+        self.assertIn("First group: 0 of 2 live answered; open: Q2 Short Q2", lines)
         self.assertIn(
             "  Q1 Short Q1 waits on: " + json.dumps('your "confirmation" of X'), lines
         )
-        self.assertIn("Second group: 0 of 1 closed", lines)
+        self.assertIn("Second group: 0 of 1 live answered", lines)
         self.assertIn('  Q3 Short Q3 waits on: "research"', lines)
+
+
+class TestStatusLive(DirCase):
+    """status counts the live questions the page meter counts, and names unconfirmed accepts."""
+
+    def test_live_unanswered_and_archived_are_reported_apart(self):
+        doc = base_doc()
+        template = doc["questions"][0]
+        group = template["group"]
+        doc["questions"] = []
+        for n in range(1, 22):
+            q = json.loads(json.dumps(template))
+            q.update(id=f"Q{n}", short=f"Short Q{n}", group=group)
+            if n > 7:
+                q["archived"] = {"why": "Off path.", "at": "2026-09-24T10:00:00Z"}
+            doc["questions"].append(q)
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        line = next(x for x in out.splitlines() if "live answered" in x)
+        self.assertIn("0 of 7 live answered; 14 archived", line)
+
+    def test_an_accepted_row_with_an_unticked_commitment_is_named(self):
+        doc = base_doc()
+        doc["questions"][0]["commits"] = ["No network"]
+        self.write_doc(doc)
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn('  Q1 Short Q1 accepted, to confirm: ["No network"]', out.splitlines())
 
 
 class TestDirRequired(unittest.TestCase):
@@ -1853,7 +1894,7 @@ class TestClaudeActivity(DirCase):
             ]
         )
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_a_terminal_answer_before_the_set_aside_does_not_count(self):
         doc = base_doc()
@@ -1874,11 +1915,11 @@ class TestClaudeActivity(DirCase):
         }
         self.write_doc(doc)
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q1 Short Q1", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q1 Short Q1", out.splitlines())
         doc["questions"][0]["terminal"]["updatedAt"] = "2026-09-25T10:00:01Z"
         self.write_doc(doc)
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 2 of 2 closed", out.splitlines())
+        self.assertIn("First group: 2 of 2 live answered", out.splitlines())
 
     def test_a_page_decision_is_set_aside_by_its_seq(self):
         own = {
@@ -1896,13 +1937,13 @@ class TestClaudeActivity(DirCase):
         self.assertEqual(q["setAsideSeq"], 1)
         rc, out, err = self.rp("status")
         self.assertIn(
-            "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2",
+            "First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2",
             out.splitlines(),
         )
         same_second = {**own, "seq": 2, "kind": "accept", "at": q["setAsideAt"]}
         self.write_events([own, same_second])
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_a_terminal_answer_in_the_second_of_a_hold_counts_after_it(self):
         self.apply({"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"})
@@ -1914,7 +1955,7 @@ class TestClaudeActivity(DirCase):
         q["terminal"]["updatedAt"] = q["setAsideAt"]
         self.write_doc(doc)
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_wait_by_claude_drops_a_user_hold(self):
         self.apply({"op": "wait", "id": "Q3", "by": "user", "waitsOn": "x"})
@@ -2010,14 +2051,14 @@ class TestClaudeActivity(DirCase):
             {"op": "record-terminal", "id": "Q1", "decision": "accept"},
         )
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
         self.apply(
             {"op": "record-terminal", "id": "Q2", "decision": "accept"},
             {"op": "wait", "id": "Q2", "by": "user", "waitsOn": "y"},
             {"op": "wait", "id": "Q2", "clear": True},
         )
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_same_text_entries_in_one_second_get_distinct_seqs(self):
         self.apply(
@@ -2377,8 +2418,8 @@ class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 
     REC = ["--rec", "Use the lock.", "--affects", "none", "--keep-alternatives"]
-    CLOSED = "First group: 1 of 2 closed; open: Q2 Short Q2"
-    OPEN = "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2"
+    CLOSED = "First group: 1 of 2 live answered; open: Q2 Short Q2"
+    OPEN = "First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2"
 
     def answer(self, kind, text=""):
         self.write_events(
@@ -2534,12 +2575,11 @@ class TestArchive(DirCase):
         rc, _, _ = self.rp("archive", "Q2")
         self.assertNotEqual(rc, 0)
 
-    def test_status_counts_archived_as_closed(self):
+    def test_status_does_not_count_archived_as_answered(self):
         self.rp("archive", "Q3", "--why", "Off path.")
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("Second group: 1 of 1 closed", out)
-        self.assertIn("archived: Q3", out)
+        self.assertIn("Second group: 0 of 0 live answered; 1 archived", out)
 
 
 class TestLatency(DirCase):
@@ -3781,7 +3821,7 @@ class TestCliHygiene(DirCase):
     def test_dir_after_status_and_bump(self):
         rc, out, err = self.run_bare("status", "--dir", str(self.dir))
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("First group: 0 of 2 closed", out)
+        self.assertIn("First group: 0 of 2 live answered", out)
         rc, out, err = self.run_bare("bump", "--dir", str(self.dir))
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.doc()["rev"], 4)
@@ -3800,7 +3840,7 @@ class TestCliHygiene(DirCase):
         for key in ("pageSeq", "handledSeq", "roundDrift", "meta"):
             self.assertIn(key, data)
         rc, text, _ = self.rp("status")
-        self.assertIn("First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2", text)
+        self.assertIn("First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2", text)
         self.assertFalse(text.lstrip().startswith("{"))
 
     def test_status_json_gives_the_raw_wait(self):

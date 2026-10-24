@@ -42,8 +42,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 
 status, lease, doctor and validate take --json: one JSON object on stdout in place of the text lines
 (the text output is unchanged without it; exit codes are the same).
-  status --json    {groups: [{id, title, total, closed, open[], archived[], waiting[{id, short,
-                   hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
+  status --json    {groups: [{id, title, total, closed, live, answered, toConfirm[{id, short,
+                   commitments[]}], open[], archived[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
                    handledSeq, unhandled[]}; with --latency: {latency: {saveToDelivered|saveToReply:
                    {n, p50, p95}}}
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
@@ -1762,6 +1762,10 @@ def cmd_status(d, a):
         q["id"]: (exporters.hold_label(q), q.get("waitsOn", ""))
         for q in doc["questions"]
     }
+    pending_commits = {
+        q["id"]: exporters.commitments(q, r.get("events") or [])[1]
+        for q in doc["questions"]
+    }
     for q in doc["questions"]:
         dec = effective(q, resp)
         state = (
@@ -1788,18 +1792,31 @@ def cmd_status(d, a):
         archived = [i for i, _, st, _ in items if st == "archived"]
         waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
+        live = len(items) - len(archived)
+        answered = live - len(opened) - len(waits)
+        confirm = [
+            (i, s, pending_commits[i])
+            for i, s, st, _ in items
+            if st == "accept" and pending_commits.get(i)
+        ]
         lines.append(
-            f"{title}: {len(items) - len(opened) - len(waits)} of {len(items)} closed"
+            f"{title}: {answered} of {live} live answered"
+            + (f"; {len(archived)} archived" if archived else "")
             + (f"; open: {', '.join(opened)}" if opened else "")
-            + (f"; archived: {', '.join(archived)}" if archived else "")
         )
         lines.extend(waits)
+        lines.extend(
+            f"  {i} {s} accepted, to confirm: {json.dumps(cs)}" for i, s, cs in confirm
+        )
         data["groups"].append(
             {
                 "id": gid,
                 "title": title,
                 "total": len(items),
                 "closed": len(items) - len(opened) - len(waits),
+                "live": live,
+                "answered": answered,
+                "toConfirm": [{"id": i, "short": s, "commitments": cs} for i, s, cs in confirm],
                 "open": [i for i, _, st, _ in items if st == "open"],
                 "archived": archived,
                 "waiting": [
