@@ -55,6 +55,9 @@ lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
 New questions need a `commits` key (an explicit empty list is allowed; `--commit none` on the
 flags) and at least two alternatives (exactly one for a yes/no question flagged `"binary": true`,
 whose alternative may not repeat or contain the recommendation).
+add and add-round warn when a new question omits `dependsOn` (an explicit empty list declares it
+independent; `--depends none` on the flags) or names a question still open in its own round; with
+the requireDepends setting on, both refuse.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
@@ -104,6 +107,7 @@ from server import (  # noqa: E402
     check_alt,
     is_handled,
     load_json,
+    open_prereqs,
     rebuild_responses,
     release_user_holds,
     repo_root,
@@ -494,6 +498,49 @@ def add_question(doc, q, repoint=False, latest=None):
     return touched, notes
 
 
+def require_depends(d):
+    """The resolved requireDepends: the repo file, the user file the server recorded, then the
+    data dir's settings.json."""
+    try:
+        s = json.loads((d / bridge.session_files(NAME)[0]).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        s = {}
+    user = s.get("userSettings") if isinstance(s, dict) else None
+    settings, _ = Settings(repo_root(d)).resolve(d, user if isinstance(user, str) else None)
+    return settings["requireDepends"]["value"]
+
+
+def check_depends(d, doc, qs):
+    """Warn, or refuse under requireDepends, when a new question omits dependsOn (`[]` declares
+    it independent) or names a question still open in its own round. Run after the adds, so a
+    prerequisite added in the same write counts as open."""
+    strict = require_depends(d)
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    view = json.loads(json.dumps(doc))  # release_user_holds edits the copy it is given
+    release_user_holds(view, r)
+    rounds = {x.get("id"): x.get("round") for x in view["questions"]}
+    for q in qs:
+        if "dependsOn" not in q:
+            why = (
+                f"{q['id']} declares no dependsOn; name its prerequisites, or declare it "
+                'independent with "dependsOn": [] (--depends none)'
+            )
+        else:
+            same = [
+                p for p in open_prereqs(view, r, q) if rounds.get(p) == q.get("round")
+            ]
+            if not same:
+                continue
+            why = (
+                f"{q['id']} depends on {', '.join(same)}, open in the same round "
+                f"({q.get('round')}); ask it in a later round, after "
+                f"{'they are' if len(same) > 1 else 'it is'} answered (R-A)"
+            )
+        if strict:
+            sys.exit(f"refused: {why} (requireDepends)")
+        warn(why)
+
+
 def repoint_dependents(doc, new, old, repoint):
     """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
     supersedes. With `repoint` each moves to `new`; one that `new` itself depends on, directly or
@@ -770,6 +817,7 @@ def op_add(d, doc, a):
     doc.pop("finished", None)
     before = newest_round(doc)
     touched, notes = add_question(doc, a.question, a.repoint)
+    check_depends(d, doc, [a.question])
     warn_stage(doc, [a.question])
     warn_stale_meta(doc, before)
     warn_stale_summaries(doc, [a.question])
@@ -802,6 +850,7 @@ def op_add_round(d, doc, a):
         t, n = add_question(doc, q, a.repoint, before)
         touched += t
         notes += n
+    check_depends(d, doc, a.questions or [])
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
@@ -1568,7 +1617,7 @@ def cmd_add(d, a):
     if a.alt:
         q["alternatives"] = [split_alt(s) for s in a.alt]
     if a.depends:
-        q["dependsOn"] = a.depends
+        q["dependsOn"] = [] if a.depends == ["none"] else a.depends
     if a.waiting:
         q["waiting"] = True
     a.question = q
@@ -2528,7 +2577,11 @@ def main(argv=None):
         help="repeatable; `--commit none` alone: commits nothing",
     )
     s.add_argument("--alt", action="append", help="key:text, repeatable")
-    s.add_argument("--depends", action="append", help="question id, repeatable")
+    s.add_argument(
+        "--depends",
+        action="append",
+        help="question id, repeatable; `--depends none` alone: depends on nothing",
+    )
     s.add_argument("--follow-up-of", dest="followUpOf")
     s.add_argument("--supersedes")
     s.add_argument(
