@@ -1534,8 +1534,13 @@ head:
   edits a line next to the fix, or adds an empty commit keeps the refusal, as does a diff that
   holds no change or a compare GitHub answers with 404 (a head garbage-collected or force-pushed
   away). Removing whitespace also keeps the refusal for a change that only re-indents, which can
-  matter in Python: it holds more than it must, never less. A pass judged before a later `fail`
-  never clears it. Any other failed read of a run time or a diff refuses as the next item does;
+  matter in Python: it holds more than it must, never less. A `fail`ed head of the same change
+  clears only when every counted `fail` there records `spec_kind` `refs` for this pull request and
+  every counted pass at the head records `spec_kind` `closes` with exactly the `linked_issues` each
+  `fail` records: a closing pass is judged against the whole spec, which holds the `Refs:` slice
+  that failed. The reverse, a missing or other kind, linked issues that differ or cannot be read,
+  or a `fail` record that cannot be read keeps the refusal. A pass judged
+  before a later `fail` never clears it. Any other failed read of a run time or a diff refuses as the next item does;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
@@ -1935,9 +1940,11 @@ waits on an owner decision and a per-week Fable allowance for the lanes.
 
 ## Funding
 
-Each Claude lane's runs are paid by one funding role. There are six: `reviews` for both review
-lanes, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, and `automations` for the lanes outside
-the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
+Each Claude lane's runs are paid by one funding role. There are seven: `reviews` for both review
+lanes, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, `maintenance` for the eval lane, and
+`automations`, the default for any lane without a dedicated role. Roles divide the work and the
+budget across accounts, so each has its own rate limits and credits; the account behind a role can
+be swapped. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
 [`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
