@@ -40,7 +40,11 @@ function fakeGitHub(routes) {
     if (!(key in routes)) {
       throw new GitHubError(404, key);
     }
-    return structuredClone(routes[key]);
+    const value = routes[key];
+    if (value instanceof Error) {
+      throw value;
+    }
+    return structuredClone(value);
   };
   github.writes = writes;
   github.reads = reads;
@@ -274,6 +278,62 @@ test("the outputs are written before the escalation, so a failed label write kee
   );
 });
 
+test("a refused label write on commits found unverified still exits non-zero", async () => {
+  const routes = routesFrom(load());
+  const labelKey = `POST /repos/${REPOSITORY}/issues/42/labels`;
+  routes[labelKey] = new GitHubError(403, labelKey);
+  const lines = [];
+  const { code, outputs } = await check({ routes, log: (line) => lines.push(line) });
+  assert.equal(code, 1);
+  assert.equal(outputs.unverified, D);
+  assert.ok(lines.some((line) => /^::error::.*escalation failed.*status 403/.test(line)));
+});
+
+// Commits that could not be verified, as when the PR's head never matches its
+// branch, with none found unverified.
+function unverifiable() {
+  const api = load();
+  api.headRef.object.sha = "f".repeat(40);
+  for (const commit of api.commits) {
+    commit.commit.verification.verified = true;
+  }
+  return api;
+}
+
+test("a refused label write on commits that could not be verified warns and exits 0", async () => {
+  const routes = routesFrom(unverifiable());
+  const labelKey = `POST /repos/${REPOSITORY}/issues/42/labels`;
+  routes[labelKey] = new GitHubError(403, labelKey);
+  const lines = [];
+  const { code, outputs } = await check({ routes, log: (line) => lines.push(line) });
+  assert.equal(code, 0);
+  assert.deepEqual(outputs, {
+    "all-verified": "false",
+    unverified: "",
+    "since-is-ancestor": "false",
+  });
+  assert.ok(lines.some((line) => /^::warning::.*escalation refused.*labels failed with status 403/.test(line)));
+  assert.ok(!lines.some((line) => line.startsWith("::error::")));
+});
+
+test("a refused comment write on commits that could not be verified warns and exits 0", async () => {
+  const routes = routesFrom(unverifiable());
+  const commentKey = `POST /repos/${REPOSITORY}/issues/42/comments`;
+  routes[commentKey] = new GitHubError(403, commentKey);
+  const lines = [];
+  const { code } = await check({ routes, log: (line) => lines.push(line) });
+  assert.equal(code, 0);
+  assert.ok(lines.some((line) => /^::warning::.*escalation refused.*comments failed with status 403/.test(line)));
+});
+
+test("an escalation fault that is not an API refusal still exits non-zero", async () => {
+  const routes = routesFrom(unverifiable());
+  routes[`POST /repos/${REPOSITORY}/issues/42/labels`] = new TypeError("boom");
+  const { code, outputs } = await check({ routes });
+  assert.equal(code, 1);
+  assert.equal(outputs["all-verified"], "false");
+});
+
 test("verification for new commits is read from the comparison", async () => {
   const api = load();
   api.commits[3].commit.verification.verified = true;
@@ -440,6 +500,18 @@ test("every job calling a runner that runs this check grants issues: write", () 
     }
   }
   assert.ok(callers.length > 0, "no job calls either runner");
+});
+
+// The read runner's report job runs this check only on a gated head: with no
+// head the run job gated nothing, so there is no lane commit to check. The
+// write runner keeps no such gate, since an empty recorded head there checks
+// every PR commit.
+test("pr-run-activity-read.yml runs this check only when a head was gated", () => {
+  const text = readFileSync(path.join(HERE, "../../workflows/pr-run-activity-read.yml"), "utf8");
+  const step = /- name: Check the lane's commits are signed\n([\s\S]*?)\n\s+uses:/.exec(text);
+  assert.ok(step, "no signed-commits step");
+  assert.match(step[1], /&& steps\.head\.outputs\.sha != ''/);
+  assert.match(step[1], /&& steps\.head\.outputs\.forged == 'false'/);
 });
 
 test("a PR head that never matches its branch fails closed, even for a lane with no commits", async () => {

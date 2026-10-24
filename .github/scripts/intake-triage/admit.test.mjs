@@ -318,6 +318,34 @@ describe("decide", () => {
     assert.equal(result.verdict, "skip");
   });
 
+  // A removal bars admission only until triage or a listed human marks the
+  // issue ready again after it.
+  describe("an agent-ready removal and a later status: ready", () => {
+    const removed = (at) => ({ event: "unlabeled", label: { name: AGENT_READY }, actor: { id: HUMAN }, created_at: at });
+    const marked = (at, id = APP) => ({ event: "labeled", label: { name: READY }, actor: { id }, created_at: at });
+    const verdictFor = (events) => decide(facts({ events })).verdict;
+
+    test("a removal with no later status: ready skips", () => {
+      assert.equal(verdictFor([marked("2026-10-20T00:00:00Z"), removed("2026-10-21T00:00:00Z")]), "skip");
+    });
+    test("a removal then a later status: ready is decided", () => {
+      assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z")]), "admit");
+      assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z", HUMAN)]), "admit");
+    });
+    test("the newest removal counts", () => {
+      assert.equal(verdictFor([removed("2026-10-19T00:00:00Z"), marked("2026-10-20T00:00:00Z"), removed("2026-10-21T00:00:00Z")]), "skip");
+      assert.equal(verdictFor([removed("2026-10-19T00:00:00Z"), removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z")]), "admit");
+    });
+    test("events compare by when they happened, else by their order", () => {
+      assert.equal(verdictFor([marked("2026-10-21T00:00:00Z"), removed("2026-10-20T00:00:00Z")]), "admit");
+      assert.equal(verdictFor([{ ...removed(), created_at: undefined }, { ...marked(), created_at: undefined }]), "admit");
+      assert.equal(verdictFor([{ ...marked(), created_at: undefined }, { ...removed(), created_at: undefined }]), "skip");
+    });
+    test("a status: ready added by neither a listed human nor the lanes App does not lift it", () => {
+      assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z", OUTSIDER)]), "skip");
+    });
+  });
+
   test("issue text cannot admit: a quoted task list does not count, so the issue is refused", () => {
     const result = decide(
       facts({
@@ -728,7 +756,7 @@ describe("noteUnrunnable", () => {
   });
   test("an issue whose agent-ready was removed before gets no note", async () => {
     const fake = fakeGitHub({ issue: HELD, events: [{ event: "unlabeled", label: { name: AGENT_READY } }] });
-    assert.deepEqual(await note(fake), { outcome: "skipped", reasons: [`${AGENT_READY} was removed before`] });
+    assert.deepEqual(await note(fake), { outcome: "skipped", reasons: [`${AGENT_READY} was removed and ${READY} not added since`] });
     assert.deepEqual(writes(fake.calls), []);
   });
   test("a repeated run leaves an unchanged note alone, and edits a changed one in place", async () => {
