@@ -23,7 +23,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, linkHold, main, sameNetChange } from "./merge-holds.mjs";
+import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, deletedSince, linkHold, main, sameNetChange } from "./merge-holds.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -71,6 +71,7 @@ function world({
   compares = {},
   base = "main",
   markerNode,
+  deleted = [],
 } = {}) {
   const reads = [];
   const github = async (method, path, body) => {
@@ -82,7 +83,9 @@ function world({
           ? body.variables.id === "IC_M"
             ? "marker edited"
             : "edited"
-          : path === "/repos/owner/repo/issues/99/comments?per_page=100&page=1"
+          : body?.query === COMMENT_DELETED_QUERY
+            ? "deleted"
+            : path === "/repos/owner/repo/issues/99/comments?per_page=100&page=1"
             ? "comments"
             : compare
               ? `compare ${compare[2]}`
@@ -111,6 +114,11 @@ function world({
         },
       };
     }
+    if (read === "deleted") {
+      assert.deepEqual(body.variables, { owner: "owner", name: "repo", number: 99 });
+      const items = Array.isArray(deleted) ? { filteredCount: deleted.length, nodes: deleted.map((createdAt) => ({ createdAt })) } : deleted;
+      return { data: { repository: { pullRequest: { timelineItems: items } } } };
+    }
     if (read === "marker edited") {
       return { data: { node: markerNode === undefined ? { lastEditedAt: null } : markerNode } };
     }
@@ -135,7 +143,7 @@ const decide = (body = `Closes #40\n\nCost decision: ${LINK}\n`, options = {}) =
 test("an owner decision on the closing issue, linked from the body, clears the cost hold", async () => {
   const { link, reads } = await decide();
   assert.equal(link, LINK);
-  assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/comments/7", "edited", "comments", "marker edited"]);
+  assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/comments/7", "edited", "comments", "marker edited", "deleted"]);
 });
 
 test("one on the pull request itself clears with no check against the pull request's time and no #number", async () => {
@@ -385,7 +393,7 @@ test("a base merge after the decision carries it, and a pull request commit afte
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) })).link, LINK);
   const commit = await later({ [OLD]: net(TF), [HEAD]: net(TF, { filename: "scripts/run.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" }) });
   assert.equal(commit.link, null);
-  assert.deepEqual(commit.reads.slice(-4), ["comments", "marker edited", `compare ${OLD}`, `compare ${HEAD}`]);
+  assert.deepEqual(commit.reads.slice(-4), ["marker edited", "deleted", `compare ${OLD}`, `compare ${HEAD}`]);
 });
 
 test("a rebase onto a newer base with the same net change carries, whatever order the files list in", async () => {
@@ -418,12 +426,37 @@ test("a compare of 300 files or more, a file with no patch, a filename listed tw
   // A patchless pure rename never carries.
   const moved = { filename: "b.tf", status: "renamed", previous_filename: "a.tf" };
   assert.equal((await later({ [OLD]: net(moved), [HEAD]: net(moved) })).link, null);
-  for (const base of ["-main", "a..b", "a b", "", "x".repeat(256)]) {
+  for (const base of ["-main", "a..b", "a b", "", "x".repeat(256), null]) {
     const odd = await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base });
-    assert.equal(odd.link, null, base);
-    assert.ok(!odd.reads.some((read) => read.startsWith("compare")), base);
+    assert.equal(odd.link, null, String(base));
+    assert.ok(!odd.reads.some((read) => read.startsWith("compare")), String(base));
   }
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base: "release/2.x" })).link, LINK);
+});
+
+test("a comment deleted since the newest marker carries nothing, even at its own head", async () => {
+  const same = { [OLD]: net(TF), [HEAD]: net(TF) };
+  // Deleting the newer marker would make an older head the decided head.
+  const promoted = await decide(undefined, { comments: [marker(OLD, "2026-10-22T10:30:00Z")], head: OLD, deleted: ["2026-10-22T11:45:00Z"] });
+  assert.equal(promoted.link, null);
+  assert.ok(!promoted.reads.some((read) => read.startsWith("compare")));
+  assert.equal((await decide(undefined, { deleted: ["2026-10-22T11:00:00Z"] })).link, null);
+  assert.equal((await later(same, { deleted: ["2026-10-22T11:30:00Z"] })).link, null);
+  assert.equal((await decide(undefined, { fail: "deleted" })).link, null);
+  assert.equal((await decide(undefined, { deleted: { filteredCount: 101, nodes: [{ createdAt: "2026-10-22T09:00:00Z" }] } })).link, null);
+  // A deletion before the marker was posted does not stop it.
+  assert.equal((await decide(undefined, { deleted: ["2026-10-22T10:59:59Z"] })).link, LINK);
+  assert.equal((await later(same, { deleted: ["2026-10-22T09:00:00Z"] })).link, LINK);
+  const items = (nodes, filteredCount = nodes.length) => ({ repository: { pullRequest: { timelineItems: { filteredCount, nodes } } } });
+  assert.equal(deletedSince(items([]), "2026-10-22T11:00:00Z"), false);
+  for (const [name, answer, at] of [
+    ["no answer", undefined, "2026-10-22T11:00:00Z"],
+    ["no time", items([]), null],
+    ["an unparsed deletion time", items([{ createdAt: "soon" }]), "2026-10-22T11:00:00Z"],
+    ["no count", { repository: { pullRequest: { timelineItems: { nodes: [] } } } }, "2026-10-22T11:00:00Z"],
+  ]) {
+    assert.equal(deletedSince(answer, at), true, name);
+  }
 });
 
 test("an edited or unreadable newest marker carries nothing, and no older marker stands in", async () => {
@@ -460,7 +493,7 @@ test("with no cost hold marker before the decision nothing carries, even at the 
 });
 
 test("the decision is the newest on the pull request, else the newest on its linked issue", async () => {
-  const onPull = (id, at) => `https://github.com/owner/repo/pull/99#issuecomment-${id}`;
+  const onPull = (id) => `https://github.com/owner/repo/pull/99#issuecomment-${id}`;
   const rows = {
     7: comment({ created_at: "2026-10-22T12:00:00Z" }),
     8: comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-22T11:00:00Z", node_id: "IC_7" }),
@@ -498,7 +531,7 @@ test("the decided head is the latest bot cost hold marker made before the decisi
     assert.equal((await decide(undefined, { comments: [marker(OLD), extra], compares: same })).link, null, name);
   }
   assert.equal((await decide(undefined, { comments: [marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" })], compares: same })).link, LINK);
-  assert.deepEqual(costMarker([marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z")], "2026-10-22T11:30:00Z"), { sha: OLD, node: "IC_M" });
+  assert.deepEqual(costMarker([marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z")], "2026-10-22T11:30:00Z"), { sha: OLD, node: "IC_M", at: "2026-10-22T11:00:00Z" });
   // Of two at one time, the first listed wins, as in the hold step.
   assert.equal(costMarker([marker(OLD), marker(HEAD)], "2026-10-22T12:00:00Z").sha, OLD);
   assert.equal(costMarker([], "2026-10-22T12:00:00Z"), null);

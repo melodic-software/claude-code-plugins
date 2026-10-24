@@ -3564,7 +3564,8 @@ jobs:
       #   namesPull). Of those, the newest on the pull request, else the
       #   newest on the issue, is the decision. It covers the head it decided
       #   (the newest github-actions[bot] cost hold marker before it, while
-      #   never edited; with none, or an edited one, no head) and a later head only when the pull request's net
+      #   never edited and no comment was deleted since it was posted; with
+      #   none, an edited one or a deletion since, no head) and a later head only when the pull request's net
       #   change against its base branch is the same at both, so every change
       #   since is a base merge (the base's merge-holds.mjs costMarker and
       #   sameNetChange; owner decisions Q17 c and Q18 d on #9436, as
@@ -3574,6 +3575,7 @@ jobs:
       #   read to be an issue and not a pull request. A second closing issue
       #   counts for nothing, and an owner decision on the issue for another
       #   change cannot clear this hold.
+      # The pull request's live head must still be the event's head.
       # It then outputs cleared=true and the decision link, and, with the label
       # on, posts one comment citing the decision and removes the label. A
       # GITHUB_TOKEN removal starts no run, so the steps below read the label
@@ -3638,6 +3640,8 @@ jobs:
               else "lane" end' <<<"$events") || keep "the events do not parse"
           [ "$added" = lane ] || keep "$added"
           pr=$(read_api "repos/$repo/pulls/$PR_NUMBER") || keep "the pull request is unreadable"
+          # A late or re-run event for an older head must not lift the label off a newer one.
+          [ "$(jq -r '.head.sha // ""' <<<"$pr")" = "$HEAD_SHA" ] || keep "the head moved since this event"
           ref=$(jq -r '.head.ref | @uri' <<<"$pr") || keep "the pull request has no head branch"
           links=$(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "")
             | match("https://github\\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/([0-9]+)#issuecomment-([0-9]+)"; "g")
@@ -3666,6 +3670,10 @@ jobs:
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
           comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
           jq -sc 'add // []' <<<"$comments" >"$RUNNER_TEMP/cost-hold-comments.json" || keep "the comments do not parse"
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
+            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"
+          jq '.data' <<<"$deleted" >"$RUNNER_TEMP/cost-hold-deleted.json" || keep "the deleted comments do not parse"
           # holds_js <function> <json-file>...: one function of the base's
           # merge-holds.mjs over the files. The module goes last: as the first
           # argument it would run as the command line.
@@ -3681,10 +3689,12 @@ jobs:
           }
           # carries <comment>: whether the decision comment covers HEAD_SHA:
           # its decided head, from the newest cost hold marker before it and
-          # only while that marker was never edited, is HEAD_SHA, or the net
+          # only while that marker was never edited and no comment was deleted
+          # since it was posted (the base's deletedSince, so deleting a newer
+          # marker cannot promote an older head), is HEAD_SHA, or the net
           # change against the base branch is the same at both. No marker, an
-          # edited or unreadable newest marker, an unusable base branch name or
-          # any read that fails carries nothing.
+          # edited or unreadable newest marker, a deletion since it, an
+          # unusable base branch name or any read that fails carries nothing.
           carries() {
             local at="$RUNNER_TEMP/cost-hold-at.json" marker decided marker_edited base_ref
             jq '.created_at' <<<"$1" >"$at" || return 1
@@ -3695,6 +3705,8 @@ jobs:
             # shellcheck disable=SC2016 # GraphQL variables, not shell
             marker_edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$(jq -r '.node' <<<"$marker")") || return 1
             jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$marker_edited" >/dev/null 2>&1 || return 1
+            jq '.at' <<<"$marker" >"$RUNNER_TEMP/cost-hold-marker-at.json" || return 1
+            [ "$(holds_js deletedSince "$RUNNER_TEMP/cost-hold-deleted.json" "$RUNNER_TEMP/cost-hold-marker-at.json")" = false ] || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
             base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
@@ -3768,9 +3780,6 @@ jobs:
             done < <(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
-          # shellcheck disable=SC2016 # GraphQL variables, not shell
-          deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
-            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"
           verdict=$(jq -nr --arg label "$label" --argjson since "$since" --argjson holds "$holds" --argjson app "$LANES_APP_ID" \
             --slurpfile events <(printf '%s\n' "$events") --slurpfile comments <(printf '%s\n' "$comments") \
             --slurpfile deleted <(printf '%s\n' "$deleted") '

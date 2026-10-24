@@ -23,7 +23,7 @@ The repository's pipeline config is a hold path.
   place of an admin, a linked-issue comment counting only when it names the
   pull request as `#<number>` (`namesPull`, `names_pull`), and both carry it
   to the same heads: the decided head, or a later one with the same net
-  change against the base branch (`decidedHead`, `sameNetChange`).
+  change against the base branch (`costMarker`, `sameNetChange`).
 """
 
 from __future__ import annotations
@@ -401,8 +401,10 @@ def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[s
 
 # The head reads: the pull request's comments (a cost hold marker at the head
 # before the decision by default) and a compare per head.
-# The marker's edit read answers `marker_edited`, or fails when it is "fail".
-DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}, "marker_edited": None}
+# The marker's edit read answers `marker_edited`, or fails when it is "fail";
+# the deleted-comment read lists the `deleted` times (or answers the timeline
+# items given), or fails when it is "fail".
+DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}, "marker_edited": None, "deleted": []}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 # Each case: the heads world for a decision on the pull request (_link(7)).
@@ -456,6 +458,17 @@ CARRIES = {
         "markers": [_marker(OLD)],
         "compares": {OLD: {"files": [TF, TF]}, HEAD: {"files": [TF, TF]}},
     },
+    "a comment deleted since the marker": {"deleted": ["2026-01-02T13:00:00Z"]},
+    "a comment deleted since the marker, after a base merge": {
+        "markers": [_marker(OLD)],
+        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
+        "deleted": ["2026-01-02T13:00:00Z"],
+    },
+    "a comment deleted before the marker": {"deleted": ["2026-01-02T11:00:00Z"]},
+    "an unreadable deleted-comment list": {"deleted": "fail"},
+    "more deleted comments than listed": {
+        "deleted": {"filteredCount": 2, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
+    },
     "a patchless pure rename": {
         "markers": [_marker(OLD)],
         "compares": {
@@ -475,6 +488,13 @@ const github = async (method, path, data) => {
   }
   if (method === "GET" && path === "/repos/o/r/issues/7/comments?per_page=100&page=1") return heads.markers;
   if (method === "GET") return comment;
+  if (data.query.includes("COMMENT_DELETED_EVENT")) {
+    if (heads.deleted === "fail") throw new Error("unreadable");
+    const items = Array.isArray(heads.deleted)
+      ? { filteredCount: heads.deleted.length, nodes: heads.deleted.map((createdAt) => ({ createdAt })) }
+      : heads.deleted;
+    return { data: { repository: { pullRequest: { timelineItems: items } } } };
+  }
   if (data.variables.number !== undefined) {
     return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", baseRefName: "main",
       closingIssuesReferences: { totalCount: 1, nodes: [{ number: issue, repository: { nameWithOwner: "o/r" } }] } } } } };
@@ -513,7 +533,17 @@ def py_decision(
 ) -> str | None:
     heads = DEFAULT_HEADS | heads
 
-    def graphql(_query: str, what: str, **variables: Any) -> dict[str, Any]:
+    def graphql(query: str, what: str, **variables: Any) -> dict[str, Any]:
+        if "COMMENT_DELETED_EVENT" in query:
+            if heads["deleted"] == "fail":
+                raise policy.PolicyReadError(what)
+            deleted = heads["deleted"]
+            items = (
+                {"filteredCount": len(deleted), "nodes": [{"createdAt": t} for t in deleted]}
+                if isinstance(deleted, list)
+                else deleted
+            )
+            return {"repository": {"pullRequest": {"timelineItems": items}}}
         if variables.get("id") == "M":
             if heads["marker_edited"] == "fail":
                 raise policy.PolicyReadError(what)
@@ -567,15 +597,14 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             with self.subTest(case):
                 answers[case] = py_decision(_link(7), _comment(7), heads)
                 self.assertEqual(js_decision(_link(7), _comment(7), heads), answers[case])
-        for case in (
+        carried = {
             "a marker at the head",
             "a base merge since the decided head",
-        ):
+            "a comment deleted before the marker",
+        }
+        for case in carried:
             self.assertEqual(answers[case], _link(7), case)
-        for case in set(CARRIES) - {
-            "a marker at the head",
-            "a base merge since the decided head",
-        }:
+        for case in set(CARRIES) - carried:
             self.assertIsNone(answers[case], case)
 
 

@@ -428,6 +428,11 @@ export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number
   }
 }`;
 export const COMMENT_EDITED_QUERY = "query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt } } }";
+export const COMMENT_DELETED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) { timelineItems(itemTypes: [COMMENT_DELETED_EVENT], last: 100) { filteredCount nodes { ... on CommentDeletedEvent { createdAt } } } }
+  }
+}`;
 
 // Whether `text` names pull request `number` as `#<number>`: not part of a
 // longer number, and not after a letter, digit, `_`, `#`, `&`, `/`, `.` or
@@ -445,11 +450,12 @@ const COST_MARKER = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) crit
 const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}$/;
 
 // The newest cost hold marker github-actions[bot] posted among the pull
-// request's `comments` before a decision made at `at`, as { sha, node }
-// (the head it held and its comment's node id), else null
+// request's `comments` before a decision made at `at`, as { sha, node, at }
+// (the head it held, its comment's node id and created_at), else null
 // (babysit_merge_policy.cost_marker; the first of two at one time wins, as
 // in the review lanes' hold step). It decides a head only while never
-// edited, which the caller reads.
+// edited and while no comment was deleted since it was posted, which the
+// caller reads.
 export function costMarker(comments, at) {
   const cutoff = Date.parse(at);
   let found = null;
@@ -458,11 +464,29 @@ export function costMarker(comments, at) {
     const marker = row?.user?.login === "github-actions[bot]" ? COST_MARKER.exec(String(row.body ?? "")) : null;
     const made = Date.parse(row?.created_at);
     if (marker && marker[2].split(",").includes("cost") && made < cutoff && made > latest) {
-      found = { sha: marker[1], node: String(row.node_id ?? "") };
+      found = { sha: marker[1], node: String(row.node_id ?? ""), at: row.created_at };
       latest = made;
     }
   }
   return found;
+}
+
+// Whether a COMMENT_DELETED_QUERY answer (its `data`) shows a comment on the
+// pull request deleted at or after `at`, or cannot show that none was: no
+// readable list, more deletions than it lists, or a time that does not parse
+// (babysit_merge_policy.deleted_since). A deleted newer marker would
+// otherwise make an older one the decided head.
+export function deletedSince(answer, at) {
+  const when = Date.parse(at);
+  const items = answer?.repository?.pullRequest?.timelineItems;
+  const nodes = items?.nodes;
+  if (!Number.isFinite(when) || !Array.isArray(nodes) || !Number.isInteger(items.filteredCount) || items.filteredCount > nodes.length) {
+    return true;
+  }
+  return nodes.some((node) => {
+    const made = Date.parse(node?.createdAt);
+    return !Number.isFinite(made) || made >= when;
+  });
 }
 
 // Whether a COMMENT_EDITED_QUERY answer's node was never edited.
@@ -509,6 +533,8 @@ async function pages(github, path) {
 // no compare read, or every change since is a merge of the base branch
 // `base`, so the net change against it is the same at both (sameNetChange).
 // No marker, an edited or unreadable newest marker (no older one stands in),
+// a comment deleted since that marker was posted (deletedSince, read before
+// the head check, so deleting a newer marker cannot promote an older head),
 // an unusable base name or a read that fails carries nothing.
 async function carries(github, repo, number, comment, head, base) {
   try {
@@ -520,11 +546,16 @@ async function carries(github, repo, number, comment, head, base) {
     if (!unedited(node)) {
       return false;
     }
+    const [owner, name] = repo.split("/");
+    const deleted = await github("POST", "/graphql", { query: COMMENT_DELETED_QUERY, variables: { owner, name, number } });
+    if (deletedSince(deleted?.data, marker.at)) {
+      return false;
+    }
     const decided = marker.sha;
     if (decided === head) {
       return true;
     }
-    if (!BRANCH.test(String(base))) {
+    if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
     }
     const then = await github("GET", `/repos/${repo}/compare/${base}...${decided}`);

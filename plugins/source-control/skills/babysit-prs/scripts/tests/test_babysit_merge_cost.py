@@ -47,6 +47,17 @@ def _net(*files: dict[str, Any]) -> dict[str, Any]:
     return {"files": list(files)}
 
 
+def _deletions(deleted: Any) -> dict[str, Any]:
+    """A COMMENT_DELETED answer: a list of deletion times, or the timeline
+    items as given."""
+    items = (
+        {"filteredCount": len(deleted), "nodes": [{"createdAt": t} for t in deleted]}
+        if isinstance(deleted, (list, tuple))
+        else deleted
+    )
+    return {"repository": {"pullRequest": {"timelineItems": items}}}
+
+
 def _comment(**changes: Any) -> dict[str, Any]:
     return {
         "issue_url": "https://api.github.com/repos/owner/repo/issues/40",
@@ -75,6 +86,8 @@ class CostDecision(unittest.TestCase):
         unreadable: str = "",
         pull: dict[str, Any] | None = None,
         marker_node: Any = ...,
+        deleted: Any = (),
+        head: str = HEAD,
     ) -> str | None:
         created = PR_CREATED if created is None else created
         self.reads: list[str] = []
@@ -99,7 +112,13 @@ class CostDecision(unittest.TestCase):
         answer = {"lastEditedAt": edited} if node is ... else node
         held = {"lastEditedAt": None} if marker_node is ... else marker_node
 
-        def graphql(_query: str, what: str, **variables: Any) -> dict[str, Any]:
+        def graphql(query: str, what: str, **variables: Any) -> dict[str, Any]:
+            if query == policy.COMMENT_DELETED:
+                self.reads.append("deleted")
+                self.assertEqual(variables, {"owner": "owner", "name": "repo", "number": 99})
+                if unreadable == "deleted":
+                    raise policy.PolicyReadError(what)
+                return _deletions(deleted)
             if variables.get("id") != "IC_M":
                 return {"node": answer}
             self.reads.append("marker edited")
@@ -114,7 +133,9 @@ class CostDecision(unittest.TestCase):
         ):
             return policy.cost_decision(
                 REPO,
-                (pull or PULL) | {"body": body, "created_at": created},
+                (pull or PULL)
+                | {"body": body, "created_at": created}
+                | ({} if head == HEAD else {"head": {"sha": head}}),
                 issue,
                 permission=lambda login: permission,
                 agent_identity=IDENTITY,
@@ -129,6 +150,7 @@ class CostDecision(unittest.TestCase):
                 "repos/owner/repo/issues/comments/7",
                 "repos/owner/repo/issues/99/comments?per_page=100",
                 "marker edited",
+                "deleted",
             ],
         )
 
@@ -356,6 +378,31 @@ class CostDecision(unittest.TestCase):
         edited = {"lastEditedAt": "2026-10-22T11:05:00Z"}
         self.assertIsNone(self.decide(markers=older, compares=same, marker_node=edited))
 
+    def test_a_comment_deleted_since_the_newest_marker_does_not_carry(self) -> None:
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+        # Deleting the newer marker would make an older head the decided head.
+        promoted = self.decide(
+            markers=[_marker(OLD, "2026-10-22T10:30:00Z")],
+            head=OLD,
+            deleted=["2026-10-22T11:45:00Z"],
+        )
+        self.assertIsNone(promoted)
+        self.assertFalse(any("/compare/" in r for r in self.reads))
+        for name, change in {
+            "at the marker's time": dict(deleted=["2026-10-22T11:00:00Z"]),
+            "unreadable": dict(unreadable="deleted"),
+            "more than listed": dict(
+                deleted={"filteredCount": 101, "nodes": [{"createdAt": "2026-10-22T09:00:00Z"}]}
+            ),
+            "an unparsed time": dict(deleted=["soon"]),
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(self.decide(**change))
+        self.assertIsNone(self.later(same, deleted=["2026-10-22T11:30:00Z"]))
+        # A deletion before the marker was posted does not stop it.
+        self.assertEqual(self.decide(deleted=["2026-10-22T10:59:59Z"]), LINK)
+        self.assertEqual(self.later(same, deleted=["2026-10-22T09:00:00Z"]), LINK)
+
     def test_at_the_decided_head_it_carries_with_no_compare_read(self) -> None:
         pull = PULL | {"base": {"ref": "-unusable"}}
         self.assertEqual(self.decide(pull=pull), LINK)
@@ -407,7 +454,11 @@ class CostDecision(unittest.TestCase):
                 mock.patch.object(policy, "_get", side_effect=get),
                 mock.patch.object(policy, "_paginated", return_value=markers),
                 mock.patch.object(
-                    policy, "_graphql", return_value={"node": {"lastEditedAt": None}}
+                    policy,
+                    "_graphql",
+                    side_effect=lambda query, *_, **__: _deletions([])
+                    if query == policy.COMMENT_DELETED
+                    else {"node": {"lastEditedAt": None}},
                 ),
             ):
                 return policy.cost_decision(

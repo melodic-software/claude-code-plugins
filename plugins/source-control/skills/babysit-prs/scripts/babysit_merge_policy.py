@@ -1975,6 +1975,11 @@ DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
+COMMENT_DELETED = (
+    "query PolicyCommentDeleted($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name)"
+    "{pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100)"
+    "{filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}"
+)
 
 
 def names_pull(text: Any, number: Any) -> bool:
@@ -2009,12 +2014,13 @@ BASE_BRANCH = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}")
 _NEVER = datetime.min.replace(tzinfo=UTC)
 
 
-def cost_marker(comments: Any, at: Any) -> tuple[str, str] | None:
+def cost_marker(comments: Any, at: Any) -> tuple[str, str, Any] | None:
     """The newest cost hold marker github-actions[bot] posted among the pull
     request's `comments` before a decision made at `at`, as (the head it
-    held, its comment's node id), else None (merge-holds.mjs `costMarker`;
-    the first of two at one time wins, as in the review lanes' hold step).
-    It decides a head only while never edited, which the caller reads."""
+    held, its comment's node id, its created_at), else None (merge-holds.mjs
+    `costMarker`; the first of two at one time wins, as in the review lanes'
+    hold step). It decides a head only while never edited and while no
+    comment was deleted since it was posted, which the caller reads."""
     when = parse_timestamp(at)
     found: tuple[datetime, str, str] | None = None
     for row in json_array(comments):
@@ -2033,8 +2039,30 @@ def cost_marker(comments: Any, at: Any) -> tuple[str, str] | None:
             and made < when
             and (found is None or made > found[0])
         ):
-            found = (made, marker[1], str(row.get("node_id") or ""))
-    return (found[1], found[2]) if found else None
+            found = (made, marker[1], str(row.get("node_id") or ""), row.get("created_at"))
+    return (found[1], found[2], found[3]) if found else None
+
+
+def deleted_since(answer: Any, at: Any) -> bool:
+    """Whether a `COMMENT_DELETED` answer (its `data`) shows a comment on the
+    pull request deleted at or after `at`, or cannot show that none was: no
+    readable list, more deletions than it lists, or a time that does not
+    parse (merge-holds.mjs `deletedSince`). A deleted newer marker would
+    otherwise make an older one the decided head."""
+    when = parse_timestamp(at)
+    items = json_object(
+        json_object(json_object(json_object(answer).get("repository")).get("pullRequest")).get(
+            "timelineItems"
+        )
+    )
+    nodes, count = items.get("nodes"), items.get("filteredCount")
+    if when is None or not is_json_array(nodes) or not isinstance(count, int) or count > len(nodes):
+        return True
+    for node in nodes:
+        made = parse_timestamp(json_object(node).get("createdAt"))
+        if made is None or made >= when:
+            return True
+    return False
 
 
 def same_net_change(decided: Any, current: Any) -> bool:
@@ -2068,8 +2096,10 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
     is the head, with no compare read, or every change since is a merge of the
     base branch, so the net change against it is the same at both
     (`same_net_change`). No marker, an edited or unreadable newest marker (no
-    older one stands in), an unusable base name or a read that fails carries
-    nothing."""
+    older one stands in), a comment deleted since that marker was posted
+    (`deleted_since`, read before the head check, so deleting a newer marker
+    cannot promote an older head), an unusable base name or a read that fails
+    carries nothing."""
     sha = str(json_object(pr.get("head")).get("sha") or "")
     base = json_object(pr.get("base")).get("ref")
     owner, name = _split_repo(repo)
@@ -2084,9 +2114,14 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
         if marker is None:
             return False
         node = _graphql(COMMENT_EDITED, "cost hold marker", id=marker[1]).get("node")
+        if not (is_json_object(node) and "lastEditedAt" in node and node["lastEditedAt"] is None):
+            return False
+        deleted = _graphql(
+            COMMENT_DELETED, "deleted comments", owner=owner, name=name, number=pr.get("number")
+        )
     except PolicyReadError:
         return False
-    if not (is_json_object(node) and "lastEditedAt" in node and node["lastEditedAt"] is None):
+    if deleted_since(deleted, marker[2]):
         return False
     decided = marker[0]
     if decided == sha:
