@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "evidence/report.json"}}],
+      "why": "read the report and did not drive again"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "app-control:drive", "args": "shop checkout --out ./evidence-2"}}],
+      "why": "re-ran the proving run after a failed sign-in"
+    }
+  ]
+}

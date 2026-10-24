@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "README.md"}}],
+      "why": "read the repository"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "**/*"}}],
+      "why": "listed files but read none"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: steps-finally-runs-after-failure
+description: When a drive step fails, drive skips the remaining ordinary steps but still runs the finally steps that reset the write, and keeps the first failure in the report
+tags: [drive, steps-files, invented]
+expected_outcome: "The reply says that after press-export fails, check-download is not performed, the finally steps delete-test-invoice and then reload-billing still run, and the report keeps press-export's failure (button disabled) as the failure rather than replacing it with the reset's outcome."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files. Committed config allows unattended writes to the local environment, so every step clears the safety floors. Treat open-billing and add-test-invoice as done, and press-export as failed with the observed text 'Export button is disabled'. Say, by step id and in order, which steps run after that failure and which do not, and what the report records as the failure. Then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: reads-reset-steps
+    type: tool_used
+    tool: Read
+    input_match: 'billing/export/reset\.yaml'
+    min: 1
+    arm: both
+  - name: names-finally-step
+    type: regex
+    pattern: 'delete-test-invoice[\s\S]*reload-billing'
+    arm: both
+  - name: finally-after-failure
+    type: llm
+    criteria: "PASS only if the reply (1) says check-download is not performed after press-export fails, (2) says delete-test-invoice and then reload-billing still run, as finally steps, (3) keeps press-export's failure ('Export button is disabled') as the failure the report records, with any reset outcome reported beside it, and (4) does not claim it launched or drove the app. FAIL if it says the run stops with no reset, runs check-download after the failure, skips either finally step, or reports the reset's outcome in place of the press-export failure."

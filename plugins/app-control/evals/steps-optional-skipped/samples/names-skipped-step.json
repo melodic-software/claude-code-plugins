@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "open-billing: done. accept-cookies: skipped: optional, no banner on the page. press-export: done. check-download: done, invoices.csv downloaded.",
+      "why": "records the optional step as skipped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "open-billing: done. accept-cookies: failed, the Accept cookies button was not found. The run stops.",
+      "why": "fails the run at an absent optional step"
+    }
+  ]
+}

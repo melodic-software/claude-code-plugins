@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: map-triage-product-regression
+description: Refresh classes a behavior that fails against a healthy app as a product regression, leaves the entry as written, keeps it out of any pull request and records a clean pass
+tags: [map, refresh, triage, regression, invented]
+expected_outcome: "The reply classes the rejected approval as a product regression, leaves .claude/skills/control-clockwork/features/approve-timesheet/README.md as written, writes the failure up through /bugs:write with drive's evidence, opens no branch or pull request, reports the outcome as clean and records the pass with upkeep-skip.sh record, and writes nothing."
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-clockwork. Do not read the repository, drive the app or write any file. Treat both passes as already run. Its features/approve-timesheet/README.md says a manager chooses `Approve` on a submitted timesheet and the row shows `Approved`. Against a healthy app (Ready passed before and after the failure), the live pass chose `Approve` and the page showed `Something went wrong`; the row stayed `Submitted`. The source wave found nothing renamed or moved. The bugs plugin is enabled. Nothing else differs. Name the triage class, what happens to the README, where the failure goes, and the outcome, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: names-regression
+    type: regex
+    pattern: 'regression'
+    flags: i
+    arm: both
+  - name: kept-out-of-pull-request
+    type: llm
+    criteria: "PASS only if the reply (1) classes the failure as a product regression, (2) leaves features/approve-timesheet/README.md as written rather than rewriting it to describe the error, (3) writes the failure up through /bugs:write, (4) creates no upkeep branch and opens no pull request for it, and (5) calls the outcome clean and records the pass (upkeep-skip.sh record). FAIL if it edits or plans to edit the README to match the error, puts the failure in a pull request, plans a product fix, or calls the outcome changed."
