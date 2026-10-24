@@ -43,7 +43,9 @@
 #                          modes the pull_request run uses
 #   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
 #                          file changed
-#   - tests (--tests):     scripts/affected-tests.sh --run --base <base>
+#   - tests (--tests):     scripts/affected-tests.sh --run --base <base>, after
+#                          npm ci in the root and runner-policy trees that
+#                          have a package.json and no node_modules
 #
 # Every hygiene gate the CI jobs run that this does not is printed as
 # `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
@@ -395,6 +397,27 @@ fi
 if ((run_tests && foreign)); then
   skip tests "runs the checked tree's own test code"
 elif ((run_tests)); then
+  # Suites load the locked npm packages, which a fresh worktree lacks, so each
+  # missing node_modules is installed first. CI lanes run npm ci themselves, so
+  # there it exists and nothing installs. A failed install fails the run.
+  npm_failed=0
+  for dir in . .github/standards/runner-policy; do
+    [[ -f "$dir/package.json" && ! -d "$dir/node_modules" ]] || continue
+    cmd=(npm ci --no-audit --no-fund)
+    [[ "$dir" == . ]] || cmd+=(--prefix "$dir")
+    rc=0
+    nice "${cmd[@]}" >"$out" 2>&1 || rc=$?
+    if ((rc == 0)); then
+      echo "check-affected: installed $dir/node_modules (${cmd[*]})" >&2
+    else
+      npm_failed=1
+      failed+=(npm-deps)
+      {
+        printf '\nFAIL npm-deps (exit %s). Reproduce: %s\n' "$rc" "${cmd[*]}"
+        tail -n 15 "$out"
+      } >>"$out.failures"
+    fi
+  done
   # affected-tests exits 3 when it ran every shell suite but selected suites of
   # another ecosystem it does not run; those are CI's, so that is a pass here.
   affected() {
@@ -403,7 +426,11 @@ elif ((run_tests)); then
     ((rc == 3)) && return 0
     return "$rc"
   }
-  run_check tests "scripts/affected-tests.sh --run --base $base" affected
+  if ((npm_failed)); then
+    skip tests "npm dependencies did not install"
+  else
+    run_check tests "scripts/affected-tests.sh --run --base $base" affected
+  fi
 fi
 
 for s in ${skipped[@]+"${skipped[@]}"}; do echo "check-affected: SKIP $s" >&2; done

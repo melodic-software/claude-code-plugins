@@ -158,6 +158,42 @@ check "--tests passes when only another ecosystem's suites went unrun" '[[ $RC =
 run STUB_AFFECTED_TESTS=1 -- --base base --tests
 check "--tests fails on a failing suite" '[[ $RC == 1 && $ERR == *"FAIL tests"* ]]'
 
+# A fresh worktree has package.json files but no node_modules: --tests installs
+# each first. The npm stand-in logs its arguments and creates the node_modules
+# its --prefix (else the working directory) names, or exits STUB_NPM.
+mkdir -p "$tmp/npmbin" "$repo/.github/standards/runner-policy"
+cat >"$tmp/npmbin/npm" <<'NPM'
+#!/usr/bin/env bash
+echo "$*" >>"$NPM_LOG"
+[[ "${STUB_NPM:-0}" == 0 ]] || exit "$STUB_NPM"
+dir=.
+while (($#)); do
+  [[ "$1" == --prefix ]] && dir="$2"
+  shift
+done
+mkdir -p "$dir/node_modules"
+NPM
+chmod +x "$tmp/npmbin/npm"
+echo '{}' >"$repo/package.json"
+echo '{}' >"$repo/.github/standards/runner-policy/package.json"
+npm_env=(PATH="$tmp/npmbin:$PATH" NPM_LOG="$tmp/npm.log")
+: >"$tmp/npm.log"
+# shellcheck disable=SC2034 # read by the eval in check
+npm_want="$(printf '%s\n' "ci --no-audit --no-fund" "ci --no-audit --no-fund --prefix .github/standards/runner-policy")"
+run "${npm_env[@]}" -- --base base --tests
+check "--tests runs npm ci in each tree missing node_modules, then the suites" \
+  '[[ $RC == 0 && $(cat "$tmp/npm.log") == "$npm_want" && $ERR != *"SKIP tests"* ]]'
+check "each install is named on stderr" \
+  '[[ $ERR == *"installed ./node_modules (npm ci --no-audit --no-fund)"* && $ERR == *"installed .github/standards/runner-policy/node_modules (npm ci --no-audit --no-fund --prefix .github/standards/runner-policy)"* ]]'
+: >"$tmp/npm.log"
+run "${npm_env[@]}" -- --base base --tests
+check "--tests installs nothing where node_modules exists" '[[ $RC == 0 && ! -s "$tmp/npm.log" ]]'
+rm -rf "$repo/node_modules" "$repo/.github/standards/runner-policy/node_modules"
+run "${npm_env[@]}" STUB_NPM=1 -- --base base --tests
+check "a failed install fails the run, names the command and runs no suites" \
+  '[[ $RC == 1 && $ERR == *"FAIL npm-deps (exit 1). Reproduce: npm ci --no-audit --no-fund"* && $ERR == *"SKIP tests (npm dependencies did not install)"* ]]'
+rm -rf "$repo/package.json" "$repo/.github" "$tmp/npmbin"
+
 printf '#!/usr/bin/env bash\necho hi\n' >"$repo/tool"
 git_test_config "$repo" add tool
 git_test_config "$repo" commit -q -m tool
