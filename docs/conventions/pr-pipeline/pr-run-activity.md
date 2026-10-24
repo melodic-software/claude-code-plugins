@@ -968,10 +968,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
      line the reply's evidence cites inside one of the fix commit's hunks,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. With no such
-     commit in the range, as on a retry after a round whose fix landed but whose replies did not
-     post, each `VALID` thread's fix is instead the newest earlier commit on the PR of the same
-     kind (the lanes App's, the push job's trailer, `web-flow`, `valid`), committed after the
-     thread's first comment, that changed the thread's path or, for a `SKILL.md`, a file in its
+     commit in the range and no patch written this round, as on a retry after a round whose fix
+     landed but whose replies did not post, each `VALID` thread's fix is instead the newest
+     earlier commit on the PR of the same kind (the lanes App's, the push job's trailer,
+     `web-flow`, `valid`), committed after the thread's newest comment by the reviewer, the
+     verifier or the lane, that changed the thread's path or, for a `SKILL.md`, a file in its
      skill's directory. Otherwise it posts no reply and escalates `feedback-not-landed`: a push
      that was superseded, refused, escalated or held made no such commit;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that

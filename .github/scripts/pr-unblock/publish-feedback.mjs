@@ -14,12 +14,13 @@
 //      row's Lane-Activity trailer (isLaneFix). Confirms it changes each
 //      VALID thread's path and that the branch changed no path outside the
 //      kept threads' scope (thread-scope.mjs) and none under
-//      .github/workflows/. With no such commit in that range (a retry after
-//      a round whose fix landed but whose replies did not post), each VALID
-//      thread's fix is an earlier commit on the PR of the same kind,
-//      committed after the thread's first comment, that changed the thread's
-//      path (earlierFixOf). A push that was superseded, refused, escalated or
-//      held, with no earlier fix either, ends the round feedback-not-landed.
+//      .github/workflows/. With no such commit in that range and no patch
+//      written this round (a retry after a round whose fix landed but whose
+//      replies did not post), each VALID thread's fix is an earlier commit on
+//      the PR of the same kind, committed after the thread's newest reviewer
+//      or lane comment, that changed the thread's path (earlierFixOf). A push
+//      that was superseded, refused, escalated or held ends the round
+//      feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
 //      comment the model job did not see; posts the templated reply on its
 //      root comment and resolves it only when it is VALID. The PR head is
@@ -268,11 +269,14 @@ export async function earlierFixOf({ commits, appId, after, threadPath, filesOf 
 // exactly one fix commit (isLaneFix), and it must change every VALID thread's path, a
 // file the PR already changes at a line the reply's evidence cites, or for a
 // thread on a skill's SKILL.md any file in that skill's directory (touchesThread).
-// With no fix commit in the range, each VALID thread takes its earlier fix
-// on the PR instead (earlierFixOf, after the thread's first comment, whose
-// time `rootAt` gives). Returns each VALID thread's fix commit by thread id
-// (empty when no reply is VALID), or null.
-async function fixesLanded({ api, pr, run, headSha, replies, appId, rootAt }) {
+// With no fix commit in the range and no patch written this round
+// (`patchWritten`, whose push then did not land), each VALID thread takes its
+// earlier fix on the PR instead (earlierFixOf, after the time `judgedAt` gives:
+// the thread's newest comment by the reviewer or the lane, so a commit the
+// lane already answered on that thread, or one a reviewer re-raised the
+// finding after, is not its fix). Returns each VALID thread's fix commit by
+// thread id (empty when no reply is VALID), or null.
+async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, patchWritten }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   const landed = new Map();
   if (valid.length === 0 && run.head_sha === headSha) {
@@ -323,6 +327,9 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, rootAt }) {
     return landed;
   }
   if (valid.length > 0) {
+    if (patchWritten) {
+      return null;
+    }
     const commits = await api.listPullCommits(pr);
     const read = new Map();
     const filesOf = async (sha) => {
@@ -332,7 +339,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, rootAt }) {
       return read.get(sha);
     };
     for (const reply of valid) {
-      const sha = await earlierFixOf({ commits, appId, after: rootAt(reply.thread), threadPath: threadPath.get(reply.thread), filesOf });
+      const sha = await earlierFixOf({ commits, appId, after: judgedAt(reply.thread), threadPath: threadPath.get(reply.thread), filesOf });
       if (sha === null) {
         return null;
       }
@@ -467,9 +474,17 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
-    // NaN compares false, so a first comment with no readable time finds no earlier fix.
-    const rootAt = (thread) => Date.parse(createdAt.get(shown.get(thread).comment_ids[0]) ?? "");
-    const landed = await fixesLanded({ api, pr, run, headSha, replies, appId, rootAt });
+    // The newest of the thread's comments, as the reply job reads them now,
+    // by the reviewer, the verifier or the lane. NaN (no such comment, or no
+    // readable time) compares false, so it finds no earlier fix.
+    const judgedAt = (thread) => {
+      const times = (now.get(thread)?.comments ?? [])
+        .filter((comment) => ["reviewer", "verifier", "lane"].includes(comment.author))
+        .map((comment) => Date.parse(createdAt.get(comment.id) ?? ""));
+      // Math.max of an empty list is -Infinity, and of one NaN is NaN.
+      return times.length === 0 ? Number.NaN : Math.max(...times);
+    };
+    const landed = await fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, patchWritten: patchState === "written" });
     if (landed === null) {
       log("no reply is posted: no one fix commit for the VALID replies reached the PR branch, or the branch changed another path");
       escalationReason = "feedback-not-landed";

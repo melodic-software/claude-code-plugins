@@ -359,11 +359,11 @@ async function admitDeferred({ github, repo, humans, bot, gate }) {
         continue;
       }
       const { reason, held, deferred } = await refusal({ github, repo, number, humans, closes, bot });
-      // Intake defers an issue an open pull request names; it waits here
+      // Intake defers an issue an open pull request is for; it waits here
       // until no such pull request is open.
       const pulls = reason === null ? await openPullsFor(github, repo, number) : [];
       if (pulls.length > 0) {
-        console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} names it`);
+        console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} is for it`);
       } else if (reason === null) {
         await admit({ github, repo, number, gate, deferred });
       } else if (held) {

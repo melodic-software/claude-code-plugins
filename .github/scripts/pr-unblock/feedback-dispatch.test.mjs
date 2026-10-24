@@ -1166,3 +1166,18 @@ test("a pr-unblock-dispatch.yml run its schedule did not start sweeps nothing", 
   assert.equal(output, "");
   assert.match(lines.join("\n"), /not a scheduled tick/);
 });
+
+test("a PR the sweep cannot read is logged and the next PR is still swept", async (t) => {
+  const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
+  const api = sweepApi({
+    openPulls: [...pull(), second],
+    checksAt: { [SECOND_HEAD]: [failedRound, noModelTurn()] },
+    reviewRuns: { [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] },
+  });
+  const read = api.listCheckRuns;
+  api.listCheckRuns = async (request) => (request.sha === HEAD ? Promise.reject(new Error("GET check-runs returned 502")) : read(request));
+  const { output, lines } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
+  assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("502")), lines.join("\n"));
+});

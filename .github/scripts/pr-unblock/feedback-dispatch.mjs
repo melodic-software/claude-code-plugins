@@ -353,28 +353,39 @@ export async function sweepNoModelTurn({ api, repository, appSenderId, log, sett
   );
   for (const pull of pulls) {
     const head = pull.head.sha;
-    const replies = await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId });
-    const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-    if (!isNoModelTurn(newest)) {
-      continue;
+    let dispatched = null;
+    try {
+      dispatched = await sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest });
+    } catch (error) {
+      // One PR's failed read leaves the PRs after it to the sweep.
+      log(`::warning::#${pull.number}: the sweep could not decide head ${head}: ${error.message}`);
     }
-    const skips = replies.filter(isNoModelTurn).length;
-    if (skips >= SWEEP_HEAD_CAP) {
-      log(`skip: #${pull.number}: head ${head} skipped no-model-turn ${skips} times, the sweep's cap`);
-      continue;
-    }
-    const upstream = await reviewRunAt({ api, head, settings });
-    if (upstream === null) {
-      log(`skip: #${pull.number}: head ${head} has no completed review run`);
-      continue;
-    }
-    const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream });
     if (dispatched !== null) {
-      return { ...dispatched, upstreamRunId: upstream.id };
+      return dispatched;
     }
   }
   log("sweep: no head whose last round had no model turn to dispatch");
   return null;
+}
+
+async function sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest }) {
+  const replies = await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId });
+  const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
+  if (!isNoModelTurn(newest)) {
+    return null;
+  }
+  const skips = replies.filter(isNoModelTurn).length;
+  if (skips >= SWEEP_HEAD_CAP) {
+    log(`skip: #${pull.number}: head ${head} skipped no-model-turn ${skips} times, the sweep's cap`);
+    return null;
+  }
+  const upstream = await reviewRunAt({ api, head, settings });
+  if (upstream === null) {
+    log(`skip: #${pull.number}: head ${head} has no completed review run`);
+    return null;
+  }
+  const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream });
+  return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 
 const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {

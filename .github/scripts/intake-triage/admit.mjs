@@ -300,7 +300,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     }
   }
   for (const pull of pulls) {
-    wait.push(`open pull request #${pull} names it`);
+    wait.push(`open pull request #${pull} is for it`);
   }
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };

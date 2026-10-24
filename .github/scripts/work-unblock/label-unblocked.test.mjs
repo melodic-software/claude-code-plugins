@@ -2259,7 +2259,7 @@ test("the sweep keeps a deferred issue deferred while an open pull request is fo
     assert.equal(await sweep({ github: open.github }, PAUSING), 0);
     assert.deepEqual(writes(open.calls), []);
     const lines = log.mock.calls.map((call) => String(call.arguments[0]));
-    assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 names it"), lines.join("\n"));
+    assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 is for it"), lines.join("\n"));
   }
   const closed = deferredWorld({ timeline: [namingPull("closed")] });
   assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
