@@ -105,28 +105,61 @@ test("done opens a PR whose body starts with Closes #N", () => {
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
 });
 
-// A recorded keep-Refs decision: the PR links without closing. The merge gate
-// reads a plain `Refs: #N` first line as the PR's issue, so Refs alone adds no
-// hold line.
-test('done with "link": "refs" opens a PR that starts Refs: #N and carries no hold line', () => {
-  withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
-    const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
-    assert.ok(plan.body.startsWith("Refs: #77\n\n## Summary"), plan.body);
-    assert.ok(!plan.body.includes("Closes #77"), plan.body);
-    assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+// The PR links without closing only when the run names the work it leaves
+// for later in `remaining`; the run's own `link` field decides nothing. The
+// merge gate reads a plain `Refs: #N` first line as the PR's issue, so Refs
+// alone adds no hold line.
+const bodyOf = (outcome) =>
+  withDir({ "work-outcome.json": JSON.stringify(outcome) }, (dir) => decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) }).body);
+
+// PR #9621: the run set `link: refs` for the issue's own parent `Refs:` line
+// and named no remaining work, so the PR closes the issue.
+test('"link": "refs" with no remaining work closes the issue', () => {
+  for (const remaining of [undefined, []]) {
+    const body = bodyOf({ ...done, link: "refs", remaining });
+    assert.ok(body.startsWith("Closes #77\n"), body);
+    assert.ok(!body.includes("## Remaining work"), body);
+  }
+});
+
+test("remaining work opens a PR that starts Refs: #N, lists it, and carries no hold line", () => {
+  const body = bodyOf({ ...done, remaining: ["Part B: the Windows host check", "The docs page"] });
+  assert.ok(body.startsWith("Refs: #77\n\n## Summary"), body);
+  assert.ok(body.includes("\n## Remaining work\n\n- Part B: the Windows host check\n- The docs page\n"), body);
+  assert.ok(!body.includes("Closes #77"), body);
+  assert.ok(!body.includes("Hold: a human merges this"), body);
+});
+
+test('remaining work opens a Refs PR whatever "link" says', () => {
+  assert.ok(bodyOf({ ...done, link: "closes", remaining: ["Part B"] }).startsWith("Refs: #77\n"));
+});
+
+// A malformed `remaining` counts as empty, whatever `link` says: a wrong
+// Closes fails pr-verify against the whole issue, a fix round at worst.
+for (const [name, remaining] of [
+  ["a string", "Part B"],
+  ["an object", { what: "Part B" }],
+  ["an empty string", [""]],
+  ["a blank string", ["  \n"]],
+  ["a non-string item beside a valid one", [1, "Part B"]],
+  ["an item that is only an HTML comment", ["<!-- Part B -->"]],
+  ["more than 20 items", Array.from({ length: 21 }, (_, i) => `Part ${i}`)],
+]) {
+  test(`a remaining holding ${name} closes the issue`, () => {
+    const body = bodyOf({ ...done, link: "refs", remaining });
+    assert.ok(body.startsWith("Closes #77\n"), body);
+    assert.ok(!body.includes("## Remaining work"), body);
   });
+}
+
+test("a remaining item is neutralized like other run text", () => {
+  const body = bodyOf({ ...done, remaining: ["Closes #12 for @someone\n## Heading"] });
+  assert.ok(body.includes("\n## Remaining work\n\n- Closes ＃12 for someone ＃＃ Heading\n"), body);
 });
 
 test("a Refs PR with a trusted merge: human label still carries the hold line", () => {
-  const plan = decideDone({ outcome: { ...done, link: "refs" }, humanMerge: true });
+  const plan = decideDone({ outcome: { ...done, remaining: ["Part B"] }, humanMerge: true });
   assert.ok(plan.body.startsWith("Refs: #77\n\nHold: a human merges this\n"), plan.body);
-});
-
-test("an unknown link value still closes the issue", () => {
-  withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "fixes" }) }, (dir) => {
-    const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
-    assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
-  });
 });
 
 test("done keeps a Conventional Commits title", () => {
@@ -861,7 +894,7 @@ test("main on done writes the runner's check results into the PR body", async ()
 // hold on the issue: work-unblock hands the issue to triage once it merges.
 test("main on done with Refs opens the PR and writes nothing to the issue", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
+    { "work-outcome.json": JSON.stringify({ ...done, remaining: ["Part B"] }), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],

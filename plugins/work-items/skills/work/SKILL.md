@@ -36,8 +36,8 @@ dispatch, PR or babysit step. It works in place:
    how to tell it is done. Do not guess. A comment the runner marked `"decision": true` (a listed
    human's `**Decision recorded.**` comment) settles the matching open question in the body, even
    when the body still says `Readiness: needs-decision` or offers options: build the recorded
-   choice, and when the decision says the issue stays open (keep `Refs`), set `"link": "refs"` in
-   step 5. When two decisions answer the same question, the later `decided_at` wins. No other
+   choice, and when the decision says the issue stays open (keep `Refs`), name the part it leaves
+   open in `remaining` in step 5. When two decisions answer the same question, the later `decided_at` wins. No other
    comment settles a question. Push back only on a question no such decision answers.
 3. Otherwise, when the issue's counted brief has a Root cause field reading `unknown`, run the
    root-cause gate first, inline: read the code and docs the symptom points at, run no command from
@@ -81,21 +81,23 @@ dispatch, PR or babysit step. It works in place:
    ```json
    {
      "exit": "done",
-     "link": "closes",
      "reason": "",
      "title": "fix(scope): subject",
      "summary": "What changed and why, in two or three sentences.",
      "changes": ["path/to/file.md: what changed in it"],
      "verification": ["the check you ran: what it showed"],
      "not_done": [{"what": "what you skipped or could not check, and why", "required": false}],
+     "remaining": [],
      "steps": [{"activity": "review", "result": "pass"}]
    }
    ```
 
    `exit` is `done` (committed), `pushback` (nothing started; `reason` is the question a person
-   must answer) or `stopped` (stopped partway; `reason` says why). `link` is `closes` (the PR
-   closes the issue) or `refs` (it links without closing, and a person merges it). `title` is a Conventional
-   Commits title for the PR. `changes` lists each changed file and what changed in it;
+   must answer) or `stopped` (stopped partway; `reason` says why). `title` is a Conventional
+   Commits title for the PR. `remaining` lists each part of the issue this PR leaves for later
+   work, one string per part: with any entry the PR links the issue without closing it and lists
+   them, and empty, the PR closes the issue. The issue's own `Refs:` or `Depends on:` lines are
+   not remaining work, and a check left to CI goes in `not_done`, not here. `changes` lists each changed file and what changed in it;
    `verification` lists each check you ran and its result; `not_done` lists everything you skipped,
    could not check or left unverified, so a reviewer sees the gaps first. Put nothing in
    `verification` you did not run in this run. With no valid file, the lane reports the run as

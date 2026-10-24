@@ -186,6 +186,32 @@
         "Dispatches no second ready after create --pushed",
         "Does not merge the PR"
       ]
+    },
+    {
+      "id": 14,
+      "name": "work-ci-mode-closes-an-issue-whose-only-refs-line-is-its-parent",
+      "prompt": "/work-items:work --issue 612 --ci\n\nIssue 612's body opens with `Refs: #580`, its parent tracking issue. It asks for one wording fix in a README, and its \"Done when\" lists only that fix. The run made the fix, committed it, and every check passed. No comment records a decision. What does the run write for the PR's link in work-outcome.json?",
+      "expected_output": "The run delivered the whole issue, so `remaining` is an empty array and the PR closes issue 612. The `Refs: #580` line is the issue's link to its parent, not work this PR leaves for later, so the run does not list it in `remaining` and writes no `link` field.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes `remaining` as an empty array",
+        "Does not treat the issue's own `Refs: #580` line as a reason to keep the issue open",
+        "Does not write a `link` field to choose Refs"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "work-ci-mode-names-the-part-a-keep-refs-decision-leaves-open",
+      "prompt": "/work-items:work --issue 633 --ci\n\nIssue 633 has two parts: part A adds a config key, part B migrates the callers. A comment marked `\"decision\": true` says: \"Decision recorded. Ship part A now; part B waits for the next release, so keep this issue open (keep Refs).\" The run built part A, committed it, and every check passed. What does the run write in work-outcome.json for the work it left?",
+      "expected_output": "The recorded decision keeps the issue open, so the run names the part it leaves in `remaining`, for example `[\"Part B: migrate the callers to the new config key\"]`. A non-empty `remaining` makes the PR link the issue without closing it. Part B is not a skipped check, so it does not go in `not_done`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Lists part B in `remaining`",
+        "Leaves part A, the delivered work, out of `remaining`",
+        "Does not record part B in `not_done` in place of `remaining`"
+      ]
     }
   ]
 }
