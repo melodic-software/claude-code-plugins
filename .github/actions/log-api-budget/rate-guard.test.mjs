@@ -11,10 +11,11 @@ const SCHEMA_PATH = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.s
 const NOW = VECTORS.vector_now * 1000;
 const READ_FLOOR = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
 
-function withDir(fn) {
+// Runs fn in a fresh directory, removed once fn (sync or async) is done.
+async function withDir(fn) {
   const dir = mkdtempSync(join(tmpdir(), "rate-guard-"));
   try {
-    return fn(dir);
+    return await fn(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -244,3 +245,35 @@ test("a stop is written to the job's stop file, and a later latch refuses from i
     await assert.rejects(later(URL_B), RateLimitStop);
     assert.equal(gh.sent.length, 1);
   }));
+
+// No lane script calls fetch outside the guard, except the files below, each
+// for its stated reason. A new raw fetch fails here until it is guarded or
+// listed.
+const UNGUARDED = {
+  // Package registries and the GitHub status page, not the API.
+  ".github/scripts/pr-unblock/dependency-classify.mjs": "package registries",
+  ".github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs": "the status page; its API calls go through createGitHub",
+  // Their fetch is budgetedFetch's, which the guard wraps.
+  ".github/scripts/pr-unblock/dispatch.mjs": "fetch injected from budgetedFetch",
+  ".github/scripts/pr-unblock/feedback-dispatch.mjs": "fetch injected from budgetedFetch",
+  // Script activities that run from a copy of their own directory, where the
+  // guard module is not: open until the copy carries it.
+  ".github/scripts/apply-patch/apply-patch.mjs": "script activity run from a directory copy",
+  ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
+  ".github/scripts/work-resolve-issue/report-outcome.mjs": "script activity run from a directory copy",
+  // pr-merge's own guard is its owner's change.
+  ".github/scripts/pr-merge/merge-holds.mjs": "pr-merge, guarded by its owner",
+};
+
+test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {
+  const root = new URL("../../../", import.meta.url).pathname;
+  const files = spawnSync("git", ["-C", root, "ls-files", ".github/*.mjs", ".github/*.js", ".github/*.cjs"], { encoding: "utf8" })
+    .stdout.split("\n")
+    .filter((file) => file && !/\.test\.[cm]?js$/.test(file) && !file.includes("/node_modules/") && !file.includes("/fixtures/") && !file.includes("/probe/"));
+  const raw = files.filter((file) => {
+    const text = readFileSync(join(root, file), "utf8");
+    return /(^|[^\w.])fetch\(/m.test(text) && !text.includes("log-api-budget/rate-guard.mjs") && !file.endsWith("log-api-budget/rate-guard.mjs");
+  });
+  assert.deepEqual(raw.filter((file) => !(file in UNGUARDED)), []);
+  assert.deepEqual(Object.keys(UNGUARDED).filter((file) => !raw.includes(file)), [], "a listed file no longer needs its exception");
+});

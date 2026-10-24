@@ -174,8 +174,10 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
   | ($h["x-ratelimit-remaining"] | num) as $rem | ($h["x-ratelimit-limit"] | num) as $lim
   | ($h["x-ratelimit-reset"] | num) as $reset | ($h["retry-after"] | num) as $ra
   | (if ($in.body | type) == "string" then ($in.body | try fromjson catch null) else $in.body end) as $b
-  | (($in.status == 403 or $in.status == 429)
-      and ((if ($b | type) == "object" then ($b.message // "") else "" end) | tostring | test("rate limit"; "i"))) as $msg
+  | ($in.pool == "graphql") as $gq
+  | ((if ($b | type) == "object" then [$b.message] + (if $gq and (($b.errors // null) | type) == "array" then [$b.errors[] | if type == "object" then .message else null end] else [] end) else [] end)
+      | map(. // "" | tostring)) as $texts
+  | (($in.status == 403 or $in.status == 429 or $gq) and any($texts[]; test("rate limit"; "i"))) as $msg
   | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
       | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql
   | ($rem == 0 or $ra != null or $msg or $gql) as $latched

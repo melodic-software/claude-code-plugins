@@ -92,6 +92,46 @@
       "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "graphql" }
     },
     {
+      "name": "graphql 200 with a secondary-limit message and no type stops every pool for the minute",
+      "input": {
+        "url": "https://api.github.com/graphql",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "graphql" },
+        "body": { "errors": [{ "message": "You have exceeded a secondary rate limit. Please wait a few minutes before you try again." }] }
+      },
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "*" }
+    },
+    {
+      "name": "graphql 403 with a secondary-limit message and retry-after",
+      "input": {
+        "url": "https://api.github.com/graphql",
+        "status": 403,
+        "headers": { "retry-after": "90" },
+        "body": { "errors": [{ "message": "You have exceeded a secondary rate limit." }] }
+      },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748090, "pool": "*" }
+    },
+    {
+      "name": "graphql 200 with an unrelated error does not latch",
+      "input": {
+        "url": "https://api.github.com/graphql",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "graphql" },
+        "body": { "data": { "repository": null }, "errors": [{ "type": "NOT_FOUND", "message": "Could not resolve to a Repository with the name 'o/x'." }] }
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "a REST 200 whose errors mention a rate limit is not a signal",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues",
+        "status": 200,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000" },
+        "body": { "errors": [{ "message": "rate limit" }] }
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
       "name": "403 Resource not accessible is a refusal, not a rate limit",
       "input": {
         "url": "https://api.github.com/repos/o/r/issues/1/labels",

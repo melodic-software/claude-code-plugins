@@ -104,8 +104,14 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   const limit = intHeader(get, "x-ratelimit-limit");
   const reset = intHeader(get, "x-ratelimit-reset");
   const retryAfter = intHeader(get, "retry-after");
-  const message = SIGNALS.statuses.includes(status) && SIGNALS.message.test(String(parsed?.message ?? ""));
-  const graphql = Array.isArray(parsed?.errors) && parsed.errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
+  const errors = Array.isArray(parsed?.errors) ? parsed.errors : [];
+  // GraphQL answers a secondary limit with a 200 or a 403 and an error
+  // message (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#exceeding-the-rate-limit),
+  // so for a GraphQL call any status counts.
+  const messages = [parsed?.message, ...(poolOf(url) === "graphql" ? errors.map((error) => error?.message) : [])];
+  const message =
+    (SIGNALS.statuses.includes(status) || poolOf(url) === "graphql") && messages.some((text) => SIGNALS.message.test(String(text ?? "")));
+  const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
   const latched = remaining === 0 || retryAfter !== null || message || graphql;
   const low = readFloor !== null && limit > 0 && remaining !== null && remaining < readFloor * limit;
   if (!latched) {

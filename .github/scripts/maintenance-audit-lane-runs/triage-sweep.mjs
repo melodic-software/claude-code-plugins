@@ -19,6 +19,11 @@ import { pathToFileURL } from "node:url";
 
 import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createBudget } from "./collect.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+
+// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
+// is read at call time, so a test's stub is guarded too.
+const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export const MAX_DISPATCHES = 5;
 const MAX_FILED = 5;
@@ -234,7 +239,7 @@ async function main() {
   const budget = createBudget(Number(env.CALL_BUDGET ?? 120));
   const call = async (method, path, body) => {
     budget.spend();
-    const response = await fetch(`${env.GITHUB_API_URL}${path}`, {
+    const response = await guardedFetch(`${env.GITHUB_API_URL}${path}`, {
       method,
       headers: {
         accept: "application/vnd.github+json",
