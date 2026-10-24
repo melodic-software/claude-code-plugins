@@ -209,6 +209,19 @@ async page => {
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     const xBan = await banners();
     ok("#8087: an archived question without supersededBy still shows its archived.why", xBan.length === 1 && /Archived: The old path left the plan/.test(xBan[0].text), JSON.stringify(xBan));
+    // an imported superseded-by-plan row says the plan displaced the answer, and its buttons record accept or the `was` alternative
+    await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200);
+    const planBan = await page.textContent("#planban").catch(() => "");
+    ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /\/planning:plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
+    await page.locator("#choices .choice", {hasText: "(was)"}).click();
+    await page.click("[data-save]"); await page.waitForTimeout(700);
+    let se = (await events()).filter(e => e.id === "S1").pop();
+    ok("the (was) button records the was alternative", se && se.kind === "alt" && se.alt === "was", JSON.stringify(se));
+    ok("the banner leaves once the question is answered", await page.$("#planban") === null);
+    await page.locator("#choices .choice.rec").first().click();
+    await page.click("[data-save]"); await page.waitForTimeout(700);
+    se = (await events()).filter(e => e.id === "S1").pop();
+    ok("the Rec button records accept", se && se.kind === "accept", JSON.stringify(se));
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
 
     // SPEC 6: stale after an upstream re-answer, upstream-pending further down
