@@ -1,20 +1,22 @@
 // The hourly triage sweep's rules, from the owner-approved design: an open
-// issue qualifies when it has no intake-triage comment and no triage or
-// status label (the needs-triage floor label is not one), is not a pull
-// request, was not born triaged, and is over an hour old; its author must be
-// one the intake lane admits on open. Each pass dispatches at most 5, and
-// after 2 dispatches that left the issue untriaged the sweep files one
-// needs-triage issue and stops dispatching that issue.
+// issue qualifies when it is not a pull request, is over an hour old, its
+// author is one the intake lane admits on open, and it has no `status:` label
+// and no agent-ready, needs-human or needs-spec (the needs-triage floor label
+// is not one), whatever comments intake left (owner 2026-10-24, rows S2 and
+// S3); or it was born triaged in `status: ready` with nothing admitting it
+// and nothing holding it (row S1). Each pass dispatches at most 5, and
+// after 2 dispatches that left the issue untriaged the sweep labels it
+// needs-triage, says so in its comment on the issue, and stops dispatching it.
+// Owner rule 2026-10-24: no new issues; comment on the original instead.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
   decide,
   FILING,
-  hasIntakeComment,
+  HANDED,
   MAX_DISPATCHES,
   readState,
-  renderFiledIssue,
   renderState,
   runSweep,
   selectCandidates,
@@ -38,8 +40,9 @@ const APP = 337595936;
 const authors = new Set([String(HUMAN), String(APP)]);
 
 // The needs-triage floor label lands on open whether or not intake runs, so
-// it does not mark an issue triaged: the missing intake comment decides.
-test("a candidate has no triage or status label, is no PR, not born triaged, over an hour old, by an admitted author", () => {
+// it does not mark an issue triaged. Priority and work-class labels are no
+// verdict either: only a status label, agent-ready or a person's hold is.
+test("a candidate has no status label, agent-ready or hold, is no PR, over an hour old, by an admitted author", () => {
   const issues = [
     issue(1),
     issue(2, { labels: [{ name: "needs-triage" }] }),
@@ -56,27 +59,39 @@ test("a candidate has no triage or status label, is no PR, not born triaged, ove
     issue(13, { labels: [{ name: "question" }, { name: "dependencies" }] }),
     issue(14, { user: { id: APP }, created_at: "2026-10-01T00:00:00Z" }),
     issue(15, { user: { id: BOT.id } }),
+    issue(16, { labels: [{ name: "status: ready" }] }),
   ];
   assert.deepEqual(
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
-    [14, 1, 2, 13],
+    [14, 1, 2, 6, 7, 10, 13],
   );
 });
 
-test("a quoted born-triaged marker mid-body does not exempt the issue", () => {
-  const issues = [issue(1, { body: "<!-- work-items:born-triaged -->\nmore text" })];
+// /work-items:decompose publishes an issue already triaged, so intake never
+// ran admission on it: one in status: ready with nothing admitting or holding
+// it, and no open blocker (work-unblock labels those when the blocker closes),
+// is dispatched so intake's admission takes it.
+test("a born-triaged issue in status: ready with no agent-ready, deferral, hold or open blocker is a candidate", () => {
+  const born = (number, labels = [], over = {}) =>
+    issue(number, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }, ...labels.map((name) => ({ name }))], ...over });
+  const issues = [
+    born(1),
+    born(2, ["agent-ready"]),
+    born(3, ["admission-deferred"]),
+    born(4, ["needs-human"]),
+    born(5, ["work-class: untrusted-provenance"]),
+    born(6, [], { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1, blocking: 0, total_blocking: 0 } }),
+    born(7, [], { issue_dependencies_summary: { blocked_by: 0, total_blocked_by: 1, blocking: 0, total_blocking: 0 } }),
+    born(8, ["priority: high"]),
+    issue(9, { labels: [{ name: "status: ready" }] }),
+    born(10, [], { user: { id: OUTSIDER } }),
+    // A quoted marker mid-body is not the publisher's last line.
+    born(11, [], { body: "<!-- work-items:born-triaged -->\nmore text" }),
+  ];
   assert.deepEqual(
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
-    [1],
+    [1, 7, 8],
   );
-});
-
-test("only the bot's comment that starts with the intake marker counts as triaged", () => {
-  const marker = "<!-- claude-lane intake-triage -->\nThanks for the report.";
-  assert.equal(hasIntakeComment([{ user: BOT, body: marker }]), true);
-  assert.equal(hasIntakeComment([{ user: { login: "someone", id: 9 }, body: marker }]), false);
-  assert.equal(hasIntakeComment([{ user: BOT, body: `quoted: ${marker}` }]), false);
-  assert.equal(hasIntakeComment([]), false);
 });
 
 test("the sweep state round-trips and is read only from the bot's comment", () => {
@@ -93,9 +108,10 @@ test("the sweep state round-trips and is read only from the bot's comment", () =
   });
   assert.deepEqual(readState([]), { commentId: null, runs: [], filed: null });
   assert.equal(readState([{ id: 4, user: BOT, body: renderState({ runs: [11, 22], filed: FILING }) }]).filed, FILING);
+  assert.equal(readState([{ id: 6, user: BOT, body: renderState({ runs: [11, 22], filed: HANDED, repoUrl: "u" }) }]).filed, HANDED);
 });
 
-test("decide: dispatch first, wait on an unfinished run, dispatch again after one, file after two, stop once filed", () => {
+test("decide: dispatch first, wait on an unfinished run, dispatch again after one, hand off after two, stop once handed off", () => {
   const done = { status: "completed", conclusion: "failure" };
   assert.equal(decide({ state: { runs: [], filed: null }, latest: null }), "dispatch");
   assert.equal(decide({ state: { runs: [1], filed: null }, latest: { status: "in_progress" } }), "wait");
@@ -106,25 +122,27 @@ test("decide: dispatch first, wait on an unfinished run, dispatch again after on
     "dispatch",
   );
   assert.equal(decide({ state: { runs: [1, 2], filed: null }, latest: { status: "in_progress" } }), "wait");
-  assert.equal(decide({ state: { runs: [1, 2], filed: null }, latest: done }), "file");
+  assert.equal(decide({ state: { runs: [1, 2], filed: null }, latest: done }), "hand");
+  assert.equal(decide({ state: { runs: [1, 2], filed: HANDED }, latest: done }), "stop");
   assert.equal(decide({ state: { runs: [1, 2], filed: 9 }, latest: done }), "stop");
   assert.equal(decide({ state: { runs: [1, 2], filed: FILING }, latest: done }), "stop");
 });
 
-test("the filed issue names the issue and every failed run, and carries needs-triage", () => {
-  const filed = renderFiledIssue({
-    number: 42,
-    runs: [
+test("the hand-off comment names every dispatched run and asks a maintainer to triage the issue", () => {
+  const body = renderState({
+    runs: [11, 22],
+    filed: HANDED,
+    repoUrl: "https://github.com/o/r",
+    details: [
       { id: 11, conclusion: "failure" },
       { id: 22, conclusion: "success" },
     ],
-    repoUrl: "https://github.com/o/r",
   });
-  assert.equal(filed.title, "Intake triage left #42 untriaged after 2 dispatches");
-  assert.deepEqual(filed.labels, ["needs-triage"]);
-  assert.match(filed.body, /#42/);
-  assert.ok(filed.body.includes("https://github.com/o/r/actions/runs/11"));
-  assert.ok(filed.body.includes("https://github.com/o/r/actions/runs/22"));
+  assert.ok(body.startsWith("<!-- claude-lane triage-sweep runs=11,22 filed=handed -->\n"));
+  assert.ok(body.includes("after 2 dispatches"));
+  assert.ok(body.includes("- https://github.com/o/r/actions/runs/11 (failure)"));
+  assert.ok(body.includes("- https://github.com/o/r/actions/runs/22 (success)"));
+  assert.ok(body.includes("Triage it by hand"));
 });
 
 // A fake GitHub holding issues, comments and runs, recording every write.
@@ -191,13 +209,26 @@ test("a pass dispatches at most 5 issues, oldest first, and records each run on 
   assert.deepEqual(result.dispatched, [1, 2, 3, 4, 5]);
 });
 
-test("an issue with an intake comment is left alone", async () => {
+// Row S3: an intake comment with no verdict label left the issue untriaged.
+// Row S2: the lanes App opened the issue, so apply-verdict's --check refused
+// the App as actor; a dispatch by this job's token passes it.
+test("an issue with an intake comment but no status label is dispatched again, and so is one the lanes App opened", async () => {
   const gh = fakeGitHub({
-    issues: [issue(1)],
+    issues: [issue(1), issue(2, { user: { id: APP } })],
     comments: { 1: [{ id: 5, user: BOT, body: "<!-- claude-lane intake-triage -->\nok" }] },
   });
-  await sweep(gh);
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [1, 2]);
+});
+
+test("an issue with a status label is left alone, whatever its comments", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1, { labels: [{ name: "status: needs-decision" }] })],
+    comments: { 1: [{ id: 5, user: BOT, body: "<!-- claude-lane intake-triage -->\nok" }] },
+  });
+  const result = await sweep(gh);
   assert.deepEqual(gh.writes, []);
+  assert.equal(result.candidates, 0);
 });
 
 test("a second dispatch edits the same state comment", async () => {
@@ -217,7 +248,7 @@ test("a second dispatch edits the same state comment", async () => {
   assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[1].body.body }]).runs, [11, 901]);
 });
 
-test("after 2 untriaged dispatches the sweep files once, then never dispatches or files again", async () => {
+test("after 2 untriaged dispatches the sweep labels the issue and hands it off in its own comment, files no issue, and stops", async () => {
   const runs = {
     11: { status: "completed", conclusion: "failure" },
     22: { status: "completed", conclusion: "success" },
@@ -233,17 +264,13 @@ test("after 2 untriaged dispatches the sweep files once, then never dispatches o
     [
       ["POST", "/repos/o/r/issues/1/labels"],
       ["PATCH", "/repos/o/r/issues/comments/5"],
-      ["POST", "/repos/o/r/issues"],
-      ["PATCH", "/repos/o/r/issues/comments/5"],
     ],
   );
   assert.deepEqual(first.writes[0].body, { labels: ["needs-triage"] });
-  // The filing is recorded before the issue is filed, so a later pass stops.
-  assert.equal(readState([{ id: 5, user: BOT, body: first.writes[1].body.body }]).filed, FILING);
-  assert.deepEqual(first.writes[2].body.labels, ["needs-triage"]);
-  assert.deepEqual(result.filed, [5001]);
-  const marked = first.writes[3].body.body;
-  assert.equal(readState([{ id: 5, user: BOT, body: marked }]).filed, 5001);
+  const marked = first.writes[1].body.body;
+  assert.equal(readState([{ id: 5, user: BOT, body: marked }]).filed, HANDED);
+  assert.ok(marked.includes("- https://github.com/o/r/actions/runs/11 (failure)"));
+  assert.deepEqual(result.handed, [1]);
 
   const second = fakeGitHub({
     issues: [issue(1)],
@@ -302,26 +329,21 @@ test("a pass stops dispatching when the budget left cannot record the run", asyn
   assert.match(result.truncated, /budget/);
 });
 
-// The needs-triage label no longer takes the original out of later passes, so
-// the in-progress record is what stops a second filing.
-test("a filing whose state write fails is not filed again on the next pass", async () => {
+test("a hand-off whose record write fails is retried on the next pass, and no pass files an issue", async () => {
   const comments = { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] };
-  const gh = fakeGitHub({
-    issues: [issue(1)],
-    comments,
-    runs: {
-      11: { status: "completed", conclusion: "failure" },
-      22: { status: "completed", conclusion: "failure" },
-    },
-    failPatch: (body) => /filed=[0-9]/.test(body.body),
-  });
-  const first = await sweep(gh);
+  const runs = {
+    11: { status: "completed", conclusion: "failure" },
+    22: { status: "completed", conclusion: "failure" },
+  };
+  const failing = fakeGitHub({ issues: [issue(1)], comments, runs, failPatch: (body) => /filed=handed/.test(body.body) });
+  const first = await sweep(failing);
   assert.equal(first.failed.length, 1);
-  // The pass persisted the in-progress record before it failed.
-  const recorded = gh.writes.find((w) => w.method === "PATCH").body.body;
-  comments[1] = [{ id: 5, user: BOT, body: recorded }];
-  await sweep(gh);
-  assert.equal(gh.writes.filter((w) => w.method === "POST" && w.path === "/repos/o/r/issues").length, 1);
+  const retry = fakeGitHub({ issues: [issue(1)], comments, runs });
+  const second = await sweep(retry);
+  assert.deepEqual(second.handed, [1]);
+  for (const gh of [failing, retry]) {
+    assert.ok(!gh.writes.some((w) => w.method === "POST" && w.path === "/repos/o/r/issues"));
+  }
 });
 
 test("issues the sweep already filed do not use up the per-pass check limit", async () => {
@@ -339,20 +361,20 @@ test("issues the sweep already filed do not use up the per-pass check limit", as
 });
 
 // Codex P2 on #9303: with needs-triage no longer excluding them, the issues
-// the sweep already handed off would spend the call budget on their comments
-// every pass. One search for the sweep's own hand-off issues skips them unread.
-test("issues the sweep filed a hand-off for are skipped without reading their comments", async () => {
+// an older sweep filed a hand-off issue for would spend the call budget on
+// their comments every pass. One search for those hand-off issues skips them unread.
+test("issues an older sweep filed a hand-off for are skipped without reading their comments", async () => {
   const handed = Array.from({ length: 118 }, (_, i) =>
     issue(i + 1, { labels: [{ name: "needs-triage" }], created_at: "2026-10-01T00:00:00Z" }),
   );
   const filedIssues = [
     ...handed.map((i) => ({
       number: 6000 + i.number,
-      title: renderFiledIssue({ number: i.number, runs: [{}, {}], repoUrl: "u" }).title,
+      title: `Intake triage left #${i.number} untriaged after 2 dispatches`,
       user: BOT,
     })),
     // The same title from anyone else excludes nothing.
-    { number: 7000, title: renderFiledIssue({ number: 119, runs: [{}, {}], repoUrl: "u" }).title, user: { login: "someone" } },
+    { number: 7000, title: "Intake triage left #119 untriaged after 2 dispatches", user: { login: "someone" } },
   ];
   const gh = fakeGitHub({
     issues: [...handed, issue(119, { labels: [{ name: "needs-triage" }] })],
@@ -380,16 +402,4 @@ test("an issue past the comment pages that already carries needs-triage is not h
   const result = await sweep(gh);
   assert.deepEqual(gh.writes, []);
   assert.deepEqual(result.handedOff, []);
-});
-
-test("issues intake already commented on do not use up the per-pass check limit", async () => {
-  const commented = Array.from({ length: 20 }, (_, i) => issue(i + 1, { created_at: "2026-10-01T00:00:00Z" }));
-  const gh = fakeGitHub({
-    issues: [...commented, issue(21)],
-    comments: Object.fromEntries(
-      commented.map((i) => [i.number, [{ id: i.number, user: BOT, body: "<!-- claude-lane intake-triage -->\nok" }]]),
-    ),
-  });
-  const result = await sweep(gh);
-  assert.deepEqual(result.dispatched, [21]);
 });

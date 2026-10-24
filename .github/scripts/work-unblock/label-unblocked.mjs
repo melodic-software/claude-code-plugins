@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
 // it blocked that is now ready for the resolve-issue lane, which the label
-// starts: open, every blocker closed as completed by a listed human or a
-// merge (a pull request blocker: merged), no hold label, and not already
-// agent-ready. Every fact is read from the API now, never from the event
+// starts: open, every blocker closed, for any reason, by a listed human or a
+// merge, read in its own repository (a pull request blocker: merged), no hold
+// label, and not already agent-ready. Issues it would label are taken oldest
+// opened first (owner Q95). Every fact is read from the API now, never from the event
 // payload. No model.
 //
 // Each new agent-ready is paced: at or over the issue lane's queued cap, or
@@ -30,11 +31,13 @@
 // admission-deferred with a comment saying why.
 //
 // An agent-ready issue left with nothing running is stranded: no hold, no open
-// lane pull request, no outcome marker since its newest agent-ready, and no
-// work-resolve-issue run for that label, or only one that ended with no
-// report, over STRANDED_HOURS ago. It is re-fired once per version of the
-// lane workflow files with the re-fire record below; one already re-fired on
-// those files gets one comment saying why and needs-human instead. Both share
+// lane pull request or open pull request of a listed human's for it, no
+// outcome marker since its newest agent-ready, and no work-resolve-issue run
+// for that label, or only one that ended with no report, over STRANDED_HOURS
+// ago. It is re-fired with the re-fire record below once per version of the
+// lane workflow files, and after that on a backoff (STRANDED_HOURS doubling
+// with each re-fire, at most BACKOFF_CAP_HOURS), recorded in one comment
+// edited in place; it never gets needs-human. All share
 // limits.restarts-per-run.
 //
 // On `schedule` it sweeps instead: every issue closed in the last
@@ -68,17 +71,17 @@
 // step (it waited in its slot past a lane workflow change, so no model ran).
 // A run a newer agent-ready run replaced while it waited is never re-fired:
 // admit never ran in it. A rerun keeps its first event's workflow files, so only a
-// fresh label event runs on main's. Each issue is re-fired at most once per
-// version of the two lane workflow files on main, recorded in a marker comment
-// posted before the label moves, so a run that keeps failing stops until a
-// workflow change lands.
+// fresh label event runs on main's. Each issue is re-fired once per version
+// of the two lane workflow files on main with a marker comment posted before
+// the label moves, and after that on the stranded backoff, so a run that
+// keeps failing is retried less often but never handed to a person.
 //
 // A run that minted no lane token did no work and ran no model: the WIP cap
 // skipped its resolve-issue job, or its `Request the lane token` step failed
 // (GitHub's rate limit past the retry budget among the reasons). Such a run is
 // re-fired with the same record: a failed mint up to limits.limit-stops-per-issue
-// times per version of the lane workflow files, a WIP cap skip without a
-// per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
+// times per version of the lane workflow files and then on the stranded
+// backoff, a WIP cap skip without a per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
 // the broker passes on (its Retry-After is at most an hour), and only while
 // the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
 // limit stop, so it never counts toward handing the issue to a person.
@@ -86,9 +89,9 @@
 // When that label's run opened a pull request instead, the newest one the
 // lanes App opened from the issue's lane branch in this repository decides.
 // Merged with `Refs:` (the issue stays open with nothing to run) or closed
-// unmerged, the App adds needs-triage and removes
-// agent-ready, so triage decides what is left; a person adding agent-ready
-// again re-runs it. Open, it waits: report-outcome put needs-human on the
+// unmerged, the App removes `status: ready` and agent-ready, so the triage
+// sweep (maintenance-audit-lane-runs triage-sweep.mjs) dispatches intake,
+// which decides what is left and whose fresh `status: ready` re-admits it. Open, it waits: report-outcome put needs-human on the
 // issue of a Refs PR, and this lifts that hold only when that PR merges,
 // only while its refs-hold marker and the App's needs-human label are the
 // newest. Each hand-off also counts against limits.restarts-per-run.
@@ -140,7 +143,6 @@ import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY,
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
-const TRIAGE_LABEL = "needs-triage";
 const DEFERRED_LABEL = "admission-deferred";
 // The lane's caller and the write runner: the broker refuses a run whose copy
 // of either differs from main's.
@@ -175,7 +177,13 @@ const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 export const LOOKBACK_HOURS = 3;
 // How long an agent-ready issue may sit with no run working on it.
 export const STRANDED_HOURS = 3;
-const STRANDED = /^<!-- work-unblock stranded ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
+// The one comment per issue that says it keeps being re-fired on a backoff,
+// edited in place on each re-fire; it reads as a re-fire record timed by its
+// last edit.
+const INFRA = /^<!-- work-unblock infrastructure ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
+// The longest wait between backoff re-fires.
+export const BACKOFF_CAP_HOURS = 24;
+const backoffDue = (since, refires) => since + Math.min(STRANDED_HOURS * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
 // The REST version that documents issue-field-values.
 const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
@@ -200,17 +208,21 @@ const isLabel = (event, kind) => event.event === kind && String(event.label?.nam
 
 // A re-fire marker reads as outcome `refired` with its workflow key.
 const parseMarker = (body) => {
-  const refire = REFIRED.exec(String(body ?? ""));
+  const refire = REFIRED.exec(String(body ?? "")) ?? INFRA.exec(String(body ?? ""));
   return refire ? { outcome: "refired", key: refire[1] } : parseOutcomeMarker(body);
 };
 
 // The lanes App's outcome and re-fire markers on an issue, oldest first, each
-// with when it was posted.
+// with when it was posted (the backoff comment: last edited).
 const appMarkers = (comments, bot) =>
   comments
     .filter((comment) => comment.user?.login === bot)
-    .map((comment) => ({ ...parseMarker(comment.body), at: Date.parse(comment.created_at) }))
-    .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at));
+    .map((comment) => ({
+      ...parseMarker(comment.body),
+      at: Date.parse(INFRA.test(String(comment.body ?? "")) ? (comment.updated_at ?? comment.created_at) : comment.created_at),
+    }))
+    .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at))
+    .sort((a, b) => a.at - b.at);
 
 // The App's markers after which its removal of agent-ready is a restart.
 const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding"]);
@@ -253,35 +265,34 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
-  // A blocker closed as not planned or duplicate never did the work, so only
-  // a completed close counts; a pull request counts only once merged. Any
-  // issue author can close their own issue as completed, so a blocking issue
-  // also needs a trusted close (trustedClose), read fresh from the issue
-  // itself. A blocker in another repository cannot be read with this
-  // repository's token, so it never counts.
+  // A blocker counts once closed, for any reason, by a listed human or a
+  // merge (admit.mjs decide's rule); a pull request counts only once merged.
+  // Anyone can close their own issue, so a blocking issue needs a trusted
+  // close (trustedClose), read fresh from the issue in its own repository. A
+  // read that fails there leaves it blocking.
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  const closedHere = (blocker) =>
-    blocker.state === "closed" && String(blocker.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase());
   const issues = [];
   let pending = 0;
   for (const blocker of blockers) {
-    if (!closedHere(blocker)) {
+    const where = /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(blocker.repository_url ?? ""))?.[1];
+    if (blocker.state !== "closed" || !where) {
       pending += 1;
     } else if (blocker.pull_request) {
       pending += blocker.pull_request.merged_at ? 0 : 1;
-    } else if (blocker.state_reason !== "completed" || !NUMBER.test(String(blocker.number))) {
+    } else if (!NUMBER.test(String(blocker.number))) {
       pending += 1;
     } else {
-      issues.push(Number(blocker.number));
+      issues.push({ where, number: Number(blocker.number) });
     }
   }
   for (const blocker of pending === 0 ? issues : []) {
-    if (!(await trustedClose({ github, repo, number: blocker, humans, closes }))) {
+    const read = trustedClose({ github, repo: blocker.where, number: blocker.number, humans, closes });
+    if (!(await (blocker.where.toLowerCase() === repo.toLowerCase() ? read : read.catch(() => false)))) {
       pending += 1;
     }
   }
   if (pending > 0) {
-    return `${pending} blocker(s) not closed as completed by a listed human or a merge`;
+    return `${pending} blocker(s) not closed by a listed human or a merge`;
   }
   // Removing the label by hand stops the lane until a person adds it back,
   // or the App or a listed human marks the issue `status: ready` again.
@@ -308,10 +319,11 @@ async function closedSince(github, repo, since) {
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents.
 function trustedClose({ github, repo, number, humans, closes }) {
-  if (!closes.has(number)) {
-    closes.set(number, (async () => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans))());
+  const key = `${repo.toLowerCase()}#${number}`;
+  if (!closes.has(key)) {
+    closes.set(key, (async () => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans))());
   }
-  return closes.get(number);
+  return closes.get(key);
 }
 
 
@@ -496,9 +508,10 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 }
 
 // Labels each issue `closed` blocked that is ready, each at most once per run,
-// within the gate's room. Returns how many reads or writes failed.
+// within the gate's room, oldest opened first (owner Q95). Returns how many
+// reads or writes failed.
 async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }) {
-  const seen = new Set();
+  const seen = new Map();
   const closes = new Map();
   let failed = 0;
   for (const source of closed) {
@@ -521,21 +534,24 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }
         console.log(`label-unblocked: skipped a blocked item outside this repository's issues`);
         continue;
       }
-      if (seen.has(number)) {
+      if (!seen.has(number)) {
+        seen.set(number, Date.parse(item.created_at));
+      }
+    }
+  }
+  // An unreadable open time sorts last.
+  const opened = (number) => (Number.isFinite(seen.get(number)) ? seen.get(number) : Number.POSITIVE_INFINITY);
+  for (const number of [...seen.keys()].sort((a, b) => opened(a) - opened(b) || a - b)) {
+    try {
+      const { reason, deferred } = await refusal({ github, repo, number, humans, closes, bot });
+      if (reason !== null) {
+        console.log(`label-unblocked: #${number} not labeled: ${reason}`);
         continue;
       }
-      seen.add(number);
-      try {
-        const { reason, deferred } = await refusal({ github, repo, number, humans, closes, bot });
-        if (reason !== null) {
-          console.log(`label-unblocked: #${number} not labeled: ${reason}`);
-          continue;
-        }
-        await admit({ github, repo, number, gate, deferred });
-      } catch (error) {
-        failed += 1;
-        reportError(number, error);
-      }
+      await admit({ github, repo, number, gate, deferred });
+    } catch (error) {
+      failed += 1;
+      reportError(number, error);
     }
   }
   return failed;
@@ -551,7 +567,7 @@ export const escalationComment = (stops) =>
 // version of the lane workflow files.
 const FAILED_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's.`;
 export const refireComment = (key, cause = FAILED_CAUSE) =>
-  `<!-- work-unblock refired ${key} -->\n${cause} work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
+  `<!-- work-unblock refired ${key} -->\n${cause} work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. If this run ends the same way, it re-fires the issue again, waiting longer each time.`;
 
 // Why a stranded issue has nothing running, as the comments say it.
 const strandedCause = {
@@ -560,10 +576,12 @@ const strandedCause = {
   "failed-again": `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, over ${STRANDED_HOURS} hours ago.`,
 };
 
-// The hand-off of a stranded issue already re-fired on these workflow files:
-// one per label add.
-export const strandedComment = (key, cause) =>
-  `<!-- work-unblock stranded ${key} -->\n${strandedCause[cause]} work-unblock already re-fired it once on these lane workflow files, so it no longer does, and the issue would hold a place in the issue lane's queue with nothing running. It added \`${HUMAN_LABEL}\`. To try again, remove \`${HUMAN_LABEL}\`, then remove \`${LABEL}\` and add it back.`;
+const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token.`;
+
+// The backoff record of an issue whose re-fires on these workflow files keep
+// ending the same way: one comment per issue, edited on each re-fire.
+export const infraComment = (key, cause, refires) =>
+  `<!-- work-unblock infrastructure ${key} -->\n${cause} work-unblock has re-fired it ${refires} time(s) on lane workflow files ${key} and keeps re-firing it, waiting longer each time, up to ${BACKOFF_CAP_HOURS} hours, until a run reports. This is a fault in the lanes, not in the issue; this comment is updated on each re-fire.`;
 
 // The relabel's record, posted before the label moves: one per recurrence
 // comment.
@@ -573,9 +591,9 @@ export const recurrenceComment = (id) =>
 // The hand-offs to triage once the lane PR ended, each posted once per pull
 // request before its labels move.
 export const refsMergedComment = (pr) =>
-  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock added \`${TRIAGE_LABEL}\` and removed \`${LABEL}\`, so triage decides what work is left.`;
+  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage, which decides what work is left and admits it again.`;
 export const refsClosedComment = (pr) =>
-  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock added \`${TRIAGE_LABEL}\` and removed \`${LABEL}\`, so triage decides what work is left; the lane does not run again on its own. To run it again, add \`${LABEL}\`.`;
+  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage, which decides what work is left and admits it again.`;
 
 // The work-resolve-issue runs for issue `number` created within RUN_WINDOW_MS
 // of the label event at `addedAt`, as `mine`. The run title ends with
@@ -723,6 +741,19 @@ async function lanePulls({ github, repo, number, bot }) {
   return pulls;
 }
 
+// A listed human's open pull request for issue `number` (openPullsFor: one
+// GitHub says closes it, or one with its `Refs:` line), or null: work running
+// on the issue, as an open lane PR is.
+async function humanPull({ github, repo, number, humans }) {
+  for (const pr of await openPullsFor(github, repo, number)) {
+    const pull = await github("GET", `/repos/${repo}/pulls/${pr}`);
+    if (pull?.state === "open" && humans.has(pull.user?.id)) {
+      return pull;
+    }
+  }
+  return null;
+}
+
 // The newest of those opened at or after `addedAt`, or null.
 async function lastLanePull({ github, repo, number, addedAt, bot }) {
   let last = null;
@@ -785,6 +816,10 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   const open = (await lanePulls({ github, repo, number: issue.number, bot })).find((pull) => pull.state === "open");
   if (open) {
     return { reason: `its lane PR #${open.number} is open` };
+  }
+  const person = await humanPull({ github, repo, number: issue.number, humans });
+  if (person) {
+    return { reason: `a listed human's PR #${person.number} for it is open` };
   }
   const titles = await inFlight();
   if (titles === null) {
@@ -850,9 +885,23 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   // whose label write failed is finished by the next sweep, not posted again.
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
+  // A re-fire past the first on these workflow files waits longer each time
+  // (backoffDue from `since`), and its record is the one backoff comment,
+  // edited in place, never a new comment or a hold.
+  const backoff = (key, since, cause) => {
+    const first = Math.min(...markers.filter((marker) => marker.outcome === "refired" && marker.key === key).map((marker) => marker.at));
+    const refires = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= first).length;
+    const due = backoffDue(since, refires);
+    if (now < due) {
+      return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };
+    }
+    const own = comments.filter((comment) => comment.user?.login === bot && INFRA.test(String(comment.body ?? ""))).at(-1);
+    return { reason: null, resets: due, refire: key, recorded: true, infra: { id: own?.id, body: infraComment(key, cause, refires + 1) } };
+  };
   // An issue with nothing running since `since`: once STRANDED_HOURS have
-  // passed with no open lane PR, re-fired once per version of the lane
-  // workflow files, then handed to a person.
+  // passed with no open lane PR and no open pull request of a listed human's
+  // for it, re-fired, once per version of the lane workflow files and then on
+  // a backoff.
   const stranded = async (since, why, cause) => {
     if (now - since < STRANDED_HOURS * HOUR_MS) {
       return { reason: why };
@@ -861,13 +910,14 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
     if (open) {
       return { reason: `${why}; its lane PR #${open.number} is open` };
     }
+    const person = await humanPull({ github, repo, number, humans });
+    if (person) {
+      return { reason: `${why}; a listed human's PR #${person.number} for it is open` };
+    }
     const key = await workflowKey();
     const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
     if (fired.some(relabeled)) {
-      const explained = comments.some(
-        (comment) => comment.user?.login === bot && STRANDED.exec(String(comment.body ?? ""))?.[1] === key && Date.parse(comment.created_at) >= addedAt,
-      );
-      return { reason: null, resets: since, stranded: cause, key, explained, why };
+      return backoff(key, since, strandedCause[cause]);
     }
     return { reason: null, resets: since, refire: key, recorded: fired.length > 0, cause: strandedCause[cause] };
   };
@@ -899,12 +949,12 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
     // sweep finishes it without posting another.
     const recorded = markers.some((marker) => marker.outcome === "refired" && marker.at >= addedAt);
     // A mint that keeps failing (a broker misconfigured, an issue it refuses)
-    // stops after limits.limit-stops-per-issue re-fires on these workflow
-    // files, as a crash stops after one. A WIP cap skip made no mint attempt,
-    // and the cap and restarts-per-run bound it.
+    // goes on a backoff after limits.limit-stops-per-issue re-fires on these
+    // workflow files, as a crash does after one. A WIP cap skip made no mint
+    // attempt, and the cap and restarts-per-run bound it.
     const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
-      return { reason: `its lane token request failed after ${fired} re-fires on workflow files ${key}` };
+      return backoff(key, ended, MINT_CAUSE);
     }
     return { reason: null, resets: due, refire: key, recorded };
   }
@@ -1096,34 +1146,27 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, recurrence, recorded, handOff, pr, explained, release, stranded, key: strandedKey, why } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, recurrence, recorded, handOff, pr, explained, release, infra } of ready.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
-    if (stranded) {
-      // The comment first and the hold last, as the escalation does.
-      try {
-        if (!explained) {
-          await github("POST", `${base}/comments`, { body: strandedComment(strandedKey, stranded) });
-        }
-        await github("POST", `${base}/labels`, { labels: [HUMAN_LABEL] });
-        console.log(`label-unblocked: #${number} handed to a person: nothing running on it (${why})`);
-      } catch (error) {
-        failed += 1;
-        reportError(number, error);
-      }
-      continue;
-    }
     if (handOff) {
       // The comment first, then the labels; agent-ready comes off last, so a
       // failed write leaves the issue for the next sweep, which finds the
-      // comment and moves only the labels.
+      // comment and moves only the labels. With no `status:` label and no
+      // agent-ready, the hourly triage sweep dispatches intake on it, whose
+      // fresh `status: ready` re-admits it; needs-triage would keep that
+      // verdict from ready, so none is added.
       try {
         if (!explained) {
           await github("POST", `${base}/comments`, { body: handOff === "merged" ? refsMergedComment(pr) : refsClosedComment(pr) });
         }
-        await github("POST", `${base}/labels`, { labels: [TRIAGE_LABEL] });
         if (release) {
           await github("DELETE", `${base}/labels/${HUMAN_LABEL}`);
         }
+        await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`).catch((error) => {
+          if (error?.status !== 404) {
+            throw error;
+          }
+        });
         await github("DELETE", `${base}/labels/${LABEL}`);
         console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
       } catch (error) {
@@ -1136,6 +1179,11 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
         await github("POST", `${base}/comments`, { body: refireComment(refire, cause) });
+      }
+      if (infra) {
+        await (infra.id === undefined
+          ? github("POST", `${base}/comments`, { body: infra.body })
+          : github("PATCH", `/repos/${repo}/issues/comments/${infra.id}`, { body: infra.body }));
       }
       // The labels, not the record, bound a relabel, so a failed record (the
       // alert locks every fix issue) is named and the relabel goes ahead.
@@ -1155,7 +1203,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     const add = () => github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
     try {
       await add().catch(add);
-      const why = refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
+      const why = infra ? "re-fired on a backoff" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
       console.log(`label-unblocked: #${number} ${why}`);
     } catch (error) {
       failed += 1;
