@@ -540,7 +540,7 @@ const laneFinding = (body, reviewer = ACTIONS_BOT, lane = "claude-security-revie
 test("a github-actions[bot] finding ending in the lane footer is kept as the reviewer's", async () => {
   const result = await run(laneFinding(LANE_FINDING));
   assert.equal(result.decision, "proceed");
-  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", body: LANE_FINDING }]);
+  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", lane: "claude-security-review", body: LANE_FINDING }]);
   // Trailing blank lines do not hide the footer.
   assert.equal((await run(laneFinding(`${LANE_FINDING}\n\n`))).decision, "proceed");
 });
@@ -548,6 +548,16 @@ test("a github-actions[bot] finding ending in the lane footer is kept as the rev
 test("the code lane's github-actions[bot] finding is kept as the reviewer's", async () => {
   const body = "The loop skips the last item.\n\nclaude-lane: claude-review";
   const result = await run(laneFinding(body, ACTIONS_BOT, "claude-review"));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", lane: "claude-review", body }]);
+});
+
+// The lane comes from the github-actions[bot] author whose footer the review
+// lanes write; claude[bot] writes its own body, so a footer it ends with
+// names no lane.
+test("a claude[bot] finding ending in a lane footer carries no lane", async () => {
+  const body = "The loop skips the last item.\n\nclaude-lane: claude-review";
+  const result = await run(fakeApi({ reviewComments: [comment(100, REVIEWER, { body })] }));
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", body }]);
 });

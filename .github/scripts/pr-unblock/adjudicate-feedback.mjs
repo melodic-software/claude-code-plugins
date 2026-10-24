@@ -33,7 +33,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, FINDING_STANDS, laneOf, need, SHA, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, FINDING_STANDS, need, SHA, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -71,12 +71,13 @@ export const stood = (comments) => (comments ?? []).some((comment) => comment.au
 export const directed = (comments) => (comments ?? []).some((comment) => comment.direction === true);
 
 // Whether an adjudicator may judge a dispute on the thread: only one a
-// pr-verify verifier note opened, or a review comment whose footer names the
-// code-review lane. A security-review finding, and one whose lane its root
-// comment does not name, always goes to a person.
+// pr-verify verifier note opened, or a review comment keepThreads tagged with
+// the code-review lane (a github-actions[bot] footer; claude[bot] writes its
+// own body, so it names no lane). A security-review finding, and one of no
+// tagged lane, always goes to a person.
 export const adjudicable = (comments) => {
   const root = comments?.[0];
-  return root?.author === "verifier" || (root?.author === "reviewer" && laneOf(root.body) === "claude-review");
+  return root?.author === "verifier" || (root?.author === "reviewer" && root.lane === "claude-review");
 };
 
 // The review comment's claim, without its rationale: a leading `severity:`

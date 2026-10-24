@@ -1040,8 +1040,10 @@ lane cited, at most ten (never its note), and those files at the select job's he
 the contents API, each up to 200 KiB and staged with a `.txt` suffix so a cited `CLAUDE.md` or
 `.claude/**` file is never loaded as instructions. A thread a trusted person directed (a fix
 request, or a reply after an escalation) stays theirs: an `INCORRECT` reply on it escalates
-`feedback-disputed` with no adjudication. Only a finding a verifier note opened, or a review
-comment whose footer names the code-review lane (`claude-lane: claude-review`), is adjudicated: a
+`feedback-disputed` with no adjudication. Only a finding a verifier note opened, or a
+github-actions[bot] review comment whose footer names the code-review lane
+(`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
+a footer in a claude[bot] comment, whose body the model writes, names none), is adjudicated: a
 security-review finding, or one whose lane its root comment does not name, always goes to a
 person, so an `INCORRECT` reply on it escalates `feedback-disputed`, takes no slot, and any verdict
 for it is ignored. Each thread gets one fresh

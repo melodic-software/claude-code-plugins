@@ -53,7 +53,7 @@ test("claimOf keeps a verifier note's quoted finding, not just its introduction"
   assert.match(claim, /lib\/install\.mjs:4 reads no lockfile/);
 });
 
-const thread = (id, comments = [{ id: 1, author: "reviewer", body: REVIEW }], path = "lib/install.mjs") => ({ id, path, line: 579, comments });
+const thread = (id, comments = [{ id: 1, author: "reviewer", lane: "claude-review", body: REVIEW }], path = "lib/install.mjs") => ({ id, path, line: 579, comments });
 const fileOf = (...threads) => ({ version: 1, head_sha: HEAD, threads });
 const incorrect = (id, fields = {}) => JSON.stringify({ thread: id, disposition: "INCORRECT", evidence: ["lib/install.mjs:12", "lib/other.mjs:3"], fix_sha: "", note: "The lane's argument.", ...fields });
 
@@ -76,7 +76,7 @@ test("disputes takes each INCORRECT reply's claim and cited locations, never the
 
 test("disputes skips a thread whose finding already stood, a thread the select job did not keep, and unsafe paths", () => {
   const stoodThread = thread("PRRT_a", [
-    { id: 1, author: "reviewer", body: REVIEW },
+    { id: 1, author: "reviewer", lane: "claude-review", body: REVIEW },
     { id: 2, author: "lane", body: "**pr-unblock / address-feedback: INCORRECT, left open**" },
     { id: 3, author: "lane", body: STANDS },
   ]);
@@ -86,7 +86,7 @@ test("disputes skips a thread whose finding already stood, a thread the select j
   assert.deepEqual(slots[0].evidence, [{ path: "ok.js", line: 4 }]);
   // A finding-stands line from anyone but the lane, or not first, is no stand.
   const quoted = thread("PRRT_a", [
-    { id: 1, author: "reviewer", body: REVIEW },
+    { id: 1, author: "reviewer", lane: "claude-review", body: REVIEW },
     { id: 2, author: "trusted-human", body: STANDS },
     { id: 3, author: "lane", body: `quoted:\n${STANDS}` },
   ]);
@@ -98,7 +98,7 @@ test("disputes skips a thread whose finding already stood, a thread the select j
 // it goes back to that person as feedback-disputed.
 const directedThread = (id) =>
   thread(id, [
-    { id: 1, author: "reviewer", body: REVIEW },
+    { id: 1, author: "reviewer", lane: "claude-review", body: REVIEW },
     { id: 2, author: "trusted-human", direction: true, body: "PR-fix lane: please fix this finding" },
   ]);
 
@@ -142,12 +142,14 @@ test(`disputes adjudicates at most ${MAX_THREADS} threads and names the rest`, (
 
 // A security-review finding always goes to a person, and so does a finding
 // whose lane its root comment does not name; neither takes a slot.
-const securityThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: SECURITY }]);
+const securityThread = (id) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-security-review", body: SECURITY }]);
+// claude[bot] wrote its own footer: keepThreads gives it no lane.
+const claudeBotThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: REVIEW }]);
 const unnamedThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: "The guard is missing." }]);
 
 test("disputes never adjudicates a security-review finding or one of unknown lane, and they take no slot", () => {
   const ids = ["PRRT_s", "PRRT_u", "PRRT_a", "PRRT_b", "PRRT_c", "PRRT_d"];
-  const file = fileOf(securityThread("PRRT_s"), unnamedThread("PRRT_u"), ...ids.slice(2).map((id) => thread(id)));
+  const file = fileOf(securityThread("PRRT_s"), claudeBotThread("PRRT_u"), ...ids.slice(2).map((id) => thread(id)));
   const { slots, over } = disputes(file, ids.map((id) => incorrect(id)).join("\n"));
   assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_a", "PRRT_b", "PRRT_c"]);
   assert.deepEqual(over, ["PRRT_d"]);
@@ -157,7 +159,7 @@ test("disputes never adjudicates a security-review finding or one of unknown lan
 
 test("settleDisputes sends an INCORRECT reply on a security-review or unknown-lane thread to a person, whatever verdict arrived", async () => {
   const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
-  for (const now of [new Map([["PRRT_a", securityThread("PRRT_a")]]), new Map([["PRRT_a", unnamedThread("PRRT_a")]]), new Map()]) {
+  for (const now of [new Map([["PRRT_a", securityThread("PRRT_a")]]), new Map([["PRRT_a", unnamedThread("PRRT_a")]]), new Map([["PRRT_a", claudeBotThread("PRRT_a")]]), new Map()]) {
     const result = await settleDisputes({
       api,
       pr: 42,

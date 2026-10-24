@@ -410,7 +410,12 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       line: rows[0].line ?? rows[0].original_line ?? null,
       review_commit: review.commit_id,
       root_comment_id: rows[0].id,
-      comments: rows.map((row, i) => ({ id: row.id, ...authors[i], body: row.body ?? "" })),
+      // A lane only from the github-actions[bot] author whose footer the
+      // review lanes write; claude[bot] writes its own body.
+      comments: rows.map((row, i) => {
+        const lane = isLaneComment({ authorId: row.user?.id, body: row.body }) ? laneOf(row.body) : null;
+        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), body: row.body ?? "" };
+      }),
     });
   }
   return kept;
