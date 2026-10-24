@@ -463,7 +463,7 @@ action_cli_version_live() {
 }
 
 condition_2() {
-  local repo kind row pin owner ref ver src pins=0 below=0 unknown=0 rows
+  local repo kind row pin action owner name ref ver src pins=0 below=0 unknown=0 rows
   echo "Condition 2: every claude-code-action pin installs CLI $CLI_FLOOR or later, and the CI canary is on record"
 
   for repo in "${REPOS[@]}"; do
@@ -489,9 +489,16 @@ condition_2() {
         note "$repo: no claude-code-action pin"
         continue
       fi
-      pin="$(printf '%s' "$row" | grep -oE '([A-Za-z0-9._-]+/)?claude-code-action(/[A-Za-z0-9._-]+)*@[A-Za-z0-9._-]+' | head -n 1)"
+      # The whole `uses:` reference, read from the start of its token. A match
+      # that could begin mid-token would read `evil/anthropics/claude-code-action`
+      # as Anthropic's action, when its repository is `evil/anthropics`.
+      pin="$(printf '%s' "$row" | grep -oE "uses:[[:space:]]*[\"']?[A-Za-z0-9._/-]+@[A-Za-z0-9._-]+" | head -n 1 |
+        sed -E "s/^uses:[[:space:]]*[\"']?//")"
       ref="${pin#*@}"
-      [[ "$pin" == */claude-code-action* ]] && owner="${pin%%/claude-code-action*}" || owner=""
+      action="${pin%%@*}"
+      [[ "$action" == */* ]] && owner="${action%%/*}" || owner=""
+      name="${action#*/}"
+      name="${name%%/*}"
       pins=$((pins + 1))
       # An empty ref is a `uses:` line this script could not parse, and an
       # empty needle prefix-matches the first row of the release map, so it
@@ -505,7 +512,7 @@ condition_2() {
       # under another owner can carry any tag, and GitHub serves a fork's
       # commit by SHA through the parent's contents API, so a foreign pin
       # would borrow a version its own code never promised.
-      if [[ "$(printf '%s' "$owner" | tr '[:upper:]' '[:lower:]')" != "anthropics" ]]; then
+      if [[ "$(printf '%s/%s' "$owner" "$name" | tr '[:upper:]' '[:lower:]')" != "anthropics/claude-code-action" ]]; then
         unknown=$((unknown + 1))
         note "$repo: pin $ref is not anthropics/claude-code-action (owner '${owner:-none}'), so neither the release map nor base-action/action.yml speaks for it"
         continue

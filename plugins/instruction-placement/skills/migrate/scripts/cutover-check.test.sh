@@ -461,6 +461,22 @@ assert_contains "a pin under another owner is not resolved" "$OUT" "is not anthr
 assert_contains "and grades condition 2 [UNREACH]" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
 assert_not_contains "and never borrows the forged version" "$OUT" "installs CLI 9.9.9"
 
+# A nested path is the repository its first two segments name:
+# `evil/anthropics/claude-code-action` is `evil/anthropics`, not Anthropic's.
+NESTED="$TMP/nestedpin"
+make_repo "$NESTED"
+mkdir -p "$NESTED/.github/workflows"
+printf '# Shared\n' >"$NESTED/AGENTS.md"
+printf 'jobs:\n  a:\n    steps:\n      - uses: evil/anthropics/claude-code-action@0000000000000000000000000000000000000000\n' \
+  >"$NESTED/.github/workflows/claude.yml"
+commit_all "$NESTED"
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$NESTED" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "CLAUDE_CODE_VERSION=\"9.9.9\"\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a nested path under another owner is not resolved" "$OUT" "is not anthropics/claude-code-action (owner 'evil')"
+assert_not_contains "and never borrows the forged version" "$OUT" "installs CLI 9.9.9"
+
 # A tag or branch resolved live is labelled mutable; a full SHA is not.
 MUTABLE="$TMP/mutablepin"
 make_repo "$MUTABLE"
