@@ -586,7 +586,7 @@ test("the record step warns on refused re-runs and errors when the record was no
   assert.equal(refused.status, 0);
   assert.match(refused.stdout, /^::warning::the post-merge remediation exited 4 /m);
   assert.doesNotMatch(refused.stdout, /::error::/);
-  for (const error of ["demotion issue: HTTP 403", "dequeue: HTTP 502"]) {
+  for (const error of ["demotion issue: HTTP 403", "dequeue: HTTP 502", "disarm: HTTP 502"]) {
     const failed = runRecord(4, { remediation: { errors: ["re-run: HTTP 403", error] } });
     assert.equal(failed.status, 0);
     assert.match(failed.stdout, /^::error::the post-merge remediation could not file the demotion record/m);

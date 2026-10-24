@@ -825,8 +825,8 @@ jobs:
           # the report, not the exit code, says whether the record was filed.
           if ! jq -e '.remediation.errors | type == "array"' "$report" >/dev/null 2>&1; then
             echo "::error::the post-merge remediation exited $code with no remediation report; no demotion record was filed"
-          elif jq -e '[.remediation.errors[] | select(startswith("demotion issue:") or startswith("dequeue:"))] | length > 0' "$report" >/dev/null; then
-            echo "::error::the post-merge remediation could not file the demotion record or dequeue the lane's entries; see its report above"
+          elif jq -e '[.remediation.errors[] | select(startswith("demotion issue:") or startswith("dequeue:") or startswith("disarm:"))] | length > 0' "$report" >/dev/null; then
+            echo "::error::the post-merge remediation could not file the demotion record, dequeue the lane's entries or disarm its pull requests; see its report above"
           elif [ "$code" -eq 4 ]; then
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi

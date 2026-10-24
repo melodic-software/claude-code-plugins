@@ -2382,7 +2382,7 @@ class Remediation(CheckCase):
         self.assertIn("id=PR_a", dequeues[0])
 
     def armed_pulls(self) -> None:
-        # #9518: only a lanes App pull request the lanes App armed is disarmed.
+        # Only a lanes App pull request the lanes App armed is disarmed.
         self.gh.open_pulls = [
             armed_pull("PR_lane", 7020, author=APP_ACTOR, armer=APP_ACTOR),
             armed_pull("PR_person_armed", 7021, author=APP_ACTOR, armer=HUMAN),
