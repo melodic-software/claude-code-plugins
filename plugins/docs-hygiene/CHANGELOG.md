@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.4] - 2026-10-24
+
+### Added
+
+- `/docs-hygiene:write-for-agents` gains a "Leading words" section, a sentence-level no-op test, the line that hiding later steps works only across a real context boundary, and an eval case for the leading-word and no-op rewrite. Source: Matt Pocock's `writing-for-agents`.
+
 ## [2.0.3] - 2026-10-23
 
 ### Fixed
