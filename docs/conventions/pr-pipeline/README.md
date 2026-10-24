@@ -1784,8 +1784,8 @@ list ([Trusted-actor widening](#the-local-babysit-lane)).
 
 [`maintenance-audit-lane-runs.yml`](../../../.github/workflows/maintenance-audit-lane-runs.yml) is a
 `maintenance` producer: once a day (and on a manual run from `main`) it audits the last 24 hours of
-this repository's lane runs and open pull requests and files what it finds into `intake`. It never
-labels an issue `agent-ready`, so nothing it files starts work. Its scripts and tests are in
+this repository's lane runs and open pull requests and writes what it finds into one rolling digest
+issue. It never labels an issue `agent-ready`, so nothing it writes starts work. Its scripts and tests are in
 [`.github/scripts/maintenance-audit-lane-runs/`](../../../.github/scripts/maintenance-audit-lane-runs/).
 
 - **collect**, a script with the job's read-only token, writes one data file per unit, at most 8,
@@ -1804,21 +1804,32 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
   as data. It returns at most three findings, each citing at least one `path`, `line` and exact
   `quote` from main.
 - **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
-  line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
-  job and the error signature with numbers, SHAs and times removed, kept as the last line of the
-  issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
-  is skipped; any other closed match, whatever its age, is reopened with a comment carrying the
-  checked claims. A finding whose
-  `covered_by` names an open item is skipped. It files at most 5 issues a run, labeled
-  `needs-triage` and `source: lane-sweep` where those labels exist, writes 1 s apart, and stops at 50
-  calls.
+  line in the run's main commit, then fingerprints it: a hash of the slice, workflow, job and the
+  error signature with numbers, SHAs and times removed. A finding whose fingerprint matches an
+  issue an earlier sweep filed and a person closed as not planned or duplicate is skipped, as is
+  one whose `covered_by` names an open item; one matching such an issue still open is listed as
+  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
+  found by its first line `<!-- lane-sweep-digest -->`; each entry opens with
+  `<!-- lane-sweep-entry fp=<fingerprint>[ tracked=<issue>] -->`, and the last line,
+  `<!-- lane-sweep:fp=<fingerprint> -->`, holds the fingerprint of the entry set and each entry's
+  tracking issue. A sweep whose set differs replaces the body with the entries it found, so a fixed
+  finding drops off, and adds a comment naming the new and dropped entries and any whose tracking
+  issue opened or closed; an empty set closes the digest, and a later finding reopens it. An
+  entry's details are not in the fingerprint, so they stay as the last rewrite left them. When the
+  collector read part of a workflow's window or stopped before writing every unit
+  (`collect-status.json`), or a unit's findings were not read (a failed judge leg, unparsable
+  output), earlier entries carry over instead of dropping off. A digest closed as not planned or duplicate is muted.
+  Each field is cut at 2,000 characters, and past 60,000 characters an entry keeps only its title
+  and fingerprint. The digest is labeled `source: lane-sweep` where that label exists, never
+  `needs-triage`; writes run 1 s apart and stop at 50 calls.
 
-CI logs can carry text written to steer the judge, so every model-written field of an issue renders
-inside a code fence and its title has links, mentions and references defused. A person rewrites
-such an issue before marking it `agent-ready`.
+CI logs can carry text written to steer the judge, so every model-written field renders inside a
+code fence and each title has links, mentions and references defused. Each rewrite takes
+`agent-ready` off the digest, since a person vetted the earlier text; a person moves a finding
+into its own issue before marking that issue `agent-ready`.
 
-The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so its issues come
-from `github-actions[bot]` and start no workflow, intake triage included. The kill switch stops
+The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so the digest comes
+from `github-actions[bot]` and starts no workflow, intake triage included. The kill switch stops
 every job.
 
 A fourth job, **triage-sweep**, runs alone every hour and with the daily run, with no model
@@ -1838,7 +1849,8 @@ REST calls.
 
 [`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
 every hour (and on a manual run from `main`) with no model. It reads the signals below over the last
-65 minutes, counting a run in the window it completed in, and keeps one issue per key. Its scripts and tests are in
+65 minutes, counting a run in the window it completed in, and keeps one rolling issue per signal, its
+findings listed by key. Its scripts and tests are in
 [`.github/scripts/maintenance-monitor-signals/`](../../../.github/scripts/maintenance-monitor-signals/).
 
 | Signal | Fires when | Key |
@@ -1849,21 +1861,30 @@ every hour (and on a manual run from `main`) with no model. It reads the signals
 | 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
-| 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational | `platform:<incident>`, `platform:actions` |
+| 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap` |
 
-An issue's first body line is `<!-- factory-monitor key=<key> fp=<fingerprint> -->`; the body names
-the signal, the owning area and the key, and carries the evidence inside a text fence as inert lines.
-The fingerprint changes only when the evidence does: the failure text, the run, PR or stop-comment set, the newest
-failed merge group, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
-decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
-the evidence and the marker records it; closed as not planned or duplicate, the key is muted; closed
-otherwise, the issue is reopened with a comment carrying the evidence only on new evidence, or for
-`main-red` on a failed run that started after the close. Issues of every age are read, page by page until a short page, so a quiet key stays open or muted; a run that spends its call budget there stops before writing. It files at most 8 issues a run,
-labeled `needs-triage` and `source: factory-monitor` where those labels exist, writes 1 s apart,
-and stops at 250 REST calls. A source it cannot read is listed in the step summary and the other
-signals still run.
+A rolling issue, titled `Monitoring: <signal>`, has the first body line
+`<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
+and, per current finding, the key, the owning area and the evidence inside a text fence as inert
+lines. Each finding's fingerprint changes only when its evidence does: the failure text, the run, PR or
+stop-comment set, the newest failed merge group, the last merge, or the day for a ceiling; the state
+fingerprint covers the signal's keys and fingerprints, and no finding is the clear state. The newest
+issue for a signal decides: open with the same state, nothing is written; open with a new state, a
+comment names the change and the body is rewritten, and a clear state also closes it; closed as not
+planned or duplicate, the signal is muted; closed otherwise, the same issue is reopened with a new
+state, or for `main-red` on a failed run that started after the close, and never filed a second time.
+A run that could not read one of a signal's sources leaves that signal's open issue as it is, so a
+partly read signal neither clears nor loses findings; a source the lane does not map leaves every
+signal's issue as it is. Each rewrite takes `agent-ready` off
+the issue, since a person vetted the earlier text. Issues of every age are read, page by page until
+a short page; a run that spends its call budget there stops before writing. A still-open issue of
+the earlier one-issue-per-key form (a marker key without `family:`) is closed as not planned with a
+comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
+label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
+no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
+cannot read is listed in the step summary and the other signals still run.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
