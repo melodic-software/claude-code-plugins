@@ -3,8 +3,11 @@
 // (three flags, the auth variables unset, no --bare, persistence forced) and
 // the Claude Code Environment variables page for the provider switches.
 import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import { test } from 'node:test';
-import { buildLaunch, main } from './driver.mjs';
+import { buildLaunch, ensureInstalled, installDir, main } from './driver.mjs';
 
 const CLEARED = [
   'ANTHROPIC_API_KEY',
@@ -60,4 +63,57 @@ test('an unknown verb is a usage error naming the verbs', async () => {
     code: 2,
     message: 'verbs: launch, wait-for, type, screenshot, record, stop, doctor',
   });
+});
+
+// A repaired install (engine present, no marker) passes the same readiness gate
+// as a first install: the convention's load probe, failing closed with the repair
+// line. npm is a stub on PATH so the case needs no network; POSIX only.
+const posixOnly = { skip: process.platform === 'win32' && 'the npm stub is a POSIX script' };
+
+function repairedInstall(engineSource) {
+  const root = mkdtempSync(join(tmpdir(), 'ccd-test-'));
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'npm'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  const target = installDir(join(root, 'deps'));
+  const engine = join(target, 'node_modules', '@microsoft', 'tui-test');
+  mkdirSync(join(engine, 'dist'), { recursive: true });
+  writeFileSync(join(engine, 'package.json'), '{}');
+  writeFileSync(join(engine, 'dist', 'index.js'), engineSource);
+  return { root, bin, target };
+}
+
+function withPath(bin, fn) {
+  const saved = process.env.PATH;
+  process.env.PATH = `${bin}${delimiter}${saved}`;
+  try {
+    return fn();
+  } finally {
+    process.env.PATH = saved;
+  }
+}
+
+test('a repaired install whose engine does not load fails closed with the repair line, unmarked', posixOnly, () => {
+  const { root, bin, target } = repairedInstall("throw new Error('engine refuses to load');\n");
+  try {
+    assert.throws(() => withPath(bin, () => ensureInstalled(join(root, 'deps'))), (err) => {
+      assert.equal(err.code, 4);
+      assert.match(err.message, /^the installed engine does not load \(.*\); repair: rm -rf /);
+      return true;
+    });
+    assert.equal(existsSync(join(target, '.signatures-verified')), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a repaired install whose engine loads is marked verified and reused', posixOnly, () => {
+  const loads = "export const TuiTest = { ephemeral: () => ({ closeQuiet: async () => {} }) };\n";
+  const { root, bin, target } = repairedInstall(loads);
+  try {
+    assert.equal(withPath(bin, () => ensureInstalled(join(root, 'deps'))), target);
+    assert.equal(existsSync(join(target, '.signatures-verified')), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

@@ -51,9 +51,9 @@ const SIGNED = '.signatures-verified';
 const FONT = 'Noto Sans Symbols 2';
 
 // Launch flags and the variables cleared before Claude Code starts.
-// Pointer: the Environment variables page lists ANTHROPIC_API_KEY,
-// ANTHROPIC_AUTH_TOKEN, the CLAUDE_CODE_USE_* provider switches and
-// CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: https://code.claude.com/docs/en/env-vars
+// Pointer: the Variables table lists ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN,
+// the CLAUDE_CODE_USE_* provider switches and
+// CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: https://code.claude.com/docs/en/env-vars#variables
 // As of: 2026-10-24. Recheck trigger: a Claude Code release adds or renames a
 // provider switch or credential variable, or changes the persistence variable.
 export const LAUNCH_FLAGS = ['--restricted', '--strict-mcp-config'];
@@ -115,7 +115,7 @@ function depsBase(explicit) {
 
 const lockKey = () =>
   createHash('sha256').update(readFileSync(join(HERE, 'package-lock.json'))).digest('hex').slice(0, 12);
-const installDir = (base) => join(base, COMPONENT, lockKey());
+export const installDir = (base) => join(base, COMPONENT, lockKey());
 const hasEngine = (dir) => existsSync(join(dir, 'node_modules', ENGINE, 'package.json'));
 
 const shQ = (s) => `'${s.replaceAll("'", `'\\''`)}'`;
@@ -163,14 +163,16 @@ function loadProbe(dir) {
   return { ok: run.status === 0, why: (run.stderr || run.error?.message || '').trim().split('\n').slice(-1)[0] };
 }
 
-function ensureInstalled(explicit) {
+export function ensureInstalled(explicit) {
   const target = installDir(depsBase(explicit).base);
   const repair = repairLine(target);
   if (hasEngine(target) && existsSync(join(target, SIGNED))) return target;
   if (hasEngine(target)) {
-    // Installed by the repair line: verify signatures once, then mark it.
+    // Installed by the repair line: verify signatures and load once, then mark it.
     const audit = npm(['audit', 'signatures'], target);
     if (!audit.ok) throw new Broken(`npm audit signatures failed (${audit.why})`, repair);
+    const probe = loadProbe(target);
+    if (!probe.ok) throw new Broken(`the installed engine does not load (${probe.why})`, repair);
     writeFileSync(join(target, SIGNED), `${new Date().toISOString()}\n`);
     return target;
   }
