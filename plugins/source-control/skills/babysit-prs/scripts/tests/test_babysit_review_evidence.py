@@ -353,6 +353,8 @@ class LaneSourceTests(Base):
             ".claude",
             ".claude-lane",
             "plugins/x/.claude",
+            ".github/workflows",
+            "docs/standards",
         ):
             with self.subTest(path):
                 result = self.bound(path)
@@ -398,6 +400,7 @@ class LaneSourceTests(Base):
             "plugins/foo/.claude-lane/x.md",
             ".mcp.json.bak",
             ".claude-lane-notes",
+            ".github/workflows-old/x.yml",
         )
         for lane in LANES:
             self.assertTrue(result[lane].bound, lane)

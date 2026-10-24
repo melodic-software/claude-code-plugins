@@ -51,7 +51,8 @@ LANES: dict[str, tuple[str, str]] = {
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
 # any workflow it adds can post a github-actions[bot] reviewed-head marker),
-# the review plugin path, Claude Code project config and instruction files at
+# the review plugin path (the reusable stages it from main, so this is
+# caution against a caller that loads it from the checkout), Claude Code project config and instruction files at
 # any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
 # untrusted-content contract), the lane's input directory .claude-lane/ (the
