@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/config/defaults.json"
+          }
+        }
+      ],
+      "why": "read the committed config"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/cli/README.md"
+          }
+        }
+      ],
+      "why": "never read the environment entry"
+    }
+  ]
+}

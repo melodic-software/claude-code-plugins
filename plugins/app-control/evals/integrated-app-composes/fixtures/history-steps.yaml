@@ -1,0 +1,9 @@
+steps:
+  - include: identity:steps/sign-in.yaml
+    prefix: login-
+    with:
+      account: shopper
+  - id: open-history
+    action: goto /orders
+  - id: check-first-order
+    action: expect text "Order #1001"

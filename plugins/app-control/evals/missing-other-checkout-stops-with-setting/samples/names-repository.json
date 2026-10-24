@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped before launch: set checkouts.identity to a checkout of acme/identity.",
+      "why": "names the repository"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stopped before launch: set checkouts.identity; the path checkouts/identity does not exist.",
+      "why": "never names the repository to clone"
+    }
+  ]
+}

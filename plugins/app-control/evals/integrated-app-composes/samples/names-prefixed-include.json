@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "1. login-open-login 2. login-fill-user 3. login-submit (control-identity) 4. open-history 5. check-first-order",
+      "why": "prefixed ids"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. open-login 2. fill-user 3. submit (control-identity) 4. open-history 5. check-first-order",
+      "why": "drops the include's prefix"
+    }
+  ]
+}

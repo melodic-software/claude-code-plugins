@@ -13,6 +13,8 @@ same way. Drive reads it as data and runs a command only from the section the ac
 - Driver commands
 - Writing the driver CLI
 - Config
+- Environments
+- Integrated apps
 - Safety floors
 
 ## Hub
@@ -24,12 +26,13 @@ index:
 |---|---|
 | `## Launch` | A pointer to the launch recipe or the one command that starts the app |
 | `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Also names the telemetry the app exposes |
-| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none |
+| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
 | App (above the sections) | The app's name and the path it is built from. `/app-control:map` writes it for the person and for later drive work; drive does not read it |
 | Driving tool (above the sections) | The tool that drives the app, such as a browser driver or the project's CLI. Written and read as the App row is |
 | `Attended runs only.` (above the sections) | Present when that tool drives the person's own signed-in browser. A marker for the person and for later drive work, as the App row is |
+| Integrated apps (above the sections) | One line per integrated app, per [Integrated apps](#integrated-apps), or none |
 
 Below them, an index with one line per feature file, in this form:
 
@@ -57,6 +60,10 @@ in its manual before writing the command.
 
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.
+
+When the app's work runs on a server behind a browser, write a row per tier for each kind: a
+browser profile of a server-rendered app mostly shows the client runtime. Drive records each tier's
+row, one tool per tier, and the artifact name carries the tier.
 
 Write a `threads` command with a `<pid>` placeholder and no elevation prefix. Drive fills in the
 launched pid only after its pid check, and always takes the elevated route for it.
@@ -143,8 +150,9 @@ its users.
 - **Step ids.** Every step has an id, unique among all the steps a run expands to, includes
   included. The prose, the evidence file names and the write grants name steps by those ids. A
   repeated id stops the run before anything starts, naming the id.
-- **Includes.** A step list can include another steps file, from this control skill or another
-  one, which expands in place. An include can carry:
+- **Includes.** A step list can include another steps file, from this control skill or an
+  integrated app's ([Integrated apps](#integrated-apps)), which expands in place. An include can
+  carry:
   - `prefix`: put before every included step id, so one file can be included twice with unique
     ids. Two includes of one file without different prefixes repeat ids and stop the run. A
     sign-in file included twice for one account is two attempts under the Sign-in floor.
@@ -208,11 +216,62 @@ them:
 
 | Field | Holds |
 |---|---|
-| `environment` | The environment a run targets, by the name the team gave it |
+| `environment` | The environment a run targets, by name; any layer may select one |
+| `environments` | The environment entries, committed only, per [Environments](#environments) |
+| `checkouts` | Per integrated app in another repository, the path of its local checkout, per [Integrated apps](#integrated-apps) |
 | `timeouts` | How long launch, ready and each step may take |
 | `credentials` | Per account, the names of the environment variables that hold its credentials |
 | `safety` | The floors below |
 | `pluginDir` | For a control skill that drives Claude Code: the plugin directory under test |
+
+## Environments
+
+An environment's targets come only from committed config: the `environments` field of
+`config/defaults.json` at HEAD, read the way Safety floors reads it. The local, environment and
+flag layers may select an environment by name through `environment`, never add or redefine one; a
+layer that sets `environments` or any field of an entry makes the CLI do nothing and exit 4,
+printing the layer and the entry, and `config` exits 4 the same way. Selecting a name that is not
+an entry at HEAD is an unknown environment id.
+
+Each entry, keyed by the name the team gave it, may hold:
+
+| Field | Holds |
+|---|---|
+| `url` | Where the app answers in this environment |
+| `services` | Per dependency service a journey crosses: its `url` and an optional read-only `ready` command, or `app` and `environment` naming an integrated app's environment, which supplies both |
+| `extends` | Another entry in the same file whose fields this one starts from; its own fields replace them one by one, and `services` merge by name |
+| `writes` | Per write, keyed by step id (or `cli/` command for a feature without a steps file): `never`, `attended` or `unattended`. A write not listed has no grant |
+| `production` | `true` marks the environment production, per the Production floor |
+
+An `extends` naming no entry, or a chain that loops, is rejected before anything starts. An entry
+that extends a production entry is production too; it cannot clear the mark. External systems a
+step writes to take a `writes` map of the same shape under `systems`.
+
+## Integrated apps
+
+An integrated app is a system whose pages a journey crosses, such as a separate identity server.
+It gets its own control skill, in the repository that builds it, owning its steps, Launch and
+environments; this control skill never copies them. The hub lists each one above the sections:
+
+```text
+- <app> | control-<app> | repository: <repository, or this one> | checkout: checkouts.<app>
+```
+
+- **Include by reference.** A steps-file include names `<app>:<path>`, a steps file inside that
+  app's control skill, and expands as any include does.
+- **Checkout.** For an app in another repository, `checkouts.<app>` holds the path of its local
+  checkout, relative to this repository's root. It is one person's value, from any layer; it says
+  where code is, not where an environment is, so the committed-only rule above does not apply.
+  That app's environments and floors are read from its own committed config, at that checkout's
+  HEAD.
+- **Missing checkout.** When the setting is unset, its path does not exist, or the path holds no
+  `.claude/skills/control-<app>/SKILL.md`, the run stops before launching anything and prints the
+  setting's name and the repository to clone.
+- **Floors.** A step that targets the integrated app's environment runs under that app's committed
+  floors and this control skill's; an include never loosens a floor, and the per-run sign-in count
+  spans both apps.
+- **Launch.** When the selected environment runs the integrated app locally, the run launches it
+  with that app's Launch and stops it at cleanup, keeping one launch record and one log per app.
 
 ## Safety floors
 
@@ -237,8 +296,10 @@ caller reads exit 4 as refused by a floor, never as a failure to retry.
   feature's `## Drive` steps) keeps the per-run count: it calls `sign-in` for an account at most once, and a failed attempt stops the run,
   with no switch to another account.
 - **Production.** An environment marked `production: true` in committed config is read-only. A
-  write to it runs only when committed config grants that write and the command carries `--yes`,
-  which a caller passes only after the person said yes in this session.
+  write to it runs only when committed config grants that write (`attended` or `unattended` in its
+  `writes`) and the command carries `--yes`, which a caller passes only after the person said yes in
+  this session. `--yes` without `--attended` is refused, so no config turns on an unattended
+  production write.
 - **Unattended writes.** Off. A write command treats a call without `--attended` (passed only when
   a person is present in this session) as unattended, and writes then only where committed config
-  allows an unattended write to that environment or external system.
+  marks that write `unattended` for that environment or external system.
