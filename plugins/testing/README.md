@@ -126,6 +126,15 @@ lower it: the lowest valid value wins, a raise is reported as ignored, and an in
 named and dropped. A testing release without this key stops its test scan on `pixel_tolerance` in
 `testing.yaml`, so add the map once every member runs this release.
 
+`/testing:write` reads two keys, `tdd_refactor_step` (`on | off`, default `on`) and `first_test`
+(`user-flow | unit`, default `user-flow`), resolved by `scripts/resolve-config.sh write`. They are
+repository settings: only `docs/conventions/testing.yaml` and `.claude/testing.local.yaml` set
+them, and there is no `userConfig` option. With `on`, the skill closes each green with a line that
+begins `Refactor checkpoint:`, naming what it tidied or why nothing needed it, and repeats those
+lines in its final summary. With `unit`, the first test is a unit test and the user-flow test is
+still written before the task is done. A testing release without these keys stops its test scan on
+them in `testing.yaml`, so add them once every member runs this release.
+
 **Upgrade note.** A testing release older than these keys never reads
 `docs/conventions/testing.yaml`, and refuses an unknown key in the files it does read, which stops
 its test scan. Keep the team's scan config where it is (the `docs/conventions/testing.md` block or
