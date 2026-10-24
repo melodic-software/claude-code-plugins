@@ -105,6 +105,8 @@ A step is done when its criterion says so, not when text resembling the step has
   up), state it in the step, an obligation after "done" is otherwise dropped.
 - **The agent does the legwork.** Write steps that resolve their own facts from the environment;
   a step that sends the human to look something up the agent could read is a defect.
+- **Hiding later steps** from the agent works only across a real context boundary (a hand-off or
+  a subagent dispatch); an inline call leaves the later steps in context.
 
 A task-shaped or long-run instruction also names the whole task's finish line and its stops:
 
@@ -142,6 +144,23 @@ a lower effort level first, "Answer directly." second. A line telling the model 
 not at all is I8-c's, scoped per model the same way. Never ask the model to show or reproduce
 its reasoning in the reply, which some models decline; ask for what the reader needs, such as the
 rationale in two or three sentences or the evidence as a list.
+
+## Leading words
+
+A leading word is a compact concept the model already holds from pretraining, repeated as a token
+and never re-explained, so it anchors a region of behavior in few tokens.
+
+- **Prefer an existing word to a coined one.** A coined word must be defined, and it recruits no
+  prior.
+- **Look for collapse candidates.** A triad spelled out at several sites, or a pointer spending a
+  sentence on one idea, is a candidate to collapse into one word.
+
+## The no-op test
+
+Run it sentence by sentence. An instruction the model already follows by default spends load and
+says nothing. Whether a sentence changes behavior is settled by running the document, not by
+debate. A sentence that fails is deleted whole. A word too weak to beat the default is a no-op too;
+the fix is a stronger word.
 
 ## After writing
 

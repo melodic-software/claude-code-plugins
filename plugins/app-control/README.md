@@ -18,7 +18,7 @@ project's own control skill.
 
 Drive looks for project skills named `control-<app>`. With none, it uses the bundled `run` skill
 when that skill resolves, else a project-type recipe. Its report says which.
-[`reference/control-skill.md`](skills/drive/reference/control-skill.md) defines the shape of a
+[`reference/control-skill.md`](reference/control-skill.md) defines the shape of a
 control skill, [`reference/evidence.md`](skills/drive/reference/evidence.md) the run directory and
 report, and [`reference/project-types.md`](skills/drive/reference/project-types.md) the fallbacks.
 
