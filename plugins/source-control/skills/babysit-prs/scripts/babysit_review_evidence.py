@@ -48,15 +48,34 @@ LANES: dict[str, tuple[str, str]] = {
     ),
 }
 
-# What a lane run may take from the pull request's own checkout: its caller
-# workflows and the local actions and scripts they run (.github/), the review
-# plugin, and Claude Code project config at any depth (.claude/, .mcp.json).
-# A pull request that changes any of them ran its own copy on its
-# pull_request event, so its records prove no review by the default branch's
-# lane.
-LANE_SOURCE_PREFIXES = (".github/", "plugins/review/")
+# What a pull request's own checkout can feed its own review: the two caller
+# workflows (a pull_request event runs the head's copy), the review plugin,
+# Claude Code project config and instruction files at any depth, the criteria
+# the lane skills read from the checkout (REVIEW.md, the standards index, the
+# instruction exception register, the untrusted-content contract), the
+# lane's input directory .claude-lane/ (the code lane falls back to a context
+# file there), and .gitattributes, which can hide a hunk from the lane's
+# `git diff`. The callers run every local action from a checkout of main and
+# the reusable runs its composites from its own repository, so the rest of
+# .github/ feeds no review. A pull request that changes any listed path ran
+# its own copy, so its records prove no review by the default branch's lane.
+LANE_SOURCE_PREFIXES = (
+    *(workflow for workflow, _ in LANES.values()),
+    "plugins/review/",
+    "docs/standards/",
+    "docs/conventions/instruction-exception-register/",
+    "docs/conventions/untrusted-content/",
+    ".claude-lane/",
+)
 LANE_SOURCE_SEGMENT = ".claude"
-LANE_SOURCE_NAME = ".mcp.json"
+LANE_SOURCE_NAMES = (
+    ".mcp.json",
+    "CLAUDE.md",
+    "CLAUDE.local.md",
+    "AGENTS.md",
+    "REVIEW.md",
+    ".gitattributes",
+)
 
 RECORD_TITLE = "claude-lane-review-complete"
 _SHA = r"[0-9a-f]{40}"
@@ -193,15 +212,15 @@ def bind(
 
 
 def lane_source(path: Any) -> bool:
-    """Whether a changed path is one a lane run takes from the checkout; a
-    path that is not a string counts as one."""
+    """Whether a changed path is one the pull request's checkout feeds its
+    own review; a path that is not a string counts as one."""
     if not isinstance(path, str):
         return True
     *dirs, name = path.split("/")
     return (
         path.startswith(LANE_SOURCE_PREFIXES)
         or LANE_SOURCE_SEGMENT in dirs
-        or name == LANE_SOURCE_NAME
+        or name in LANE_SOURCE_NAMES
     )
 
 

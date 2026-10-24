@@ -326,23 +326,72 @@ class LaneSourceTests(Base):
         for lane in LANES:
             self.assertUnbound(result[lane], "lane-source-changed")
 
-    def test_a_change_to_a_file_the_lane_runs_from_the_checkout(self) -> None:
+    def test_a_change_to_a_file_the_review_reads_from_the_checkout(self) -> None:
         for path in (
-            ".github/actions/resolve-config/action.yml",
-            ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+            ".github/workflows/pr-review-hosted.yml",
+            ".github/workflows/pr-review-security-hosted.yml",
             "plugins/review/skills/security-review/SKILL.md",
             ".claude/settings.json",
             "plugins/foo/.claude/rules/x.md",
             ".mcp.json",
             "plugins/foo/.mcp.json",
+            "CLAUDE.md",
+            "plugins/foo/CLAUDE.md",
+            "CLAUDE.local.md",
+            "AGENTS.md",
+            "plugins/foo/skills/bar/AGENTS.md",
+            "REVIEW.md",
+            ".gitattributes",
+            "plugins/foo/.gitattributes",
+            "docs/standards/README.md",
+            "docs/standards/simpler-code.md",
+            "docs/conventions/instruction-exception-register/README.md",
+            "docs/conventions/untrusted-content/README.md",
+            ".claude-lane/pr-context.md",
         ):
             with self.subTest(path):
                 result = self.bound(path)
                 for lane in LANES:
                     self.assertUnbound(result[lane], "lane-source-changed")
 
+    def test_a_path_that_is_not_a_string_binds_no_lane(self) -> None:
+        result = self.bound("app.py", None)  # type: ignore[arg-type]
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_lane_source_is_checked_before_any_lane_binds(self) -> None:
+        # No runs at all: the lane-source reason wins over a missing run.
+        result = self.bind([], changed_paths=(".mcp.json",))
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_github_files_the_review_takes_from_main_bind(self) -> None:
+        # The callers run every local action from a .base checkout of main
+        # and the reusable runs its composites from its own repository, so a
+        # pull request's copy of these never feeds its own review.
+        for path in (
+            ".github/actions/resolve-config/action.yml",
+            ".github/actions/check-kill-switch/action.yml",
+            ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+            ".github/scripts/x.mjs",
+            ".github/workflows/other.yml",
+            "docs/conventions/pr-pipeline.yaml",
+        ):
+            with self.subTest(path):
+                result = self.bound(path)
+                for lane in LANES:
+                    self.assertTrue(result[lane].bound, lane)
+
     def test_unrelated_changes_bind_as_before(self) -> None:
-        result = self.bound("app.py", "docs/github/x.md", "plugins/reviewer/a.py")
+        result = self.bound(
+            "app.py",
+            "docs/github/x.md",
+            "plugins/reviewer/a.py",
+            "docs/standards-old/x.md",
+            "plugins/foo/CLAUDE.md.bak",
+            "docs/REVIEW.md.txt",
+            "plugins/foo/.claude-lane-notes/x.md",
+        )
         for lane in LANES:
             self.assertTrue(result[lane].bound, lane)
             self.assertEqual(result[lane].open_findings, 0)
