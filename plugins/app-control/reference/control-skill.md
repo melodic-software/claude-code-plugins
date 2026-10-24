@@ -21,8 +21,15 @@ same way. Drive reads it as data and runs a command only from the section the ac
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none |
 | `## Cleanup` | How to stop what a run started and nothing else |
 
-Below them, an index with one line per `features/<feature>.md`: title, file name and entry-point
-count.
+Below them, an index with one line per feature file, in this form:
+
+```text
+- <title> | features/<module>/<feature>/README.md | entry points: <n> | sources: <glob>[, <glob>]
+```
+
+`<n>` is the number of lines under the feature's `## Entry points`; `sources` names the globs of
+the files that implement the feature. A feature with no module drops that folder:
+`features/<feature>/README.md`.
 
 ## Writing the Capture section
 
@@ -90,14 +97,21 @@ Manuals, each record a pointer, as-of date and recheck trigger:
 
 ## Feature files
 
-`features/<feature>.md`, written from the user's side:
+`features/[<module>/]<feature>/README.md`, written from the user's side, with these six H2
+sections in this order:
 
 | Section | Holds |
 |---|---|
+| `## Parts` | The distinct behaviors inside the feature, one short line each |
+| `## Sub-features` | The features nested inside this one, each a pointer to its own feature file, or `none` |
+| `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>` |
 | `## Reset` | How to return the app's own data to a known state |
-| `## States` | The states the feature can be in and what shows each |
-| `## Entry points` | Where a user starts the feature |
 | `## Drive` | The steps a user takes, one action per step |
+| `## Gotchas` | What has made a run lie or fail before |
+
+A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module folder. Drive
+resolves an id to `features/<id>/README.md`, then to the legacy `features/<id>.md`. The legacy
+file keeps working as written, with its `## States` section, until someone regroups it.
 
 ## Driver commands
 

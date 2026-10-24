@@ -19,6 +19,7 @@ otherwise do the step inline or name it to the user.
 | Domain events, processes or context boundaries are unclear | `/event-storming:methodology` or `/event-storming:simulation` (if enabled) | Detour to model the domain; resolved terms and boundaries come back as answers |
 | Who the users are, or how a flow should work, is unsettled | `/user-experience:shape` or `/user-experience:evaluate` (if enabled) | `shape` grounds users and flows before acceptance criteria; `evaluate` checks an existing flow or prototype |
 | Acceptance criteria for an LLM-based feature | `/evals:design` (if enabled) | Turns the criteria into measurable success criteria and eval cases |
+| An option adds a non-trivial mechanism | `/overengineering:justify` (if enabled) | Planned mode on the proposal; its drop and needed verdicts feed the recommendation (SKILL.md "Before presenting an option that adds a mechanism") |
 | The current approach is assumed rather than chosen | `/planning:devils-advocate incumbent` | Attacks the status quo before the Brief locks it in |
 | A branch defers to another person's decision | `/planning:questionnaire` | Turns the question into a document that person fills in (SKILL.md Step 5) |
 | The effort is too big and still foggy | `/planning:wayfind` | Charts it as a decision map from this ledger (SKILL.md Stance) |

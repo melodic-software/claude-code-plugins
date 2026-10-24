@@ -80,6 +80,10 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   rule that would otherwise be applied everywhere. Background that changes no action (how the rule
   came about, who was bothered) is left out. When a rule stated this way is still missed, test a
   reasoned wording against it ([Measurement](#measurement)).
+- **Choose leading words on purpose.** Prefer a term the model already holds (TDD, tautological,
+  tracer bullet, a loop that goes red) over a spelled-out description. Keep a chosen term only
+  when a with-and-without comparison (`/evals:plugin-eval --baseline`) shows it moves behavior.
+  The doctrine lives in `/docs-hygiene:write-for-agents` ("Leading words").
 - **Contract sections stay explicit.** A section that defines a contract (an argument grammar,
   mode selection, when to ask instead of proceed, a stop or destructive-action gate) keeps each
   rule and its reason. Tighten its prose only with an eval case behind every edge the cut
