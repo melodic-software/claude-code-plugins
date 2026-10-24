@@ -157,7 +157,7 @@ It writes a fragment, with the bump and section the title's Conventional Commits
 
 Before building PR body, resolve the work item the branch names and its link line, and prompt for any additional links. The line is injected at top of body in §2.4.1. With a work-item tracker bound, its adapter owns the link text and the default branch grammar (the tracker-bound path below); otherwise the GitHub default applies.
 
-The parser resolves the grammar itself: the `branch_issue_pattern` key across the three `source-control.md` layers, then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
+The parser resolves the grammar itself: the `branch_issue_pattern` key across the layers (the team YAML `docs/conventions/source-control.yaml`, then the legacy `source-control.md` for a key the YAML lacks; add `--explain` to print the supplying layer on stderr), then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
 
 ```bash
 ISSUE_NUM=$(bash "<skill-dir>/scripts/parse-branch-issue.sh" || true)
@@ -231,9 +231,9 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 bash "<skill-dir>/scripts/push-branch.sh" || exit 1
 ```
 
-Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
+Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered source-control config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's value is taken whole, never merged with an earlier layer's). The value is a heading list or one of three keywords, each a resolved value that overrides a lower layer the same way a list would (never an absence; parallel to `trailer_policy`/`pr_body_attribution`):
+**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's value is taken whole, never merged with an earlier layer's). The team layer is `docs/conventions/source-control.yaml`: `bash "<plugin-root>/lib/convention-key.sh" layer "<repo-root>" pr_body_required_sections` prints `yaml`, `legacy-md` or `none`, and `list` or `value` prints the YAML's heading list or keyword. Only when it prints `legacy-md` is the key read from the legacy markdown file's `## pr_body_required_sections` section, the compatibility read kept for one release. The value is a heading list or one of three keywords, each a resolved value that overrides a lower layer the same way a list would (never an absence; parallel to `trailer_policy`/`pr_body_attribution`):
 
 - **Absent everywhere, or `briefing`**: the short-briefing preset below. No `Related` is required (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the default excludes it).
 - **`summary-test-plan`**: `Summary` and `Test plan`, both required.
@@ -269,22 +269,24 @@ Point at longer evidence rather than pasting it: a benchmark log, a review repor
 
 ```bash
 # SECTION_ORDER: every heading the draft may emit, in order. REQUIRED_SECTIONS: the subset the
-# §2.4.2.2 gate checks. Both are resolved at the model level from the three source-control.md
-# layers' `## pr_body_required_sections` value (a `- ` bullet list or one keyword), per-key
-# whole-value override. Shown here with the briefing default; a resolved layer replaces both
-# arrays and the source string wholesale.
+# §2.4.2.2 gate checks. Both are resolved at the model level from the `pr_body_required_sections`
+# value (a YAML list or one keyword in the team YAML; a `- ` bullet list or one keyword in a
+# markdown layer), per-key whole-value override. Shown here with the briefing default; a resolved
+# layer replaces both arrays and the source string wholesale.
 SECTION_ORDER=("Why" "What changed" "Scope" "Tradeoffs" "Risk" "Verification")
 REQUIRED_SECTIONS=("Why" "What changed" "Scope" "Verification")
-REQUIRED_SECTIONS_SOURCE="plugin default, briefing (no source-control.md layer sets pr_body_required_sections)"
+REQUIRED_SECTIONS_SOURCE="plugin default, briefing (no layer sets pr_body_required_sections)"
 # When the winning layer declares `summary-test-plan`:
 #   SECTION_ORDER=("Summary" "Test plan"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
-#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, summary-test-plan)"
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/docs/conventions/source-control.yaml, pr_body_required_sections (team layer, summary-test-plan)"
 # When a layer resolves a heading list, every listed heading is required, e.g.:
 #   SECTION_ORDER=("Summary" "Test plan" "Related"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
-#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer)"
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/docs/conventions/source-control.yaml, pr_body_required_sections (team layer)"
 # When the winning layer declares `none` (no required sections):
 #   SECTION_ORDER=(); REQUIRED_SECTIONS=()
-#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, none)"
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/docs/conventions/source-control.yaml, pr_body_required_sections (team layer, none)"
+# The compatibility read: when the YAML lacks the key and the legacy file has the H2, name that file.
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, legacy)"
 ```
 
 Build one `## <heading>` block per entry in `${SECTION_ORDER[@]}`, real content in each, never
@@ -361,7 +363,7 @@ The content inside those headings is prose a reviewer reads: plain language, bot
 BODY_FILE='<absolute path the Write tool wrote>'
 
 # Resolve the PR-body attribution line from the `pr_body_attribution` key across
-# the three source-control.md layers (../../../reference/config-resolution.md), the
+# the layers (team YAML first; ../../../reference/config-resolution.md), the
 # same resolution path `/source-control:commit`'s `trailer_policy` uses for the commit trailer. Absent → the
 # default line; a value of `none` → omit the line; any other value → that literal
 # line. Resolve the effective value at the model level and bake it in as literal

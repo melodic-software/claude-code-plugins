@@ -12,6 +12,51 @@
       "default": "ready",
       "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
     },
+    "subject_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The commit-subject convention: the literal keyword Conventional Commits, or one anchored regex. Exactly one value, never a list; several accepted shapes are alternation inside the one regex. Unset falls through to the repository's own CLAUDE.md, rules or commit-msg hook, then the bundled Conventional Commits default."
+    },
+    "type_list": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "The commit type vocabulary. Meaningful only when subject_pattern is Conventional-Commits-shaped; a list inherited from a lower layer is dropped when the effective subject_pattern is a custom regex. A closed list: the winning layer's list is taken whole."
+    },
+    "pr_title_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The pull-request title shape: an anchored regex, or the deferral marker spelled exactly Same as `subject_pattern`. (capital S, backticked key, trailing period)."
+    },
+    "trailer_policy": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The attribution-trailer template /source-control:commit appends, or none. Unset applies the skill's default trailer."
+    },
+    "pr_body_attribution": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The attribution line /source-control:pull-request create appends to the PR body, or none. Unset applies the default Generated with Claude Code line. Separate from trailer_policy on purpose: a commit trailer and a PR-body line are different surfaces."
+    },
+    "pr_body_required_sections": {
+      "description": "The PR-body section scaffold /source-control:pull-request create drafts and pre-checks before gh pr create: a list of H2 headings, or one keyword. briefing drafts Why, What changed, Scope, Tradeoffs, Risk and Verification and requires Why, What changed, Scope and Verification. summary-test-plan requires Summary and Test plan. none requires nothing. Unset falls through to briefing. A closed list: the winning layer's list is taken whole, never unioned.",
+      "oneOf": [
+        { "enum": ["briefing", "summary-test-plan", "none"] },
+        {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      ]
+    },
+    "branch_issue_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "A POSIX ERE /source-control:pull-request create uses to parse the work-item reference from the branch name; its last capture group holds the reference, an issue number or a tracker key. At most 200 characters, every repetition bound at most 16, no quantifier on a group that already holds one, no backreference. Unset falls through to the deprecated userConfig value, then the built-in <type>/<N>-<slug> convention."
+    },
     "pre_ready": {
       "type": "array",
       "maxItems": 5,
