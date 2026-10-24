@@ -97,6 +97,7 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {}) {
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
+  const notes = [];
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, body, headers });
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
@@ -112,6 +113,12 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {
     // number plus 1000.
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
+    }
+    // The refusal note: a comment posted or edited, and the label.
+    const note = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/(?:([0-9]+)\/(comments|labels)|comments\/([0-9]+))$/.exec(path);
+    if (note && (method === "POST" || method === "PATCH")) {
+      notes.push({ method, path, body });
+      return {};
     }
     assert.equal(`${method} ${path}`, "POST /graphql");
     if (body.query === PULL_OPENED_QUERY) {
@@ -150,24 +157,130 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {
   };
   const writes = () =>
     calls
-      .filter(({ method, body }) => method === "POST" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
-  return { github, writes, verify, verified, calls };
+  return { github, writes, verify, verified, calls, notes };
 }
 
 async function run(pulls, env = {}, options = {}, lane = ROOM) {
-  const { github, writes, verify, verified, calls } = world(pulls, options);
+  const { github, writes, verify, verified, calls, notes } = world(pulls, options);
   const lines = [];
   const slept = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random });
-    return { code, writes: writes(), lines, verified, slept, calls };
+    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
+    return { code, writes: writes(), lines, verified, slept, calls, notes };
   } finally {
     console.log = log;
   }
 }
+
+// The refusal note's two bodies, written out by hand: the gate's reasons
+// marker on its own line, the head named on the next, the reason fenced.
+const laneNote = (reason) =>
+  [
+    "<!-- babysit-merge-risk -->",
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. The lanes clear this reason on their own; the next scheduled run judges it again.`,
+    "",
+    "```text",
+    reason,
+    "```",
+  ].join("\n");
+const personNote = (reason) =>
+  [
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
+    "<!-- babysit-merge-risk -->",
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`,
+    "",
+    "```text",
+    reason,
+    "```",
+  ].join("\n");
+const ISSUES = "/repos/melodic-software/claude-code-plugins/issues";
+const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
+  databaseId: 77,
+  author: { __typename: "Bot", login: LANES.login },
+  body,
+  createdAt: "2026-10-23T10:00:00Z",
+  updatedAt,
+  authorAssociation: "NONE",
+});
+const HOLD_PATH_REASON = "it changes .github/workflows/x.yml, a hold path";
+const MISSING = { refusal: "verify:missing", needsHuman: false, head: HEAD, ineligible: null, reviews: null };
+const MISSING_REASON = "pr-merge's gate refuses its verifier verdict (verify:missing)";
+
+test("a refusal a person must clear is commented on and labeled human-gated", async () => {
+  const held = pull(1, { files: [{ filename: ".github/workflows/x.yml" }] });
+  const { code, writes, notes } = await run([held]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("a verifier refusal the gate marks needsHuman is a person's; one it does not is a lane's", async () => {
+  const human = { refusal: "verify:spec-changed", needsHuman: true, head: HEAD, ineligible: null, reviews: null };
+  const { notes } = await run([pull(1, { verdict: human }), pull(2, { verdict: MISSING })]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote("pr-merge's gate refuses its verifier verdict (verify:spec-changed)") } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(MISSING_REASON) } },
+  ]);
+});
+
+test("a refusal a lane clears is commented on, with no label", async () => {
+  const { code, notes } = await run([pull(1, { verdict: MISSING })]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+test("an unchanged refusal writes nothing, and a label a person removed stays off", async () => {
+  const lane = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
+  const person = pull(2, { files: [{ filename: ".github/workflows/x.yml" }], discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } });
+  const { code, notes } = await run([lane, person]);
+  assert.equal(code, 0);
+  assert.deepEqual(notes, []);
+});
+
+test("a changed refusal edits the one comment instead of posting another", async () => {
+  const moved = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } });
+  const { notes } = await run([moved]);
+  assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+test("a risk hold is a lane's until its comment has stood an hour unchanged, then a person's", async () => {
+  const risk = { refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews: "evidence-unbound:claude-review" };
+  const reason = "pr-merge's gate holds it on its risk score (evidence-unbound:claude-review)";
+  const at = (updatedAt) => pull(1, { verdict: risk, discussion: { comments: [lanesSaid(laneNote(reason), updatedAt)] } });
+  const now = () => Date.parse("2026-10-23T11:00:00Z");
+  assert.deepEqual((await run([pull(1, { verdict: risk })], {}, { now })).notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(reason) } }]);
+  assert.deepEqual((await run([at("2026-10-23T10:01:00Z")], {}, { now })).notes, []);
+  assert.deepEqual((await run([at("2026-10-23T10:00:00Z")], {}, { now })).notes, [
+    { method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(reason) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("an armed pull request, an event run and report-only write no refusal note", async () => {
+  assert.deepEqual((await run([pull(1)])).notes, []);
+  const armedHeld = pull(2, { autoMergeRequest: {}, files: [{ filename: ".github/workflows/x.yml" }] });
+  const event = await run([armedHeld], { EVENT_NAME: "pull_request" });
+  assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_2" }]);
+  assert.deepEqual(event.notes, []);
+  const reported = await run([pull(3, { verdict: MISSING })], { REPORT_ONLY: "true" });
+  assert.deepEqual(reported.notes, []);
+  assert.ok(reported.lines.includes("enable-auto-merge: #3 would note its refusal (report-only)"));
+});
+
+test("a disarmed pull request gets the note after the disarm", async () => {
+  const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING });
+  const { writes, notes } = await run([armed]);
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+});
 
 test("a lanes App pull request with no hold is armed, squash, at the head it read", async () => {
   const { code, writes } = await run([pull(7)]);
@@ -493,6 +606,7 @@ test("a pull request whose head changes the marketplace manifest is not armed, o
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
     action: "none",
     reason: "it changes .claude-plugin/marketplace.json, a hold path",
+    clears: "person",
   });
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
 });
@@ -505,6 +619,7 @@ test("a cost path holds until the body links the owner's cost decision", async (
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
     action: "none",
     reason: "it changes infra/Pulumi.prod.yaml, a cost path",
+    clears: "person",
   });
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
   assert.equal(decide(pull(1), options, { ...detail(), files, costDecision: COST_LINK, verify: PASSED }).action, "arm");
