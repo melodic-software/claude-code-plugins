@@ -93,8 +93,9 @@ jobs:
           .github/scripts/release-publish-plugins/decide-rebuild.sh "$(git rev-parse origin/main)"
       # expectedHeadOid pins the queued head to the one checked above: a push to
       # release/plugins in between makes the call fail rather than queue an
-      # unchecked head. A head already queued, or whose latest `ci-status` has
-      # not passed, is left for a later run, as is one a push run deferred.
+      # unchecked head. A head already queued, or whose GitHub Actions
+      # `ci-status` has not passed (ci-status.sh), is left for a later run, as
+      # is one a push run deferred.
       - name: Queue the checked head
         if: steps.check.outputs.rebuild == 'false' && steps.check.outputs.deferred != 'true'
         env:
@@ -113,8 +114,7 @@ jobs:
             echo "Release pull request #$PR_NUMBER is already in the merge queue."
             exit 0
           fi
-          ci="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=ci-status" \
-            --jq '.check_runs | sort_by(.started_at) | last | .conclusion // "pending"')"
+          ci="$(.github/scripts/release-publish-plugins/ci-status.sh "$HEAD_SHA")"
           if [ "$ci" = pending ]; then
             echo "::notice::ci-status on release pull request #$PR_NUMBER is pending; a later run queues it."
             exit 0
