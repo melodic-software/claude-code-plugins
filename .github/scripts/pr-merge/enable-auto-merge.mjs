@@ -208,8 +208,9 @@ export function describe(error) {
 // lost answer would post it twice. A resent arm is pinned to the same expectedHeadOid, so it can arm
 // only the head the run read. When the lost answer was a success, the resend
 // may arm or disarm a pull request already in that state; should GitHub
-// answer that with an error, the run reports it and exits 1 with the state
-// right, and the next run reads it as it is.
+// answer that with an error, the run reports it (a warning for an arm, an
+// error and exit 1 for a disarm) with the state right, and the next run reads
+// it as it is.
 export function withRetry(github, { sleep, random = Math.random }) {
   return async (method, path, body, headers = {}, options) => {
     for (let attempt = 0; ; attempt += 1) {
@@ -625,7 +626,15 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const onResponse = (response) => {
       answer = { limited: response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"), text: response.clone().text().catch(() => "") };
     };
-    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse }), { sleep, random });
+    const send = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse }), { sleep, random });
+    // Whether any call this run got an answer: then the network is up, and an
+    // arm still failing on it after its resends fails on that pull request alone.
+    let answered = false;
+    github = async (...args) => {
+      const result = await send(...args);
+      answered = true;
+      return result;
+    };
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
@@ -813,6 +822,12 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`::warning title=enable-auto-merge::#${pull.number} arm refused, skipped this run: ${describe(said ? new Error(`${error.message}: ${said}`) : error)}`);
           continue;
         }
+        if (action === "arm" && answered && transient(error)) {
+          inFlight -= 1;
+          refusedArms.push(`#${pull.number}`);
+          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error)}`);
+          continue;
+        }
         failed += 1;
         console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${describe(error)}`);
         // Still armed: a note saying it is unarmed would be false.
@@ -835,7 +850,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       lines.push(["warning", escapeCommand(`${laneHeld}; ${warned.map(([what, numbers]) => `${what}: ${numbers}`).join("; ")}`)]);
     }
     if (arms > 0 && refusedArms.length === arms) {
-      lines.push(["warning", `every arm this run was refused: ${refusedArms.join(", ")}`]);
+      lines.push(["warning", `every arm this run was refused or failed on the network: ${refusedArms.join(", ")}`]);
     }
     if (held("armed")) {
       lines.push(["error", escapeCommand(`${laneHeld}; still armed, its disarm failed, so the hold is not enforced: ${held("armed")}`)]);

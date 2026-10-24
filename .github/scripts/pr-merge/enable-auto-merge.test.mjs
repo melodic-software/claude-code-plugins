@@ -503,20 +503,37 @@ test("a GET that fails on the network is left to the client's own retry, not sen
   assert.deepEqual(writes, []);
 });
 
-test("an arm that fails three times on the network fails the run, naming the cause", async () => {
+test("an arm that fails three times on the network, while other calls answered, is skipped with a warning naming the cause", async () => {
   const { code, writes, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), reset(), reset(), reset()] } });
-  assert.equal(code, 1);
+  assert.equal(code, 0);
   assert.equal(writes.length, 3);
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: ECONNRESET read ECONNRESET)"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed (cause: ECONNRESET read ECONNRESET)"));
 });
 
-test("one pull request whose arm still fails leaves it unarmed and the next is still armed", async () => {
-  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [closed(), closed(), closed()] } });
-  assert.equal(code, 1);
+test("one pull request whose arm fails on the network every attempt is skipped, and the next is armed inside a cap of one", async () => {
+  const bare = () => new TypeError("fetch failed");
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()] } }, { ...ROOM, cap: 1 });
+  assert.equal(code, 0);
   assert.deepEqual(writes.at(-1), { mutation: "arm", id: "PR_2", head: HEAD });
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET other side closed)"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed"));
   assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
   assert.ok(!lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("a run where no call answers is an outage and fails red", async () => {
+  const github = async () => {
+    throw new TypeError("fetch failed");
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    assert.equal(await main({ env: ENV, github, verify: async () => PASSED, room: room(), sleep: async () => {} }), 1);
+  } finally {
+    console.log = log;
+  }
+  assert.ok(lines.includes("::error title=enable-auto-merge::fetch failed"));
 });
 
 test("each network trigger alone is sent again, and an error with another code is not", async () => {
@@ -569,7 +586,7 @@ test("every arm refused still exits 0 and says so", async () => {
   const refusal = () => new GitHubError(422, "POST /graphql");
   const { code, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [refusal()], PR_2: [refusal()] } });
   assert.equal(code, 0);
-  assert.ok(lines.includes("::warning title=enable-auto-merge::every arm this run was refused: #1, #2"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::every arm this run was refused or failed on the network: #1, #2"));
 });
 
 test("an arm answered 401, 403, 429 or 5xx is not a refusal of that pull request: not sent again, and the run fails", async () => {
@@ -623,7 +640,7 @@ test("a rate-limited GraphQL answer to an arm is not a refusal, and the run fail
 test("a logged cause has any token in it scrubbed", async () => {
   const leak = new TypeError("fetch failed", { cause: Object.assign(new Error("bad header Bearer ghs_abc123 sent github_pat_11AB_cd"), { code: "UND_ERR_SOCKET" }) });
   const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [leak, leak, leak] } });
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET bad header *** sent ***)"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed (cause: UND_ERR_SOCKET bad header *** sent ***)"));
   assert.ok(!lines.some((line) => line.includes("ghs_abc123") || line.includes("github_pat_")));
 });
 
