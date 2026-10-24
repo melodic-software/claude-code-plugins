@@ -1,0 +1,21 @@
+# The guardrails git-hook entries as a lefthook remote config: a consumer's lefthook.yml names it
+# in `remotes:` (the snippet `install.mjs plan --scope remote` returns), and lefthook fetches this
+# repository and merges these jobs. Each script lives under the repository root's .lefthook/, where
+# lefthook looks up a remote's scripts, and runs with the consumer repository as its working
+# directory. Job names differ from the shared-copy jobs (guardrails-<entry>) so the two never merge.
+commit-msg:
+  jobs:
+    - name: guardrails-remote-commit-msg-convention
+      script: guardrails-commit-msg-convention.sh
+      runner: bash
+pre-commit:
+  jobs:
+    - name: guardrails-remote-pre-commit-content
+      script: guardrails-pre-commit-content.sh
+      runner: bash
+pre-push:
+  jobs:
+    - name: guardrails-remote-reference-verify
+      script: guardrails-reference-verify.sh
+      runner: bash
+      use_stdin: true

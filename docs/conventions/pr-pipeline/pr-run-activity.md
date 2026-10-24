@@ -645,10 +645,10 @@ Read file, PR mode: a skill runs on ci-workflows'
 [`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/README.md)
 (v0.54.0), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
-`pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
+`pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs`, `address-feedback` and
-`review-dependency` calls and their `-subscription` calls do the same. Both queue in
+(`PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN`); its `address-feedback` and `review-dependency` calls,
+`pr-refine.yml`'s `fix-docs`, and their `-subscription` calls do the same. Both queue in
 `pr-pipeline-write-<pr>`. Each fallback call starts on no first-call output: a handoff job
 (`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
 `review-dependency-handoff`, and `pr-refine.yml`'s `fix-docs-handoff`) with only `actions: read`
@@ -1027,7 +1027,7 @@ review comment's first paragraph and its `severity:` line, never the later ratio
 lane's footer), the locations the lane cited (never its note), and those files at the select
 job's head, read through the contents API, each up to 200 KiB. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
-automations API key, under `dontAsk` with Read, Glob and Grep, `Read(./adjudicate/**)` allowed,
+pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read, Glob and Grep, `Read(./adjudicate/**)` allowed,
 and only that thread's files in the workspace. The prompt
 (`.github/scripts/pr-unblock/adjudicate-feedback.prompt.md`) frames every staged file as
 untrusted data. The model route is `adjudicate-feedback` ([README.md, Models](README.md#models)).
@@ -1204,7 +1204,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
 pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
 failing checks in separate jobs, so no model
-holds a write token: a base job, a read model job in this mode on the automations role's API key,
+holds a write token: a base job, a read model job in this mode on the pr-unblock role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an
 [`apply-patch`](#prepare-apply-patch) script job.
@@ -1569,8 +1569,8 @@ form, any case) and down through every reusable workflow those runs call. It fai
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
 a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
-`claude_code_oauth_token`, `automations_claude_code_oauth_token` (the lanes' Claude Code OAuth
-token), `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
+`claude_code_oauth_token`, `pr_unblock_claude_code_oauth_token`,
+`issue_lane_claude_code_oauth_token`, `claude_api_key`, `pr_unblock_claude_api_key`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 `secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
