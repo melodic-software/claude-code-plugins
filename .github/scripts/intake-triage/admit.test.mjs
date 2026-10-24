@@ -217,6 +217,16 @@ describe("decide", () => {
     assert.deepEqual(result, { verdict: "admit", reasons: [] });
   });
 
+  test("refuses a Feature, parent or not, once the rules no longer list it", () => {
+    const rules = { ...RULES, "types-parent-if-present": [] };
+    const issue = issueOf({ type: { name: "Feature" } });
+    for (const parent of [null, { state: "open", user: { id: HUMAN }, labels: [] }]) {
+      const result = decide(facts({ issue, rules, parent }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), /type Feature is not one of/);
+    }
+  });
+
   test("admits a Feature under an open parent a listed human filed", () => {
     const result = decide(
       facts({
@@ -445,6 +455,28 @@ describe("admit", () => {
     assert.equal(result.outcome, "admitted");
     assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
+
+  const feature = issueOf({ type: { name: "Feature" } });
+
+  test("a Feature with no parent is admitted through the real fetch path", async () => {
+    const fake = fakeGitHub({ issue: feature });
+    assert.equal((await go(fake)).outcome, "admitted");
+    assert.ok(fake.calls.some((call) => call.path === "/repos/o/r/issues/7/parent"), "the parent was looked up");
+  });
+
+  for (const [name, parent] of [
+    ["an outsider filed", { state: "open", user: { id: OUTSIDER }, labels: [] }],
+    ["awaits a decision", { state: "open", user: { id: HUMAN }, labels: [{ name: NEEDS_DECISION }] }],
+    ["is closed", { state: "closed", user: { id: HUMAN }, labels: [] }],
+  ]) {
+    test(`a Feature whose parent ${name} is refused through the real fetch path`, async () => {
+      const fake = fakeGitHub({ issue: feature, parent });
+      const result = await go(fake);
+      assert.equal(result.outcome, "refused");
+      assert.ok(fake.calls.some((call) => call.path === "/repos/o/r/issues/7/parent"), "the parent was looked up");
+      assert.ok(!writes(fake.calls).some((line) => line.startsWith("POST /repos/o/r/issues/7/labels") && line.includes(AGENT_READY)), "no agent-ready label");
+    });
+  }
 
   const full = [
     [

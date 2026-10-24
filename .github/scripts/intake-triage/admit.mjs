@@ -10,8 +10,8 @@
 // applied. This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
-//   parent issue a listed human filed that awaits no decision; a Feature with a
-//   parent needs that parent too, and one without a parent passes (Q83);
+//   parent issue a listed human filed that awaits no decision; a type in
+//   `types-parent-if-present` needs that parent only when it has one (Q83);
 // - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
 //   `sizes` and `uncertainty`;
 // - 7 (with owner decision Q9, #8999): a `task-list` line, the criteria the
@@ -64,9 +64,7 @@ export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
-// A Feature is checked against its parent when it has one (owner decision Q83).
-const PARENT_OPTIONAL = "Feature";
-const LISTS = ["types", "types-under-parent", "classes", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "types-parent-if-present", "classes", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
@@ -277,14 +275,14 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   const type = issue.type?.name ?? "none";
   const underParent = rules["types-under-parent"].includes(type);
-  if (underParent || (type === PARENT_OPTIONAL && parent !== null)) {
+  if (!underParent && !rules.types.includes(type) && !rules["types-parent-if-present"].includes(type)) {
+    refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"], ...rules["types-parent-if-present"]].join(", ")}`);
+  } else if (underParent || (rules["types-parent-if-present"].includes(type) && parent !== null)) {
     const parentOk =
       parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.labels).some((label) => PARENT_HOLDS.has(label));
     if (!parentOk) {
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
-  } else if (!rules.types.includes(type)) {
-    refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"]].join(", ")}`);
   }
   if (!rules.classes.includes(verdict.workClass)) {
     refuse.push(`${verdict.workClass} is not one of ${rules.classes.join(", ")}`);
@@ -461,7 +459,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     // Read for the admission comment's own earlier copy (sayWhy).
     comments: await paginate(github, `${base}/comments`),
     spec,
-    parent: rules["types-under-parent"].includes(issue.type?.name) || issue.type?.name === PARENT_OPTIONAL ? await parentOf(github, base) : null,
+    parent: [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name) ? await parentOf(github, base) : null,
     blockers,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
