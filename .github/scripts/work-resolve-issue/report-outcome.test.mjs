@@ -1795,6 +1795,26 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
   }
 });
 
+// The issue-fields job re-derives a resume claimed before the model ran;
+// main moving during the run must not void it.
+test("with keepBehind a marked run's branch behind main still resumes at its tip", () => {
+  for (const behindBy of [0, 1, 865]) {
+    const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
+    assert.deepEqual(
+      prior({ branches, markers: [marked("stopped", "400")], keepBehind: true }),
+      { action: "resume", branch: lane(400), tip: SHA_400, cause: "stopped" },
+      String(behindBy),
+    );
+  }
+});
+
+test("keepBehind does not resume a branch that fails the other checks", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 3, pulls: [pullBy(BOT)] })];
+  assert.equal(prior({ branches, markers: [marked("stopped", "400")], keepBehind: true }).action, "stop");
+  const notApp = [branchFact(lane(400), { sha: SHA_400, behindBy: 3, commits: [LANE_TIP, { ...LANE_TIP, author: { login: "stranger" } }] })];
+  assert.deepEqual(prior({ branches: notApp, markers: [marked("stopped", "400")], keepBehind: true }), { action: "run" });
+});
+
 test("a lanes-App PR open from a lane branch behind main still stops the run", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865, pulls: [pullBy(BOT)] })];
   assert.equal(prior({ branches, markers: [marked("stopped", "400")] }).action, "stop");
@@ -1834,6 +1854,14 @@ test("--find-prior runs the model fresh, with no resume outputs, when the marked
   const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
+});
+
+test("--find-prior with FIND_PRIOR_KEEP_BEHIND=true names a marked run's branch behind main as the resume", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison, env: { FIND_PRIOR_KEEP_BEHIND: "true" } });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=stopped\n`);
 });
 
 test("another issue's lane branches are never this issue's", () => {
@@ -1883,6 +1911,7 @@ async function runPrior({
   repoAnswer = { default_branch: "main" },
   commitAnswer = LANE_TIP,
   graphqlPages,
+  env = {},
 }) {
   return withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
     const fake = fakeFetch([
@@ -1916,6 +1945,7 @@ async function runPrior({
         GH_TOKEN: "t",
         TRUSTED_ACTORS_PATH: join(dir, "trusted.json"),
         GITHUB_OUTPUT: join(dir, "output"),
+        ...env,
       },
       fetch,
     });
