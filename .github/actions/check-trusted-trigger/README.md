@@ -160,7 +160,10 @@ condition 1 and the actor and author parts of condition 2).
 
   Any run can upload an artifact with that name, so each listed artifact's run is read and
   judged, and one that passes is enough; one whose run cannot be read does not vouch. At most 20
-  candidate runs are read per check; a 21st candidate stops it with `untrusted-rerunner`. The run id and the attempt bind the record to one run
+  candidate runs are read per record name in a check; a 21st candidate under the last name read
+  stops it at once, with no re-read, with `untrusted-rerunner` on this run's path and
+  `untrusted-actor` on the upstream path below, and one under an earlier name moves on to the
+  next name. The run id and the attempt bind the record to one run
   attempt, which starts once, so a record cannot vouch for another run or a later attempt. The
   reconciler uploads the record before it calls the re-run, so an absent record is read once more
   after 5 s and then refused.
@@ -173,6 +176,28 @@ condition 1 and the actor and author parts of condition 2).
   The reconciler records each re-run that makes attempt 2 of a CI run this lane runs after. A
   github-actions[bot] upstream at any other attempt, or with no record, stops with
   `untrusted-actor`. This run's own re-runner is then checked as above.
+
+  `ci-status-rerun-workflow` adds a second recorder for the upstream run only:
+  `pr-feedback-dispatch.yml`'s `rerun-ci-status` job, which uploads
+  `rerun-ci-status-<run id>-<attempt>-<head_sha>` immediately before it re-runs a ci-status job,
+  naming the attempt that re-run starts. A github-actions[bot] upstream at attempt 2 or later is
+  checked as above against `GET /actions/runs/{id}/attempts/{attempt}` and that name (at attempt 2
+  the reconciler's name is read first), except that the recording run's `event` must be
+  `workflow_run` and its `actor` is not checked, since such a run runs the default branch's file,
+  and the window runs from the record: the run started no later than the artifact's `created_at`,
+  and the attempt started at most ten minutes after it. The job can poll for ten minutes before
+  it uploads, so a window from the run's start would refuse it. This run's own github-actions[bot]
+  re-runner is never vouched for by this record.
+
+  Residuals: the record names an attempt, not who starts it. A github-actions[bot] re-run of the
+  same run that another workflow of this repository starts between the upload and the job's own
+  re-run, or within ten minutes of an upload whose re-run then failed, takes that attempt and is
+  vouched for; that includes a same-repository PR branch's workflow granted `actions: write`. It
+  re-runs only that run at that head, and `sender`, `workflow_run.actor` and the PR author must
+  still be listed. The recorder records only when the review run that started it is at attempt 1
+  or was re-run by an actor listed as `kind: human` in the default branch's list; another
+  re-runner's re-run of ci-status goes ahead unrecorded and is refused here. This check does not
+  repeat that one: the record's listing names neither the review run nor its re-runner.
 
   Residuals: whether one run can write another run's artifacts is unverified, as for the
   dispatcher record. A re-run that waits in a queue past the ten-minute window is refused, red;

@@ -115,6 +115,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
 
       - name: Resolve the pull request
         id: pr
@@ -439,6 +440,7 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
           reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
 
       - name: Resolve the pull request
         id: pr
