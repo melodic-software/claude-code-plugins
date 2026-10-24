@@ -6386,6 +6386,38 @@ class DependabotEligibility(unittest.TestCase):
         )
         self.assertEqual(result.dependabot.tier, "review")
 
+    def test_the_ci_status_run_that_started_last_decides(self) -> None:
+        # `filter=latest` keeps the latest run of each check suite, so a
+        # re-triggered workflow leaves an older red run beside a newer one.
+        red = {"status": "completed", "conclusion": "failure"}
+        green = {"status": "completed", "conclusion": "success"}
+        running = {"status": "in_progress", "conclusion": None}
+        cases = [
+            ("green after red", [red, green], "success"),
+            ("red after green", [green, red], "failure"),
+            ("running after green", [green, running], "pending"),
+        ]
+        for label, (older, newer), expected in cases:
+            with self.subTest(label):
+                self.fake(
+                    ci=[
+                        {**newer, "started_at": "2026-10-24T05:40:00Z"},
+                        {**older, "started_at": "2026-10-23T21:56:00Z"},
+                    ]
+                )
+                self.assertEqual(
+                    policy._ci_status(*REPO.split("/"), self.HEAD), expected
+                )
+
+    def test_ci_status_runs_without_start_times_keep_any_failure(self) -> None:
+        self.fake(
+            ci=[
+                {"status": "completed", "conclusion": "success"},
+                {"status": "completed", "conclusion": "failure", "started_at": None},
+            ]
+        )
+        self.assertEqual(policy._ci_status(*REPO.split("/"), self.HEAD), "failure")
+
     def test_a_running_or_missing_ci_status_waits_at_tier_auto(self) -> None:
         for runs in ([], [{"status": "in_progress", "conclusion": None}]):
             with self.subTest(runs=runs):

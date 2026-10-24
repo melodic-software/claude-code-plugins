@@ -2540,7 +2540,10 @@ def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
 
 def _ci_status(owner: str, name: str, head: str) -> str:
     """`success`, `pending`, or the conclusion of a finished `ci-status` run on
-    `head` that did not succeed; `unreadable` when the runs cannot be read."""
+    `head` that did not succeed; `unreadable` when the runs cannot be read.
+    `filter=latest` keeps the latest run of each check suite, so a re-triggered
+    workflow leaves an older run beside a newer one: the run that started last
+    decides, and any failure decides when a run has no start time."""
     status, payload = _get(
         f"repos/{owner}/{name}/commits/{head}/check-runs"
         f"?check_name={CI_STATUS_CHECK}&filter=latest&per_page=100"
@@ -2548,6 +2551,8 @@ def _ci_status(owner: str, name: str, head: str) -> str:
     runs = [json_object(r) for r in json_array(json_object(payload).get("check_runs"))]
     if status != 200 or not SHA_RE.fullmatch(head):
         return "unreadable"
+    if runs and all(isinstance(r.get("started_at"), str) for r in runs):
+        runs = [max(runs, key=lambda r: str(r["started_at"]))]
     if not runs or any(r.get("status") != "completed" for r in runs):
         return "pending"
     failed = [
