@@ -289,7 +289,7 @@ test("each network trigger alone is sent again, and an error with another code i
 
 test("the resend warning names the arm and its pull request", async () => {
   const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [closed()] } });
-  assert.ok(lines.some((line) => line.startsWith("::warning::enable-auto-merge: POST /graphql (arm) for PR_1 failed (fetch failed (cause: UND_ERR_SOCKET other side closed))")));
+  assert.ok(lines.some((line) => line.startsWith("::warning::enable-auto-merge: POST /graphql (arm) for PR_1 failed (TypeError UND_ERR_SOCKET)")));
 });
 
 test("every request asks GitHub to close its connection after answering", async () => {
