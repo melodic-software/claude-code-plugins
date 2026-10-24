@@ -220,8 +220,8 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
 
 // A room that checks the post-merge answer again reads the lane records the
 // last run kept, as post-merge-dispatch's check does, so the check answers
-// them with no artifact or run read each (465 calls and 4m20s without them,
-// past the room's VERIFY_TIMEOUT_MS).
+// them with no artifact or run read each; without them the check can run
+// past the room's VERIFY_TIMEOUT_MS.
 test("enable-auto-merge hands the room's post-merge check the lane records the last run kept", () => {
   const arm = job("enable-auto-merge");
   const records = /- name: Read the lane records the last run kept\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];

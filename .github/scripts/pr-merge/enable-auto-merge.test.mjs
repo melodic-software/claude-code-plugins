@@ -1114,8 +1114,8 @@ test("a room that cannot be read arms nothing and disarms every armed lane pull 
   assert.deepEqual(writes(), [{ mutation: "disarm", id: "PR_2" }]);
 });
 
-// Issue #9577's scope addition: a held room logged only to the console, so
-// nothing on the run said why nothing armed. One annotation and one summary
+// A held room that logs only to the console leaves nothing on the run
+// saying why nothing armed. One annotation and one summary
 // line per run, naming the reason and every lane pull request left unarmed.
 test("a held room raises one warning and one step-summary line naming why and each pull request left unarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
@@ -1148,7 +1148,7 @@ test("a held room raises one warning and one step-summary line naming why and ea
 
 // A pull request whose disarm failed, or that report-only left armed, is
 // still armed: naming it "left unarmed" would say the hold was enforced when
-// it was not (review thread on #9602).
+// it was not.
 test("a held room names a pull request whose disarm failed as still armed, at error level", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");

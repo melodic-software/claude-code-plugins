@@ -276,7 +276,7 @@ class AffectedSet(AffectedBase):
         self.assertIn(f"body={pm.QUARANTINE_NOTE}{SIGHTING}", post)
 
     def test_the_answer_says_when_its_quarantine_excuse_ends(self) -> None:
-        # The lane room keeps an answer only until then (issue #9577): the
+        # The lane room keeps an answer only until then: the quarantine
         # issue's creation plus the default 7 quarantine days.
         self.quarantine_issue(FLAKY, "2026-10-10T09:00:00Z")
         self.red_dispatch(bash_log((FLAKY, False)))

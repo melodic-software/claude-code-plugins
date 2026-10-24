@@ -3870,8 +3870,7 @@ SHARED_BINDING_REFUSALS = frozenset(
 )
 # Clock skew alone: a runner clock may run ahead of GitHub's, so `since`
 # starts this much earlier. `computed_at` is stamped before the reads it
-# covers (pr-merge run 40060427179: its step started 03:58:09.10Z and
-# stamped 03:58:09.27Z), so no read time needs covering.
+# covers, so no read time needs covering.
 SINCE_CLOCK_MARGIN = timedelta(seconds=60)
 
 

@@ -35,7 +35,7 @@ NOW = FLOOR + timedelta(minutes=5)
 NEW_MAIN = "e" * 40
 NEW_FLOOR = FLOOR + timedelta(minutes=1)
 # A passing answer with lane merge #5 still unverified, read three minutes on:
-# past the two minutes the gate reuses it (issue #9577's 2:01 read).
+# past the two minutes the gate reuses it.
 PENDING = {
     "readable": True,
     "ok": True,
@@ -303,8 +303,8 @@ class LaneRoom(unittest.TestCase):
     def test_a_pending_merge_past_two_minutes_is_read_again_and_counted(
         self,
     ) -> None:
-        # Issue #9577: the post-merge step takes about 1m41s and the room is
-        # read at about 2:01, so every pending lane merge left it unreadable.
+        # The post-merge step takes nearly the two minutes the gate reuses an
+        # answer for, so a pending lane merge must not leave the room unreadable.
         verified = {
             "readable": True,
             "ok": True,
@@ -582,7 +582,7 @@ class PendingRunsUnchanged(unittest.TestCase):
 
     def test_the_clock_margin_is_sixty_seconds_of_skew(self) -> None:
         # computedAt is stamped before the runs are read, so the margin covers
-        # only clock skew: 60 s (owner decision on #9602).
+        # only clock skew: 60 s.
         def finished(before: timedelta) -> dict[str, object]:
             return run(
                 "pr-require-checks.yml", status="completed", updated=FLOOR - before
