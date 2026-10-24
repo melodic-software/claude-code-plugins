@@ -5688,7 +5688,7 @@ class DependabotEligibility(unittest.TestCase):
     )
     CI = (
         f"repos/{REPO}/commits/{'e' * 40}/check-runs"
-        "?check_name=ci-status&filter=latest&per_page=100"
+        "?check_name=ci-status&app_id=15368&filter=latest&per_page=100"
     )
 
     def fake(
@@ -6385,6 +6385,79 @@ class DependabotEligibility(unittest.TestCase):
             result.reason, "dependabot-review:ci-status-red;review-verdict-missing"
         )
         self.assertEqual(result.dependabot.tier, "review")
+
+    def test_the_ci_status_run_that_started_last_decides(self) -> None:
+        # `filter=latest` keeps the latest run of each check suite, so a
+        # re-triggered workflow leaves an older red run beside a newer one.
+        red = {"status": "completed", "conclusion": "failure"}
+        green = {"status": "completed", "conclusion": "success"}
+        running = {"status": "in_progress", "conclusion": None}
+        cases = [
+            ("green after red", [red, green], "success"),
+            ("red after green", [green, red], "failure"),
+            ("running after green", [green, running], "pending"),
+        ]
+        for label, (older, newer), expected in cases:
+            pair = [
+                {**newer, "started_at": "2026-10-24T05:40:00Z"},
+                {**older, "started_at": "2026-10-23T21:56:00Z"},
+            ]
+            for listed in (pair, pair[::-1]):
+                with self.subTest(label, newer_listed_first=listed is pair):
+                    self.fake(ci=listed)
+                    self.assertEqual(
+                        policy._ci_status(*REPO.split("/"), self.HEAD), expected
+                    )
+
+    def test_ci_status_runs_that_started_together_keep_any_failure(self) -> None:
+        at = "2026-10-24T05:40:00Z"
+        red = {"status": "completed", "conclusion": "failure", "started_at": at}
+        green = {"status": "completed", "conclusion": "success", "started_at": at}
+        for listed in ([red, green], [green, red]):
+            with self.subTest(listed=listed):
+                self.fake(ci=listed)
+                self.assertEqual(
+                    policy._ci_status(*REPO.split("/"), self.HEAD), "failure"
+                )
+
+    def test_ci_status_runs_without_start_times_keep_any_failure(self) -> None:
+        green = {"status": "completed", "conclusion": "success"}
+        red = {"status": "completed", "conclusion": "failure"}
+        queued = {"status": "queued", "conclusion": None, "started_at": None}
+        cases = [
+            (
+                "neither has a start time",
+                [green, {**red, "started_at": None}],
+                "failure",
+            ),
+            (
+                "newer green beside an unstarted red",
+                [
+                    {**green, "started_at": "2026-10-24T05:40:00Z"},
+                    {**red, "started_at": None},
+                ],
+                "failure",
+            ),
+            (
+                "unstarted re-run beside an older red",
+                [{**red, "started_at": "2026-10-23T21:56:00Z"}, queued],
+                "pending",
+            ),
+            (
+                "unreadable start time",
+                [
+                    {**green, "started_at": "2026-10-24T05:40:00Z"},
+                    {**red, "started_at": "soon"},
+                ],
+                "failure",
+            ),
+        ]
+        for label, runs, expected in cases:
+            with self.subTest(label):
+                self.fake(ci=runs)
+                self.assertEqual(
+                    policy._ci_status(*REPO.split("/"), self.HEAD), expected
+                )
 
     def test_a_running_or_missing_ci_status_waits_at_tier_auto(self) -> None:
         for runs in ([], [{"status": "in_progress", "conclusion": None}]):

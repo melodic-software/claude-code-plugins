@@ -41,6 +41,13 @@ import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 import babysit_util as util
 import test_babysit_merge as fixtures
+from test_babysit_merge import (
+    DEPENDABOT_COMMIT,
+    EDITED_MERGE,
+    FIX_COMMIT,
+    STRAY_MERGE,
+    STRAY_MERGE_COMPARES,
+)
 import test_babysit_merge_async as async_fixtures
 from babysit_risk import ChangedFile, LaneEvidence
 from repo_config_fake import RepoConfigFake
@@ -800,6 +807,13 @@ class Unattended(unittest.TestCase):
         # The pull request's REST author, and the Dependabot class's reads:
         # the assessment's, then the re-read before the enqueue.
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
+        self.pr_head_ref = "feat"
+        # REST `mergeable_state`; "dirty" is a conflict with the base.
+        self.pr_mergeable_state: str | None = None
+        # The pull request's commits and the compare answers, by endpoint,
+        # for the Dependabot rebase request; None leaves the reads unfaked.
+        self.pr_commits: list[dict[str, Any]] | None = None
+        self.compare_answers: dict[str, Any] = {}
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
         self.dependabot_kwargs: list[dict[str, Any]] = []
@@ -838,6 +852,11 @@ class Unattended(unittest.TestCase):
         # The pr-merge human-veto scan reads the inline review comments too.
         if endpoint == f"repos/owner/repo/pulls/{PR}/comments?per_page=100":
             return []
+        if (
+            endpoint == f"repos/owner/repo/pulls/{PR}/commits?per_page=100"
+            and self.pr_commits is not None
+        ):
+            return self.pr_commits
         # The timeline an escalation reads for a person's removal of its label.
         if endpoint == f"repos/owner/repo/issues/{PR}/timeline?per_page=100":
             self.timeline_reads.append(kwargs)
@@ -876,7 +895,8 @@ class Unattended(unittest.TestCase):
             "number": PR,
             "node_id": self.node_id,
             "base": {"ref": "main", "sha": BASE},
-            "head": {"ref": "feat", "sha": self.scored_head},
+            "head": {"ref": self.pr_head_ref, "sha": self.scored_head},
+            "mergeable_state": self.pr_mergeable_state,
             "user": self.pr_user,
             "labels": self.pr_labels,
         }
@@ -908,6 +928,8 @@ class Unattended(unittest.TestCase):
                         }
                     }
                 }
+            if args[0] == "api" and args[1] in self.compare_answers:
+                return self.compare_answers[args[1]]
             if args[0] == "api" and "/compare/" in args[1]:
                 return fixtures.UP_TO_DATE
             if args[:2] == ["api", f"repos/owner/repo/pulls/{PR}"]:
@@ -2367,6 +2389,7 @@ class CheckInputsChangedOnTheBase(Unattended):
         )
         self.update_stderr = "gh: Resource not accessible by integration (HTTP 403)"
         self.update_failure: Exception | None = None
+        self.rebase_code = 0
         self.inputs_reads: list[tuple[Any, ...]] = []
         self.inputs_kwargs: list[dict[str, Any]] = []
         self.inputs_answer: dict[str, Any] = {
@@ -2386,6 +2409,9 @@ class CheckInputsChangedOnTheBase(Unattended):
             return subprocess.CompletedProcess(
                 args, self.update_code, self.update_stdout, self.update_stderr
             )
+        if self.rebase_code and "babysit-dependabot-rebase" in " ".join(args):
+            self.log.append("rebase-comment-failed")
+            return subprocess.CompletedProcess(args, 1, "", "gh: Bad (HTTP 502)")
         return super()._capture(args)
 
     def run_main(self, *flags: str, merge_flag: bool = True) -> Any:
@@ -2586,6 +2612,151 @@ class CheckInputsChangedOnTheBase(Unattended):
                 self.assert_held_after_update(code, out)
                 read = out["unattended"]["enqueue"]["checkInputs"]
                 self.assertIsNone(read["updated"])
+
+    REBASE_COMMENT = f"write:api -X POST repos/owner/repo/issues/{PR}/comments"
+    # The command on line one; the marker names the base tip it was asked at.
+    REBASE_BODY = f"@dependabot rebase\n<!-- babysit-dependabot-rebase base={BASE} -->"
+    RECREATE_BODY = (
+        f"@dependabot recreate\n<!-- babysit-dependabot-rebase base={BASE} -->"
+    )
+
+    def dependabot_head(self, *commits: dict[str, Any]) -> None:
+        # The local lane admits a Dependabot pull request through the opt-in,
+        # so its eligibility carries no Dependabot class: not an eligible
+        # Dependabot head, which enqueues as before.
+        self.pr_user = {"login": "dependabot[bot]", "type": "Bot"}
+        self.pr_head_ref = "dependabot/npm_and_yarn/plugins/x/server/ip-address-10.7.4"
+        self.pr_commits = list(commits) or [DEPENDABOT_COMMIT]
+        self.compare_answers = dict(STRAY_MERGE_COMPARES)
+
+    def test_a_stale_dependabot_head_asks_for_a_rebase_not_an_update(self) -> None:
+        self.dependabot_head()
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(
+            self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
+        )
+        (blocker,) = [b for b in out["blockers"] if "dependabot-rebase-requested:" in b]
+        self.assertIn("scripts/shared-copies.txt", blocker)
+        self.assertIn(BASE, blocker)
+        self.assertEqual(
+            out["unattended"]["enqueue"]["checkInputs"]["rebase"], "@dependabot rebase"
+        )
+
+    def test_a_stray_base_merge_gets_a_recreate(self) -> None:
+        # Dependabot refuses a rebase once anyone else committed; a merge of
+        # the base GitHub made carries nothing a recreate would lose.
+        self.dependabot_head(DEPENDABOT_COMMIT, STRAY_MERGE)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(
+            self.log, [f"{self.REBASE_COMMENT} -f body={self.RECREATE_BODY}"]
+        )
+        self.assertTrue(
+            any("dependabot-rebase-requested:" in b for b in out["blockers"])
+        )
+
+    def test_a_real_edit_posts_nothing_and_holds_as_edited(self) -> None:
+        for commit in (FIX_COMMIT, EDITED_MERGE):
+            with self.subTest(commit=commit["sha"]):
+                self.log = []
+                self.dependabot_head(DEPENDABOT_COMMIT, commit)
+                code, out = self.run_main()
+                self.assert_no_merge(code)
+                self.assertEqual(self.log, [])
+                self.assertTrue(
+                    any("dependabot-branch-edited:" in b for b in out["blockers"]),
+                    out["blockers"],
+                )
+
+    def test_a_second_run_at_the_same_base_does_not_ask_again(self) -> None:
+        # The identity's own request, or a writer's.
+        posters = (
+            {"user": {"login": IDENTITY, "type": "Bot"}, "author_association": "NONE"},
+            {"user": {"login": "a-member"}, "author_association": "MEMBER"},
+        )
+        for body in (self.REBASE_BODY, self.RECREATE_BODY):
+            for poster in posters:
+                with self.subTest(body=body, poster=poster["user"]["login"]):
+                    self.log = []
+                    self.dependabot_head(DEPENDABOT_COMMIT, STRAY_MERGE)
+                    self.comments = [{"id": 7, "body": body, **poster}]
+                    code, out = self.run_main()
+                    self.assert_no_merge(code)
+                    self.assertEqual(self.log, [])
+
+    def test_an_outsiders_marker_does_not_suppress_the_request(self) -> None:
+        # Anyone can comment on a public repository.
+        self.dependabot_head()
+        self.comments = [
+            {
+                "id": 7,
+                "user": {"login": "drive-by"},
+                "author_association": "NONE",
+                "body": self.REBASE_BODY,
+            }
+        ]
+        self.run_main()
+        self.assertEqual(
+            self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
+        )
+
+    def earlier_request(self, minutes_ago: int) -> None:
+        # A writer's request at an older base tip.
+        posted = datetime.now(UTC) - timedelta(minutes=minutes_ago)
+        self.comments = [
+            {
+                "id": 7,
+                "user": {"login": "a-member"},
+                "author_association": "MEMBER",
+                "created_at": posted.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "body": self.REBASE_BODY.replace(BASE, "9" * 40),
+            }
+        ]
+
+    def test_a_new_base_tip_within_the_hour_waits(self) -> None:
+        # A head that stays behind gets one request an hour, not one per merge.
+        self.dependabot_head()
+        self.earlier_request(minutes_ago=10)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        (blocker,) = [b for b in out["blockers"] if "dependabot-rebase-requested:" in b]
+        self.assertIn("within the last hour", blocker)
+
+    def test_a_new_base_tip_after_the_hour_asks_again(self) -> None:
+        self.dependabot_head()
+        self.earlier_request(minutes_ago=61)
+        self.run_main()
+        self.assertEqual(
+            self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
+        )
+
+    def test_a_conflicting_head_asks_within_the_hour(self) -> None:
+        self.dependabot_head()
+        self.pr_mergeable_state = "dirty"
+        self.earlier_request(minutes_ago=10)
+        self.run_main()
+        self.assertEqual(
+            self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
+        )
+
+    def test_a_failed_rebase_request_still_holds(self) -> None:
+        self.dependabot_head()
+        self.rebase_code = 1
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertNotIn("update-branch", " ".join(self.log))
+        self.assertNotIn("pin", self.log)
+        self.assertTrue(
+            out["unattended"]["enqueue"]["checkInputs"]["rebase"].startswith("error:")
+        )
+
+    def test_a_dependabot_branch_by_another_author_is_updated_as_before(self) -> None:
+        self.pr_head_ref = "dependabot/npm_and_yarn/x-1.0.0"
+        code, _ = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
 
     def test_a_kill_switch_stop_writes_no_update(self) -> None:
         self.kill = [PROCEED, policy.KillSwitch(False, "disabled")]

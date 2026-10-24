@@ -186,6 +186,24 @@ test("dispatches only open, non-draft, same-repo CONFLICTING PRs into main", asy
   assert.deepEqual(api.calls.list, [{ base: "main", after: undefined }]);
 });
 
+test("never dispatches resolve-conflicts on a Dependabot head", async () => {
+  // Dependabot's user id (dependency-classify.mjs DEPENDABOT_ID).
+  const dependabot = { login: "dependabot", databaseId: 49699333 };
+  const { api, run } = harness({
+    pages: [
+      [
+        pr(1, { headRefName: "dependabot/npm_and_yarn/x-1.2.3", author: dependabot }),
+        pr(2, { headRefName: "dependabot/npm_and_yarn/x-1.2.3", author: { login: "octocat", databaseId: 583231 } }),
+        pr(3, { headRefName: "feature/x", author: dependabot }),
+        pr(4, { headRefName: "dependabot/pip/y-2.0.0", author: dependabot, mergeable: "UNKNOWN" }),
+      ],
+    ],
+  });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["2", "3"]);
+  assert.deepEqual(api.calls.get, []);
+});
+
 test("follows the listing past the first 100 PRs", async () => {
   const first = Array.from({ length: 100 }, (_, i) => pr(i + 1, { mergeable: "MERGEABLE" }));
   const second = Array.from({ length: 50 }, (_, i) =>
