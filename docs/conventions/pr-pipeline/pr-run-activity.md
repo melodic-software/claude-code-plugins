@@ -1921,8 +1921,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
   Comments that keep `agent-ready` open with the outcome marker alone.
-  A run that wrote no readable outcome file and whose lane record has class `max-turns` is a
-  turn-cap stop: the comment's outcome marker is `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
+  A run that wrote no readable outcome file and whose lane record has class `max-turns`, or
+  run-claude-cli's leg timeout (class `timeout`, which says "its time ran out" in place of the cap
+  and has no `cap=`), is a turn-cap stop: the comment's outcome marker is `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
   and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person
   listed human last added `agent-ready` are fewer than `limits.turn-cap-restarts`, it keeps `agent-ready` and
   adds no label, and the work-unblock sweep restarts the issue as it does after a limit stop;
