@@ -12,13 +12,15 @@
 //
 // The terminal engine lives in one process, so `launch` starts a detached
 // holder that owns the session and listens on a local socket in a 0700
-// directory; every other verb sends it one request. The engine package is
-// installed on first use from the committed lockfile, never vendored.
+// directory (on Windows, a named pipe whose random name sits in a file there);
+// every other verb sends it one request. The holder exits when Claude Code
+// does. The engine package is installed on first use from the committed
+// lockfile, never vendored.
 //
 // Exit: 0 done, 1 the step failed, 2 usage, 3 no session, 4 broken install
-// (the message carries the repair line).
+// (the message carries the repair line), 5 a directory others can write.
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   closeSync,
   copyFileSync,
@@ -26,6 +28,7 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -48,18 +51,29 @@ const PLUGIN_DATA_ID = 'harness-ops-melodic-software';
 const NPM_CI_ARGS = ['ci', '--ignore-scripts', '--no-audit', '--no-fund'];
 const NPM_TIMEOUT_MS = 600_000;
 const SIGNED = '.signatures-verified';
-const FONT = 'Noto Sans Symbols 2';
+const FONT_ENTRY = 'noto-sans-symbols-2';
+const MAX_TTL_S = 2147483; // setTimeout holds at most 2^31-1 ms
+const SOCK_MAX = 100; // a Unix socket path is limited to roughly a hundred bytes
+const EXIT_POLL_MS = 1000;
+const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|library)[^\n]*/;
 
 // Launch flags and the variables cleared before Claude Code starts.
 // Pointer: the Variables table lists ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN,
-// the CLAUDE_CODE_USE_* provider switches and
+// ANTHROPIC_CUSTOM_HEADERS, the CLAUDE_CODE_USE_* provider switches and
 // CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: https://code.claude.com/docs/en/env-vars#variables
 // As of: 2026-10-24. Recheck trigger: a Claude Code release adds or renames a
 // provider switch or credential variable, or changes the persistence variable.
+// Pointer: with only ANTHROPIC_BASE_URL set, requests route through the gateway
+// carrying the saved claude.ai login:
+// https://code.claude.com/docs/en/llm-gateway#subscriptions-and-gateways
+// As of: 2026-10-24. Recheck trigger: that section changes which credential a
+// base URL without a gateway credential sends.
 export const LAUNCH_FLAGS = ['--restricted', '--strict-mcp-config'];
 export const UNSET_VARS = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_CUSTOM_HEADERS',
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CODE_USE_FOUNDRY',
@@ -87,6 +101,21 @@ class Broken extends Error {
     super(repair ? `${reason}; repair: ${repair}` : reason);
   }
 }
+class Unsafe extends Error {
+  code = 5;
+}
+
+/** Creates `dir` 0700 when absent and refuses one that is not a directory owned by you and closed to others. */
+function privateDir(dir, { create = true } = {}) {
+  if (create) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  else if (!existsSync(dir)) return dir;
+  if (process.platform === 'win32') return dir; // the per-user profile's ACL guards it
+  const st = lstatSync(dir);
+  if (!st.isDirectory() || st.uid !== process.getuid() || (st.mode & 0o077) !== 0) {
+    throw new Unsafe(`${dir} is not a private directory owned by you (mode 0700); fix or remove it and retry`);
+  }
+  return dir;
+}
 
 // ---- install (docs/conventions/on-demand-dependencies rules 2 and 3) ----
 
@@ -101,8 +130,8 @@ function checkoutRoot() {
   }
 }
 
-function depsBase(explicit) {
-  if (explicit) return { base: resolve(explicit), rule: '--deps-dir' };
+function depsBase(explicit, create = true) {
+  if (explicit) return { base: privateDir(resolve(explicit), { create }), rule: '--deps-dir' };
   const env = process.env.CLAUDE_PLUGIN_DATA;
   if (env && (basename(env) === PLUGIN || basename(env).startsWith(`${PLUGIN}-`))) {
     return { base: env, rule: 'CLAUDE_PLUGIN_DATA' };
@@ -131,7 +160,7 @@ export function repairLine(target, platform = process.platform) {
       `Remove-Item -LiteralPath ${psQ(target)} -Recurse -Force -ErrorAction SilentlyContinue; ` +
       `New-Item -ItemType Directory -Force -Path ${psQ(target)} | Out-Null; ` +
       `Copy-Item -LiteralPath ${sources.map(psQ).join(', ')} -Destination ${psQ(target)}; ` +
-      `npm.cmd ci --prefix ${psQ(target)} ${flags} }`
+      `Set-Location -LiteralPath ${psQ(target)}; npm.cmd ci ${flags} }`
     );
   }
   return (
@@ -155,12 +184,44 @@ function npm(args, cwd) {
   return { ok: !run.error && run.status === 0, why: run.error ? String(run.error.message) : `exit ${run.status}: ${tail}` };
 }
 
-/** Starts the engine and closes it; readiness is a load probe, not a version check. */
+/**
+ * Runs one short process in the engine and closes it, which loads the native
+ * binding; readiness is a load probe, not a version check.
+ */
 function loadProbe(dir) {
   const url = pathToFileURL(join(dir, 'node_modules', ENGINE, 'dist', 'index.js')).href;
-  const code = `const { TuiTest } = await import(${JSON.stringify(url)}); await TuiTest.ephemeral('probe').closeQuiet();`;
+  const code = [
+    'try {',
+    `  const { TuiTest } = await import(${JSON.stringify(url)});`,
+    "  const t = TuiTest.ephemeral('probe');",
+    "  await t.run(process.execPath, ['-e', '0']);",
+    '  await t.close();',
+    '} catch (err) {',
+    "  process.stderr.write(String(err?.message ?? err).split('\\n')[0]);",
+    '  process.exit(1);',
+    '}',
+  ].join('\n');
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 60_000 });
-  return { ok: run.status === 0, why: (run.stderr || run.error?.message || '').trim().split('\n').slice(-1)[0] };
+  return { ok: run.status === 0, why: (run.stderr || run.error?.message || `exit ${run.status}`).trim() };
+}
+
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+};
+
+/** Removes the partial installs of processes that are gone. */
+function reapPartials(target) {
+  const dir = dirname(target);
+  const names = existsSync(dir) ? readdirSync(dir) : [];
+  for (const name of names) {
+    const pid = /\.partial-(\d+)$/.exec(name)?.[1];
+    if (pid && !alive(Number(pid))) rmSync(join(dir, name), { recursive: true, force: true });
+  }
 }
 
 export function ensureInstalled(explicit) {
@@ -176,6 +237,7 @@ export function ensureInstalled(explicit) {
     writeFileSync(join(target, SIGNED), `${new Date().toISOString()}\n`);
     return target;
   }
+  reapPartials(target);
   const partial = `${target}.partial-${process.pid}`;
   rmSync(partial, { recursive: true, force: true });
   try {
@@ -188,6 +250,8 @@ export function ensureInstalled(explicit) {
     const probe = loadProbe(partial);
     if (!probe.ok) throw new Broken(`the installed engine does not load (${probe.why})`, repair);
     writeFileSync(join(partial, SIGNED), `${new Date().toISOString()}\n`);
+    // A failed repair can leave the target without an engine; it holds nothing to keep.
+    if (existsSync(target) && !hasEngine(target)) rmSync(target, { recursive: true, force: true });
     renameSync(partial, target);
   } catch (err) {
     rmSync(partial, { recursive: true, force: true });
@@ -199,22 +263,38 @@ export function ensureInstalled(explicit) {
 
 // ---- session transport ----
 
-function socketPath(session) {
+/** The per-user directory for sockets, pipe names and holder logs; no other account can create it first. */
+function runtimeDir(platform) {
+  const env = process.env;
+  if (platform === 'win32') return join(env.LOCALAPPDATA || join(os.homedir(), 'AppData', 'Local'), 'ccd');
+  return env.XDG_RUNTIME_DIR ? join(env.XDG_RUNTIME_DIR, 'ccd') : join(os.homedir(), '.cache', 'ccd');
+}
+
+/**
+ * Where a session listens. POSIX: a socket in the private runtime directory.
+ * Windows: a named pipe, which any local account could squat under a guessable
+ * name, so `launch` records a random suffix in a file only this user reads.
+ */
+export function endpoint(session, platform = process.platform, { fresh = false } = {}) {
   if (!/^[\w-]{1,32}$/.test(session)) throw new UsageError('--session takes 1-32 letters, digits, _ or -');
-  const user = createHash('sha256').update(os.userInfo().username).digest('hex').slice(0, 8);
-  if (process.platform === 'win32') return { sock: `\\\\.\\pipe\\ccd-${user}-${session}`, dir: os.tmpdir() };
-  // Short and private: a Unix socket path is limited to roughly a hundred bytes.
-  const dir = join(os.tmpdir(), `ccd-${user}`);
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const st = lstatSync(dir);
-  if (!st.isDirectory() || st.uid !== process.getuid() || (st.mode & 0o077) !== 0) {
-    throw new Broken(`${dir} is not a private directory owned by you; remove it and retry`);
+  const dir = privateDir(runtimeDir(platform));
+  if (platform !== 'win32') {
+    const sock = join(dir, `${session}.sock`);
+    if (Buffer.byteLength(sock) > SOCK_MAX) {
+      throw new Error(`the socket path ${sock} is too long for a Unix socket; set XDG_RUNTIME_DIR to a short private directory`);
+    }
+    return { sock, dir };
   }
-  return { sock: join(dir, `${session}.sock`), dir };
+  const nameFile = join(dir, `${session}.pipe`);
+  if (fresh) writeFileSync(nameFile, randomBytes(16).toString('hex'), { mode: 0o600 });
+  if (!existsSync(nameFile)) throw new NoSession(`no session '${session}' is running; run launch first`);
+  const user = createHash('sha256').update(os.userInfo().username).digest('hex').slice(0, 8);
+  const suffix = readFileSync(nameFile, 'utf8').trim();
+  return { sock: `\\\\.\\pipe\\ccd-${user}-${session}-${suffix}`, dir, nameFile };
 }
 
 function request(session, verb, args = {}) {
-  const { sock } = socketPath(session);
+  const { sock } = endpoint(session);
   return new Promise((done, fail) => {
     const conn = net.createConnection(sock);
     let buf = '';
@@ -263,13 +343,24 @@ const HANDLERS = {
   'record-stop': async (t) => t.stopRecording(),
 };
 
+/** Whether Claude Code has exited; a state read that fails is not taken as an exit. */
+async function childExited(terminal) {
+  try {
+    const state = await terminal.state();
+    return state.exited != null || state.exit_signal != null;
+  } catch {
+    return false;
+  }
+}
+
 async function serve(opts) {
-  const { sock } = socketPath(opts.session);
+  const { sock, nameFile } = endpoint(opts.session);
   const launch = buildLaunch({ pluginDir: opts['plugin-dir'] }, process.env);
   for (const name of UNSET_VARS) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
+  if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
   if (process.platform !== 'win32' && existsSync(sock)) unlinkSync(sock);
   // Half-open: the client ends its side after the request, and the reply may take seconds.
   const server = net.createServer({ allowHalfOpen: true }, (conn) => {
@@ -282,7 +373,7 @@ async function serve(opts) {
         const { verb, args } = JSON.parse(buf);
         if (verb === 'stop') {
           await terminal.closeQuiet();
-          conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => shutdown());
+          conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => exit());
           return;
         }
         const handler = HANDLERS[verb];
@@ -294,23 +385,36 @@ async function serve(opts) {
       conn.end(`${JSON.stringify(reply)}\n`);
     });
   });
-  const shutdown = () => {
+  const exit = () => {
     server.close();
-    if (process.platform !== 'win32') rmSync(sock, { force: true });
+    rmSync(nameFile ?? sock, { force: true });
     process.exit(0);
   };
-  setTimeout(async () => {
+  const closeAndExit = async () => {
     await terminal.closeQuiet();
-    shutdown();
-  }, Number(opts.ttl) * 1000).unref();
+    exit();
+  };
+  setTimeout(closeAndExit, Number(opts.ttl) * 1000).unref();
+  // Free the session as soon as Claude Code exits, so the next launch can start one.
+  let polling = false;
+  setInterval(async () => {
+    if (polling) return;
+    polling = true;
+    if (await childExited(terminal)) {
+      console.error('claude exited; the session holder stops');
+      await closeAndExit();
+    }
+    polling = false;
+  }, EXIT_POLL_MS);
   server.listen(sock);
 }
 
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   buildLaunch({ pluginDir }, process.env); // usage check before any install
-  if (!/^[1-9]\d*$/.test(opts.ttl)) throw new UsageError('--ttl takes a whole number of seconds');
-  const { dir } = socketPath(opts.session);
+  if (!/^[1-9]\d*$/.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
+    throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
+  }
   try {
     await request(opts.session, 'ping');
     throw new UsageError(`session '${opts.session}' is already running; run stop first`);
@@ -318,6 +422,7 @@ async function launch(opts) {
     if (!(err instanceof NoSession)) throw err;
   }
   const install = ensureInstalled(opts['deps-dir']);
+  const { dir } = endpoint(opts.session, process.platform, { fresh: true });
   const log = join(dir, `${opts.session}.log`);
   const fd = openSync(log, 'w', 0o600);
   const holder = spawn(
@@ -339,12 +444,26 @@ async function launch(opts) {
       await new Promise((r) => setTimeout(r, 250));
     }
   }
-  const tail = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').slice(-5).join(' | ') : '';
-  throw new Error(`the session did not start within 30 s${tail ? `: ${tail}` : ''}`);
+  const text = existsSync(log) ? readFileSync(log, 'utf8') : '';
+  const native = NATIVE_LOAD.exec(text)?.[0];
+  if (native) throw new Broken(`the installed engine does not load (${native})`, repairLine(install));
+  const tail = text.trim().split('\n').slice(-5).join(' | ');
+  const why = exited ? 'the session holder exited before the session started' : 'the session did not start within 30 s';
+  throw new Error(`${why}${tail ? `: ${tail}` : ''}`);
+}
+
+/** The font probe harness-ops declares in prerequisites.json, or undefined when it cannot be read. */
+function fontProbe() {
+  try {
+    const declared = JSON.parse(readFileSync(join(HERE, '..', '..', '..', 'prerequisites.json'), 'utf8'));
+    return declared.requires.find((entry) => entry.id === FONT_ENTRY)?.detect?.probe;
+  } catch {
+    return undefined;
+  }
 }
 
 function doctor(opts) {
-  const { base, rule } = depsBase(opts['deps-dir']);
+  const { base, rule } = depsBase(opts['deps-dir'], false);
   const target = installDir(base);
   const lines = [`install base: ${base} (${rule})`, `install dir: ${target}`];
   let status = 0;
@@ -356,11 +475,17 @@ function doctor(opts) {
     lines.push(`signatures: ${existsSync(join(target, SIGNED)) ? 'verified at install' : 'not yet verified; launch verifies them'}`);
     if (!probe.ok) status = 4;
   }
-  const fc = spawnSync('fc-list', [':', 'family'], { encoding: 'utf8', timeout: 30_000 });
-  if (fc.error || fc.status !== 0) {
-    lines.push(`font: unverified (no fc-list); capture proceeds, and a glyph missing from the installed fonts draws as a box`);
+  const unverified = 'capture proceeds, and a glyph missing from the installed fonts draws as a box';
+  const probe = fontProbe();
+  const fc = probe && spawnSync(probe.args[0], probe.args.slice(1), { encoding: 'utf8', timeout: 30_000 });
+  if (!probe) {
+    lines.push(`font: unverified (no ${FONT_ENTRY} probe in prerequisites.json); ${unverified}`);
+  } else if (fc.error || fc.status !== 0) {
+    lines.push(`font: unverified (no ${probe.args[0]}); ${unverified}`);
   } else {
-    lines.push(`font: ${fc.stdout.includes(FONT) ? `${FONT} found` : `${FONT} MISSING; some status glyphs draw as boxes in captures`}`);
+    const font = probe.pattern;
+    const found = new RegExp(font).test(fc.stdout);
+    lines.push(`font: ${font} ${found ? 'found' : 'MISSING; some status glyphs draw as boxes in captures'}`);
   }
   return { text: lines.join('\n'), status };
 }
@@ -381,7 +506,8 @@ const VERBS = {
   launch: (o) => launch(o),
   'wait-for': (o, [text]) => {
     if (!text) throw new UsageError('wait-for needs <text>');
-    return request(o.session, 'wait-for', { text, timeout: o.timeout ? Number(o.timeout) : undefined });
+    if (o.timeout !== undefined && !/^\d+$/.test(o.timeout)) throw new UsageError('--timeout takes a whole number of milliseconds');
+    return request(o.session, 'wait-for', { text, timeout: o.timeout === undefined ? undefined : Number(o.timeout) });
   },
   type: (o, [text]) => {
     if (!text && !o.key) throw new UsageError('type needs <text> or --key <Name>');
