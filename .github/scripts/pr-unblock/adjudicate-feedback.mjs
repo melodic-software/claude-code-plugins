@@ -192,7 +192,8 @@ export function collect({ outDir }) {
 }
 
 // verdicts.json as the reply job reads it: thread -> {verdict, question}, for
-// the head the reply job gated. Anything malformed reads as no verdicts.
+// the head the select job read (run.json's head_sha), the code the adjudicator
+// saw. Anything malformed reads as no verdicts.
 export function parseVerdicts(text, headSha) {
   if (text === null) {
     return new Map();
@@ -252,7 +253,7 @@ const ORDER = [
 //   no review run follows to start the next round, so feedback-stands.
 // A thread that changed, a moved head or a failed write stops here as
 // feedback-partial.
-export async function settleDisputes({ api, pr, headSha, posted, replies, shown, now, verdicts, fixSha, headMoved, resolveAfterReply, escalationReason, log }) {
+export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies, shown, now, verdicts, fixSha, headMoved, resolveAfterReply, escalationReason, log }) {
   let reason = escalationReason;
   const raise = (next) => {
     if (ORDER.indexOf(next) < ORDER.indexOf(reason)) {
@@ -296,7 +297,7 @@ export async function settleDisputes({ api, pr, headSha, posted, replies, shown,
         raise("feedback-partial");
         continue;
       }
-      const answer = await api.replyToComment(pr, ids[0], adjudicationReply(verdict.verdict, byThread.get(thread)?.evidence ?? [], headSha));
+      const answer = await api.replyToComment(pr, ids[0], adjudicationReply(verdict.verdict, byThread.get(thread)?.evidence ?? [], adjudicatedSha));
       if (answer?.in_reply_to_id !== ids[0]) {
         throw new Error(`the adjudication reply on ${thread} did not land on its thread`);
       }

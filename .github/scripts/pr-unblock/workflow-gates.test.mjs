@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
+import { MAX_THREADS } from "./adjudicate-feedback.mjs";
 
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
@@ -231,6 +232,40 @@ test("pr-unblock.yml: adjudicate-feedback runs on replies from the leg that answ
   assert.equal(runs("true", "success", "1"), true, "the subscription call's replies after a handoff");
   assert.equal(runs("true", "skipped", ""), false, "no replies");
   assert.equal(runs("false", "skipped", "1"), false, "a select job that did not proceed");
+});
+
+// adjudicate-feedback.mjs stages up to MAX_THREADS slots, and the job has one
+// stage, judge and keep step per slot; a slot with no steps would read as
+// unadjudicated with no error.
+test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each with the same grants", () => {
+  const steps = [];
+  for (const line of jobBlock(UNBLOCK, "adjudicate-feedback")) {
+    if (line.startsWith("      - ")) steps.push([]);
+    steps.at(-1)?.push(line);
+  }
+  const field = (step, key) => step.find((line) => line.startsWith(`        ${key}: `))?.slice(`        ${key}: `.length);
+  const nameOf = (step) => step[0].slice("      - name: ".length);
+  const gateOf = (step) => ifAt(step, step.findIndex((line) => line.startsWith("        if: ")), 8);
+  const slotOf = (step) => /\/adjudicate\/(\d+)$/.exec(step.find((line) => line.includes("SLOT_DIR:")) ?? "")?.[1];
+  const judges = steps.filter((step) => /run-claude-cli@/.test(field(step, "uses") ?? ""));
+  const slots = Array.from({ length: MAX_THREADS }, (_, n) => n);
+  assert.deepEqual(judges.map((step) => field(step, "id")), slots.map((n) => `judge-${n}`));
+  for (const n of slots) {
+    const stage = steps.find((step) => nameOf(step) === `Stage disputed thread ${n}`);
+    const judge = judges[n];
+    const keep = steps.find((step) => nameOf(step) === `Keep disputed thread ${n}'s verdict`);
+    const counted = `steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
+    assert.equal(gateOf(stage), counted, `stage ${n}`);
+    assert.equal(gateOf(judge), counted, `judge ${n}`);
+    assert.equal(gateOf(keep), `always() && steps.judge-${n}.outputs.structured-output-file != ''`, `keep ${n}`);
+    assert.equal(slotOf(stage), String(n), `stage ${n} copies its own slot`);
+    assert.equal(slotOf(keep), String(n), `keep ${n} writes its own slot`);
+  }
+  const withOf = (step) => step.slice(step.indexOf("        with:")).join("\n");
+  for (const judge of judges.slice(1)) {
+    assert.equal(withOf(judge), withOf(judges[0]), "every slot's model call has the same inputs and grants");
+  }
+  assert.match(withOf(judges[0]), /\n {10}allowed-tools: Read\(\.\/adjudicate\/\*\*\)\n/, "Read is allowed in the slot alone");
 });
 
 test("pr-unblock.yml: apply-feedback-patch runs only on a written patch with replies from the leg that answered, not after a skip or an empty patch", () => {

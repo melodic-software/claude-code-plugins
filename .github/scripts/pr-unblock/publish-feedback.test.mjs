@@ -129,8 +129,10 @@ function runFor(repliesText) {
   return JSON.stringify(threads.length > 0 ? { ...RUN, threads } : RUN);
 }
 
-// The adjudicate-feedback job's verdicts.json for the gated head NOW.
-const verdicts = (...entries) => JSON.stringify({ version: 1, head_sha: NOW, threads: entries });
+// The adjudicate-feedback job's verdicts.json, stamped with the head the
+// select job read (run.json's GATED), the code the adjudicator saw; the gated
+// head NOW is past this round's fix push.
+const verdicts = (...entries) => JSON.stringify({ version: 1, head_sha: GATED, threads: entries });
 const judged = (thread, verdict, question = "none") => ({ thread, verdict, question });
 
 const run = (api, repliesText, runText = runFor(repliesText), adjudication = null) =>
@@ -436,7 +438,7 @@ test("an INCORRECT reply the adjudicator rules for the lane is answered, resolve
       "<!-- pr-unblock adjudicate-feedback: finding-answered -->",
       "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**",
       "",
-      `A fresh-context adjudicator read the finding, the evidence below and the code at \`${NOW}\`, without either side's reasoning, and found that the code answers the finding.`,
+      `A fresh-context adjudicator read the finding, the evidence below and the code at \`${GATED}\`, without either side's reasoning, and found that the code answers the finding.`,
       "",
       "Evidence: `docs/b.md:1`",
     ].join("\n"),
@@ -445,12 +447,30 @@ test("an INCORRECT reply the adjudicator rules for the lane is answered, resolve
 });
 
 test("an INCORRECT reply with no verdict, or a verdict for another head, escalates feedback-unadjudicated", async () => {
-  for (const adjudication of [null, "{", JSON.stringify({ version: 1, head_sha: GATED, threads: [judged("PRRT_a", "lane")] }), verdicts(judged("PRRT_b", "lane"))]) {
+  // NOW is the gated head, past the select job's: the adjudicator never read it.
+  for (const adjudication of [null, "{", JSON.stringify({ version: 1, head_sha: NOW, threads: [judged("PRRT_a", "lane")] }), verdicts(judged("PRRT_b", "lane"))]) {
     const api = fakeApi();
     assert.equal((await run(api, lines(reply()), undefined, adjudication)).escalationReason, "feedback-unadjudicated", String(adjudication));
     assert.equal(api.posted().length, 1, "only the lane's reply");
     assert.deepEqual(api.resolved(), []);
   }
+});
+
+// The round fixes PRRT_a and pushes, so the gated head (NOW) is past the
+// select job's (GATED); the adjudicator judged PRRT_b at GATED, and its
+// verdict still applies.
+test("a verdict lands in the same round as a fix push: the verdict for the select job's head is applied", async () => {
+  const api = fakeApi();
+  const result = await run(
+    api,
+    lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+    JSON.stringify(RUN),
+    JSON.stringify({ version: 1, head_sha: GATED, threads: [judged("PRRT_b", "lane")] }),
+  );
+  assert.deepEqual(api.calls.find((call) => call[0] === "compare"), ["compare", GATED, NOW], "the fix push moved the head");
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b"]);
+  assert.match(api.posted()[2][3], new RegExp(`the code at \`${GATED}\``));
 });
 
 test("a reviewer verdict posts the finding-stands reply and leaves the thread open for the next round", async () => {

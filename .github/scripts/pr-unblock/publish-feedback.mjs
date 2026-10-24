@@ -491,16 +491,18 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // a person (owner decision): it is resolved, handed back to the next round,
     // or escalated with the question the verdict names; a thread whose finding
     // stood at an earlier adjudication and is still open escalates
-    // feedback-disputed (adjudicate-feedback.mjs settleDisputes).
+    // feedback-disputed (adjudicate-feedback.mjs settleDisputes). The
+    // adjudicator read the select job's head, which this round's fix push
+    // may have moved past headSha.
     escalationReason = await settleDisputes({
       api,
       pr,
-      headSha,
+      adjudicatedSha: run.head_sha,
       posted,
       replies,
       shown,
       now,
-      verdicts: posted.some((entry) => entry.disposition === "INCORRECT") ? parseVerdicts(readAdjudication(), headSha) : new Map(),
+      verdicts: posted.some((entry) => entry.disposition === "INCORRECT") ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
       fixSha,
       headMoved,
       resolveAfterReply,

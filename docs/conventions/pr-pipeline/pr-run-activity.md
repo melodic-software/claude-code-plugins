@@ -1027,8 +1027,9 @@ review comment's first paragraph and its `severity:` line, never the later ratio
 lane's footer), the locations the lane cited (never its note), and those files at the select
 job's head, read through the contents API, each up to 200 KiB. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
-pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read, Glob and Grep, `Read(./adjudicate/**)` allowed,
-and only that thread's files in the workspace. The prompt
+pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read, Glob and Grep, `Read(./adjudicate/**)` the one allow rule, Read
+denied on the base checkout and the runner's temp directory (which holds the lane's replies and
+the other slots; Grep and Glob take Read denials), and only that thread's files in the workspace. The prompt
 (`.github/scripts/pr-unblock/adjudicate-feedback.prompt.md`) frames every staged file as
 untrusted data. The model route is `adjudicate-feedback` ([README.md, Models](README.md#models)).
 The call returns `verdict` (`lane`, `reviewer` or `human`) and `question` (`none`, or for `human`
@@ -1037,7 +1038,8 @@ message reports another permission mode keeps no verdict. `collect` writes `verd
 the job uploads it as `feedback-adjudication-<attempt>` with `overwrite: false`, passing its
 attempt and SHA-256 out only once the upload succeeded. The reply job downloads it through the
 write file's `review-adjudication-attempt` and `review-adjudication-sha256` inputs and reads
-verdicts only for its gated head with that SHA-256. The posted replies are fixed text and the
+verdicts only for the select job's head (`run.json`), the code the adjudicator read, with that
+SHA-256; a round that pushed a fix still applies them. The posted replies are fixed text and the
 lane's validated evidence; no model text reaches the pull request.
 
 The next round reads the finding-stands reply: `threadAuthors` keeps a thread whose last lanes
