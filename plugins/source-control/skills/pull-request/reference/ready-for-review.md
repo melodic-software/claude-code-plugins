@@ -238,8 +238,8 @@ bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only w
 ```
 
 **Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. Take
-the head commit from local `git rev-parse HEAD`, the commit just pushed, not from the forge, whose
-read can still return the pre-push head. When it is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
+the head commit from local `git rev-parse HEAD`, the commit the verify gate recorded, and poll the
+forge until the PR's head equals it, up to 60 seconds. When it is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
 push of local commits moved it), wait up to 90 seconds, polling every
 5, for CI runs to exist for the new head commit and their count to hold steady across two polls.
 The wait counts the head's runs from every workflow, so it needs no CI workflow name
@@ -250,8 +250,9 @@ When nothing was pushed, skip the wait and flip as before.
 Then run the hold check of 2.5.1 again
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)),
 since a hold can land during the reviews; on any exit but 0, leave the PR in draft, report the
-check's output, and stop. The flip's own shell command also runs `verify-gate.sh check` for the
-head being flipped and goes on only on exit 0: a `fail`, or no result recorded for that head (a
+check's output, and stop. The flip's own shell command also checks that the forge's head for the
+PR is that local head, then runs `verify-gate.sh check` for it, and goes on only on exit 0: a head
+the forge never matched or that moved since, a `fail`, or no result recorded for that head (a
 commit after the record voids it), refuses the flip and the PR stays a draft. Otherwise, when `--skip` removed a step, post the skip comment (see
 "Skip a step for this run"), then mark the PR ready
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).

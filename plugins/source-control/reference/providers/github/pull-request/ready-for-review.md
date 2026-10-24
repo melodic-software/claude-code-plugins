@@ -118,13 +118,21 @@ when the count is above zero and unchanged across two polls, which keeps a late 
 flip's snapshot. Skip the wait when the head is unchanged, but still run the `HEAD_SHA`
 assignment, which the flip block reads.
 
-`HEAD_SHA` is the local `git rev-parse HEAD`, never a forge read: right after a push the forge can
-still return the pre-push head, which would skip the wait and point the guarded flip at a commit
-with no verify record. After a successful `push-branch.sh`, or the 2.5.2 fast-forward when nothing
-was pushed, the local head is the PR's head, and it is the commit the verify gate recorded.
+`HEAD_SHA` is the local `git rev-parse HEAD`, the commit the verify gate recorded. GitHub's
+`headRefOid` can lag a push by a read: on #9509 the push moved 1a0464b4 to 634aca6c and the next
+read returned 1a0464b4, and melodic-software/ci-workflows#854 showed the same (as of 2026-10-22;
+recheck when a ready run's first head read after a push already matches the pushed commit). So the
+block polls the PR's head until it equals `HEAD_SHA`, up to 60 seconds, instead of trusting the
+first read. A head that never matches (a peer push, a push that failed, a session whose HEAD is not
+the PR branch) leaves `HEAD_MATCH=0`, and the flip below refuses.
 
 ```bash
 HEAD_SHA=$(git rev-parse HEAD) || exit 1
+HEAD_MATCH=0
+for _ in $(seq 12); do   # 12 polls x 5 s = 60 s
+  [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] && { HEAD_MATCH=1; break; }
+  sleep 5
+done
 if [ "$HEAD_SHA" != "$HEAD_BEFORE" ]; then
   FOUND=0 PREV=0
   for _ in $(seq 18); do   # 18 polls x 5 s = 90 s
@@ -153,28 +161,36 @@ earlier draft one:
 ```bash
 RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
   --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
-bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+[ "$HEAD_MATCH" = 1 ] &&
+  [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] &&
+  bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
   gh pr ready "$PR_NUMBER"
 ```
 
+The two head tests exit 1 when the PR's head on GitHub is not `HEAD_SHA`: the wait never saw it
+match, or it moved since. Report the head GitHub returned and leave the PR a draft.
 `verify-gate.sh check` exits 0 only when the record that ends 2.5.3 holds `pass`, or `skipped`,
 when `--skip` removed `verify` or `pre_ready` disabled it, for exactly `HEAD_SHA`; exit 3 is a
 recorded failure and exit 2 a missing or unreadable result.
 The `&&` keeps the refusal and the flip in one command, so a refused check cannot be followed by
-the flip. The cloud-session routes below are not covered by it: before either, run the `check`
-command above as its own preceding command, and flip only when it exits 0.
+the flip. `gh pr ready` takes no expected head, so a push landing between the last head read and
+the flip is not caught. The cloud-session routes below are not covered by the `&&`: before either,
+run everything before `gh pr ready` above as its own preceding command, and flip only when it
+exits 0.
 
 In a cloud session `gh pr ready` fails, because the flip is a GraphQL mutation. The proxy's REST
 route, guarded the same way:
 
 ```bash
-bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+[ "$HEAD_MATCH" = 1 ] &&
+  [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] &&
+  bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
   gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
 ```
 
 Or the GitHub MCP `update_pull_request` call with `draft: false`. It is a tool call, so a shell
-`&&` cannot cover it: run `verify-gate.sh check` as its own preceding command and make the call
-only on exit 0.
+`&&` cannot cover it: run the head tests and `verify-gate.sh check` as their own preceding command
+and make the call only on exit 0.
 
 ## Confirm a ready run
 
