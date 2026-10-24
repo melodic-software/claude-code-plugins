@@ -13,14 +13,18 @@
 //   parent issue a listed human filed that awaits no decision;
 // - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
 //   `sizes` and `uncertainty`;
-// - 7: the body, or a comment the lanes App's account posted opening with
-//   REFINE_MARKER (refine.mjs, which writes a task list only for an issue
-//   it made exact) after the body's last edit, has a `task-list` line, the
-//   criteria the lane checks;
+// - 7 (with owner decision Q9, #8999): a `task-list` line, the criteria the
+//   lane checks, in text pr-verify will read: the body or a comment written,
+//   and last edited if ever, by a listed human (resolve-pr.mjs linkedIssues).
+//   Criteria only the lanes App wrote (refine.mjs's refinement comment, an
+//   App-filed issue) do not count, since pr-verify never sees them, and an
+//   issue with more comments than the 100 pr-verify reads is refused, since
+//   pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
-//   work-unblock counts), and no open pull request in this repository names
-//   the issue;
+//   work-unblock counts), and no open pull request in this repository is for
+//   the issue: one GitHub says closes it, or whose body has the issue lane's
+//   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human or the lanes App;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
@@ -40,21 +44,23 @@
 // skips the issue while such a pull request is open and admits it once none
 // is. An issue that waits only on a blocker loses `admission-deferred`, and
 // work-unblock admits it when its blocker closes. A refused issue loses it
-// too, so the sweep, which does not read these rules, cannot admit it. An
+// too. The sweep runs these rules itself only on an issue a listed human
+// marked (added admission-deferred to an issue with `status: ready`). An
 // issue already agent-ready, or whose agent-ready was ever removed, is left
 // alone. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
 import { readFileSync } from "node:fs";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
 export const ADMIT_MARKER = "<!-- intake-triage admission -->";
 // Opens the lanes App's refinement comment (refine.mjs).
 export const REFINE_MARKER = "<!-- intake-triage refinement -->";
-const READY = "status: ready";
-const NEEDS_DECISION = "status: needs-decision";
+export const READY = "status: ready";
+export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
 const LISTS = ["types", "types-under-parent", "classes", "sizes", "uncertainty", "refuse-labels"];
@@ -78,12 +84,39 @@ const here = (url, repository) =>
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
 
-// The open pull requests in `repository` an issue's timeline says reference it.
-export const openPullsNaming = (timeline, repository) =>
-  timeline
+// The open pull requests in `repository` for issue `number`: those `closing`
+// (closedByPullRequestsReferences nodes) lists in this repository, and those
+// the timeline says reference it whose body has a `Refs: #<number>` line.
+export function openPullsNaming(timeline, repository, number, closing = []) {
+  const refs = `Refs: #${number}`;
+  const linked = timeline
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
-    .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository))
+    .filter(
+      (source) =>
+        source?.pull_request &&
+        source.state === "open" &&
+        here(source.repository_url, repository) &&
+        String(source.body ?? "")
+          .split("\n")
+          .some((line) => line.trim() === refs),
+    )
     .map((source) => source.number);
+  const closes = closing
+    .filter((node) => String(node?.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase())
+    .map((node) => node.number);
+  return [...new Set([...closes, ...linked])];
+}
+
+// The open pull requests for an issue, read fresh (openPullsNaming).
+export async function openPullsFor(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  return openPullsNaming(
+    await paginate(github, `/repos/${repository}/issues/${number}/timeline`),
+    repository,
+    Number(number),
+    await closingPulls(github, { owner, name, number: Number(number) }),
+  );
+}
 
 // Done-when items an unattended lane run cannot perform. Each pattern needs
 // an action or a place within one clause of its subject, so an item that only
@@ -224,7 +257,7 @@ export function admissionSettled(labels, events) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], events, spec, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -258,16 +291,18 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  // A refinement drafted before the body's last edit may not fit the body now.
-  const refinements = refinementsOf(comments, appId)
-    .filter((comment) => bodyEditedAt === null || Date.parse(comment.created_at) >= Date.parse(bodyEditedAt))
-    .map((comment) => String(comment.body));
-  const lines = [String(issue.body ?? ""), ...refinements].flatMap((text) => text.split("\n"));
-  if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
-    refuse.push(`it has no \`${rules["task-list"]}\` task list to check`);
+  // pr-verify judges a lane PR only against text a listed human wrote, so
+  // the criteria count only there, and it stops on an issue with more
+  // comments than it reads (resolve-pr.mjs linkedIssues).
+  if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
+    refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  // A refinement breaks `://` and `www.` with a zero-width space so no link
-  // renders; the check reads the URL as written.
+  const lines = trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n"));
+  if (!hasTrustedCriteria(spec, humans, rules["task-list"])) {
+    refuse.push(noTrustedSpec(rules["task-list"]));
+  }
+  // A copied refinement breaks `://` and `www.` with a zero-width space so no
+  // link renders; the check reads the URL as written.
   const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
   if (unrunnable) {
     refuse.push(unrunnable);
@@ -293,9 +328,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       wait.push(`blocker #${blocker.number} is not closed as completed by a listed human or a merge`);
     }
   }
-  const pulls = openPullsNaming(timeline, repository);
   for (const pull of pulls) {
-    wait.push(`open pull request #${pull} names it`);
+    wait.push(`open pull request #${pull} is for it`);
   }
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
@@ -315,7 +349,7 @@ async function parentOf(github, base) {
 }
 
 // One App comment carrying ADMIT_MARKER, edited in place on a later run.
-async function sayWhy(github, repository, base, comments, text) {
+export async function sayWhy(github, repository, base, comments, text) {
   const body = `${ADMIT_MARKER}\n${text}`;
   const own = comments.find(
     (comment) => comment.user?.login === LANES_APP_LOGIN && String(comment.body ?? "").startsWith(ADMIT_MARKER),
@@ -332,22 +366,49 @@ async function sayWhy(github, repository, base, comments, text) {
   }
 }
 
-const refinementsOf = (comments, appId) =>
-  comments.filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER));
-
-const BODY_EDIT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { issue(number: $number) { lastEditedAt } }
-}`;
-
-// When the issue's body was last edited, or null when never. An unexpected shape throws.
-async function bodyEditedAtOf(github, repository, number) {
-  const [owner, name] = repository.split("/");
-  const issue = (await github("POST", "/graphql", { query: BODY_EDIT_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
-  if (issue === null || typeof issue !== "object" || (issue.lastEditedAt !== null && typeof issue.lastEditedAt !== "string")) {
-    throw new Error("the issue's body edit time has an unexpected shape");
-  }
-  return issue.lastEditedAt;
+// The body, the comment count and the first 100 comments, each with its
+// author, last editor and edit time: the first 100 comments are what pr-verify
+// reads, and it stops on an issue with more.
+const SPEC_COMMENTS = 100;
+const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    body lastEditedAt author { ...actor } editor { ...actor }
+    comments(first: ${SPEC_COMMENTS}) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } }
+  } }
 }
+fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
+
+// {body, lastEditedAt, author, editor, commentCount, comments: [{body,
+// lastEditedAt, author, editor}]} for the issue, as GraphQL answers them. An
+// unexpected shape throws.
+export async function specOf(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const issue = (await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
+  const text = (item) =>
+    item !== null && typeof item === "object" && typeof item.body === "string" && (item.lastEditedAt === null || typeof item.lastEditedAt === "string");
+  if (!text(issue) || !Array.isArray(issue.comments?.nodes) || !issue.comments.nodes.every(text) || !Number.isSafeInteger(issue.comments.totalCount)) {
+    throw new Error("the issue's text, authors and edit times have an unexpected shape");
+  }
+  const { body, lastEditedAt, author, editor } = issue;
+  return { body, lastEditedAt, author, editor, commentCount: issue.comments.totalCount, comments: issue.comments.nodes };
+}
+
+export const noTrustedSpec = (taskList) =>
+  `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment (owner Q9, #8999)`;
+
+// The texts pr-verify will read as spec: the body and each comment written,
+// and last edited if ever, by a User among `humans`
+// (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). Bots and Apps, the
+// lanes App among them, never count. Pure.
+export function trustedSpecTexts(spec, humans) {
+  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+  return spec ? [spec, ...(spec.comments ?? [])].filter(written).map((item) => String(item.body ?? "")) : [];
+}
+
+// Whether that text holds a `taskList` line: criterion 7. Pure.
+export const hasTrustedCriteria = (spec, humans, taskList) =>
+  trustedSpecTexts(spec, humans).some((text) => text.split("\n").some((line) => line.trimStart().startsWith(taskList)));
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
 // a hold), the same split note a refusal posts, when a done-when item is one
@@ -370,34 +431,51 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   return { outcome: "noted", reasons: [reason] };
 }
 
+// Every fact decide() reads but the verdict, the rules and the caller's own
+// (humans, appId, repository, webHosts), for `issue` as just read.
+// `isTrusted(number)` answers whether a closed blocker's close counts; by
+// default it reads the blocker fresh.
+export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted }) {
+  const base = `/repos/${repository}/issues/${number}`;
+  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
+  // Anyone may close their own issue as completed, so a blocking issue counts
+  // only with a trusted close, read fresh from the issue.
+  const trusted =
+    isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans));
+  const trustedCloses = new Set();
+  for (const blocker of blockers) {
+    if (!blocker.pull_request && blocker.state === "closed" && blocker.state_reason === "completed" && here(blocker.repository_url, repository)) {
+      if (await trusted(blocker.number)) {
+        trustedCloses.add(blocker.number);
+      }
+    }
+  }
+  // A throw here stops the caller before decide(), so nothing is written.
+  const spec = await specOf(github, repository, number);
+  return {
+    issue,
+    // Read for the admission comment's own earlier copy (sayWhy).
+    comments: await paginate(github, `${base}/comments`),
+    spec,
+    parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
+    blockers,
+    trustedCloses,
+    pulls: await openPullsFor(github, repository, number),
+    events: await paginate(github, `${base}/events`),
+  };
+}
+
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. Returns {outcome, reasons}.
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  // Anyone may close their own issue as completed, so a blocking issue counts
-  // only with a trusted close, read fresh from the issue.
-  const trustedCloses = new Set();
-  for (const blocker of blockers) {
-    if (!blocker.pull_request && blocker.state === "closed" && blocker.state_reason === "completed" && here(blocker.repository_url, repository)) {
-      if (await isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker.number}`), humans)) {
-        trustedCloses.add(blocker.number);
-      }
-    }
-  }
-  const comments = await paginate(github, `${base}/comments`);
+  const facts = await admissionFacts({ github, repository, number, issue, rules, humans });
+  const { comments } = facts;
   const decision = decide({
-    issue,
-    comments,
-    bodyEditedAt: refinementsOf(comments, appId).length > 0 ? await bodyEditedAtOf(github, repository, number) : null,
+    ...facts,
     verdict,
     rules,
-    parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
-    blockers,
-    trustedCloses,
-    timeline: await paginate(github, `${base}/timeline`),
-    events: await paginate(github, `${base}/events`),
     humans,
     appId,
     repository,
@@ -414,8 +492,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "skipped", reasons: decision.reasons };
   }
   if (decision.verdict === "refuse") {
-    await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
+    // The hold before status: ready comes off: a failed write never leaves
+    // admission-deferred on an issue with neither, which the sweep admits.
     await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);

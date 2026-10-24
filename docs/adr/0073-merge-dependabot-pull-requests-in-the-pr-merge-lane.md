@@ -124,7 +124,7 @@ keep merging. This narrows the Context's "no Dependabot pull request may wait on
 majors only. `merge.dependabot.majors` carries it
 ([README, "Dependabot pull requests"](../conventions/pr-pipeline/README.md#dependabot-pull-requests)):
 
-- **`hold`** (the default, and this repository's value): the pr-merge lane refuses a pull request
+- **`hold`** (the default): the pr-merge lane refuses a pull request
   with a major update with `dependabot-major-held:<names>`, whatever the review verdict says. It
   fails closed: an update whose version cannot be read (a SHA pin), a pull request with no
   readable update, and an update whose title and commit metadata disagree are held too, marked
@@ -135,3 +135,12 @@ majors only. `merge.dependabot.majors` carries it
 The pr-unblock review still runs on a major; its verdict is advisory there. The standards
 dependabot-policy merge tiers are asked to follow in
 [melodic-software/standards#806](https://github.com/melodic-software/standards/issues/806).
+
+## Addendum (2026-10-24): the review verdict decides majors again
+
+The owner directed on 2026-10-24 that the review lanes decide whether a pull request needs a
+person, and that nothing waits on one otherwise
+([decision record](https://github.com/melodic-software/claude-code-plugins/pull/9595#issuecomment-6380383362)). This repository now sets
+`merge.dependabot.majors: review`, so the lanes App's `verdict=merge` marker merges a major, an
+unreadable or a disagreeing update as it does any tier `review` one. `hold` stays the code default
+for consumers that set nothing.

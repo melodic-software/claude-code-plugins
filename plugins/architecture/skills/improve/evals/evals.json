@@ -133,6 +133,20 @@
         "Does not propose a boundary rule from the folder names or from the references that exist today",
         "Writes no findings file, because no rule has been confirmed"
       ]
+    },
+    {
+      "id": 10,
+      "name": "split-ownership-cites-open-file-test",
+      "prompt": "/architecture:improve deepening — focus on the cart area: CartService and CheckoutService each assign cart.discountCode directly, and PromoBanner keeps its own copy of the code that it refreshes on a timer. Nothing documents that the three must agree.",
+      "expected_output": "Scans the cart area and returns a split-ownership candidate: three places write or copy the same state (cart.discountCode), so an agent that edits one writer cannot see the others. The candidate cites the open-file test (with only the file being edited open, an agent cannot see every other place it must change; the answer is no) in its shallow-signal, and names the remedy of one owner per piece of state with the others reading it or asking the owner. Uses the deepening vocabulary.",
+      "files": [],
+      "expectations": [
+        "Names split ownership as the hazard: more than one module writes the same state or keeps its own copy",
+        "Cites the open-file test in the candidate's shallow-signal, and states that a no (an agent editing one writer cannot see the others) confirms the hazard",
+        "Names CartService, CheckoutService and PromoBanner as the places involved",
+        "Names the remedy as one owner per piece of state, with the others reading it or asking the owner",
+        "Uses ONLY deepening vocabulary — never component, service, or boundary — apart from the identifiers in the code"
+      ]
     }
   ]
 }

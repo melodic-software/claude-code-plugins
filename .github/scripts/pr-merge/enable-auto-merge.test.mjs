@@ -96,7 +96,8 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 
 // armErrors: per pull request id, the errors its arm sends throw, in order.
 // filesError: what every changed-files GET throws.
-function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null } = {}) {
+function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
+  const pins = [];
   const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
@@ -116,6 +117,14 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     // number plus 1000.
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
+    }
+    // The read-back pin, posted before an arm.
+    if (method === "POST" && String(body?.body ?? "").startsWith("<!-- babysit-merge-pin ")) {
+      pins.push({ path, body: body.body });
+      if (pinError) {
+        throw pinError;
+      }
+      return {};
     }
     // The refusal note: a comment posted or edited, and the label.
     const note = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/(?:([0-9]+)\/(comments|labels)|comments\/([0-9]+))$/.exec(path);
@@ -172,18 +181,18 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     calls
       .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
-  return { github, writes, verify, verified, calls, notes };
+  return { github, writes, verify, verified, calls, notes, pins };
 }
 
 async function run(pulls, env = {}, options = {}, lane = ROOM) {
-  const { github, writes, verify, verified, calls, notes } = world(pulls, options);
+  const { github, writes, verify, verified, calls, notes, pins } = world(pulls, options);
   const lines = [];
   const slept = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
     const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
-    return { code, writes: writes(), lines, verified, slept, calls, notes };
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins };
   } finally {
     console.log = log;
   }
@@ -339,6 +348,50 @@ test("a lanes App pull request with no hold is armed, squash, at the head it rea
   assert.equal(code, 0);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
   assert.match(ARM_MUTATION, /mergeMethod: SQUASH, expectedHeadOid: \$head/);
+});
+
+// babysit_postmerge.PIN_RE, written out: the read-back takes the head from the
+// first line of the lanes App's newest unedited pin comment.
+const PIN_LINE = `<!-- babysit-merge-pin sha=${HEAD} -->`;
+
+test("the head is pinned in the read-back's format before the arm", async () => {
+  const { code, writes, pins, calls } = await run([pull(7)]);
+  assert.equal(code, 0);
+  assert.deepEqual(pins.map((pin) => [pin.path, pin.body.split("\n")[0]]), [[`${ISSUES}/7/comments`, PIN_LINE]]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  const order = calls.map((call) => (call.body?.query === ARM_MUTATION ? "arm" : String(call.body?.body ?? "").startsWith(PIN_LINE) ? "pin" : null)).filter(Boolean);
+  assert.deepEqual(order, ["pin", "arm"]);
+});
+
+test("an unedited pin for the same head is not posted again", async () => {
+  const pin = { ...lanesSaid(`${PIN_LINE}\nArmed.`), lastEditedAt: null };
+  const { writes, pins } = await run([pull(7, { discussion: { comments: [pin] } })]);
+  assert.deepEqual(pins, []);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+});
+
+test("a pin for another head, an edited pin or another author's pin is posted again", async () => {
+  const other = { ...lanesSaid(`<!-- babysit-merge-pin sha=${"c".repeat(40)} -->`), lastEditedAt: null };
+  const edited = { ...lanesSaid(`${PIN_LINE}\nArmed.`), lastEditedAt: "2026-10-23T11:00:00Z" };
+  const person = { ...said("kyle-sexton", PIN_LINE, "2026-10-23T10:00:00Z"), lastEditedAt: null };
+  const stale = [{ ...lanesSaid(PIN_LINE), lastEditedAt: null }, { ...other, createdAt: "2026-10-23T12:00:00Z" }];
+  for (const comments of [[other], [edited], [person], stale]) {
+    const { pins } = await run([pull(7, { discussion: { comments } })]);
+    assert.equal(pins.length, 1);
+  }
+});
+
+test("a pin that fails to post leaves it unarmed and fails the run", async () => {
+  const { code, writes, pins, lines } = await run([pull(7), pull(8)], {}, { pinError: new Error("POST comments failed with status 502") });
+  assert.equal(code, 1);
+  assert.equal(pins.length, 2);
+  assert.deepEqual(writes, []);
+  assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#7 pin, so not armed")));
+});
+
+test("report-only posts no pin", async () => {
+  const { pins } = await run([pull(7)], { REPORT_ONLY: "true" });
+  assert.deepEqual(pins, []);
 });
 
 test("a Hold: line, do-not-merge or the human-gated label leaves it unarmed", async () => {

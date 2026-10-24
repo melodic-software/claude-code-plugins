@@ -85,6 +85,8 @@ function fakeApi(overrides = {}) {
       return calls.filter((call) => call[0] === "readBranch").length > (overrides.movesAfter ?? Infinity) ? PUSHED : NOW;
     },
     getCommit: async (sha) => overrides.commits?.[sha] ?? { files: [{ filename: "src/a.js" }] },
+    // The PR's commits, oldest first; none earlier than the range by default.
+    listPullCommits: async () => overrides.pullCommits ?? [],
     compare: async (base, head) => {
       calls.push(["compare", base, head]);
       return overrides.compare ?? { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js" }] };
@@ -446,6 +448,111 @@ for (const [label, compare] of [
     assert.equal(api.markers().length, 1);
   });
 }
+
+// A retry after a round whose fix commit landed but whose replies did not
+// post: the branch did not move since, and the fix is an earlier commit on
+// the PR. The thread's first comment is from 10:00.
+const EARLIER = "e".repeat(40);
+const earlierFix = ({ date = "2026-10-22T11:00:00Z", ...fields } = {}) =>
+  fixCommit(EARLIER, { ...fields, commit: { ...fixCommit().commit, committer: { date }, ...fields.commit } });
+const threadRow = (id, user, body, time) => ({ id, user: { id: user }, pull_request_review_id: 10, path: "src/a.js", line: 1, body, created_at: `2026-10-22T${time}:00Z` });
+// The fix's hunk holds new-side lines 1 to 4 of src/a.js, so the default
+// evidence, src/a.js:3, cites a line it changed.
+const FIXED = [{ filename: "src/a.js", patch: "@@ -1,2 +1,4 @@\n a\n+b\n+c\n d" }];
+// `others`: review comments on other threads, such as the lane's replies there.
+const retry = (pullCommits, files = FIXED, reviewComments = [threadRow(100, REVIEWER, "finding 100", "10:00")], others = []) =>
+  fakeApi({
+    compare: { status: "identical", commits: [], files: [] },
+    pullCommits: [{ sha: "0".repeat(40), author: { id: HUMAN }, commit: { message: "feat: start\n", committer: { date: "2026-10-22T09:00:00Z" } } }, ...pullCommits],
+    commits: { [EARLIER]: { files } },
+    reviewComments: [...reviewComments, ...others],
+    threads: { PRRT_a: { ids: reviewComments.map((row) => row.id), resolved: false } },
+  });
+const retryRun = (ids) => JSON.stringify({ ...RUN, threads: [{ id: "PRRT_a", path: "src/a.js", comment_ids: ids }] });
+
+test("a VALID reply whose fix is an earlier lane commit after the thread's comment on its path lands, naming that commit", async () => {
+  const api = retry([earlierFix()]);
+  const result = await run(api, lines(reply({ disposition: "VALID", note: "Guarded the null case." })));
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.posted().length, 1);
+  assert.match(api.posted()[0][3], new RegExp(`^Fix: ${EARLIER}$`, "m"));
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
+
+for (const [label, pullCommits, files] of [
+  ["it is a person's commit", [earlierFix({ author: { id: HUMAN } })]],
+  ["it carries no fix trailer", [earlierFix({ commit: { message: "Address review feedback on feature\n" } })]],
+  ["it is not signed by web-flow", [earlierFix({ committer: { id: HUMAN } })]],
+  ["its signature is not valid", [earlierFix({ commit: { verification: { verified: false, reason: "unsigned" } } })]],
+  ["it was committed before the thread's comment", [earlierFix({ date: "2026-10-22T09:30:00Z" })]],
+  ["it changed another path", [earlierFix()], [{ filename: "docs/b.md", patch: FIXED[0].patch }]],
+  // Another finding on the same file, fixed further down it.
+  ["it changed no line the evidence cites", [earlierFix()], [{ filename: "src/a.js", patch: "@@ -10,2 +10,3 @@\n a\n+b\n c" }]],
+  // A person's later commit on the file shifts its lines off the fix's.
+  ["a later commit changed the cited file", [earlierFix(), { sha: "9".repeat(40), author: { id: HUMAN }, commit: { message: "tweak\n", committer: { date: "2026-10-22T12:00:00Z" } } }]],
+]) {
+  test(`feedback-not-landed, nothing posted: an earlier commit is no fix when ${label}`, async () => {
+    const api = retry(pullCommits, files);
+    const result = await run(api, lines(reply({ disposition: "VALID" })));
+    assert.equal(result.escalationReason, "feedback-not-landed");
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
+  });
+}
+
+test("feedback-not-landed: an earlier commit a lane reply already named as another thread's fix is not credited again", async () => {
+  const sibling = renderReply({ disposition: "VALID", evidence: ["src/a.js:3"], fixSha: EARLIER, note: "Guarded it." });
+  const api = retry([earlierFix()], FIXED, undefined, [{ ...threadRow(301, APP, sibling, "11:05"), path: "src/a.js" }]);
+  const result = await run(api, lines(reply({ disposition: "VALID" })));
+  assert.equal(result.escalationReason, "feedback-not-landed");
+  assert.deepEqual(api.posted(), []);
+  // A person's comment naming that commit does not claim it.
+  const quoted = retry([earlierFix()], FIXED, undefined, [threadRow(302, HUMAN, `Fix: ${EARLIER}`, "11:05")]);
+  assert.equal((await run(quoted, lines(reply({ disposition: "VALID" })))).escalationReason, "");
+});
+
+// The lane answered the thread (UNCERTAIN) at 11:30 and a trusted person
+// decided at 12:00: a commit before the lane's answer was already judged no
+// fix for this thread; one after it can be.
+test("an earlier commit counts only when it came after the lane's last answer on the thread", async () => {
+  const escalation = renderReply({ disposition: "UNCERTAIN", evidence: [], fixSha: "", note: "Needs the owner." });
+  const rows = [threadRow(100, REVIEWER, "finding 100", "10:00"), threadRow(101, APP, escalation, "11:30"), threadRow(102, HUMAN, "Drop the reference.", "12:00")];
+  for (const [date, reason] of [["2026-10-22T11:00:00Z", "feedback-not-landed"], ["2026-10-22T11:45:00Z", ""]]) {
+    const api = retry([earlierFix({ date })], undefined, rows);
+    const result = await run(api, lines(reply({ disposition: "VALID" })), retryRun([100, 101, 102]));
+    assert.equal(result.escalationReason, reason, date);
+    assert.equal(api.posted().length, reason === "" ? 1 : 0, date);
+  }
+});
+
+test("an earlier commit is no fix when the reviewer raised the finding again after it", async () => {
+  const rows = [threadRow(100, REVIEWER, "finding 100", "10:00"), threadRow(101, REVIEWER, "Still unguarded.", "11:30")];
+  const api = retry([earlierFix()], undefined, rows);
+  const result = await run(api, lines(reply({ disposition: "VALID" })), retryRun([100, 101]));
+  assert.equal(result.escalationReason, "feedback-not-landed");
+  assert.deepEqual(api.posted(), []);
+});
+
+test("no earlier commit stands in when this round wrote a patch that did not land", async () => {
+  const runText = retryRun([100]);
+  const repliesText = lines(reply({ disposition: "VALID" }));
+  const api = retry([earlierFix()]);
+  const result = await publish({
+    api,
+    pr: 42,
+    headSha: NOW,
+    headRef: "feature",
+    appId: APP,
+    modelRun: "5000-1",
+    patchState: "written",
+    reviewerId: REVIEWER,
+    trustedHumans: new Set([HUMAN]),
+    readArtifact: () => ({ runText, repliesText }),
+    fileExists: exists,
+  });
+  assert.equal(result.escalationReason, "feedback-not-landed");
+  assert.deepEqual(api.posted(), []);
+});
 
 test("a VALID fix that also adds a file in its thread's plugin lands; another plugin's file does not", async () => {
   const caseRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: "plugins/p/evals/c/case.yaml" }] });

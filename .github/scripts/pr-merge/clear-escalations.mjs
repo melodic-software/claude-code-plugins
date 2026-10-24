@@ -81,20 +81,26 @@ import {
   PAIRED_MS,
   RESUME_KEY,
   same,
+  spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
-// babysit_merge.py's verifier-refusal escalation, reasons comment and
-// shared-copy escalation: the marker on the first or second line, the next
-// line naming `at head `<sha>``.
+// babysit_merge.py's verifier-refusal escalation, reasons comment, shared-copy
+// escalation and Dependabot-major escalation: the marker on the first or
+// second line, the next line naming `at head `<sha>``.
 const PR_MERGE_MARKERS = Object.freeze([
   "<!-- babysit-merge-verify-escalation -->",
   "<!-- babysit-merge-risk -->",
   "<!-- babysit-merge-shared-copy-escalation -->",
+  "<!-- babysit-merge-dependabot-major -->",
 ]);
+// The work-items escalation line pr-merge writes above a marker: pr-merge's
+// own, so it neither unpairs the comment nor counts as another lane's marker.
+const PR_MERGE_ESCALATION = "<!-- work-items:escalation lane=pr-merge kind=escalated -->";
+const prMergeLine = (line) => PR_MERGE_MARKERS.includes(line) || line === PR_MERGE_ESCALATION;
 const AT_HEAD = / at head `([^`]*)`/g;
 const HEAD_MOVED = "head-moved";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -169,25 +175,11 @@ function pairedWithPrMerge(appComments, since) {
     if (markers.length === 0 || at < newest) {
       continue;
     }
-    const mine = markers.every((line) => PR_MERGE_MARKERS.includes(line));
+    const mine = markers.some((line) => PR_MERGE_MARKERS.includes(line)) && markers.every(prMergeLine);
     ours = at > newest ? mine : ours && mine;
     newest = at;
   }
   return ours && since - newest <= PAIRED_MS;
-}
-
-// When a timeline item was written, and by whom, for a comment or review.
-function spoken(item) {
-  if (item.event === "commented") {
-    return [{ user: item.user ?? item.actor, at: Date.parse(item.created_at) }];
-  }
-  if (item.event === "reviewed") {
-    return [{ user: item.user, at: Date.parse(item.submitted_at) }];
-  }
-  if (item.event === "line-commented" || item.event === "commit-commented") {
-    return (item.comments ?? []).map((comment) => ({ user: comment.user, at: Date.parse(comment.created_at) }));
-  }
-  return [];
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
@@ -224,7 +216,7 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
   // the label again. Any marker on an App comment written or edited since the
   // label that is not the escalation being judged or this script's own keeps
   // it, so a marker this script does not know fails closed.
-  const known = merged.length > 0 ? (line) => PR_MERGE_MARKERS.includes(line) : (line) => line === ESCALATION || RESUME_KEY.test(line);
+  const known = merged.length > 0 ? prMergeLine : (line) => line === ESCALATION || RESUME_KEY.test(line);
   const foreign = foreignMarker(appComments, since, known);
   if (foreign !== undefined) {
     return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };

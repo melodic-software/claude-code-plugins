@@ -542,11 +542,12 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   const notRun = jobs["fix-ci-not-run"];
   // fix-ci-context.mjs writes proceed "true" or "false"; a kill-switch stop
   // skips its step and leaves every output empty.
-  const context = (proceed, escalation, headSha, activity = "fix-ci") => ({
+  const context = (proceed, escalation, headSha, activity = "fix-ci", skip = "") => ({
     "inputs.activity": activity,
     "needs.fix-ci-context.outputs.proceed": proceed,
     "needs.fix-ci-context.outputs.escalation-reason": escalation,
     "needs.fix-ci-context.outputs.head-sha": headSha,
+    "needs.fix-ci-context.outputs.skip-reason": skip,
   });
   assert.equal(evaluate(fixCi.if, context("true", "", head)), true);
   assert.equal(evaluate(notRun.if, context("true", "", head)), false);
@@ -561,6 +562,9 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
   assert.equal(calls[0].head_sha, head);
   assert.equal(calls[0].conclusion, "neutral");
   assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+  // A human-gated hold fix-ci-context read posts awaiting-human instead.
+  const held = await postNotRunCheck(notRun, context("false", "", head, "fix-ci", "awaiting-human"));
+  assert.equal(held[0].output.title, "Skipped: awaiting-human");
 
   // fix-ci-dispatch.mjs dispatches a head with no fix-ci check run; the
   // posted one, as the listing returns it, means the head was handled.
@@ -587,6 +591,7 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
                     status: calls[0].status.toUpperCase(),
                     conclusion: calls[0].conclusion.toUpperCase(),
                     title: calls[0].output.title,
+                    completedAt: "2026-10-22T10:00:00Z",
                   },
                 ]
                   .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
@@ -600,7 +605,9 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
     },
   };
   const options = { ...CI_FIX_DEFAULTS, appSenderId, restarts: 1 };
-  assert.equal(skipReason(node, options), "head already has a pr-unblock / fix-ci check run");
+  assert.equal(skipReason(node, options), "head's pr-unblock / fix-ci found no failing check on this base");
+  // Once the base tip moves past it, the head is dispatched again.
+  assert.equal(skipReason(node, { ...options, baseAt: Date.parse("2026-10-22T11:00:00Z") }), "");
 });
 
 // Runs a not-run job's report-check-run step, its inputs reaching
@@ -1923,14 +1930,22 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
     assert.equal(jobs[id].with.lane, "pr-refine", id);
     assert.deepEqual(jobs[id].permissions, { contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
   }
-  const starts = ({ activity = "fix-docs", pr = "7", sender = "1" } = {}) =>
+  const starts = ({ activity = "fix-docs", pr = "7", sender = "1", held = "false" } = {}) =>
     evaluate(jobs["fix-docs"].if, {
       "inputs.pr-number": pr,
       "inputs.activity": activity,
       "format('{0}', github.event.sender.id)": sender,
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+      "needs.fix-docs-head.outputs.held": held,
     });
   assert.equal(starts(), true);
+  // fix-docs-head's lane-hold.mjs step: a human-gated hold, or no answer, runs nothing.
+  assert.equal(starts({ held: "true" }), false);
+  assert.equal(starts({ held: "" }), false);
+  const hold = jobs["fix-docs-head"].steps.find((step) => step.id === "hold");
+  assert.equal(hold.run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
+  assert.equal(hold.env.ACTIVITY, "fix-docs");
+  assert.equal(jobs["apply-docs-patch"].with["patch-fix-requested"], "${{ needs.fix-docs-head.outputs.lane-escalated }}");
   assert.equal(starts({ activity: "fix-ci" }), false);
   assert.equal(starts({ activity: "resolve-conflicts" }), false);
   assert.equal(starts({ pr: "" }), false);
@@ -4338,16 +4353,18 @@ test("pr-run-activity-write.yml: the verdict job reads context.json from the sel
   assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
 });
 
-// A needs-human PR's fix request reaches the push: the select job's
-// fix-requested output leaves the human-gated label out of the holds.
-test("pr-run-activity-write.yml: apply-patch under the review-threads row drops the human-gated hold only on the select job's fix request", () => {
+// A needs-human PR's fix request, or another lane's escalation, reaches the
+// push: the caller's base-code job's output leaves the human-gated label out
+// of the holds.
+test("pr-run-activity-write.yml: apply-patch drops the human-gated hold only on its caller's base-code verdict", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "hold-label");
   const requested = (prepare, fixRequested) =>
-    evaluate(step.env.FIX_REQUESTED, { "inputs.patch-prepare": prepare, "inputs.patch-fix-requested": fixRequested });
-  assert.equal(requested("review-threads", "true"), "true");
-  assert.equal(requested("review-threads", "false"), "false");
-  assert.equal(requested("ci-context", "true"), "", "another row's push keeps every hold");
-  assert.equal(requested("", "true"), "");
+    evaluate(step.env.FIX_REQUESTED, { "steps.config.outputs.prepare": prepare, "inputs.patch-fix-requested": fixRequested });
+  assert.equal(requested("apply-patch", "true"), "true");
+  assert.equal(requested("apply-patch", "false"), "false");
+  assert.equal(requested("apply-patch", ""), "", "a caller that passes nothing keeps every hold");
+  assert.equal(requested("ci-context", "true"), "", "a skill run never drops it");
+  // scripts/write-runner-promote-holds.test.sh runs the step's jq on these values.
 });
 
 test("pr-run-activity-write.yml: the reply job reads run.json from the select job's artifact and the replies from the scan job's", () => {
@@ -4588,14 +4605,28 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.match(step("base-sha").run, /git -C \.base rev-parse HEAD/);
   // proceed: true only for a conflicted merge, false for a skip, a clean merge
   // or an escalation, empty for a stop before the merge.
-  const proceed = (applies, state) =>
-    evaluate(select.outputs.proceed, { "steps.slot.outputs.applies": applies, "steps.prepare.outputs.merge-state": state });
+  const proceed = (applies, state, held = applies === "true" ? "false" : "") =>
+    evaluate(select.outputs.proceed, { "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.prepare.outputs.merge-state": state });
   assert.equal(proceed("true", "conflicted"), "true");
   assert.equal(proceed("true", "clean"), "false");
   assert.equal(proceed("true", "escalate"), "false");
   assert.equal(proceed("false", ""), "false");
   assert.equal(proceed("", ""), "");
   assert.equal(proceed("true", ""), "", "a merge step that failed");
+  // The human-gated hold (lane-hold.mjs) runs after the slot and before any
+  // merge: held skips awaiting-human; a failed read stops it.
+  assert.equal(proceed("true", "", "true"), "false");
+  assert.equal(proceed("true", "", ""), "", "a hold read that failed");
+  const skip = evaluate(select.outputs["skip-reason"], { "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "true" });
+  assert.equal(skip, "awaiting-human");
+  assert.equal(step("hold").if, "steps.slot.outputs.applies == 'true'");
+  assert.equal(step("hold").env.ACTIVITY, "resolve-conflicts");
+  assert.equal(step("hold").run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
+  for (const id of ["base-sha", "merge-bin", "prepare"]) {
+    assert.equal(step(id).if, "steps.hold.outputs.held == 'false'", id);
+  }
+  const apply = workflow("pr-unblock.yml").jobs["apply-conflict-patch"];
+  assert.equal(apply.with["patch-fix-requested"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated }}");
 });
 
 // merge-base: the patch is measured from a conflict tree GitHub does not
@@ -5019,7 +5050,7 @@ test("pr-unblock.yml: a fix-ci round with no posted check posts fix-ci failure o
   const options = { ...CI_FIX_DEFAULTS, appSenderId: 7, restarts: 1 };
   assert.equal(skipReason(node(0), options), "", "the first dispatch");
   assert.equal(skipReason(node(1), options), "", "one restart");
-  assert.equal(skipReason(node(2), options), "head's pr-unblock / fix-ci failed 2 time(s), past 1 restart(s)");
+  assert.equal(skipReason(node(2), options), "head's pr-unblock / fix-ci failed 2 time(s) on this base, past 1 restart(s)");
 });
 
 // #8912: a refused collection left patch-state empty, so apply-patch was

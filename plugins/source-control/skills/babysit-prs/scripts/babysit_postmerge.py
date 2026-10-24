@@ -16,8 +16,8 @@ dispatch run by the identity on a SHA containing the merge, a green canary
 run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
 pinned SHA to read back; any other enqueue, and the identity's own native
-auto-merge (`native_auto_merge`), verifies on the dispatch and canary runs
-alone. A red full run is attributed after one `rerun-failed-jobs` the
+auto-merge (`native_auto_merge`, an immediate enqueue on arm included),
+verifies on the dispatch and canary runs alone. A red full run is attributed after one `rerun-failed-jobs` the
 wrapper triggers: red again is a failure, green is a flake. A red full run the
 pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
 `post-merge-dispatch` job, which records it (`_Context.lane_rerun`); with
@@ -488,13 +488,19 @@ def _graphql(
     return payload["data"]
 
 
+# The enqueues the merged read returns per pull request, newest last: an
+# immediate-enqueue native arm counts only when every one is the identity's
+# (`native_auto_merge`), and a longer history reads as not native.
+ENQUEUE_EVENTS = 10
 MERGED_QUERY = (
     "query PostMergeMerged($o:String!,$r:String!,$b:String!,$c:String){"
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
     "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
     "mergedBy{__typename login} author{__typename login} isCrossRepository "
-    "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "mergeCommit{oid parents(first:1){nodes{oid}}} "
+    f"timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:{ENQUEUE_EVENTS}){{"
+    "pageInfo{hasPreviousPage} nodes{"
     "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} "
     "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{"
     "__typename ... on AutoMergeEnabledEvent{createdAt actor{__typename login}} "
@@ -520,15 +526,34 @@ DISARM_MUTATION = (
 )
 
 
-def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bool:
+def native_auto_merge(
+    pr: dict[str, Any],
+    merge: AutoMerge,
+    identity: str,
+    lane_prs_at: Callable[[str], str | None] | None = None,
+) -> bool:
     """Whether the identity's merge landed through GitHub's native auto-merge
-    (`enable-auto-merge.mjs` arms it), which posts no pin: the identity opened
-    the pull request from a branch of this repository, as that script requires,
-    and the newest auto-merge enable or disable event is the identity's enable,
-    made no later than the merge-queue enqueue. An arm under the identity token
-    on anyone else's pull request keeps the pin read-back. The gate disarms an
-    armed auto-merge before it pins and enqueues, and an arm after its enqueue
-    is not what queued the head, so either keeps the pin read-back.
+    (`enable-auto-merge.mjs` arms it), which posts no pin. The identity opened
+    the pull request from a branch of this repository, as that script
+    requires, and either:
+
+    - the newest auto-merge enable or disable event is the identity's enable,
+      made no later than the merge-queue enqueue; or
+    - there is no auto-merge event, every enqueue on the pull request is the
+      identity's (`actor` the identity, `enqueuer` null or the identity), and
+      `merge.lane-prs` was `native` at the merge commit's first parent
+      (`lane_prs_at`). Arming a pull request that is already mergeable in a
+      merge-queue repository enqueues it at once, and GitHub records only the
+      `AddedToMergeQueueEvent`. Under native the gate neither lists nor
+      enqueues the identity's pull requests, so its pin is not missing.
+
+    An arm under the identity token on anyone else's pull request keeps the
+    pin read-back. The gate disarms an armed auto-merge before it pins and
+    enqueues, and an arm after its enqueue is not what queued the head, so
+    either keeps the pin read-back. Any human enqueue, a longer enqueue
+    history than the read returns, an unknown merge parent (read as "",
+    which `read_config_at` refuses), and a config that
+    cannot be read keep it too.
 
     Residuals: nothing compares a native merge's head with any vetted head.
     `expectedHeadOid` binds only the head at arm time, and a writer's push
@@ -536,7 +561,14 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     the later head merges natively. An arm that lands between the gate's
     disarm check and its enqueue also reads as native and skips that merge's
     read-back, and so does an arm in the same second as the enqueue: event
-    times have one-second resolution, so the comparison is at or before."""
+    times have one-second resolution, so the comparison is at or before.
+    In the case with no auto-merge event, `check` still reads an unedited
+    identity pin back when one stands (`enable-auto-merge.mjs` pins the head
+    before it arms): a match verifies and a mismatch is a read-back failure.
+    Only a merge with no unedited pin skips the read-back, which pin-before-
+    arm leaves to merges armed before it shipped, such as #9554, and to a
+    pin edited or deleted after the enqueue. Such a merge still verifies only
+    on a green dispatch run and a green canary run."""
     if not merge.by_identity:
         return False
     if (
@@ -548,7 +580,7 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     if not is_json_object(connection) or not is_json_array(connection.get("nodes")):
         raise PostMergeReadError(f"#{merge.number}: no auto-merge events")
     if not connection["nodes"]:
-        return False
+        return _immediate_enqueue(pr, merge, identity, lane_prs_at)
     event = json_object(connection["nodes"][-1])
     if event.get("__typename") != "AutoMergeEnabledEvent":
         return False
@@ -560,6 +592,41 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     return _time(event.get("createdAt")) <= _time(
         json_object(queued[-1]).get("createdAt")
     )
+
+
+def _immediate_enqueue(
+    pr: dict[str, Any],
+    merge: AutoMerge,
+    identity: str,
+    lane_prs_at: Callable[[str], str | None] | None,
+) -> bool:
+    """`native_auto_merge`'s case with no auto-merge event: at least one
+    enqueue, every one the identity's, the read holds all of them, and
+    `merge.lane-prs` was native at the merge commit's first parent."""
+    if lane_prs_at is None:
+        return False
+    timeline = json_object(pr.get("timelineItems"))
+    if json_object(timeline.get("pageInfo")).get("hasPreviousPage") is not False:
+        return False
+    # No enqueue recorded is no evidence of one, so the loop below must not
+    # pass with nothing in it.
+    enqueues = json_array(timeline.get("nodes"))
+    if not enqueues:
+        return False
+    for item in enqueues:
+        event = json_object(item)
+        if _actor_key(event.get("actor")) != identity:
+            return False
+        if event.get("enqueuer") is not None and (
+            _actor_key(event.get("enqueuer")) != identity
+        ):
+            return False
+    parents = json_array(
+        json_object(json_object(pr.get("mergeCommit")).get("parents")).get("nodes")
+    )
+    # No parent reads as "", which `read_config_at` refuses, so it is not native.
+    parent = json_object(parents[0]).get("oid") if parents else None
+    return lane_prs_at(parent if isinstance(parent, str) else "") == "native"
 
 
 def _default_branch(owner: str, name: str) -> str:
@@ -1778,7 +1845,7 @@ def _judge(
             )
         else:
             pending.append("read-back-unrecorded")
-    elif pin_required and pinned != merge.head_ref_oid:
+    elif pinned is not None and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
                 SIGNAL_READ_BACK,
@@ -1995,8 +2062,23 @@ def check(
         # The identity's merges with a pin to read back: not its native
         # auto-merges, which verify on the dispatch and canary runs alone.
         pinned_merges: set[int] = set()
+        # Its immediate-enqueue native merges: a pin, when one stands, is read
+        # back; with none the read-back is excused.
+        optional_pins: set[int] = set()
         warnings: list[str] = []
         identity = _login_key(agent_identity)
+        lane_prs: dict[str, str | None] = {}
+
+        def lane_prs_at(sha: str) -> str | None:
+            # An unreadable config keeps the pin read-back for that merge
+            # alone rather than making the whole verdict unreadable.
+            if sha not in lane_prs:
+                try:
+                    lane_prs[sha] = policy.read_config_at(repo, sha).lane_prs
+                except policy.PolicyReadError:
+                    lane_prs[sha] = None
+            return lane_prs[sha]
+
         for pr in _merged_since(owner, name, branch, merged_since):
             derived = policy.derive_auto_merge(
                 pr, is_human, identity, lane_merges_only=lane_merges_only
@@ -2005,8 +2087,11 @@ def check(
                 warnings.append(derived)
             elif derived is not None:
                 merges.append(derived)
-                if derived.by_identity and not native_auto_merge(pr, derived, identity):
-                    pinned_merges.add(derived.number)
+                if derived.by_identity:
+                    if not native_auto_merge(pr, derived, identity, lane_prs_at):
+                        pinned_merges.add(derived.number)
+                    elif not json_object(pr.get("autoMerge")).get("nodes"):
+                        optional_pins.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         ctx = _Context(
             owner,
@@ -2066,7 +2151,7 @@ def check(
                 full_runs=full_runs,
                 canary_runs=canary_runs,
                 pinned=pinned_sha(merge)
-                if pinned_sha and merge.number in pinned_merges
+                if pinned_sha and merge.number in pinned_merges | optional_pins
                 else None,
                 pin_required=merge.number in pinned_merges,
                 now=now,
