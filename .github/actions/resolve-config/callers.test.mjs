@@ -430,11 +430,12 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
   const notRun = jobs["address-feedback-not-run"];
-  const context = (proceed, headSha, skip = "", activity = "address-feedback") => ({
+  const context = (proceed, headSha, skip = "", activity = "address-feedback", detail = "") => ({
     "inputs.activity": activity,
     "needs.address-feedback-select.outputs.proceed": proceed,
     "needs.address-feedback-select.outputs.head-sha": headSha,
     "needs.address-feedback-select.outputs.skip-reason": skip,
+    "needs.address-feedback-select.outputs.not-run-detail": detail,
   });
   assert.deepEqual([notRun.needs].flat(), ["address-feedback-select"]);
   for (const id of ["address-feedback", "publish-feedback"]) {
@@ -465,6 +466,12 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
       JSON.stringify(skip),
     );
   }
+  // A PR stopped at the round cap shows its round count on both checks.
+  const counted = await postNotRunChecks(notRun, context("false", head, "awaiting-human", "address-feedback", "round 4 of max 4"));
+  assert.deepEqual(
+    counted.map((call) => call.output.summary),
+    ["Skip reason: awaiting-human\n\nround 4 of max 4", "Skip reason: awaiting-human\n\nround 4 of max 4"],
+  );
 });
 
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,

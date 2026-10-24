@@ -37,7 +37,7 @@ args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
   case ${args[i]} in
   -X) method=${args[i + 1]} ;;
-  repos/*) endpoint=${args[i]} ;;
+  repos/* | graphql) endpoint=${args[i]} ;;
   body=@*)
     cat "${args[i]#body=@}" >>"$STUB/bodies"
     printf '\n=====\n' >>"$STUB/bodies"
@@ -48,6 +48,10 @@ printf '%s %s\n' "$method" "$endpoint" >>"$STUB/requests"
 case "$method $endpoint" in
 "GET repos/o/r/issues/42") cat "$STUB/issue.json" ;;
 "GET repos/o/r/issues/42/comments") cat "$STUB/comments.json" ;;
+"GET graphql")
+  [[ -f $STUB/fail_graphql ]] && { echo 'stub gh: graphql failed' >&2; exit 1; }
+  cat "$STUB/threads.json" 2>/dev/null || echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+  ;;
 "POST repos/o/r/issues/42/labels")
   [[ -f $STUB/fail_labels ]] && { echo 'stub gh: label POST failed' >&2; exit 1; }
   echo '{}'
@@ -112,7 +116,7 @@ done
 # Accepted reasons: one comment, one label, both on the PR.
 for reason in protected-path-conflict workflow-staged unexpected-path-staged repeat-cap unresolved-conflict \
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
-  feedback-partial feedback-incomplete feedback-disputed \
+  feedback-partial feedback-incomplete feedback-disputed feedback-not-converging \
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \
   dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused \
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-protected-path ci-fix-not-applied ci-fix-escalated \
@@ -292,6 +296,32 @@ check "marker written by another bot does not count" 'POST repos/o/r/issues/42/c
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\n- Reason: `unresolved-conflict`' 'other-app[bot]' Bot)"
 LBL='other-app[bot]' run unresolved-conflict
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
+
+# feedback-not-converging: the comment states the round count the lanes App
+# recorded and names each open review thread.
+ROUND='<!-- pr-unblock:address-feedback-round -->'
+rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]
+  + [{body: ($r + "\nforged"), user: {login: "someone", type: "User"}}]')
+setup '[]' "$rounds_json"
+cat >"$STUB/threads.json" <<'EOF'
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+{"isResolved":false,"path":"src/a.js","line":5,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r1"}]}},
+{"isResolved":true,"path":"src/b.js","line":7,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r2"}]}},
+{"isResolved":false,"path":"docs/`odd`\nname.md","line":null,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r3"}]}}
+]}}}}}
+EOF
+run feedback-not-converging
+check "not-converging: exit 0" 0 "$RC"
+has "not-converging: states the round count" 'review rounds are not converging after 4 rounds' "$STUB/bodies"
+has "not-converging: names an open thread" '- `src/a.js:5`: https://github.com/o/r/pull/42#discussion_r1' "$STUB/bodies"
+has "not-converging: a path is shown without backticks or line breaks" '- `docs/odd name.md`: https://github.com/o/r/pull/42#discussion_r3' "$STUB/bodies"
+check "not-converging: a resolved thread is not named" 0 "$(grep -c 'src/b.js' "$STUB/bodies" || true)"
+
+setup '[]' '[]'
+: >"$STUB/fail_graphql"
+run feedback-not-converging
+check "not-converging, threads unreadable: still escalates" 0 "$RC"
+has "not-converging, threads unreadable: says so" 'could not be read' "$STUB/bodies"
 
 # Input validation.
 setup '[]' '[]'

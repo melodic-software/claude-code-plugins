@@ -490,6 +490,18 @@ test("a not-run reason on a skipped run posts neutral with that reason and needs
   assert.equal(report.output.summary, "Skip reason: not-applicable");
 });
 
+test("a round-count not-run detail joins the neutral summary; any other text is left out", () => {
+  const skip = (notRunDetail) =>
+    posted(decide(null, inputs({ runResult: "skipped", actOutcome: "", signedCommits: null, notRunReason: "awaiting-human", notRunDetail })));
+  const counted = skip("round 4 of max 4");
+  assert.equal(counted.conclusion, "neutral");
+  assert.equal(counted.output.title, "Skipped: awaiting-human");
+  assert.equal(counted.output.summary, "Skip reason: awaiting-human\n\nround 4 of max 4");
+  for (const detail of ["", "round 0 of max 4", "round 4 of max 4\n@someone", "[link](https://x)", "round 4 of max 4 "]) {
+    assert.equal(skip(detail).output.summary, "Skip reason: awaiting-human", JSON.stringify(detail));
+  }
+});
+
 test("a not-run reason outside the skip-reason enum posts failure", () => {
   const report = posted(
     decide(

@@ -9,11 +9,13 @@
 //           review lane's marker confirms, when every comment is the bot's,
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
-//           skip (no such thread, or the fresh fixer's round past the cap
-//           already ran), escalate (the PR changes .github/workflows/**, or
-//           the configured number of rounds already ran, no write-access fix
-//           request came after the newest one, and a person gated the PR or
-//           a kept thread is a security or intent finding, needsPerson) or proceed, writing the thread file
+//           skip (no such thread), escalate (the PR changes
+//           .github/workflows/**; or the configured number of rounds already
+//           ran, no write-access fix request came after the newest one, and
+//           a person gated the PR or a kept thread is a security or intent
+//           finding, needsPerson, or
+//           the fresh fixer's round past the cap already ran) or proceed,
+//           writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
 //           a write-access fix request names (namedPaths) and the files the
 //           PR already changes (pr_paths, prPathsOf), and run.json, the
@@ -44,6 +46,8 @@ export const DEFAULT_MAX_ROUNDS = 2;
 // PR still drawing findings after it is not converging, and more rounds only
 // spend usage).
 export const FRESH_FIXER_ROUNDS = 1;
+// How the round marker and the neutral checks show the count.
+export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
@@ -480,6 +484,8 @@ export async function select({
   const commits = await api.listPullCommits(pr);
   const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
   const rounds = Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
+  // The most automatic rounds a PR gets: the cap and the fresh fixer's round.
+  const bound = maxRounds + FRESH_FIXER_ROUNDS;
   let worked = kept;
   if (rounds >= maxRounds) {
     // Past the cap, a trusted person with write access who asked for a fix
@@ -501,14 +507,16 @@ export async function select({
     if (worked.length === 0) {
       // Otherwise a security or intent thread still goes to a person; every
       // other finding goes to a fresh fixer: one more round, a new session
-      // like every round, reading only the thread file and the PR head. Past
-      // that the PR waits for the next fix request with no label. A PR a person
-      // gated also goes to a person: only a fresh fix request lifts their hold.
+      // like every round, reading only the thread file and the PR head. Once
+      // that round has run, no automatic round ever runs again: the review
+      // is not converging, which is an intent question for a person. A PR a
+      // person gated also goes to a person: only a fresh fix request lifts
+      // their hold.
       if (gated || kept.some((thread) => needsPerson(thread, rows.get(thread.root_comment_id)?.user?.id))) {
-        return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+        return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, maxRounds: bound, threads: kept };
       }
-      if (rounds >= maxRounds + FRESH_FIXER_ROUNDS) {
-        return { decision: "skip", skipReason: "cost-gated", rounds, threads: kept };
+      if (rounds >= bound) {
+        return { decision: "escalate", escalationReason: "feedback-not-converging", rounds, maxRounds: bound, threads: kept };
       }
       worked = kept;
     }
@@ -522,6 +530,7 @@ export async function select({
   return {
     decision: "proceed",
     rounds,
+    maxRounds: bound,
     // True drops the human-gated label from the write runner's holds: every
     // kept thread carries a write-access fix request, or a lane escalation
     // put the label on.
@@ -885,6 +894,8 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     output("fix-requested", String(result.fixRequested === true));
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : "");
     output("escalation-reason", result.escalationReason ?? "");
+    // The neutral checks' summary line when the PR stopped at the round cap.
+    output("not-run-detail", result.decision === "escalate" && result.maxRounds ? roundLine(result.rounds, result.maxRounds) : "");
     log(`${result.decision}: ${result.threads.length} kept thread(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`);
     return 0;
   }

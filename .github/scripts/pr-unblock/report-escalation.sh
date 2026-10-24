@@ -17,7 +17,8 @@
 #                       | feedback-round-cap | feedback-uncertain
 #                       | feedback-not-landed | feedback-invalid
 #                       | feedback-partial | feedback-incomplete
-#                       | feedback-disputed | dependency-round-cap
+#                       | feedback-disputed | feedback-not-converging
+#                       | dependency-round-cap
 #                       | dependency-invalid | dependency-fix-not-landed
 #                       | dependency-security-close | dependency-escalate
 #                       | dependency-config-unreadable
@@ -68,6 +69,7 @@ case ${ESCALATION_REASON:-} in
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
   feedback-protected-path) why='the pull request changes .github/workflows/, which the lane token cannot push, so the lane does not address its review threads' ;;
   feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows, and an open thread is a security or intent finding or a person holds the pull request, so a person decides' ;;
+  feedback-not-converging) why='review rounds are not converging: after the round cap and one fresh fixer round the code review still has open findings, so the fixer and the reviewer disagree on what the change should be' ;;
   feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
   feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
   feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
@@ -147,6 +149,28 @@ if [[ $labeled == true ]]; then
   fi
 fi
 
+# For a review that is not converging: the rounds the lanes App recorded
+# (publish-feedback.mjs's round markers) and each open review thread. A path
+# is data: backticks and line breaks are dropped so it stays one code span.
+details=''
+if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
+  rounds=$(gh api --paginate "$issue/comments" | jq -s --arg bot "$bot" \
+    '[add[] | select(.user.login == $bot and (((.body // "") | split("\n")[0] | rtrimstr("\r")) == "<!-- pr-unblock:address-feedback-round -->"))] | length') ||
+    die "cannot read the round markers"
+  # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
+  query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+    reviewThreads(first: 100) { nodes { isResolved path line comments(first: 1) { nodes { url } } } } } } }'
+  if threads=$(gh api graphql -f query="$query" -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" |
+    jq -er '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)
+      | "- `\((.path // "") | gsub("`"; "") | gsub("[\r\n]+"; " "))\(if .line then ":\(.line)" else "" end)`: \(.comments.nodes[0].url // "")"]
+      | .[:20] | join("\n")'); then
+    [[ -n $threads ]] || threads='- none open now'
+  else
+    threads='- the open review threads could not be read; see the pull request'"'"'s Files changed tab'
+  fi
+  details=$'\n'"The review rounds are not converging after $rounds rounds. Open review threads:"$'\n\n'"$threads"$'\n'
+fi
+
 body=$(mktemp)
 trap 'rm -f "$body"' EXIT
 cat >"$body" <<EOF
@@ -156,7 +180,7 @@ The pr-unblock lane stopped on this pull request and needs a person: $why.
 
 - Reason: \`$ESCALATION_REASON\`
 - Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
-
+$details
 To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:
 
 \`\`\`sh

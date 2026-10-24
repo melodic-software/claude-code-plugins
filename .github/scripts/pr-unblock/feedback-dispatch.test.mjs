@@ -1140,7 +1140,7 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   return api;
 }
 
-async function sweepMain(t, api, tick = TICK) {
+async function sweepMain(t, api, tick = TICK, now = undefined) {
   const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
@@ -1157,10 +1157,43 @@ async function sweepMain(t, api, tick = TICK) {
       TRUSTED_ACTORS: noActors(dir),
       DISPATCH_RECORD: join(dir, "record.json"),
     },
-    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), now },
   );
   return { output: readFileSync(output, "utf8"), lines };
 }
+
+// At the bound (the round cap plus the fresh fixer's round) the select job
+// escalates feedback-not-converging, and address-feedback-not-run posts both
+// checks neutral awaiting-human on the head. Nothing automatic sends that head
+// again, however long it waits, label or not; only a new head or a person's
+// fix request does.
+test("the sweep and a review completion never send a head stopped at the round bound, at any elapsed time", async (t) => {
+  const stopped = [
+    roundRun("address-feedback", "neutral", "Skipped: awaiting-human", "2026-10-17T10:00:00Z"),
+    roundRun("publish-feedback", "neutral", "Skipped: awaiting-human", "2026-10-17T10:00:01Z"),
+  ];
+  for (const later of ["2026-10-17T10:30:00Z", "2026-10-17T12:00:00Z", "2026-10-20T10:00:00Z", "2027-10-17T10:00:00Z"]) {
+    for (const openPulls of [pull(), pull({ labels: [{ name: "needs-human" }] })]) {
+      const swept = sweepApi({ openPulls, checksAt: { [HEAD]: stopped } });
+      const { output } = await sweepMain(t, swept, TICK, Date.parse(later));
+      assert.deepEqual(swept.calls.dispatch, [], later);
+      assert.equal(output, "", later);
+      const reviewed = fakeApi({ checkRuns: stopped, pulls: openPulls });
+      const result = await dispatchFeedback({
+        api: reviewed,
+        repository: REPOSITORY,
+        runId: RUN_ID,
+        upstream: reviewed.upstream,
+        appSenderId: APP_ID,
+        resolveSlot: async () => resolvedLane(),
+        log: () => {},
+        now: Date.parse(later),
+      });
+      assert.equal(result, null, later);
+      assert.deepEqual(reviewed.calls.dispatch, [], later);
+    }
+  }
+});
 
 test("a scheduled tick re-dispatches a head whose last round had no model turn, through its newest review run", async (t) => {
   const api = sweepApi();

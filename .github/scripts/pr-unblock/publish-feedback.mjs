@@ -71,6 +71,8 @@ import {
   currentThreads,
   isRoundMarker,
   DEFAULT_MAX_ROUNDS,
+  FRESH_FIXER_ROUNDS,
+  roundLine,
   maxRoundsFrom,
   need,
   positive,
@@ -442,10 +444,11 @@ export async function publish(args) {
       log(`the round of model run ${modelRun} is already recorded`);
     } else {
       const rounds = countRounds(comments, appId) + 1;
-      const round = rounds > maxRounds ? `${rounds}, past the cap of ${maxRounds},` : `${rounds} of ${maxRounds}`;
+      // The max counts the fresh fixer's round past the cap (address-feedback.mjs).
+      const round = roundLine(rounds, maxRounds + FRESH_FIXER_ROUNDS);
       await api.createIssueComment(
         pr,
-        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished round ${round} on ${headSha}.`].join("\n"),
+        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished ${round} on ${headSha}.`].join("\n"),
       );
       log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
     }
