@@ -143,7 +143,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openBlockers, openPullsFor, READY, refusalText, removalStands, sayWhy } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -263,35 +263,11 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
-  // A blocker closed as not planned or duplicate never did the work, so only
-  // a completed close counts; a pull request counts only once merged. Any
-  // issue author can close their own issue as completed, so a blocking issue
-  // also needs a trusted close (trustedClose), read fresh from the issue
-  // itself. A blocker in another repository cannot be read with this
-  // repository's token, so it never counts.
-  const blockers = await blockersOf(github, base);
-  const closedHere = (blocker) =>
-    blocker.state === "closed" && String(blocker.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase());
-  const issues = [];
-  let pending = 0;
-  for (const blocker of blockers) {
-    if (!closedHere(blocker)) {
-      pending += 1;
-    } else if (blocker.pull_request) {
-      pending += blocker.pull_request.merged_at ? 0 : 1;
-    } else if (blocker.state_reason !== "completed" || !NUMBER.test(String(blocker.number))) {
-      pending += 1;
-    } else {
-      issues.push(Number(blocker.number));
-    }
-  }
-  for (const blocker of pending === 0 ? issues : []) {
-    if (!(await trustedClose({ github, repo, number: blocker, humans, closes }))) {
-      pending += 1;
-    }
-  }
-  if (pending > 0) {
-    return `${pending} blocker(s) not closed as completed by a listed human or a merge`;
+  // admit.mjs blockerDone: a merged pull request, or an issue here closed as
+  // completed with a trusted close (trustedClose), read fresh from the issue.
+  const pending = await stillBlocking(await blockersOf(github, base), repo, (number) => trustedClose({ github, repo, number, humans, closes }));
+  if (pending.length > 0) {
+    return `${pending.length} blocker(s) not closed as completed by a listed human or a merge`;
   }
   // Removing the label by hand stops the lane until a person adds it back,
   // or the App or a listed human marks the issue `status: ready` again.
@@ -860,11 +836,14 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
-  // The lane skips an issue with an open blocker (check-blockers.mjs), so one
-  // is never re-fired or handed to a person while it has one.
-  const open = openBlockers(await blockersOf(github, `/repos/${repo}/issues/${number}`));
-  if (open.length > 0) {
-    return { reason: `waiting on ${open.length} open blocker(s)` };
+  // The lane skips an issue a blocker still blocks (check-blockers.mjs), so
+  // one is never re-fired or handed to a person while one does.
+  const closes = new Map();
+  const pending = await stillBlocking(await blockersOf(github, `/repos/${repo}/issues/${number}`), repo, (blocker) =>
+    trustedClose({ github, repo, number: blocker, humans, closes }),
+  );
+  if (pending.length > 0) {
+    return { reason: `waiting on ${pending.length} blocker(s) not closed as completed by a listed human or a merge` };
   }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };

@@ -955,6 +955,8 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   const blockers = admit.steps.find((s) => s.id === "blockers");
   assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true'");
   assert.equal(blockers.run, "node .base/.github/scripts/work-resolve-issue/check-blockers.mjs");
+  // Trusted closes are judged against the default branch's list, never the head's.
+  assert.equal(blockers.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
   const checkout = admit.steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
   assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
   assert.equal(checkout.with["persist-credentials"], false);

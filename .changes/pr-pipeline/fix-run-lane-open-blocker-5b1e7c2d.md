@@ -4,4 +4,8 @@ bump: patch
 
 ### Fixed
 
-- The issue lane no longer runs an agent-ready issue that has an open `blocked_by` issue or pull request (owner decision Q95). The admit job lists the blockers after the trusted-trigger check. An open blocker, or a list it cannot read, skips the run with a notice or warning: no model turn, no `needs-human`, and `agent-ready` stays on. work-unblock's sweep no longer re-fires, strands or hands to a person an agent-ready issue with an open blocker. It re-fires a run the blocker gate skipped once no blocker is open (`.github/workflows/work-resolve-issue.yml`, `.github/scripts/work-resolve-issue/check-blockers.mjs`, `.github/scripts/work-unblock/label-unblocked.mjs`).
+- The issue lane no longer runs an agent-ready issue that a `blocked_by` issue or pull request still blocks (owner decision Q95). A blocker stops blocking only as admission already judged it: a merged pull request, or an issue in this repository closed as completed by a listed human or a merge. Admission, work-unblock, the lane's gate and the queued count now share that one rule (`admit.mjs` `blockerDone` and `stillBlocking`).
+  - The admit job checks the blockers after the trusted-trigger check. A blocker that still blocks, or blockers it cannot read, skip the run with a notice or warning. The skip takes no model turn, adds no `needs-human`, and leaves `agent-ready` on.
+  - work-unblock's sweep never re-fires, strands or hands to a person an agent-ready issue that a blocker still blocks. Once no blocker blocks, it re-fires a run the gate skipped.
+  - The WIP cap's queued count leaves out agent-ready issues that a blocker still blocks. It makes at most 30 blocker reads per check.
+  - Files: `.github/workflows/work-resolve-issue.yml`, `.github/scripts/work-resolve-issue/check-blockers.mjs`, `.github/scripts/work-unblock/label-unblocked.mjs`, `.github/actions/check-wip-cap/check-wip-cap.mjs`.

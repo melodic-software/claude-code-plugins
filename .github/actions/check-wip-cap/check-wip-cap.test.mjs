@@ -18,7 +18,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
-import { isHeld, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
+import { BLOCKER_READS, isHeld, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const AUTHOR = "author:app/melodic-automation-lanes";
@@ -39,11 +39,19 @@ const pr = ({ labels = [], body = "", ageHours = 1, number } = {}) => ({
 // merged and opened counts answer `merged` and `admitted`; an Error
 // answer throws. A pull request read answers `heads[number]` as its head
 // ref. Each path is recorded.
-function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {} } = {}) {
+function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {}, blockedBy = {} } = {}) {
   const paths = [];
   const github = async (method, path) => {
     paths.push(`${method} ${path}`);
     const url = new URL(path, "https://api.github.com");
+    const deps = /^\/repos\/[^/]+\/[^/]+\/issues\/([0-9]+)\/dependencies\/blocked_by$/.exec(url.pathname);
+    if (deps) {
+      const answer = blockedBy[deps[1]] ?? [];
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer;
+    }
     const pull = /^\/repos\/[^/]+\/[^/]+\/pulls\/([0-9]+)$/.exec(url.pathname);
     if (pull) {
       const head = heads[pull[1]];
@@ -112,7 +120,7 @@ test("the open listing pages until a short page", async () => {
 
 test("a search that answers incomplete results is an unknown read", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null, searchIncomplete: true });
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete: true });
 });
 
 // During a GitHub search incident the API answered total_count 0 with
@@ -225,6 +233,43 @@ test("admissions may reach the admission factor times the merges, no more", asyn
 // x wip.merge-rate-window-hours. Over it, on or after pause-from, new
 // admissions pause; runs never pause on it.
 const issues = (...numbers) => numbers.map((number) => ({ number }));
+
+// A blocker as GET .../dependencies/blocked_by lists it.
+const blocker = (number, { state = "open", reason = null, repo = REPO, pull } = {}) => ({
+  number,
+  state,
+  state_reason: reason,
+  repository_url: `https://api.github.com/repos/${repo}`,
+  ...(pull === undefined ? {} : { pull_request: { merged_at: pull ? "2026-10-01T00:00:00Z" : null } }),
+});
+
+test("an agent-ready issue a blocker still blocks is not queued work; one whose blockers are all done is", async () => {
+  const blockedBy = {
+    1: [blocker(11)],
+    2: [blocker(12, { state: "closed", pull: false })],
+    3: [blocker(13, { state: "closed", reason: "not_planned" })],
+    4: [blocker(14, { state: "closed", reason: "completed" }), blocker(15, { state: "closed", pull: true })],
+    5: [],
+  };
+  const reads = await read({ merged: 24, queued: issues(1, 2, 3, 4, 5), blockedBy });
+  assert.deepEqual(reads.blocked, [1, 2, 3]);
+  assert.equal(status(reads).queued_issues, 2);
+});
+
+test("blocker reads skip issues a lane PR names, stop at BLOCKER_READS, and a failed one leaves the issue queued", async () => {
+  const many = Array.from({ length: BLOCKER_READS + 5 }, (_, i) => i + 1);
+  const blockedBy = Object.fromEntries(many.map((n) => [n, [blocker(1000 + n)]]));
+  blockedBy[2] = new Error("GET failed with status 502");
+  const { github, paths } = searchApi({ open: [pr({ body: "Closes #1" })], merged: 24, queued: issues(...many), blockedBy });
+  const reads = await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
+  const depReads = paths.filter((path) => path.includes("/dependencies/blocked_by"));
+  assert.equal(depReads.length, BLOCKER_READS);
+  assert.ok(!depReads.some((path) => path.includes("/issues/1/")), "a named issue costs no read");
+  assert.ok(!reads.blocked.includes(2));
+  // Read and blocked: 3..31; unread past the bound, and #2, stay queued.
+  assert.equal(reads.blocked.length, BLOCKER_READS - 1);
+  assert.equal(status(reads).queued_issues, many.length - 1 - (BLOCKER_READS - 1));
+});
 
 test("queued work is the agent-ready issues no open lane PR names first, plus the held lane PRs", async () => {
   const open = [

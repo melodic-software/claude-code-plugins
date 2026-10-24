@@ -42,9 +42,9 @@ jobs:
   # Anyone else's label, on an issue anyone can open, starts nothing past
   # this job. It runs check-trusted-trigger from the default branch tip with
   # a read-only token and no secret; the read runner checks the trigger again.
-  # A trusted label on an issue with an open blocker, or whose blockers cannot
-  # be read, also proceeds no further (check-blockers.mjs): agent-ready stays,
-  # and work-unblock's sweep re-fires it once no blocker is open.
+  # A trusted label on an issue a blocker still blocks (admission's rule), or
+  # whose blockers cannot be read, also proceeds no further (check-blockers.mjs):
+  # agent-ready stays, and work-unblock's sweep re-fires it once none blocks.
   admit:
     if: github.event.label.name == 'agent-ready'
     runs-on: ubuntu-24.04
@@ -102,6 +102,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-resolve-issue/check-blockers.mjs
 
   # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a

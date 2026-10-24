@@ -1522,6 +1522,15 @@ test("a run the blocker gate skipped is re-fired once no blocker is open, past t
   }
 });
 
+test("a run the blocker gate skipped still waits on a blocker closed without doing the work", async () => {
+  const unmerged = { ...issue(31, { state: "closed" }), pull_request: { merged_at: null } };
+  for (const blocker of [unmerged, issue(31, { state: "closed", reason: "not_planned" }), issue(31, { state: "closed", repo: "o/other" })]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [blocker] } });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(blocker));
+  }
+});
+
 test("a stranded issue with an open blocker is neither re-fired nor handed to a person", async () => {
   const { github, actions, calls } = failedRun({ runs: [], events: [added("2026-10-16T08:00:00Z", OWNER)], blockedBy: { 30: [issue(31)] } });
   assert.equal(await sweep({ github, actions }), 0);

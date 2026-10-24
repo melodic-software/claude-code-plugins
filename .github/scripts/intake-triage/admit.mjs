@@ -84,17 +84,46 @@ export function loadRules(path) {
 }
 
 // The issues and pull requests GitHub lists as blocking the issue at `base`
-// (`/repos/<owner>/<repo>/issues/<n>`). Admission, work-unblock and the issue
-// lane's gate all read blockers here.
+// (`/repos/<owner>/<repo>/issues/<n>`). Admission, work-unblock, the issue
+// lane's gate and the queued count all read blockers here, and judge them
+// with blockerDone or stillBlocking.
 export const blockersOf = (github, base) => paginate(github, `${base}/dependencies/blocked_by`);
-
-// Those of `blockers` not closed, in any repository.
-export const openBlockers = (blockers) => blockers.filter((blocker) => blocker?.state !== "closed");
 
 const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
+
+const BLOCKER_NUMBER = /^[1-9][0-9]{0,9}$/;
+
+// The one definition of a blocker that no longer blocks: in this repository,
+// a pull request merged, or an issue closed as completed with a trusted close
+// (`trusted(number)`, sync). Anyone may close their own issue as completed,
+// and a close as not planned or duplicate never did the work; a blocker in
+// another repository cannot be read with this repository's token.
+export const blockerDone = (blocker, repository, trusted) =>
+  blocker?.state === "closed" &&
+  here(blocker.repository_url, repository) &&
+  (blocker.pull_request
+    ? Boolean(blocker.pull_request.merged_at)
+    : blocker.state_reason === "completed" && BLOCKER_NUMBER.test(String(blocker.number)) && Boolean(trusted(Number(blocker.number))));
+
+// Those of `blockers` that still block by blockerDone. `isTrusted(number)`
+// (async) reads a close; it is asked only when every blocker is otherwise
+// done, so a blocker that still blocks by its state costs no read.
+export async function stillBlocking(blockers, repository, isTrusted) {
+  const pending = blockers.filter((blocker) => !blockerDone(blocker, repository, () => true));
+  if (pending.length > 0) {
+    return pending;
+  }
+  const untrusted = [];
+  for (const blocker of blockers) {
+    if (!blocker.pull_request && !(await isTrusted(Number(blocker.number)))) {
+      untrusted.push(blocker);
+    }
+  }
+  return untrusted;
+}
 
 // The open pull requests in `repository` for issue `number`: those `closing`
 // (closedByPullRequestsReferences nodes) lists in this repository, and those
@@ -359,13 +388,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
 
   const wait = [];
   for (const blocker of blockers) {
-    const done =
-      blocker.state === "closed" &&
-      here(blocker.repository_url, repository) &&
-      (blocker.pull_request
-        ? Boolean(blocker.pull_request.merged_at)
-        : blocker.state_reason === "completed" && trustedCloses.has(blocker.number));
-    if (!done) {
+    if (!blockerDone(blocker, repository, (n) => trustedCloses.has(n))) {
       wait.push(`blocker #${blocker.number} is not closed as completed by a listed human or a merge`);
     }
   }
@@ -485,10 +508,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans));
   const trustedCloses = new Set();
   for (const blocker of blockers) {
-    if (!blocker.pull_request && blocker.state === "closed" && blocker.state_reason === "completed" && here(blocker.repository_url, repository)) {
-      if (await trusted(blocker.number)) {
-        trustedCloses.add(blocker.number);
-      }
+    if (!blocker.pull_request && blockerDone(blocker, repository, () => true) && (await trusted(Number(blocker.number)))) {
+      trustedCloses.add(Number(blocker.number));
     }
   }
   // A throw here stops the caller before decide(), so nothing is written.
