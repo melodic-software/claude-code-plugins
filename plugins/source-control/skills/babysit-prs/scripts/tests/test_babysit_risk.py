@@ -1418,6 +1418,12 @@ class ManifestTests(unittest.TestCase):
         self.assertIn(
             self.REVIEW, self._codes(MANIFEST, PLUGIN_BASE, PLUGIN_BASE, **renamed)
         )
+        copied = dict(
+            status="copied", previous_path="plugins/bar/.claude-plugin/plugin.json"
+        )
+        self.assertIn(
+            self.REVIEW, self._codes(MANIFEST, PLUGIN_BASE, PLUGIN_BASE, **copied)
+        )
 
 
 class HoldsTests(unittest.TestCase):

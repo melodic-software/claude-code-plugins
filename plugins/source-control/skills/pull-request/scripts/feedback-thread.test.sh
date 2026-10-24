@@ -228,6 +228,25 @@ echo 'guarded' >"$STUB/ws/src/a.js"
 mkdir -p "$STUB/ws/src/nested" && : >"$STUB/ws/src/nested/package.json"
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "an empty stub name below the top of the checkout refuses the VALID record" 1 "$?"
+# The lane's sandbox masks a dotfile in the checkout with /dev/null, a device git
+# will not add: it is no fix, while a symlink to /dev/null still is one.
+if bwrap --bind / / --dev /dev true 2>/dev/null; then
+  setup
+  echo 'guarded' >"$STUB/ws/src/a.js"
+  : >"$STUB/ws/.bash_profile"
+  disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
+  PATH="$TEST_TMPDIR/bin:$PATH" FEEDBACK_THREADS="$STUB/threads.json" FEEDBACK_LOG="$STUB/replies.jsonl" \
+    FEEDBACK_SCRATCH="$STUB/scratch" FEEDBACK_WORKSPACE="$STUB/ws" \
+    bwrap --bind / / --dev /dev --ro-bind /dev/null "$STUB/ws/.bash_profile" \
+    bash "$SCRIPT" record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+  assert_exit "a sandbox /dev/null mask over a dotfile does not refuse the VALID record" 0 "$?"
+fi
+setup
+echo 'guarded' >"$STUB/ws/src/a.js"
+ln -s /dev/null "$STUB/ws/.bash_profile"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "an untracked symlink to /dev/null refuses the VALID record" 1 "$?"
 
 setup
 disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"note":"fix_sha left out"}'
