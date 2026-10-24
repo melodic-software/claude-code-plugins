@@ -243,6 +243,114 @@
         }
       ],
       "why": "trigger words only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v gdb || echo \"gdb not installed\"",
+            "description": "Check whether gdb is installed"
+          }
+        }
+      ],
+      "why": "quoted message after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which 0x || echo \"0x missing\"",
+            "description": "Check whether 0x is installed"
+          }
+        }
+      ],
+      "why": "quoted message after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"sudo\" README.md",
+            "description": "Search the README for sudo"
+          }
+        }
+      ],
+      "why": "quoted search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx 0x --version",
+            "description": "Show the 0x version"
+          }
+        }
+      ],
+      "why": "version check through npx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"require(./workers/export\" -r src",
+            "description": "Find imports of the worker"
+          }
+        }
+      ],
+      "why": "require text in a search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"require('./workers/export\" src",
+            "description": "Find imports of the worker"
+          }
+        }
+      ],
+      "why": "quoted require text in a search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"require(\" src",
+            "description": "Find workers/export imports"
+          }
+        }
+      ],
+      "why": "require without a closing paren; the path is only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -p 1",
+            "description": "Load workers/export.js"
+          }
+        }
+      ],
+      "why": "the worker path is only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "timeout 5",
+            "description": "Bound gdb by time"
+          }
+        }
+      ],
+      "why": "gdb is only in the description"
     }
   ],
   "fail": [
@@ -632,6 +740,66 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through npx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx 0x -o workers/export.js orders.json",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through npx with a flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through npx -y"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm dlx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through pnpm dlx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'gdb -p 1'",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "single-quoted shell -c"
     }
   ]
 }

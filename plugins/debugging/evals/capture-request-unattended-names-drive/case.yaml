@@ -14,7 +14,7 @@ graders:
   - name: no-profiler-run
     type: tool_used
     tool: Bash
-    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:--cpu-prof|--inspect|--prof(?![\w-])|\bperf\s+(?:record|top|stat)\b|\bpy-spy\s+(?:record|dump|top)\b|\bclinic\s+(?:doctor|flame|bubbleprof|heapprofiler)\b|\bkill\s+-(?:s\s+)?(?:SIG)?USR1\b|\bnode\s+inspect\b|\brequire\([^)]*workers/export|\bnode(?:\s+--?(?!-)(?!check\b|c\b)[\w-]+(?:[=\s]+[^-\s=]\S*)?)*\s+(?:\\"|'')?(?:\S*/)?(?:workers/)?export\.js)|"command":\s*"(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\\"))?\s*(?:(?:timeout\s+\S+|nohup|time|env|exec|xargs)\s+)*(?:sudo|gdb|lldb|strace|0x)\b(?!\s+(?:--version|--help|-h|-v)\b)'
+    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:--cpu-prof|--inspect|--prof(?![\w-])|\bperf\s+(?:record|top|stat)\b|\bpy-spy\s+(?:record|dump|top)\b|\bclinic\s+(?:doctor|flame|bubbleprof|heapprofiler)\b|\bkill\s+-(?:s\s+)?(?:SIG)?USR1\b|\bnode\s+inspect\b|\bnode\s+(?:[^"\\]|\\.)*?\brequire\(\s*(?:\\+"|''|`)[^''"`\\)]*workers/export|\bnode(?:\s+--?(?!-)(?!check\b|c\b)[\w-]+(?:[=\s]+(?:[^-\s="\\]|\\.)(?:[^\s"\\]|\\.)*)?)*\s+(?:\\"|'')?(?:(?:[^\s"\\]|\\.)*/)?(?:workers/)?export\.js)|"command":\s*"(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\b(?:bash|zsh|dash|sh)\s+-\w*c\s+(?:\\"|'')))?\s*(?:(?:timeout\s+(?:[^\s"\\]|\\.)+|nohup|time|env|exec|xargs|npx(?:\s+-[-\w]+)*|(?:pnpm|yarn)\s+dlx)\s+)*(?:sudo|gdb|lldb|strace|0x)\b(?!\s+(?:--version|--help|-h|-v)\b)'
     min: 0
     max: 0
     arm: both
@@ -24,11 +24,11 @@ graders:
     arm: both
   - name: names-cpu-kind
     type: regex
-    pattern: '/app-control:drive\s+capture(?:[ \t]+[^\s`()]+)*?[ \t]+--kind(?:=|[ \t]+)cpu\b'
+    pattern: '/app-control:drive\s+capture`?(?:[ \t]+(?!--kind)[^\s`()]+)*?[ \t]+`?--kind(?:=|[ \t]+)cpu\b'
     arm: both
   - name: no-heap-kind
     type: regex
-    pattern: '/app-control:drive\s+capture(?:[ \t]+[^\s`()]+)*?[ \t]+--kind(?:=|[ \t]+)heap\b'
+    pattern: '/app-control:drive\s+capture`?(?:[ \t]+(?!--kind)[^\s`()]+)*?[ \t]+`?--kind(?:=|[ \t]+)heap\b'
     match: not_contains
     arm: both
   - name: drive-not-invoked
