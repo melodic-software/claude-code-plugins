@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.13.2] - 2026-10-24
+
+### Fixed
+
+- `audit/reference/levers.json`: the tool-search deferral lever no longer says `ENABLE_TOOL_SEARCH` has no `settings.json` route (the live MCP page says the `settings.json` `env` field can carry it) and now cites `mcp#configure-tool-search` and the `agent-sdk/tool-search#configure-tool-search` anchor; the bare-mode source-conflict pointer and the experimental-betas row are re-read as of 2026-10-24.
+
 ## [0.13.1] - 2026-10-20
 
 ### Fixed

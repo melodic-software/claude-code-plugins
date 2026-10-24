@@ -3,6 +3,13 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-10-24
+
+### Changed
+
+- **Bump unpdf from 1.9.0 to 1.9.1 in /plugins/ai-briefing/skills/generate/output/build in the npm-minor-patch group** (#9631).
+  - `unpdf` 1.9.0→1.9.1
+
 ## [0.9.1] - 2026-10-20
 
 ### Changed
