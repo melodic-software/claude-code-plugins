@@ -42,5 +42,20 @@ jobs:
         run: make -C examples/consumer lint
 YML
 
+mkdir -p scripts examples/consumer
+cat >scripts/install.sh <<'SH'
+#!/usr/bin/env bash
+# Copies the shared settings into the target consumer.
+set -euo pipefail
+cp -r settings/. "${2:?target}/"
+SH
+chmod +x scripts/install.sh
+mkdir -p settings
+printf '%s\n' 'max-line-length = 100' >settings/lint.cfg
+cat >examples/consumer/Makefile <<'MK'
+lint:
+	@test -f lint.cfg && echo "lint ok"
+MK
+
 git add -A
 git commit -q -m "add fixtures"

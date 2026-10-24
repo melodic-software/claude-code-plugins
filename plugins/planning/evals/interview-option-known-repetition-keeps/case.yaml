@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: interview-option-known-repetition-keeps
-description: An interview over a proposed interface whose second consumer is a stated requirement with the same send shape recommends keeping the interface rather than calling it speculative
+description: An interview over an option to add an interface whose second consumer is a stated requirement with the same send shape recommends keeping the interface rather than calling it speculative
 tags: [interview, recommendation, known-repetition, scaffold]
 expected_outcome: The first round's recommendation on how to structure the senders keeps the Notifier interface (or an equivalent shared abstraction), citing the stated SMS requirement R2 in docs/requirements.md as the second consumer and the shared send(recipient, message) shape. It does not call the interface speculative generality or YAGNI and does not ask to wait for a third channel. No Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "Use the interview skill from the planning plugin, topic order-confirmations. Problem: requirement R1 in docs/requirements.md, the email order confirmation, is next. My plan: before writing the email sender, add a `Notifier` interface with one method, `send(recipient, message)`, and make the email sender its first implementation. I'm here and will answer; ask me your first round."
+  prompt: "Use the interview skill from the planning plugin, topic order-confirmations. Problem: requirement R1 in docs/requirements.md, the email order confirmation, is next. Options I am weighing: (a) add a `Notifier` interface with one method, `send(recipient, message)`, now, with the email sender as its first implementation; (b) write the email sender directly and extract an interface later. Settle mechanism decisions in this interview. I'm here and will answer; ask me your first round."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 20
   timeout_seconds: 900
