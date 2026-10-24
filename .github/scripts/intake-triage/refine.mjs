@@ -280,24 +280,23 @@ export function validateOutput(output, known, split = null) {
   );
   let moved = list(output.split, "split", Number.isInteger);
   let exact = output.exact;
-  if (exact) {
+  // A duplicate or fixing change makes it not exact, whatever else it holds:
+  // ask whether to close the issue.
+  const closing = exact ? related.filter((item) => item.relation !== "related") : [];
+  if (exact && closing.length === 0) {
     if ((split === null && criteria.length === 0) || questions.length > 0 || output.outcome.trim() === "") {
       throw new Error("an exact refinement states the outcome and its criteria, and asks nothing");
     }
-    // A duplicate or fixing change makes it not exact: ask whether to close it.
-    const closing = related.filter((item) => item.relation !== "related");
-    if (closing.length > 0) {
-      exact = false;
-      criteria = [];
-      moved = [];
-      questions = [
-        {
-          question: `Should this issue close? The refinement found ${closing.map((item) => `#${item.number} (${item.relation})`).join(", ")}.`,
-          recommended: "Close it if that change covers this issue; otherwise record what is still left to do.",
-          basis: closing.map((item) => (item.note.trim() === "" ? `#${item.number}` : `#${item.number}: ${item.note}`)).join("; "),
-        },
-      ];
-    }
+  } else if (exact) {
+    exact = false;
+    criteria = [];
+    moved = [];
+    const close = {
+      question: `Should this issue close? The refinement found ${closing.map((item) => `#${item.number} (${item.relation})`).join(", ")}.`,
+      recommended: "Close it if that change covers this issue; otherwise record what is still left to do.",
+      basis: closing.map((item) => (item.note.trim() === "" ? `#${item.number}` : `#${item.number}: ${item.note}`)).join("; "),
+    };
+    questions = [close, ...questions].slice(0, LIMITS.questions);
   } else if (questions.length === 0) {
     throw new Error("a refinement that is not exact asks at least one question");
   }

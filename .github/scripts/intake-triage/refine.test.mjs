@@ -229,6 +229,9 @@ describe("validateOutput", () => {
       assert.ok([output.questions[0].recommended, output.questions[0].basis].every((text) => text.trim() !== ""));
       assert.match(render(output), /RECOMMENDED:/);
     }
+    const bare = validateOutput({ ...EXACT, criteria: [], outcome: "", related: [{ number: 3, relation: "duplicate", note: "" }] }, new Set([3]));
+    assert.equal(bare.exact, false, "an exact output with nothing but the duplicate still becomes a question");
+    assert.equal(bare.questions.length, 1);
     const held = { count: 3, items: [{ n: 2 }] };
     const split = validateOutput({ ...EXACT, criteria: [], split: [2], related: [{ number: 3, relation: "duplicate", note: "same" }] }, new Set([3]), held);
     assert.equal(split.exact, false);
@@ -269,9 +272,14 @@ describe("render", () => {
         },
         new Set([3]),
       ),
+      { body: "The README is wrong." },
     );
     const lines = body.split("\n");
-    assert.equal(lines.filter((line) => line.includes("<!--")).length, 1, "only the script's own marker");
+    assert.deepEqual(
+      lines.filter((line) => line.includes("<!--")),
+      [REFINE_MARKER, bodyVersion("The README is wrong.")],
+      "only the script's own markers",
+    );
     assert.ok(!lines.some((line) => line.trimStart().startsWith("- [ ] ")), "no task list line from model text");
     assert.ok(!body.includes("@owner"), "mentions are broken");
     assert.ok(lines.every((line) => !line.startsWith("**Decision recorded.**")));
