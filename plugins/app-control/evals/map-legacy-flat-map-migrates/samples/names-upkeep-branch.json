@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Commit on control-skill-upkeep/control-clockwork-web and open one pull request.",
+      "why": "names the upkeep branch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Commit on feature-map-upkeep/claude-skills-feature-map.",
+      "why": "adopts the testing upkeep branch"
+    }
+  ]
+}

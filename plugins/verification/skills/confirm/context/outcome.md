@@ -76,6 +76,11 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 |---|-----------|---------------|------------|------------|---------------|
 | 1 | <plan item #> | <test name + assertion> | <rank> | pre-existing / self-authored | <criterion, spec, recording, or "none named"> |
 
+### Lessons
+| # | Lesson | Scope | Route |
+|---|--------|-------|-------|
+| 1 | <what this run learned about driving or checking the change> | one feature / every feature / other | /app-control:map refresh <feature> / /app-control:map refresh / /corrections:codify |
+
 ### Assessment
 - Intent source: <rung> (<PLAN.md slug, pull request, issue, or conversation>); intent drift: <none | each contradiction>
 - Assumptions: <none stated | each load-bearing or captured assumption: holds / falsified (evidence) / unchecked>

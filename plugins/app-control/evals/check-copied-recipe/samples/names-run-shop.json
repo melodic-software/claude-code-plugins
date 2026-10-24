@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "copied-recipe | SKILL.md | Launch: repeats the run-shop skill's steps instead of naming it",
+      "why": "names the finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Launch starts the app with four commands.",
+      "why": "misses the finding"
+    }
+  ]
+}

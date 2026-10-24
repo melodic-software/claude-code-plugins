@@ -1,0 +1,382 @@
+{
+  "skill_name": "map",
+  "evals": [
+    {
+      "id": 1,
+      "name": "run-recipe-named-not-written-into",
+      "prompt": "/app-control:map create clockwork. The repository has a project skill at .claude/skills/run-clockwork/SKILL.md that starts the Clockwork web app.",
+      "expected_output": "The control skill goes to .claude/skills/control-clockwork/. Its hub's Launch section names run-clockwork as the launch recipe by name and does not copy the recipe's steps. No file is created or edited under .claude/skills/run-clockwork/.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes the control skill under .claude/skills/control-clockwork/",
+        "The hub's Launch section names run-clockwork as the launch recipe",
+        "Creates or edits no file under .claude/skills/run-clockwork/"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "recorded-verify-skill-named",
+      "prompt": "/app-control:map create clockwork. The repository has no run-* skill, but /verify recorded .claude/skills/verify/SKILL.md at the repository root last week.",
+      "expected_output": "The hub's Launch section names .claude/skills/verify/SKILL.md as the launch recipe. The control skill is written to its own directory, never inside .claude/skills/verify/, and that file is left unchanged.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The hub's Launch section names .claude/skills/verify/SKILL.md as the launch recipe",
+        "Writes nothing inside .claude/skills/verify/"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-recipe-offers-generator",
+      "prompt": "/app-control:map create. The repository has no .claude/skills/run-* skill and no .claude/skills/verify/SKILL.md. The README says the app starts with `npm run dev` on port 5173.",
+      "expected_output": "With no launch recipe, the person is offered /run-skill-generator to record one, as a command they type. The hub's Launch section records the documented `npm run dev` command.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Offers /run-skill-generator to the person rather than running it unasked",
+        "The hub's Launch section records `npm run dev` as the start command"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "feature-file-slug",
+      "prompt": "/app-control:map create shop. Seed only the feature the settings page calls `Billing / Export!`.",
+      "expected_output": "The feature folder is features/billing-export/ with a README.md: the title lower-cased, each run of characters outside a-z0-9 replaced by one hyphen, leading and trailing hyphens dropped. The README has the six sections Parts, Sub-features, Entry points, Reset, Drive and Gotchas in that order.",
+      "files": [],
+      "expectations": [
+        "Writes the feature to features/billing-export/README.md",
+        "The README has exactly the six H2 sections Parts, Sub-features, Entry points, Reset, Drive and Gotchas, in that order"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "unsafe-location-refused",
+      "prompt": "/app-control:map create shop --dir .claude/skills/run-shop/features",
+      "expected_output": "The --dir value has a segment starting with run-, so it is refused: the report names --dir and the value. The run does not stop; the control skill goes to the default .claude/skills/control-shop/. Nothing is written under .claude/skills/run-shop/.",
+      "files": [],
+      "expectations": [
+        "Names --dir and .claude/skills/run-shop/features as refused",
+        "Continues and writes the control skill to .claude/skills/control-shop/",
+        "Writes nothing under .claude/skills/run-shop/"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "absolute-dotdot-verify-refused",
+      "prompt": "/app-control:map create shop --dir ../shared/control-shop. If that is refused, tell me whether /srv/maps/shop or tools/smoke-verify would have been accepted.",
+      "expected_output": "--dir ../shared/control-shop is refused because it contains .., and the run does not stop: the control skill goes to the default .claude/skills/control-shop/. /srv/maps/shop would be refused as absolute and tools/smoke-verify because a segment ends in verify.",
+      "files": [],
+      "expectations": [
+        "Refuses ../shared/control-shop because it contains ..",
+        "Says /srv/maps/shop would be refused as an absolute path",
+        "Says tools/smoke-verify would be refused because a segment ends in verify",
+        "Writes the control skill to .claude/skills/control-shop/"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "done-only-after-one-feature-passes",
+      "prompt": "/app-control:map create shop. The app builds and starts; you have written the hub and three feature folders.",
+      "expected_output": "Before reporting done, the skill invokes /app-control:drive on one seeded feature: launch, ready, sign in, drive, capture, cleanup. It then checks every evidence path exists and is not empty and that no process the run started is alive. Done is reported only when that run passes; a failure caused by the control skill is fixed and re-run, and a failure against a healthy app leaves the skill reported as written but unproven.",
+      "files": [],
+      "expectations": [
+        "Invokes /app-control:drive on one seeded feature before reporting done",
+        "Does not report done while that run has not passed",
+        "Includes drive's per-entry-point lines and evidence paths in the report"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "chrome-map-attended-only",
+      "prompt": "/app-control:map create intranet, driven with Claude in Chrome. The app needs the person's own single sign-on session.",
+      "expected_output": "The hub names Claude in Chrome as the tool that drives the person's own signed-in browser, and says `Attended runs only.`",
+      "files": [],
+      "expectations": [
+        "The hub names Claude in Chrome as the driving tool",
+        "The hub marks the control skill attended-only"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "broken-checkout-gap-report",
+      "prompt": "/app-control:map create shop. `npm run build` fails on this checkout with a missing module error.",
+      "expected_output": "The checkout does not build, so the skill stops before writing any file and reports the command, the tail of its output and what the person must fix.",
+      "files": [],
+      "expectations": [
+        "Stops with a report naming the failing build command",
+        "Writes no control skill file"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "long-slug-collision-stays-within-64",
+      "prompt": "/app-control:map create timesheets. Seed these two features: 'Export every approved weekly timesheet for the finance team as a signed PDF archive' and 'Export every approved weekly timesheet for the finance team, as a signed PDF archive'.",
+      "expected_output": "Both titles give the same 83-character slug. The first folder is cut to 64 characters: features/export-every-approved-weekly-timesheet-for-the-finance-team-as-a/. The second needs the -2 suffix, so its slug is cut to 62 characters before the suffix is appended: features/export-every-approved-weekly-timesheet-for-the-finance-team-as-2/. Neither folder name is longer than 64 characters.",
+      "files": [],
+      "expectations": [
+        "Names the first folder export-every-approved-weekly-timesheet-for-the-finance-team-as-a",
+        "Names the second folder export-every-approved-weekly-timesheet-for-the-finance-team-as-2",
+        "Writes no feature folder whose name is longer than 64 characters"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "skills-root-refused",
+      "prompt": "/app-control:map create shop --dir ./.claude/skills/",
+      "expected_output": "The value is the skills root itself, so it is refused: the report names --dir and the refused value './.claude/skills/' as the skills root, not a directory of its own under .claude/skills/. The run does not stop; the control skill goes to the default .claude/skills/control-shop/. No SKILL.md or feature folder is written directly in .claude/skills/.",
+      "files": [],
+      "expectations": [
+        "Names --dir and ./.claude/skills/ as refused, as the skills root, not a directory of its own under .claude/skills/",
+        "Writes the control skill under .claude/skills/control-shop/",
+        "Writes no file directly in .claude/skills/"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "second-app-gets-its-own-dir",
+      "prompt": "/app-control:map create clockwork --dir .claude/skills/control-clockwork, for the Clockwork admin app built from apps/admin. .claude/skills/control-clockwork/SKILL.md already exists and its hub names Clockwork web, built from apps/web.",
+      "expected_output": "The directory already holds a control skill, and its hub covers Clockwork web, a different app. The skill stops and writes nothing, names Clockwork web as the app that skill covers, and gives the directory this app needs: .claude/skills/control-clockwork-admin/. Every directory it proposes for the admin app sits directly under .claude/skills/ and is named control-<slug>, where /app-control:drive finds control skills.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes nothing and leaves .claude/skills/control-clockwork/ unchanged",
+        "Names Clockwork web as the app the existing control skill covers",
+        "Gives .claude/skills/control-clockwork-admin/ as the directory for the admin app",
+        "Proposes no directory for the admin app outside .claude/skills/control-<slug>/ (for example apps/admin/ or a nested folder inside control-clockwork/)"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "harness-hosting-own-instance-doctor",
+      "prompt": "/app-control:map create ledger. The repository's end-to-end suite in tests/Ledger.E2E starts the app in-process itself and needs a Postgres container from compose.test.yaml; nothing is launched separately.",
+      "expected_output": "The hub says the harness hosts its own instance. Its Ready command checks what the harness needs: that tests/Ledger.E2E builds and that the Postgres service from compose.test.yaml answers. It does not probe a separately launched app URL.",
+      "files": [],
+      "expectations": [
+        "The hub says the harness hosts its own instance",
+        "Ready checks the harness build and the Postgres service it depends on",
+        "Ready does not probe a separately launched app instance"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "harness-drive-line-stays-user-side",
+      "prompt": "/app-control:map create ledger, seeding the invoice approval feature. The suite selects that feature's tests with `dotnet test tests/Ledger.E2E --filter Category=InvoiceApproval`. The code lives in InvoiceApprovalController and posts to /internal/approvals/commit.",
+      "expected_output": "The feature README's ## Drive section lists the user's steps (what the approver clicks and sees) and adds one line giving the harness command `dotnet test tests/Ledger.E2E --filter Category=InvoiceApproval`. InvoiceApprovalController and /internal/approvals/commit appear nowhere in the feature README.",
+      "files": [],
+      "expectations": [
+        "## Drive holds user-side steps",
+        "## Drive adds one line with the dotnet test filter command",
+        "The feature README does not mention InvoiceApprovalController or /internal/approvals/commit"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "driver-unavailable-blocked",
+      "prompt": "/app-control:map create shop. The app builds and its Ready command passes. The hub names playwright-cli for driving and capture, but when the proving run starts, /app-control:drive reports that no Playwright browser is installed on this host.",
+      "expected_output": "The control skill is written but unproven, and the outcome is blocked: driver unavailable, reported with drive's report. The skill does not edit the hub after the failed run, does not switch to another tool, and does not call the control skill done.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as blocked: driver unavailable with drive's report",
+        "Leaves the hub naming playwright-cli",
+        "Does not report the control skill as done"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "build-not-exposed-doctor",
+      "prompt": "/app-control:map create shop. The app's only health check, GET /ping, returns the text `pong`; no endpoint, header or command shows a version or commit.",
+      "expected_output": "The app exposes no build identifier, so the hub's Ready section says build: not exposed and checks the other two: that the app answers and that it uses the expected data. It does not claim to check the build.",
+      "files": [],
+      "expectations": [
+        "The Ready section says build: not exposed",
+        "Ready still checks that the app answers and uses the expected data",
+        "Ready does not claim a build check"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "refresh-no-control-skill-blocks",
+      "prompt": "/app-control:map refresh. The repository has no .claude/skills/control-* directory and no .claude/skills/feature-map/.",
+      "expected_output": "The outcome is blocked: no control skill exists. The report names /app-control:map create as the action that writes one. No file is created.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked because no control skill exists",
+        "Names /app-control:map create to write one",
+        "Creates no file"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "refresh-skip-when-unchanged",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. upkeep-skip.sh check printed `skip unchanged since the last clean pass`.",
+      "expected_output": "The unattended pass stops and reports the skip line. It dispatches no subagent, does not invoke /app-control:drive, edits nothing and opens no pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Stops and reports the skip line",
+        "Does not invoke /app-control:drive",
+        "Edits no file and opens no pull request"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "refresh-unattended-attended-only-refused",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The hub at .claude/skills/control-clockwork/SKILL.md names Claude in Chrome as its driving tool and carries `Attended runs only.`, and upkeep-skip.sh check printed `run HEAD moved since the last clean pass`.",
+      "expected_output": "The outcome is blocked: an unattended pass never drives the person's own signed-in browser. The report says the hub needs a driving tool that runs inside the run's boundary, which a person changes. It does not switch to another tool on its own and drives nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked because the control skill is attended-only and the pass is unattended",
+        "Does not switch to another driving tool on its own",
+        "Does not invoke /app-control:drive"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "refresh-renamed-handle-corrected-in-skill-only",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. The live pass shows the dashboard button .claude/skills/control-clockwork/features/start-a-timer/README.md calls `Start` is now labeled `Begin`, and the timer still works through it. The source wave cites src/components/TimerRow.tsx:41 for the new label.",
+      "expected_output": "The outcome is changed. Only .claude/skills/control-clockwork/features/start-a-timer/README.md is edited to use `Begin`; src/components/TimerRow.tsx is not touched. Because the pass is attended, the skill shows the proposed edit and asks before writing it, committing to control-skill-upkeep/control-clockwork or opening a pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Edits features/start-a-timer/README.md to name the `Begin` button",
+        "Edits no file outside the control skill directory",
+        "Asks the person before committing or opening a pull request",
+        "Names the branch control-skill-upkeep/control-clockwork"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "refresh-lost-behavior-reported-not-mapped",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Its features/weekly-timesheet-export/README.md lists a `Download CSV` entry point. Against a healthy app (Ready passes), the button exists but the download now returns an empty file. The bugs plugin is enabled.",
+      "expected_output": "The export entry stays as written; the control skill never records the empty download as current behavior. The failure is written up through /bugs:write with drive's evidence and kept out of any pull request. With no other difference the outcome is clean and the pass is recorded.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Leaves the Download CSV entry in features/weekly-timesheet-export/README.md unchanged",
+        "Writes the failure up through /bugs:write",
+        "Does not change any product file"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "refresh-open-pr-updated-not-duplicated",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The pass found one stale gotcha. The branch control-skill-upkeep/control-clockwork already exists and has an open pull request.",
+      "expected_output": "The correction is committed to control-skill-upkeep/control-clockwork (staging only the control skill file) and the branch is pushed, which updates the open pull request. No second pull request is opened. The report gives the branch, the commit and the existing pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Commits on control-skill-upkeep/control-clockwork",
+        "Updates the existing pull request by pushing the branch",
+        "Opens no second pull request"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "refresh-clean-pass-records",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. The source wave and the live pass both match every feature file, and Ready passed.",
+      "expected_output": "The outcome is clean. Nothing is edited, no branch is created and no pull request is opened. The pass is recorded with upkeep-skip.sh record so the next pass skips until HEAD moves.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as clean",
+        "Runs upkeep-skip.sh record",
+        "Creates no branch and opens no pull request"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "refresh-driver-unavailable-writes-no-candidate",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The source wave found that the `Export` button in features/weekly-timesheet-export/README.md is now labeled `Download` (src/timesheet/Toolbar.tsx:42). The app builds and Ready passes, but /app-control:drive reports that the hub's playwright-cli has no browser installed on this host.",
+      "expected_output": "The outcome is blocked: driver unavailable, with drive's report. The Export-to-Download candidate is not written, because no drive confirmed it; the report lists it with src/timesheet/Toolbar.tsx:42. No branch is created, nothing is committed, no pull request is opened, and the driving tool is not switched.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked: driver unavailable with drive's report",
+        "Leaves features/weekly-timesheet-export/README.md unchanged",
+        "Lists the candidate with src/timesheet/Toolbar.tsx:42 in the report",
+        "Creates no branch and opens no pull request"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "refresh-working-tree-changed-during-source-wave",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Before the source wave, git status --porcelain printed nothing. After the subagents returned, it prints ` M src/timesheet/Toolbar.tsx`.",
+      "expected_output": "The working tree changed during the source wave, so the outcome is blocked and the report names src/timesheet/Toolbar.tsx as the changed path. The live pass does not run, no control skill file is edited, nothing is reverted or committed, and no pull request is opened.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked",
+        "Names src/timesheet/Toolbar.tsx as the changed path",
+        "Edits no control skill file and opens no pull request"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "refresh-untracked-skill-committed-with-corrections",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. /app-control:map create wrote the control skill and nobody committed it: `git ls-files -- .claude/skills/control-clockwork` prints nothing, and `git status --porcelain --untracked-files=all` prints only `??` lines for SKILL.md, features/start-a-timer/README.md, features/weekly-timesheet-export/README.md, config/defaults.json and config/.gitignore under .claude/skills/control-clockwork/. The live pass shows the `Start` button in start-a-timer is now labeled `Begin` (src/components/TimerRow.tsx:41). The branch control-skill-upkeep/control-clockwork does not exist.",
+      "expected_output": "The untracked control skill does not block the pass. The skill creates control-skill-upkeep/control-clockwork from the default branch, and the untracked files move with the switch. It writes the `Begin` correction, then stages every file under .claude/skills/control-clockwork by path and commits them in one commit with the correction, so `git status --porcelain -- .claude/skills/control-clockwork` prints nothing. No file outside the control skill directory is staged, and a pull request is opened from the branch.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not stop as blocked over the untracked control skill files",
+        "Commits every control skill file, the untracked weekly-timesheet-export README included, on control-skill-upkeep/control-clockwork in the same commit as the `Begin` correction",
+        "Stages the files by path and stages no file outside the control skill directory"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "refresh-untracked-skill-with-outside-change-blocked",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The control skill was never committed: `git ls-files -- .claude/skills/control-clockwork` prints nothing. `git status --porcelain --untracked-files=all` prints `??` lines for the files under .claude/skills/control-clockwork/ and also ` M src/timesheet/Toolbar.tsx`. The live pass found that the `Export` button in weekly-timesheet-export is now labeled `Download`.",
+      "expected_output": "The outcome is blocked before any branch switch. The report names src/timesheet/Toolbar.tsx as the uncommitted change outside the control skill directory that blocks the pass, and says the untracked control skill files alone would not have blocked it. No branch is created or switched to, nothing is staged or committed, the Export-to-Download correction goes in the report unwritten, and no pull request is opened.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names src/timesheet/Toolbar.tsx as the change outside the control skill directory that blocks the pass",
+        "Says the untracked control skill files are not what blocks the pass",
+        "Creates no branch, commits nothing and opens no pull request"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "lesson-one-feature-goes-to-feature-gotchas",
+      "prompt": "/app-control:map refresh weekly-timesheet-export. Both passes already ran on .claude/skills/control-clockwork, the only control skill. A /verification:confirm report handed in one lesson: on the weekly timesheet page the Export button stays disabled for about two seconds after the week loads, so the drive has to wait for it to enable. The live pass confirmed it. No other feature has that button, and nothing else differs.",
+      "expected_output": "The lesson goes in the ## Gotchas of features/weekly-timesheet-export/README.md only, as doc drift. The outcome is changed and the edit ships on control-skill-upkeep/control-clockwork through one pull request. It is not placed in the hub or handed to /corrections:codify.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Places the lesson in the ## Gotchas of features/weekly-timesheet-export/README.md",
+        "Does not place it in the hub or another feature file",
+        "Ships it on control-skill-upkeep/control-clockwork with the outcome changed"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "lesson-every-feature-goes-to-hub-gotchas",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Both passes already ran. A /verification:confirm report handed in one lesson: on the first page load of a new browser session a cookie banner covers the bottom of the page and swallows clicks, so a drive must dismiss it first. The live pass saw it at the start of all four features. Nothing else differs.",
+      "expected_output": "The lesson goes once in a ## Gotchas section of the hub, .claude/skills/control-clockwork/SKILL.md, not into each feature file. The outcome is changed and the edit ships on control-skill-upkeep/control-clockwork through one pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Places the lesson in the hub's ## Gotchas",
+        "Does not copy it into each feature file",
+        "Ships it on control-skill-upkeep/control-clockwork with the outcome changed"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "lesson-not-about-the-app-left-for-codify",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Both passes already ran; every feature drove as written. A /verification:confirm report handed in one lesson: agents in this repository keep staging the generated dist/ folder, and it should never be committed.",
+      "expected_output": "The lesson is not about a feature or a drive step, so nothing is written into the control skill. The report leaves it for /corrections:codify, and the outcome is clean with no upkeep commit or pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes the lesson into no control skill file",
+        "Names /corrections:codify as where the lesson goes",
+        "Reports the outcome clean and opens no pull request"
+      ]
+    }
+  ]
+}

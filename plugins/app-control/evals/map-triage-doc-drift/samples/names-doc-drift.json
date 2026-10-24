@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Doc drift: the export works at /timesheets/export, so I would correct features/weekly-timesheet-export/README.md and ship it on control-skill-upkeep/control-clockwork.",
+      "why": "names the doc drift class"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Product regression: /reports/timesheet returns 404, so the entry stays and the failure goes to the report.",
+      "why": "calls a moved route a regression"
+    }
+  ]
+}

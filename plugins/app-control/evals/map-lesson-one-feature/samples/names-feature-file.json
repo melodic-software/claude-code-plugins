@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The lesson goes in the Gotchas of .claude/skills/control-clockwork/features/weekly-timesheet-export/README.md: wait for Export to enable before clicking. It is doc drift, so the outcome is changed and it ships on control-skill-upkeep/control-clockwork.",
+      "why": "names the one feature's file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The lesson goes in the hub's Gotchas in .claude/skills/control-clockwork/SKILL.md so every drive sees it.",
+      "why": "places a one-feature lesson in the hub"
+    }
+  ]
+}

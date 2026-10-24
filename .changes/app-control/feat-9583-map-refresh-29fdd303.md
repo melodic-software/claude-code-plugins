@@ -1,0 +1,7 @@
+---
+bump: minor
+---
+
+### Added
+
+- `/app-control:map refresh` keeps a control skill in line with the app and ends `clean`, `changed` or `blocked`. It skips when nothing changed since the last clean pass on this host, refuses an attended-only control skill when unattended, runs a read-only source wave of one subagent per feature in waves of at most six, then drives every feature through `/app-control:drive` with Ready before the first drive and after any failed one, cleanup after each drive and every evidence path checked after cleanup. Each difference is triaged as doc drift (corrected), driver gap (fixed in `cli/` and shipped only after a live re-drive, never by loosening a floor) or product regression (left as written and reported, or sent to `/bugs:write`, never put in the pull request). Edits stay inside the control skill's directory and go out on `control-skill-upkeep/<skill slug>`, from the default branch, merged into and never rebased, through at most one pull request; an existing `feature-map-upkeep/<slug>` branch is reported, not adopted. A legacy testing feature map at any path, or a control skill's flat feature files, is converted to the contract's folder layout in the same upkeep pull request, with the old files moved in that commit. Reauthored from the upkeep loop, its three live-pass invariants and its triage of pstack's `maintain-verification-skill` ([cursor/plugins](https://github.com/cursor/plugins), MIT).
