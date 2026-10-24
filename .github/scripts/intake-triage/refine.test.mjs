@@ -574,6 +574,28 @@ describe("split", () => {
     assert.equal(splitBody(body, "- [ ] ", [2], 70), "- [ ] Tests pass.\n- Done-when item 2 needs a person, so it moved to #70.\n- [ ] Lint passes.");
   });
 
+  test("a nested task list splits when all but one top-level item moves, each nested line moving once", () => {
+    const laneBody = laneComment("none").body;
+    const body = ["- [ ] Open it on a Windows 11 host:", "  - [ ] title renders on a Windows 11 host", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+    const split = splitOf({ body, laneBody, labels: [NEEDS_DECISION], admission: refusal(body), rules, webHosts });
+    assert.equal(split.count, 4);
+    assert.deepEqual(
+      split.items.map(({ n }) => n),
+      [1, 2, 3],
+    );
+    assert.deepEqual(validateOutput({ ...SPLIT, split: [3, 1, 2] }, new Set(), split).split, [3, 1, 2]);
+    assert.deepEqual(movedTexts(body, "- [ ] ", [1, 2, 3]), ["- [ ] Open it on a Windows 11 host:\n  - [ ] title renders on a Windows 11 host", "- [ ] Run it on a Windows 11 host."]);
+    assert.equal(splitBody(body, "- [ ] ", [1, 2, 3], 70), "- Done-when items 1, 2, 3 need a person, so they moved to #70.\n- [ ] Tests pass.");
+  });
+
+  test("no split moves a nested task-list line the lane can perform", () => {
+    const laneBody = laneComment("none").body;
+    const only = ["- [ ] Open it on a Windows 11 host:", "  - [ ] title renders"].join("\n");
+    assert.equal(splitOf({ body: only, laneBody, labels: [NEEDS_DECISION], admission: refusal(only), rules, webHosts }), null, "nothing would be left for the lane");
+    const runnable = ["- [ ] Tests pass.", "- [ ] Open the brief on a Windows 11 host:", "  - [ ] title renders", "- [ ] Lint passes."].join("\n");
+    assert.equal(splitOf({ body: runnable, laneBody, labels: [NEEDS_DECISION], admission: refusal(runnable), rules, webHosts }), null, "item 3 would move unasked");
+  });
+
   test("a body edited while the child was filed keeps the edit and the hold", async () => {
     const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP) });
     let reads = 0;

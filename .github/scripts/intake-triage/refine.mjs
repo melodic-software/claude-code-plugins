@@ -8,9 +8,9 @@
 // verdict's `Flags:` line names `intent` (no exact outcome), or the body has
 // no unquoted task list line (no checkable criteria). Splits: not thin, the
 // verdict raised no flag, the lanes App's own `status: needs-decision` holds
-// it, and some but not all of its done-when items are ones a lane run cannot
-// perform (admit.mjs unrunnableCriteria, the check that held it); the context
-// then carries those items as `split`. It refines only an open
+// it, and some of its done-when items are ones a lane run cannot perform
+// (admit.mjs unrunnableCriteria, the check that held it) while at least one
+// item stays once they move; the context then carries those items as `split`. It refines only an open
 // issue whose author is a listed human or the lanes App, that no person holds
 // (`needs-human`), whose one intake lane comment this run wrote, and that the
 // lanes App has not refined before (the loop guard). The context holds the
@@ -40,7 +40,8 @@
 // issue's body, replacing those items with one plain line linking the child,
 // so admission reads the rest. It splits only when admission's comment
 // refused the issue for those items alone; an item's deeper-indented lines
-// move with it. A retry reuses a child the App already filed for the issue
+// move with it, so every task-list line nested under a moved item must be one
+// the lane cannot perform too. A retry reuses a child the App already filed for the issue
 // with the same items (on the issue's timeline), so it files one.
 //
 // Model text is data: each field is rendered on one line, with `<`, `[`, `]`,
@@ -114,10 +115,15 @@ export function isThin({ body, laneBody }) {
   return { thin: reasons.length > 0, reasons };
 }
 
+// The lines the moved items (1-based numbers) own: each one's own line and
+// its deeper-indented lines, nested task-list lines included.
+const ownedLines = (items, moved) => new Set(items.flatMap(({ line, more }, index) => (moved.includes(index + 1) ? [line, ...more] : [])));
+
 // The split a held issue gets, or null: it is at `status: needs-decision`,
-// the verdict raised no flag, some but not all done-when items are ones a
-// lane run cannot perform, and `admission`, the lanes App's admission
-// comment, refused it for those items and nothing else. {count, items:
+// the verdict raised no flag, some done-when items are ones a lane run cannot
+// perform, every task-list line they own is one too, at least one item lies
+// outside them, and `admission`, the lanes App's admission comment, refused
+// it for those items and nothing else. {count, items:
 // [{n, kind, text}]}, each text the item's first line, whole. Who set the
 // label and wrote the comment is checked apart. Pure.
 export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) {
@@ -127,7 +133,12 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
   const items = taskItems(body, rules["task-list"]);
   const unrunnable = unrunnableCriteria(body, rules["task-list"], webHosts);
   const { found } = unrunnable;
-  if (found.length === 0 || found.length === items.length || admission !== `${ADMIT_MARKER}\n${refusalText(unrunnableReason(unrunnable))}`) {
+  const moved = found.map(({ n }) => n);
+  const owned = ownedLines(items, moved);
+  // A nested task-list line the lane can perform would move unasked; with
+  // none, an item stays exactly when one is not moved.
+  const carried = items.some(({ line }, index) => owned.has(line) && !moved.includes(index + 1));
+  if (found.length === 0 || carried || found.length === items.length || admission !== `${ADMIT_MARKER}\n${refusalText(unrunnableReason(unrunnable))}`) {
     return null;
   }
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
@@ -353,24 +364,21 @@ export function childBody(number, texts) {
 }
 
 // The moved items, each its first line from the task-list prefix on and its
-// deeper-indented lines after it, as one text per item. Pure.
+// deeper-indented lines after it, as one text per item; an item nested under
+// another moved item is already in that one's text. Pure.
 export function movedTexts(body, taskList, moved) {
   const lines = String(body).split("\n");
   const items = taskItems(body, taskList);
-  return moved.map((n) => [lines[items[n - 1].line].trimStart(), ...items[n - 1].more.map((index) => lines[index])].join("\n"));
+  return moved
+    .filter((n) => !moved.some((m) => m !== n && items[m - 1].more.includes(items[n - 1].line)))
+    .map((n) => [lines[items[n - 1].line].trimStart(), ...items[n - 1].more.map((index) => lines[index])].join("\n"));
 }
 
 // The issue's body with the moved task-list items taken out, their
 // deeper-indented lines with them: the first one's line becomes a plain list
 // line linking the child, the others go. Pure.
 export function splitBody(body, taskList, moved, child) {
-  // Every line a moved item owns, a nested task-list line under it included.
-  const gone = new Set();
-  taskItems(body, taskList).forEach(({ line, more }, index) => {
-    if (moved.includes(index + 1)) {
-      [line, ...more].forEach((at) => gone.add(at));
-    }
-  });
+  const gone = ownedLines(taskItems(body, taskList), moved);
   let linked = false;
   return String(body)
     .split("\n")
