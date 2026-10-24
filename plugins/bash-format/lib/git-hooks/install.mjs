@@ -553,22 +553,56 @@ function remoteSnippet(remote) {
   return [...lines, "    configs:", `      - ${remote.config}`].join("\n");
 }
 
-// The ref of the `remotes:` entry whose git_url is exactly the plugin's and
-// whose configs name its config: "" when that entry names no ref, null when no
-// entry matches. A comment or another host naming the same path matches nothing.
+// The lefthook config's `remotes` entries as { git_url, ref, configs }: YAML
+// list items in any key order, TOML [[remotes]] tables, or JSON. Comments are
+// skipped, so a comment naming the URL is no entry.
+function lefthookRemotes(file, text) {
+  const unquote = (s) => s.replace(/[ \t]+#.*$/, "").trim().replace(/^(["'])(.*)\1$/, "$2");
+  if (/\.jsonc?$/.test(file)) {
+    try {
+      const remotes = JSON.parse(text.replace(/^[ \t]*\/\/.*$/gm, "")).remotes;
+      return Array.isArray(remotes) ? remotes : [];
+    } catch {
+      return [];
+    }
+  }
+  if (file.endsWith(".toml")) {
+    return text
+      .split(/^[ \t]*\[\[remotes\]\][ \t]*$/m)
+      .slice(1)
+      .map((table) => {
+        const body = table.split(/^[ \t]*\[/m)[0];
+        const val = (key) => new RegExp(`^[ \\t]*${key}[ \\t]*=(.*)$`, "m").exec(body)?.[1];
+        const list = /^[ \t]*configs[ \t]*=[ \t]*\[([^\]]*)\]/m.exec(body)?.[1] ?? "";
+        const ref = val("ref");
+        return { git_url: unquote(val("git_url") ?? ""), ref: ref && unquote(ref), configs: [...list.matchAll(/["']([^"']+)["']/g)].map((m) => m[1]) };
+      });
+  }
+  const block = /^remotes:[ \t]*(?:#.*)?\n((?:[ \t-].*(?:\n|$)|\n)*)/m.exec(text)?.[1] ?? "";
+  const indent = /^([ \t]*)-/m.exec(block)?.[1] ?? "";
+  return block
+    .split(new RegExp(`^${indent}-[ \\t]+`, "m"))
+    .slice(1)
+    .map((item) => {
+      const lines = item.split("\n");
+      const val = (key) => {
+        const line = lines.find((l) => new RegExp(`^[ \\t]*${key}:`).test(l));
+        return line === undefined ? undefined : unquote(line.slice(line.indexOf(":") + 1));
+      };
+      const configs = lines.map((l) => /^[ \t]*-[ \t]+(.*)$/.exec(l)?.[1]).filter((v) => v !== undefined);
+      return { git_url: val("git_url"), ref: val("ref"), configs: configs.map(unquote) };
+    });
+}
+
+// The ref of the remotes entry whose git_url is exactly the plugin's and whose
+// configs name its config: "" when that entry names no ref, null when none does.
 function remoteRef(info, plugin) {
   const { git_url: url, config } = plugin.remote;
-  const unquote = (s) => s.trim().replace(/^(["'])(.*)\1$/, "$2");
-  const text = readText(path.join(info.top, lefthookFile(info, "shared"))) ?? "";
-  for (const chunk of text.split(/^[ \t]*-[ \t]+git_url:/m).slice(1)) {
-    const [first, ...rest] = chunk.split("\n");
-    const end = rest.findIndex((l) => /^\S/.test(l) || /^[ \t]*-[ \t]+git_url:/.test(l));
-    const body = end === -1 ? rest : rest.slice(0, end);
-    if (unquote(first) !== url || !body.some((l) => unquote(l.replace(/^[ \t]*-[ \t]+/, "")) === config)) continue;
-    const ref = body.map((l) => /^[ \t]*ref:(.*)$/.exec(l)?.[1]).find((v) => v !== undefined);
-    return ref === undefined ? "" : unquote(ref.replace(/[ \t]#.*$/, ""));
-  }
-  return null;
+  const file = lefthookFile(info, "shared");
+  const entry = lefthookRemotes(file, readText(path.join(info.top, file)) ?? "").find(
+    (r) => r?.git_url === url && Array.isArray(r.configs) && r.configs.includes(config),
+  );
+  return entry ? String(entry.ref ?? "") : null;
 }
 
 function remoteFetched(info, plugin) {
