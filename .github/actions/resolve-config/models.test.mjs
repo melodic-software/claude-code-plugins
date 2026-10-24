@@ -271,11 +271,11 @@ test("live config: an issue with no Complexity keeps the routed profile and runs
   assert.equal(slot.models["max-turns"], 113);
 });
 
-test("live config: an issue with no fields runs at 113 turns for 50 minutes", () => {
+test("live config: an issue with no fields runs at 113 turns for 65 minutes", () => {
   const slot = liveIssueSlot({});
   assert.equal(slot.applies, true);
   assert.equal(slot["issue-dimensions"], "small/medium/known");
-  assert.equal(slot["timeout-minutes"], 50);
+  assert.equal(slot["timeout-minutes"], 65);
   assert.equal(slot.models["max-turns"], 113);
 });
 

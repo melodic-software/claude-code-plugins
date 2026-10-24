@@ -149,7 +149,7 @@ jobs:
       # the base config (models.issue-dimensions). The run job takes the same
       # dimensions for its turn cap rather than reading the fields again, so a
       # field set while it waits in its slot cannot outgrow the timeout.
-      # Without issue-dimensions the timeout is 25 minutes. A config that
+      # Without issue-dimensions the timeout is 40 minutes, a 25-minute leg. A config that
       # cannot be resolved, or an option it does not map, fails this job.
       - name: Resolve the issue dimensions' timeout
         id: dimensions
@@ -203,19 +203,22 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
+      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-api-key: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # Whether resolve-issue handed off, read from this run's jobs through the
-  # Actions API, never from a resolve-issue output: its run job runs the
-  # model's commands, so its handed-off output is forgeable. A call handed
-  # off when the broker allowed it, its run job succeeded, and its scan job
-  # never ran: the read runner skips the scan job only on a handoff (a run
-  # that stopped on stale workflow files, an earlier run's work or a reuse
-  # still runs it). A forged handoff starts one subscription run at most. A
+  # Actions API, never from a resolve-issue output. A call handed off when
+  # the broker allowed it, its run job succeeded, and its scan job never ran:
+  # the read runner skips the scan job only on its run job's handed-off
+  # output (a run that stopped on stale workflow files, an earlier run's work
+  # or a reuse still runs it). That output comes from the key-presence step,
+  # which runs before any model turn, and run-claude-cli's handoff, which it
+  # sets after restoring the step files, but the run job runs the model's
+  # commands and could still forge it, so a forged handoff starts one
+  # subscription run at most. A
   # failed read fails this job and starts no second call; report-outcome
   # then reports the first call, which uploaded no outcome.
   resolve-issue-handoff:
@@ -271,7 +274,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
+      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}

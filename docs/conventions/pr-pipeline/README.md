@@ -1920,7 +1920,7 @@ timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-d
 work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
 then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
 its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
-timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
+timeout is 40 minutes. The launcher's leg gets the timeout less 15 minutes, for the steps around it. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A

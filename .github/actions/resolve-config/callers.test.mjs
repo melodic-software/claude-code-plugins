@@ -716,7 +716,7 @@ test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dime
   // The org fields are readable only with issues: read.
   assert.equal(jobs["pick-slot"].permissions.issues, "read");
   assert.equal(jobs["pick-slot"].outputs["timeout-minutes"], "${{ steps.dimensions.outputs.timeout-minutes }}");
-  assert.equal(jobs["resolve-issue"].with["timeout-minutes"], "${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}");
+  assert.equal(jobs["resolve-issue"].with["timeout-minutes"], "${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}");
   // The run takes the dimensions whose timeout it got, not fields set while it waited.
   assert.equal(jobs["pick-slot"].outputs["issue-dimensions"], "${{ steps.dimensions.outputs.issue-dimensions }}");
   assert.equal(jobs["resolve-issue"].with["issue-dimensions"], "${{ needs.pick-slot.outputs.issue-dimensions }}");
@@ -5708,8 +5708,8 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
 
 // The launcher step's timeout and its leg's come from the run job's: 10 and
 // 15 minutes under it. PR callers pass 60, which keeps the 50-minute step and
-// 45-minute leg they ran on; the issue lane's 25-minute fallback gives 15
-// and 10.
+// 45-minute leg they ran on; the issue lane's 65-minute small size gives
+// its 50-minute leg.
 test("pr-run-activity-read.yml: the launcher step and leg timeouts derive from the run job's timeout", () => {
   const launch = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.id === "launch");
   assert.equal(launch.env.TIMEOUT, "${{ inputs.timeout-minutes }}");
@@ -5726,7 +5726,7 @@ test("pr-run-activity-read.yml: the launcher step and leg timeouts derive from t
     return { status: result.status, outputs };
   };
   assert.deepEqual(run("60").outputs, { "step-minutes": "50", "leg-minutes": "45", "key-name": "ISSUE_LANE_CLAUDE_API_KEY" });
-  assert.deepEqual(run("25").outputs, { "step-minutes": "15", "leg-minutes": "10", "key-name": "ISSUE_LANE_CLAUDE_API_KEY" });
+  assert.deepEqual(run("65").outputs, { "step-minutes": "55", "leg-minutes": "50", "key-name": "ISSUE_LANE_CLAUDE_API_KEY" });
   assert.deepEqual(run("100").outputs, { "step-minutes": "90", "leg-minutes": "85", "key-name": "ISSUE_LANE_CLAUDE_API_KEY" });
   for (const timeout of ["15", "0", "", "6x"]) assert.notEqual(run(timeout).status, 0, JSON.stringify(timeout));
 });
