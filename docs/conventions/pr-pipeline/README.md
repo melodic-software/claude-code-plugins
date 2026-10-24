@@ -1691,7 +1691,7 @@ them on every `pull_request` run, contract-only runs included:
   fails too: the kill switch pauses review and never waives it. Once it is off, a person on the
   trusted-actor list re-runs all jobs of that review run, and its completion re-runs ci-status;
   the admin bypass stays the break-glass. Only runs from this repository's head count, never a
-  fork's run on the same commit. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
+  fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) matches

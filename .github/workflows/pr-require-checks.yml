@@ -4006,6 +4006,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
@@ -4067,6 +4068,14 @@ jobs:
             fi
             echo "The author ($AUTHOR_ID) is one no review lane reviews, and no trust-gate path changed; the review lanes are not required."
             exit 0
+          fi
+          # A fork's head gets no review run here, and the lookup below reads
+          # only runs from this repository's head, so name the fork up front.
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            while read -r file check; do
+              echo "::error::'$check' did not run on $HEAD_SHA (head repository: ${HEAD_REPO:-unknown}): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
+            done <<<"$lanes"
+            exit 1
           fi
           failed=0
           while read -r file check; do

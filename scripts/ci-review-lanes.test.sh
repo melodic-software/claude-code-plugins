@@ -161,7 +161,7 @@ expect() {
   rm -f "$TMP_ROOT/pr-files.json"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
-    AUTHOR_ID="${AUTHOR_ID-153232337}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -200,6 +200,12 @@ JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed 
 expect "a newer run from a fork's head with the same commit does not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
 RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)")"
 expect "a fork's run alone leaves the lane missing" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
+RUNS_CODE="$(runs "$(run 10 $CODE)")"
+# A fork pull request is named as a fork before any run is read, never as missing.
+RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)")"
+HEAD_REPO=fork/r expect "a fork pull request fails as a fork, not as missing" 1 \
+  "::error::'$SEC_CHECK' did not run on $HEAD (head repository: fork/r): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review" "is missing"
+if grep -q '/actions/' "$TMP_ROOT/log"; then fail "a fork pull request's run read the review runs"; else ok "a fork pull request's run reads no review run"; fi
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 RUNS_CODE="$(runs)"
