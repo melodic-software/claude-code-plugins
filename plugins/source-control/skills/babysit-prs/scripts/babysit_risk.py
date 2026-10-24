@@ -204,13 +204,15 @@ class RiskResult:
 # (the trusted-actor list and the check that enforces it), who owns review
 # (code owners), what code is pulled in from elsewhere (submodules), and the
 # code the token broker runs from main in its signer process (resolve-config,
-# owner decision Q51).
+# owner decision Q51), with check-kill-switch, whose writeOutputs both of those
+# actions write their verdicts through.
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
     "**/CODEOWNERS",
     "**/.gitmodules",
     ".github/actions/resolve-config/**",
+    ".github/actions/check-kill-switch/**",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

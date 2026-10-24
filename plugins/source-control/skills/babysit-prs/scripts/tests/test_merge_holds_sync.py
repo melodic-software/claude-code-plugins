@@ -3,11 +3,16 @@
 run here under node) cover the merge gate's HIGH floor, cost paths and
 manifest review, so a lane pull request native auto-merge merges cannot skip
 them. The gate's other cost reasons (Pulumi project files, workflow and
-pipeline lines) are not mirrored: the lanes App's token cannot push a
-workflow file, and the repository's pipeline config is a hold path.
+pipeline lines) are not mirrored: the lanes App's token never carries the
+`workflows` permission (request-lane-token checks the grant is contents,
+pull-requests, issues and at most actions), so no lanes App push changes a
+workflow file. That covers lanes App pushes only: another identity with
+write access can still push a workflow change after auto-merge is armed.
+The repository's pipeline config is a hold path.
 
 - The floor: every `babysit_risk.HIGH_FLOOR` glob is a hold path glob
-  (`HOLD_PATH_FLOOR`).
+  (`HOLD_PATH_FLOOR`), and `pathHold` holds the paths `glob_match` matches
+  over that floor, case variants included.
 - The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
   paths matched (`glob_match` folds case and covers what sits under a glob).
 - The manifests: `manifestChanges` finds what `babysit_risk._manifest_changes`
@@ -22,6 +27,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -34,17 +40,37 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_policy as policy
 import babysit_risk as risk
 
-MODULE = (
-    pathlib.Path(__file__).resolve().parents[6]
-    / ".github/scripts/pr-merge/merge-holds.mjs"
+ROOT = pathlib.Path(__file__).resolve().parents[6]
+MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
+# The floor actions' entry points: every module they load is code main runs
+# with their verdict, so the floor holds it too.
+FLOOR_ENTRIES = (
+    ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
+    ".github/actions/resolve-config/resolve-config.mjs",
 )
+IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']""")
+
+
+def import_closure(entries: tuple[str, ...]) -> list[str]:
+    seen: set[str] = set()
+    todo = [ROOT / entry for entry in entries]
+    while todo:
+        file = todo.pop().resolve()
+        name = file.relative_to(ROOT).as_posix()
+        if name in seen:
+            continue
+        seen.add(name)
+        for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
+            todo.append(file.parent / spec)
+    return sorted(seen)
 NODE = """
-import { COST_PATHS, HOLD_PATH_FLOOR, costHold } from %s;
+import { COST_PATHS, HOLD_PATH_FLOOR, costHold, pathHold } from %s;
 const paths = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
   costPaths: COST_PATHS,
   floor: HOLD_PATH_FLOOR,
   cost: paths.map((path) => costHold([path], null) !== null),
+  held: paths.map((path) => pathHold([path], []) !== null),
 }));
 """
 NODE_MANIFEST = """
@@ -75,6 +101,25 @@ PATHS = [
     "deploy/main.bicep.md",
     "docs/a.md",
 ]
+FLOOR_PATHS = [
+    ".github/actions/resolve-config/resolve.mjs",
+    ".github/actions/Resolve-Config/resolve.mjs",
+    ".github/CODEOWNERS",
+    ".github/codeowners",
+    "CODEOWNERS",
+    "docs/CodeOwners",
+    ".gitmodules",
+    "vendor/.GitModules",
+    ".github/standards/trusted-actors/trusted-actors.json",
+    ".github/Standards/trusted-actors/trusted-actors.json",
+    ".github/actions/check-trusted-trigger/action.yml",
+    ".github/actions/Check-Trusted-Trigger/action.yml",
+    "Docs/Conventions/PR-Pipeline.yaml",
+    ".github/actions/other/action.yml",
+    ".github/workflows/x.yml",
+    "docs/CODEOWNERS.md",
+    "plugins/foo/.claude-plugin/plugin.json",
+]
 
 
 def module(paths: list[str]) -> dict[str, Any]:
@@ -102,8 +147,24 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(False, answer["cost"])
 
     def test_the_floor_covers_the_gate_s(self) -> None:
-        floor = module([])["floor"]
-        self.assertTrue(set(risk.HIGH_FLOOR) <= set(floor), floor)
+        answer = module(FLOOR_PATHS)
+        self.assertTrue(set(risk.HIGH_FLOOR) <= set(answer["floor"]), answer["floor"])
+        for path, held in zip(FLOOR_PATHS, answer["held"], strict=True):
+            with self.subTest(path):
+                self.assertEqual(
+                    held, any(risk.glob_match(g, path) for g in answer["floor"])
+                )
+        self.assertIn(True, answer["held"])
+        self.assertIn(False, answer["held"])
+
+    def test_the_floor_holds_what_its_actions_load(self) -> None:
+        files = import_closure(FLOOR_ENTRIES)
+        self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
+        answer = module(files)
+        for path, held in zip(files, answer["held"], strict=True):
+            with self.subTest(path):
+                self.assertTrue(held)
+                self.assertTrue(any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR))
 
     def test_the_manifest_review_is_the_gate_s(self) -> None:
         js = manifest_changes([change for _, change, _ in MANIFEST_CASES])
@@ -158,6 +219,16 @@ MANIFEST_CASES = [
     _case("experimental.monitors removed", PLUGIN_BASE, True, before=_key('"experimental": {"monitors": []}')),
     _case("hooks reordered", _key('"hooks": {"b": 1, "a": [1, 2]}'), False, before=_key('"hooks": {"a": [1, 2], "b": 1}')),
     _case("hooks 1 to 1.0", _key('"hooks": {"t": 1.0}'), True, before=_key('"hooks": {"t": 1}')),
+    _case("an integer past int_max_str_digits", _key('"size": ' + "1" * 4301), True),
+    _case("hooks true to null", _key('"hooks": null'), True, before=_key('"hooks": true')),
+    _case("hooks true to false", _key('"hooks": false'), True, before=_key('"hooks": true')),
+    _case(
+        "hooks 20-digit integer, last digit",
+        _key('"hooks": {"t": 12345678901234567891}'),
+        True,
+        before=_key('"hooks": {"t": 12345678901234567890}'),
+    ),
+    _case("hooks -0.0 to 0.0", _key('"hooks": {"t": 0.0}'), True, before=_key('"hooks": {"t": -0.0}')),
     _case("hooks false to 0", _key('"hooks": 0'), True, before=_key('"hooks": false')),
     _case(
         "a plugin added",

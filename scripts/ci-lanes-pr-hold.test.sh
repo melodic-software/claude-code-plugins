@@ -293,8 +293,8 @@ for held in CODEOWNERS docs/CODEOWNERS .gitmodules .github/standards/trusted-act
   STUB_FILES="[[\"$held\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the merge gate's HIGH floor holds $held" 1 3 "it changes $held, a hold path"
 done
-# The rest of .github merges on the review lanes (owner direction
-# 2026-10-23); the lanes App's token cannot push a workflow file.
+# The rest of .github merges on the review lanes; the lanes App's token never
+# carries the workflows permission, so no lanes App push changes a workflow.
 for path in .github/workflows/x.yml .github/scripts/pr-merge/merge-holds.mjs .github/actions/other/action.yml; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "$path is no hold path" 0 3 "no hold path"

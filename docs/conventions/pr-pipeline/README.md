@@ -753,9 +753,9 @@ and its queued entries leave; two different identities, or an unreadable head co
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
   `merge.diff-check.denied-paths` and matched case-insensitively. It holds only the takeover set
   (owner direction 2026-10-23): `.github/standards/trusted-actors/**`,
-  `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`, and
+  `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`,
   `.github/actions/resolve-config/**`, whose code the token broker runs from main in its signer
-  process. Agent permission config, package manifests and workflows merge on the review lanes. A
+  process, and `.github/actions/check-kill-switch/**`, whose output writer both actions use. Agent permission config, package manifests and workflows merge on the review lanes. A
   diff that touches a floor path scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it

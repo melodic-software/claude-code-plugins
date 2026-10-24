@@ -384,7 +384,7 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     pull(3, { files: Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` })) }),
     pull(4, { files: [{ filename: "docs/held.md" }] }),
     pull(5),
-    // The rest of .github merges on the review lanes (owner direction 2026-10-23).
+    // The rest of .github merges on the review lanes.
     pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-merge/merge-holds.mjs" }] }),
   ]);
   assert.deepEqual(writes, [

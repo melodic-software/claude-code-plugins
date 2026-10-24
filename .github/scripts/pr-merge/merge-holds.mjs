@@ -156,6 +156,7 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   "**/CODEOWNERS",
   "**/.gitmodules",
   ".github/actions/resolve-config/**",
+  ".github/actions/check-kill-switch/**",
 ]);
 
 // babysit_risk.is_manifest_path: a plugin manifest or the marketplace
@@ -226,7 +227,12 @@ function parseManifest(text) {
     const token = /^(?:true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(text.slice(at))[0];
     at += token.length;
     if (!/^-?\d/.test(token)) return { text: token };
-    if (!/[.eE]/.test(token)) return { text: `${BigInt(token)}` };
+    if (!/[.eE]/.test(token)) {
+      // json.loads refuses an integer past int_max_str_digits (4300), so the
+      // gate reads that side as malformed.
+      if (token.replace("-", "").length > 4300) throw new Error("integer too long");
+      return { text: `${BigInt(token)}` };
+    }
     const number = Number(token);
     return { text: `${Object.is(number, -0) ? "-0" : String(number)}.f` };
   };
@@ -373,10 +379,12 @@ export const fromRest = (row) => ({
   body: String(row?.body ?? ""),
 });
 
-// Whether `path` matches the hold-path `glob`. path.matchesGlob has no `dot`
-// option, so `*` and `**` skip a segment opening with "."; both sides mark
-// such a segment alike first, so `.github/**` holds `.github/a/.x` too.
-const undot = (text) => String(text).replaceAll(/(^|\/)\./g, "$1\u0001");
+// Whether `path` matches the hold-path `glob`, case-folded as glob_match
+// folds it: a lane host on a case-insensitive filesystem reads `.github/codeowners`
+// as CODEOWNERS. path.matchesGlob has no `dot` option, so `*` and `**` skip a
+// segment opening with "."; both sides mark such a segment alike first, so
+// `.github/**` holds `.github/a/.x` too.
+const undot = (text) => String(text).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001");
 export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), undot(glob));
 
 // Why the head's changed `files` hold it, or null. Null `holdPaths` or
@@ -522,7 +530,7 @@ export function pathLifters(items, humans, head) {
 // owner's `decision` lifts.
 export function holds(body, items, files, holdPaths, lifters = [], decision = null, manifest = null) {
   const reasons = [];
-  const pathReason = pathHold(files, holdPaths) ?? manifest;
+  const pathReason = [pathHold(files, holdPaths), manifest].filter(Boolean).join("; ") || null;
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
     reasons.push(
@@ -628,7 +636,9 @@ export async function withContents(github, repo, changes, base, head) {
     if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
       throw new Error(`${path} at ${ref} did not read`);
     }
-    return Buffer.from(file.content, "base64").toString("utf8");
+    // Strict, as the gate's decode("utf-8"): invalid UTF-8 throws, so it
+    // holds, and a BOM stays, so JSON.parse refuses it as json.loads does.
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.from(file.content, "base64"));
   };
   return Promise.all(
     changes.map(async (change) => {
@@ -680,9 +690,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     }
     const manifest = manifestHold(await withContents(github, repo, changes, env.BASE_SHA, head));
     const reasons = holds(body, items, files, holdPaths, lifters, decision, manifest);
-    const held = pathHold(files, holdPaths) ?? manifest;
+    const held = [pathHold(files, holdPaths), manifest].filter(Boolean).join("; ") || null;
     if (held && lifters.length && Array.isArray(holdPaths)) {
-      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
+      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path or manifest hold (${escape(held)}).`);
     }
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);
