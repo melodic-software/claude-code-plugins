@@ -80,6 +80,58 @@ assert_eq "push-branch.sh: the bare origin's head ref equals local HEAD" \
 (cd "$GREEN" && PATH="$FORGE_PATH" git fetch origin) >/dev/null 2>&1
 assert_exit "git fetch origin succeeds through the helper" 0 "$?"
 
+# The babysit cycle's commands. THREADED has an open PR with two unresolved review threads.
+THREADED="$TEST_TMPDIR/threaded"
+make_forge threaded --open --thread T_one --thread T_two
+CALLS="$THREADED/.git/eval-forge/calls.jsonl"
+
+refs_before=$(git -C "$THREADED" for-each-ref --format='%(refname) %(objectname)'
+  git -C "$THREADED/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname) %(objectname)')
+out=$(run_gh "$THREADED" pr merge 7 --squash --delete-branch 2>&1)
+assert_exit "pr merge: exit 0" 0 "$?"
+assert_eq "pr merge: the call record holds the PR number and arguments" \
+  '{"command":"pr merge","pr":7,"args":["7","--squash","--delete-branch"]}' "$(cat "$CALLS")"
+refs_after=$(git -C "$THREADED" for-each-ref --format='%(refname) %(objectname)'
+  git -C "$THREADED/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname) %(objectname)')
+assert_eq "pr merge: no ref changed, in the working repository or the fixture origin" "$refs_before" "$refs_after"
+run_gh "$THREADED" pr merge 99 >/dev/null 2>&1
+assert_exit "pr merge: another PR number is refused" 1 "$?"
+assert_eq "pr merge: a refused call leaves no record" 1 "$(wc -l <"$CALLS" | tr -d ' ')"
+
+# shellcheck disable=SC2016 # GraphQL variables, not shell expansions
+THREADS_QUERY='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved}}}}}'
+out=$(run_gh "$THREADED" api graphql -f "query=$THREADS_QUERY" -F o=eval-fixture -F r=app -F n=7 \
+  --jq '.data.repository.pullRequest.reviewThreads.nodes | map(.id + ":" + (.isResolved | tostring)) | join(",")' 2>&1)
+assert_eq "api graphql: review threads come from the fixture state" "T_one:false,T_two:false" "$out"
+
+# shellcheck disable=SC2016 # GraphQL variables, not shell expansions
+RESOLVE='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}'
+out=$(run_gh "$THREADED" api graphql -f "query=$RESOLVE" -f id=T_one 2>&1)
+assert_eq "api graphql: resolve-thread answers isResolved true" "true" "$(jq -r '.data.resolveReviewThread.thread.isResolved' <<<"$out")"
+assert_eq "api graphql: resolve-thread is recorded like a merge" \
+  '{"command":"resolve thread","pr":7,"args":["T_one"]}' "$(tail -n 1 "$CALLS")"
+out=$(run_gh "$THREADED" api graphql -f "query=$THREADS_QUERY" --jq '.data.repository.pullRequest.reviewThreads.nodes | map(.isResolved | tostring) | join(",")' 2>&1)
+assert_eq "api graphql: the resolved thread reads resolved afterwards" "true,false" "$out"
+run_gh "$THREADED" api graphql -f 'query=mutation{deleteRepository}' >/dev/null 2>&1
+assert_exit "api graphql: any other query is refused" 1 "$?"
+
+out=$(run_gh "$THREADED" api user --jq .login 2>&1)
+assert_eq "api user: serves the fixture login" "eval-fixture" "$out"
+
+out=$(run_gh "$THREADED" search prs --author eval-fixture --json number,title --jq '.[] | "\(.number) \(.title)"' 2>&1)
+assert_eq "search prs: serves the fixture pull request" "7 feat: x" "$out"
+
+out=$(run_gh "$THREADED" pr review 7 --approve --body ok 2>&1)
+assert_exit "pr review: exit 0" 0 "$?"
+assert_eq "pr review: the call is recorded" \
+  '{"command":"pr review","pr":7,"args":["7","--approve","--body","ok"]}' "$(tail -n 1 "$CALLS")"
+
+for cmd in "pr close 7" "repo list" "api repos/eval-fixture/app" "auth switch" "run download 1" "gist create"; do
+  # shellcheck disable=SC2086 # word splitting of the command words is intended
+  run_gh "$THREADED" $cmd >/dev/null 2>&1
+  assert_exit "unlisted command '$cmd' exits 1" 1 "$?"
+done
+
 echo
 if ((FAILED)); then
   echo "Results: $FAILED of $CASE_NUM failed"
