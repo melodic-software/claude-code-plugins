@@ -2,9 +2,10 @@
 # Gives a scaffolded repository an offline forge: a bare `origin` holding the base and head branches,
 # and a gh stand-in that serves one open draft pull request from them. Run it from a case's
 # scaffold.sh in the workspace, after the base and head branches exist:
-#   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--failing-check <name>]
+#   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--failing-check <name>] [--thread <id>]...
 # The pull request is a draft unless --open is given. --failing-check adds one failing check with
-# that name, which `pr checks` and the pull request's status rollup then report.
+# that name, which `pr checks` and the pull request's status rollup then report. Each --thread adds
+# one unresolved review thread with that id to what `gh api graphql` serves.
 #
 # origin's URL is https://github.com/eval-fixture/app.git, so push-branch.sh, which compares the
 # push remote's URL with the PR's head repository, accepts it as eval-fixture/app on github.com.
@@ -27,10 +28,14 @@ set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
 shift 4
-draft=true failing=""
+draft=true failing="" thread_ids=()
 while (($#)); do
   case "$1" in
     --open) draft=false ;;
+    --thread)
+      thread_ids+=("${2:?--thread needs a thread id}")
+      shift
+      ;;
     --failing-check)
       failing="${2:?--failing-check needs a check name}"
       shift
@@ -62,6 +67,16 @@ if [[ -n "$failing" ]]; then
 else
   echo '[]' >"$forge/checks"
 fi
+
+# Review threads the graphql read serves, one unresolved thread per --thread, and the call record
+# (pr merge, pr review, resolve thread) a grader reads.
+printf '%s\n' "${thread_ids[@]+"${thread_ids[@]}"}" | jq -Rnc '[inputs | select(length > 0) | {
+  id: ., isResolved: false, isOutdated: false, resolvedBy: null, originalStartLine: null, originalLine: 1,
+  comments: {totalCount: 1, pageInfo: {hasNextPage: false}, nodes: [{
+    author: {__typename: "User", login: "reviewer"}, body: "eval fixture review comment", path: "f",
+    url: "https://github.com/eval-fixture/app/pull/1#discussion_r1", createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z", databaseId: 1, diffHunk: "", originalCommit: {oid: "0"}}]}}]' >"$forge/threads"
+: >"$forge/calls.jsonl"
 
 git init -q --bare "$forge/eval-fixture/app.git"
 export PATH="$forge/bin:$PATH"

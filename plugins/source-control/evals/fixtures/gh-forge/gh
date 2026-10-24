@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
 # state install.sh wrote and never reaches a network or the real gh: any command it does not serve
-# exits 1 naming itself, so a run cannot touch GitHub through it. `pr update-branch` is refused on
+# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review` and the
+# resolve-thread mutation only append a line to calls.jsonl in the forge state. `pr update-branch` is refused on
 # purpose: the ready phase then takes its documented local-merge fallback, which the graders read.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
@@ -84,6 +85,14 @@ pr_doc() {
     }'
 }
 
+# Append one line to the call record a grader reads: the command, the PR number and the arguments.
+record() {
+  local what="$1"
+  shift
+  jq -nc --arg c "$what" --arg pr "$PR_NUMBER" '{command: $c, pr: ($pr | tonumber), args: $ARGS.positional}' \
+    --args -- "$@" >>"$forge/calls.jsonl"
+}
+
 cmd="${1:-}" sub="${2:-}"
 case "$cmd $sub" in
   "pr view")
@@ -162,6 +171,61 @@ case "$cmd $sub" in
     # The acting-login read push-branch.sh makes to tell a lane from an operator; an operator login.
     [[ "$*" == *"viewer{login}"* ]] || refuse "$@"
     echo "eval-fixture"
+    ;;
+  "pr merge")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr merge "$@"
+    # Recorded for a grader; no ref moves, in the fixture or outside it.
+    record "pr merge" "$@"
+    echo "✓ Merged pull request eval-fixture/app#$PR_NUMBER"
+    ;;
+  "pr review")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr review "$@"
+    record "pr review" "$@"
+    echo "✓ Reviewed pull request eval-fixture/app#$PR_NUMBER"
+    ;;
+  "api graphql")
+    shift 2
+    # parse skips the -f and -F flags and keeps their key=value values in args.
+    parse "$@"
+    gql=""
+    thread_id=""
+    for a in "${args[@]}"; do
+      case "$a" in
+        query=*) gql="${a#query=}" ;;
+        id=*) thread_id="${a#id=}" ;;
+      esac
+    done
+    if [[ "$gql" == *resolveReviewThread* ]]; then
+      jq -e --arg id "$thread_id" 'any(.[]; .id == $id)' "$forge/threads" >/dev/null || refuse api graphql "$@"
+      record "resolve thread" "$thread_id"
+      jq -c --arg id "$thread_id" 'map(if .id == $id then .isResolved = true else . end)' "$forge/threads" >"$forge/threads.new"
+      mv "$forge/threads.new" "$forge/threads"
+      emit '{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}'
+    elif [[ "$gql" == *reviewThreads* ]]; then
+      emit "$(jq -c '{data: {repository: {pullRequest: {reviewThreads: {pageInfo: {hasNextPage: false, endCursor: null}, nodes: .}}}}}' "$forge/threads")"
+    else
+      refuse api graphql "$@"
+    fi
+    ;;
+  "api user")
+    shift 2
+    parse "$@"
+    emit '{"login":"eval-fixture","type":"User"}'
+    ;;
+  "search prs")
+    shift 2
+    parse "$@"
+    doc="[$(pr_doc | jq -c '. + {repository: {name: "app", nameWithOwner: "eval-fixture/app"}, state: "open"}')]"
+    if [[ -n "$json" ]]; then
+      json_list="$json"
+      json=""
+      doc=$(jq -c --arg f "$json_list" 'map(. as $d | reduce ($f | split(",")[]) as $k ({}; .[$k] = $d[$k]))' <<<"$doc")
+    fi
+    emit "$doc"
     ;;
   "--version "*) echo "gh version 0.0.0-eval-fixture" ;;
   *) refuse "$@" ;;
