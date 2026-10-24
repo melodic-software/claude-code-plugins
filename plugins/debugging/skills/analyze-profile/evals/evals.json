@@ -40,6 +40,20 @@
         "Says where the source map would be found, or asks the user for it",
         "Does NOT invent an original file name or line number"
       ]
+    },
+    {
+      "id": 4,
+      "name": "thread-dump-names-blocked-threads-at-file-line",
+      "prompt": "/debugging:analyze-profile evals/fixtures/inventory-sync.pyspy-dump.txt. Our inventory sync stopped responding and never exits. Someone captured this py-spy dump while it hung; the source it ran is evals/fixtures/inventory/sync.py.txt (saved with a .txt suffix). Why is it stuck?",
+      "expected_output": "Reads the dump as text with no SQLite conversion, names stock-writer waiting on ledger_lock at sync.py:16 in post_ledger_entry while holding stock_lock taken in reserve_stock, and ledger-reconciler waiting on stock_lock at sync.py:27 in adjust_stock while holding ledger_lock taken in reconcile_ledger, calls it a lock-order cycle, notes the main thread waits in join at sync.py:42, edits no file, and names a second dump as the capture that would settle it.",
+      "files": ["evals/fixtures/inventory-sync.pyspy-dump.txt", "evals/fixtures/inventory/sync.py.txt"],
+      "expectations": [
+        "Names the stock-writer thread waiting at sync.py:16 in post_ledger_entry on ledger_lock",
+        "Names the ledger-reconciler thread waiting at sync.py:27 in adjust_stock on stock_lock",
+        "Says each thread holds the lock the other waits for (stock_lock from reserve_stock, ledger_lock from reconcile_ledger)",
+        "Does NOT run trace_to_sqlite.py or build a SQLite database",
+        "Does NOT edit any file"
+      ]
     }
   ]
 }
