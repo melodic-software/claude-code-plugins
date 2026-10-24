@@ -81,23 +81,22 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   else
     fail "$file lost its job id, publish: comments, hold-label or v0.65.6 pin"
   fi
-  paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
-  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then
-    ok "$file holds on the four trust-gate paths"
+  if grep -q '^      hold-paths:' "$caller"; then
+    fail "$file passes hold-paths: a changed path alone must hold nothing"
   else
-    fail "$file hold-paths are '$paths'"
+    ok "$file passes no hold-paths"
   fi
 done
 
-# The exempt-author patterns are the callers' hold-paths in bash form: `**/X`
-# is X or */X, a trailing `**` is `*`.
-want_patterns="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$ROOT/.github/workflows/pr-review-hosted.yml" |
-  sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
+# An exempt author's pull request, which no review lane reads, still fails on
+# the four trust-gate paths in bash form: `**/X` is X or */X, a trailing `**`
+# is `*`.
+want_patterns="$(printf '%s\n' '.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' CODEOWNERS '*/CODEOWNERS' .gitmodules '*/.gitmodules' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
-  ok "the exempt-author hold patterns are the callers' hold-paths"
+  ok "the exempt-author hold patterns are the four trust-gate paths"
 else
-  fail "exempt-author hold patterns '$got_patterns' are not the callers' hold-paths '$want_patterns'"
+  fail "exempt-author hold patterns '$got_patterns' are not the four trust-gate paths '$want_patterns'"
 fi
 
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS

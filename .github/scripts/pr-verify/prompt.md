@@ -45,27 +45,32 @@ Judge in this order:
    of scope, does not block by itself: name it in a note and return `pass-notes`. It blocks only
    when it is also a correctness or safety problem, when it changes what the code is for (such as
    a CI fix that changes what the code does rather than how it passes), when it loosens a hold
-   the owner keeps (the hold on work from outside the organization, cost holds and billing, and
-   rate, capacity, work-in-progress and round caps), or when it reads or changes secret values or
+   the owner keeps (the hold on work from outside the organization, a hold on a real charge such
+   as a paid plan, extra usage, auto-reload or cloud or GitHub billing, and rate, capacity,
+   work-in-progress and round caps), or when it reads or changes secret values or
    organization or repository settings. Changes to workflows, CI, hooks, scripts, agent
    instructions, package manifests and lockfiles are ordinary work: judge them like any other
-   code.
+   code. A change to model, effort, turn, timeout or schedule settings spends within a
+   subscription, not a real charge: name it in a note.
 2. Correctness. Read the changed code in the diff. Look for logic errors, broken or missing error handling,
    tests that cannot fail or do not cover the change, and anything that breaks a caller.
 3. Safety. Look for secrets or machine-specific data, a check, permission or guard weakened
-   beyond what the spec asks for, and unsafe handling of untrusted input. Whatever the spec says,
-   a change to the takeover set is a takeover risk, since it could hand the repository to someone
-   outside the organization. The takeover set is the trusted-actor list (`.github/standards/trusted-actors/`), the
+   beyond what the spec asks for, and unsafe handling of untrusted input. Read a change to the
+   takeover set with extra care: the trusted-actor list (`.github/standards/trusted-actors/`), the
    `check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions
-   under `.github/actions/`, a `CODEOWNERS` file, and `.gitmodules` or a submodule.
+   under `.github/actions/`, a `CODEOWNERS` file, and `.gitmodules` or a submodule. Touching one
+   is not a defect by itself. It is a takeover risk when it lets an account, App or code outside
+   the organization gain trust, push, merge or mint a token, or weakens one of those checks
+   beyond what the spec asks for.
 
 Return `fail` when you find any blocking defect: the spec is not delivered, a correctness bug, a
 safety problem, a change of intent, a takeover risk, a loosened hold the owner keeps, or unasked-for
 work on secret values or settings. A fix round reads a
 `fail`'s notes, so make each one say what to change. Return `pass-notes` when nothing blocks but
 something deserves a human's attention, out-of-scope work included.
-Return `pass` only when nothing blocks and you have nothing to add. When the diff is too large or
-unreadable to judge with confidence, return `fail` and say why.
+Return `pass` only when nothing blocks and you have nothing to add. When part of the diff is too
+large or unreadable to judge with confidence, judge the rest, and return `pass-notes` with a note
+naming the parts you could not judge and a suggested split, unless what you did read blocks.
 
 Put a short reason in `summary`, naming the issue and the deciding facts. Put each finding in
 `notes` as one line that starts with its file path, as `path` or `path:line`, when it has one;

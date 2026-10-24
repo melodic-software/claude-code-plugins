@@ -108,7 +108,7 @@ nothing else):
 2. Change has no security-relevant surface after reading the diff. A diff that deletes, narrows,
    or softens a standing instruction is not eligible for this skip until it has been read under
    the instruction-surface lens below: it reads as prose-only while it can remove a control. A
-   change to a `trust-gate` path ("Reporting") is never eligible for it either
+   change to a takeover path ("Criteria") is never eligible for it either
 3. This head already has a successful security review that still applies
 
 ## Criteria
@@ -123,6 +123,15 @@ and access-control gaps, injection surfaces (command, SQL, path, template), and
 unsafe handling of tokens / secrets / credentials. Tag each finding with a
 severity (CRITICAL / IMPORTANT / SUGGESTION). Only a CRITICAL finding holds the merge for the
 owner; the others flag it.
+
+**Takeover paths get extra scrutiny.** A path match alone holds nothing; this lane's finding is
+what decides. Read every changed line under these paths as a possible takeover of the repository:
+`.github/standards/trusted-actors/**`, `.github/actions/check-trusted-trigger/**`,
+`.github/actions/check-kill-switch/**`, `.github/actions/request-lane-token/**`,
+`.github/actions/resolve-config/**`, any `CODEOWNERS` file, and `.gitmodules` or a submodule
+pointer. A change that lets an account, App or code outside the trusted set gain trust, push,
+merge or mint a token, or that weakens one of these checks beyond what the linked issue asks, is
+CRITICAL. Say in the summary that you read each such path, with or without a finding.
 
 GitHub Actions hardening is zizmor's advisory lane: dangerous triggers such as
 `pull_request_target` or `workflow_run` running untrusted code with secrets,
@@ -230,9 +239,6 @@ findings or files:
 
 - `critical-security`: one or more CRITICAL findings. Each keeps its `severity: CRITICAL` line and
   its place in `critical-findings: <n>`; the hold adds to neither count.
-- `trust-gate`: the change touches `.github/standards/trusted-actors/**`,
-  `.github/actions/check-trusted-trigger/**`, a `CODEOWNERS` file or a `.gitmodules` file, with or
-  without a finding.
 
 An IMPORTANT or SUGGESTION finding, a `manifest <field>: flag` line short of CRITICAL, and every
 other finding is a normal finding and never sets `hold`. With no `hold` field in the schema,

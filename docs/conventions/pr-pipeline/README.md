@@ -1454,11 +1454,14 @@ is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-chec
 judges a person's pull request at each ready head, before it is idle. A pull request closing no
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
-problem, changes what the code is for, or loosens a hold the owner keeps; then it fails the
+problem, changes what the code is for, or loosens a hold the owner keeps (a hold on a real
+charge, not subscription spend such as a model, effort or schedule change); then it fails the
 verdict, as does unasked-for work on secret values or organization or repository settings.
 Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are judged
-like any other code; a change to the takeover set (the merge gate's HIGH floor) fails whatever
-the spec says. `any` judges every author's. Any other
+like any other code; a change to the takeover set (the merge gate's HIGH floor) is read with extra
+care and fails only when it lets someone outside the organization gain trust or weakens a check
+beyond what the spec asks. A diff too large to judge whole passes with notes naming the parts
+not judged. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
@@ -1660,15 +1663,14 @@ and any change holds. An attended gate run reads both fresh. Without the variabl
 ## Review-lane holds
 
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
-`hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
+`hold-label: needs-human`, and no `hold-paths`, to ci-workflows' `pr-review-cli.yml`. Their
 status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
-comment when the review returns a hold, or when a changed file (or a renamed file's old path)
-matches a hold path, which holds as `trust-gate` whatever the review says:
-
-- `.github/standards/trusted-actors/**`
-- `.github/actions/check-trusted-trigger/**`
-- `**/CODEOWNERS`
-- `**/.gitmodules`
+comment when the review returns a hold: `cost` (the code lane, only for a real charge: a runner
+that is not free or infrastructure as code) or `critical-security`. A changed path alone holds
+nothing. The security lane reads the takeover paths (the trusted-actor list, the
+`check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions,
+`CODEOWNERS`, `.gitmodules`) with extra scrutiny, and a change there that lets someone outside the
+trusted set gain trust is a CRITICAL finding, which holds.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -1689,8 +1691,9 @@ them on every `pull_request` run, contract-only runs included:
   that failed does not. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
-  author id, except that their PR fails when a changed file (or a renamed file's old path) matches
-  a hold path, since no lane reviews it to hold it; a person merges it. A draft is exempt.
+  author id, except that their PR fails when a changed file (or a renamed file's old path) is
+  under `.github/standards/trusted-actors/`, `.github/actions/check-trusted-trigger/`, or is a
+  `CODEOWNERS` or `.gitmodules` file, since no lane reviews it; a person merges it. A draft is exempt.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head

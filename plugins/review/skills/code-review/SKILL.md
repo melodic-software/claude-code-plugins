@@ -220,17 +220,16 @@ HEAD SHA for locations no changed line can carry.
 schema defines it, only for these classes, each named by its criterion, with a reason naming the
 files and what they change:
 
-- `cost`: the change adds or raises model or API spend: a new model call or agent run, a raised
-  model, effort, turn or timeout limit on one, a new schedule or trigger that starts one, a runner
-  that is not free, or a resource added or resized in infrastructure as code (Pulumi, Terraform,
-  Bicep). It is the class `/source-control:babysit-prs` rates `cost-review-required`.
-- `trust-gate`: the change touches `.github/standards/trusted-actors/**`,
-  `.github/actions/check-trusted-trigger/**`, a `CODEOWNERS` file or a `.gitmodules` file.
+- `cost`: the change can start a real charge: a runner that is not free, or a resource added or
+  resized in infrastructure as code (Pulumi, Terraform, Bicep). Spend inside a subscription or
+  prepaid plan (a new model call or agent run, a raised model, effort, turn or timeout limit, a
+  new schedule or trigger that starts one) is a normal finding naming the spend, never a hold.
 - `critical-security`: a security finding of CRITICAL severity, only where no security lane runs
   ("Gotchas").
 
-A hold is not a finding. `cost` and `trust-gate` belong to the change, so return them with zero
-findings too, and no hold adds to the findings count. Every other flag, a `manifest <field>: flag`
+A hold is not a finding. `cost` belongs to the change, so return it with zero findings too, and no
+hold adds to the findings count. A change to the trusted-actor list, a trust check, a `CODEOWNERS`
+or a `.gitmodules` file is reviewed like any other change and never holds by its path alone. Every other flag, a `manifest <field>: flag`
 line and every blocking or advisory finding included, is a normal finding and never sets `hold`.
 With no `hold` field in the schema, return none. Pointer: the field's shape is the output schema
 in the compose step of

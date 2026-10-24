@@ -21,7 +21,9 @@
 //   flaky test the diff did not cause spends no model run. Which failure the
 //   diff caused is not decidable here, so every first failure gets the one
 //   re-run; a real one fails again and pr-unblock's fix-ci takes it.
-// - Lane: a pr-verify run. Its trigger check trusts a re-run github-actions[bot]
+// - Lane: a pr-verify run whose first attempt ended as above or failure (a
+//   judgment that broke, or a run the kill switch stopped, which fails). Its
+//   trigger check trusts a re-run github-actions[bot]
 //   starts only through this workflow's record of it, the artifact
 //   rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
 //   plan step names each record, the workflow uploads them, and only then does
@@ -82,6 +84,9 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RECORD = /^reconcile-rerun-[1-9][0-9]{0,19}-2-[0-9a-f]{40}$/;
 export const LOST = new Set(["cancelled", "timed_out", "startup_failure"]);
+// A recorded lane run is also lost when it failed: a judgment that broke after
+// it started, or a run the kill switch stopped, leaves the head with no verdict.
+export const LANE_LOST = new Set([...LOST, "failure"]);
 // Workflows with no trigger-actor check, which a github-actions[bot] re-run passes.
 export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-require-checks.yml",
@@ -102,13 +107,12 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // starts it again, so its failed jobs are re-run once. Adding the label is
 // idempotent, so the re-run is safe whatever the failure was.
 export const INTAKE_LABEL = ".github/workflows/intake-label-needs-triage.yml";
-// The lane step that judges the head. A run that reached it may have judged,
-// and whoever can cancel it (actions: write) can stop or delete the verdict
-// before it lands, so a re-run would let them have the same head judged again:
-// it is left alone. So is a run none of whose jobs started: GitHub cancels a
-// pending run when a newer one for the same PR head queues behind it, and that
-// newer run judges the head.
-export const JUDGE_STEP = "Judge the pull request";
+// A lost lane run is re-run once whether or not its judge step started:
+// attempt 2 is never re-run, a FAIL uploaded before the loss still counts, and
+// the lanes App token, which pushes lane commits, cannot cancel a run (it has
+// no actions: write). A run none of whose jobs started is left alone: GitHub
+// cancels a pending run when a newer one for the same PR head queues behind
+// it, and that newer run judges the head.
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
@@ -118,7 +122,7 @@ export const LANE_RUN_PAGES = 5;
 // never listed: the lost conclusions, and every status short of completed (the
 // runs a re-run may have put in flight). Earlier statuses are read first, so a
 // run that starts between two queries is still listed by the later one.
-export const LANE_LIST_STATUSES = [...LOST, "requested", "pending", "waiting", "queued", "in_progress"];
+export const LANE_LIST_STATUSES = [...LANE_LOST, "requested", "pending", "waiting", "queued", "in_progress"];
 
 class RateLimited extends Error {}
 
@@ -162,7 +166,14 @@ function ciRunsByWorkflow(runs) {
 const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isFailedIntake = (r, since) =>
   r.path === INTAKE_LABEL && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
-const isLostLane = (r, since) => r.event === "workflow_run" && r.head_branch === "main" && SHA.test(r.head_sha ?? "") && isLost(r, since);
+const isLostLane = (r, since) =>
+  r.event === "workflow_run" &&
+  r.head_branch === "main" &&
+  SHA.test(r.head_sha ?? "") &&
+  r.status === "completed" &&
+  LANE_LOST.has(r.conclusion) &&
+  r.run_attempt === 1 &&
+  Date.parse(r.created_at) >= since;
 // The checks run whose re-run starts pr-verify again: a pr-require-checks
 // pull_request run that passed on its first attempt.
 const isPassedChecks = (r) =>
@@ -208,8 +219,7 @@ const byMergeCriticality = (a, b) => Number(b.auto_merge != null) - Number(a.aut
 const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
 
 // Why the run's first attempt must not be re-run, or undefined when it may be:
-// a job started JUDGE_STEP, or no job started any step. Step data, unlike an
-// artifact, cannot be deleted. An unreadable listing throws.
+// no job started any step. An unreadable listing throws.
 async function holdReason(call, repo, runId) {
   const listing = await call("GET", `/repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -218,9 +228,6 @@ async function holdReason(call, repo, runId) {
   const started = listing.jobs
     .flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []))
     .filter((s) => s?.conclusion != null && s.conclusion !== "skipped");
-  if (started.some((s) => s.name === JUDGE_STEP)) {
-    return "after its judge step started";
-  }
   return started.length === 0 ? "before any of its jobs started" : undefined;
 }
 
@@ -499,7 +506,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
         try {
           const held = await holdReason(call, repo, r.id);
           if (held) {
-            say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}; a re-run needs a person`);
+            say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}; a newer run judges the head, so it is not re-run`);
           } else {
             unpublished.push(r);
           }
