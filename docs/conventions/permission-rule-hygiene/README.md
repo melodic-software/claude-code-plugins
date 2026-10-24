@@ -220,6 +220,18 @@ root cause in [anthropics/claude-code#68066](https://github.com/anthropics/claud
 a macOS/zsh report whose own log shows healthy and degraded sessions minutes apart). Behavior on
 macOS and Linux is unverified at scale. Probe there rather than reading this as platform-specific.
 
+**Re-survey on Claude Code 2.1.309 (Windows 11, Git Bash, 2026-10-24): not reproduced.** 8 of 8
+fresh sessions loading a throwaway plugin with one `bin/` executable resolved its bare name and
+carried that `bin/` on `PATH` ([#6760](https://github.com/melodic-software/claude-code-plugins/issues/6760)).
+At the July corpus's healthy rate, 8 of 8 would come up about once in 10,000 runs. This is evidence that
+the 2.1.284 PATH change closed the gap on this platform, not proof of the upstream mechanism. The
+plugin was loaded with `--plugin-dir`; marketplace-installed delivery, the case originally measured,
+could not be re-probed because no installed plugin ships a `bin/`. A
+session's shell snapshot no longer outlives the session, so the #843 corpus sweep can no longer be
+repeated: re-survey with fresh sessions instead. The guidance below stands. No plugin in this
+repository ships a `bin/` today, and the bundled-path form works whether or not the gap recurs.
+**Recheck:** a plugin here adds a `bin/`, or a report of a bare plugin command missing from `PATH`.
+
 **Per-session absence is what makes the bare name unusable, not permanent non-delivery.** An earlier
 revision of this section read the gap as categorical ("no plugin directory of any kind is on
 `PATH`"); that came from sampling only degraded sessions. The operational conclusion is unchanged and
