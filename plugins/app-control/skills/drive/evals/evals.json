@@ -207,6 +207,34 @@
         "Does NOT run py-spy or sudo",
         "Does NOT run ps, pgrep or pidof, or read /proc, for the pid"
       ]
+    },
+    {
+      "id": 16,
+      "name": "plugin-shipped-control-skill-resolves",
+      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. The repository has no .claude/skills folder. The available skills include harness-ops:control-claude-code, and when loaded the Skill tool reports its base directory as /plugins/harness-ops/skills/control-claude-code, which holds features/mods/toast/README.md.",
+      "expected_output": "Resolves the plugin-shipped harness-ops:control-claude-code skill, loads it through the Skill tool, reads features/mods/toast/README.md under the reported base directory, names the skill and its plugin in the report, and does not fall back to the run skill or a project-type recipe.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Uses harness-ops:control-claude-code as the control skill and loads it through the Skill tool",
+        "Reads the feature from features/mods/toast/README.md under the base directory the Skill tool reported",
+        "Names the skill and the harness-ops plugin it came from in the report",
+        "Does NOT write the line 'No control skill: drive used' or use the run skill or a project-type recipe"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "project-control-skill-wins-name-clash",
+      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. The repository has its own project skill at .claude/skills/control-claude-code/SKILL.md, and the available skills also include harness-ops:control-claude-code from a plugin. Nobody is available to answer questions.",
+      "expected_output": "Treats the two same-named skills as one candidate, uses the project control-claude-code skill, resolves the feature under .claude/skills/control-claude-code/features/, does not load harness-ops:control-claude-code, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Uses the project skill at .claude/skills/control-claude-code as the control skill",
+        "Resolves mods/toast under .claude/skills/control-claude-code/features/",
+        "Does NOT load harness-ops:control-claude-code through the Skill tool",
+        "Does NOT stop with a list of candidates or ask the user which skill to use"
+      ]
     }
   ]
 }

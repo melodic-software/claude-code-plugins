@@ -39,21 +39,33 @@ keep going.
 
 ## Find the control skill
 
-1. Look for project skills named `control-<app>` (`.claude/skills/control-*/SKILL.md`). One match:
-   use it. Several: the `<app>` argument picks one; without it, an interactive run asks and an
-   unattended run stops and prints the list.
+1. List the candidates in this order, keyed by `control-<app>`:
+   - **Project:** a skill named `control-<app>` among the available skills, or a
+     `.claude/skills/control-<app>/SKILL.md` file. Its base directory is that skill's folder.
+   - **Plugin:** a skill named `<plugin>:control-<app>` among the available skills. Load it through
+     the Skill tool and take its base directory from what the tool reports.
+
+   A project and a plugin skill with the same `control-<app>` name are one candidate: the project
+   skill wins and the plugin one is not loaded. One candidate: use it. Several: the `<app>`
+   argument picks one; when it is absent or two plugins ship the same name, an interactive run
+   asks and an unattended run stops and prints the list.
 2. None: use the bundled `run` skill when it resolves in this session, else the project-type recipe
    in [reference/project-types.md](reference/project-types.md), found from the repository's own docs
    and manifests. The report then carries the line `No control skill: drive used <fallback>.`
 3. Read no settings file. The shape a control skill follows is
-   [control-skill.md](../../reference/control-skill.md).
-4. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`:
-   `features/<id>/README.md` first, then the legacy `features/<id>.md`. Neither exists: say so and
-   stop that feature rather than guess a file.
+   [control-skill.md](../../reference/control-skill.md). The report names the skill used and where
+   it came from (project or the plugin's name).
+4. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
+   the chosen skill's base directory: `features/<id>/README.md` first, then the legacy
+   `features/<id>.md`. Neither exists: say so and stop that feature rather than guess a file.
 
 The bundled `run` skill and its deferral to a project skill are upstream specifics. Read them live
 at <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
-that section changes what `run` does or how it picks a project skill).
+that section changes what `run` does or how it picks a project skill). How plugin skills are named
+beside a same-named project skill, and where their files live, is upstream too: read
+<https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name> and the
+`${CLAUDE_SKILL_DIR}` row of <https://code.claude.com/docs/en/skills#available-string-substitutions>
+(as of 2026-10-24; recheck when either changes plugin skill naming or location).
 
 ## Rules
 
