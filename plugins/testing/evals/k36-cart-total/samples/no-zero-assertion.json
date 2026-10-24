@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "import unittest\n\nfrom cart import Cart\n\n\nclass TotalTest(unittest.TestCase):\n    def test_empty_cart_totals_zero(self):\n        self.assertEqual(Cart().total_cents(), 0)\n\n    def test_coupon_unknown_raises(self):\n        with self.assertRaises(ValueError):\n            Cart().apply_coupon(\"NOPE\")\n\n    async def test_async_style(self):\n        self.assertTrue(True is True)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "why": "every test method asserts"
+    },
+    {
+      "answer": "def test_x(self):\n    assert Cart().total_cents() == 0\n",
+      "why": "plain assert statement"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import unittest\n\nfrom cart import Cart\n\n\nclass TotalTest(unittest.TestCase):\n    def test_empty_cart_totals_zero(self):\n        self.assertEqual(Cart().total_cents(), 0)\n\n    def test_total_runs(self):\n        Cart().total_cents()\n",
+      "why": "the last test method has no assertion"
+    },
+    {
+      "answer": "class T(unittest.TestCase):\n    def test_runs(self):\n        c = Cart()\n        c.add(\"pen\", 100, 2)\n        c.total_cents()\n\n    def test_value(self):\n        self.assertEqual(Cart().total_cents(), 0)\n",
+      "why": "a middle test method has no assertion"
+    },
+    {
+      "answer": "class T(unittest.IsolatedAsyncioTestCase):\n    async def test_runs(self):\n        await something()\n\n    def test_value(self):\n        self.assertEqual(Cart().total_cents(), 0)\n",
+      "why": "an assertion-free test followed by an async definition"
+    }
+  ]
+}
