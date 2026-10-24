@@ -205,7 +205,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --- Config cascade (.claude/ai-slop.json; user-global -> team -> overlay) ------
+# --- Config cascade (user-global -> team -> overlay; YAML, legacy JSON) ----------
 
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [[ -z "$REPO_ROOT" ]]; then
@@ -220,13 +220,27 @@ USER_CFG="${HOME:-/nonexistent}/.claude/ai-slop.json"
 CFG_LAYERS=()
 [[ -f "$USER_CFG" ]] && CFG_LAYERS+=("$USER_CFG")
 if [[ "$(config_root_classify "$REPO_ROOT")" == repo ]]; then
-  for _cfg in "$REPO_ROOT/.claude/ai-slop.json" "$REPO_ROOT/.claude/ai-slop.local.json"; do
+  # The team layer is <home>/ai-slop.yaml and the personal layer
+  # <home>/ai-slop.local.yaml (ADR 0075). The legacy .claude/ai-slop.json and
+  # .claude/ai-slop.local.json are read only when the YAML beside them is absent.
+  CONV_HOME="docs/conventions"
+  if _home="$(bash "$SCRIPT_DIR/../../../lib/resolve-convention-home.sh" --root "$REPO_ROOT" 2>/dev/null)" && [[ -n "$_home" ]]; then
+    CONV_HOME="$_home"
+  fi
+  for _name in ai-slop ai-slop.local; do
+    _cfg="$REPO_ROOT/$CONV_HOME/$_name.yaml"
+    [[ -f "$_cfg" ]] || _cfg="$REPO_ROOT/.claude/$_name.json"
     [[ -f "$_cfg" ]] && ! config_root_paths_same "$_cfg" "$USER_CFG" && CFG_LAYERS+=("$_cfg")
   done
 fi
 
+# jq reads the legacy JSON layers; the YAML layers need no jq.
 HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
+HAVE_JSON_LAYER=0
+for _cfg in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
+  [[ "$_cfg" == *.json ]] && HAVE_JSON_LAYER=1
+done
 
 VOCAB="$DEFAULT_VOCAB"
 PHRASE_ADD=()
@@ -250,7 +264,7 @@ threshold_for() {
   printf '%s' "${v:-$default}"
 }
 
-if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
+if [[ "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   cascade::list EXCLUDED_GLOBS excluded_paths "${CFG_LAYERS[@]}"
   cascade::list EM_DASH_ALLOWED_GLOBS em_dash_allowed_paths "${CFG_LAYERS[@]}"
   _disabled=()
@@ -277,8 +291,9 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   cascade::list PHRASE_ADD phrase_add "${CFG_LAYERS[@]}"
   PHRASE_ADD_LAYER="$cascade_list_layer"
   cascade::list PHRASE_REMOVE phrase_remove "${CFG_LAYERS[@]}"
-elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  echo "Note: jq not found; config layers present but unread, using defaults" >&2
+fi
+if [[ "$HAVE_JQ" -eq 0 && "$HAVE_JSON_LAYER" -eq 1 ]]; then
+  echo "Note: jq not found; JSON config layers present but unread, using defaults" >&2
 fi
 
 VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
@@ -355,18 +370,39 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   else
     for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
   fi
+  # Every Effective line ends with "[layer: <file>]" naming the layer that
+  # supplied the value, or "[layer: default]" when no layer did.
   for entry in "${DENSITY_RULES[@]}"; do
     IFS='|' read -r slug key default _ <<<"$entry"
-    echo "Effective: threshold_${key}=$(threshold_for "$key" "$default") (rule $slug)"
+    _val=""
+    cascade::scalar _val ".thresholds.${key}" ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
+    echo "Effective: threshold_${key}=${_val:-$default} (rule $slug) [layer: ${cascade_scalar_layer:-default}]"
   done
-  echo "Effective: vocab=$VOCAB"
-  echo "Effective: model_phrases=${PHRASES_ERE:-"(empty roster; rule inert)"}"
-  echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-}"
-  echo "Effective: em_dash_allowed_paths=${EM_DASH_ALLOWED_GLOBS[*]:-}"
+  _scratch=()
+  cascade::list _scratch vocab_add ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
+  _vocab_add_layer="$cascade_list_layer"
+  cascade::list _scratch vocab_remove ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
+  _vocab_remove_layer="$cascade_list_layer"
+  echo "Effective: vocab=$VOCAB [layer: add ${_vocab_add_layer:-default}, remove ${_vocab_remove_layer:-default}]"
+  echo "Effective: model_phrases=${PHRASES_ERE:-"(empty roster; rule inert)"} [layer: ${PHRASE_ADD_LAYER:-default}]"
+  cascade::list _scratch excluded_paths ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
+  echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-} [layer: ${cascade_list_layer:-default}]"
+  cascade::list _scratch em_dash_allowed_paths ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
+  _em_dash_layer="${cascade_list_layer:-default}"
+  echo "Effective: em_dash_allowed_paths=${EM_DASH_ALLOWED_GLOBS[*]:-} [layer: $_em_dash_layer]"
+  # Re-read the per-rule map so cascade_slug_layer holds this call's layers.
+  declare -A _slug_scratch=()
+  cascade::slug_map _slug_scratch rule_allowed_paths ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
   for slug in "${!RULE_ALLOWED_GLOBS[@]}"; do
-    echo "Effective: rule_allowed_paths[$slug]=${RULE_ALLOWED_GLOBS[$slug]# }"
+    _slug_layer="${cascade_slug_layer[$slug]:-}"
+    if [[ "$slug" == rule-em-dash ]]; then
+      _slug_layer="${_slug_layer:+$_slug_layer, }$_em_dash_layer"
+      _slug_layer="${_slug_layer%, default}"
+    fi
+    echo "Effective: rule_allowed_paths[$slug]=${RULE_ALLOWED_GLOBS[$slug]# } [layer: ${_slug_layer:-default}]"
   done
-  echo "Effective: disabled_rules=${DISABLED_RULES:-}"
+  cascade::list _scratch disabled_rules ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
+  echo "Effective: disabled_rules=${DISABLED_RULES:-} [layer: ${cascade_list_layer:-default}]"
   exit 0
 fi
 

@@ -165,8 +165,9 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   the root is skipped; the script names each on stderr. Pass a skipped link's target as an
   explicit path.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
-- The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
-  `CLAUDE_CONFIG_DIR` is set, and its project layers come from the session's project directory.
+- The detector's user config layer is the JSON file named for the plugin under `$HOME/.claude`
+  even when `CLAUDE_CONFIG_DIR` is set, and its project layers come from the session's project
+  directory.
 - A path target such as `~/.claude` covers every `*.md` beneath it.
 
 ### Non-repository targets
@@ -280,7 +281,7 @@ fixed, suppressed, reverted, remaining.
 
 ## Configuration
 
-`.claude/ai-slop.json` per the config-cascade convention; keys, layers, and the in-file marker
+`docs/conventions/ai-slop.yaml` per the config-cascade convention; keys, layers, and the in-file marker
 forms are documented in the plugin README and managed by `/ai-slop:setup`. The detector's
 `--show-config` names the layer supplying each effective value. When a whole document
 legitimately needs em dashes, the remedy is `em_dash_allowed_paths` or the file marker, never a
