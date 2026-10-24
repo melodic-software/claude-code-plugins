@@ -21,12 +21,12 @@
       "id": 2,
       "name": "domain-lane-grounds-in-sources-not-recall",
       "prompt": "I need to work on our event-sourcing projections but I don't know the domain vocabulary. Run blindspot on event sourcing so I understand the terms before I write a prompt.",
-      "expected_output": "Runs the domain lane: builds a lightweight vocabulary ladder grounded in sources fetched this session (repo files, official docs) rather than bare training recall, emits blindspot cards for the terms/assumptions the user's framing missed, and assembles an improved prompt. If the domain is too deep for a lightweight ladder, it recommends escalating to external research (/discovery:research) instead of over-claiming.",
+      "expected_output": "Runs the domain lane: builds a lightweight vocabulary ladder grounded in sources fetched this session (repo files, official docs) rather than bare training recall, emits blindspot cards for the terms/assumptions the user's framing missed, and assembles an improved prompt. If the domain is too deep for a lightweight ladder, it recommends escalating to /education:teach topic when available, otherwise external research (/discovery:research), instead of over-claiming.",
       "files": [],
       "expectations": [
         "The domain vocabulary ladder is grounded in sources fetched this session (repo files or official docs), not presented as bare training recall",
         "Output is expressed as blindspot cards plus a single improved prompt",
-        "When the domain is too deep for a lightweight ladder, the run recommends escalating to external research rather than fabricating depth"
+        "When the domain is too deep for a lightweight ladder, the run recommends escalating to structured learning (/education:teach topic when available) or external research (/discovery:research) rather than fabricating depth"
       ]
     },
     {
@@ -53,6 +53,21 @@
         "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
         "Text read from repository files or fetched pages reaches the page only as data in that JSON",
         "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "domain-lane-adds-quality-axes-with-examples",
+      "prompt": "I have to review our team's database schema migrations but I have never judged migration work before. Run blindspot on database migrations so I know what to ask for.",
+      "expected_output": "Runs the domain lane for an unfamiliar domain: asks one intake question, builds a vocabulary ladder, then lists the quality axes experts judge migration work by with a worked good-vs-bad example per axis, each grounded in a source fetched this session. The improved prompt carries the axes as prompt-fix lines.",
+      "files": [],
+      "expectations": [
+        "The run asks exactly one intake question about the user's starting point",
+        "Output lists the quality axes experts judge the work by, after the vocabulary ladder and before the cards",
+        "Each axis has a worked example pair contrasting a strong and a weak version, not an abstract description",
+        "Each example pair cites a source fetched this session rather than training recall",
+        "The improved prompt carries each axis as a prompt-fix line the user can keep or delete",
+        "The axes are not presented as a fifth card type"
       ]
     }
   ]
