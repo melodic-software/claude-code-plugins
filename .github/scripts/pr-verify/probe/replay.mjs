@@ -366,6 +366,7 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
     humans: trusted.humans,
     verifyAuthors,
     laneIdentity,
+    laneAppId: trusted.logins.get(String(laneIdentity ?? "").toLowerCase()),
   });
   if (!resolved.proceed) {
     throw new Error(`${testCase.id}: resolvePull did not proceed (${resolved.reason})`);

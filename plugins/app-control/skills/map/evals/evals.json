@@ -1,0 +1,198 @@
+{
+  "skill_name": "map",
+  "evals": [
+    {
+      "id": 1,
+      "name": "run-recipe-named-not-written-into",
+      "prompt": "/app-control:map create clockwork. The repository has a project skill at .claude/skills/run-clockwork/SKILL.md that starts the Clockwork web app.",
+      "expected_output": "The control skill goes to .claude/skills/control-clockwork/. Its hub's Launch section names run-clockwork as the launch recipe by name and does not copy the recipe's steps. No file is created or edited under .claude/skills/run-clockwork/.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes the control skill under .claude/skills/control-clockwork/",
+        "The hub's Launch section names run-clockwork as the launch recipe",
+        "Creates or edits no file under .claude/skills/run-clockwork/"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "recorded-verify-skill-named",
+      "prompt": "/app-control:map create clockwork. The repository has no run-* skill, but /verify recorded .claude/skills/verify/SKILL.md at the repository root last week.",
+      "expected_output": "The hub's Launch section names .claude/skills/verify/SKILL.md as the launch recipe. The control skill is written to its own directory, never inside .claude/skills/verify/, and that file is left unchanged.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The hub's Launch section names .claude/skills/verify/SKILL.md as the launch recipe",
+        "Writes nothing inside .claude/skills/verify/"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-recipe-offers-generator",
+      "prompt": "/app-control:map create. The repository has no .claude/skills/run-* skill and no .claude/skills/verify/SKILL.md. The README says the app starts with `npm run dev` on port 5173.",
+      "expected_output": "With no launch recipe, the person is offered /run-skill-generator to record one, as a command they type. The hub's Launch section records the documented `npm run dev` command.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Offers /run-skill-generator to the person rather than running it unasked",
+        "The hub's Launch section records `npm run dev` as the start command"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "feature-file-slug",
+      "prompt": "/app-control:map create shop. Seed only the feature the settings page calls `Billing / Export!`.",
+      "expected_output": "The feature folder is features/billing-export/ with a README.md: the title lower-cased, each run of characters outside a-z0-9 replaced by one hyphen, leading and trailing hyphens dropped. The README has the six sections Parts, Sub-features, Entry points, Reset, Drive and Gotchas in that order.",
+      "files": [],
+      "expectations": [
+        "Writes the feature to features/billing-export/README.md",
+        "The README has exactly the six H2 sections Parts, Sub-features, Entry points, Reset, Drive and Gotchas, in that order"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "unsafe-location-refused",
+      "prompt": "/app-control:map create shop --dir .claude/skills/run-shop/features",
+      "expected_output": "The --dir value has a segment starting with run-, so it is refused: the report names --dir and the value. The run does not stop; the control skill goes to the default .claude/skills/control-shop/. Nothing is written under .claude/skills/run-shop/.",
+      "files": [],
+      "expectations": [
+        "Names --dir and .claude/skills/run-shop/features as refused",
+        "Continues and writes the control skill to .claude/skills/control-shop/",
+        "Writes nothing under .claude/skills/run-shop/"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "absolute-dotdot-verify-refused",
+      "prompt": "/app-control:map create shop --dir ../shared/control-shop. If that is refused, tell me whether /srv/maps/shop or tools/smoke-verify would have been accepted.",
+      "expected_output": "--dir ../shared/control-shop is refused because it contains .., and the run does not stop: the control skill goes to the default .claude/skills/control-shop/. /srv/maps/shop would be refused as absolute and tools/smoke-verify because a segment ends in verify.",
+      "files": [],
+      "expectations": [
+        "Refuses ../shared/control-shop because it contains ..",
+        "Says /srv/maps/shop would be refused as an absolute path",
+        "Says tools/smoke-verify would be refused because a segment ends in verify",
+        "Writes the control skill to .claude/skills/control-shop/"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "done-only-after-one-feature-passes",
+      "prompt": "/app-control:map create shop. The app builds and starts; you have written the hub and three feature folders.",
+      "expected_output": "Before reporting done, the skill invokes /app-control:drive on one seeded feature: launch, ready, sign in, drive, capture, cleanup. It then checks every evidence path exists and is not empty and that no process the run started is alive. Done is reported only when that run passes; a failure caused by the control skill is fixed and re-run, and a failure against a healthy app leaves the skill reported as written but unproven.",
+      "files": [],
+      "expectations": [
+        "Invokes /app-control:drive on one seeded feature before reporting done",
+        "Does not report done while that run has not passed",
+        "Includes drive's steps with their entry points and evidence paths in the report, or drive's blocked lines when it could not run"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "chrome-map-attended-only",
+      "prompt": "/app-control:map create intranet, driven with Claude in Chrome. The app needs the person's own single sign-on session.",
+      "expected_output": "The hub names Claude in Chrome as the tool that drives the person's own signed-in browser, and says `Attended runs only.`",
+      "files": [],
+      "expectations": [
+        "The hub names Claude in Chrome as the driving tool",
+        "The hub marks the control skill attended-only"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "broken-checkout-gap-report",
+      "prompt": "/app-control:map create shop. `npm run build` fails on this checkout with a missing module error.",
+      "expected_output": "The checkout does not build, so the skill stops before writing any file and reports the command, the tail of its output and what the person must fix.",
+      "files": [],
+      "expectations": [
+        "Stops with a report naming the failing build command",
+        "Writes no control skill file"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "long-slug-collision-stays-within-64",
+      "prompt": "/app-control:map create timesheets. Seed these two features: 'Export every approved weekly timesheet for the finance team as a signed PDF archive' and 'Export every approved weekly timesheet for the finance team, as a signed PDF archive'.",
+      "expected_output": "Both titles give the same 83-character slug. The first folder is cut to 64 characters: features/export-every-approved-weekly-timesheet-for-the-finance-team-as-a/. The second needs the -2 suffix, so its slug is cut to 62 characters before the suffix is appended: features/export-every-approved-weekly-timesheet-for-the-finance-team-as-2/. Neither folder name is longer than 64 characters.",
+      "files": [],
+      "expectations": [
+        "Names the first folder export-every-approved-weekly-timesheet-for-the-finance-team-as-a",
+        "Names the second folder export-every-approved-weekly-timesheet-for-the-finance-team-as-2",
+        "Writes no feature folder whose name is longer than 64 characters"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "skills-root-refused",
+      "prompt": "/app-control:map create shop --dir ./.claude/skills/",
+      "expected_output": "The value is the skills root itself, so it is refused: the report names --dir and the refused value './.claude/skills/' as the skills root, not a directory of its own under .claude/skills/. The run does not stop; the control skill goes to the default .claude/skills/control-shop/. No SKILL.md or feature folder is written directly in .claude/skills/.",
+      "files": [],
+      "expectations": [
+        "Names --dir and ./.claude/skills/ as refused, as the skills root, not a directory of its own under .claude/skills/",
+        "Writes the control skill under .claude/skills/control-shop/",
+        "Writes no file directly in .claude/skills/"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "second-app-gets-its-own-dir",
+      "prompt": "/app-control:map create clockwork --dir .claude/skills/control-clockwork, for the Clockwork admin app built from apps/admin. .claude/skills/control-clockwork/SKILL.md already exists and its hub names Clockwork web, built from apps/web.",
+      "expected_output": "The directory already holds a control skill, and its hub covers Clockwork web, a different app. The skill stops and writes nothing, names Clockwork web as the app that skill covers, and gives the directory this app needs: .claude/skills/control-clockwork-admin/. Every directory it proposes for the admin app sits directly under .claude/skills/ and is named control-<slug>, where /app-control:drive finds control skills.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes nothing and leaves .claude/skills/control-clockwork/ unchanged",
+        "Names Clockwork web as the app the existing control skill covers",
+        "Gives .claude/skills/control-clockwork-admin/ as the directory for the admin app",
+        "Proposes no directory for the admin app outside .claude/skills/control-<slug>/ (for example apps/admin/ or a nested folder inside control-clockwork/)"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "harness-hosting-own-instance-doctor",
+      "prompt": "/app-control:map create ledger. The repository's end-to-end suite in tests/Ledger.E2E starts the app in-process itself and needs a Postgres container from compose.test.yaml; nothing is launched separately.",
+      "expected_output": "The hub says the harness hosts its own instance. Its Ready command checks what the harness needs: that tests/Ledger.E2E builds and that the Postgres service from compose.test.yaml answers. It does not probe a separately launched app URL.",
+      "files": [],
+      "expectations": [
+        "The hub says the harness hosts its own instance",
+        "Ready checks the harness build and the Postgres service it depends on",
+        "Ready does not probe a separately launched app instance"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "harness-drive-line-stays-user-side",
+      "prompt": "/app-control:map create ledger, seeding the invoice approval feature. The suite selects that feature's tests with `dotnet test tests/Ledger.E2E --filter Category=InvoiceApproval`. The code lives in InvoiceApprovalController and posts to /internal/approvals/commit.",
+      "expected_output": "The feature README's ## Drive section lists the user's steps (what the approver clicks and sees) and adds one line giving the harness command `dotnet test tests/Ledger.E2E --filter Category=InvoiceApproval`. InvoiceApprovalController and /internal/approvals/commit appear nowhere in the feature README.",
+      "files": [],
+      "expectations": [
+        "## Drive holds user-side steps",
+        "## Drive adds one line with the dotnet test filter command",
+        "The feature README does not mention InvoiceApprovalController or /internal/approvals/commit"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "driver-unavailable-blocked",
+      "prompt": "/app-control:map create shop. The app builds and its Ready command passes. The hub names playwright-cli for driving and capture, but when the proving run starts, /app-control:drive reports that no Playwright browser is installed on this host.",
+      "expected_output": "The control skill is written but unproven, and the outcome is blocked: driver unavailable, reported with drive's report. The skill does not edit the hub after the failed run, does not switch to another tool, and does not call the control skill done.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as blocked: driver unavailable with drive's report",
+        "Leaves the hub naming playwright-cli",
+        "Does not report the control skill as done"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "build-not-exposed-doctor",
+      "prompt": "/app-control:map create shop. The app's only health check, GET /ping, returns the text `pong`; no endpoint, header or command shows a version or commit.",
+      "expected_output": "The app exposes no build identifier, so the hub's Ready section says build: not exposed and checks the other two: that the app answers and that it uses the expected data. It does not claim to check the build.",
+      "files": [],
+      "expectations": [
+        "The Ready section says build: not exposed",
+        "Ready still checks that the app answers and uses the expected data",
+        "Ready does not claim a build check"
+      ]
+    }
+  ]
+}

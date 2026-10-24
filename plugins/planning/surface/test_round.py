@@ -272,9 +272,10 @@ class TestRefusals(DirCase):
         self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
 
     def test_short_recommendation_does_not_warn(self):
-        rc, _, err = self.rp(
-            "add", "--file", self.file("q.json", question("Q4", stage="interview"))
+        q = question(
+            "Q4", stage="interview", basis="The code already does this. Judgment"
         )
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
@@ -322,7 +323,8 @@ class TestRefusals(DirCase):
         self.assertIn("Q4 alternative (a) repeats or contains the recommendation", out)
 
     def test_distinct_alternatives_are_added(self):
-        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        q = question("Q4", basis="The code already does this. Judgment")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("recommendation", err)
 
@@ -454,6 +456,56 @@ class TestRefusals(DirCase):
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
         self.assertIn("basis", err)
+
+    def test_basis_without_an_outcome_label_warns_and_check_exits_zero(self):
+        q = question("Q4")
+        before = self.raw()
+        path = self.file("round.json", {"questions": [q]})
+        rc, out, err = self.rp("add-round", "--file", path, "--check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 basis carries no outcome label", err)
+        self.assertEqual(self.raw(), before)
+
+    def test_basis_with_a_leading_or_trailing_outcome_label_is_quiet(self):
+        bases = (
+            "The code does this. Judgment",
+            "The code does this. Verified: round.py:607",
+            "Basis: verified. The code does this.",
+            "judgment: the code does this.",
+        )
+        for n, basis in enumerate(bases, start=4):
+            q = question(f"Q{n}", basis=basis)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("outcome label", err, basis)
+
+    def test_a_withheld_recommendation_needs_no_outcome_label(self):
+        q = question("Q4", recommendation="Withheld: the load test would settle it.")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("outcome label", err)
+
+    def test_a_bare_local_file_reference_warns(self):
+        q = question(
+            "Q4",
+            recommendation="Approve block A: see DECISIONS.md block A.",
+            basis="Judgment",
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 recommendation names a local file", err)
+
+    def test_a_file_reference_with_the_list_inline_or_a_link_is_quiet(self):
+        recs = (
+            "Approve block A from DECISIONS.md:\n- one\n- two",
+            "Approve block A (DECISIONS.md):\n> one and two",
+            "Approve block A: [DECISIONS.md](https://example.com/DECISIONS.md)",
+        )
+        for n, rec in enumerate(recs, start=4):
+            q = question(f"Q{n}", recommendation=rec, basis="Judgment")
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("names a local file", err, rec)
 
     def test_bare_unknown_id_token_warns(self):
         q = question(
@@ -1257,12 +1309,85 @@ class TestStatus(DirCase):
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
         lines = out.splitlines()
-        self.assertIn("First group: 0 of 2 closed; open: Q2 Short Q2", lines)
+        self.assertIn("First group: 0 of 2 live answered; open: Q2 Short Q2", lines)
         self.assertIn(
             "  Q1 Short Q1 waits on: " + json.dumps('your "confirmation" of X'), lines
         )
-        self.assertIn("Second group: 0 of 1 closed", lines)
+        self.assertIn("Second group: 0 of 1 live answered", lines)
         self.assertIn('  Q3 Short Q3 waits on: "research"', lines)
+
+
+class TestStatusLive(DirCase):
+    """status counts the live questions the page meter counts, and names unconfirmed accepts."""
+
+    def test_live_unanswered_and_archived_are_reported_apart(self):
+        doc = base_doc()
+        template = doc["questions"][0]
+        group = template["group"]
+        doc["questions"] = []
+        for n in range(1, 22):
+            q = json.loads(json.dumps(template))
+            q.update(id=f"Q{n}", short=f"Short Q{n}", group=group)
+            if n > 7:
+                q["archived"] = {"why": "Off path.", "at": "2026-09-24T10:00:00Z"}
+            doc["questions"].append(q)
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        line = next(x for x in out.splitlines() if "live answered" in x)
+        self.assertIn("0 of 7 live answered; 14 archived", line)
+
+    def test_superseded_is_neither_live_nor_answered(self):
+        doc = base_doc()
+        doc["questions"] += [
+            question("Q4", group="g1", round=1, supersededBy="Q2"),
+            question(
+                "Q5", group="g1", round=1, archived={"why": "Off path.", "at": "2026-09-24T10:00:00Z"}
+            ),
+        ]
+        self.write_doc(doc)
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            "First group: 1 of 2 live answered; 1 archived; 1 superseded; open: Q2 Short Q2",
+            out.splitlines(),
+        )
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        g1 = json.loads(out)["groups"][0]
+        self.assertEqual((g1["live"], g1["answered"], g1["superseded"]), (2, 1, ["Q4"]))
+
+    def test_an_accepted_row_with_an_unticked_commitment_is_named(self):
+        doc = base_doc()
+        doc["questions"][0]["commits"] = ["No network"]
+        self.write_doc(doc)
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn('  Q1 Short Q1 accepted, to confirm: ["No network"]', out.splitlines())
 
 
 class TestDirRequired(unittest.TestCase):
@@ -1885,7 +2010,7 @@ class TestClaudeActivity(DirCase):
             ]
         )
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_a_terminal_answer_before_the_set_aside_does_not_count(self):
         doc = base_doc()
@@ -1906,11 +2031,11 @@ class TestClaudeActivity(DirCase):
         }
         self.write_doc(doc)
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q1 Short Q1", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q1 Short Q1", out.splitlines())
         doc["questions"][0]["terminal"]["updatedAt"] = "2026-09-25T10:00:01Z"
         self.write_doc(doc)
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 2 of 2 closed", out.splitlines())
+        self.assertIn("First group: 2 of 2 live answered", out.splitlines())
 
     def test_a_page_decision_is_set_aside_by_its_seq(self):
         own = {
@@ -1928,13 +2053,13 @@ class TestClaudeActivity(DirCase):
         self.assertEqual(q["setAsideSeq"], 1)
         rc, out, err = self.rp("status")
         self.assertIn(
-            "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2",
+            "First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2",
             out.splitlines(),
         )
         same_second = {**own, "seq": 2, "kind": "accept", "at": q["setAsideAt"]}
         self.write_events([own, same_second])
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_a_terminal_answer_in_the_second_of_a_hold_counts_after_it(self):
         self.apply({"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"})
@@ -1946,7 +2071,7 @@ class TestClaudeActivity(DirCase):
         q["terminal"]["updatedAt"] = q["setAsideAt"]
         self.write_doc(doc)
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_wait_by_claude_drops_a_user_hold(self):
         self.apply({"op": "wait", "id": "Q3", "by": "user", "waitsOn": "x"})
@@ -2042,14 +2167,14 @@ class TestClaudeActivity(DirCase):
             {"op": "record-terminal", "id": "Q1", "decision": "accept"},
         )
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
         self.apply(
             {"op": "record-terminal", "id": "Q2", "decision": "accept"},
             {"op": "wait", "id": "Q2", "by": "user", "waitsOn": "y"},
             {"op": "wait", "id": "Q2", "clear": True},
         )
         rc, out, err = self.rp("status")
-        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.assertIn("First group: 1 of 2 live answered; open: Q2 Short Q2", out.splitlines())
 
     def test_same_text_entries_in_one_second_get_distinct_seqs(self):
         self.apply(
@@ -2200,6 +2325,43 @@ class TestClaudeActivity(DirCase):
                 if sections is not None:
                     op["sections"] = sections
                 self.refused(op)
+
+    def test_constraint_records_each_constraint_in_the_page_state(self):
+        self.apply(
+            {"op": "constraint", "text": "Builds stop at ten minutes."},
+            {"op": "constraint", "text": "Stdlib only."},
+        )
+        found = self.doc()["constraints"]
+        self.assertEqual(
+            [(c["id"], c["text"]) for c in found],
+            [("C1", "Builds stop at ten minutes."), ("C2", "Stdlib only.")],
+        )
+        self.assertTrue(all(c["at"] for c in found))
+        self.assertEqual(
+            self.entries()[-1]["text"],
+            "Recorded constraint C1; recorded constraint C2",
+        )
+
+    def test_constraint_with_a_recorded_id_replaces_its_text(self):
+        self.apply({"op": "constraint", "text": "One."})
+        self.apply({"op": "constraint", "id": "C1", "text": "One, revised."})
+        self.apply({"op": "constraint", "id": "C7", "text": "Seven."})
+        self.apply({"op": "constraint", "text": "Next."})
+        self.assertEqual(
+            [(c["id"], c["text"]) for c in self.doc()["constraints"]],
+            [("C1", "One, revised."), ("C7", "Seven."), ("C8", "Next.")],
+        )
+
+    def test_constraint_refusals(self):
+        for op in (
+            {"text": "  "},
+            {"text": "two\nlines"},
+            {"text": "x", "id": "Q1"},
+            {"text": "x" * 501},
+            {},
+        ):
+            with self.subTest(op=op):
+                self.refused({"op": "constraint", **op})
 
     def test_activity_refusals(self):
         self.refused({"op": "activity", "text": "x", "ids": ["Q9"]})
@@ -2409,8 +2571,8 @@ class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 
     REC = ["--rec", "Use the lock.", "--affects", "none", "--keep-alternatives"]
-    CLOSED = "First group: 1 of 2 closed; open: Q2 Short Q2"
-    OPEN = "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2"
+    CLOSED = "First group: 1 of 2 live answered; open: Q2 Short Q2"
+    OPEN = "First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2"
 
     def answer(self, kind, text=""):
         self.write_events(
@@ -2566,12 +2728,11 @@ class TestArchive(DirCase):
         rc, _, _ = self.rp("archive", "Q2")
         self.assertNotEqual(rc, 0)
 
-    def test_status_counts_archived_as_closed(self):
+    def test_status_does_not_count_archived_as_answered(self):
         self.rp("archive", "Q3", "--why", "Off path.")
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("Second group: 1 of 1 closed", out)
-        self.assertIn("archived: Q3", out)
+        self.assertIn("Second group: 0 of 0 live answered; 1 archived", out)
 
 
 class TestLatency(DirCase):
@@ -3813,7 +3974,7 @@ class TestCliHygiene(DirCase):
     def test_dir_after_status_and_bump(self):
         rc, out, err = self.run_bare("status", "--dir", str(self.dir))
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("First group: 0 of 2 closed", out)
+        self.assertIn("First group: 0 of 2 live answered", out)
         rc, out, err = self.run_bare("bump", "--dir", str(self.dir))
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.doc()["rev"], 4)
@@ -3832,7 +3993,7 @@ class TestCliHygiene(DirCase):
         for key in ("pageSeq", "handledSeq", "roundDrift", "meta"):
             self.assertIn(key, data)
         rc, text, _ = self.rp("status")
-        self.assertIn("First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2", text)
+        self.assertIn("First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2", text)
         self.assertFalse(text.lstrip().startswith("{"))
 
     def test_status_json_gives_the_raw_wait(self):

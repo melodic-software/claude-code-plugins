@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Values come from config/defaults.json (committed), then config/local.json (ignored), then environment variables, then flags, each overriding the one before.",
+      "why": "names all four layers in order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Noted: put the qa password into config/defaults.json, and raise sign-in attempts to 5 in config/local.json.",
+      "why": "only repeats the request; names neither environment variables nor flags"
+    },
+    {
+      "answer": "Settings live in settings.yaml and can be overridden on the command line.",
+      "why": "not the contract's layers"
+    }
+  ]
+}

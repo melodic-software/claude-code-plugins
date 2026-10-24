@@ -34,6 +34,16 @@ async page => {
   ok("no card element overflows its own width at 510px", lay.every(l => !l.over.length), JSON.stringify(lay.map(l => l.over)));
   await page.setViewportSize({width: 1400, height: 860});
 
+  // I4: a Judgment basis and a Verified basis wear different chips beside the recommendation
+  const basisChip = async id => {
+    if (!(await page.isVisible('.qbtn[data-q="' + id + '"]'))) await page.evaluate(i => document.querySelector('.qbtn[data-q="' + i + '"]').closest(".sec").querySelector(".sec-h").click(), id);
+    await page.click('.qbtn[data-q="' + id + '"]'); await page.waitForTimeout(200);
+    return page.evaluate(() => { const c = document.querySelector("#dscroll section.blk > h4 .chip.basis"); return c ? c.className + "|" + c.textContent : ""; });
+  };
+  const jChip = await basisChip("Q2"), vChip = await basisChip("Q4");
+  ok("I4: a basis ending Judgment renders a basis-judgment chip", /chip basis basis-judgment\|Judgment$/.test(jChip), jChip);
+  ok("I4: a basis ending Verified: <source> renders a basis-verified chip", /chip basis basis-verified\|Verified$/.test(vChip), vChip);
+
   // history labels
   await page.click('.qbtn[data-q="W1"]').catch(async () => { await page.click('.sec[data-key="g:wrap"] .sec-h'); await page.click('.qbtn[data-q="W1"]'); });
   await page.waitForTimeout(200);
