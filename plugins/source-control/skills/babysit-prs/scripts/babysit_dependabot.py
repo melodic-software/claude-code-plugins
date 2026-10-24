@@ -175,9 +175,16 @@ def is_dependabot(login: Any) -> bool:
 
 # A Dependabot head is never updated from its base: a commit by anyone else
 # stops Dependabot's own rebases and breaks the Dependabot merge tier. Its
-# rebase is asked for instead, once per base tip.
+# rebase is asked for instead, once per base tip; a head another writer has
+# already merged the base into is recreated, since Dependabot refuses to
+# rebase a branch someone else edited.
 REBASE_HOLD = "dependabot-rebase-requested"
+EDITED_HOLD = "dependabot-branch-edited"
 REBASE_COMMAND = "@dependabot rebase"
+RECREATE_COMMAND = "@dependabot recreate"
+# The most files the compare endpoint lists; a full list may hide more.
+COMPARE_FILES_LIMIT = 300
+Get = Callable[[str], Any]
 
 
 def is_dependabot_head(head_ref: Any, author_login: Any) -> bool:
@@ -189,16 +196,112 @@ def rebase_marker(base_sha: str) -> str:
     return f"<!-- babysit-dependabot-rebase base={base_sha} -->"
 
 
-def rebase_body(base_sha: str) -> str:
-    """The rebase request: the command alone on its first line, then the
-    marker naming the base tip it was asked against."""
-    return f"{REBASE_COMMAND}\n{rebase_marker(base_sha)}"
+def rebase_body(base_sha: str, command: str = REBASE_COMMAND) -> str:
+    """The request: the command alone on its first line, then the marker
+    naming the base tip it was asked against."""
+    return f"{command}\n{rebase_marker(base_sha)}"
 
 
 def rebase_requested(bodies: Iterable[Any], base_sha: str) -> bool:
-    """Whether a comment already asked for a rebase onto `base_sha`."""
+    """Whether a comment already asked for a rebase or recreate onto `base_sha`."""
     marker = rebase_marker(base_sha)
     return any(marker in str(body or "") for body in bodies)
+
+
+def _compare_files(get: Get, repo: str, old: str, new: str) -> dict[str, Any] | None:
+    """Each file `compare/old...new` changed, to its new blob (None when
+    removed); None when unreadable or possibly truncated."""
+    files = json_object(get(f"repos/{repo}/compare/{old}...{new}")).get("files")
+    if not isinstance(files, list) or len(files) >= COMPARE_FILES_LIMIT:
+        return None
+    return {
+        str(json_object(f).get("filename")): None
+        if json_object(f).get("status") == "removed"
+        else json_object(f).get("sha")
+        for f in files
+    }
+
+
+def is_base_merge(item: Any, repo: str, base_ref: str, get: Get) -> bool | None:
+    """Whether a pull request commit (REST `pulls/{n}/commits` entry) is a
+    merge of the base GitHub made and nothing more: two parents, the second
+    on the base branch, committed and signed by GitHub, and every file it
+    changes against the head parent reads as the base parent has it, unless
+    the head side changed that file too. None when a read fails."""
+    commit = json_object(json_object(item).get("commit"))
+    parents = json_object(item).get("parents")
+    if not isinstance(parents, list) or len(parents) != 2:
+        return False
+    committer = json_object(commit.get("committer")).get("email")
+    if committer != GITHUB_COMMITTER_EMAIL or not json_object(
+        commit.get("verification")
+    ).get("verified"):
+        return False
+    sha = str(json_object(item).get("sha") or "")
+    head, base = (str(json_object(p).get("sha") or "") for p in parents)
+    try:
+        status = json_object(
+            get(f"repos/{repo}/compare/{base}...{quote(base_ref, safe='')}")
+        ).get("status")
+        if status not in {"ahead", "identical", "behind", "diverged"}:
+            return None
+        if status not in {"ahead", "identical"}:
+            return False
+        merged = _compare_files(get, repo, head, sha)
+        from_base = _compare_files(get, repo, head, base)
+        head_side = _compare_files(get, repo, base, head)
+    except (RuntimeError, ValueError):
+        return None
+    if merged is None or from_base is None or head_side is None:
+        return None
+    return all(
+        path in from_base and (blob == from_base[path] or path in head_side)
+        for path, blob in merged.items()
+    )
+
+
+def rebase_request(
+    repo: str,
+    base_ref: str,
+    base_sha: str,
+    comments: Iterable[Any],
+    commits: Sequence[Any],
+    get: Get,
+) -> tuple[str, str | None, str]:
+    """(hold, comment body to post or None, why) for a behind Dependabot
+    head. Every commit Dependabot's: a rebase. The others all base merges
+    GitHub made (a stray update-branch): a recreate, which drops only them.
+    Any other commit holds as edited and posts nothing, since a recreate
+    would discard it. One request per base tip."""
+    if rebase_requested((json_object(c).get("body") for c in comments), base_sha):
+        return (
+            REBASE_HOLD,
+            None,
+            f"a Dependabot request at base {base_sha} was already posted",
+        )
+    others = [c for c in commits if not is_dependabot_commit(c)]
+    for item in others:
+        sha = str(json_object(item).get("sha") or "")[:12]
+        merge = is_base_merge(item, repo, base_ref, get)
+        if merge is None:
+            return (
+                REBASE_HOLD,
+                None,
+                f"commit {sha} could not be read, so nothing was asked",
+            )
+        if not merge:
+            return (
+                EDITED_HOLD,
+                None,
+                f"commit {sha} is not Dependabot's or a base merge GitHub made; "
+                "a recreate would discard it, so a person decides",
+            )
+    command = RECREATE_COMMAND if others else REBASE_COMMAND
+    return (
+        REBASE_HOLD,
+        rebase_body(base_sha, command),
+        f"asked `{command}` at base {base_sha}",
+    )
 
 
 def _parts(version: str) -> tuple[int, int | None] | None:

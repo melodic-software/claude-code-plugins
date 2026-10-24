@@ -259,9 +259,10 @@ def request_dependabot_rebase(
     expected_head_sha: str,
     current: dict[str, Any],
 ) -> dict[str, object]:
-    """Ask Dependabot to rebase its behind head with a comment, never
-    `update-branch`, once per base tip; `--apply` posts it under the worker
-    lease. The PR is held either way. An unreadable base tip raises."""
+    """Ask Dependabot to rebase (or recreate) its behind head with a comment,
+    never `update-branch`, once per base tip (`dependabot.rebase_request`);
+    `--apply` posts it under the worker lease. The PR is held either way. An
+    unreadable base tip, comment list or commit list raises."""
     if current.get("headRefOid") != expected_head_sha:
         raise RuntimeError("PR head changed after the snapshot")
     base = str(current.get("baseRefName") or "")
@@ -273,31 +274,39 @@ def request_dependabot_rebase(
         raise RuntimeError(
             f"base {base} tip is unreadable; refusing the Dependabot rebase request"
         )
+    comments = fetch_paginated_api(
+        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+    )
+    commits = fetch_paginated_api(
+        f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
+    )
+    hold, body, why = dependabot.rebase_request(
+        repo, base, tip, comments, commits, lambda ep: gh_json(["api", ep])
+    )
     result: dict[str, object] = {
         "key": key,
         "expected_head_sha": expected_head_sha,
         "apply": args.apply,
         "eligible": False,
-        "held": dependabot.REBASE_HOLD,
+        "held": hold,
         "base_sha": tip,
+        "reason": why,
     }
-    comments = fetch_paginated_api(
-        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
-    )
-    if dependabot.rebase_requested((c.get("body") for c in comments), tip):
-        result["rebase"] = "already-requested"
+    if body is None:
+        result["rebase"] = "none"
         return result
+    command = body.split("\n", 1)[0]
     if not args.apply:
-        result["rebase"] = "would-request"
+        result["rebase"] = f"would-request {command}"
         return result
     if human_stop_blocks_automation(fetch_current_human_stop(repo, number, current)):
         raise RuntimeError("human review stop is active; refusing the rebase request")
     require_worker_lease(args, state_dir, repo, number, renew=True)
     gh_json(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
-        + ["-f", f"body={dependabot.rebase_body(tip)}"]
+        + ["-f", f"body={body}"]
     )
-    result["rebase"] = "requested"
+    result["rebase"] = command
     return result
 
 

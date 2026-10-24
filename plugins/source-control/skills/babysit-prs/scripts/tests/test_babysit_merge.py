@@ -1776,6 +1776,65 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
         self.assertNotIn("dependency manager", str(caught.exception))
 
 
+# A Dependabot pull request's commits as `pulls/{n}/commits` lists them.
+DEPENDABOT_PARENT, BASE_PARENT = "1" * 40, "2" * 40
+STRAY_SHA, EDITED_SHA = "4" * 40, "5" * 40
+DEPENDABOT_COMMIT = {
+    "sha": DEPENDABOT_PARENT,
+    "parents": [{"sha": "3" * 40}],
+    "commit": {
+        "author": {
+            "name": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+        },
+        "committer": {"name": "GitHub", "email": "noreply@github.com"},
+        "verification": {"verified": True},
+    },
+}
+# The stray update-branch shape (#9131's ad32a613): a person's merge of the
+# base that GitHub committed and signed, head parent first.
+STRAY_MERGE = {
+    "sha": STRAY_SHA,
+    "parents": [{"sha": DEPENDABOT_PARENT}, {"sha": BASE_PARENT}],
+    "commit": {
+        "author": {"name": "A Person", "email": "person@example.com"},
+        "committer": {"name": "GitHub", "email": "noreply@github.com"},
+        "verification": {"verified": True},
+    },
+}
+# A merge GitHub committed that also changes a file the base never touched.
+EDITED_MERGE = {**STRAY_MERGE, "sha": EDITED_SHA}
+# A person's one-parent fix commit.
+FIX_COMMIT = {
+    "sha": "6" * 40,
+    "parents": [{"sha": DEPENDABOT_PARENT}],
+    "commit": {
+        "author": {"name": "A Person", "email": "person@example.com"},
+        "committer": {"name": "A Person", "email": "person@example.com"},
+        "verification": {"verified": False},
+    },
+}
+_COMPARE = "repos/owner/repo/compare/"
+_BASE_FILE = {"filename": "docs/a.md", "status": "modified", "sha": "a1"}
+STRAY_MERGE_COMPARES = {
+    # The base parent is on main: main is ahead of it.
+    f"{_COMPARE}{BASE_PARENT}...main": {"status": "ahead"},
+    # The merge brings in the base's file as the base has it...
+    f"{_COMPARE}{DEPENDABOT_PARENT}...{STRAY_SHA}": {"files": [_BASE_FILE]},
+    # ...and the edited one also changes a file the base did not.
+    f"{_COMPARE}{DEPENDABOT_PARENT}...{EDITED_SHA}": {
+        "files": [
+            _BASE_FILE,
+            {"filename": "src/x.js", "status": "modified", "sha": "b2"},
+        ]
+    },
+    f"{_COMPARE}{DEPENDABOT_PARENT}...{BASE_PARENT}": {"files": [_BASE_FILE]},
+    f"{_COMPARE}{BASE_PARENT}...{DEPENDABOT_PARENT}": {
+        "files": [{"filename": "package-lock.json", "status": "modified", "sha": "c3"}]
+    },
+}
+
+
 class RefreshAsksDependabotToRebase(unittest.TestCase):
     """A behind Dependabot head is never updated from the base: an extra commit
     stops Dependabot's own rebases. The refresh asks for a rebase with a
@@ -1786,6 +1845,7 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
     COMMENTS = f"repos/{REPO}/issues/{PR_NUMBER}/comments"
     # The command alone on line one, the marker naming the base tip on line two.
     BODY = f"@dependabot rebase\n<!-- babysit-dependabot-rebase base={TIP} -->"
+    RECREATE = f"@dependabot recreate\n<!-- babysit-dependabot-rebase base={TIP} -->"
 
     def _run(
         self,
@@ -1794,6 +1854,7 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         head_ref: str = "dependabot/npm_and_yarn/x-1.2.3",
         author: str = "app/dependabot",
         comments: list[dict[str, Any]] | None = None,
+        commits: tuple[dict[str, Any], ...] = (DEPENDABOT_COMMIT,),
     ) -> dict[str, object]:
         self.writes: list[list[str]] = []
         self.leases: list[Any] = []
@@ -1812,10 +1873,14 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
                 return {"object": {"sha": self.TIP}}
             if args[:2] == ["api", f"repos/{self.REPO}/pulls/{PR_NUMBER}"]:
                 return {"auto_merge": None, "labels": []}
+            if args[0] == "api" and args[1] in STRAY_MERGE_COMPARES:
+                return STRAY_MERGE_COMPARES[args[1]]
             self.writes.append(args)
             return {}
 
         def paginated(endpoint: str, label: str, **kwargs: Any) -> Any:
+            if endpoint == f"repos/{self.REPO}/pulls/{PR_NUMBER}/commits?per_page=100":
+                return list(commits)
             self.assertEqual(endpoint, f"{self.COMMENTS}?per_page=100")
             return comments or []
 
@@ -1878,14 +1943,35 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
             [["api", "-X", "POST", self.COMMENTS, "-f", f"body={self.BODY}"]],
         )
         self.assertEqual(len(self.leases), 1)
-        self.assertEqual(result["rebase"], "requested")
+        self.assertEqual(result["rebase"], "@dependabot rebase")
         self.assertEqual(result["held"], "dependabot-rebase-requested")
         self.assertIs(result["eligible"], False)
 
+    def test_a_stray_base_merge_gets_a_recreate(self) -> None:
+        result = self._run(commits=(DEPENDABOT_COMMIT, STRAY_MERGE))
+        self.assertEqual(
+            self.writes,
+            [["api", "-X", "POST", self.COMMENTS, "-f", f"body={self.RECREATE}"]],
+        )
+        self.assertEqual(result["held"], "dependabot-rebase-requested")
+
+    def test_a_real_edit_posts_nothing_and_holds_as_edited(self) -> None:
+        for commit in (FIX_COMMIT, EDITED_MERGE):
+            with self.subTest(commit=commit["sha"]):
+                result = self._run(commits=(DEPENDABOT_COMMIT, commit))
+                self.assertEqual(self.writes, [])
+                self.assertEqual(self.leases, [])
+                self.assertEqual(result["held"], "dependabot-branch-edited")
+
     def test_the_same_base_tip_is_not_asked_twice(self) -> None:
-        result = self._run(comments=[{"id": 1, "body": self.BODY}])
-        self.assertEqual(self.writes, [])
-        self.assertEqual(result["rebase"], "already-requested")
+        for body in (self.BODY, self.RECREATE):
+            with self.subTest(body=body):
+                result = self._run(
+                    comments=[{"id": 1, "body": body}],
+                    commits=(DEPENDABOT_COMMIT, STRAY_MERGE),
+                )
+                self.assertEqual(self.writes, [])
+                self.assertEqual(result["rebase"], "none")
 
     def test_a_live_human_stop_posts_nothing(self) -> None:
         with (
@@ -1901,7 +1987,7 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         result = self._run(apply=False)
         self.assertEqual(self.writes, [])
         self.assertEqual(self.leases, [])
-        self.assertEqual(result["rebase"], "would-request")
+        self.assertEqual(result["rebase"], "would-request @dependabot rebase")
 
     def test_a_non_dependabot_head_is_still_updated(self) -> None:
         self._run(head_ref="feature/x", author="octocat")

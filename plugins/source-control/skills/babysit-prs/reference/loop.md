@@ -208,7 +208,7 @@ rules:
   push means the head moved: re-fetch and stop. A conflicting merge of ≤3 files is
   `conflict-attempting`; more than 3 aborts the merge as `conflict-aborted`. A branch already
   containing the base is `current`. A Dependabot head (a `dependabot/` branch Dependabot opened)
-  is never merged or pushed to: comment `@dependabot rebase` instead ([safety.md](safety.md)).
+  is never merged or pushed to: ask Dependabot to rebase or recreate it ([safety.md](safety.md)).
 - **`conflict-attempting` is TRANSIENT.** Resolve it now (per file, take the mechanical
   resolution; on success `git add <files>` + `git merge --continue`, then `lane_push`,
   fast-forward, never force, and set `integrated`), or, if ANY file needs intent judgment,

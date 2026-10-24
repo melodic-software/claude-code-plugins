@@ -102,8 +102,10 @@ value and its unset fallback.
   unreadable label refuses the refresh and holds the enqueue.
 - Never update a Dependabot head (a `dependabot/` branch Dependabot opened) from its base: a
   commit by anyone else stops Dependabot's own rebases and fails the Dependabot merge tier's
-  commit check. `refresh_pr_branch.py` and the unattended enqueue post one `@dependabot rebase`
-  comment per base tip instead and hold the PR as `dependabot-rebase-requested`.
+  commit check. `refresh_pr_branch.py` and the unattended enqueue post one comment per base tip
+  instead and hold the PR as `dependabot-rebase-requested`: `@dependabot rebase`, or `@dependabot
+  recreate` when the only other commits are base merges GitHub made. A head carrying any other
+  commit gets no comment and holds as `dependabot-branch-edited`: a recreate would discard it.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease
