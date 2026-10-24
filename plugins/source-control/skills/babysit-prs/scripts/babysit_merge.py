@@ -150,6 +150,7 @@ from typing import Any, cast
 from urllib.parse import quote
 
 import babysit_check_inputs as check_inputs
+import babysit_dependabot as dependabot
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
@@ -4109,6 +4110,46 @@ def update_error(proc: Any) -> dict[str, Any]:
     }
 
 
+def request_dependabot_rebase(
+    repo: str,
+    number: int,
+    inputs_read: dict[str, Any],
+    inputs: Mapping[str, Any],
+) -> str:
+    """Ask Dependabot to rebase a stale Dependabot head with a comment, never
+    `update-branch`, once per base tip; returns why the head is held. Every
+    outcome holds: the stale head would fail the queue's merge."""
+    tip = str(inputs_read.get("baseTip") or "")
+    if not merge_policy.SHA_RE.match(tip):
+        inputs_read["rebase"] = "base-tip-unreadable"
+        return "the base tip is unreadable, so no rebase was asked for"
+    try:
+        comments = inputs.get("comments")
+        if comments is None:
+            comments = fetch_paginated_api(
+                f"repos/{repo}/issues/{number}/comments?per_page=100",
+                f"#{number} comments",
+            )
+        if dependabot.rebase_requested((c.get("body") for c in comments), tip):
+            inputs_read["rebase"] = "already-requested"
+            return f"a Dependabot rebase onto {tip} was already asked for"
+        proc = gh_capture(
+            ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
+            + ["-f", f"body={dependabot.rebase_body(tip)}"]
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        inputs_read["rebase"] = f"error: {exc}"[:500]
+        return f"the rebase request could not be made ({exc})"
+    if proc.returncode != 0:
+        inputs_read["rebase"] = f"error: {proc.stderr.strip()}"[:500]
+        return f"the rebase request could not be posted ({proc.stderr.strip()})"
+    inputs_read["rebase"] = "requested"
+    return (
+        f"asked Dependabot to rebase onto {tip}; the new head is enqueued once "
+        "its checks pass"
+    )
+
+
 def unattended_enqueue(
     repo: str,
     number: int,
@@ -4260,7 +4301,9 @@ def unattended_enqueue(
     # tip, and every entry built behind it fails too. When the base changed
     # what the checks read since the merge base, the branch is updated from
     # the base instead; a later run enqueues the new head once its checks
-    # pass. A Dependabot head is not written (its own rebases stop), and a
+    # pass. A Dependabot head is not written (its own rebases stop): an
+    # eligible one enqueues, any other gets one rebase request per base tip
+    # and holds (`request_dependabot_rebase`). A
     # doubtful read or an update the API refused (4xx) enqueues as before. An
     # update with no answer (a timeout, no status, a server error) may have
     # landed, so the old head is held rather than pinned.
@@ -4296,6 +4339,18 @@ def unattended_enqueue(
     # writer, and a merge commit fails its managed-files guard. An unreadable
     # label holds, since the stale head would fail the queue's merge.
     stale_update = inputs_read["state"] == "stale" and eligible_dependabot is None
+    pr = json_object(inputs["pr"])
+    if stale_update and dependabot.is_dependabot_head(
+        json_object(pr.get("head")).get("ref"), json_object(pr.get("user")).get("login")
+    ):
+        stale = (
+            f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
+            f"{branch} since merge base {inputs_read['mergeBase']}"
+        )
+        return hold(
+            f"{dependabot.REBASE_HOLD}:{stale}; "
+            + request_dependabot_rebase(repo, number, inputs_read, inputs)
+        )
     skip = None
     if stale_update:
         owner, name = repo.split("/", 1)

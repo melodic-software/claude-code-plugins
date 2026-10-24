@@ -103,7 +103,9 @@ Only the orchestrator may refresh a branch:
 1. Hold the PR's worker lease, require a unique head repository/branch across the open watched
    queue, require no human-review stop and a PR not authored by a dependency manager (the helper
    refuses one; ask the manager to rebase instead), and take the snapshot's head SHA as
-   `<expected-head-sha>`.
+   `<expected-head-sha>`. For a Dependabot head (a `dependabot/` branch Dependabot opened) the
+   helper posts one `@dependabot rebase` comment per base tip under `--apply` instead of
+   updating the branch, and reports the PR held as `dependabot-rebase-requested`.
 2. Run the guarded helper, which uses GitHub's default merge update and `expected_head_sha`
    optimistic locking:
 

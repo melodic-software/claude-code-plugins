@@ -54,7 +54,7 @@ import base64
 import json
 import posixpath
 import re
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -171,6 +171,34 @@ class Classification:
 
 def is_dependabot(login: Any) -> bool:
     return str(login or "").strip().casefold() in DEPENDABOT_LOGINS
+
+
+# A Dependabot head is never updated from its base: a commit by anyone else
+# stops Dependabot's own rebases and breaks the Dependabot merge tier. Its
+# rebase is asked for instead, once per base tip.
+REBASE_HOLD = "dependabot-rebase-requested"
+REBASE_COMMAND = "@dependabot rebase"
+
+
+def is_dependabot_head(head_ref: Any, author_login: Any) -> bool:
+    """Whether a pull request's head is Dependabot's own branch."""
+    return str(head_ref or "").startswith("dependabot/") and is_dependabot(author_login)
+
+
+def rebase_marker(base_sha: str) -> str:
+    return f"<!-- babysit-dependabot-rebase base={base_sha} -->"
+
+
+def rebase_body(base_sha: str) -> str:
+    """The rebase request: the command alone on its first line, then the
+    marker naming the base tip it was asked against."""
+    return f"{REBASE_COMMAND}\n{rebase_marker(base_sha)}"
+
+
+def rebase_requested(bodies: Iterable[Any], base_sha: str) -> bool:
+    """Whether a comment already asked for a rebase onto `base_sha`."""
+    marker = rebase_marker(base_sha)
+    return any(marker in str(body or "") for body in bodies)
 
 
 def _parts(version: str) -> tuple[int, int | None] | None:

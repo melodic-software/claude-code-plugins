@@ -1498,7 +1498,8 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutation=CONDITIONAL,
         mutates_what=(
             "disables an armed auto-merge, then asks GitHub to update the PR branch "
-            "server-side; writes queue state"
+            "server-side, or for a Dependabot head posts one @dependabot rebase "
+            "comment per base tip; writes queue state"
         ),
         gate="--apply",
         claim=(

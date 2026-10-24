@@ -1776,6 +1776,129 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
         self.assertNotIn("dependency manager", str(caught.exception))
 
 
+class RefreshAsksDependabotToRebase(unittest.TestCase):
+    """A behind Dependabot head is never updated from the base: an extra commit
+    stops Dependabot's own rebases. The refresh asks for a rebase with a
+    comment instead, once per base tip, and holds the PR."""
+
+    REPO = "owner/repo"
+    TIP = "b" * 40
+    COMMENTS = f"repos/{REPO}/issues/{PR_NUMBER}/comments"
+    # The command alone on line one, the marker naming the base tip on line two.
+    BODY = f"@dependabot rebase\n<!-- babysit-dependabot-rebase base={TIP} -->"
+
+    def _run(
+        self,
+        *,
+        apply: bool = True,
+        head_ref: str = "dependabot/npm_and_yarn/x-1.2.3",
+        author: str = "app/dependabot",
+        comments: list[dict[str, Any]] | None = None,
+    ) -> dict[str, object]:
+        self.writes: list[list[str]] = []
+        self.leases: list[Any] = []
+        pr = {
+            "state": "OPEN",
+            "author": {"login": author},
+            "headRefName": head_ref,
+            "headRefOid": HEAD,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BEHIND",
+            "baseRefName": "main",
+        }
+
+        def gh_json(args: list[str]) -> Any:
+            if args == ["api", f"repos/{self.REPO}/git/ref/heads/main"]:
+                return {"object": {"sha": self.TIP}}
+            if args[:2] == ["api", f"repos/{self.REPO}/pulls/{PR_NUMBER}"]:
+                return {"auto_merge": None, "labels": []}
+            self.writes.append(args)
+            return {}
+
+        def paginated(endpoint: str, label: str, **kwargs: Any) -> Any:
+            self.assertEqual(endpoint, f"{self.COMMENTS}?per_page=100")
+            return comments or []
+
+        pr_state = {
+            "mergeable": "MERGEABLE",
+            "branch_freshness": {"state": "behind"},
+            "mutation_policy": {
+                "head_metadata_complete": True,
+                "branch_write_allowed": True,
+                "base_owner": "owner",
+                "head_owner": "owner",
+            },
+            "human_stop": {},
+            "head_ref_uniqueness": {"checked": True, "unique": True},
+        }
+        opened = (
+            self.REPO,
+            PR_NUMBER,
+            f"{self.REPO}#{PR_NUMBER}",
+            {"pr_states": {}},
+            pr_state,
+            HEAD,
+        )
+        policy = mock.Mock(extra_dependency_manager_logins=frozenset())
+        scope = {"head_metadata_complete": True, "branch_write_allowed": True}
+        with (
+            mock.patch.object(refresh, "begin_guarded_mutation", return_value=opened),
+            mock.patch.object(
+                refresh,
+                "require_worker_lease",
+                side_effect=lambda *a, **k: self.leases.append(a),
+            ),
+            mock.patch.object(refresh, "write_state"),
+            mock.patch.object(
+                refresh.repo_policy, "fallback_from_args", return_value={}
+            ),
+            mock.patch.object(refresh, "view_pr", return_value=pr),
+            mock.patch.object(refresh.repo_policy, "resolve", return_value=policy),
+            mock.patch.object(refresh, "head_repository_scope", return_value=scope),
+            mock.patch.object(refresh, "fetch_current_human_stop", return_value={}),
+            mock.patch.object(
+                refresh,
+                "find_open_prs_for_head_ref",
+                return_value=[f"{self.REPO}#{PR_NUMBER}"],
+            ),
+            mock.patch.object(refresh, "base_requires_merge_queue", return_value=False),
+            mock.patch.object(refresh, "gh_json", side_effect=gh_json),
+            mock.patch.object(refresh, "fetch_paginated_api", side_effect=paginated),
+        ):
+            return refresh.run_locked(
+                mock.Mock(apply=apply),
+                pathlib.Path("state"),
+                pathlib.Path("state.json"),
+            )
+
+    def test_a_dependabot_head_gets_a_rebase_comment_not_an_update(self) -> None:
+        result = self._run()
+        self.assertEqual(
+            self.writes,
+            [["api", "-X", "POST", self.COMMENTS, "-f", f"body={self.BODY}"]],
+        )
+        self.assertEqual(len(self.leases), 1)
+        self.assertEqual(result["rebase"], "requested")
+        self.assertEqual(result["held"], "dependabot-rebase-requested")
+        self.assertIs(result["eligible"], False)
+
+    def test_the_same_base_tip_is_not_asked_twice(self) -> None:
+        result = self._run(comments=[{"id": 1, "body": self.BODY}])
+        self.assertEqual(self.writes, [])
+        self.assertEqual(result["rebase"], "already-requested")
+
+    def test_a_dry_run_posts_nothing(self) -> None:
+        result = self._run(apply=False)
+        self.assertEqual(self.writes, [])
+        self.assertEqual(self.leases, [])
+        self.assertEqual(result["rebase"], "would-request")
+
+    def test_a_non_dependabot_head_is_still_updated(self) -> None:
+        self._run(head_ref="feature/x", author="octocat")
+        [update] = self.writes
+        self.assertIn(f"repos/{self.REPO}/pulls/{PR_NUMBER}/update-branch", update)
+
+
 class RefreshRefusesMergeQueueBases(unittest.TestCase):
     """A behind head on a merge-queue base is never refreshed, even when GitHub
     reports BEHIND; an unreadable rules answer refuses too."""
