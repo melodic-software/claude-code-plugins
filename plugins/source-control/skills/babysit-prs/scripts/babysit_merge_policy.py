@@ -168,8 +168,7 @@ class UnattendedPolicy:
     one proceed, and it has no default, so no policy permits a merge by
     omission. `enabled` (Design T20) means the path is configured and no
     identity, credential, kill-switch or post-merge refusal stands; left None
-    it follows `reason`. `promoted` is the promotion-evidence read for the
-    effective rung, None when not read; a merge needs both.
+    it follows `reason`.
     `agent_identity` is the configured `merge.agent-identity` login, stripped
     of surrounding whitespace, or None when unset or blank. `details` carries
     the readers' answers for the report; `inputs` carries what the later steps
@@ -180,7 +179,6 @@ class UnattendedPolicy:
     agent_identity: str | None = None
     details: Mapping[str, Any] | None = None
     enabled: bool | None = None
-    promoted: bool | None = None
     inputs: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
@@ -192,7 +190,6 @@ class UnattendedPolicy:
     def report(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
-            "promoted": self.promoted,
             "reason": self.reason,
             **(self.details or {}),
         }
@@ -3860,13 +3857,6 @@ PROMOTION_RESOLVER = (
     / "resolve-promotion-evidence.mjs"
 )
 PROMOTABLE_CELLS = ("C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking")
-# The cells an effective rung needs effective-promoted
-# (promotion-evidence-resolution.md "Promotable cells and rung mapping");
-# off needs none and merges nothing.
-RUNG_CELLS = {
-    "C2": ("C2-auto-merge",),
-    "C3": PROMOTABLE_CELLS,
-}
 
 
 def _lane_writable(path: Path) -> bool:
@@ -3889,7 +3879,7 @@ def _options_refusal(
     """Why the option values the resolver reports, or the settings files they
     came from, are not trusted: one is unreported, or the lane user can write
     it or replace it through a directory above it. A lane that can rewrite the
-    evidence, the checker or the setting naming them decides `promoted`. A
+    evidence, the checker or the setting naming them decides what is reported. A
     reported settings-only option checks its settings file alone."""
     for option in PROMOTION_OPTIONS:
         entry = json_object(options.get(option))
@@ -3927,18 +3917,11 @@ def _window_start(at: datetime) -> str:
 
 @dataclass(frozen=True)
 class Promotion:
-    """Each promotable cell's effective state, or the fail-closed reason."""
+    """Each promotable cell's effective state, or why it could not be read.
+    Reported only: no merge waits on it."""
 
     cells: Mapping[str, str] | None
     reason: str | None
-
-    def promoted(self, rung: str) -> bool:
-        needed = RUNG_CELLS.get(rung)
-        return bool(
-            self.cells
-            and needed
-            and all(self.cells.get(cell) == "promoted" for cell in needed)
-        )
 
 
 def worktree_roots(checkout: Path) -> list[str] | None:
@@ -4273,8 +4256,9 @@ def assess(
     `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
-    in-flight rule, the promotion evidence and the pull request's
-    eligibility: each refuses a merge, and all are reported, but
+    in-flight rule and the pull request's eligibility: each refuses a merge,
+    and all are reported with the promotion evidence, which refuses nothing,
+    but
     an in-flight refusal of a pull request not in the merge queue stops the
     reads there.
 
@@ -4288,8 +4272,8 @@ def assess(
     `human_gated`, the tracker's resolved human-gated role label, holds an
     adopted pull request in the lane (`adoption_refusal`); None adopts none.
     `promotion(window_start)` reads the promotion evidence with the newest
-    demotion record's creation as the window restart; without it nothing is
-    promoted. With `stop_when_closed`, a pull request the REST record reads
+    demotion record's creation as the window restart, for the report only.
+    With `stop_when_closed`, a pull request the REST record reads
     as merged refuses (`not_open_refusal`) once the identity and the readers
     the queue sweep needs are read, before the demotion and post-merge
     reads: the gate holds it on the same blocker.
@@ -4538,7 +4522,6 @@ def assess(
             identity,
             details,
             enabled=True,
-            promoted=True if lane else None,
             inputs=inputs,
         )
     if dependabot_pr:
@@ -4554,7 +4537,6 @@ def assess(
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")
         )
-        promoted = True
         details["dependabot"] = {
             "mode": config.dependabot_mode,
             "majors": config.dependabot_majors,
@@ -4592,7 +4574,6 @@ def assess(
             ),
             **readers,
         )
-        promoted = True
     else:
         promo = (
             promotion(demotion.newest_created)
@@ -4600,7 +4581,6 @@ def assess(
             else Promotion(None, "promotion-unread")
         )
         eligible = eligibility(repo, number, **readers)
-        promoted = promo.promoted(rung.rung)
     details.update(
         promotion={
             "cells": dict(promo.cells) if promo.cells is not None else None,
@@ -4627,22 +4607,15 @@ def assess(
             "verifier-verdict-not-required",
         ),
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
-        (not promoted, f"promotion-unqualified:{rung.rung}"),
     )
     inputs["own_refusal"] = next((text for refused, text in own if refused), None)
     refusals = (
         (rung.rung == "off", f"rung-off:{rung.limited_by}"),
         (not flight.clear, f"in-flight:{flight.reason}"),
-        (
-            promo.cells is None and not lane,
-            f"promotion-unqualified:{promo.reason}",
-        ),
         *own,
     )
     reason = next((text for refused, text in refusals if refused), None)
-    return UnattendedPolicy(
-        reason, identity, details, enabled=True, promoted=promoted, inputs=inputs
-    )
+    return UnattendedPolicy(reason, identity, details, enabled=True, inputs=inputs)
 
 
 # --- Room for a native lane merge -------------------------------------------------------------

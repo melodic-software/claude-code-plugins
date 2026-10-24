@@ -229,7 +229,7 @@ class RemappedHumanGatedLabel(unittest.TestCase):
         ]
         self.assertEqual(added, [f"labels[]={self.LABEL}"])
 
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
         held = _evaluate(
             fixtures._pr(labels=[{"name": "Human-Review"}]), HEAD, None, permits
         )
@@ -269,7 +269,7 @@ class UnreadableHumanGatedLabel(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def test_the_gate_refuses_and_caches_nothing(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
         result = _evaluate(
             fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
         )
@@ -322,7 +322,7 @@ class HumanGatedLabelReadIsStrict(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def test_a_server_error_refuses_and_caches_nothing(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
         result = _evaluate(
             fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
         )
@@ -342,7 +342,7 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
     holds both."""
 
     def test_needs_human_holds_the_unattended_gate_not_an_attended_one(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
         pr = fixtures._pr(labels=[{"name": "Needs-Human"}])
         attended = _evaluate(pr, HEAD, None)
         unattended = _evaluate(pr, HEAD, None, unattended=permits)
@@ -368,7 +368,7 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
         )
 
     def test_do_not_merge_holds_both(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
         pr = fixtures._pr(labels=[{"name": "do-not-merge"}])
         for run in (None, permits):
             with self.subTest(unattended=run is not None):
@@ -405,14 +405,12 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         None,
         IDENTITY,
         enabled=True,
-        promoted=True,
         inputs={"authority": policy.PR_MERGE},
     )
     LOCAL = policy.UnattendedPolicy(
         None,
         IDENTITY,
         enabled=True,
-        promoted=True,
         inputs={"authority": policy.LOCAL_BABYSIT},
     )
 
@@ -630,7 +628,7 @@ class EvaluateWithARefusingPolicyHolds(unittest.TestCase):
                 )
 
     def test_a_permitting_policy_adds_no_blocker(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
         result = _evaluate(fixtures._pr(), HEAD, None, unattended=permits)
         self.assertEqual(result["blockers"], [])
         self.assertIs(result["unattended"]["enabled"], True)
@@ -689,7 +687,7 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
         self.assertIsNone(resolved.agent_identity)
         self.assertEqual(
             resolved.report(),
-            {"enabled": False, "promoted": None, "reason": "authority-unconfigured"},
+            {"enabled": False, "reason": "authority-unconfigured"},
         )
 
     def test_a_policy_without_a_refusal_is_enabled(self) -> None:
@@ -1807,8 +1805,21 @@ class AllInputsGood(Unattended):
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
         self.assertIs(out["unattended"]["enabled"], True)
-        self.assertIs(out["unattended"]["promoted"], True)
         self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_unreadable_promotion_evidence_still_enqueues(self) -> None:
+        # Owner direction: the promotion evidence is reported, never a stop.
+        self.promotion = policy.Promotion(
+            None, "options-unset:promotion_evidence_checker"
+        )
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(
+            out["unattended"]["promotion"]["reason"],
+            "options-unset:promotion_evidence_checker",
+        )
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertIs(out["enqueued"], True)
 
@@ -2128,11 +2139,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 "flight",
                 policy.InFlight(False, "identity-entry-queued:#5"),
                 "in-flight:identity-entry-queued:#5",
-            ),
-            "promotion unqualified": (
-                "promotion",
-                policy.Promotion(None, "options-unset:promotion_evidence_checker"),
-                "promotion-unqualified:options-unset:promotion_evidence_checker",
             ),
             "ineligible": (
                 "eligible",

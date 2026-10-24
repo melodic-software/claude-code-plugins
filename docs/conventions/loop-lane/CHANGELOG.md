@@ -12,9 +12,9 @@ the babysit loop's C4/C5 partition floor, the topology, escalation contract, cap
 §4 invariants are unchanged.
 
 - **Autonomy ladder.** The C4/C5 floor is scoped to the babysit loop's partition. The unattended
-  merge gate reads no work class: no class caps its rung or
-  selects its promotion cells. Its one class-named check is the trust hold on an issue carrying
-  `work-class: untrusted-provenance` (#9668).
+  merge gate reads no work class, and it reports promotion evidence but gates no merge on it; its
+  rung and rung cap remain pacing caps. Its one class-named check is the trust hold on an issue
+  carrying `work-class: untrusted-provenance` (#9668).
 
 ## [12.4.0] - 2026-10-22
 

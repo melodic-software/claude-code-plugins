@@ -78,8 +78,9 @@ Contract enforced here (encoded as code, not convention):
 - `--unattended` runs the gate under the unattended merge policy, in the
   wiring order: identity, the `gh auth status` credential chokepoint, the kill
   switch, the post-merge check (`babysit_postmerge`), demotion and cap, in
-  flight, promotion evidence, eligibility, the review evidence and the diff
-  score (`babysit_merge_policy`, `babysit_review_evidence`, `babysit_risk`).
+  flight, eligibility, the review evidence and the diff score
+  (`babysit_merge_policy`, `babysit_review_evidence`, `babysit_risk`); the
+  promotion evidence is read and reported but refuses nothing.
   Any refusal is the blocker `unattended merge refused: <reason>` and the
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
@@ -3862,8 +3863,8 @@ def unattended_writes(
                 and (hold := judge(n))
             }
             # This run's own read of a queued entry also counts: the pull
-            # request it just found ineligible, unpromoted for the rung, on
-            # another base or held by its score leaves the queue.
+            # request it just found ineligible, on another base or held by
+            # its score leaves the queue.
             own = inputs.get("own_refusal") or (
                 f"risk:{risk.score.name}"
                 if risk is not None and babysit_risk.holds(risk)
@@ -4661,7 +4662,7 @@ def _main() -> int:
         action="store_true",
         help=(
             "gate under the unattended merge policy (babysit_merge_policy): "
-            "check-only reports the decision; with --merge an eligible, promoted "
+            "check-only reports the decision; with --merge an eligible "
             "pull request its risk score does not hold is enqueued at the pinned head under the "
             "configured merge.agent-identity. Refuses --allow-dependency, "
             "--auto, --allow-unpinned-head, --stacked-prs and --allow-unprotected"
@@ -5237,7 +5238,7 @@ def _main() -> int:
         result["action"] = "auto-merge"
     if args.unattended and unattended is not None:
         # Ready means every required check is green and the policy refused
-        # nothing: its score does not hold it, and it is eligible, promoted and alone.
+        # nothing: its score does not hold it, and it is eligible and alone.
         return unattended_enqueue(repo, number, result, unattended, pending_path)
 
     try:

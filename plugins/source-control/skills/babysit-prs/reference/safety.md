@@ -1019,20 +1019,16 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    config commit, or the newest human close of a demotion record when later). A refusal here or
    above leaves `unattended.enabled: false` and stops every later read.
 3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), the merges in flight (the
-   identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), the
-   promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
-   options from the operator's managed and user settings, never from arguments or the
-   environment), and eligibility. A settings file, or a binding, probe root, evidence source or
-   checker it names, that the lane user can write, or replace through any directory above it,
-   refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a
-   surface in a sibling worktree refuses too. After a demotion record the resolver's
-   `--window-start` adds a `gate-failure` per promotable cell at the record's creation, so no cell
-   stays promoted until it is re-ratified.
+   identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), and
+   eligibility. The rung and its cap are pacing caps: a pull request at any rung up to the
+   effective one needs no promotion cell. The promotion evidence (from the babysit-loop resolver,
+   which reads its four options from the operator's managed and user settings) is still read and
+   reported under `unattended.promotion`, an unreadable or lane-writable surface as its `reason`,
+   but it refuses nothing.
    Past an on rung, an in-flight refusal of a pull request that has no merge-queue entry of its
    own and is not a Dependabot pull request stops the reads there: the promotion evidence,
-   eligibility, and step 4 are not read, `unattended.promoted` is `null` (`true` in the pr-merge
-   lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be after
-   the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
+   eligibility, and step 4 are not read, and the refusal is `in-flight:<reason>` as it would be
+   after the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
    is still read in full.
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
    an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
@@ -1050,8 +1046,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
    No work class is read: eligibility holds only an issue carrying `work-class:
-   untrusted-provenance`, or one a non-human removed it from (the trust hold), and the promotion
-   evidence is read for the effective rung's cells. A LOW score merges, and so does a MED one whose
+   untrusted-provenance`, or one a non-human removed it from (the trust hold). A LOW score merges, and so does a MED one whose
    every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
    or SUGGESTION security finding are reported and do not hold; an unbound or missing review
    lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
@@ -1070,8 +1065,7 @@ refusal dequeues every entry the identity enqueued; a queued identity entry that
 (`do-not-merge` or the human-gated label, `needs-human` by default, a body hold, a blocking
 comment from an owner, member or collaborator, the opt-in label removed, or put back after the
 enqueue by anyone but a human in person) leaves the queue, as
-does the assessed pull request's own entry when this run finds it ineligible, unpromoted for the
-rung, on a base that is not the default branch, or scored MED or HIGH
+does the assessed pull request's own entry when this run finds it ineligible, on a base that is not the default branch, or scored MED or HIGH
 (`risk:<score>`); one failed dequeue does not stop the others. An eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. When the identity's comment read before this run already says the same (score,

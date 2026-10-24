@@ -1512,8 +1512,8 @@ class RealResolver(unittest.TestCase):
         # refused every call as a usage error, so nothing was ever promoted.
         result = self.read()
         self.assertIsNone(result.reason)
-        self.assertTrue(result.promoted("C2"))
-        self.assertFalse(result.promoted("C3"))
+        self.assertEqual(result.cells["C2-auto-merge"], "promoted")
+        self.assertEqual(result.cells["C3-auto-merge"], "unpromoted")
         self.assertEqual(self.seen()["evidence"], str(self.source))
 
     def test_operator_credential_roots_reach_the_checker(self) -> None:
@@ -1550,7 +1550,7 @@ class RealResolver(unittest.TestCase):
     def test_a_surface_in_a_sibling_worktree_refuses(self) -> None:
         result = self.read(worktrees=lambda c: [str(self.checkout), str(self.ops)])
         self.assertRegex(result.reason or "", "is inside")
-        self.assertFalse(result.promoted("C2"))
+        self.assertIsNone(result.cells)
 
     def test_a_lane_writable_value_or_settings_file_refuses(self) -> None:
         # The real check: every file this test created is the lane user's own.
@@ -1574,7 +1574,7 @@ class RealResolver(unittest.TestCase):
         with mock.patch.object(policy, "PROMOTION_RESOLVER", self.resolver):
             result = self.read()
         self.assertEqual(result.reason, "lane-writable:promotion_evidence_checker")
-        self.assertFalse(result.promoted("C2"))
+        self.assertIsNone(result.cells)
 
 
 class ReadPromotion(unittest.TestCase):
@@ -1675,7 +1675,7 @@ class ReadPromotion(unittest.TestCase):
             writable=lambda p: policy._lane_writable(p) if str(p) == absent else False,
         )
         self.assertIsNone(result.reason)
-        self.assertTrue(result.promoted("C3"))
+        self.assertEqual(result.cells["C3-auto-merge"], "promoted")
 
     def test_unset_credential_roots_are_not_a_refusal(self) -> None:
         result, _ = self.run_resolver()
@@ -1698,18 +1698,13 @@ class ReadPromotion(unittest.TestCase):
         payload = {"failClosedReason": None, "options": {}, "cells": self.CELLS}
         result, _ = self.run_resolver(payload)
         self.assertEqual(result.reason, "option-unreported:promotion_evidence_binding")
-        self.assertFalse(result.promoted("C2"))
-
-    def test_the_off_rung_is_never_promoted(self) -> None:
-        result, _ = self.run_resolver()
-        self.assertTrue(result.promoted("C2"))
-        self.assertFalse(result.promoted("off"))
+        self.assertIsNone(result.cells)
 
     def test_a_fail_closed_resolver_promotes_nothing(self) -> None:
         payload = {"failClosedReason": "checker exited 1", "cells": {}}
         result, _ = self.run_resolver(payload)
         self.assertEqual(result.reason, "checker exited 1")
-        self.assertFalse(result.promoted("C2"))
+        self.assertIsNone(result.cells)
 
 
 class EntryHold(unittest.TestCase):
@@ -2289,7 +2284,6 @@ class Assess(unittest.TestCase):
         )
         self.assertIsNone(result.reason)
         self.assertIs(result.enabled, True)
-        self.assertIs(result.promoted, True)
         self.assertEqual(result.report()["credentials"], "identity-only")
 
     def test_a_merged_pull_request_stops_before_the_post_merge_reads(self) -> None:
@@ -2539,38 +2533,39 @@ class Assess(unittest.TestCase):
                     post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
                 )
                 self.assertIsNone(result.reason)
-                self.assertIs(result.promoted, True)
 
-    def test_promotion_is_read_for_the_effective_rung(self) -> None:
-        # promotion-evidence-resolution.md "Promotable cells and rung
-        # mapping": the C2 rung needs only C2-auto-merge.
+    def test_no_promotion_cell_gates_a_merge_at_any_rung(self) -> None:
+        # Owner direction: nothing stops a pull request but a security risk
+        # or an intent mismatch, so the promotion evidence is reported only.
+        # The rung and its cap stay as pacing caps.
         self.readable()
         self.all_clear(None)
-        c2_only = policy.Promotion(
-            {
-                "C2-auto-merge": "promoted",
-                "C3-auto-merge": "unpromoted",
-                "C3-ai-review-blocking": "unpromoted",
-            },
-            None,
+        unpromoted = policy.Promotion(
+            dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
         )
-        result = self.assess(
-            post_merge=lambda floor, who: gate(), promotion=lambda s: c2_only
-        )
-        self.assertIsNone(result.reason)
-        unpromoted = policy.Promotion({"C2-auto-merge": "unpromoted"}, None)
-        result = self.assess(
-            post_merge=lambda floor, who: gate(), promotion=lambda s: unpromoted
-        )
-        self.assertEqual(result.reason, "promotion-unqualified:C2")
-
-    def test_unread_promotion_refuses_but_the_path_stays_enabled(self) -> None:
-        self.readable()
-        self.all_clear()
-        result = self.assess(post_merge=lambda floor, who: gate())
-        self.assertEqual(result.reason, "promotion-unqualified:promotion-unread")
-        self.assertIs(result.enabled, True)
-        self.assertIs(result.promoted, False)
+        unread = policy.Promotion(None, "worktrees-unreadable")
+        for rung in ("C2", "C3"):
+            at = policy.EffectiveRung(rung, {"merge.rung": rung}, None)
+            for name, promo in (
+                ("unpromoted", unpromoted),
+                ("unread", unread),
+                ("absent", None),
+            ):
+                with (
+                    self.subTest(rung=rung, promotion=name),
+                    mock.patch.object(policy, "effective_rung", return_value=at),
+                ):
+                    result = self.assess(
+                        post_merge=lambda floor, who: gate(),
+                        **(
+                            {} if promo is None else {"promotion": lambda s, p=promo: p}
+                        ),
+                    )
+                    self.assertIsNone(result.reason)
+                    self.assertIs(result.enabled, True)
+                    reported = result.report()["promotion"]
+                    expected = "promotion-unread" if promo is None else promo.reason
+                    self.assertEqual(reported["reason"], expected)
 
     def test_the_demotion_window_start_reaches_the_promotion_read(self) -> None:
         self.readable()
@@ -4514,7 +4509,6 @@ class LaneAssess(unittest.TestCase):
             promotion=mock.Mock(side_effect=AssertionError("no local promotion")),
         )
         self.assertIsNone(result.reason)
-        self.assertIs(result.promoted, True)
         self.assertIs(result.report()["reportOnly"], True)
         self.assertEqual(
             lane.call_args.kwargs["denied_paths"],
@@ -5106,7 +5100,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
             details["inFlight"] = {
                 k: v for k, v in details["inFlight"].items() if k != "capSource"
             }
-        return result.reason, result.enabled, result.promoted, details
+        return result.reason, result.enabled, details
 
     def test_a_bound_answer_decides_as_the_fresh_reads_do(self) -> None:
         verified = lambda merge: True  # noqa: E731
