@@ -585,7 +585,7 @@ function lefthookRemotes(file, text) {
     .slice(1)
     .map((raw) => {
       // Block and flow forms alike: `key: value` lines, `{key: value, ...}`, `configs: [a, b]`.
-      const item = raw.replace(/^[ \t]*#.*$/gm, "");
+      const item = raw.replace(/^[ \t]*#.*$/gm, "").replace(/[ \t]+#.*$/gm, "");
       const val = (key) => {
         const v = new RegExp(`(?:^|[\\s{,])${key}:[ \\t]*([^\\n,}]*)`).exec(item)?.[1];
         return v === undefined ? undefined : unquote(v);
@@ -611,7 +611,11 @@ function remoteFetched(info, plugin) {
   const { git_url: url, ref, config } = plugin.remote;
   const names = [ref.replaceAll("-", "--").replaceAll("/", "-"), ref];
   const root = path.join(path.dirname(info.excludeFile), "lefthook-remotes");
-  return names.some((name) => readText(path.join(root, `${repoName(url)}-${name}`, config)) !== null);
+  if (names.some((name) => readText(path.join(root, `${repoName(url)}-${name}`, config)) !== null)) return true;
+  // A lefthook that names its cache directory another way: any fetched copy of
+  // this repository that holds the config.
+  const dirs = existsSync(root) ? readdirSync(root).filter((d) => d.startsWith(`${repoName(url)}-`)) : [];
+  return dirs.some((d) => readText(path.join(root, d, config)) !== null);
 }
 
 const lefthookHook = (info, event) => Boolean(readText(path.join(info.hooksDir, event))?.includes("lefthook"));
