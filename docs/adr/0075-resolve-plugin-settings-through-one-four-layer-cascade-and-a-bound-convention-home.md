@@ -182,7 +182,7 @@ home section, and the same wording in the
   its own line and no other byte of the block or the file.
 - **How.** The plugin's setup writes the line after the operator confirms it. A plugin never writes it
   unasked.
-- **What it names.** Only model-invokable skills. A skill with `disable-model-invocation: true` is
+- **What it names.** Only model-invocable skills. A skill with `disable-model-invocation: true` is
   not named, because the model cannot start it.
 - **When.** Only with that plugin's own stumble evidence: the same failure seen more than once
   against the current model, named where the line is added (`docs/plugin-philosophy.md`, Instruction

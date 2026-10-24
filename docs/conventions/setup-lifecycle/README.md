@@ -38,7 +38,7 @@ The root `AGENTS.md` may carry one shared block:
   (or `--yes`). With no terminal and no `--yes`, it writes nothing.
 - **Refuses what it cannot edit safely.** Unbalanced markers, a duplicate line for the plugin, a draft
   marker, or a symlinked `AGENTS.md` stop the write and report why.
-- **Names only model-invokable skills.** A skill with `disable-model-invocation: true` is started by
+- **Names only model-invocable skills.** A skill with `disable-model-invocation: true` is started by
   a person, so a line naming it spends context for nothing.
 - **Shipped form.** `developer-experience` is the form that ships:
   `plugins/developer-experience/skills/setup/scripts/pointer-line.sh` (`check` and `apply`, states
