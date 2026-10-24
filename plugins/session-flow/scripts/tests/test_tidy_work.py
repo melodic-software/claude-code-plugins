@@ -1063,7 +1063,9 @@ def test_an_archive_is_kept_while_a_hot_file_of_its_chain_is_kept(env):
     items = report(env, *links(env[0], STATE))
     assert items[archive.name]["kind"] == "archive"
     assert items[archive.name]["keep"]
-    assert items[archive.name]["reasons"] == [f"a kept handoff of its chain: {HOP3_2}"]
+    # The root stays too: the kept successor names it (`chain_root:`).
+    kept = f"a kept handoff of its chain: {ROOT3}, {HOP3_2}"
+    assert items[archive.name]["reasons"] == [kept]
     assert "archive" not in items
     assert "h1-00000000.md" not in items
     result = clean(env, "--apply")
