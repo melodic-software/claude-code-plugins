@@ -288,10 +288,8 @@ reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token
 empty key leaves it
 ([two calls](pr-run-activity.md#two-calls-on-one-credential-each)); and `apply-patch` (a
 `mutate-branch` script, no model, no head code) pushes the patch as one commit without force,
-refusing the whole patch on any change `patch-rules.json`'s `ci-context` row refuses: the
-universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` or
-`.claude-plugin/`, a plugin's `hooks/`, `monitors/` or `bin/`, `.mcp.json`, `.lsp.json`,
-`.gitmodules`, `CODEOWNERS`), or more than 300 paths
+withholding each change to a [kept path](#patch-rules) and refusing a patch of more than 300
+paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
 unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
@@ -302,8 +300,7 @@ runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
-without a retry. The same
+pushes and `ci-status` stays red. `weaken-required` and `flaky` go to a person without a retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
@@ -326,8 +323,8 @@ role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
 `fix-docs-subscription` runs the same on the role's OAuth token, only when `fix-docs-handoff`'s
 read of this run's jobs shows the broker allowed `fix-docs` and `fix-docs` posted no check, as a
 credit stop or an empty key leaves it; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
-pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
-set, every agent instruction path and more than 300 paths. No change is the common case, so an
+pushing it as one commit under `patch-rules.json`'s `default` row, which withholds the kept
+paths and refuses more than 300 paths. No change is the common case, so an
 `empty` patch runs no push job. `pr-refine.yml` has no escalation job: a refused or
 unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-human` and labels
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
@@ -534,7 +531,7 @@ head:
 |---|---|
 | `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
-| `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
+| `feedback-protected-path` (no longer given; a label it put on earlier clears this way) | the PR changes nothing under `.github/workflows/` |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
@@ -564,8 +561,8 @@ each row to these keys:
 
 | Key | Holds |
 |---|---|
-| `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
+| `refuse` | Named kept paths; a match is withheld from the push, never refused whole (below). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a plain path in normal form; the select job's thread file must be present), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
@@ -577,11 +574,25 @@ each row to these keys:
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
-Every row refuses `.github/workflows/**` in any case and through any `..` segment (the lane
-token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or in `docs/`,
-`.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
-The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
-`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
+Every row keeps `.github/workflows/**` in any case and through any `..` segment (the lane
+token has no `workflows` permission), `**/settings*.json` (a Claude settings file can carry hooks
+a job that loads the head would run), a symbolic link, a gitlink, a backslash path, and a rename
+into any of those, with its source. A kept path is never a stop: on a `[head]` row
+`apply-patch.mjs` withholds each kept change, pushes the rest, and writes the withheld part as
+`kept.diff` (`KEPT_PATCH_DIR`, its SHA-256 the step's `kept-sha256` output). The write runner
+uploads it as the `kept-paths-<lane>-<activity>-<attempt>` artifact, and its `kept-paths` job posts
+it in one comment, found by its `<!-- lane-kept-paths -->` marker and edited in place, naming the
+head, the SHA-256 and the run, pending an automated apply; the names are the exports of
+[`kept-paths.mjs`](../../../.github/scripts/apply-patch/kept-paths.mjs). A patch of kept paths
+alone pushes nothing and posts the `apply-patch` check neutral `prerequisite-missing` on a pull
+request; on an issue it escalates `patch-protected-path`, which report-outcome answers with a
+comment and no label. Every withheld blob still meets the size and credential checks, since the
+comment publishes it. A merge row cannot withhold part of a merge, so a kept path a merge
+resolution changes still escalates `conflict-patch-protected-path`.
+The rest of `.github/`, `CODEOWNERS`, `.gitmodules`, `.claude/`, `.mcp.json`, plugin hooks,
+`.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach
+review, where the security review lane reads each control surface with extra scrutiny, and merge
+on it: the
 [HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
 trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
 whose code the token broker runs from main. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the

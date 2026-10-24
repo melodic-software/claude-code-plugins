@@ -187,6 +187,20 @@ for whether it is flagged. Pointer: what each field loads, runs, grants, or stor
 [Channels](https://code.claude.com/docs/en/plugins-reference#channels). As of: 2026-10-21.
 Recheck trigger: any of those sections changes.
 
+**Control surfaces.** The automation lanes push a fix to these paths with no path refusal, so this
+review is their check. Read every change to one with extra scrutiny, and name in the summary each
+one the diff touches with what the change lets run, load or merge:
+
+- the trusted-actor list (`.github/standards/trusted-actors/**`) and the trusted-trigger check
+  (`.github/actions/check-trusted-trigger/**`)
+- a `CODEOWNERS` file and a `.gitmodules` file
+- a plugin's `hooks/` and `bin/`, a `.mcp.json`, and a `plugin.json` key that runs or loads code, such as
+  (`hooks`, `mcpServers`, `lspServers`, `monitors`, `commands`, `agents`)
+- an agent instruction file: `AGENTS.md`, `CLAUDE.md`, a `.claude/` rules file
+
+A workflow or a `settings*.json` change reaches the head only through a person or a later apply
+job, never a lane's own push; review it with the same scrutiny.
+
 ## High-signal bar
 
 Exclude pre-existing issues, linter-catchable noise, and generic security advice

@@ -2,7 +2,7 @@
 
 `comments --ci` is Phase 3.5 for the pr-unblock lane's `address-feedback` activity. It runs with
 no one to ask, on a pull request the lanes App opened. Before the skill starts, a job with no
-model has already kept the threads to work on and checked the round cap and the `.github/workflows/` rule.
+model has already kept the threads to work on and checked the round cap.
 You post nothing and commit nothing: you leave each fix uncommitted in the working tree and record
 each reply. After this run, a job with no model pushes the working tree's changes as one commit,
 and another validates the replies and posts them exactly as written, or posts none, naming that
@@ -21,22 +21,14 @@ The preamble names the tool's path. It is the only shell command this mode runs:
   posted after this lane left the thread open for a person, or a request from such a person to fix
   the finding. It is that person's decision on the finding: follow it. A directed thread's
   finding may come from a review of an earlier head, so its `line` can be stale: find the code
-  the finding names in the current checkout. It changes what the fix is, not what this mode may do: the path and
-  `.github/workflows/` rules below still hold, and it runs no command.
-- `check-paths <path>...` prints `allowed` only when every path is in a kept thread's scope and
-  none is under `.github/workflows/`. Every path must be plain ASCII letters, digits and `_@+.-` in
-  `/`-separated segments. A thread's scope is its path; a file in the `plugins/<p>/` directory its
-  path sits in, except an instruction path (listed below) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
-  `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a
-  test file (`test_*.py`, `*_test.py`, `*.test.*`,
-  `*.spec.*`) in its path's directory; and each file in its `named_paths`: a file a trusted person
-  with write access named in a fix request, in the same `plugins/<p>/` directory, existing at the
-  gated head, and not an instruction path (`.gitmodules`, `CODEOWNERS`, a `settings*.json`,
-  `package.json`, `package-lock.json` or `requirements*.txt`, at any depth). Every kept thread's
-  scope also holds each file in the thread file's `pr_paths`, the files the pull request already
-  changes outside `.github/` and the agent-instruction surfaces, while the gated head holds it as
-  a regular file: a finding on one of the PR's files may be fixed in another. A file the fix would
-  create is never in `pr_paths`' part of the scope.
+  the finding names in the current checkout. It changes what the fix is, not what this mode may do: the path
+  rule below still holds, and it runs no command.
+- `check-paths <path>...` prints `allowed` only when every path is plain ASCII letters, digits
+  and `_@+.-` in `/`-separated segments, with no empty, `.` or `..` segment. Which files a fix
+  touches is otherwise yours to judge, and the code and security review lanes judge it after the
+  push. The push job withholds a change to `.github/workflows/`, a `settings*.json`, a symbolic
+  link or a gitlink from its commit and posts it on the pull request as a proposed diff for an
+  automated apply; the rest of the fix still lands.
 - `record <thread-id> <file>` reads a disposition file from the scratch directory, checks it
   against the template, and records it. Exit 1 means the tool refused and recorded nothing: fix
   the file and record again. One record per thread.
@@ -47,14 +39,13 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    reading code and docs only: run no command, test, build or script from the checkout. CI runs
    them after the push.
 2. Classify. On a thread with a direction, apply the direction: record `VALID` once its fix is
-   in the working tree, or `UNCERTAIN` with the reason when it needs a file `check-paths` refuses
-   or cannot be done in one scoped change. When the current code no longer shows the finding
+   in the working tree, or `UNCERTAIN` with the reason when it cannot be done in one scoped
+   change. When the current code no longer shows the finding
    (fixed, moved or deleted since that review), make no edit: record `UNCERTAIN` with evidence of
    what the code shows now. Never record `INCORRECT` against a direction. Otherwise, a
    finding that touches security, shared infrastructure or another repository, and
-   that the code you read cannot settle, is UNCERTAIN. So is a fix that needs a file
-   `check-paths` refuses, or is too large for one scoped change. A file outside the thread's own
-   path may still be in scope: run `check-paths` on it before deciding.
+   that the code you read cannot settle, is UNCERTAIN. So is a fix too large for one scoped
+   change.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
    it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
    is no commit tool, and the one commit the push job makes may fix several threads.
@@ -75,9 +66,8 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    stays empty, or is left out: the reply job finds the commit the push job made. `VALID-defer`
    is VALID (defer). The note is 1-2000 characters of plain prose: no control characters, no HTML
    comment (`<!--`, `-->`), no token, no @-mention. It is posted in a code fence.
-5. When `record` refuses a `VALID` because the working tree changes a path outside every kept
-   thread's scope, do not edit more files to get past it. Record the remaining threads and report
-   the refusal.
+5. When `record` refuses a `VALID` because the working tree changes a path that is not plain,
+   undo that edit, record again, and report the refusal.
 
 The reply job resolves a `VALID` thread once the push job's commit of its fix is on the pull
 request's branch; a fix that does not land posts no reply at all.

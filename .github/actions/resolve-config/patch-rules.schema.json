@@ -33,7 +33,7 @@
               "rename-into-refused"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path another refusal matches."
+          "description": "Named kept paths; apply-patch withholds a match from a [head] push and posts it as a proposed diff, and a merge row refuses it. github-workflows: .github/workflows/** in any case and through any .. segment; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path another refusal matches."
         },
         "allow": {
           "type": "array",

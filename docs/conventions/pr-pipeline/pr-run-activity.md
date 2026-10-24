@@ -606,12 +606,9 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
    the empty files the CLI's Bash leaves at the top of the checkout under its environment scrub,
    a fixed set of names (`package.json`, `.env` and others) that the gated head does not track. A
    name from that set the head does not track that holds anything other than an empty regular
-   file makes the collector exit 3 with no patch written: the collect step fails, nothing is
-   collected and `patch-state` stays empty, and the dirty-tree check counts it as dirty. The
-   collect step sets `state` `refused` on exit 3 alone; the scan job holds the run's
-   `patch-collected` output to `written`, `empty` or `refused` and sets `scan-collect-refused`
-   `true` on `refused`, so a caller can hand the refused change to a person. A forged `refused`
-   can only do that.
+   file is left out too, and named on stderr: several are credential files (`.npmrc`, `.env*`),
+   which no patch carries, and the rest of the change is still collected. The collector no longer
+   exits 3, so the collect step's `refused` state and `scan-collect-refused` are never set.
 3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
    one file, `patch.diff` (7-day retention): in PR mode by the [scan job](#the-scan-job), after
    its scan, in issue mode by the run job. The run's `patch-state` output is then `written`,
@@ -632,8 +629,9 @@ re-run of that job alone still finds it. Before applying it, that job must check
 - the PR head is still `head-sha`;
 - `git apply --check` with `--index` or `--cached`, and no `--unsafe-paths` or `--directory`,
   succeeds on a fresh checkout of `head-sha`;
-- no entry has mode `120000` (symlink) or `160000` (gitlink), and no path is a protected path
-  such as `.github/workflows/**`, `CODEOWNERS`, `.gitmodules` or a settings file.
+- no entry it pushes has mode `120000` (symlink) or `160000` (gitlink), or is a kept path such as
+  `.github/workflows/**` or a settings file: `apply-patch.mjs` withholds those and posts them as a
+  proposed diff ([Patch rules](README.md#patch-rules)).
 
 It then commits on `head-sha` and moves the PR branch without force, so a head that moved after
 the check refuses the push. A forged `empty` can only hand the PR to a person; a forged `written`
@@ -737,7 +735,7 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    `prepare.sh`: it escalates `repeat-cap` before merging, runs
    `git merge --no-commit --no-ff <pinned base>` and the version-bump script (under `LC_ALL=C`),
    snapshots the index, and escalates `protected-path-conflict` (a conflicted path under
-   `.github/workflows/`, a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a
+   `.github/workflows/` or a `settings*.json`) or `unresolved-conflict` (a
    conflict with no markers to resolve). Its `merge-state` output is `clean`, `conflicted` or
    `escalate`; for `clean` and `conflicted` it also prints `conflict-tree`, T0: the merge's stage-0
    entries plus each conflicted path's file as git left it, markers and all, hashed with
@@ -861,8 +859,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold of the push job. No kept
-   thread skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/workflows/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
+   thread skips `not-applicable`, or `awaiting-human` on such a PR. `loop.review-rounds` earlier rounds
    escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
    commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
    `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
@@ -890,28 +887,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    tool lists the kept threads, checks paths, and records a reply in `state/replies.jsonl`: it
    refuses a disposition file outside the scratch directory or off the template (`fix_sha`
    empty), and a `VALID` reply while the working tree changes, against the gated head (renames
-   as both paths, untracked files that git does not ignore included), a file outside every kept
-   thread's scope or any `.github/workflows/` path, read with no hook, fsmonitor or untracked-cache config.
-   Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
-   thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
-   instruction path
-   (`.gitmodules`, `CODEOWNERS`, a `settings*.json`, `package.json`, `package-lock.json` or `requirements*.txt`, at any depth) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
-   `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
-   directory; and its `named_paths`. The select job sets those from the thread's fix requests by a
-   trusted person with write access: each file-shaped word outside fenced code and quoted lines,
-   read from the repository root when it holds a `/` and from the thread path's directory when it
-   does not, kept when it is in the thread path's `plugins/<p>/` directory, in normal form, not
-   under `.github/workflows/` and not an instruction path (the same list), and
-   a regular file, not a symbolic link or gitlink, at the gated head (ten per thread
-   at most). Every kept thread's scope also holds the thread file's `pr_paths`: each file the
-   pull request's file listing changes, rename sources included, in normal form, not under
-   `.github/workflows/`, not a `.gitmodules`, `CODEOWNERS`, `settings*.json`, package manifest or
-   `requirements*.txt`, and not a control-plane or agent-instruction surface: anything under
-   `.github/` (the pr-merge HIGH floor's trusted-actor list, trusted-trigger check and
-   `resolve-config` among it), `CLAUDE.md`, `AGENTS.md`, `.mcp.json` or `.lsp.json`, a `.claude`
-   or `.claude-plugin` directory, or a plugin's `hooks/`, `monitors/` or `bin/`. A path the fix creates gets no scope from `pr_paths`: the tool checks it exists at
-   the gated head, `apply-patch.mjs` refuses an added entry, and the reply job an `added`,
-   `renamed` or `copied` file.
+   as both paths, untracked files that git does not ignore included), a path that is not plain
+   ASCII letters, digits and `_@+.-` in `/`-separated segments in normal form, read with no hook,
+   fsmonitor or untracked-cache config. Scope is that path hygiene alone
+   (`thread-scope.mjs`): which files a fix touches is the code review lane's finding, and a
+   control or instruction surface it touches the security review lane's. The select job still
+   writes the thread's `named_paths` (each file-shaped word of a write-access fix request, plain,
+   in normal form and a regular file at the gated head, ten per thread at most) and `pr_paths`
+   (the PR's plain files, rename sources included) as context for the skill.
 3. After the skill, the run job carries the tool's `replies.jsonl` beside the patch, at most
    49152 bytes, sealed for the scan job ([Patch output mode](#patch-output-mode)), and only for a
    `review-threads` skill. The scan job scans it with the reply and the patch and, on a clean
@@ -925,8 +908,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `scan-*` outputs, never a run job's, and only when that call's scan also uploaded replies.
    Before the mint it downloads the select
    job's thread file and fails red unless its SHA-256 is the select job's; `apply-patch.mjs` then
-   admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` and
-   `pr_paths` included),
+   admits plain paths in normal form (the `kept-threads` rule), withholds the kept paths
+   ([Patch rules](README.md#patch-rules)),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
    human-gated hold unless the select job reported `fix-requested`, and commits with the
    `Lane-Activity: pr-unblock/address-feedback` trailer. An empty patch (every reply needs no fix)
@@ -1002,11 +985,9 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
-The skill's limits to kept-thread scope and away from `.github/workflows/` are instructions and the tool's
-checks at record time; the push job's `kept-threads` rule is what holds the push, and the reply
-job's compare withholds the replies when the branch changed anything else. A diff at the files
-listing's limit escalates as `feedback-protected-path`, since it could hide a `.github/workflows/`
-path.
+The path hygiene the tool checks at record time is held again by the push job's `kept-threads`
+rule and the reply job's compare; the push job withholds the kept paths
+([Patch rules](README.md#patch-rules)).
 Residuals: a reviewed-head marker confirms a head, not one review run, so any reviewer-bot review
 on that head is kept; and the replies file is the model's to write, so the tool's checks are
 advisory and `publish-feedback.mjs` is what holds the template. The write file fails red on a
@@ -1203,10 +1184,10 @@ its fallback call on the role's OAuth token after a credit stop or with the key 
    Residual: the skill runs head code by design, so head code can reach what any step of a read
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
-   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses
-   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, symlinks and gitlinks; a
-   change elsewhere, such as `.gitattributes`, an agent instruction file or a check's own script,
-   reaches the branch and its review.
+   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which withholds
+   `.github/workflows/**`, settings files, symlinks and gitlinks as a proposed diff; a change
+   elsewhere, such as `.gitattributes`, `CODEOWNERS`, an agent instruction file or a check's own
+   script, reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
    skill's reply, whose `<check>: escalated <reason> <sentence>` lines are the report.
 
@@ -1242,11 +1223,11 @@ refusal posts nothing.
 2. The hold-label step runs as for a skill, before the head checkout (depth 1).
 3. The script, from its base copy, with the lane token and `/usr/bin/git` under an allowlisted
    environment (no hooks, fsmonitor, global or system config), applies the patch to the gated
-   head's index (escalating `ci-fix-not-applied` on failure) and refuses the whole patch,
-   whatever the report escalated, on any change the row refuses: the universal set
-   (`.github/workflows/**`, `CODEOWNERS` at the root, in `.github/` or in `docs/`, `.gitmodules`,
-   `**/settings*.json`, a symbolic link or gitlink, a rename into a refused path, a backslash),
-   escalating `ci-fix-protected-path`; more than the row's `max-files`
+   head's index (escalating `ci-fix-not-applied` on failure) and withholds each change to a kept
+   path (`.github/workflows/**`, `**/settings*.json`, a symbolic link or gitlink, a rename into a
+   kept path with its source, a backslash), posting it as a proposed diff
+   ([Patch rules](README.md#patch-rules)); a patch of kept paths alone pushes nothing and skips
+   `prerequisite-missing`. More than the row's `max-files`
    (300) paths, a credential shape, an oversized blob or a patch that changes nothing (the row's
    `empty-at-push`) escalates `ci-fix-invalid`. It then
    re-reads the pull request and its labels, throws unless the head is this repository's, stops
@@ -1264,8 +1245,7 @@ no prepare mode: the caller passes no `patch-prepare`, so the script takes the `
 runs the job only on a `written` patch. As fix-ci's `apply-patch` does, it takes one leg (the
 fallback call when it ran, else the first) and every patch input from that leg's scan job
 (`scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt`, `scan-reply-attempt`), never from
-a run job. That row refuses the universal set, escalating
-`patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
+a run job. That row withholds the kept paths, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
 `Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`.
 `pr-refine.yml` has no escalation job, so a refusal leaves only the neutral `awaiting-human`
@@ -1814,8 +1794,10 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
-  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
-  that reason, and opens no PR, from a resumed branch either. A `done` run that committed nothing on a resume opens its PR from the
+  patch it refused (`patch-invalid` or `patch-not-applied`) hands the issue to a person naming
+  that reason, and opens no PR, from a resumed branch either; one whose patch was kept paths alone
+  (`patch-protected-path`, posted on the issue as a proposed diff) comments that the apply is
+  pending, adds no label and removes `agent-ready`. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
   checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
