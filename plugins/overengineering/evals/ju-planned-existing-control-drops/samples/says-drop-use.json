@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "1. `stable` branch: drop: use the protection rule on `main`."},
+    {"answer": "Fast-forward workflow: `drop: use` the PR job `ci / consumer-e2e`."},
+    {"answer": "The ruleset on stable is dropped, covered by main's rule."},
+    {"answer": "Bot app: drop, already covered: it exists only to push past the stable ruleset."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Keep the stable branch; it is the safe path.", "why": "kept"},
+    {"answer": "I would not drop: use the stable branch.", "why": "negated"},
+    {"answer": "Don't drop, use it as the release line.", "why": "negated contraction"},
+    {"answer": "Drop the bot app into its own repository.", "why": "drop without an existing control"}
+  ]
+}

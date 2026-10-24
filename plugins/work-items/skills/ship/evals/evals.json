@@ -126,22 +126,22 @@
     },
     {
       "id": 10,
-      "name": "ship-run-readies-each-pr-after-create-pushed",
-      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. The user approved the item list; dispatch returned item #361 accepted in worktree /work/wt-361 on branch feat/361-export, committed and pushed, and `/source-control:pull-request create --pushed --worktree /work/wt-361` opened draft PR 905. What does the run do next for that item?",
-      "expected_output": "Right after create --pushed, the run dispatches /source-control:pull-request ready --unattended into /work/wt-361, with a brief naming PR 905 so the dispatched agent stops if ready resolves a different PR, and a strong-tier model rather than its own inherited one. ready merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The run merges only when the user says to land it, and does not flip the PR itself.",
+      "name": "ship-run-lets-create-pushed-ready-each-pr",
+      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. The user approved the item list; dispatch returned item #361 accepted in worktree /work/wt-361 on branch feat/361-export, committed and pushed, merge-hold.sh exited 1 for #361, and pr_open_state resolves to ready. What does the run do to open and ready that item's PR?",
+      "expected_output": "It opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-361, which, with the open state resolved ready, runs ready --unattended itself: it merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The run dispatches no ready of its own, merges only when the user says to land it, and does not flip the PR itself.",
       "files": [],
       "expectations": [
-        "Dispatches /source-control:pull-request ready --unattended after create --pushed, without waiting for the user to say land it",
-        "Runs it in the item's worktree, with the brief naming PR 905 as the PR ready must resolve",
-        "Passes an explicit strong-tier model on that dispatch",
-        "Never flips the draft with a bare forge command and merges only on the user's go-ahead"
+        "Opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-361",
+        "Relies on create --pushed to run ready --unattended, without waiting for the user to say land it, and dispatches no second ready",
+        "Never flips the draft with a bare forge command",
+        "Merges only on the user's go-ahead"
       ]
     },
     {
       "id": 11,
       "name": "ship-run-leaves-a-superseded-pr-in-draft-when-ready-refuses",
-      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. create --pushed opened draft PR 906 for item #362, and the run dispatched /source-control:pull-request ready --unattended for PR 906, which refused: item #362, the issue the PR closes, is already closed, so the PR is superseded.",
-      "expected_output": "PR 906 stays a draft. The run carries ready's refusal reason (item #362 already closed, so the PR is superseded) into its report row for #362, does not reopen the item or flip the PR another way, and does not merge it.",
+      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. create --pushed opened PR 906 for item #362 and ran /source-control:pull-request ready --unattended on it, which refused: item #362, the issue the PR closes, is already closed, so the PR is superseded.",
+      "expected_output": "PR 906 stays a draft. The run carries the refusal reason create --pushed reported (item #362 already closed, so the PR is superseded) into its report row for #362, does not reopen the item or flip the PR another way, and does not merge it.",
       "files": [],
       "expectations": [
         "PR 906 is left in draft",

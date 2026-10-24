@@ -79,7 +79,8 @@ after observing real runs; never fork the skill to tune a run.
 
 ### Improve-one-thing prompt (daily or hourly)
 
-`/improvement:improve --unattended` ships one draft PR per run, measured against the repo's written
+`/improvement:improve --unattended` ships one PR per run, a draft unless the prompt authorizes the
+ready flip, measured against the repo's written
 standards only, and stops when three of its PRs are already open. A human merges every one.
 
 ```text

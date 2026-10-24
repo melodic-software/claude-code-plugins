@@ -717,9 +717,9 @@ test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dime
 // and its apply job mints from them. The broker refuses that mint as
 // workflow-modified when the caller's or the write runner's blob at the run's
 // commit differs from main's tip (azure-iac binding.mjs), so the read runner's run job checks the same
-// rule before any model turn and fails red; work-unblock's sweep re-fires a
-// failed run that left no outcome marker.
-test("pr-run-activity-read.yml: an issue run on stale workflow files fails before any model turn", () => {
+// rule before any model turn and, on a difference, ends green with stale=true,
+// which stops the run; work-unblock's sweep re-fires a run that stopped there.
+test("pr-run-activity-read.yml: an issue run on stale workflow files stops green before any model turn", () => {
   const { jobs } = workflow("pr-run-activity-read.yml");
   const steps = jobs.run.steps;
   const index = (id) => steps.findIndex((step) => step.id === id);
@@ -733,6 +733,27 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files fails befor
   for (const step of steps.slice(index("workflow-current") + 1, index("go") + 1)) {
     assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|!cancelled\(\)/, step.name);
   }
+  // A stale run stops at the stop step: no earlier-work check and no activity.
+  const stop = steps.find((step) => step.name === "Stop on stale workflow files");
+  assert.ok(index("workflow-current") < steps.indexOf(stop) && steps.indexOf(stop) < index("issue-prior"));
+  const prior = steps[index("issue-prior")];
+  const issueSkill = { "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill" };
+  for (const [stale, stops] of [["true", true], ["", false]]) {
+    const context = { ...issueSkill, "steps.workflow-current.outputs.stale": stale };
+    assert.equal(evaluate(stop.if, context), stops, `stop step, stale=${stale}`);
+    assert.equal(evaluate(prior.if, context), !stops, `issue-prior, stale=${stale}`);
+  }
+  const go = steps[index("go")];
+  assert.equal(go.env.STALE, "${{ steps.workflow-current.outputs.stale }}");
+  const decideGo = (env) => {
+    const out = join(mkdtempSync(join(tmpdir(), "workflow-go-")), "out");
+    writeFileSync(out, "");
+    spawnSync("bash", ["-c", go.run], { encoding: "utf8", env: { ...process.env, PRIOR: "", STALE: "", ...env, GITHUB_OUTPUT: out } });
+    return readFileSync(out, "utf8").trim();
+  };
+  assert.equal(decideGo({ STALE: "true" }), "run=false");
+  assert.equal(decideGo({ PRIOR: "false" }), "run=false");
+  assert.equal(decideGo({}), "run=true");
   // A skill run in issue mode only.
   for (const [issue, kind, runs] of [["7", "skill", true], ["7", "script", false], ["", "skill", false]]) {
     const context = {
@@ -764,31 +785,42 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files fails befor
   spawnSync("git", ["init", "-q", "-b", "main", base]);
   spawnSync("mkdir", ["-p", join(base, ".github/workflows")]);
   const run = commit({ [caller]: "caller 1\n", [reusable]: "write 1\n", "README.md": "a\n" });
-  const runCheck = (sha = run, ref = `melodic-software/claude-code-plugins/${caller}@refs/heads/main`) =>
-    spawnSync("bash", ["-c", check.run], {
+  const output = join(dir, "github-output");
+  // The check's exit status and what it wrote to GITHUB_OUTPUT.
+  const runCheck = (sha = run, ref = `melodic-software/claude-code-plugins/${caller}@refs/heads/main`) => {
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-c", check.run], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, WORKFLOW_REF: ref, WORKFLOW_SHA: sha },
+      env: { ...process.env, WORKFLOW_REF: ref, WORKFLOW_SHA: sha, GITHUB_OUTPUT: output },
     });
+    return { ...result, written: readFileSync(output, "utf8") };
+  };
+  const proceeds = (result, message) => {
+    assert.equal(result.status, 0, message);
+    assert.equal(result.written, "", message);
+  };
 
-  assert.equal(runCheck().status, 0, "the run's own commit is main's tip");
+  proceeds(runCheck(), "the run's own commit is main's tip");
   commit({ "README.md": "b\n" });
-  assert.equal(runCheck().status, 0, "main moved, but neither workflow file changed");
+  proceeds(runCheck(), "main moved, but neither workflow file changed");
   commit({ [caller]: "caller 2\n" });
   const callerStale = runCheck();
-  assert.equal(callerStale.status, 1, "the caller changed on main");
-  assert.match(callerStale.stdout, /::error::workflow-stale: \.github\/workflows\/work-resolve-issue\.yml /);
+  assert.equal(callerStale.status, 0, "the caller changed on main: the step ends green");
+  assert.equal(callerStale.written, "stale=true\n");
+  assert.match(callerStale.stdout, /::warning::workflow-stale: \.github\/workflows\/work-resolve-issue\.yml /);
   const fresh = git("rev-parse", "HEAD");
-  assert.equal(runCheck(fresh).status, 0, "a run on main's current files proceeds");
+  proceeds(runCheck(fresh), "a run on main's current files proceeds");
   commit({ [reusable]: "write 2\n" });
   const reusableStale = runCheck(fresh);
-  assert.equal(reusableStale.status, 1, "the write runner changed on main");
-  assert.match(reusableStale.stdout, /::error::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
+  assert.equal(reusableStale.status, 0, "the write runner changed on main: the step ends green");
+  assert.equal(reusableStale.written, "stale=true\n");
+  assert.match(reusableStale.stdout, /::warning::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
 
   // A commit or caller this checkout cannot read is left to the broker.
-  assert.equal(runCheck("0".repeat(40)).status, 0);
-  assert.equal(runCheck("").status, 0);
-  assert.equal(runCheck(run, "").status, 0);
+  proceeds(runCheck("0".repeat(40)));
+  proceeds(runCheck(""));
+  proceeds(runCheck(run, ""));
 });
 
 // The issue lane's model job holds no write token. resolve-issue

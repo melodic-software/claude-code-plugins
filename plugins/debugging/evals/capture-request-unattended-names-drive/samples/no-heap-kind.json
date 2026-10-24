@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "analyze-profile reads an existing profile, trace or heap snapshot. Run `/app-control:drive capture --kind cpu`, then come back with the file.",
+      "why": "heap snapshot named as an artifact type"
+    },
+    {
+      "answer": "Run `/app-control:drive capture --kind cpu`.\n\nIf memory also climbs during the run, record with `--kind heap` as well.",
+      "why": "heap as a conditional extra, not a capture command"
+    },
+    {
+      "answer": "/app-control:drive capture --kind cpu (not --kind heap: memory is flat)",
+      "why": "heap only in a note after the command"
+    },
+    {
+      "answer": "",
+      "why": "absence check: an empty reply holds no heap capture; the other graders fail it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /app-control:drive capture --kind heap and share the snapshot."
+    },
+    {
+      "answer": "Run /app-control:drive capture --kind=heap."
+    },
+    {
+      "answer": "Run `/app-control:drive capture export-worker --out x --kind heap`."
+    },
+    {
+      "answer": "Run `/app-control:drive capture --kind cpu`, and run `/app-control:drive capture --kind heap` too.",
+      "why": "a second capture command with the heap kind"
+    }
+  ]
+}

@@ -158,6 +158,15 @@ def failure_annotation(title: str = "") -> dict[str, Any]:
     }
 
 
+def armed_pull(
+    pr_id: str, number: int, *, author: dict[str, str], armer: dict[str, str] | None
+) -> dict[str, Any]:
+    """An open pull request as the armed read returns it; `armer` None is one
+    with auto-merge off."""
+    request = None if armer is None else {"enabledBy": armer}
+    return {"id": pr_id, "number": number, "author": author, "autoMergeRequest": request}
+
+
 def completed(
     stdout: Any = None, *, returncode: int = 0, stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
@@ -183,6 +192,12 @@ class FakeGh:
         # branch, a set stands in for a same-named tag on another history.
         self.bare_main: set[str] | None = None
         self.queue: list[dict[str, Any]] = []
+        # Open pull requests into the branch, as the armed read returns them.
+        self.open_pulls: list[dict[str, Any]] = []
+        # True: every armed page says another follows.
+        self.open_pulls_endless = False
+        # Armed pages served in order, one per read, when set.
+        self.armed_pages: list[dict[str, Any]] = []
         self.issues: list[dict[str, Any]] = []
         self.comments: dict[int, list[dict[str, Any]]] = {}
         self.fail_reads: set[str] = set()
@@ -387,6 +402,20 @@ class FakeGh:
             return completed(
                 {"data": {"dequeuePullRequest": {"clientMutationId": None}}}
             )
+        if "disablePullRequestAutoMerge" in joined:
+            return completed(
+                {"data": {"disablePullRequestAutoMerge": {"clientMutationId": None}}}
+            )
+        if "PostMergeArmed" in joined and self.armed_pages:
+            return completed(
+                {"data": {"repository": {"pullRequests": self.armed_pages.pop(0)}}}
+            )
+        if "PostMergeArmed" in joined:
+            page = {
+                "pageInfo": {"hasNextPage": self.open_pulls_endless, "endCursor": "c"},
+                "nodes": self.open_pulls,
+            }
+            return completed({"data": {"repository": {"pullRequests": page}}})
         if "PostMergeQueue" in joined:
             entries = {"totalCount": len(self.queue), "nodes": self.queue}
             return completed(
@@ -2359,6 +2388,130 @@ class Remediation(CheckCase):
         dequeues = [w for w in self.gh.writes() if "dequeuePullRequest" in " ".join(w)]
         self.assertEqual(len(dequeues), 1)
         self.assertIn("id=PR_a", dequeues[0])
+
+    def armed_pulls(self) -> None:
+        # Only a lanes App pull request the lanes App armed is disarmed.
+        self.gh.open_pulls = [
+            armed_pull("PR_lane", 7020, author=APP_ACTOR, armer=APP_ACTOR),
+            armed_pull("PR_person_armed", 7021, author=APP_ACTOR, armer=HUMAN),
+            armed_pull("PR_person_pr", 7022, author=HUMAN, armer=APP_ACTOR),
+            armed_pull("PR_unarmed", 7023, author=APP_ACTOR, armer=None),
+        ]
+
+    def disarms(self) -> list[list[str]]:
+        return [
+            w for w in self.gh.writes() if "disablePullRequestAutoMerge" in " ".join(w)
+        ]
+
+    def test_remediate_disarms_only_the_lanes_own_armed_pull_requests(self) -> None:
+        verdict = self.failing_verdict()
+        self.armed_pulls()
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 7010}}
+        ]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7020])
+        self.assertEqual(report["dequeued"], [7010])
+        self.assertEqual(report["errors"], [])
+        disarms = self.disarms()
+        self.assertEqual(len(disarms), 1)
+        self.assertIn("id=PR_lane", disarms[0])
+        # Disarmed before the dequeue, so none enters the queue after its read.
+        writes = [" ".join(w) for w in self.gh.writes()]
+        self.assertIn("disablePullRequestAutoMerge", writes[0])
+        self.assertIn("dequeuePullRequest", writes[1])
+
+    def test_a_failed_disarm_is_an_error_and_the_rest_still_run(self) -> None:
+        verdict = self.failing_verdict()
+        self.gh.open_pulls = [
+            armed_pull("PR_x", 7030, author=APP_ACTOR, armer=APP_ACTOR),
+            armed_pull("PR_y", 7031, author=APP_ACTOR, armer=APP_ACTOR),
+        ]
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 7010}}
+        ]
+        self.gh.fail_reads = {"id=PR_x"}
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7031])
+        self.assertEqual(len(report["errors"]), 1)
+        self.assertTrue(report["errors"][0].startswith("disarm: disarm #7030"))
+        self.assertEqual(report["dequeued"], [7010])
+        self.assertEqual(report["issues"], [9001])
+
+    def test_a_failed_dequeue_read_still_disarms(self) -> None:
+        verdict = self.failing_verdict()
+        self.armed_pulls()
+        self.gh.fail_reads = {"PostMergeQueue"}
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7020])
+        self.assertTrue(any(e.startswith("dequeue:") for e in report["errors"]))
+
+    def test_an_unreadable_armed_listing_is_an_error_and_still_dequeues(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 7010}}
+        ]
+        self.gh.fail_reads = {"PostMergeArmed"}
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [])
+        self.assertTrue(report["errors"][0].startswith("disarm: armed pull requests"))
+        self.assertEqual(report["dequeued"], [7010])
+
+    def test_an_armed_listing_past_the_page_limit_still_disarms_what_it_read(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.armed_pulls()
+        self.gh.open_pulls_endless = True
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertTrue(len(self.disarms()) >= 1)
+        self.assertIn(7020, report["disarmed"])
+        self.assertTrue(
+            report["errors"][0].startswith("disarm: armed pull requests: more than")
+        )
+
+    def test_the_armed_listing_follows_the_cursor_on_the_judged_branch(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.gh.armed_pages = [
+            {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                "nodes": [armed_pull("PR_p1", 7040, author=HUMAN, armer=HUMAN)],
+            },
+            {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "nodes": [armed_pull("PR_p2", 7041, author=APP_ACTOR, armer=APP_ACTOR)],
+            },
+        ]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7041])
+        reads = [c for c in self.gh.calls if "PostMergeArmed" in " ".join(c)]
+        self.assertEqual(len(reads), 2)
+        self.assertIn("c=c1", reads[1])
+        self.assertIn(f"b={verdict.branch}", reads[0])
+
+    def test_a_malformed_armed_page_is_an_error(self) -> None:
+        verdict = self.failing_verdict()
+        self.gh.armed_pages = [{"pageInfo": {"hasNextPage": False}, "nodes": None}]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [])
+        self.assertTrue(
+            report["errors"][0].startswith("disarm: armed pull requests: the listing")
+        )
+
+    def test_no_failure_disarms_nothing(self) -> None:
+        self.gh.merged = [identity_merge()]
+        self.all_green()
+        verdict = self.check()
+        self.assertFalse(verdict.failures)
+        self.armed_pulls()
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [])
+        self.assertFalse(any("PostMergeArmed" in " ".join(c) for c in self.gh.calls))
+        self.assertEqual(self.disarms(), [])
 
     def test_a_second_sighting_under_one_marker_reopens_a_closed_record(
         self,

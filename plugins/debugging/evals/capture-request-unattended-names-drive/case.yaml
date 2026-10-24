@@ -14,13 +14,22 @@ graders:
   - name: no-profiler-run
     type: tool_used
     tool: Bash
-    input_match: '--cpu-prof|--inspect|--prof\b|perf\s+record|py-spy|0x\s|clinic|gdb|sudo|node\s+[^\n]*workers/export\.js'
+    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:--cpu-prof|--inspect|--prof(?![\w-])|\bperf\s+(?:record|top|stat)\b|\bpy-spy\s+(?:record|dump|top)\b|\bclinic\s+(?:doctor|flame|bubbleprof|heapprofiler)\b|\bkill\s+-(?:s\s+)?(?:SIG)?USR1\b|\bnode\s+inspect\b|\brequire\([^)]*workers/export|\bnode(?:\s+--?(?!-)(?!check\b|c\b)[\w-]+(?:[=\s]+[^-\s=]\S*)?)*\s+(?:\\"|'')?(?:\S*/)?(?:workers/)?export\.js)|"command":\s*"(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\\"))?\s*(?:(?:timeout\s+\S+|nohup|time|env|exec|xargs)\s+)*(?:sudo|gdb|lldb|strace|0x)\b(?!\s+(?:--version|--help|-h|-v)\b)'
     min: 0
     max: 0
     arm: both
   - name: names-drive-capture
     type: regex
     pattern: '/app-control:drive\s+capture'
+    arm: both
+  - name: names-cpu-kind
+    type: regex
+    pattern: '/app-control:drive\s+capture(?:[ \t]+[^\s`()]+)*?[ \t]+--kind(?:=|[ \t]+)cpu\b'
+    arm: both
+  - name: no-heap-kind
+    type: regex
+    pattern: '/app-control:drive\s+capture(?:[ \t]+[^\s`()]+)*?[ \t]+--kind(?:=|[ \t]+)heap\b'
+    match: not_contains
     arm: both
   - name: drive-not-invoked
     type: tool_used

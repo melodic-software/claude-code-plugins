@@ -6,12 +6,17 @@ regular may rate below HIGH (`_mode_problems`), so a symlink or a submodule
 pointer holds; the security lane's open CRITICAL findings hold
 (`security-finding`); a lane whose evidence is not bound to the head holds;
 claude-review's open findings are reported only; and a plain documentation
-change by the lane merges. A read that fails holds.
+change by the lane merges. A read that fails holds. With the HIGH path floor
+on, as this repository's pr-pipeline.yaml sets it, a manifest change the
+gate reviews holds (`manifest-review-required`, the classes #9280 set) and a
+plugin.json userConfig default does not (#9483); native auto-merge has no
+manifest hold path of its own, so this is the check that holds it.
 """
 
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import json
 import pathlib
@@ -48,6 +53,21 @@ DOC = ChangedFile(
     "100644",
     patch="@@ -1 +1 @@\n-old\n+new",
 )
+FLOOR_ON = dataclasses.replace(CONFIG, high_path_floor=True)
+PLUGIN = "plugins/foo/.claude-plugin/plugin.json"
+PLUGIN_BASE = (
+    '{"name": "foo", "version": "1.0.0",'
+    ' "userConfig": {"guard_enabled": {"type": "boolean", "default": true}}}'
+)
+
+
+def manifest(after: str) -> ChangedFile:
+    return ChangedFile(
+        PLUGIN, None, "modified", 1, 1, True, "100644", "100644",
+        patch="@@ -1 +1 @@\n-a\n+b", contents=(PLUGIN_BASE, after),
+    )
+
+
 SYMLINK = ChangedFile("docs/link", None, "added", 1, 0, True, "120000", "000000")
 SUBMODULE = ChangedFile("vendor/lib", None, "modified", 1, 1, False, "160000", "160000")
 
@@ -69,7 +89,9 @@ def lanes(
 
 
 def refusal(
-    files: tuple[ChangedFile, ...] = (DOC,), evidence: object = None
+    files: tuple[ChangedFile, ...] = (DOC,),
+    evidence: object = None,
+    config: policy.PipelineConfig = CONFIG,
 ) -> str | None:
     evidence = lanes() if evidence is None else evidence
     effect = evidence if isinstance(evidence, Exception) else None
@@ -86,7 +108,7 @@ def refusal(
             return_value=None if effect else (evidence, []),
         ),
     ):
-        return ve.lane_risk_refusal(REPO, 41, PR, CONFIG, "C2", 7)
+        return ve.lane_risk_refusal(REPO, 41, PR, config, "C2", 7)
 
 
 class LaneRiskRefusal(unittest.TestCase):
@@ -112,6 +134,18 @@ class LaneRiskRefusal(unittest.TestCase):
             "evidence-unbound:claude-security-review",
             str(refusal(evidence=lanes(bound=False))),
         )
+
+    def test_a_manifest_change_the_gate_reviews_holds(self) -> None:
+        for key in ('"hooks": {}', '"mcpServers": {}', '"experimental": {"monitors": []}'):
+            after = PLUGIN_BASE.replace('"name": "foo",', f'"name": "foo", {key},')
+            with self.subTest(key):
+                held = refusal((DOC, manifest(after)), config=FLOOR_ON)
+                self.assertIn("manifest-review-required", str(held))
+                self.assertIn(PLUGIN, str(held))
+
+    def test_a_user_config_default_merges(self) -> None:
+        after = PLUGIN_BASE.replace('"default": true', '"default": false')
+        self.assertIsNone(refusal((DOC, manifest(after)), config=FLOOR_ON))
 
     def test_a_failed_read_holds(self) -> None:
         held = refusal(

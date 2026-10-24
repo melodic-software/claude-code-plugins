@@ -1,24 +1,30 @@
 // Expected values come from the issue that added these holds and the gate's
-// own rules: the merge gate scores a marketplace manifest change HIGH
-// (babysit_risk.is_manifest_path) and holds a change to a cost path
+// own rules: the merge gate holds a manifest change that installs or runs
+// something new (babysit_risk manifest-review-required, the classes #9280
+// set: an executable plugin.json key or experimental.monitors; a marketplace
+// plugin added, removed, renamed or re-sourced, or its name; a manifest
+// removed, renamed or copied; a side that does not read or parse or repeats a
+// key) and lets a userConfig default merge (#9483), holds a change to a cost path
 // (babysit_risk.COST_PATHS) until the owner's cost decision, which
 // babysit_merge_policy.cost_decision reads and test_babysit_merge_cost.py
 // pins case by case. ci-status names its owner by the trusted-actor list, as
 // its cost-only review hold step does, so a review approval lifts a hold path
 // but never a cost hold.
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, costDecision, costHold, linkHold, main } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, linkHold, main } from "./merge-holds.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
 const PR_CREATED = "2026-10-22T10:00:00Z";
 const HUMANS = new Set([5]);
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
+const BASE = "89abcdef0123456789abcdef0123456789abcdef";
 
 const comment = (changes = {}) => ({
   issue_url: "https://api.github.com/repos/owner/repo/issues/40",
@@ -129,19 +135,32 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 
 // ci-status: merge-holds.mjs's command line on the live files, as the
 // workflow step runs it, with a GitHub for the decision reads.
-function ci(files, { reviews = [], body = "Closes #40", options } = {}) {
+// A `files` entry is a path, or a files API row; `texts` maps
+// `<path>@<sha>` to a manifest's text, which the contents API answers.
+function ci(files, { reviews = [], body = "Closes #40", options, texts = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
   writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
-  writeFileSync(join(dir, "files"), files.map((path) => JSON.stringify([path])).join("\n"));
+  writeFileSync(join(dir, "files"), files.map((row) => JSON.stringify(typeof row === "string" ? [row] : row)).join("\n"));
   writeFileSync(join(dir, "denied"), "[]");
   const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), HEAD];
-  const { github } = world(options);
+  const { github: decisions } = world(options);
+  const github = async (method, path, data) => {
+    const read = /^\/repos\/owner\/repo\/contents\/(.+)\?ref=([0-9a-f]{40})$/.exec(path);
+    if (!read) {
+      return decisions(method, path, data);
+    }
+    const text = texts[`${decodeURIComponent(read[1])}@${read[2]}`];
+    if (text === undefined) {
+      throw new Error("not found");
+    }
+    return { type: "file", encoding: "base64", content: Buffer.from(text).toString("base64") };
+  };
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
-  return main(argv, { env: { GITHUB_REPOSITORY: REPO }, github }).then(
+  return main(argv, { env: { GITHUB_REPOSITORY: REPO, BASE_SHA: BASE }, github }).then(
     (code) => {
       console.log = log;
       return { code, out: lines.join("\n") };
@@ -154,11 +173,78 @@ function ci(files, { reviews = [], body = "Closes #40", options } = {}) {
 }
 const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "APPROVED", commit_id: HEAD, submitted_at: "2026-10-23T11:00:00Z" };
 
-test("ci-status holds the marketplace manifest, and a trusted approval of the head lifts it", async () => {
-  const held = await ci([".claude-plugin/marketplace.json"]);
+const PLUGIN = "plugins/foo/.claude-plugin/plugin.json";
+const MARKET = ".claude-plugin/marketplace.json";
+const PLUGIN_BASE = '{"name": "foo", "version": "1.0.0", "userConfig": {"guard_enabled": {"type": "boolean", "default": true}}}';
+const MARKET_BASE = '{"name": "m", "plugins": [{"name": "foo", "source": "./plugins/foo", "category": "dev"}]}';
+const withKey = (key) => PLUGIN_BASE.replace('"name": "foo",', `"name": "foo", ${key},`);
+// One manifest change through ci-status: its files API row and its sides.
+const manifest = (path, before, after, row = {}) =>
+  ci([{ filename: path, status: "modified", ...row }], {
+    texts: { ...(before === undefined ? {} : { [`${path}@${BASE}`]: before }), ...(after === undefined ? {} : { [`${path}@${HEAD}`]: after }) },
+  });
+
+test("ci-status holds every manifest change the merge gate reviews", async () => {
+  const cases = {
+    hooks: [PLUGIN, PLUGIN_BASE, withKey('"hooks": "./h.json"'), "hooks"],
+    mcpServers: [PLUGIN, PLUGIN_BASE, withKey('"mcpServers": {}'), "mcpServers"],
+    lspServers: [PLUGIN, PLUGIN_BASE, withKey('"lspServers": {}'), "lspServers"],
+    monitors: [PLUGIN, PLUGIN_BASE, withKey('"monitors": []'), "monitors"],
+    "experimental.monitors": [PLUGIN, PLUGIN_BASE, withKey('"experimental": {"monitors": []}'), "experimental.monitors"],
+    "a plugin added": [MARKET, MARKET_BASE, MARKET_BASE.replace("]}", ', {"name": "bar", "source": "./plugins/bar"}]}'), "plugins[bar] added"],
+    "a plugin removed": [MARKET, MARKET_BASE, '{"name": "m", "plugins": []}', "plugins[foo] removed"],
+    "a plugin renamed": [MARKET, MARKET_BASE, MARKET_BASE.replace('"name": "foo"', '"name": "fob"'), "plugins[fob] added, plugins[foo] removed"],
+    "a plugin source changed": [MARKET, MARKET_BASE, MARKET_BASE.replace("./plugins/foo", "https://example.com/foo.git"), "plugins[foo].source"],
+    "the marketplace name changed": [MARKET, MARKET_BASE, MARKET_BASE.replace('"name": "m"', '"name": "n"'), "name"],
+    "a parse error": [PLUGIN, PLUGIN_BASE, "{", "unreadable, malformed or a repeated key"],
+    "a duplicate key": [PLUGIN, PLUGIN_BASE, withKey('"name": "x"'), "unreadable, malformed or a repeated key"],
+    "an unreadable side": [PLUGIN, undefined, PLUGIN_BASE, "contents unreadable"],
+  };
+  for (const [name, [path, before, after, found]] of Object.entries(cases)) {
+    const held = await manifest(path, before, after);
+    assert.equal(held.code, 1, name);
+    assert.ok(held.out.includes(`it changes ${path} (${found}), a manifest change that needs review`), `${name}: ${held.out}`);
+  }
+  for (const [name, row] of Object.entries({
+    removed: { status: "removed" },
+    renamed: { status: "renamed", previous_filename: "plugins/foo/plugin.json" },
+    copied: { status: "copied", previous_filename: "plugins/bar/.claude-plugin/plugin.json" },
+  })) {
+    const held = await manifest(PLUGIN, PLUGIN_BASE, PLUGIN_BASE, row);
+    assert.equal(held.code, 1, name);
+    assert.ok(held.out.includes(`(${name} manifest)`), `${name}: ${held.out}`);
+  }
+  // Renamed away from a manifest path holds too.
+  const away = await ci([{ filename: "plugins/foo/plugin.json", previous_filename: PLUGIN, status: "renamed" }]);
+  assert.ok(away.out.includes("(renamed manifest)"), away.out);
+});
+
+test("ci-status passes a manifest change the merge gate does not review, such as a userConfig default (#9483)", async () => {
+  for (const [path, before, after] of [
+    [PLUGIN, PLUGIN_BASE, PLUGIN_BASE.replace('"default": true', '"default": false')],
+    [PLUGIN, PLUGIN_BASE, PLUGIN_BASE.replace("1.0.0", "1.1.0")],
+    [MARKET, MARKET_BASE, MARKET_BASE.replace('"dev"', '"tools"')],
+  ]) {
+    const passed = await manifest(path, before, after);
+    assert.equal(passed.code, 0, passed.out);
+    assert.match(passed.out, /no body hold, no member veto and no hold path\./);
+  }
+  const added = await ci([{ filename: PLUGIN, status: "added" }], { texts: { [`${PLUGIN}@${HEAD}`]: PLUGIN_BASE } });
+  assert.equal(added.code, 0, added.out);
+});
+
+test("a trusted approval of the head lifts a manifest hold", async () => {
+  const hooked = withKey('"hooks": {}');
+  const texts = { [`${PLUGIN}@${BASE}`]: PLUGIN_BASE, [`${PLUGIN}@${HEAD}`]: hooked };
+  const lifted = await ci([{ filename: PLUGIN, status: "modified" }], { texts, reviews: [approve] });
+  assert.equal(lifted.code, 0, lifted.out);
+  assert.match(lifted.out, /owner-person approved this head, which lifts its hold path/);
+});
+
+test("an old files line, with no status, holds a manifest", async () => {
+  const held = await ci([MARKET]);
   assert.equal(held.code, 1);
-  assert.match(held.out, /it changes \.claude-plugin\/marketplace\.json, a hold path/);
-  assert.equal((await ci([".claude-plugin/marketplace.json"], { reviews: [approve] })).code, 0);
+  assert.match(held.out, /\.claude-plugin\/marketplace\.json \(unknown manifest\)/);
 });
 
 test("ci-status holds a cost path that an approval does not lift, and the owner's decision does", async () => {
@@ -200,4 +286,14 @@ test("linkHold binds a pass to the issue and link kind it judged", () => {
   assert.match(linkHold(null, "Closes #5", closes(5), "o/r"), /record could not be read/);
   assert.match(linkHold({ linked_issues: [{ number: 5 }, { number: 6 }] }, "Closes #5", closes(5), "o/r"), /link changed/);
   assert.match(linkHold(record(5), "Closes #5", { totalCount: 11, nodes: [] }, "o/r"), /closing issues could not be read/);
+});
+
+// ci-status writes [filename, previous_filename, status]; an older line has
+// no status, which holds a manifest.
+test("changeOf reads a files line with and without its status", () => {
+  assert.deepEqual(changeOf(["a.md", null, "modified"]), { path: "a.md", previous: null, status: "modified" });
+  assert.deepEqual(changeOf(["b.md", "a.md", "renamed"]), { path: "b.md", previous: "a.md", status: "renamed" });
+  assert.deepEqual(changeOf(["b.md", "a.md"]), { path: "b.md", previous: "a.md", status: null });
+  assert.deepEqual(changeOf(["a.md"]), { path: "a.md", previous: null, status: null });
+  assert.throws(() => changeOf("a.md"), /does not read/);
 });

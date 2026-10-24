@@ -4089,10 +4089,12 @@ jobs:
       # on the holds that gate honors: a body hold, a member's veto comment,
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
-      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after arming is
-      # held on its own pull request event; a person on the trusted-actor list
-      # (as main has it) lifts a hold path by approving the head, then re-runs
-      # ci-status. A changed cost path (merge-holds.mjs COST_PATHS) also holds,
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), or a plugin or
+      # marketplace manifest change the merge gate reviews (merge-holds.mjs
+      # manifestChanges, both sides read at BASE_SHA and the head), so a push
+      # after arming is held on its own pull request event; a person on the
+      # trusted-actor list (as main has it) lifts either by approving the head,
+      # then re-runs ci-status. A changed cost path (merge-holds.mjs COST_PATHS) also holds,
       # and only the owner's cost decision linked from the body lifts it; the
       # module reads that decision with this step's GH_TOKEN, only when the
       # body links one. All by the rules in
@@ -4231,7 +4233,7 @@ jobs:
             exit 1
           }
           read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
-            --jq '.[] | [.filename, (.previous_filename // empty)] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+            --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
           if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
             echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
@@ -4300,6 +4302,7 @@ jobs:
             }
             verdicts=("$RUNNER_TEMP/verdicts.jsonl" "$RUNNER_TEMP/link.json")
           fi
+          export BASE_SHA
           out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
             "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head" "${verdicts[@]}") || {
             printf '%s\n' "$out"
