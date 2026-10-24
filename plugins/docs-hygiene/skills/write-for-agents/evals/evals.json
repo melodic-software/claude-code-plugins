@@ -93,6 +93,17 @@
         "The blind pointer gains a when-to-follow condition and front-loaded leading word, or is removed as unroutable",
         "Each step carries an observable completion criterion; 'works' is replaced by a goal-state test"
       ]
+    },
+    {
+      "id": 10,
+      "name": "behavior-leading-word-and-no-op-sentence",
+      "prompt": "Tighten evals/fixtures/draft-rule-leading-words.md (relative to the skill directory) as an agent-consumed rule file, applying the write-for-agents doctrine.",
+      "expected_output": "The rewrite collapses the red-green-refactor triad spelled out at three sites into one existing leading word (TDD, or red-green-refactor), stated once and not re-explained, and deletes the no-op sentence 'Write clear, readable code. Be careful when editing files.' whole, since the model follows it by default.",
+      "files": ["evals/fixtures/draft-rule-leading-words.md"],
+      "expectations": [
+        "The output proposes one leading word (such as TDD) in place of the triad spelled out at several sites",
+        "The no-op sentence about clear, readable code and being careful is deleted whole, not reworded"
+      ]
     }
   ]
 }

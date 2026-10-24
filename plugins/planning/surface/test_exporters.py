@@ -474,6 +474,16 @@ class TestBriefIds(SessionCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
+    def test_a_single_question_brief_tldr_reads_question_in_the_singular(self):
+        ledger = self.tmp / "one-ledger.md"
+        ledger.write_text(
+            LEDGER_HEAD + "- Q1 | answered | round 1 | Question Q1? | accepted\n",
+            encoding="utf-8",
+        )
+        text = self.brief_with(ledger)
+        self.assertIn("- 1 question: 1 answered", text)
+        self.assertNotIn("1 questions", text)
+
     def test_a_ledger_only_named_field_deferral_reads_unescaped_in_defer_until(self):
         ledger = self.gapped()
         text = ledger.read_text(encoding="utf-8")

@@ -283,6 +283,22 @@ test("a pr-merge shared-copy escalation at the current head is kept", async () =
   assert.deepEqual(w.writes(), []);
 });
 
+const dependabotMajorBody = (head) =>
+  `<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-dependabot-major -->\nUnattended merge: \`x(unreadable)\` is a major version update, one whose version cannot be read (\`(unreadable)\`), or one whose title and commit metadata disagree (\`(disagree)\`), at head \`${head}\`.`;
+
+test("a pr-merge Dependabot-major escalation at an old head comes off as head-moved", async () => {
+  const w = world({ timeline: mergeEscalated(dependabotMajorBody(OLD)) });
+  await run(w);
+  assert.equal(w.writes().length, 2);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+});
+
+test("a pr-merge Dependabot-major escalation at the current head is kept", async () => {
+  const w = world({ timeline: mergeEscalated(dependabotMajorBody(HEAD)) });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
 test("a pr-merge escalation naming the current head is kept", async () => {
   for (const timeline of [
     mergeEscalated(verifyBody(HEAD)),
@@ -349,16 +365,27 @@ test("an old pr-merge comment with nothing written beside a later label is kept"
   assert.deepEqual(w.writes(), []);
 });
 
-test("another lane's escalation just before the label keeps it beside an older pr-merge comment", async () => {
+test("a Dependabot-major escalation at an old head beside an older pr-merge comment comes off as head-moved", async () => {
   // babysit_merge.py's major_escalation_body, posted before the label it adds.
+  // Under `merge.dependabot.majors: review` pr-merge judges the new head
+  // afresh, so a moved head clears it like its other escalations.
   const major = `<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-dependabot-major -->\nUnattended merge: \`actions/checkout 5.0.0\` is a major version update at head \`${OLD}\`.`;
   for (const prior of [riskBody(OLD), verifyBody(OLD)]) {
     const w = world({
       timeline: [commented(BOT, prior, "2026-10-17T08:00:00Z"), commented(BOT, major, "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")],
     });
     await run(w);
-    assert.deepEqual(w.writes(), [], prior.split("\n")[0]);
+    assert.equal(w.writes().length, 2, prior.split("\n")[0]);
   }
+});
+
+test("another lane's escalation just before the label keeps it beside an older pr-merge comment", async () => {
+  const other = `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\nThe pr-unblock lane stopped on this pull request and needs a person: why.`;
+  const w = world({
+    timeline: [commented(BOT, riskBody(OLD), "2026-10-17T08:00:00Z"), commented(BOT, other, "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")],
+  });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
 });
 
 test("a needs-human a person added beside a pr-merge escalation at an old head is kept", async () => {
