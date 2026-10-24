@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [5.2.0] - 2026-10-24
+
+### Added
+
+- intake-reenter sends an issue back to intake triage when a listed human removes `needs-human` and leaves no `status:` label, no `agent-ready` and an author intake admits.
+
 ## [5.1.0] - 2026-10-24
 
 ### Changed
