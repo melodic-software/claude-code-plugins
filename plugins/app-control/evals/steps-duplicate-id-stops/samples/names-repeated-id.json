@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The run cannot start: shared/pick-month/steps.yaml is included twice with no prefix, so the step id open-picker is repeated (and so is choose-month). Nothing was launched.",
+      "why": "names the repeated id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The run would perform open-billing, open-picker, choose-month, open-picker, choose-month and press-export.",
+      "why": "performs both copies and reports no repeat"
+    }
+  ]
+}

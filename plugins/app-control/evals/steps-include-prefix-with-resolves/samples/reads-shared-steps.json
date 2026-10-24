@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/shared/pick-month/steps.yaml"
+          }
+        }
+      ],
+      "why": "read the included file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/billing/export/steps.yaml"
+          }
+        }
+      ],
+      "why": "read only the including file, so the expansion was guessed"
+    }
+  ]
+}

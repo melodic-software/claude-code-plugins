@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "press-export failed (Export button is disabled), so check-download is not performed. The finally steps still run: delete-test-invoice, then reload-billing. The report records the press-export failure.",
+      "why": "runs both finally steps in order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "press-export failed (Export button is disabled), so the run stops there; nothing else runs.",
+      "why": "skips the reset"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+steps:
+  - id: open-billing
+    action: goto /billing
+  - include: ../../../shared/pick-month/steps.yaml
+    prefix: from-
+    with:
+      field: Start
+      month: 2026-01
+  - include: ../../../shared/pick-month/steps.yaml
+    prefix: to-
+    with:
+      field: End
+      month: 2026-03
+  - id: press-export
+    action: click button "Export"

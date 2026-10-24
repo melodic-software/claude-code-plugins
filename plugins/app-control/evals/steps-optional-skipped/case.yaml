@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: steps-optional-skipped
+description: An optional step whose target is absent is recorded as skipped and the run goes on, with no retry, wait or failure
+tags: [drive, steps-files, invented]
+expected_outcome: "The reply records accept-cookies as skipped (optional, its target absent), not failed, adds no retry or wait for it, and says open-billing, press-export and check-download are performed in order."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps file. Treat the run as having reached /billing with no cookie banner anywhere on the page, and every other step's target as present and acting as written. Say, by step id and in order, what the report records for each step. Then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: reads-steps-file
+    type: tool_used
+    tool: Read
+    input_match: 'billing/export/steps\.yaml'
+    min: 1
+    arm: both
+  - name: names-skipped-step
+    type: regex
+    flags: i
+    pattern: 'accept-cookies[^\n]*skipped|skipped[^\n]*accept-cookies'
+    arm: both
+  - name: optional-skip-continues
+    type: llm
+    criteria: "PASS only if the reply (1) records accept-cookies as skipped because it is optional and its target is absent, (2) does not call it failed or blocked and adds no retry, wait or sleep for the banner, and (3) records open-billing, press-export and check-download as performed, in that order. FAIL if it fails or stops the run at accept-cookies, waits or retries for the banner, omits press-export or check-download, or says it launched the app."
