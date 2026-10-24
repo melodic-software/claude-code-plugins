@@ -32,6 +32,7 @@
           {"$ref": "#/$defs/activity"},
           {"$ref": "#/$defs/confirm-commitments"},
           {"$ref": "#/$defs/restate"},
+          {"$ref": "#/$defs/constraint"},
           {"$ref": "#/$defs/finish"}
         ]
       }
@@ -124,7 +125,10 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["add"]},
-        "question": {"type": "object"},
+        "question": {
+          "description": "The new question. It declares `dependsOn` (an empty list when it has no prerequisite) and names no question still open in its own round; either miss is a warning, and a refusal under the requireDepends setting.",
+          "type": "object"
+        },
         "repoint": {
           "description": "With `question.supersedes`: move every live question whose `dependsOn` names the superseded one to the new one. Without it the output only names them.",
           "type": "boolean"
@@ -350,6 +354,17 @@
       "properties": {
         "op": {"enum": ["restate"]},
         "sections": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/questions#/$defs/sections"}
+      }
+    },
+    "constraint": {
+      "description": "Record one constraint the interview found, shown in the page header's Constraints panel. Appends `{id, text, at}` to `constraints` with the next `C<N>`; an `id` already recorded has its text replaced instead. `text` is one line.",
+      "type": "object",
+      "required": ["op", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["constraint"]},
+        "id": {"type": "string"},
+        "text": {"$ref": "#/$defs/line"}
       }
     }
   }

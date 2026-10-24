@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Run: found in README.md, `python3 server.py` on port 8080.",
+      "why": "reports the port discovery found"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which port does the app listen on?",
+      "why": "asks instead of reading the README"
+    }
+  ]
+}

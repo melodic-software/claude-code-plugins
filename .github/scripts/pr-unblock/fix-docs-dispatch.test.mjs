@@ -75,6 +75,9 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
       return { rateLimit: { cost: 1, remaining: 4989 }, pullRequest: histories[number] ?? history([0]) };
     },
     async listWorkflowRuns() {
+      if (workflowRuns instanceof Error) {
+        throw workflowRuns;
+      }
       return workflowRuns;
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
@@ -102,6 +105,16 @@ test("a ready PR a person opened that changes Markdown is dispatched pr-refine.y
   assert.deepEqual(result, { dispatched: [{ number: 5, workflowRunId: "8005" }], failed: 0 });
   assert.deepEqual(api.calls.history, [{ number: 5, appId: ACTIONS, checkName: CHECK, earlierCheckName: EARLIER_CHECK }]);
   assert.ok(lines.includes("fix-docs listing page 1: rateLimit.cost=3 remaining=4990"), "the listing's cost is logged");
+});
+
+test("a rate-limited run listing defers with a warning; any other listing error fails", async () => {
+  const limited = Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
+  const deferred = await run({ pages: [[pr(5)]], workflowRuns: limited });
+  assert.deepEqual(deferred.result, { dispatched: [], failed: 0 });
+  assert.ok(deferred.lines.some((line) => line.startsWith("::warning::") && line.includes("rate limited")));
+  const broken = await run({ pages: [[pr(5)]], workflowRuns: new Error("GET runs returned 404") });
+  assert.deepEqual(broken.result, { dispatched: [], failed: 1 });
+  assert.ok(broken.lines.some((line) => line.startsWith("::error::") && line.includes("404")));
 });
 
 test("a PR that changes no Markdown file is not dispatched; a file list cut off at 100 leaves it to the lane", async () => {

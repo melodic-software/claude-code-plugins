@@ -1,0 +1,89 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/claude-eval-ab12/plugins/testing/scripts/resolve-config.sh\" write",
+            "description": "Resolve the testing:write settings"
+          }
+        }
+      ],
+      "why": "the quoted command the skill gives"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/claude-eval-ab12/plugins/testing/scripts/resolve-config.sh write --root ."
+          }
+        }
+      ],
+      "why": "unquoted path with an extra flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/claude-eval-ab12/plugins/testing/scripts/resolve-config.sh\" e2e"
+          }
+        }
+      ],
+      "why": "the run-e2e mode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/claude-eval-ab12/plugins/testing/scripts/resolve-config.sh --root . write"
+          }
+        }
+      ],
+      "why": "write after a flag, which the resolver rejects as an unknown argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/claude-eval-ab12/plugins/testing/scripts/resolve-config.sh\" e2e; echo write"
+          }
+        }
+      ],
+      "why": "the e2e mode, with write only in a later command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/testing.yaml",
+            "description": "write down the settings"
+          }
+        }
+      ],
+      "why": "read the file by hand; 'write' only in another field"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/claude-eval-ab12/plugins/testing/scripts/resolve-config.sh write"
+          }
+        }
+      ],
+      "why": "not a Bash call"
+    }
+  ]
+}

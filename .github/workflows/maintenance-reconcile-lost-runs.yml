@@ -75,6 +75,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: write # list runs and re-run a lost run
+      checks: read # a cut job's annotations: whether it lost its runner
       contents: read # check out main
       pull-requests: read # list the open PRs
     steps:

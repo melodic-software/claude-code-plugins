@@ -214,7 +214,9 @@ green_run() {
 # run_step <workflow> <event> <conclusion> <branch> <head-repo> <sha> <issues-json> [comments-json]
 run_step() {
   rm -rf "$TMP_ROOT/stub" "$TMP_ROOT/work"
-  mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
+  mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work/.base/.github/scripts"
+  # The step judges each attempt with main's failing-checks.mjs: this tree's.
+  ln -s "$ROOT/.github/scripts/post-merge-demotion-alert" "$TMP_ROOT/work/.base/.github/scripts/post-merge-demotion-alert"
   # JUDGE: the exit of a stub babysit_postmerge.py --judge-run in main's
   # checkout, which logs its arguments and the checks files it is given and
   # prints JUDGE_DEMOTING (a JSON list) as its verdict's `demoting`; unset,
@@ -804,6 +806,25 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: 
   ok "another gate beside gitleaks files, naming only that gate"
 else
   fail "gate beside gitleaks: rc=$RC log='$LOG' fields='$(post_fields 2>/dev/null)'"
+fi
+
+# The jobs API can list a completed job's steps empty: a failed job listing
+# no failed step counts whole, and as a baseline it excuses nothing.
+LINT_UNKNOWN="$(job 7 lint-repo | jq -c '.steps = []'), $(job 8 ci-status 'Aggregate lane results')"
+JOBS="$LINT_UNKNOWN" ANNOTATIONS_7="$GITLEAKS" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-repo"$'\n'* ]]; then
+  ok "a failed job listing no steps beside the gitleaks gate files, naming the job"
+else
+  fail "unknown steps, gitleaks: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$LINT_UNKNOWN" ANNOTATIONS_7="$GITLEAKS" \
+  JOBS="$(job 7 lint-repo 'Aggregate hygiene results' 'Test hygiene result aggregation'), $(job 8 ci-status 'Aggregate lane results')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-repo"$'\n'* ]]; then
+  ok "a baseline job listing no steps does not excuse the same job failing on a real step"
+else
+  fail "unknown-steps baseline: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 quiet "a failed pull_request run files nothing" "$FULL" pull_request failure main o/r

@@ -23,6 +23,7 @@
 //   GITHUB_RUN_ID        this run, which has no cursor yet
 //   CANDIDATES_PATH      candidates.json, rewritten in rotated order
 //   RUNNER_TEMP          where the cursor artifact is downloaded
+//   PR_MERGE_READS_PATH  the job's shared GET answers (sharedReads), if set
 //   GITHUB_API_URL
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -70,6 +71,46 @@ export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "c
   };
 }
 
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
+// `actions` with its GET answers shared through the file at `path`
+// (PR_MERGE_READS_PATH, in the job's own RUNNER_TEMP, which only this job's
+// steps write), so the readers of one job (the cursor, the head-ref map, the
+// lane records) list main's runs, each run's artifacts and each compare once
+// between them. An unreadable file shares nothing, and one that cannot be
+// written only leaves the next reader to read GitHub; the answers never
+// outlive the job.
+export function sharedReads(actions, path) {
+  if (!path) return actions;
+  return async (method, url, ...rest) => {
+    if (method !== "GET") return actions(method, url, ...rest);
+    let saved = {};
+    try {
+      const data = JSON.parse(readFileSync(path, "utf8"));
+      if (isObject(data)) saved = data;
+    } catch {}
+    if (Object.hasOwn(saved, url)) return saved[url];
+    const value = await actions(method, url, ...rest);
+    try {
+      writeFileSync(`${path}.tmp`, JSON.stringify({ ...saved, [url]: value }));
+      renameSync(`${path}.tmp`, path);
+    } catch {}
+    return value;
+  };
+}
+
+// The run's artifacts named `name`, from one listing of all its artifacts
+// that every reader shares, or by the name filter when that listing holds
+// less than all of them.
+async function artifactsNamed({ repo, actions, runId, name }) {
+  const all = await actions("GET", `/repos/${repo}/actions/runs/${runId}/artifacts?per_page=100`);
+  if (Array.isArray(all?.artifacts) && Number.isInteger(all.total_count) && all.total_count <= all.artifacts.length) {
+    return all.artifacts.filter((a) => a?.name === name);
+  }
+  const found = await actions("GET", `/repos/${repo}/actions/runs/${runId}/artifacts?name=${name}`);
+  return Array.isArray(found?.artifacts) ? found.artifacts : [];
+}
+
 // The id of the newest trusted run, this one aside, holding an unexpired
 // artifact named `name` and passing `accept`, or undefined when there is none.
 export async function newestTrustedRun({ repo, runId, actions, name, accept = async () => true }) {
@@ -91,8 +132,8 @@ export async function newestTrustedRun({ repo, runId, actions, name, accept = as
         return undefined;
       }
       asked += 1;
-      const found = await actions("GET", `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${name}`);
-      if (Array.isArray(found?.artifacts) && found.artifacts.some((a) => a?.expired === false) && (await accept(run))) {
+      const found = await artifactsNamed({ repo, actions, runId: run.id, name });
+      if (found.some((a) => a?.expired === false) && (await accept(run))) {
         return run.id;
       }
     }
@@ -104,8 +145,8 @@ export async function newestTrustedRun({ repo, runId, actions, name, accept = as
 }
 
 // The newest trusted cursor, {last, deferred}, or undefined when there is none.
-export async function readCursor({ repo, runId, actions, download }) {
-  const id = await newestTrustedRun({ repo, runId, actions, name: CURSOR_ARTIFACT });
+export async function readCursor({ repo, runId, actions, download, shared }) {
+  const id = await newestTrustedRun({ repo, runId, actions: sharedReads(actions, shared), name: CURSOR_ARTIFACT });
   if (id === undefined) {
     return undefined;
   }
@@ -130,7 +171,7 @@ export async function main({ env = process.env, actions, download } = {}) {
     }
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP });
-    const cursor = await readCursor({ repo, runId: String(env.GITHUB_RUN_ID), actions, download });
+    const cursor = await readCursor({ repo, runId: String(env.GITHUB_RUN_ID), actions, download, shared: env.PR_MERGE_READS_PATH });
     const deferred = cursor?.deferred;
     const ordered = rotate(candidates, deferred === undefined ? cursor?.last : deferred - 1).map((c) =>
       c.number === deferred ? { ...c, deferred: true } : c,
