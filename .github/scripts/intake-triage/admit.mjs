@@ -21,10 +21,10 @@
 //   (refinementSpec). Nothing else the lanes App wrote counts, an App-filed
 //   issue included, and an issue with more comments than the 100 pr-verify
 //   reads is refused, since pr-verify stops on it;
-// - 8: no `refuse-labels` label, every blocker a merged pull request or an
-//   issue closed, for any reason, by a listed human or a merge in its own
-//   repository (read there when it is another repository's), and no open
-//   pull request in this repository is for
+// - 8: no `refuse-labels` label, every blocker a merged pull request in this
+//   repository or an issue closed, for any reason, by a listed human or (in
+//   this repository only) a merge or commit, read there when it is another
+//   repository's, and no open pull request in this repository is for
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human or the lanes App;
@@ -38,7 +38,10 @@
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
 //   is room. With room, an issue still waits behind an older open issue in
-//   `admission-deferred`, so admission takes the oldest first (owner Q95).
+//   `admission-deferred`, so admission takes the oldest first (owner Q95),
+//   unless a blocker it rests on is one the sweep does not count yet
+//   (sweepCounts): such an issue is admitted with room and, with none,
+//   waits with a comment instead of `admission-deferred`.
 //
 // A refusal a person must settle swaps `status: ready` for
 // `status: needs-decision`; a blocker or an open pull request keeps
@@ -392,15 +395,16 @@ export const blockerKey = (blocker, repository) =>
   here(blocker.repository_url, repository) ? blocker.number : `${repoOf(blocker.repository_url)}#${blocker.number}`;
 
 // Whether another repository's closed blocker issue was closed by a listed
-// human or a merge there, read fresh from that repository. A read that fails
-// leaves it blocking.
+// human, read fresh from that repository. A commit or merge there carries no
+// trust check, as for a pull-request blocker. A read that fails leaves it
+// blocking.
 async function trustedElsewhere(github, blocker, humans) {
   const repo = repoOf(blocker.repository_url);
   if (repo === null || !/^[1-9][0-9]{0,9}$/.test(String(blocker.number))) {
     return false;
   }
   try {
-    return await isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${blocker.number}`), humans);
+    return humans.has((await github("GET", `/repos/${repo}/issues/${blocker.number}`))?.closed_by?.id);
   } catch {
     return false;
   }
@@ -586,6 +590,19 @@ async function deferredAhead(github, repository, issue) {
   }
 }
 
+// Whether work-unblock's sweep (label-unblocked.mjs readiness) counts every
+// blocker as decide() does: a merged pull request or an issue closed as
+// completed, in this repository. It drops the deferral of an issue with any
+// other blocker without admitting it, so such an issue is never deferred:
+// with room it is admitted, and with none it waits with a comment. Pure.
+const sweepCounts = (blockers, repository) =>
+  blockers.every(
+    (blocker) =>
+      blocker.state === "closed" &&
+      here(blocker.repository_url, repository) &&
+      (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : blocker.state_reason === "completed"),
+  );
+
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. Returns {outcome, reasons}.
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
@@ -634,13 +651,23 @@ export async function admit({ github, repository, number, verdict, rules, humans
   }
   const s = await status();
   const full = s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0;
-  if (full || (await deferredAhead(github, repository, issue))) {
-    await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+  const counted = sweepCounts(facts.blockers, repository);
+  if (full || (counted && (await deferredAhead(github, repository, issue)))) {
     const why = !full
       ? `an older ${DEFERRED} issue is ahead of it`
       : s.paused
         ? `the lane is paused (${s.pause_reason})`
         : `admissions are closed (${s.admission_reason})`;
+    if (!counted) {
+      // The sweep would drop the deferral without admitting it: say so
+      // instead of deferring.
+      await undefer();
+      const reason = `${why}, and the hourly sweep cannot admit it, since it counts only blockers closed as completed or merged in this repository`;
+      await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reason}.`);
+      log(`admit: #${number} waits (${reason})`);
+      return { outcome: "waiting", reasons: [reason] };
+    }
+    await github("POST", `${base}/labels`, { labels: [DEFERRED] });
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }

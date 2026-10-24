@@ -470,8 +470,9 @@ describe("decide", () => {
 // human wrote it); "no-issue" and "no-body" answer an unexpected shape.
 // `closing` is what closedByPullRequestsReferences answers.
 // `elsewhere` answers another repository's issue reads by path; `older` is
-// the count the older-deferred search answers, or "incomplete".
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, failOn } = {}) {
+// the count the older-deferred search answers, or "incomplete". `closer` is
+// what the closing-event query answers.
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -483,6 +484,9 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
       if (body.query.includes("closedByPullRequestsReferences")) {
         const refs = { nodes: closing, pageInfo: { hasNextPage: false, endCursor: null } };
         return { data: { repository: { issue: { closedByPullRequestsReferences: refs } } } };
+      }
+      if (body.query.includes("ClosedEvent")) {
+        return { data: { repository: { issue: { timelineItems: { nodes: closer ? [{ closer }] : [] } } } } };
       }
       if (spec === "no-issue") {
         return { data: { repository: { issue: null } } };
@@ -708,6 +712,20 @@ describe("admit", () => {
     assert.match(unreadable.reasons.join(), /o\/other#5/);
   });
 
+  test("another repository's blocker closed by a commit or merge there keeps it waiting; here the same close admits it", async () => {
+    const blocker = (repo) => ({ number: 5, state: "closed", state_reason: "completed", repository_url: `https://api.github.com/repos/${repo}` });
+    const commit = (repo) => ({ __typename: "Commit", repository: { nameWithOwner: repo } });
+    const merge = (repo) => ({ __typename: "PullRequest", merged: true, repository: { nameWithOwner: repo } });
+    for (const by of [commit, merge]) {
+      const there = { "/repos/o/other/issues/5": { ...blocker("o/other"), closed_by: { id: OUTSIDER } } };
+      const elsewhere = await go(fakeGitHub({ blockers: [blocker("o/other")], elsewhere: there, closer: by("o/other") }));
+      assert.equal(elsewhere.outcome, "waiting");
+      assert.match(elsewhere.reasons.join(), /o\/other#5/);
+      const own = { 5: { ...blocker("o/r"), closed_by: { id: OUTSIDER } } };
+      assert.equal((await go(fakeGitHub({ blockers: [blocker("o/r")], closed: own, closer: by("o/r") }))).outcome, "admitted");
+    }
+  });
+
   test("a merged pull request blocker counts only in this repository", () => {
     const merged = (repo) => ({ number: 5, state: "closed", pull_request: { merged_at: "2026-10-24T00:00:00Z" }, repository_url: `https://api.github.com/repos/${repo}` });
     assert.deepEqual(decide(facts({ blockers: [merged("o/r")] })), { verdict: "admit", reasons: [] });
@@ -733,6 +751,37 @@ describe("admit", () => {
     const search = fake.calls.find((call) => call.path.startsWith("/search/issues?"));
     const q = new URLSearchParams(search.path.split("?")[1]).get("q");
     assert.equal(q, "repo:o/r is:issue is:open label:admission-deferred created:<2026-10-20T08:00:00+00:00");
+  });
+
+  // Until work-unblock's sweep counts these blockers, it would drop the
+  // deferral without admitting the issue, leaving it with neither label.
+  test("an issue resting on a not planned, duplicate or other repository's blocker is admitted, not deferred behind an older one", async () => {
+    const here = (reason) => ({ number: 5, state: "closed", state_reason: reason, repository_url: "https://api.github.com/repos/o/r" });
+    for (const reason of ["not_planned", "duplicate"]) {
+      const fake = fakeGitHub({ blockers: [here(reason)], closed: { 5: { ...here(reason), closed_by: { id: HUMAN } } }, older: 1 });
+      assert.equal((await go(fake)).outcome, "admitted", reason);
+      assert.ok(!fake.calls.some((call) => call.path.startsWith("/search/issues?")));
+    }
+    const other = { ...here("completed"), repository_url: "https://api.github.com/repos/o/other" };
+    const elsewhere = fakeGitHub({ blockers: [other], elsewhere: { "/repos/o/other/issues/5": { ...other, closed_by: { id: HUMAN } } }, older: 1 });
+    assert.equal((await go(elsewhere)).outcome, "admitted");
+    const completed = fakeGitHub({ blockers: [here("completed")], closed: { 5: { ...here("completed"), closed_by: { id: HUMAN } } }, older: 1 });
+    assert.equal((await go(completed)).outcome, "deferred");
+  });
+
+  test("with the lane full, an issue resting on a blocker the sweep does not count waits with a comment, never admission-deferred", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "not_planned", repository_url: "https://api.github.com/repos/o/r" };
+    const fake = fakeGitHub({
+      issue: issueOf({ labels: [{ name: READY }, { name: DEFERRED }] }),
+      blockers: [blocker],
+      closed: { 5: { ...blocker, closed_by: { id: HUMAN } } },
+    });
+    const result = await go(fake, { status: { ...open, paused: true, pause_reason: "held-cap" } });
+    assert.equal(result.outcome, "waiting");
+    const done = writes(fake.calls);
+    assert.equal(done.length, 2, done.join("\n"));
+    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/admission-deferred/);
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*the lane is paused \(held-cap\), and the hourly sweep cannot admit it/);
   });
 
   test("an incomplete or failed older-deferred search defers rather than admits", async () => {
