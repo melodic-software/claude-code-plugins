@@ -139,7 +139,8 @@ dependabot-policy merge tiers are asked to follow in
 ## Addendum (2026-10-24): the review verdict decides majors again
 
 The owner directed on 2026-10-24 that the review lanes decide whether a pull request needs a
-person, and that nothing waits on one otherwise. This repository now sets
+person, and that nothing waits on one otherwise
+([decision record](https://github.com/melodic-software/claude-code-plugins/pull/9595#issuecomment-6380383362)). This repository now sets
 `merge.dependabot.majors: review`, so the lanes App's `verdict=merge` marker merges a major, an
 unreadable or a disagreeing update as it does any tier `review` one. `hold` stays the code default
 for consumers that set nothing.
