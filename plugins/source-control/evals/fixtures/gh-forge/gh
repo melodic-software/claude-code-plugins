@@ -189,9 +189,11 @@ case "$cmd $sub" in
     ;;
   "api graphql")
     shift 2
+    # parse skips the -f and -F flags and keeps their key=value values in args.
+    parse "$@"
     gql=""
     thread_id=""
-    for a in "$@"; do
+    for a in "${args[@]}"; do
       case "$a" in
         query=*) gql="${a#query=}" ;;
         id=*) thread_id="${a#id=}" ;;
@@ -202,9 +204,9 @@ case "$cmd $sub" in
       record "resolve thread" "$thread_id"
       jq -c --arg id "$thread_id" 'map(if .id == $id then .isResolved = true else . end)' "$forge/threads" >"$forge/threads.new"
       mv "$forge/threads.new" "$forge/threads"
-      echo '{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}'
+      emit '{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}'
     elif [[ "$gql" == *reviewThreads* ]]; then
-      jq -c '{data: {repository: {pullRequest: {reviewThreads: {pageInfo: {hasNextPage: false, endCursor: null}, nodes: .}}}}}' "$forge/threads"
+      emit "$(jq -c '{data: {repository: {pullRequest: {reviewThreads: {pageInfo: {hasNextPage: false, endCursor: null}, nodes: .}}}}}' "$forge/threads")"
     else
       refuse api graphql "$@"
     fi
