@@ -588,9 +588,19 @@ test("a refused arm on one of two pull requests still arms the other, inside a c
   assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
 });
 
-test("two or more arms all refused fail the run and say so", async () => {
+test("two arms each refused for their own reason (422) are warned and the run stays green", async () => {
   const refusal = () => new GitHubError(422, "POST /graphql");
   const { code, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [refusal()], PR_2: [refusal()] } });
+  assert.equal(code, 0);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#1 arm refused")));
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#2 arm refused")));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::every arm this run failed: #1, #2"));
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("two or more arms all answered 404 fail the run and say so", async () => {
+  const missing = () => new GitHubError(404, "POST /graphql");
+  const { code, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [missing()], PR_2: [missing()] } });
   assert.equal(code, 1);
   assert.ok(lines.includes("::error title=enable-auto-merge::every arm this run failed: #1, #2"));
 });
@@ -637,7 +647,7 @@ test("a refused arm's warning carries GitHub's own message", async () => {
 
 test("a rate-limited GraphQL answer to an arm is not a refusal, and the run fails", async () => {
   for (const headers of [{ "x-ratelimit-remaining": "0" }, { "retry-after": "60" }]) {
-    const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] }, { headers }));
+    const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ message: "API rate limit exceeded" }] }, { headers }));
     assert.equal(code, 1);
     assert.ok(!lines.some((line) => line.includes("arm refused")));
   }

@@ -243,14 +243,19 @@ const RUN_WIDE_TYPES = new Set(["RATE_LIMITED", "FORBIDDEN", "INSUFFICIENT_SCOPE
 // carries a RUN_WIDE_TYPES error, which is never a refusal.
 export const refused = (error, runWide = false) =>
   error instanceof GitHubError && !runWide && (error.status === 200 || (error.status >= 400 && error.status < 500 && ![401, 403, 429].includes(error.status)));
-// An error answer's messages, and whether its GraphQL error types are run-wide.
+// An error answer's messages, whether its GraphQL error types are run-wide,
+// and whether any error names a type at all.
 async function answerBody(text) {
   try {
     const json = JSON.parse(await text);
     const errors = Array.isArray(json?.errors) ? json.errors : [json];
-    return { said: errors.map((error) => error?.message).filter(Boolean).join("; "), runWide: errors.some((error) => RUN_WIDE_TYPES.has(error?.type)) };
+    return {
+      said: errors.map((error) => error?.message).filter(Boolean).join("; "),
+      runWide: errors.some((error) => RUN_WIDE_TYPES.has(error?.type)),
+      typed: errors.some((error) => typeof error?.type === "string"),
+    };
   } catch {
-    return { said: "", runWide: false };
+    return { said: "", runWide: false, typed: false };
   }
 }
 
@@ -680,6 +685,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     let failed = 0;
     let arms = 0;
     let networkArms = 0;
+    let unexplainedArms = 0;
     const skippedArms = [];
     const minutes = riskEscalationMinutes(env.RESOLVED_CONFIG ?? "");
     // A reader run's per pull request refusal (a hold path or cost hold, or
@@ -805,7 +811,6 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       try {
         if (action === "arm") {
           arms += 1;
-          answer = null;
           await github("POST", "/graphql", { query: ARM_MUTATION, variables: { id: pull.id, head: pull.headRefOid } });
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
         } else {
@@ -816,12 +821,17 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
         }
       } catch (error) {
-        const body = action === "arm" && answer !== null ? await answerBody(answer.text) : { said: "", runWide: false };
+        const body = action === "arm" && answer !== null ? await answerBody(answer.text) : { said: "", runWide: false, typed: false };
         if (action === "arm" && refused(error, answer?.limited || body.runWide)) {
           // GitHub said no on the first send, so nothing is in flight. After a
           // resend an earlier send may have landed, so its slot stays counted.
           if ((error.attempts ?? 1) === 1) {
             inFlight -= 1;
+          }
+          // A 404, or GraphQL errors that name no type, may be the run's own
+          // (a wrong API URL) rather than this pull request's.
+          if (error.status === 404 || (error.status === 200 && !body.typed)) {
+            unexplainedArms += 1;
           }
           skippedArms.push(`#${pull.number}`);
           console.log(`::warning title=enable-auto-merge::#${pull.number} arm refused, skipped this run: ${describe(body.said ? new Error(`${error.message}: ${body.said}`) : error)}`);
@@ -856,9 +866,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     if (warned.length > 0) {
       lines.push(["warning", escapeCommand(`${laneHeld}; ${warned.map(([what, numbers]) => `${what}: ${numbers}`).join("; ")}`)]);
     }
-    // No arm landed. A lone refusal is that pull request's; two or more, or
-    // every arm failing on the network, is the run's.
-    const outage = arms > 0 && skippedArms.length === arms && (arms > 1 || networkArms === arms);
+    // No arm landed. Every arm failing on the network, or two or more arms all
+    // failing without a reason of their own (network, 404, untyped GraphQL
+    // errors), is the run's; refusals that name their reason are each pull
+    // request's.
+    const outage = arms > 0 && skippedArms.length === arms && (networkArms === arms || (arms > 1 && networkArms + unexplainedArms === arms));
     if (outage) {
       failed += 1;
     }
