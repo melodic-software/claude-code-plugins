@@ -99,7 +99,7 @@
           "minimum": 1,
           "maximum": 10,
           "default": 3,
-          "description": "Limit stops on one PR head after which the pr-unblock dispatchers stop dispatching it again."
+          "description": "Limit stops on one PR head after which the pr-unblock dispatchers stop dispatching it again; also the failed resolve-conflicts runs, and the failed or not-applicable fix-ci runs across base moves, one head gets."
         },
         "limit-stops-per-issue": {
           "type": "integer",
