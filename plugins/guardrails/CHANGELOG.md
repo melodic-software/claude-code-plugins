@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.2] - 2026-10-24
+
+### Fixed
+
+- `block-unresolved-pr-merge` now lets a GraphQL merge mutation through with the two-channel "not checked" notice when its pull request id is a literal `PR_...` value and gh is missing or unauthenticated, as the owner decided on #6463. A non-literal id (a variable, `$(...)` or a file reference) is still blocked, with or without gh, and so is a literal id whose node cannot be read for any other reason.
+
 ## [0.56.1] - 2026-10-24
 
 ### Fixed
