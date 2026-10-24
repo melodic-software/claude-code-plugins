@@ -29,6 +29,7 @@ import {
   readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
@@ -91,7 +92,8 @@ const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], ru
 const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
-function world(pulls, { failArm = false } = {}) {
+function world(pulls, { failArm = false, armErrors = [] } = {}) {
+  const armThrows = [...armErrors];
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -122,6 +124,9 @@ function world(pulls, { failArm = false } = {}) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
       return { data: { repository: { pullRequest: detail(found?.discussion) } } };
     }
+    if (body.query === ARM_MUTATION && armThrows.length > 0) {
+      throw armThrows.shift();
+    }
     if (body.query === ARM_MUTATION && failArm) {
       throw new Error("POST /graphql (GraphQL errors) failed with status 200");
     }
@@ -148,11 +153,12 @@ function world(pulls, { failArm = false } = {}) {
 async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const { github, writes, verify, verified } = world(pulls, options);
   const lines = [];
+  const slept = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane) });
-    return { code, writes: writes(), lines, verified };
+    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms) });
+    return { code, writes: writes(), lines, verified, slept };
   } finally {
     console.log = log;
   }
@@ -232,6 +238,45 @@ test("a failed arm fails the run and still reaches the next pull request", async
     { mutation: "disarm", id: "PR_2" },
   ]);
   assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm")));
+});
+
+// undici's shape for a dropped socket: a "fetch failed" TypeError whose cause
+// carries the code and the socket's message.
+const reset = () => new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
+
+test("an arm that fails once on the network is sent again after a short wait and arms", async () => {
+  const { code, writes, lines, slept } = await run([pull(1)], {}, { armErrors: [reset()] });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "arm", id: "PR_1", head: HEAD },
+  ]);
+  assert.equal(slept.length, 1);
+  assert.ok(slept[0] >= 2000 && slept[0] <= 5000);
+  assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+});
+
+test("an arm that fails twice on the network fails the run, naming the cause", async () => {
+  const { code, writes, lines } = await run([pull(1)], {}, { armErrors: [reset(), reset()] });
+  assert.equal(code, 1);
+  assert.equal(writes.length, 2);
+  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: ECONNRESET read ECONNRESET)"));
+});
+
+test("an arm GitHub answers 4xx, or with GraphQL errors, is not sent again", async () => {
+  for (const error of [new GitHubError(422, "POST /graphql"), new GitHubError(200, "POST /graphql (GraphQL errors)")]) {
+    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: [error] });
+    assert.equal(code, 1);
+    assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+    assert.deepEqual(slept, []);
+  }
+});
+
+test("a logged cause has any token in it scrubbed", async () => {
+  const leak = new TypeError("fetch failed", { cause: Object.assign(new Error("bad header Bearer ghs_abc123 sent"), { code: "UND_ERR_SOCKET" }) });
+  const { lines } = await run([pull(1)], {}, { armErrors: [leak, leak] });
+  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET bad header *** sent)"));
+  assert.ok(!lines.some((line) => line.includes("ghs_abc123")));
 });
 
 test("a bad bot login or repository fails red", async () => {

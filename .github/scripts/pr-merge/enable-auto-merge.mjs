@@ -64,7 +64,8 @@
 //   review hold. Read only after the verdict allows.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
-// that fails any rule is disarmed. While merge.report-only is true it reports
+// that fails any rule is disarmed. A read or write that fails on the network
+// is sent once more (retryOnce). While merge.report-only is true it reports
 // each decision and writes nothing.
 //
 // Environment:
@@ -151,6 +152,38 @@ export const DISARM_MUTATION = `mutation($id: ID!) {
 }`;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+
+// A network failure undici raises before any answer: its "fetch failed"
+// TypeError, or one of these cause codes. An HTTP answer (a 4xx included) and
+// a GraphQL error are GitHubErrors, never this.
+const TRANSIENT_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "UND_ERR_SOCKET", "UND_ERR_CONNECT_TIMEOUT"]);
+export const transient = (error) => (error?.name === "TypeError" && error.message === "fetch failed") || TRANSIENT_CODES.has(error?.cause?.code);
+export const RETRY_DELAY_MS = 3000;
+// An error's message with its cause's code and message, any token scrubbed:
+// undici puts a whole header value in some messages.
+export function describe(error) {
+  const cause = error?.cause;
+  const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : String(error?.message ?? error);
+  return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+/g, "***"));
+}
+// `github` with a POST that fails on the network sent once more after
+// RETRY_DELAY_MS. A GET is left to createGitHub's own retry
+// (retryServerErrors), which resends only GETs. A second arm is pinned to the
+// same expectedHeadOid, so it can arm only the head the run read.
+export function retryOnce(github, sleep) {
+  return async (method, ...rest) => {
+    try {
+      return await github(method, ...rest);
+    } catch (error) {
+      if (method === "GET" || !transient(error)) {
+        throw error;
+      }
+      console.log(`::warning::enable-auto-merge: ${method} ${rest[0]} failed (${describe(error)}); sending it again in ${RETRY_DELAY_MS} ms`);
+      await sleep(RETRY_DELAY_MS);
+      return github(method, ...rest);
+    }
+  };
+}
 
 // Why `pull` must not be armed, or null when it may be.
 export function holdReason(pull, humanGated) {
@@ -375,7 +408,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify, room } = {}) {
+export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -392,7 +425,7 @@ export async function main({ env = process.env, github, verify, room } = {}) {
     const write = env.REPORT_ONLY === "false";
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    github = retryOnce(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }), sleep);
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
@@ -453,7 +486,7 @@ export async function main({ env = process.env, github, verify, room } = {}) {
             detail = { ...detail, files, costDecision: decision };
           }
         } catch (error) {
-          console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${escapeCommand(error?.message ?? error)}`);
+          console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${describe(error)}`);
         }
         ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
@@ -501,12 +534,12 @@ export async function main({ env = process.env, github, verify, room } = {}) {
         }
       } catch (error) {
         failed += 1;
-        console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${escapeCommand(error?.message ?? error)}`);
+        console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${describe(error)}`);
       }
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
-    console.log(`::error title=enable-auto-merge::${escapeCommand(error?.message ?? error)}`);
+    console.log(`::error title=enable-auto-merge::${describe(error)}`);
     return 1;
   }
 }
