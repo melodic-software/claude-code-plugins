@@ -1,15 +1,15 @@
 // The judge's output is untrusted: write-findings keeps at most three
 // well-formed findings and names what it dropped; the filer drops any finding
-// with a failed claim before planning, and stamps each kept one with its
-// fingerprint.
+// with a failed claim before planning, stamps each kept one with its
+// fingerprint, and writes them into one rolling digest issue.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { droppedLine, prepareItems, writeAll } from "./file-findings.mjs";
-import { planFiling } from "./findings.mjs";
+import { droppedLine, prepareItems, writeDigest } from "./file-findings.mjs";
+import { planDigest } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 
 const finding = (over = {}) => ({
@@ -84,108 +84,123 @@ test("a dropped line renders the title and reason inert on one line", () => {
   assert.match(line, /^- dropped \(a1\) fix: x &lt;b>@​octocat&lt;\/b>: /);
 });
 
-test("one failed write is recorded and the rest still file", async () => {
-  const calls = [];
-  const call = async (method, path, body) => {
-    calls.push(path);
-    if (body?.title === "fix: rejected") throw new Error(`${method} ${path}: HTTP 422`);
-    return { number: 100 + calls.length };
-  };
-  const plan = {
-    file: [
-      { fingerprint: "aaaa", finding: finding({ title: "fix: rejected" }) },
-      { fingerprint: "bbbb", finding: finding() },
-    ],
-    comment: [{ number: 7 }],
-    reopen: [],
-  };
-  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
-  assert.equal(calls.length, 3);
-  assert.deepEqual(result, {
-    filed: [102],
-    commented: [7],
-    reopened: [],
-    failed: [{ target: "aaaa", error: "POST /repos/o/r/issues: HTTP 422" }],
+test("prepareItems is complete only when every unit has a parsed findings file", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  writeFileSync(join(base, "a.yml"), "if: true\n");
+  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const units = mkdtempSync(join(tmpdir(), "lane-sweep-units-"));
+  t.after(() => {
+    for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
   });
+  const unit = (id, extra = {}) => {
+    mkdirSync(join(dir, `findings-${id}`));
+    writeFileSync(join(dir, `findings-${id}`, "findings.json"), JSON.stringify({ unit: id, findings: [finding()], ...extra }));
+  };
+  writeFileSync(join(units, "a1.json"), "{}");
+  writeFileSync(join(units, "d2.json"), "{}");
+  unit("a1");
+  assert.equal(prepareItems({ findingsDir: dir, baseDir: base, unitsDir: units }).complete, false);
+  unit("d2");
+  assert.equal(prepareItems({ findingsDir: dir, baseDir: base, unitsDir: units }).complete, true);
+  writeFileSync(join(dir, "findings-d2", "findings.json"), JSON.stringify({ unit: "d2", findings: [], dropped: [{ index: null, reason: "unparsable" }] }));
+  assert.equal(prepareItems({ findingsDir: dir, baseDir: base, unitsDir: units }).complete, false);
+  writeFileSync(join(dir, "findings-d2", "findings.json"), "not json");
+  assert.equal(prepareItems({ findingsDir: dir, baseDir: base, unitsDir: units }).complete, false);
 });
 
-test("a reopen comments with the checked claims, re-triages, then sets the state open as reopened", async () => {
+const FP = "0123456789abcdef";
+const store = (issues = []) => {
   const calls = [];
   const call = async (method, path, body) => {
     calls.push([method, path, body]);
-    return {};
-  };
-  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
-  const labels = ["needs-triage", "source: lane-sweep"];
-  let waits = 0;
-  const result = await writeAll({ plan, call, repo: "o/r", labels, runUrl: "https://run/1", wait: async () => waits++ });
-  assert.deepEqual(result, { filed: [], commented: [], reopened: [12], failed: [] });
-  assert.deepEqual(
-    calls.map(([method, path]) => `${method} ${path}`),
-    [
-      "POST /repos/o/r/issues/12/comments",
-      "POST /repos/o/r/issues/12/labels",
-      "DELETE /repos/o/r/issues/12/labels/agent-ready",
-      "PATCH /repos/o/r/issues/12",
-    ],
-  );
-  assert.equal(waits, 4);
-  assert.match(calls[0][2].body, /https:\/\/run\/1/);
-  assert.match(calls[0][2].body, /```text\na\.yml:1: if: true\n```/);
-  assert.deepEqual(calls[1][2], { labels });
-  assert.deepEqual(calls[3][2], { state: "open", state_reason: "reopened" });
-});
-
-test("a reopen with no filing labels skips the label POST, and a 404 on agent-ready is not a failure", async () => {
-  const calls = [];
-  const call = async (method, path) => {
-    calls.push(`${method} ${path}`);
-    if (method === "DELETE") throw Object.assign(new Error(`${method} ${path}: HTTP 404`), { status: 404 });
-    return {};
-  };
-  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
-  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
-  assert.deepEqual(result, { filed: [], commented: [], reopened: [12], failed: [] });
-  assert.deepEqual(calls, [
-    "POST /repos/o/r/issues/12/comments",
-    "DELETE /repos/o/r/issues/12/labels/agent-ready",
-    "PATCH /repos/o/r/issues/12",
-  ]);
-});
-
-test("a failed label removal other than 404 is recorded and leaves the issue closed for the next run", async () => {
-  const fp = "0123456789abcdef";
-  const issue = { number: 12, state: "closed", state_reason: "completed", body: `x\n<!-- lane-sweep:fp=${fp} -->` };
-  const calls = [];
-  const call = async (method, path, body) => {
-    calls.push(`${method} ${path}`);
-    if (method === "DELETE") throw Object.assign(new Error(`${method} ${path}: HTTP 500`), { status: 500 });
+    if (method === "POST" && path.endsWith("/issues")) {
+      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, labels: [...body.labels] };
+      issues.push(issue);
+      return issue;
+    }
+    const issue = issues.find((i) => i.number === Number(/issues\/(\d+)/.exec(path)[1]));
     if (method === "PATCH") Object.assign(issue, body);
+    if (method === "DELETE") {
+      if (!issue.labels.includes("agent-ready")) throw Object.assign(new Error(`DELETE ${path}: HTTP 404`), { status: 404 });
+      issue.labels = issue.labels.filter((l) => l !== "agent-ready");
+    }
     return {};
   };
-  const items = [{ fingerprint: fp, finding: finding() }];
-  const plan = planFiling({ items, existing: [issue], openNumbers: new Set() });
-  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
-  assert.deepEqual(result.reopened, []);
-  assert.deepEqual(result.failed, [{ target: "#12", error: "DELETE /repos/o/r/issues/12/labels/agent-ready: HTTP 500" }]);
-  assert.ok(!calls.includes("PATCH /repos/o/r/issues/12"));
-  assert.equal(issue.state, "closed");
-  assert.equal(issue.body, `x\n<!-- lane-sweep:fp=${fp} -->`);
+  return { issues, calls, call };
+};
+const run = async (s, items, extra = {}) => {
+  const plan = planDigest({ items, existing: s.issues, openNumbers: new Set(), ...extra });
+  return writeDigest({ plan, call: s.call, repo: "o/r", labels: ["source: lane-sweep"], runUrl: "https://run/1", wait: async () => {} });
+};
+const nothing = { filed: [], updated: [], reopened: [], failed: [] };
+
+test("the sweep files one digest, rewrites it in place on a change, and closes it when no finding is left", async () => {
+  const s = store();
+  const a = { fingerprint: FP, finding: finding() };
+  const b = { fingerprint: "fedcba9876543210", finding: finding({ title: "fix(ci): another" }) };
+  assert.deepEqual(await run(s, [a]), { ...nothing, filed: [100] });
+  assert.deepEqual(s.issues[0].labels, ["source: lane-sweep"]);
+  assert.equal(s.issues[0].title, "Lane sweep: open findings");
+
+  const before = s.calls.length;
+  assert.deepEqual(await run(s, [a]), nothing);
+  assert.equal(s.calls.length, before);
+
+  s.issues[0].labels.push("agent-ready");
+  assert.deepEqual(await run(s, [b]), { ...nothing, updated: [100] });
+  assert.equal(s.issues.length, 1);
   assert.deepEqual(
-    planFiling({ items, existing: [issue], openNumbers: new Set() }).reopen.map((r) => r.number),
-    [12],
+    s.calls.slice(-3).map(([m, p]) => `${m} ${p}`),
+    ["POST /repos/o/r/issues/100/comments", "DELETE /repos/o/r/issues/100/labels/agent-ready", "PATCH /repos/o/r/issues/100"],
   );
+  assert.deepEqual(s.issues[0].labels, ["source: lane-sweep"]);
+  assert.match(s.calls.at(-3)[2].body, /New:\n\n- fix\(ci\): another/);
+  assert.match(s.calls.at(-3)[2].body, /No longer seen:\n\n- fix\(ci\): skip the dispatch/);
+  assert.ok(!s.issues[0].body.includes(FP), "the fixed finding dropped off");
+
+  assert.deepEqual(await run(s, []), { ...nothing, updated: [100] });
+  assert.equal(s.issues[0].state, "closed");
+  assert.deepEqual(await run(s, []), nothing);
+
+  assert.deepEqual(await run(s, [a]), { ...nothing, reopened: [100] });
+  assert.equal(s.issues[0].state, "open");
+  assert.equal(s.issues.length, 1);
 });
 
-test("a failed reopen comment skips its PATCH and is recorded", async () => {
-  const calls = [];
-  const call = async (method, path) => {
-    calls.push(`${method} ${path}`);
-    if (method === "POST") throw new Error(`${method} ${path}: HTTP 500`);
-    return {};
+test("a sweep missing a unit's findings carries the earlier entries over", async () => {
+  const s = store();
+  const a = { fingerprint: FP, finding: finding() };
+  const b = { fingerprint: "fedcba9876543210", finding: finding({ title: "fix(ci): another" }) };
+  await run(s, [a]);
+  assert.deepEqual(await run(s, [b], { complete: false }), { ...nothing, updated: [100] });
+  assert.ok(s.issues[0].body.includes(FP));
+  assert.ok(s.issues[0].body.includes("fedcba9876543210"));
+  const before = s.calls.length;
+  assert.deepEqual(await run(s, [], { complete: false }), nothing);
+  assert.equal(s.calls.length, before);
+});
+
+test("a failed agent-ready removal other than 404 skips the PATCH and leaves the old state to retry", async () => {
+  const s = store();
+  await run(s, [{ fingerprint: FP, finding: finding() }]);
+  const old = s.issues[0].body;
+  const items = [{ fingerprint: "fedcba9876543210", finding: finding() }];
+  const failing = async (method, path, body) => {
+    if (method === "DELETE") throw Object.assign(new Error(`DELETE ${path}: HTTP 500`), { status: 500 });
+    return s.call(method, path, body);
   };
-  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
-  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
-  assert.deepEqual(calls, ["POST /repos/o/r/issues/12/comments"]);
-  assert.deepEqual(result.failed, [{ target: "#12", error: "POST /repos/o/r/issues/12/comments: HTTP 500" }]);
+  const plan = planDigest({ items, existing: s.issues, openNumbers: new Set() });
+  const result = await writeDigest({ plan, call: failing, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
+  assert.deepEqual(result.failed, [{ target: "#100", error: "DELETE /repos/o/r/issues/100/labels/agent-ready: HTTP 500" }]);
+  assert.equal(s.issues[0].body, old);
+  assert.equal(planDigest({ items, existing: s.issues, openNumbers: new Set() }).action, "update");
+});
+
+test("a failed filing is recorded", async () => {
+  const call = async (method, path) => {
+    throw new Error(`${method} ${path}: HTTP 422`);
+  };
+  const plan = planDigest({ items: [{ fingerprint: FP, finding: finding() }], existing: [], openNumbers: new Set() });
+  const result = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
+  assert.deepEqual(result, { ...nothing, failed: [{ target: "digest", error: "POST /repos/o/r/issues: HTTP 422" }] });
 });

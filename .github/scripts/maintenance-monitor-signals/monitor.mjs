@@ -1,6 +1,10 @@
-// The monitoring lane's job: collect, detect, then file, update, reopen or
-// skip one issue per finding. Writes with the job's own token, 1 s apart, within the
-// call budget, and only to the issues it files. No model.
+// The monitoring lane's job: collect, detect, then keep one rolling issue per
+// signal family: file it, rewrite it when its state changes, close it when the
+// signal clears and reopen it when the signal fires again. Platform incidents
+// go to the run summary only. Open issues from the earlier one-issue-per-key
+// scheme are closed, pointing at the family's issue. Writes with the job's own
+// token, 1 s apart, within the call budget, and only to the issues it files.
+// No model.
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, AGENT_IDENTITY, CALL_BUDGET,
 // WINDOW_MINUTES, GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID,
@@ -15,59 +19,68 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { collect, listFiled } from "./collect.mjs";
-import { planIssues, readMarker, renderBody, renderComment } from "./issues.mjs";
+import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf } from "./issues.mjs";
 import { detect } from "./signals.mjs";
 
-const LABELS = ["needs-triage", "source: factory-monitor"];
+// No needs-triage: a rolling issue is a status record the lane rewrites, not
+// an intake item.
+const LABELS = ["source: factory-monitor"];
 
-// A reopened issue goes back to triage: the filing labels that exist return,
-// and agent-ready comes off; a 404 means it was not on the issue.
-async function retriage({ call, repo, number, labels, wait }) {
-  if (labels.length > 0) {
-    await wait();
-    await call("POST", `/repos/${repo}/issues/${number}/labels`, { labels });
-  }
-  await wait();
-  await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
-    if (error.status !== 404) throw error;
-  });
-}
-
-export async function writePlan({ plan, existing, call, repo, labels, runUrl, wait = () => delay(1000) }) {
-  const done = { filed: [], updated: [], reopened: [], failed: [] };
-  for (const { finding } of plan.file) {
+export async function writePlan({ plan, call, repo, labels, runUrl, wait = () => delay(1000) }) {
+  const done = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
+  const rollingOf = new Map();
+  for (const { family } of plan.file) {
     await wait();
     try {
       const issue = await call("POST", `/repos/${repo}/issues`, {
-        title: finding.title,
-        body: renderBody(finding, runUrl),
+        title: titleOf(family.signal),
+        body: renderBody(family, runUrl),
         labels,
       });
       done.filed.push(issue.number);
+      rollingOf.set(family.signal, issue.number);
     } catch (error) {
-      done.failed.push({ target: finding.key, error: error.message });
+      done.failed.push({ target: family.signal, error: error.message });
     }
   }
-  // The comment carries the new evidence; the marker then records its
-  // fingerprint, so a failed comment is retried on the next run. A reopen
-  // sends the issue back to triage first and sets the state in that same
-  // last PATCH, so a failed label call leaves it closed and retried too.
+  // A body a person vetted for agent-ready is replaced, so agent-ready comes
+  // off before the PATCH (a 404 means it was not on the issue). The PATCH
+  // runs last and carries the marker, so a failed call before it leaves the
+  // old state recorded and the write is retried on the next run.
   const writes = [
     ...plan.update.map((u) => ({ ...u, reopen: false, into: done.updated })),
     ...plan.reopen.map((r) => ({ ...r, reopen: true, into: done.reopened })),
   ];
-  for (const { number, finding, reopen, into } of writes) {
-    const body = existing.find((i) => i.number === number).body;
-    const [, ...rest] = body.split("\n");
-    const marker = renderBody(finding, runUrl).split("\n", 1)[0];
-    const state = reopen ? { state: "open", state_reason: "reopened" } : {};
+  for (const { number, family, reopen, into } of writes) {
+    const clear = family.findings.length === 0;
+    const state = reopen
+      ? { state: "open", state_reason: "reopened" }
+      : clear
+        ? { state: "closed", state_reason: "completed" }
+        : {};
     try {
       await wait();
-      await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderComment(finding, runUrl) });
-      if (reopen) await retriage({ call, repo, number, labels, wait });
+      await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderComment(family, runUrl) });
       await wait();
-      await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: [marker, ...rest].join("\n") });
+      await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
+        if (error.status !== 404) throw error;
+      });
+      await wait();
+      await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: renderBody(family, runUrl) });
       into.push(number);
+    } catch (error) {
+      done.failed.push({ target: `#${number}`, error: error.message });
+    }
+  }
+  for (const { number, signal, rolling } of plan.close) {
+    try {
+      await wait();
+      await call("POST", `/repos/${repo}/issues/${number}/comments`, {
+        body: renderSupersede(signal, rolling ?? rollingOf.get(signal) ?? null),
+      });
+      await wait();
+      await call("PATCH", `/repos/${repo}/issues/${number}`, { state: "closed", state_reason: "not_planned" });
+      done.closed.push(number);
     } catch (error) {
       done.failed.push({ target: `#${number}`, error: error.message });
     }
@@ -136,28 +149,31 @@ async function main(env = process.env) {
   });
   const findings = detect(data);
   const existing = (await listFiled({ get, repo })).filter((i) => readMarker(i.body));
-  const plan = planIssues({ findings, existing });
+  const plan = planIssues({ findings, existing, complete: data.gaps.length === 0 });
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
-  let done = { filed: [], updated: [], reopened: [], failed: [] };
+  let done = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
   const labels = [];
   if (!env.DRY_RUN) {
     for (const name of LABELS) {
       if (await get(`/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
     }
-    done = await writePlan({ plan, existing, call, repo, labels, runUrl });
+    done = await writePlan({ plan, call, repo, labels, runUrl });
   }
 
+  const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     `### Monitoring lane${env.DRY_RUN ? " (dry run)" : ""}`,
     "",
-    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${done.filed.map((n) => `#${n}`).join(", ") || "none"}. Updated: ${done.updated.map((n) => `#${n}`).join(", ") || "none"}. Reopened: ${done.reopened.map((n) => `#${n}`).join(", ") || "none"}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
+    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Reopened: ${list(done.reopened)}. Closed as superseded: ${list(done.closed)}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
     "",
     ...findings.map((f) => `- ${f.signal} \`${f.key}\`: ${f.summary}`),
-    ...plan.file.map((p) => `- plan: file \`${p.finding.key}\``),
-    ...plan.update.map((p) => `- plan: update #${p.number} \`${p.finding.key}\``),
-    ...plan.reopen.map((p) => `- plan: reopen #${p.number} \`${p.finding.key}\``),
-    ...plan.skip.map((s) => `- plan: skip \`${s.key}\` (${s.reason}${s.number ? `, #${s.number}` : ""})`),
+    ...plan.logged.map((f) => `- logged, not filed: ${f.title} (${f.summary})`),
+    ...plan.file.map((p) => `- plan: file ${p.family.signal}`),
+    ...plan.update.map((p) => `- plan: ${p.family.findings.length === 0 ? "clear and close" : "update"} #${p.number} ${p.family.signal}`),
+    ...plan.reopen.map((p) => `- plan: reopen #${p.number} ${p.family.signal}`),
+    ...plan.close.map((p) => `- plan: close #${p.number} \`${p.key}\` as superseded`),
+    ...plan.skip.map((s) => `- plan: skip ${s.family} (${s.reason}${s.number ? `, #${s.number}` : ""})`),
     ...data.gaps.map((g) => `- not read: ${g}`),
     ...done.failed.map((f) => `- failed ${f.target}: ${f.error}`),
   ];

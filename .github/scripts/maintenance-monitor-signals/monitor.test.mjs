@@ -1,7 +1,9 @@
-// Two runs end to end through detect, planIssues and writePlan against an
-// in-memory issue store: for each signal, the first run files one issue, a
-// second run with the same evidence writes nothing, and a third with new
-// evidence comments on that issue instead of filing a second.
+// Runs end to end through detect, planIssues and writePlan against an
+// in-memory issue store: for each signal family, the first run files one
+// rolling issue, a run with the same state writes nothing, a new state
+// rewrites that issue, a clear run closes it, and the next finding reopens
+// the same issue instead of filing a second. Every rewrite takes agent-ready
+// off.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -62,11 +64,6 @@ const CASES = [
     { audits: [{ workflow: "maintenance-check-upstream-drift", run: { id: 6, url: url(6), conclusion: "failure", createdAt: "y", failedJobs: [] } }] },
   ],
   [
-    "7 platform incident",
-    { status: { components: [], incidents: [incident("investigating")] } },
-    { status: { components: [], incidents: [incident("identified")] } },
-  ],
-  [
     "8 throughput",
     { sweep: sweep([]), laneMerges: { lastMergedAt: "2026-10-19T10:00:00Z" } },
     { sweep: sweep([]), laneMerges: { lastMergedAt: "2026-10-19T09:00:00Z" } },
@@ -76,16 +73,18 @@ const CASES = [
 function store() {
   const issues = [];
   const calls = [];
+  const comments = {};
   const call = async (method, path, body) => {
     calls.push(`${method} ${path}`);
     if (method === "POST" && path.endsWith("/issues")) {
-      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body };
+      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, labels: [...body.labels] };
       issues.push(issue);
       return issue;
     }
     const number = Number(/issues\/(\d+)/.exec(path)[1]);
     const issue = issues.find((i) => i.number === number);
     if (method === "PATCH") Object.assign(issue, body);
+    if (method === "POST" && path.endsWith("/comments")) (comments[number] ??= []).push(body.body);
     if (method === "POST" && path.endsWith("/labels")) issue.labels = [...new Set([...issue.labels, ...body.labels])];
     if (method === "DELETE") {
       const name = decodeURIComponent(path.split("/labels/")[1]);
@@ -95,37 +94,54 @@ function store() {
     }
     return {};
   };
-  return { issues, calls, call };
+  return { issues, calls, comments, call };
 }
 
-async function runOnce(s, data) {
+async function runOnce(s, data, extra = {}) {
   const findings = detect({ now, windowStart, ...data });
   const existing = s.issues.filter((i) => readMarker(i.body));
-  const plan = planIssues({ findings, existing });
-  return writePlan({ plan, existing, call: s.call, repo: "o/r", labels: ["needs-triage"], runUrl: url(900), wait: async () => {} });
+  const plan = planIssues({ findings, existing, ...extra });
+  return writePlan({ plan, call: s.call, repo: "o/r", labels: ["source: factory-monitor"], runUrl: url(900), wait: async () => {} });
 }
 
+const nothing = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
+const rewrite = (n) => [
+  `POST /repos/o/r/issues/${n}/comments`,
+  `DELETE /repos/o/r/issues/${n}/labels/agent-ready`,
+  `PATCH /repos/o/r/issues/${n}`,
+];
+
 for (const [signal, first, changed] of CASES) {
-  test(`${signal}: files once, stays quiet on the same evidence, updates on new evidence`, async () => {
+  test(`${signal}: one rolling issue, rewritten on a new state, closed when clear, reopened when it fires again`, async () => {
     const s = store();
     const one = await runOnce(s, first);
     assert.equal(one.filed.length, 1);
     assert.ok(s.issues[0].body.includes(`**Signal:** ${signal}`));
-    assert.deepEqual(s.issues[0].labels, ["needs-triage"]);
+    assert.deepEqual(s.issues[0].labels, ["source: factory-monitor"]);
 
     const callsBefore = s.calls.length;
-    const two = await runOnce(s, first);
-    assert.deepEqual(two, { filed: [], updated: [], reopened: [], failed: [] });
+    assert.deepEqual(await runOnce(s, first), nothing);
     assert.equal(s.calls.length, callsBefore);
 
+    s.issues[0].labels.push("agent-ready");
     const three = await runOnce(s, changed);
-    assert.deepEqual(three.filed, []);
     assert.deepEqual(three.updated, [100]);
     assert.equal(s.issues.length, 1);
-    assert.deepEqual(s.calls.slice(-2), ["POST /repos/o/r/issues/100/comments", "PATCH /repos/o/r/issues/100"]);
+    assert.deepEqual(s.calls.slice(-3), rewrite(100));
+    assert.deepEqual(s.issues[0].labels, ["source: factory-monitor"]);
+    assert.deepEqual(await runOnce(s, changed), nothing);
 
-    const four = await runOnce(s, changed);
-    assert.deepEqual(four, { filed: [], updated: [], reopened: [], failed: [] });
+    const clear = await runOnce(s, {});
+    assert.deepEqual(clear.updated, [100]);
+    assert.equal(s.issues[0].state, "closed");
+    assert.match(s.issues[0].body, /\*\*State:\*\* clear in/);
+    assert.deepEqual(await runOnce(s, {}), nothing);
+
+    const back = await runOnce(s, changed);
+    assert.deepEqual(back, { ...nothing, reopened: [100] });
+    assert.equal(s.issues.length, 1);
+    assert.equal(s.issues[0].state, "open");
+    assert.deepEqual(s.calls.slice(-3), rewrite(100));
   });
 }
 
@@ -134,65 +150,67 @@ test("4 merge-queue ejections: the oldest group leaving the 24-hour window write
   await runOnce(s, { mergeGroupFailures: [ejection(1), ejection(2), ejection(3), ejection(4)] });
   const callsBefore = s.calls.length;
   const aged = await runOnce(s, { mergeGroupFailures: [ejection(2), ejection(3), ejection(4)] });
-  assert.deepEqual(aged, { filed: [], updated: [], reopened: [], failed: [] });
+  assert.deepEqual(aged, nothing);
   assert.equal(s.calls.length, callsBefore);
 });
 
-for (const [signal, first, changed] of CASES) {
-  test(`${signal}: new evidence on a completed key comments on, reopens and re-triages its issue`, async () => {
-    const s = store();
-    await runOnce(s, first);
-    Object.assign(s.issues[0], {
-      state: "closed",
-      state_reason: "completed",
-      closed_at: "2026-10-19T16:00:00Z",
-      labels: ["agent-ready"],
-    });
-    const before = s.issues[0].body.split("\n").slice(1);
-
-    const again = await runOnce(s, changed);
-    assert.deepEqual(again, { filed: [], updated: [], reopened: [100], failed: [] });
-    assert.equal(s.issues.length, 1);
-    assert.deepEqual(s.calls.slice(-4), [
-      "POST /repos/o/r/issues/100/comments",
-      "POST /repos/o/r/issues/100/labels",
-      "DELETE /repos/o/r/issues/100/labels/agent-ready",
-      "PATCH /repos/o/r/issues/100",
-    ]);
-    assert.deepEqual(s.issues[0].labels, ["needs-triage"]);
-    assert.equal(s.issues[0].state, "open");
-    assert.equal(s.issues[0].state_reason, "reopened");
-    assert.deepEqual(s.issues[0].body.split("\n").slice(1), before);
-
-    const quiet = await runOnce(s, changed);
-    assert.deepEqual(quiet, { filed: [], updated: [], reopened: [], failed: [] });
+test("two signals of one family share its issue; two families get two", async () => {
+  const s = store();
+  const done = await runOnce(s, {
+    failedRuns: [denied(1, "lane-token-denied: the broker answered 500 with reason unknown"), denied(2, "HTTP 429 rate limit")],
+    mainRun: red("not ok 1 - a"),
   });
-}
+  assert.deepEqual(done.filed, [100, 101]);
+  assert.deepEqual(
+    s.issues.map((i) => i.title),
+    ["Monitoring: main red", "Monitoring: throttling"],
+  );
+  assert.match(s.issues[1].body, /broker-deny:500-unknown/);
+  assert.match(s.issues[1].body, /throttle:rate-limited/);
+});
 
-test("a reopen of an issue without agent-ready takes the 404 as done, and a 500 is recorded", async () => {
+test("a platform incident files nothing", async () => {
+  const s = store();
+  assert.deepEqual(await runOnce(s, { status: { components: [], incidents: [incident("investigating")] } }), nothing);
+  assert.deepEqual(s.calls, []);
+});
+
+test("an unread source leaves an open issue as it is", async () => {
   const s = store();
   await runOnce(s, CASES[2][1]);
-  Object.assign(s.issues[0], { state: "closed", state_reason: "completed", labels: [] });
-  const order = [];
-  const reopened = await writePlan({
-    plan: planIssues({ findings: detect({ now, windowStart, ...CASES[2][2] }), existing: [...s.issues] }),
-    existing: [...s.issues],
-    call: async (method, path, body) => {
-      order.push("call");
-      return s.call(method, path, body);
-    },
-    repo: "o/r",
+  const callsBefore = s.calls.length;
+  assert.deepEqual(await runOnce(s, {}, { complete: false }), nothing);
+  assert.equal(s.calls.length, callsBefore);
+  assert.equal(s.issues[0].state, "open");
+});
+
+test("open per-key issues close as superseded by the rolling issue filed in the same run", async () => {
+  const s = store();
+  const legacy = (key, number) => ({
+    number,
+    state: "open",
+    state_reason: null,
     labels: ["needs-triage"],
-    runUrl: url(900),
-    wait: async () => order.push("wait"),
+    body: `<!-- factory-monitor key=${key} fp=0123456789abcdef -->\nold`,
   });
-  assert.deepEqual(reopened, { filed: [], updated: [], reopened: [100], failed: [] });
-  assert.deepEqual(s.issues[0].labels, ["needs-triage"]);
-  assert.deepEqual(order, ["wait", "call", "wait", "call", "wait", "call", "wait", "call"]);
+  s.issues.push(legacy("broker-deny:500-unknown", 7), legacy("platform:abc", 8));
+  const done = await runOnce(s, CASES[2][1]);
+  assert.deepEqual(done.filed, [102]);
+  assert.deepEqual(done.closed, [7, 8]);
+  assert.equal(s.issues[0].state, "closed");
+  assert.equal(s.issues[0].state_reason, "not_planned");
+  assert.match(s.comments[7][0], /Superseded by #102/);
+  assert.match(s.comments[8][0], /run summary/);
+  assert.deepEqual(await runOnce(s, CASES[2][1]), nothing);
+});
+
+test("a rewrite of an issue without agent-ready takes the 404 as done; a 500 leaves the old state to retry", async () => {
+  const s = store();
+  await runOnce(s, CASES[2][1]);
+  assert.deepEqual((await runOnce(s, CASES[2][2])).updated, [100]);
 
   const t = store();
   await runOnce(t, CASES[2][1]);
-  Object.assign(t.issues[0], { state: "closed", state_reason: "completed" });
   const oldBody = t.issues[0].body;
   const failing = async (method, path, body) => {
     if (method === "DELETE") throw Object.assign(new Error(`DELETE ${path}: HTTP 500`), { status: 500 });
@@ -201,55 +219,30 @@ test("a reopen of an issue without agent-ready takes the 404 as done, and a 500 
   const findings = detect({ now, windowStart, ...CASES[2][2] });
   const done = await writePlan({
     plan: planIssues({ findings, existing: [...t.issues] }),
-    existing: [...t.issues],
     call: failing,
     repo: "o/r",
     labels: [],
     runUrl: url(900),
     wait: async () => {},
   });
-  assert.deepEqual(done.reopened, []);
+  assert.deepEqual(done.updated, []);
   assert.deepEqual(done.failed, [{ target: "#100", error: "DELETE /repos/o/r/issues/100/labels/agent-ready: HTTP 500" }]);
-  assert.ok(!t.calls.includes("POST /repos/o/r/issues/100/labels"));
   assert.ok(!t.calls.includes("PATCH /repos/o/r/issues/100"));
-  assert.equal(t.issues[0].state, "closed");
   assert.equal(t.issues[0].body, oldBody);
   assert.deepEqual(
-    planIssues({ findings, existing: [...t.issues] }).reopen.map((r) => r.number),
+    planIssues({ findings, existing: [...t.issues] }).update.map((u) => u.number),
     [100],
   );
-});
-
-test("a key closed as not planned or duplicate writes nothing on new evidence", async () => {
-  for (const reason of ["not_planned", "duplicate"]) {
-    const s = store();
-    await runOnce(s, CASES[2][1]);
-    Object.assign(s.issues[0], { state: "closed", state_reason: reason });
-    const callsBefore = s.calls.length;
-    const muted = await runOnce(s, CASES[2][2]);
-    assert.deepEqual(muted, { filed: [], updated: [], reopened: [], failed: [] });
-    assert.equal(s.calls.length, callsBefore);
-    assert.equal(s.issues[0].state, "closed");
-  }
-});
-
-test("an update keeps the body below the marker line", async () => {
-  const s = store();
-  await runOnce(s, CASES[2][1]);
-  const before = s.issues[0].body.split("\n").slice(1);
-  await runOnce(s, CASES[2][2]);
-  assert.deepEqual(s.issues[0].body.split("\n").slice(1), before);
 });
 
 test("a failed write is reported and the rest still run", async () => {
   const s = store();
   const failing = async (method, path, body) => {
-    if (body?.title?.startsWith("Main red")) throw new Error("POST /repos/o/r/issues: HTTP 422");
+    if (body?.title === "Monitoring: main red") throw new Error("POST /repos/o/r/issues: HTTP 422");
     return s.call(method, path, body);
   };
   const findings = detect({ now, windowStart, ...CASES[0][1], ...CASES[3][1] });
-  const plan = planIssues({ findings, existing: [] });
-  const done = await writePlan({ plan, existing: [], call: failing, repo: "o/r", labels: [], runUrl: url(900), wait: async () => {} });
+  const done = await writePlan({ plan: planIssues({ findings, existing: [] }), call: failing, repo: "o/r", labels: [], runUrl: url(900), wait: async () => {} });
   assert.equal(done.filed.length, 1);
-  assert.deepEqual(done.failed, [{ target: "main-red:lint", error: "POST /repos/o/r/issues: HTTP 422" }]);
+  assert.deepEqual(done.failed, [{ target: "1 main red", error: "POST /repos/o/r/issues: HTTP 422" }]);
 });

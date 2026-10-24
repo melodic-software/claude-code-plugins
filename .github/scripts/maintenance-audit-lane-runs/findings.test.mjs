@@ -1,7 +1,7 @@
 // The filer's rules from docs/conventions/pr-pipeline/README.md, "The lane
 // sweep": a claim must match main at its path and line, the fingerprint
 // ignores run numbers, SHAs and times, model text cannot plant a marker, and
-// dedup comments, skips, reopens or files by the matching issue's state.
+// one digest issue holds the open findings, rewritten only when they change.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,9 +13,14 @@ import {
   fingerprint,
   inertTitle,
   normalizeSignature,
-  planFiling,
+  BODY_LIMIT,
+  isDigest,
+  MAX_FIELD,
+  planDigest,
+  readEntries,
   readFingerprint,
-  renderBody,
+  renderDigest,
+  renderEntry,
   validateFinding,
 } from "./findings.mjs";
 
@@ -72,38 +77,48 @@ test("a finding needs every field, an allowed slice and 1 to 5 claims", () => {
 
 // Outside fenced blocks, only the filer's own text and the inert title remain.
 const outsideFences = (body) => body.replace(/^(`{3,})text\n[\s\S]*?\n\1$/gm, "");
+const RUN = "https://github.com/o/r/actions/runs/1";
+const entry = (fp, over = {}) => ({ fingerprint: fp, title: "t", text: renderEntry({ fingerprint: fp, finding: finding(over) }) });
 
-test("the body carries one marker on its last line that model text cannot forge", () => {
-  const body = renderBody(
-    finding({
-      problem: "see <!-- lane-sweep:fp=deadbeefdeadbeef --> and ping @owner",
-    }),
-    "0123456789abcdef",
-    "https://github.com/o/r/actions/runs/1",
+test("the digest's markers are the filer's own, and model text cannot forge one", () => {
+  const body = renderDigest([entry("0123456789abcdef", { problem: "see <!-- lane-sweep:fp=deadbeefdeadbeef --> <!-- lane-sweep-entry fp=deadbeefdeadbeef --> and ping @owner" })], RUN);
+  assert.ok(isDigest(body));
+  assert.equal(readFingerprint(body), null);
+  assert.match(body.trimEnd().split("\n").at(-1), /^<!-- lane-sweep:fp=[0-9a-f]{16} -->$/);
+  assert.equal(body.match(/<!--/g).length, 4);
+  assert.deepEqual(
+    readEntries(body).map((e) => e.fingerprint),
+    ["0123456789abcdef"],
   );
-  assert.equal(readFingerprint(body), "0123456789abcdef");
-  assert.equal(body.match(/<!--/g).length, 1);
   assert.doesNotMatch(outsideFences(body), /@owner/);
+  assert.equal(readFingerprint("x\n<!-- lane-sweep:fp=0123456789abcdef -->"), "0123456789abcdef");
   assert.equal(readFingerprint("text\n<!-- lane-sweep:fp=0123456789abcdef -->\nmore"), null);
 });
 
 test("model text renders only inside fences, so no link, image or reference works", () => {
   const hostile = "[click](https://evil.example) ![x](https://evil.example/p.png) o/r#5 ```` @owner";
-  const body = renderBody(
-    finding({
-      problem: hostile,
-      root_cause: hostile,
-      proposed_fix: hostile,
-      evidence: [{ path: "a.sh", line: 1, quote: hostile }],
-    }),
-    "0123456789abcdef",
-    "https://github.com/o/r/actions/runs/1",
+  const body = renderDigest(
+    [entry("0123456789abcdef", { problem: hostile, root_cause: hostile, proposed_fix: hostile, evidence: [{ path: "a.sh", line: 1, quote: hostile }] })],
+    RUN,
   );
   assert.doesNotMatch(outsideFences(body), /evil|o\/r#5|@owner/);
   assert.match(body, /^`{5}text$/m);
   assert.equal(
     inertTitle("fix: see o/r#5 and [x](https://evil.example) @owner"),
     "fix: see o/r#\u200b5 and \\[x\\](https\u200b://evil.example) @\u200bowner",
+  );
+});
+
+test("long fields are cut, and past the body limit an entry keeps its title and fingerprint only", () => {
+  const big = "y".repeat(MAX_FIELD * 3);
+  const entries = Array.from({ length: 24 }, (_, i) => entry(i.toString(16).padStart(16, "0"), { problem: big, root_cause: big, proposed_fix: big }));
+  const body = renderDigest(entries, RUN);
+  assert.ok(body.length <= BODY_LIMIT, `${body.length}`);
+  assert.match(body, /\[cut at 2000 characters\]/);
+  assert.match(body, /details left out to fit the issue body limit/);
+  assert.deepEqual(
+    readEntries(body).map((e) => e.fingerprint),
+    entries.map((e) => e.fingerprint),
   );
 });
 
@@ -115,108 +130,73 @@ const issue = (number, over = {}) => ({
   body: `x\n<!-- lane-sweep:fp=${over.fp ?? "00000000000000f1"} -->`,
   ...over,
 });
-const item = (fp, over = {}) => ({
-  fingerprint: fp,
-  finding: finding(),
-  ...over,
-});
+const item = (fp, over = {}) => ({ fingerprint: fp, finding: finding(over) });
+const digest = (entries, over = {}) => ({ number: 50, state: "open", state_reason: null, body: renderDigest(entries, RUN), ...over });
 
-test("an open match gets one comment, not-planned and duplicate are skipped, a completed match is reopened at any age", () => {
-  const plan = planFiling({
+test("the digest skips muted and covered findings and points at an open earlier issue", () => {
+  const plan = planDigest({
     items: [
       item("00000000000000f1"),
       item("00000000000000f1"),
       item("00000000000000f2"),
       item("00000000000000f3"),
       item("00000000000000f4"),
-      item("00000000000000f5"),
-      item("00000000000000f6"),
+      item("00000000000000f5", { covered_by: 7 }),
+      item("00000000000000f6", { covered_by: 8 }),
     ],
     existing: [
       issue(10, { fp: "00000000000000f1" }),
-      issue(11, {
-        fp: "00000000000000f2",
-        state: "closed",
-        state_reason: "not_planned",
-        closed_at: "2026-10-01T00:00:00Z",
-      }),
-      issue(12, {
-        fp: "00000000000000f3",
-        state: "closed",
-        state_reason: "completed",
-        closed_at: "2026-10-10T00:00:00Z",
-      }),
-      issue(13, {
-        fp: "00000000000000f4",
-        state: "closed",
-        state_reason: "completed",
-        closed_at: "2025-01-01T00:00:00Z",
-      }),
-      issue(14, {
-        fp: "00000000000000f5",
-        state: "closed",
-        state_reason: "duplicate",
-        closed_at: "2026-10-01T00:00:00Z",
-      }),
+      issue(11, { fp: "00000000000000f2", state: "closed", state_reason: "not_planned" }),
+      issue(12, { fp: "00000000000000f3", state: "closed", state_reason: "duplicate" }),
+      issue(13, { fp: "00000000000000f4", state: "closed", state_reason: "completed" }),
     ],
-    openNumbers: new Set([10]),
+    openNumbers: new Set([7, 10]),
   });
+  assert.equal(plan.action, "file");
   assert.deepEqual(
-    plan.comment.map((c) => c.number),
-    [10],
+    plan.entries.map((e) => e.fingerprint),
+    ["00000000000000f1", "00000000000000f4", "00000000000000f6"],
   );
+  assert.match(plan.entries[0].text, /Tracked in #10\.$/);
+  assert.doesNotMatch(plan.entries[0].text, /```/);
   assert.deepEqual(
     plan.skip.map((s) => s.reason),
-    ["duplicate-in-run", "not-planned", "closed-duplicate"],
-  );
-  assert.deepEqual(
-    plan.reopen.map((r) => [r.number, r.fingerprint]),
-    [
-      [12, "00000000000000f3"],
-      [13, "00000000000000f4"],
-    ],
-  );
-  assert.deepEqual(
-    plan.file.map((f) => f.fingerprint),
-    ["00000000000000f6"],
+    ["duplicate-in-run", "muted", "muted", "covered"],
   );
 });
 
-test("reopens do not count against the five new issues", () => {
-  const closed = ["1", "2", "3", "4", "5"].map((c, i) =>
-    issue(20 + i, { fp: c.repeat(16), state: "closed", state_reason: "completed", closed_at: "2026-10-01T00:00:00Z" }),
-  );
-  const items = ["1", "2", "3", "4", "5", "a", "b", "c", "d", "e"].map((c) => item(c.repeat(16)));
-  const plan = planFiling({ items, existing: closed, openNumbers: new Set() });
+test("the newest digest decides: same entries skip, new ones update, a not-planned close mutes, no entry closes", () => {
+  const a = item("00000000000000a1");
+  const b = item("00000000000000b1");
+  const open = digest([entry("00000000000000a1")]);
+  assert.equal(planDigest({ items: [a], existing: [open], openNumbers: new Set() }).action, null);
+  const changed = planDigest({ items: [a, b], existing: [digest([], { number: 40 }), open], openNumbers: new Set() });
+  assert.equal(changed.action, "update");
+  assert.equal(changed.number, 50);
   assert.deepEqual(
-    plan.reopen.map((r) => r.number),
-    [20, 21, 22, 23, 24],
+    changed.added.map((e) => e.fingerprint),
+    ["00000000000000b1"],
   );
+  const cleared = planDigest({ items: [], existing: [open], openNumbers: new Set() });
+  assert.equal(cleared.action, "update");
   assert.deepEqual(
-    plan.file.map((f) => f.fingerprint[0]),
-    ["a", "b", "c", "d", "e"],
+    cleared.dropped.map((e) => e.fingerprint),
+    ["00000000000000a1"],
   );
-  assert.deepEqual(plan.skip, []);
+  for (const reason of ["not_planned", "duplicate"]) {
+    const muted = digest([entry("00000000000000a1")], { state: "closed", state_reason: reason });
+    assert.equal(planDigest({ items: [a, b], existing: [muted], openNumbers: new Set() }).action, null);
+  }
+  const done = digest([entry("00000000000000a1")], { state: "closed", state_reason: "completed" });
+  assert.equal(planDigest({ items: [a], existing: [done], openNumbers: new Set() }).action, null);
+  assert.equal(planDigest({ items: [a, b], existing: [done], openNumbers: new Set() }).action, "reopen");
+  assert.equal(planDigest({ items: [], existing: [], openNumbers: new Set() }).action, null);
 });
 
-test("at most five new issues, and an open covering item skips the finding", () => {
-  const items = ["a", "b", "c", "d", "e", "f", "g"].map((c) => item(c.repeat(16)));
-  items[0] = item("a".repeat(16), { finding: finding({ covered_by: 7 }) });
-  items[1] = item("b".repeat(16), { finding: finding({ covered_by: 8 }) });
-  const plan = planFiling({
-    items,
-    existing: [],
-    openNumbers: new Set([7]),
-  });
-  assert.deepEqual(
-    plan.file.map((f) => f.fingerprint[0]),
-    ["b", "c", "d", "e", "f"],
-  );
-  assert.deepEqual(
-    plan.skip.map((s) => [s.fingerprint[0], s.reason]),
-    [
-      ["a", "covered"],
-      ["g", "cap"],
-    ],
-  );
+test("an incomplete sweep keeps every earlier entry it did not see", () => {
+  const open = digest([entry("00000000000000a1"), entry("00000000000000b1")]);
+  const plan = planDigest({ items: [item("00000000000000c1")], existing: [open], openNumbers: new Set(), complete: false });
+  assert.deepEqual(plan.entries.map((e) => e.fingerprint).sort(), ["00000000000000a1", "00000000000000b1", "00000000000000c1"]);
+  assert.deepEqual(plan.dropped, []);
+  assert.equal(planDigest({ items: [], existing: [open], openNumbers: new Set(), complete: false }).action, null);
 });

@@ -1,12 +1,11 @@
 // The lane sweep's finding rules, shared by the judge's writer and the filer:
-// shape checks, the claim check against main, the dedup fingerprint, the
-// issue body, and the filing plan. No model, no network.
+// shape checks, the claim check against main, the dedup fingerprint, and
+// the digest issue's body and plan. No model, no network.
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
 import { join, normalize } from "node:path";
 
 export const SLICES = new Set(["A", "C", "D"]);
-export const MAX_NEW_ISSUES = 5;
 const MARKER = /^<!-- lane-sweep:fp=([0-9a-f]{16}) -->$/;
 const TEXT_FIELDS = ["title", "problem", "root_cause", "proposed_fix", "workflow", "job", "signature"];
 
@@ -91,93 +90,188 @@ export const inertTitle = (text) =>
 
 const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: ${c.quote}`).join("\n");
 
-export function renderBody(finding, fp, runUrl) {
+// The digest: one rolling issue holding the newest sweep's findings, found by
+// its first line. Its last line keeps the lane-sweep fingerprint form, so
+// scripts that skip the sweep's issues by that line still skip it, and holds
+// the fingerprint of the entry set. Each entry opens with its own marker.
+export const DIGEST_MARKER = "<!-- lane-sweep-digest -->";
+export const DIGEST_TITLE = "Lane sweep: open findings";
+const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16}) -->$/;
+const END = "<!-- lane-sweep-end -->";
+export const MAX_FIELD = 2000;
+export const BODY_LIMIT = 60000;
+const MUTED = new Set(["not_planned", "duplicate"]);
+
+export const isDigest = (body) => String(body ?? "").split("\n", 1)[0] === DIGEST_MARKER;
+
+const clip = (text) => {
+  const chars = Array.from(String(text));
+  return chars.length > MAX_FIELD ? `${chars.slice(0, MAX_FIELD).join("")} [cut at ${MAX_FIELD} characters]` : String(text);
+};
+
+// One entry's section, model text inside fences. A finding an earlier sweep
+// filed an open issue for points at that issue instead of repeating it.
+export function renderEntry({ fingerprint: fp, finding, tracked = null }) {
+  const head = [`<!-- lane-sweep-entry fp=${fp} -->`, `### ${inertTitle(finding.title)}`, ""];
+  if (tracked) return [...head, `Slice ${finding.slice}, fingerprint \`${fp}\`. Tracked in #${tracked}.`].join("\n");
   return [
-    `Filed by the lane sweep ([run](${runUrl})) from slice ${finding.slice}. A model wrote the fenced text below from CI data, which can carry text written to steer it; every cited line was checked against main when filed. Rewrite the issue in your own words before marking it agent-ready.`,
+    ...head,
+    `Slice ${finding.slice}, fingerprint \`${fp}\`.`,
     "",
-    "## Problem",
+    "**Problem**",
     "",
-    fenced(finding.problem),
+    fenced(clip(finding.problem)),
     "",
-    "## Root cause",
+    "**Root cause**",
     "",
-    fenced(finding.root_cause),
+    fenced(clip(finding.root_cause)),
     "",
-    fenced(claimsOf(finding)),
+    fenced(clip(claimsOf(finding))),
     "",
-    "## Proposed fix",
+    "**Proposed fix**",
     "",
-    fenced(finding.proposed_fix),
+    fenced(clip(finding.proposed_fix)),
     "",
-    "## Where",
+    "**Where**",
     "",
-    fenced(`workflow ${finding.workflow}\njob ${finding.job}`),
-    "",
-    `<!-- lane-sweep:fp=${fp} -->`,
+    fenced(clip(`workflow ${finding.workflow}\njob ${finding.job}`)),
   ].join("\n");
 }
 
-// The comment that reopens a closed issue: the run and the recheck claims.
-export const renderReopenComment = (finding, runUrl) =>
-  [
-    `Seen again by the lane sweep in [this run](${runUrl}) after this issue was closed, so it is reopened. Every cited line below was checked against main in that run.`,
-    "",
-    fenced(claimsOf(finding)),
-  ].join("\n");
+const shortEntry = (entry) =>
+  [entry.text.split("\n", 2).join("\n"), "", `Fingerprint \`${entry.fingerprint}\`; details left out to fit the issue body limit.`].join(
+    "\n",
+  );
 
-// The fingerprint from the body's last line only.
-export function readFingerprint(body) {
-  const last = String(body ?? "")
-    .trimEnd()
-    .split("\n")
-    .at(-1);
-  return MARKER.exec(last ?? "")?.[1] ?? null;
+export const digestFingerprint = (entries) =>
+  createHash("sha256")
+    .update(JSON.stringify(entries.map((e) => e.fingerprint).sort()))
+    .digest("hex")
+    .slice(0, 16);
+
+export function renderDigest(entries, runUrl) {
+  const head = [
+    DIGEST_MARKER,
+    `The lane sweep's open findings, as of [this run](${runUrl}). Each daily sweep replaces this body: a finding it no longer sees drops off, and a change adds a comment. A model wrote the fenced text from CI data, which can carry text written to steer it; every cited line was checked against main in the run that found it. A rewrite takes \`agent-ready\` off. Closing this issue as not planned or duplicate mutes the digest; closing it otherwise lets the next change reopen it.`,
+    "",
+    entries.length === 0 ? "No open finding." : `${entries.length} open finding${entries.length === 1 ? "" : "s"}.`,
+  ].join("\n");
+  const tail = `\n\n${END}\n<!-- lane-sweep:fp=${digestFingerprint(entries)} -->`;
+  // Room is kept for every later entry's short form, so the body stays under
+  // the limit whichever entries are cut.
+  const short = entries.map((e) => `\n\n${shortEntry(e)}`);
+  let rest = short.reduce((n, s) => n + s.length, 0);
+  let body = head;
+  entries.forEach((entry, i) => {
+    rest -= short[i].length;
+    const full = `\n\n${entry.text}`;
+    body += body.length + full.length + rest + tail.length <= BODY_LIMIT ? full : short[i];
+  });
+  return `${body}${tail}`;
 }
+
+// The entries a digest body holds, each with its rendered text and title.
+export function readEntries(body) {
+  const entries = [];
+  let current = null;
+  for (const line of String(body ?? "").split("\n")) {
+    const m = ENTRY.exec(line);
+    if (!m && line !== END) {
+      current?.lines.push(line);
+      continue;
+    }
+    if (current) entries.push(current);
+    if (!m) {
+      current = null;
+      break;
+    }
+    current = { fingerprint: m[1], lines: [line] };
+  }
+  if (current) entries.push(current);
+  return entries.map(({ fingerprint: fp, lines }) => ({
+    fingerprint: fp,
+    title: (lines[1] ?? "").replace(/^### /, ""),
+    text: lines.join("\n").trimEnd(),
+  }));
+}
+
+export function renderDigestComment({ added, dropped }, runUrl) {
+  const list = (entries) => entries.map((e) => `- ${e.title} (\`${e.fingerprint}\`)`);
+  return [
+    `Changed in [this run](${runUrl}).`,
+    ...(added.length > 0 ? ["", "New:", "", ...list(added)] : []),
+    ...(dropped.length > 0 ? ["", "No longer seen:", "", ...list(dropped)] : []),
+  ].join("\n");
+}
+
+const lastLineFp = (body) =>
+  MARKER.exec(
+    String(body ?? "")
+      .trimEnd()
+      .split("\n")
+      .at(-1) ?? "",
+  )?.[1] ?? null;
+
+// The fingerprint from the body's last line, for the per-finding issues
+// earlier sweeps filed; the digest is not one of them.
+export const readFingerprint = (body) => (isDigest(body) ? null : lastLineFp(body));
 
 // items: [{fingerprint, finding}]; existing: sweep issues of any state, with
-// no time window, with body; openNumbers: open issue and PR numbers.
-export function planFiling({ items, existing, openNumbers, maxNew = MAX_NEW_ISSUES }) {
+// no time window, with body; openNumbers: open issue and PR numbers; complete:
+// every unit's findings were read, so an entry not seen in this sweep is gone
+// rather than unread.
+export function planDigest({ items, existing, openNumbers, complete = true }) {
   const byFp = new Map();
+  let digest = null;
   for (const issue of existing) {
+    if (isDigest(issue.body)) {
+      if (!digest || issue.number > digest.number) digest = issue;
+      continue;
+    }
     const fp = readFingerprint(issue.body);
     if (fp && !byFp.has(fp)) byFp.set(fp, issue);
     if (fp && issue.state === "open") byFp.set(fp, issue);
   }
-  const plan = { file: [], comment: [], reopen: [], skip: [] };
+  const skip = [];
+  const entries = [];
   const seen = new Set();
   for (const { fingerprint: fp, finding } of items) {
-    const skip = (reason) => plan.skip.push({ fingerprint: fp, reason });
     if (seen.has(fp)) {
-      skip("duplicate-in-run");
+      skip.push({ fingerprint: fp, reason: "duplicate-in-run" });
       continue;
     }
     seen.add(fp);
     const match = byFp.get(fp);
-    if (match?.state === "open") {
-      plan.comment.push({ number: match.number, fingerprint: fp });
-      continue;
-    }
-    if (match?.state_reason === "not_planned") {
-      skip("not-planned");
-      continue;
-    }
-    if (match?.state_reason === "duplicate") {
-      skip("closed-duplicate");
+    if (match?.state === "closed" && MUTED.has(match.state_reason)) {
+      skip.push({ fingerprint: fp, reason: "muted" });
       continue;
     }
     if (finding.covered_by !== null && openNumbers.has(finding.covered_by)) {
-      skip("covered");
+      skip.push({ fingerprint: fp, reason: "covered" });
       continue;
     }
-    if (match) {
-      plan.reopen.push({ number: match.number, fingerprint: fp, finding });
-      continue;
-    }
-    if (plan.file.length >= maxNew) {
-      skip("cap");
-      continue;
-    }
-    plan.file.push({ fingerprint: fp, finding });
+    const tracked = match?.state === "open" ? match.number : null;
+    entries.push({ fingerprint: fp, title: inertTitle(finding.title), text: renderEntry({ fingerprint: fp, finding, tracked }) });
   }
+  const before = digest ? readEntries(digest.body) : [];
+  if (!complete) {
+    for (const entry of before.filter((e) => !seen.has(e.fingerprint))) {
+      entries.push(entry);
+      seen.add(entry.fingerprint);
+    }
+  }
+  const was = new Set(before.map((e) => e.fingerprint));
+  const plan = {
+    action: null,
+    number: digest?.number ?? null,
+    entries,
+    added: entries.filter((e) => !was.has(e.fingerprint)),
+    dropped: before.filter((e) => !seen.has(e.fingerprint)),
+    skip,
+  };
+  const unchanged = digest !== null && lastLineFp(digest.body) === digestFingerprint(entries);
+  if (!digest) plan.action = entries.length > 0 ? "file" : null;
+  else if (digest.state === "open") plan.action = unchanged ? null : "update";
+  else if (!MUTED.has(digest.state_reason) && entries.length > 0 && !unchanged) plan.action = "reopen";
   return plan;
 }
