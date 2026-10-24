@@ -164,6 +164,36 @@ test("the issue lane finishing wakes only the enable-auto-merge job", () => {
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
 });
 
+// A job its condition skips never joins the group, so a pull request the job
+// cannot arm (not the lanes App's) shows a skipped check, not one pending
+// behind every queued run. The other events keep their conditions.
+test("a pull request event wakes enable-auto-merge only for a lanes App pull request", () => {
+  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
+  assert.match(
+    armIf,
+    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\)\)\n/,
+  );
+  assert.match(armIf, /^ {6}!cancelled\(\)\n/);
+  assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
+});
+
+// The merge job's skip, run for enable-auto-merge's own group before the lane
+// token or any other read.
+test("enable-auto-merge skips its work when a waiting run's enable-auto-merge job does it", () => {
+  const arm = job("enable-auto-merge");
+  const step = /- name: Check for a newer run that does this work\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
+  assert.ok(step, "a superseded step");
+  assert.match(step, /^ {8}id: superseded\n {8}if: steps\.who\.outputs\.proceed == 'true'\n {8}continue-on-error: true\n/);
+  assert.match(step, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}SUPERSEDED_JOB: enable-auto-merge\n/);
+  assert.match(step, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/superseded\.mjs\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.equal(names.indexOf("Check for a newer run that does this work"), names.indexOf("Check who started the run") + 1);
+  assert.ok(names.indexOf("Check for a newer run that does this work") < names.indexOf("Request the lane token"));
+  assert.match(arm, /- name: Resolve the config\n {8}id: config\n {8}if: steps\.who\.outputs\.proceed == 'true' && steps\.superseded\.outputs\.superseded != 'true'\n/);
+  // The merge job asks for its own job, by default.
+  assert.doesNotMatch(job("merge"), /SUPERSEDED_JOB/);
+});
+
 test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);

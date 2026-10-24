@@ -1350,13 +1350,17 @@ jobs:
     # !cancelled() runs this one anyway.
     needs: [post-merge-dispatch]
     # An issue run that skipped every job (a label other than agent-ready)
-    # opened nothing.
+    # opened nothing. A pull request event wakes it only for a lanes App pull
+    # request (its author's id is AUTOMATION_LANES_APP_SENDER_ID), the only
+    # kind it arms: any other event's job is skipped before it joins the
+    # group, so its check reads skipped, never pending behind the queue.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'skipped')
       && (github.event_name != 'pull_request_target'
-      || github.event.pull_request.head.repo.full_name == github.repository)
+      || (github.event.pull_request.head.repo.full_name == github.repository
+      && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID))
     # A pending run is never replaced: a cancelled run leaves a CANCELLED
     # check on the pull request that woke it.
     concurrency:
@@ -1420,9 +1424,27 @@ jobs:
             echo "proceed=false" >>"$GITHUB_OUTPUT"
           fi
 
+      # The merge job's skip, for this job's group: when another run's
+      # enable-auto-merge job still waits and does all this one would (a
+      # scheduled or hand-started run arms, every run disarms on a hold), this
+      # run ends green here with a notice before it takes the lane token or
+      # reads anything else, so a backlog costs one pass and no run is
+      # cancelled. Any error leaves superseded unset and the job runs.
+      # Rules: .github/scripts/pr-merge/superseded.mjs.
+      - name: Check for a newer run that does this work
+        id: superseded
+        if: steps.who.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          SUPERSEDED_JOB: enable-auto-merge
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/pr-merge/superseded.mjs
+
       - name: Resolve the config
         id: config
-        if: steps.who.outputs.proceed == 'true'
+        if: steps.who.outputs.proceed == 'true' && steps.superseded.outputs.superseded != 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-merge
