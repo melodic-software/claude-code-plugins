@@ -789,7 +789,8 @@ jobs:
       # job's commit under REUSE_MINUTES ago: its report, exit code and lane
       # records. That job starts at once and this one waits on its group, so
       # its report is usually kept by the time this step starts; with none,
-      # or any other, this job runs the check.
+      # or any other, this job runs the check. A pattern, not a name: a
+      # pattern that matches nothing downloads nothing and does not fail.
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
@@ -798,7 +799,8 @@ jobs:
         timeout-minutes: 2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: pr-merge-post-merge-report
+          pattern: pr-merge-post-merge-report
+          merge-multiple: true
           path: ${{ runner.temp }}/post-merge-kept
 
       - name: Check earlier lane merges

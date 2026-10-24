@@ -1143,7 +1143,9 @@ test("the merge job runs the check itself for no report, another main, an old re
 test("the merge job reads this run's report only when post-merge-dispatch keeps one", () => {
   const read = step("Read this run's post-merge report");
   assert.match(read, /uses: actions\/download-artifact@[0-9a-f]{40} /);
-  assert.match(read, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-kept\n/);
+  // A pattern that matches nothing yet (post-merge-dispatch still checking)
+  // downloads nothing rather than failing the step.
+  assert.match(read, /\n {10}pattern: pr-merge-post-merge-report\n {10}merge-multiple: true\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-kept\n/);
   assert.match(read, /\n {8}continue-on-error: true\n/);
   assert.match(read, /steps\.mode\.outputs\.live == 'true'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)/);
   assert.doesNotMatch(read, /run-id|github-token|repository:/);
