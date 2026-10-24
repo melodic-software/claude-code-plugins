@@ -11,8 +11,9 @@
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision;
-// - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
-//   `sizes` and `uncertainty`;
+// - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
+//   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
+//   work; no other work class gates admission (owner Q85, #9668);
 // - 7: a `task-list` line, the criteria the lane checks, in text pr-verify
 //   will read (resolve-pr.mjs linkedIssues): the body or a comment written,
 //   and last edited if ever, by a listed human, and, on an issue whose body a
@@ -62,8 +63,10 @@ export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
+// The one work class that holds an issue for a person (owner Q85, #9668).
+export const UNTRUSTED = "work-class: untrusted-provenance";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
-const LISTS = ["types", "types-under-parent", "classes", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
@@ -282,8 +285,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   } else if (!rules.types.includes(type)) {
     refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"]].join(", ")}`);
   }
-  if (!rules.classes.includes(verdict.workClass)) {
-    refuse.push(`${verdict.workClass} is not one of ${rules.classes.join(", ")}`);
+  // The hold also stands when its newest event is a removal by neither a
+  // listed human nor the lanes App.
+  const untrustedEvent = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
+  const removedByOther = untrustedEvent?.event === "unlabeled" && !humans.has(untrustedEvent.actor?.id) && !(appId !== undefined && untrustedEvent.actor?.id === appId);
+  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
+    refuse.push(`${UNTRUSTED} work needs a person`);
   }
   if (!rules.sizes.includes(verdict.dimensions?.size)) {
     refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);

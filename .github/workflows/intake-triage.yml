@@ -227,7 +227,9 @@ jobs:
         - Type: Bug for a defect in something that exists, Task for a bounded change, Feature for a
           new capability.
         - Work class: the `work-class:` label whose meaning in this repository's conventions fits;
-          none when unsure.
+          none when unsure. The class gates nothing except `work-class: untrusted-provenance`,
+          which holds the issue for a person: propose it whenever where the request came from is
+          in doubt.
         - Size: Small for one focused change in a few files, Medium for several files or one
           subsystem, Large for work that needs splitting.
         - Complexity: Low for a direct edit, Medium for several moving parts, High for subtle
