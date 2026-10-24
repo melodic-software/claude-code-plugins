@@ -21,6 +21,11 @@ name: maintenance-reconcile-lost-runs
 # flaky test the diff did not cause spends no model run; a second failure is
 # pr-unblock's fix-ci's.
 #
+# A pr-require-checks run that passed on its first attempt is re-run once,
+# recorded, when the head's pr-verify pass predates a change to its spec (an
+# issue edit or a new spec comment), so pr-verify judges the head again
+# instead of leaving it at verify:spec-changed.
+#
 # An intake-label-needs-triage run an issue event started whose first attempt
 # failed (a rate limit, most often) left the issue without its floor label;
 # its failed jobs are re-run once, taking no place under the cap.
@@ -102,8 +107,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
           mkdir -p "$RUNNER_TEMP/reconcile-record"
+          # pr-verify.yml's resolver inputs, for the spec-changed re-runs.
+          VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
+          LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
           node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
       # One record per pr-verify run, and per pr-require-checks run made attempt
