@@ -136,13 +136,14 @@
       "id": 12,
       "name": "second-app-gets-its-own-dir",
       "prompt": "/app-control:map create clockwork --dir .claude/skills/control-clockwork, for the Clockwork admin app built from apps/admin. .claude/skills/control-clockwork/SKILL.md already exists and its hub names Clockwork web, built from apps/web.",
-      "expected_output": "The directory already holds a control skill, and its hub covers Clockwork web, a different app. The skill stops and writes nothing, names Clockwork web as the app that skill covers, and gives the directory this app needs: .claude/skills/control-clockwork-admin/.",
+      "expected_output": "The directory already holds a control skill, and its hub covers Clockwork web, a different app. The skill stops and writes nothing, names Clockwork web as the app that skill covers, and gives the directory this app needs: .claude/skills/control-clockwork-admin/. It does not send the person to /testing:refresh-feature-map for this app.",
       "files": [],
       "narration": true,
       "expectations": [
         "Writes nothing and leaves .claude/skills/control-clockwork/ unchanged",
         "Names Clockwork web as the app the existing control skill covers",
-        "Gives .claude/skills/control-clockwork-admin/ as the directory for the admin app"
+        "Gives .claude/skills/control-clockwork-admin/ as the directory for the admin app",
+        "Does not point at /testing:refresh-feature-map as the next step for the admin app"
       ]
     },
     {

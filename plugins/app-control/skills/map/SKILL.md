@@ -31,7 +31,7 @@ repository).
 | bare | Propose: name the apps the repository builds, the features each shows most clearly, and the directory `create` would write; write nothing |
 | `create [<app>]` | Steps 1 to 6 below. Without `<app>`, the app the README or orchestrator config presents as primary; name the others in the report |
 | `--dir <path>` | Where to write for this run only, checked by the location rules |
-| `--unattended` | With `create`: ask nothing. Stop at the first question discovery cannot answer, print every open question with its recommendation, and write nothing. Never guess a safety answer |
+| `--unattended` | With `create`: ask nothing. Stop at the first question discovery cannot answer, print every open question with its recommendation, and write nothing. Never guess a safety answer. Every drive call gets `--unattended` |
 
 ## Create
 
@@ -48,10 +48,14 @@ skill and the app its hub names; when that is another app, give the directory th
 ### 2. Discover
 
 Walk every row of [reference/discovery.md](reference/discovery.md), read-only, before asking
-anything. Each row ends `found`, with the file or command that showed it, or `open`. Start the app
-once through the launch recipe the Run row found. When the checkout does not build or the app does
-not start, stop and write nothing: report the command, the last lines of its output and what the
-person must fix.
+anything. Each row ends `found`, with the file or command that showed it, or `open`. Discovery
+launches nothing.
+
+Then check the app runs: invoke `/app-control:drive` through the Skill tool with no feature and an
+evidence directory, then `/app-control:drive cleanup`. Before a control skill exists, drive
+launches through its own fallback recipe and writes the launch record. When the checkout does not
+build or the app does not come up, stop and write nothing: report the command, the last lines of
+its output and what the person must fix.
 
 ### 3. Ask the residue
 
@@ -92,8 +96,9 @@ safe floor.
 
 Invoke `/app-control:drive` through the Skill tool on one seeded feature, with an evidence
 directory: launch, ready, sign in, drive, capture one artifact, cleanup. Then check it yourself:
-every evidence path in drive's report exists and is not empty, and no process the run started is
-alive, looked up by the pid in drive's launch record, never by name.
+every evidence path in drive's report exists and is not empty, and no process this create run
+started is alive, looked up by the pid in each launch record drive wrote (the step 2 check and this
+proof), never by name.
 
 - A step that fails because the control skill is wrong (a handle, a route, a precondition): fix
   the files and run again.
@@ -127,6 +132,4 @@ the target.
 - A process that answers a health check is not yet usable: Ready also checks the build and the data.
 - A local run can still reach real people or shared systems; the Side effects and Shared systems
   rows exist for that.
-- `/run-skill-generator` may regenerate a `run-<name>/` directory, so a file written there can
-  vanish.
 - A control skill written without the step 5 run is unproven; later runs trust its handles.

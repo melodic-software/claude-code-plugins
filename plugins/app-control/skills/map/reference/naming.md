@@ -26,9 +26,8 @@ it quoted; a title never reaches a shell.
   without a leading `./` or a trailing `/`, in any letter case;
 - holds a character outside `A-Z a-z 0-9 . _ - /`;
 - has an empty or `.` segment anywhere but one leading `./` and one trailing `/`;
-- has a segment that starts with `run-` (a `/run-skill-generator` recipe's directory, which it may
-  regenerate) or ends in `verify` (a skill named `verify` replaces the bundled `/verify` and can
-  run before each commit).
+- has a segment that starts with `run-` or ends in `verify`: we reserve those names for launch
+  and verify recipes, and this skill writes nothing into a recipe's directory.
 
 Where `/run-skill-generator` writes and what a `verify` skill does are upstream specifics. Read
 them live at <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-24;

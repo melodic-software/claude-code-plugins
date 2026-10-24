@@ -9,13 +9,10 @@ execution:
   max_turns: 8
   timeout_seconds: 300
 graders:
-  - name: names-defaults-file
+  - name: orders-four-layers
     type: regex
-    pattern: 'config/defaults\.json'
-    arm: both
-  - name: names-local-file
-    type: regex
-    pattern: 'config/local\.json'
+    pattern: 'defaults\.json.*local\.json.*environment.*flag'
+    flags: is
     arm: both
   - name: layers-and-floors
     type: llm
