@@ -2,8 +2,9 @@
 // label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
 // it blocked that is now ready for the resolve-issue lane, which the label
 // starts: open, every blocker closed, for any reason, by a listed human or a
-// merge, read in its own repository (a pull request blocker: merged), no hold
-// label, and not already agent-ready. Issues it would label are taken oldest
+// merge in this repository (a pull request blocker: merged here; another
+// repository's blocker: closed there by a listed human), no hold label, and
+// not already agent-ready. Issues it would label are taken oldest
 // opened first (owner Q95). Every fact is read from the API now, never from the event
 // payload. No model.
 //
@@ -266,28 +267,31 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
     return `already ${LABEL}`;
   }
   // A blocker counts once closed, for any reason, by a listed human or a
-  // merge (admit.mjs decide's rule); a pull request counts only once merged.
+  // merge in this repository; a pull request counts only once merged here.
   // Anyone can close their own issue, so a blocking issue needs a trusted
-  // close (trustedClose), read fresh from the issue in its own repository. A
-  // read that fails there leaves it blocking.
+  // close (trustedClose), read fresh from the issue in its own repository.
+  // Another repository's blocker counts only by a listed human's close there,
+  // and a read that fails there leaves it blocking: people the trusted list
+  // does not cover merge in other repositories.
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
   const issues = [];
   let pending = 0;
   for (const blocker of blockers) {
     const where = /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(blocker.repository_url ?? ""))?.[1];
+    const here = where?.toLowerCase() === repo.toLowerCase();
     if (blocker.state !== "closed" || !where) {
       pending += 1;
     } else if (blocker.pull_request) {
-      pending += blocker.pull_request.merged_at ? 0 : 1;
+      pending += blocker.pull_request.merged_at && here ? 0 : 1;
     } else if (!NUMBER.test(String(blocker.number))) {
       pending += 1;
     } else {
-      issues.push({ where, number: Number(blocker.number) });
+      issues.push({ where, here, number: Number(blocker.number) });
     }
   }
   for (const blocker of pending === 0 ? issues : []) {
-    const read = trustedClose({ github, repo: blocker.where, number: blocker.number, humans, closes });
-    if (!(await (blocker.where.toLowerCase() === repo.toLowerCase() ? read : read.catch(() => false)))) {
+    const read = trustedClose({ github, repo, where: blocker.where, number: blocker.number, humans, closes });
+    if (!(await (blocker.here ? read : read.catch(() => false)))) {
       pending += 1;
     }
   }
@@ -317,11 +321,18 @@ async function closedSince(github, repo, since) {
 }
 
 // One answer per issue per run: a swept close is also its dependents'
-// blocker, and a blocker can block several dependents.
-function trustedClose({ github, repo, number, humans, closes }) {
-  const key = `${repo.toLowerCase()}#${number}`;
+// blocker, and a blocker can block several dependents. `where` is the
+// blocker's repository: outside `repo`, only a listed human's close counts.
+function trustedClose({ github, repo, where = repo, number, humans, closes }) {
+  const key = `${where.toLowerCase()}#${number}`;
   if (!closes.has(key)) {
-    closes.set(key, (async () => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans))());
+    closes.set(
+      key,
+      (async () => {
+        const closed = await github("GET", `/repos/${where}/issues/${number}`);
+        return where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, closed, humans) : humans.has(closed?.closed_by?.id);
+      })(),
+    );
   }
   return closes.get(key);
 }

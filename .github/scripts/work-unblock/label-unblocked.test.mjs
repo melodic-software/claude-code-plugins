@@ -216,9 +216,9 @@ function world({
     }
     if (method === "POST" && route === "/graphql") {
       const { owner, name, number } = body.variables;
-      assert.equal(`${owner}/${name}`, REPO);
       // admit.mjs's text read: by default a listed human wrote the body.
       if (body.query.includes("comments(first: 100)")) {
+        assert.equal(`${owner}/${name}`, REPO);
         const spec = specs[String(number)] ?? {
           body: String(lookup(String(number))?.body ?? ""),
           author: { __typename: "User", databaseId: OWNER.id },
@@ -230,6 +230,9 @@ function world({
         return { data: { repository: { issue: spec === "bad" ? null : { ...spec, comments } } } };
       }
       const found = lookup(String(number));
+      // The closer read answers for whichever repository it names, so a read
+      // of another repository's blocker sees that repository's closer.
+      assert.equal(`${API}/repos/${owner}/${name}`.toLowerCase(), String(found?.repository_url ?? `${API}/repos/${REPO}`).toLowerCase());
       const nodes = found?.state === "closed" ? [{ closer: found.graphCloser }] : [];
       return { data: { repository: { issue: { timelineItems: { nodes } } } } };
     }
@@ -804,13 +807,15 @@ test("the closer is read fresh: a blocked-by entry naming a listed closer does n
 });
 
 // Another repository's blocker is read there: a listed human's close counts,
-// and an open one, an unlisted account's close or a failed read blocks.
+// and an open one, an unlisted account's close or a failed read blocks. A
+// merge there counts for nothing: people this repository's list does not
+// cover merge in other repositories (the security review on #9814).
 test("a blocker in another repository counts once a listed human closed it there", async () => {
   const OTHER = "melodic-software/other";
-  const closedThere = (closer, failOn) =>
+  const closedThere = (closer, failOn, graphCloser = null) =>
     world({
       blocking: [issue(20)],
-      issues: { 20: issue(20), 5: issue(5, { state: "closed", repo: OTHER, closer }) },
+      issues: { 20: issue(20), 5: issue(5, { state: "closed", repo: OTHER, closer, graphCloser }) },
       blockedBy: { 20: [issue(10, { state: "closed" }), issue(5, { state: "closed", repo: OTHER })] },
       comments: { 20: [note()] },
       failOn,
@@ -822,6 +827,8 @@ test("a blocker in another repository counts once a listed human closed it there
   for (const [name, fake] of [
     ["unlisted closer", closedThere({ id: 3003, login: "unlisted-maintainer", type: "User" })],
     ["failed read", closedThere(OWNER, `/repos/${OTHER}/issues/5`)],
+    ["commit there", closedThere({ id: 3003, login: "unlisted-maintainer", type: "User" }, undefined, commitClose({ repo: OTHER }))],
+    ["merged PR there", closedThere({ id: 3003, login: "unlisted-maintainer", type: "User" }, undefined, mergedPr({ repo: OTHER }))],
   ]) {
     assert.equal(await main({ env: envFor(), github: fake.github }), 0, name);
     assert.deepEqual(writes(fake.calls), [], name);
@@ -834,8 +841,8 @@ test("a blocker in another repository counts once a listed human closed it there
   });
   assert.equal(await main({ env: envFor(), github: open.github }), 0);
   assert.deepEqual(writes(open.calls), []);
-  // Another repository's pull request blocker counts once merged, as here.
-  for (const [mergedAt, expected] of [["2026-10-16T11:00:00Z", [labeled(20)]], [null, []]]) {
+  // Another repository's pull request blocker never counts, merged or not.
+  for (const [mergedAt, expected] of [["2026-10-16T11:00:00Z", []], [null, []]]) {
     const pull = { ...issue(16, { state: "closed", reason: null, repo: OTHER }), pull_request: { url: `${API}/repos/${OTHER}/pulls/16`, merged_at: mergedAt } };
     const fake = world({
       blocking: [issue(20)],

@@ -146,7 +146,7 @@ test("the hand-off comment names every dispatched run and asks a maintainer to t
 });
 
 // A fake GitHub holding issues, comments and runs, recording every write.
-function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false, filedIssues = [] }) {
+function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false, filedIssues = [], handedIssues = [] }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
@@ -154,8 +154,12 @@ function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false,
   const call = async (method, path, body) => {
     let m;
     if (method === "GET" && (m = /^\/search\/issues\?q=([^&]+)&per_page=100&page=(\d+)$/.exec(path))) {
-      assert.equal(decodeURIComponent(m[1]), 'repo:o/r is:issue author:app/github-actions in:title "Intake triage left"');
-      return { incomplete_results: false, items: filedIssues.slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100) };
+      const found = {
+        'repo:o/r is:issue author:app/github-actions in:title "Intake triage left"': filedIssues,
+        'repo:o/r is:issue is:open commenter:app/github-actions in:comments "so the sweep no longer dispatches it"': handedIssues,
+      }[decodeURIComponent(m[1])];
+      assert.ok(found, decodeURIComponent(m[1]));
+      return { incomplete_results: false, items: found.slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100) };
     }
     if (method === "GET" && (m = /^\/repos\/o\/r\/issues\?state=open&per_page=100&page=(\d+)$/.exec(path))) {
       return issues.slice((Number(m[1]) - 1) * 100, Number(m[1]) * 100);
@@ -188,7 +192,7 @@ function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false,
 }
 
 const sweep = (gh) =>
-  runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors });
+  runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
 
 test("a pass dispatches at most 5 issues, oldest first, and records each run on the issue", async () => {
   // Listed newest first, as the issues API returns them.
@@ -307,14 +311,14 @@ test("an issue with more comments than the sweep reads goes to a maintainer, und
 
 test("a pass stops dispatching when the budget left cannot record the run", async () => {
   const gh = fakeGitHub({ issues: [issue(1), issue(2, { created_at: "2026-10-18T09:30:00Z" })] });
-  let left = 7;
+  let left = 8;
   const call = async (...args) => {
-    if (left === 0) throw new Error("call budget of 7 reached");
+    if (left === 0) throw new Error("call budget of 8 reached");
     left -= 1;
     return gh.call(...args);
   };
-  // issues page 1, the hand-off search, comments of #1, dispatch, state
-  // write: 5 calls; #2's comments leave 1, too few for a dispatch and its
+  // issues page 1, the two hand-off searches, comments of #1, dispatch, state
+  // write: 6 calls; #2's comments leave 1, too few for a dispatch and its
   // state write.
   const result = await runSweep({
     call,
@@ -394,6 +398,93 @@ test("issues an older sweep filed a hand-off for are skipped without reading the
   const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors });
   assert.deepEqual(result.dispatched, [119]);
   assert.equal(reads.filter((p) => p.includes("/comments")).length, 1);
+});
+
+// Review threads on #9814 (claude-review and Codex P2): work-unblock hands an
+// issue back to intake after a Refs: merge or a closed lane PR, so a lifetime
+// count of 2 dispatches would cut that flow off. The lanes App's hand-back
+// comment, newer than the state comment's last edit, starts a new cycle.
+const stateAt = (runs, filed, at) => ({
+  id: 5,
+  user: BOT,
+  body: renderState({ runs, filed, runUrl: "u", repoUrl: "https://github.com/o/r" }),
+  created_at: "2026-10-17T00:00:00Z",
+  updated_at: at,
+});
+const handBack = (user, at) => ({ id: 6, user, body: "<!-- work-unblock handed triage #40 -->\nThe lanes App's pull request #40 merged with `Refs:`.", created_at: at });
+const triaged = { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } };
+const LANES = { login: "melodic-automation-lanes[bot]", id: APP };
+
+test("a lanes App hand-back newer than the state comment starts a new cycle of dispatches in the same comment", async () => {
+  for (const filed of [null, HANDED]) {
+    const gh = fakeGitHub({
+      issues: [issue(1)],
+      comments: { 1: [stateAt([11, 22], filed, "2026-10-17T06:00:00Z"), handBack(LANES, "2026-10-18T08:00:00Z")] },
+      runs: triaged,
+    });
+    const result = await sweep(gh);
+    assert.deepEqual(result.dispatched, [1], String(filed));
+    assert.deepEqual(
+      gh.writes.map((w) => [w.method, w.path]),
+      [
+        ["POST", "/repos/o/r/actions/workflows/intake-triage.yml/dispatches"],
+        ["PATCH", "/repos/o/r/issues/comments/5"],
+      ],
+      String(filed),
+    );
+    assert.deepEqual(readState([{ id: 5, user: BOT, body: gh.writes[1].body.body }]), { commentId: 5, runs: [901], filed: null });
+  }
+});
+
+test("a hand-back older than the state comment's last edit, or posted by anyone but the lanes App, keeps the count", async () => {
+  for (const [name, back] of [
+    ["older", handBack(LANES, "2026-10-17T05:00:00Z")],
+    ["not the App", handBack({ login: "someone", id: OUTSIDER }, "2026-10-18T08:00:00Z")],
+    ["a listed human", handBack({ login: "owner", id: HUMAN }, "2026-10-18T08:00:00Z")],
+  ]) {
+    const gh = fakeGitHub({ issues: [issue(1)], comments: { 1: [stateAt([11, 22], null, "2026-10-17T06:00:00Z"), back] }, runs: triaged });
+    const result = await sweep(gh);
+    assert.deepEqual(result.dispatched, [], name);
+    assert.deepEqual(result.handed, [1], name);
+  }
+});
+
+// Codex P2 on #9814: hand-offs now live only in a comment, so each handed
+// issue would cost a comment read every pass and could use up the 120-call
+// budget before a fresh issue behind them. One search for the hand-off text
+// skips those still carrying needs-triage unread.
+test("issues this sweep handed off in a comment are skipped without reading their comments", async () => {
+  const handed = Array.from({ length: 118 }, (_, i) =>
+    issue(i + 1, { labels: [{ name: "needs-triage" }], created_at: "2026-10-01T00:00:00Z" }),
+  );
+  const marked = renderState({ runs: [1, 2], filed: HANDED, repoUrl: "https://github.com/o/r" });
+  const gh = fakeGitHub({
+    issues: [...handed, issue(119, { labels: [{ name: "needs-triage" }] })],
+    comments: Object.fromEntries(handed.map((i) => [i.number, [{ id: i.number, user: BOT, body: marked }]])),
+    handedIssues: handed.map((i) => ({ number: i.number })),
+  });
+  const reads = [];
+  let left = 120;
+  const call = async (method, path, body) => {
+    if (left === 0) throw new Error("call budget of 120 reached");
+    left -= 1;
+    if (method === "GET") reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.deepEqual(result.dispatched, [119]);
+  assert.equal(reads.filter((p) => p.includes("/comments")).length, 1);
+});
+
+test("a search hit without needs-triage is read, so a hand-back after its label came off starts a new cycle", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [stateAt([11, 22], HANDED, "2026-10-17T06:00:00Z"), handBack(LANES, "2026-10-18T08:00:00Z")] },
+    runs: triaged,
+    handedIssues: [{ number: 1 }],
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [1]);
 });
 
 test("an issue past the comment pages that already carries needs-triage is not handed off again", async () => {

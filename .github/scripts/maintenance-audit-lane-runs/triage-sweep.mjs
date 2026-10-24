@@ -20,7 +20,11 @@
 // sweep's can quote fork-controlled log lines. Per issue, one comment holds the runs
 // dispatched; after 2 that left it untriaged the sweep labels it needs-triage
 // and rewrites that comment to hand it to a maintainer, listing the runs. It
-// files no issue. No model.
+// files no issue. No model. The count is per triage cycle: a work-unblock
+// hand-back comment the lanes App posted after the state comment's last edit
+// starts a new cycle with no runs, in the same comment. An issue still
+// carrying needs-triage whose comments hold the hand-off text is skipped
+// unread, found by one search, so hand-offs cannot use up the call budget.
 //
 // Accepted exposure: intake reads an issue's comments, and anyone can comment
 // in the hour before the sweep dispatches. Intake treats them as untrusted
@@ -46,6 +50,11 @@ const BOT = "github-actions[bot]";
 export const FILING = "?";
 export const HANDED = "handed";
 const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,]*) filed=([0-9]*|\?|handed) -->/;
+// work-unblock's comment when it hands an issue back to triage after its lane
+// PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker).
+const HAND_BACK = /^<!-- work-unblock handed triage #[1-9][0-9]* -->/;
+// The visible text of the hand-off comment, which the search matches.
+const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
 // Labels a verdict or a person leaves: an issue with one is triaged.
 const TRIAGED = /^(needs-human|needs-spec|agent-ready)$|^status: /;
@@ -73,10 +82,21 @@ export function selectCandidates({ issues, now, authorIds }) {
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.number - b.number);
 }
 
-export function readState(comments) {
+// `appId` is the lanes App's account id: only its hand-back starts a new
+// cycle, so no one else can reset the dispatch count.
+export function readState(comments, appId = null) {
+  const handBack = Math.max(
+    ...comments
+      .filter((c) => appId !== null && String(c.user?.id) === String(appId) && HAND_BACK.test(String(c.body ?? "")))
+      .map((c) => Date.parse(c.created_at))
+      .filter(Number.isFinite),
+  );
   for (const c of comments) {
     const m = c.user?.login === BOT ? STATE.exec(String(c.body ?? "")) : null;
     if (m) {
+      if (handBack > Date.parse(c.updated_at ?? c.created_at)) {
+        return { commentId: c.id, runs: [], filed: null };
+      }
       return {
         commentId: c.id,
         runs: m[1] ? m[1].split(",").map(Number) : [],
@@ -92,7 +112,7 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [] }) =>
   `<!-- claude-lane triage-sweep runs=${runs.join(",")} filed=${filed ?? ""} -->\n` +
   (filed === HANDED
     ? [
-        `Intake triage did not triage this issue after ${runs.length} dispatches, so the sweep no longer dispatches it and labeled it needs-triage for a maintainer. Triage it by hand, and read the runs for why intake did not:`,
+        `Intake triage did not triage this issue after ${runs.length} dispatches, ${HANDED_TEXT} and labeled it needs-triage for a maintainer. Triage it by hand, and read the runs for why intake did not:`,
         "",
         ...details.map((r) => `- ${repoUrl}/actions/runs/${r.id} (${r.conclusion ?? "unknown"})`),
       ].join("\n")
@@ -112,20 +132,18 @@ export function decide({ state, latest }) {
 const FILED_TITLE = /^Intake triage left #([1-9][0-9]*) untriaged after /;
 const SEARCH_PAGES = 10;
 
-// The issues an older sweep filed a hand-off issue for, read from one search
-// of those hand-off issues, open or closed, so their originals cost no comment
-// reads. Only a title the bot wrote counts. A failed or incomplete search
-// excludes nothing: those issues are then read and skipped by their state.
-async function handedOff(call, repo) {
-  const q = encodeURIComponent(`repo:${repo} is:issue author:app/github-actions in:title "Intake triage left"`);
+// The numbers `pick` takes from one search's items. A failed or incomplete
+// search excludes nothing: those issues are then read and skipped by their state.
+async function search(call, query, pick) {
+  const q = encodeURIComponent(query);
   const numbers = new Set();
   try {
     for (let page = 1; page <= SEARCH_PAGES; page += 1) {
       const found = await call("GET", `/search/issues?q=${q}&per_page=100&page=${page}`);
       if (found?.incomplete_results !== false) return new Set();
       for (const item of found.items ?? []) {
-        const m = item.user?.login === BOT ? FILED_TITLE.exec(String(item.title ?? "")) : null;
-        if (m) numbers.add(Number(m[1]));
+        const number = pick(item);
+        if (number) numbers.add(number);
       }
       if ((found.items ?? []).length < 100) break;
     }
@@ -136,8 +154,24 @@ async function handedOff(call, repo) {
   return numbers;
 }
 
+// The issues handed to a maintainer, so their comments cost no reads: those an
+// older sweep filed a hand-off issue for (only a title the bot wrote counts),
+// and those whose comments hold this sweep's hand-off text. The caller skips
+// them only while they carry needs-triage, so one whose label came off (an
+// intake verdict reaches ready only without it, apply-verdict.mjs) and that
+// work-unblock later handed back is read, and its new cycle starts.
+async function handedOff(call, repo) {
+  const filed = await search(call, `repo:${repo} is:issue author:app/github-actions in:title "Intake triage left"`, (item) =>
+    item.user?.login === BOT ? Number(FILED_TITLE.exec(String(item.title ?? ""))?.[1] ?? 0) : 0,
+  );
+  const commented = await search(call, `repo:${repo} is:issue is:open commenter:app/github-actions in:comments "${HANDED_TEXT}"`, (item) =>
+    Number(item.number),
+  );
+  return new Set([...filed, ...commented]);
+}
+
 // One pass. `call` returns null for a GET that 404s.
-export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds }) {
+export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null }) {
   const repoUrl = `${serverUrl}/${repo}`;
   const issues = [];
   for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
@@ -148,7 +182,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds });
   const filed = selected.length > 0 ? await handedOff(call, repo) : new Set();
-  const candidates = selected.filter((i) => !filed.has(i.number));
+  const candidates = selected.filter((i) => !(filed.has(i.number) && names(i).includes(FLOOR)));
   result.candidates = candidates.length;
   const handOff = (number) => call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [FLOOR] });
   // Issues the sweep already handed off cost their reads and do not count
@@ -175,7 +209,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         result.handedOff.push(number);
         continue;
       }
-      const state = readState(comments);
+      const state = readState(comments, appId);
       // Handed to a maintainer already: the needs-triage label is on it.
       if (state.filed) continue;
       checked += 1;
@@ -266,6 +300,7 @@ async function main() {
     serverUrl: env.GITHUB_SERVER_URL,
     now: new Date(),
     authorIds,
+    appId: /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? env.LANES_APP_ID : null,
   });
   const numbers = (xs) => xs.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
