@@ -9,6 +9,8 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../log-api-budget/rate-guard.mjs";
+
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
 const ROLE_LABELS = new Set(["agent-ready", "needs-human"]);
@@ -106,8 +108,11 @@ async function main() {
   } catch {
     // checkBornTriaged reports list-unreadable.
   }
+  // Through the rate guard (rate-guard.mjs): a rate-limited answer fails the
+  // step naming the reset, and any later read is refused without a request.
+  const send = rateLimitLatch.guard(fetch);
   const fetchIssue = async () => {
-    const response = await fetch(`${GITHUB_API_URL}/repos/${REPOSITORY}/issues/${ISSUE_NUMBER}`, {
+    const response = await send(`${GITHUB_API_URL}/repos/${REPOSITORY}/issues/${ISSUE_NUMBER}`, {
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${GITHUB_TOKEN}`,
