@@ -45,6 +45,8 @@ while read -r event name script; do
   target="$(sed -n 's#^exec bash "${BASH_SOURCE\[0\]%/\*}/\(.*\)" "\$@"$#\1#p' "$wrapper" 2>/dev/null)"
   expect "$name: its script runs an entry script that exists" yes \
     "$([[ -n "$target" && -f "$TOP/.lefthook/$event/$target" ]] && echo yes)"
+  out="$(bash "$wrapper" /nonexistent 2>&1)"
+  expect "$name: the work-tree copy exits 0 without running" "0:" "$?:$out"
   entry="${script#guardrails-}"
   expect "$name: not a shared-copy job name" yes "$([[ "$name" != "guardrails-${entry%.sh}" ]] && echo yes)"
 done <<<"$jobs"

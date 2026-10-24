@@ -55,8 +55,8 @@ A clone that skips this step gets no hooks, so for a team with authors outside C
 lefthook or husky over plain hooks. A clone that tried the entry locally moves to shared by
 running setup with `scope=shared`; setup offers to remove the local copies once the shared entry
 verifies. Committed hook config runs whatever the checked-out branch holds, so before committing
-or pushing on a branch you do not trust, read its diff to `lefthook.yml`, `.husky/` and
-`.githooks/` ([details](README.md#where-installed-copies-live)).
+or pushing on a branch you do not trust, read its diff to `lefthook.yml`, `.lefthook/`, `.husky/`
+and `.githooks/` ([details](README.md#where-installed-copies-live)).
 
 ## Decline
 
