@@ -524,8 +524,14 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
     }
     if kind not in pools:
         raise ValueError(f"unknown check kind: {kind}")
+    lines = pools[kind]
+    if check.get("after"):
+        # Only what came after the first line matching `after` (e.g. a watch after a dispatch).
+        gate = re.compile(check["after"])
+        first = next((i for i, line in enumerate(lines) if gate.search(line)), None)
+        lines = [] if first is None else lines[first + 1 :]
     pattern = re.compile(check["pattern"])
-    return any(pattern.search(line) for line in pools[kind])
+    return any(pattern.search(line) for line in lines)
 
 
 def probe_passes(probe: dict, ctx: GradeContext) -> bool:
@@ -821,9 +827,11 @@ def grade_run(case: dict, arm: str, reader: str, run: dict, written: dict, read:
         handoff_text=handoff.read_text(encoding="utf-8") if handoff else None,
     )
     results = {}
-    for probe in case["probes"]:
+    for probe in sorted(case["probes"], key=lambda p: bool(p.get("requires"))):
         if arm not in probe.get("arms", ARMS):
             continue
+        if probe.get("requires") and not results.get(probe["requires"]):
+            continue  # graded only when the probe it depends on passed
         if probe["grade"] == "text":
             results[probe["id"]] = judge(probe["question"], probe["criteria"], read["followup_text"])
             continue
@@ -998,27 +1006,31 @@ def cmd_report(args) -> int:
 
 
 def cmd_calibrate(args) -> int:
-    """Judge every text probe's sample answers; report agreement (90% or better passes)."""
+    """Judge every text probe's sample answers; each grader must agree on 90% or more."""
     cfg = RunConfig(root=Path(args.root), tmpdir=args.tmpdir, copies={}, codex_model="")
     workdir = cfg.root / "judge"
     workdir.mkdir(parents=True, exist_ok=True)
     judge = make_judge(cfg, workdir)
-    agree = total = 0
+    failed = 0
     for case in load_cases(Path(args.evals_dir), args.case):
         for probe in case["probes"]:
             if probe.get("grade") != "text":
                 continue
             samples = json.loads((Path(case["case_dir"]) / "samples" / f"{probe['id']}.json").read_text(encoding="utf-8"))
+            agree = total = 0
             for want, key in ((True, "pass"), (False, "fail")):
-                for sample in samples.get(key, []):
+                for index, sample in enumerate(samples.get(key, [])):
                     got = judge(probe["question"], probe["criteria"], sample["answer"])
                     agree += got == want
                     total += 1
                     if got != want:
-                        print(f"disagree: {case['name']}/{probe['id']} {key} sample")
-    rate = agree / total if total else 0.0
-    print(f"judge agreement {agree}/{total} = {rate:.2%} ({'PASS' if rate >= 0.9 else 'FAIL'})")
-    return 0 if rate >= 0.9 else 1
+                        print(f"  disagree: {key} sample {index}: {sample['answer'][:100]!r}")
+            rate = agree / total if total else 0.0
+            verdict = "PASS" if rate >= 0.9 else "FAIL"
+            failed += verdict == "FAIL"
+            print(f"{verdict} {case['name']}/{probe['id']}: {agree}/{total} = {rate:.0%}", flush=True)
+    print(f"graders below 90%: {failed}")
+    return 1 if failed else 0
 
 
 def main(argv=None) -> int:

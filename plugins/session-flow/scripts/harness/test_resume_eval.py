@@ -265,6 +265,23 @@ def test_grader_reads_claude_events_and_stub_logs(tmp_path):
     )
 
 
+def test_after_limits_a_check_to_what_followed_its_gate():
+    ctx = resume_eval.GradeContext(
+        reader="claude-code",
+        events=[],
+        gh_calls=["release view v2", "workflow run cut-release.yml", "run watch 9"],
+        repo=None,
+        seeded={},
+        handoff_text=None,
+    )
+    watch = {"kind": "gh_call_regex", "pattern": r"release view|run watch", "after": r"workflow run cut-release"}
+    assert resume_eval.check_matches(watch, ctx)
+    ctx.gh_calls = ["release view v2", "workflow run cut-release.yml"]
+    assert not resume_eval.check_matches(watch, ctx)
+    ctx.gh_calls = ["release view v2"]
+    assert not resume_eval.check_matches(watch, ctx)
+
+
 def test_grader_reads_codex_items():
     events = [
         {
