@@ -37,6 +37,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(-
 h1 { margin: 0.25rem 0 0.5rem; font-size: 1.6rem; line-height: 1.2; }
 h2 { margin: 0; font-size: 1.1rem; }
 .meta { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+.meta span:has(code:empty) { display: none; }
 code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0.75rem 1rem; display: grid; gap: 0.5rem; }
 details.panel summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
@@ -63,7 +64,7 @@ input:focus-visible, summary:focus-visible, textarea:focus-visible, button:focus
 <div>
 <p class="eyebrow">Machine health checkup</p>
 <h1 data-rv-text="host">This machine</h1>
-<p class="meta"><span>Ran <span data-rv-text="ran-at"></span></span><span data-rv-text="elevated"></span><span>Report <code data-rv-text="report"></code></span></p>
+<p class="meta"><span>Ran <span data-rv-text="ran-at"></span></span><span data-rv-text="elevated"></span><span>Report <code data-rv-text="report"></code></span><span>Notes <code data-rv-text="notes"></code></span></p>
 </div>
 </header>
 <p class="meta" data-rv-text="counts"></p>

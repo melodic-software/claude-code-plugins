@@ -164,6 +164,50 @@ test("the issue lane finishing wakes only the enable-auto-merge job", () => {
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
 });
 
+// A job its condition skips never joins the group, so a pull request the job
+// cannot arm (not the lanes App's) shows a skipped check, not one pending
+// behind every queued run. The other events keep their conditions.
+test("a pull request event wakes enable-auto-merge only for a lanes App pull request", () => {
+  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
+  assert.match(
+    armIf,
+    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\)\)\n/,
+  );
+  assert.match(armIf, /^ {6}!cancelled\(\)\n/);
+  assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
+});
+
+// The merge job's skip, run for enable-auto-merge's own group before the lane
+// token or any other read.
+test("enable-auto-merge skips its work when a waiting run's enable-auto-merge job does it", () => {
+  const arm = job("enable-auto-merge");
+  const step = /- name: Check for a newer run that does this work\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
+  assert.ok(step, "a superseded step");
+  assert.match(step, /^ {8}id: superseded\n {8}if: steps\.who\.outputs\.proceed == 'true'\n {8}continue-on-error: true\n/);
+  assert.match(step, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}SUPERSEDED_JOB: enable-auto-merge\n/);
+  assert.match(step, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/superseded\.mjs\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.equal(names.indexOf("Check for a newer run that does this work"), names.indexOf("Check who started the run") + 1);
+  assert.ok(names.indexOf("Check for a newer run that does this work") < names.indexOf("Request the lane token"));
+  assert.match(arm, /- name: Resolve the config\n {8}id: config\n {8}if: steps\.who\.outputs\.proceed == 'true' && steps\.superseded\.outputs\.superseded != 'true'\n/);
+  // The merge job asks for its own job, by default.
+  assert.doesNotMatch(job("merge"), /SUPERSEDED_JOB/);
+});
+
+// Each job's readers of the files the last run kept share one file of GET
+// answers in that job's RUNNER_TEMP; the readers' tests count what it saves.
+test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
+  for (const [id, scripts] of [
+    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read"]],
+    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read"]],
+  ]) {
+    for (const script of scripts) {
+      const step = new RegExp(`\\n {10}PR_MERGE_READS_PATH: (.*)\\n {8}run: node \\.base/\\.github/scripts/pr-merge/${script.replace(".", "\\.")}\\n`).exec(job(id));
+      assert.equal(step?.[1], "${{ runner.temp }}/pr-merge-reads.json", `${id}: ${script}`);
+    }
+  }
+});
+
 test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
@@ -198,7 +242,10 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   const keep = /- name: Keep the post-merge report for enable-auto-merge\n([\s\S]*?)(?=\n {6}- name: |\n*$)/.exec(dispatch)?.[1];
   assert.ok(keep, "post-merge-dispatch keeps its report");
   assert.match(keep, /uses: actions\/upload-artifact@[0-9a-f]{40} /);
-  assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge\.json\n {10}retention-days: 1\n/);
+  // The directory holds post-merge.json, so the download below finds it at
+  // post-merge/post-merge.json.
+  assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-report\/\n {10}retention-days: 1\n/);
+  assert.match(dispatch, /\n {10}cp "\$RUNNER_TEMP\/post-merge\.json" "\$kept\/post-merge\.json"\n/);
   const arm = job("enable-auto-merge");
   assert.match(arm, /^ {4}# [\s\S]*?\n {4}needs: \[post-merge-dispatch\]\n/);
   assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);

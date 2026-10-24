@@ -93,9 +93,9 @@
 // unmerged, the App removes `status: ready` and agent-ready, so the triage
 // sweep (maintenance-audit-lane-runs triage-sweep.mjs) dispatches intake,
 // which decides what is left and whose fresh `status: ready` re-admits it. Open, it waits: report-outcome put needs-human on the
-// issue of a Refs PR, and this lifts that hold only when that PR merges,
-// only while its refs-hold marker and the App's needs-human label are the
-// newest. Each hand-off also counts against limits.restarts-per-run.
+// issue of a Refs PR, and this lifts that hold once that PR merges or closes
+// unmerged, only while its refs-hold marker and the App's needs-human label
+// are the newest. Each hand-off also counts against limits.restarts-per-run.
 //
 // It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
 // a repeat failure: the reopen keeps agent-ready but ran on that workflow's
@@ -850,7 +850,8 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
 // What the lane PR the newest agent-ready label's run opened asks for: a
 // hand-off to triage once it merged with `Refs:` or closed unmerged, or
 // nothing, with why. `held`: the issue's one hold is needs-human, which only
-// a merge of the Refs PR report-outcome set it for lifts.
+// the end (merge or unmerged close) of the Refs PR report-outcome set it for
+// lifts.
 function pullRefusal({ pull, number, comments, events, bot, held }) {
   const byApp = (marker) => comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(marker));
   const refs = String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`;
@@ -859,7 +860,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
     const human = events.filter((event) => ["labeled", "unlabeled"].includes(event.event) && String(event.label?.name).toLowerCase() === HUMAN_LABEL);
     const newest = human.at(-1);
     const ours = newest?.event === "labeled" && newest.actor?.login === bot && byApp(refsHoldMarker(pull.number));
-    if (!(ours && merged && refs)) {
+    if (!(ours && refs && pull.state !== "open")) {
       return { reason: `held by ${HUMAN_LABEL}` };
     }
   }

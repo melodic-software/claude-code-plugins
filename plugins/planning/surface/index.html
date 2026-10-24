@@ -186,6 +186,10 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .chip.plain::before{display:none}
 .chip.hot{color:var(--chg);background:transparent;border:1px solid var(--chg)}
 .chip.hot::before{display:none}
+.chip.basis{margin-left:8px;text-transform:none;letter-spacing:0;vertical-align:middle}
+.chip.basis-verified{color:var(--ok);background:var(--ok-soft)}
+.chip.basis-judgment{color:var(--warn);background:transparent;border:1px solid var(--warn)}
+.chip.basis-judgment::before{display:none}
 .chip.aside{color:var(--muted);background:none;border:0;padding-inline:0;font-style:italic;cursor:default}
 .chip.aside::before{display:none}
 
@@ -734,6 +738,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const groupDone = gid => S.doc.questions.filter(q => q.group === gid && live(q)).every(q => isAnswered(stateOf(q)));
   const lockedBy = gid => ((groupById(gid) || {}).dependsOn || []).filter(p => groupById(p) && !groupDone(p));
   const groupTitle = gid => (groupById(gid) || {}).title || gid;
+  const basisLabel = q => { const m = String(q.basis || "").match(/^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$/i); return m ? (m[1] || m[2]).toLowerCase() : ""; }; // the outcome label recommendation-basis.md defines, leading or trailing the basis
   const withheld = q => q.withheld === true; // the server derives it: no recommendation to accept, the field names the evidence that would settle it
   const eligible = q => stateOf(q) === "open" && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
   function carryOver(){
@@ -937,8 +942,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!S.online && !S.finished && !S.connFailed) return ["connecting", "Connecting"]; // neutral until a connection attempt has failed
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
     if (S.finished) return ["rest", "Finished"];
+    const l = S.listener || {}, d = pending().find(delivered);
+    if (!(l.waiters > 0) && (l.lease || l.state === "reading") && !stalled()) { // Claude holds the lease, or the bridge reports the session reading (its window after a delivery), no watcher waits, and no delivery has gone unhandled for 10 minutes
+      return ["working", d ? "Claude is working on " + subject(d) : "Claude is working"];
+    }
     if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
-    return ["listening", "Live"];
+    return l.waiters > 0 ? ["listening", "Live"] : ["rest", "Idle"]; // Live needs a waiter; the lease alone no longer shows it
   }
   function working(){ // what Claude is doing with the user's events, else ""
     if (!S.online) return "";
@@ -977,7 +986,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const [cls, word] = conn(), pill = $("pill");
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
-    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? (neverPolled() ? "No watcher has reached the server yet: the first wake may be waiting on a permission prompt in the terminal" : "Claude is not listening: type next in the terminal") : cls === "rest" ? "Nothing is waiting on Claude" : "";
+    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? (neverPolled() ? "No watcher has reached the server yet: the first wake may be waiting on a permission prompt in the terminal" : "Claude is not listening: type next in the terminal") : cls === "rest" ? "Nothing is waiting on Claude" : cls === "working" ? "Claude is working and no watcher is waiting: Live returns when one is" : "";
     const [ct, age, , old] = claudeLine(); // text and age update apart, so a new age is never announced
     $("claudeLine").hidden = !ct; $("claudeLine").classList.toggle("old", old);
     const wt = workLine(), wl = $("workLine"); // its own polite live region: a status never replaces it
@@ -1210,7 +1219,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let facts = String(q.facts || "").replace(/\r/g, "");
     const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$)|[ \t]*\n(?=[ \t]*>))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : ""; // a Source block opens facts with the quote: it shows above the recommendation
     if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + md(src.replace(/^/gm, "> ")) + "</details>"; }
-    if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + '</h4><div class="recbox">' + md(q.recommendation) +
+    if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + (basisLabel(q) && !withheld(q) ? ' <span class="chip basis basis-' + basisLabel(q) + '" title="Basis: ' + basisLabel(q) + '">' + (basisLabel(q) === "verified" ? "Verified" : "Judgment") + "</span>" : "") + '</h4><div class="recbox">' + md(q.recommendation) +
       (q.basis ? '<details class="why"><summary>Why</summary>' + md(q.basis) + "</details>" : "") + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
