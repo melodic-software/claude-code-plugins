@@ -1568,7 +1568,7 @@ head:
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
   admission's `task-list`, "- [ ] " with its trailing space, from
-  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
+  `.github/actions/resolve-config/admission-rules.json` at the default branch, as resolve-pr reads it from main's checkout, whatever the pull request's base; a missing or empty `task-list` counts nothing), and either nobody edited it or a
   listed human last edited it. A header whose third line is
   `<!-- size-split refinement=<id> updated_at=<time> -->` also allows that refinement comment's
   task-list lines, never its prose, heading or marker lines, and counts only while that comment is
