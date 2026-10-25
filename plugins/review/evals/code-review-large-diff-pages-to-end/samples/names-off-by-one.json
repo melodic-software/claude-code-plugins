@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking: src/utils/orders.js:17 - averageOrderValue loops with `i <= orders.length`, one past the last order, so orders[orders.length].totalCents throws a TypeError.",
+      "why": "names the function and the loop bound"
+    },
+    {
+      "answer": "src/utils/orders.js line 17 (blocking): off-by-one in averageOrderValue; the last iteration reads undefined.",
+      "why": "paraphrase: off-by-one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No findings. The models, routes and services follow one consistent pattern and validate their input.",
+      "why": "reviewed only the first files"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
