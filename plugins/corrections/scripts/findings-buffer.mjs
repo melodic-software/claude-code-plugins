@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 // Node half of tools/findings-buffer/buffer.sh. Three subcommands:
 //   adapter --project DIR   print the bound adapter: `local-file`, or the physical directory of the
+//                           adapter the user-scope binding names for this repository, else of the
 //                           plugin adapter <home>/findings-buffer.yaml (overlay .local.yaml) names,
-//                           resolved through the config cascade (lib/config-cascade.mjs, ADR 0075).
-//                           Only the plugin's own tools/findings-buffer/adapters/ are run: a binding
-//                           is repository-writable, so it never names repository code.
+//                           both resolved through the config cascade (lib/config-cascade.mjs, ADR 0075).
+//                           The repository files are repository-writable, so they name only the
+//                           plugin's own tools/findings-buffer/adapters/. Repository code runs only
+//                           from the user-scope binding: the userConfig options
+//                           findings_buffer_adapter_repository (the git common directory it applies
+//                           to) and findings_buffer_adapter_path (relative to the checkout root), read
+//                           from user and managed settings only (lib/plugin-options.mjs).
 //                           A missing or unusable binding prints `local-file` and says why on stderr.
 //   prepare                 JSONL rows on stdin (already redacted) -> capped rows with obs_id and ts.
 //   dedupe                  JSONL rows on stdin -> the first row per obs_id, as read.
@@ -13,12 +18,14 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve as resolvePath, sep } from "node:path";
+import { dirname, isAbsolute, join, resolve as resolvePath, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { resolve } from "./lib/config-cascade.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./lib/plugin-options.mjs";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The plugin root from this script's real path, never from the environment: it anchors the user settings read.
+const ROOT = resolvePath(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..");
 const PLUGIN = "findings-buffer";
 const DEFAULT_HOME = "docs/conventions";
 const CAP = 2048;
@@ -30,6 +37,16 @@ const OBS_ID = /^[0-9a-f]{16}$/;
 const TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
 const ADAPTERS = join(ROOT, "tools/findings-buffer/adapters");
 const NAME = /^[A-Za-z0-9._-]+$/;
+// The user-scope binding's keys, outside schemas/findings-buffer.schema.json, so the repository files never set them.
+const USER_KEYS = ["findings_buffer_adapter_repository", "findings_buffer_adapter_path"];
+const USER_SCHEMA = {
+  type: "object",
+  properties: {
+    findings_buffer: { type: "object", properties: { adapter_repository: { type: "string" }, adapter_path: { type: "string" } } },
+  },
+};
+// A repository's settings env block reaches this process, and GIT_* there could point git at another repository.
+const GIT_ENV = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
 
 const say = (text) => process.stderr.write(`findings-buffer: ${text}\n`);
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
@@ -40,11 +57,6 @@ function lines(text) {
 }
 
 // ---------- adapter ----------
-
-function gitRoot(dir) {
-  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
-  return r.status === 0 ? r.stdout.trim() : dir;
-}
 
 /** {home} or {home: null, why} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome(project) {
@@ -57,20 +69,17 @@ function conventionHome(project) {
   return { home: null, why: `the convention home is unresolved (${cause})` };
 }
 
-/** Why the plugin adapter named `token` is unusable, or {dir} with its physical path. */
-function checkAdapter(token) {
-  if (!NAME.test(token) || token === "." || token === "..") {
-    return { why: "not the bare name of a plugin adapter; a repository path is never run" };
-  }
-  let base;
+/** Why the adapter directory `candidate` is unusable, or {dir} with its physical path, which must lie inside `base`. */
+function checkAdapter(base, candidate, { where, missing }) {
+  let root;
   let dir;
   try {
-    base = realpathSync(ADAPTERS);
-    dir = realpathSync(join(ADAPTERS, token));
+    root = realpathSync(base);
+    dir = realpathSync(candidate);
   } catch {
-    return { why: "the plugin ships no adapter by that name" };
+    return { why: missing };
   }
-  if (!dir.startsWith(base + sep)) return { why: "it resolves outside the plugin's adapters directory" };
+  if (!dir.startsWith(root + sep)) return { why: `it does not resolve inside ${where}` };
   if (!statSync(dir).isDirectory()) return { why: "not a directory" };
   for (const verb of ["append.sh", "read.sh"]) {
     let real;
@@ -97,20 +106,91 @@ function checkAdapter(token) {
   return { dir };
 }
 
+/** checkAdapter for the plugin adapter named `token`. */
+function pluginAdapter(token) {
+  if (!NAME.test(token) || token === "." || token === "..") {
+    return { why: "not the bare name of a plugin adapter; a repository path is bound only in user scope" };
+  }
+  return checkAdapter(ADAPTERS, join(ADAPTERS, token), { where: "the plugin's adapters directory", missing: "the plugin ships no adapter by that name" });
+}
+
+/** stdout of `git -C dir args...` with no GIT_* variables, or null when it fails. */
+function git(dir, ...args) {
+  const r = spawnSync("git", ["-C", dir, ...args], { cwd: ROOT, encoding: "utf8", env: GIT_ENV });
+  return r.status === 0 ? r.stdout.trim() : null;
+}
+
+function physical(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+}
+
+/** The adapter the user-scope binding names for the checkout at `project`: {dir}, {why} when it is
+ * refused, or null when no binding is set or it names another repository. */
+function userBinding(project, scratch) {
+  let options;
+  try {
+    options = readOperatorOptions(resolveInstall(ROOT), managedSettingsFiles(), USER_KEYS);
+  } catch (error) {
+    if (!(error instanceof OptionsError)) throw error;
+    return { why: error.message };
+  }
+  const userConfig = Object.fromEntries(Object.entries(options).map(([key, { value }]) => [key, value]));
+  // The scratch home holds no file, so only the userConfig layer can set a value.
+  const out = resolve({ plugin: PLUGIN, projectRoot: project, home: scratch, schema: USER_SCHEMA, defaults: {}, userConfig, userHome: scratch });
+  for (const layer of out.layers) for (const error of layer.errors) say(error);
+  const { adapter_repository: repository, adapter_path: path } = out.values.findings_buffer ?? {};
+  if (repository === undefined && path === undefined) return null;
+  if (repository === undefined || path === undefined) return { why: `it needs both ${USER_KEYS.join(" and ")}` };
+  if (!isAbsolute(repository)) return { why: "findings_buffer_adapter_repository is not an absolute path" };
+  const here = owner(project);
+  if (here === null) return { why: "git cannot name this checkout's repository" };
+  const bound = physical(repository);
+  if (bound !== null && bound === here.top) return { why: "findings_buffer_adapter_repository names the checkout root, not the git common directory" };
+  if (bound === null || bound !== here.common) return null;
+  if (isAbsolute(path)) return { why: "findings_buffer_adapter_path is not relative to the repository root" };
+  const checked = checkAdapter(here.top, resolvePath(here.top, path), { where: "this checkout", missing: "no such directory in this checkout" });
+  if (checked.why) return checked;
+  // The directory and each verb's real location belong to this checkout, not to a repository nested in it.
+  for (const dir of [checked.dir, ...["append.sh", "read.sh"].map((verb) => dirname(realpathSync(join(checked.dir, verb))))]) {
+    const found = owner(dir);
+    if (found === null || found.top !== here.top || found.common !== here.common) return { why: "it lies inside another git repository nested in this one" };
+  }
+  return checked;
+}
+
+/** The physical checkout root and git common directory git reports for `dir`, or null. */
+function owner(dir) {
+  const out = git(dir, "rev-parse", "--show-toplevel", "--git-common-dir")?.split("\n");
+  if (out?.length !== 2) return null;
+  const top = physical(out[0]);
+  const common = physical(resolvePath(dir, out[1]));
+  return top === null || common === null ? null : { top, common };
+}
+
 function adapter(project) {
+  const scratch = mkdtempSync(join(tmpdir(), "findings-buffer-"));
+  try {
+    const user = userBinding(project, scratch);
+    if (user?.dir) return user.dir;
+    if (user?.why) say(`the user-scope adapter binding is refused (${user.why}); reading the repository binding`);
+    return fileBinding(project, scratch);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+function fileBinding(project, scratch) {
   const schema = JSON.parse(readFileSync(join(ROOT, "schemas/findings-buffer.schema.json"), "utf8"));
   const { home, why } = conventionHome(project);
   if (home === null) {
     say(`${why}, so no binding is read; using local-file`);
     return "local-file";
   }
-  const scratch = mkdtempSync(join(tmpdir(), "findings-buffer-"));
-  let out;
-  try {
-    out = resolve({ plugin: PLUGIN, projectRoot: project, home, schema, defaults: { adapter: "local-file" }, userHome: scratch });
-  } finally {
-    rmSync(scratch, { recursive: true, force: true });
-  }
+  const out = resolve({ plugin: PLUGIN, projectRoot: project, home, schema, defaults: { adapter: "local-file" }, userHome: scratch });
   for (const layer of out.layers) for (const error of layer.errors) say(error);
   const token = out.values.adapter;
   const from = out.provenance.adapter;
@@ -120,7 +200,7 @@ function adapter(project) {
   }
   if (token === "local-file") return "local-file";
   const file = out.layers.find((l) => l.name === from)?.path ?? `${home}/${PLUGIN}.yaml`;
-  const checked = checkAdapter(token);
+  const checked = pluginAdapter(token);
   if (checked.why) {
     say(`adapter ${JSON.stringify(token)} from ${file} is refused (${checked.why}); using local-file`);
     return "local-file";
@@ -254,7 +334,7 @@ const command = positionals[0];
 const stdin = () => readFileSync(0, "utf8");
 const print = (rows) => process.stdout.write(rows.map((r) => `${r}\n`).join(""));
 if (command === "adapter" && positionals.length === 1) {
-  console.log(adapter(resolvePath(opts.project ?? gitRoot(process.cwd()))));
+  console.log(adapter(resolvePath(opts.project ?? git(process.cwd(), "rev-parse", "--show-toplevel") ?? process.cwd())));
 } else if (command === "prepare" && positionals.length === 1) {
   print(prepare(stdin()));
 } else if (command === "dedupe" && positionals.length === 1) {
