@@ -54,14 +54,14 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    the folder the list reports for it (see the plugin list below), look in its
    `skills/*/SKILL.md` and `commands/**/*.md`, and keep matches by step 1's rule. Its source is
    `plugin` and its full name `<plugin>:control-<app>`, where `<plugin>` is the `name` in that
-   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below).
-   Session-only plugins are not read. Two cases record a `blocked:` line and stop the run, each
-   only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
+   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below);
+   a folder with no manifest takes the name the manifest page gives it (see the manifest file
+   below). Session-only plugins are not read. Two cases record a `blocked:` line and stop the run,
+   each only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
    when step 1 kept no repository match for that app: a listed plugin whose manifest defines
    `control-<app>` as an inline command, with no file (`control skill <name> has no file to read`;
    see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
-   folder's manifest `name` (`control skill <name> is from a session-only plugin drive cannot
-   read`).
+   plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
    below). A repository file for an `<app>`
@@ -94,7 +94,9 @@ or runs: <https://code.claude.com/docs/en/skills#frontmatter-reference>,
 <https://code.claude.com/docs/en/skills#inject-dynamic-context>. The plugin list, its folder
 fields and what it shows from inside a session:
 <https://code.claude.com/docs/en/plugins/cli-reference#plugin-list>; the plugin names:
-<https://code.claude.com/docs/en/plugins/loading#entry-name-and-manifest-name>; the manifest's
+<https://code.claude.com/docs/en/plugins/loading#entry-name-and-manifest-name>; the manifest file
+and the name a plugin without one takes:
+<https://code.claude.com/docs/en/plugins/manifest-reference#manifest-file>; the manifest's
 commands: <https://code.claude.com/docs/en/plugins/manifest-reference#commands>; plugin skills and
 commands: <https://code.claude.com/docs/en/plugins/components#skills>,
 <https://code.claude.com/docs/en/plugins/components#commands>; a worktree session's repository
