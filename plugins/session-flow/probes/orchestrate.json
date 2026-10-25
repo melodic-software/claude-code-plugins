@@ -10,13 +10,6 @@
     "implementation:implement-dispatch",
     "multi-agent:assess"
   ],
-  "competitor_dirs": {
-    "session-flow:workflow": "plugins/session-flow/skills/workflow",
-    "session-flow:show-options": "plugins/session-flow/skills/show-options",
-    "planning:plan": "plugins/planning/skills/plan",
-    "implementation:implement-dispatch": "plugins/implementation/skills/implement-dispatch",
-    "multi-agent:assess": "plugins/multi-agent/skills/assess"
-  },
   "queries": [
     {
       "id": "pos-train-01",

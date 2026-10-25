@@ -9,12 +9,6 @@
     "knowledge:docpage-digest",
     "knowledge:map-corpus"
   ],
-  "competitor_dirs": {
-    "knowledge:book-distill": "plugins/knowledge/skills/book-distill",
-    "knowledge:course-digest": "plugins/knowledge/skills/course-digest",
-    "knowledge:docpage-digest": "plugins/knowledge/skills/docpage-digest",
-    "knowledge:map-corpus": "plugins/knowledge/skills/map-corpus"
-  },
   "queries": [
     {
       "id": "pos-train-01",

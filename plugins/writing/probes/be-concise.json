@@ -9,12 +9,6 @@
     "adhd:clarify",
     "docs-hygiene:write-for-humans"
   ],
-  "competitor_dirs": {
-    "discipline:tighten-your-output": "plugins/discipline/skills/tighten-your-output",
-    "docs-hygiene:compress": "plugins/docs-hygiene/skills/compress",
-    "adhd:clarify": "plugins/adhd/skills/clarify",
-    "docs-hygiene:write-for-humans": "plugins/docs-hygiene/skills/write-for-humans"
-  },
   "queries": [
     {
       "id": "pos-train-01",

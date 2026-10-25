@@ -8,11 +8,6 @@
     "architecture:map-deployment",
     "architecture:map-containers"
   ],
-  "competitor_dirs": {
-    "architecture:map-flow": "plugins/architecture/skills/map-flow",
-    "architecture:map-deployment": "plugins/architecture/skills/map-deployment",
-    "architecture:map-containers": "plugins/architecture/skills/map-containers"
-  },
   "queries": [
     {
       "id": "pos-train-01",

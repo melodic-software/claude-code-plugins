@@ -10,13 +10,6 @@
     "performance:protect",
     "review:quality-gate"
   ],
-  "competitor_dirs": {
-    "verification:measure": "plugins/verification/skills/measure",
-    "verification:confirm": "plugins/verification/skills/confirm",
-    "performance:snapshot": "plugins/performance/skills/snapshot",
-    "performance:protect": "plugins/performance/skills/protect",
-    "review:quality-gate": "plugins/review/skills/quality-gate"
-  },
   "queries": [
     {
       "id": "pos-train-01",
