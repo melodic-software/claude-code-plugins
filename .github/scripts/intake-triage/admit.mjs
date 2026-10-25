@@ -14,8 +14,10 @@
 //   `types-parent-if-present` needs that parent only when it has one (Q83).
 //   A parent awaits a decision while it carries needs-human or
 //   needs-owner-decision, or `status: needs-decision` with a decision open
-//   (parentDecisionOpen): a person set that label, or the parent's newest
-//   refinement asks questions no later `**Decision recorded.**` answers;
+//   (parentDecisionOpen): the lanes App may not lift that label (a person
+//   set it, or its verdict holds for a flag other than intent), or the
+//   parent's newest refinement asks questions no later `**Decision
+//   recorded.**` answers;
 // - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
 //   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
 //   work; no other work class gates admission (owner Q85, #9668);
@@ -79,6 +81,16 @@ export const REFINE_FOOTERS = {
   confirm:
     "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
 };
+// Opens the lanes App's comment saying why apply-verdict's verdict holds the
+// issue.
+export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
+// The flags a triage verdict may list.
+export const VERDICT_FLAGS = new Set(["intent", "security", "cost"]);
+// Marks a flag carried over from an earlier verdict.
+export const EARLIER = "(an earlier verdict)";
+// The reason a hold stays when no App verdict comment says whether an earlier
+// verdict flagged; the comment carries it, so a later run reads it the same.
+export const UNRECORDED = "no lanes App verdict comment shows whether an earlier verdict was flagged";
 // The wait reason a Size Large issue gets until refine.mjs splits it into
 // sub-issues (owner Q93).
 export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at intake is pending (owner Q93)";
@@ -495,6 +507,56 @@ async function parentOf(github, base) {
   }
 }
 
+// Whether an account id (a REST number, a GraphQL databaseId, or a string
+// either way) is the lanes App's; never for an unknown id or App.
+export const isAppId = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
+
+// The lanes App's own earlier verdict comment, if any.
+export const ownVerdict = (comments, appId) =>
+  comments.find((c) => isAppId(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
+
+// The flags the lanes App's earlier verdict comment listed: only known flags
+// from a `- flagged: ` reason line. null when no App verdict comment exists
+// or it carries UNRECORDED: whether an earlier verdict flagged is unknown.
+export function earlierFlags(comments, appId) {
+  const own = ownVerdict(comments, appId);
+  const lines = String(own?.body ?? "").split("\n");
+  if (!own || lines.includes(`- ${UNRECORDED}`)) {
+    return null;
+  }
+  return [
+    ...new Set(
+      lines
+        .filter((line) => line.startsWith("- flagged: "))
+        .flatMap((line) => line.slice("- flagged: ".length).replace(` ${EARLIER}`, "").split(","))
+        .map((flag) => flag.trim())
+        .filter((flag) => VERDICT_FLAGS.has(flag)),
+    ),
+  ];
+}
+
+// Why the lanes App may not lift `status: needs-decision` on the issue at
+// `base`, or null: someone else set it, or the App's verdict comment lists a
+// flag other than the intent a refinement resolves, or records that an
+// earlier flag is unknown (earlierFlags null). Once lifted, a re-triage sees
+// no hold and so carries no earlier flag. No such comment lifts: refine's own
+// question hold writes none.
+export async function decisionStays(github, base, comments, appId) {
+  const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
+  if (setter !== appId) {
+    return `a person set its ${NEEDS_DECISION}`;
+  }
+  if (!ownVerdict(comments, appId)) {
+    return null;
+  }
+  const flags = earlierFlags(comments, appId);
+  if (flags === null) {
+    return `its ${NEEDS_DECISION} stands: whether an earlier verdict flagged is unknown`;
+  }
+  const stops = flags.filter((flag) => flag !== "intent");
+  return stops.length > 0 ? `its ${NEEDS_DECISION} stands for flagged: ${stops.join(", ")}` : null;
+}
+
 // Whether a refinement comment's body is exact: it ends in an exact footer.
 // Any other ending, the questions footer included, is not exact. Pure.
 export const refinementExact = (body) => {
@@ -503,8 +565,8 @@ export const refinementExact = (body) => {
 };
 
 // Whether `parent` (an issue at `status: needs-decision`, as just read) still
-// awaits a decision: the newest `labeled` event for that label is not the
-// lanes App's (`appId`), or the App's newest refinement on it is not exact
+// awaits a decision: the lanes App (`appId`) may not lift the label
+// (decisionStays), or the App's newest refinement on it is not exact
 // (refinementExact) and no decision comment of a listed human's
 // (select-trusted-text's isDecisionComment) is newer. A parent in another
 // repository, or any failed read, counts as open.
@@ -514,11 +576,11 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
   }
   const base = `/repos/${repository}/issues/${parent.number}`;
   try {
-    const set = (await paginate(github, `${base}/events`)).findLast((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION);
-    if (set?.actor?.id !== appId) {
+    const comments = await paginate(github, `${base}/comments`);
+    if ((await decisionStays(github, base, comments, appId)) !== null) {
       return true;
     }
-    const refinement = (await paginate(github, `${base}/comments`)).findLast(
+    const refinement = comments.findLast(
       (comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER),
     );
     if (refinement === undefined || refinementExact(refinement.body)) {

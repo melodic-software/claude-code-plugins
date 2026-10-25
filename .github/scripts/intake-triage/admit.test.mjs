@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 
 import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
+import { VERDICT_MARKER } from "./apply-verdict.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -832,7 +833,7 @@ describe("admit", () => {
 
   test("an incomplete or failed older-deferred search defers rather than admits", async () => {
     assert.equal((await go(fakeGitHub({ older: "incomplete" }))).outcome, "deferred");
-    const failed = fakeGitHub({ failOn: (method, path) => path.startsWith("/search/issues?") });
+    const failed = fakeGitHub({ failOn: (_method, path) => path.startsWith("/search/issues?") });
     assert.equal((await go(failed)).outcome, "deferred");
   });
 
@@ -1000,11 +1001,6 @@ describe("size split sub-issues", () => {
   const parentSpec = (author = USER(HUMAN)) => ({ ...written(author, { body: PARENT_BODY }), comments: [] });
   const childBody = (lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."], parent = PARENT) =>
     `${splitChildHeader(parent, 1, 2)}\n${lines.join("\n")}`;
-  const childSpec = ({ body = childBody(), author = APP_ACTOR, editor = null, parent = parentSpec(), appId = APP } = {}) => ({
-    ...written(author, { body, editor }),
-    comments: [],
-    splitParent: { number: PARENT, spec: parent, appId },
-  });
   const childIssue = (body = childBody()) => issueOf({ user: { id: APP }, body });
   const NO_SPEC =
     "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
@@ -1246,6 +1242,18 @@ describe("a Feature under a parent at status: needs-decision", () => {
     const earlier = { ...decision, created_at: "2026-10-20T00:00:00Z" };
     assert.ok(refusedForParent(await go(withParent({ comments: [earlier, refinement(false)] }))));
     assert.equal((await go(withParent({ comments: [refinement(true)] }))).outcome, "admitted");
+  });
+
+  test("is refused when the lanes App's newest verdict on the parent flags security, with no refinement", async () => {
+    const verdict = {
+      id: 39,
+      node_id: "IC_39",
+      user: { id: APP },
+      performed_via_github_app: null,
+      created_at: "2026-10-20T00:00:00Z",
+      body: [VERDICT_MARKER, `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`, "", "- flagged: security"].join("\n"),
+    };
+    assert.ok(refusedForParent(await go(withParent({ comments: [verdict] }))));
   });
 
   test("is refused when the parent also carries needs-human", async () => {
