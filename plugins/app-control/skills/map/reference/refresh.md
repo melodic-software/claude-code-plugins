@@ -152,8 +152,9 @@ Then the outcome:
 
 - Nothing to ship: **clean**. Open nothing, and run the `record` command from SKILL.md. A pass that
   only found regressions or unmapped features is still clean.
-- A driver gap left unwritten (an unattended pass, or a re-drive that failed): **blocked**, with the
-  fix in the report. Run no `record`, so the next pass checks it again. Other edits from the same
+- A driver gap this pass observed (a `cli/` command that failed or was missing for a step the live
+  pass ran) and left unwritten, in an unattended pass or after a failed re-drive: **blocked**, with
+  the fix in the report. An entry already marked `not driven` is recorded state, not a gap. Run no `record`, so the next pass checks it again. Other edits from the same
   pass still ship as **changed** describes, and the outcome still reads blocked.
 - Something to ship: **changed**. An attended pass shows the proposed edits and asks before writing,
   committing or opening anything; declined, they go in the report unwritten. An unattended pass
