@@ -88,7 +88,10 @@ CI lane alone gets, so it is not used here; on the seat the transcript is the re
 In the CI lane the wrapper names its files on prompt lines; take each path from its line.
 
 - **Diff.** The file on the line that starts `FULL DIFF:` holds the whole pull request's diff.
-  When a `REVIEW SCOPE: incremental` note names a file (`That change is in <path>`), review that
+  Read it to its last line: when a Read returns only part of it, page on with `offset` and
+  `limit` until the end, and never review from a partial read. How Read handles a large file:
+  [Large files](https://code.claude.com/docs/en/tools-reference#large-files). As of: 2026-10-25.
+  Recheck trigger: that section changes how a large read is cut or paged. When a `REVIEW SCOPE: incremental` note names a file (`That change is in <path>`), review that
   file's change and use the full diff, else `gh pr diff`, only for context. With no diff line, use
   `gh pr diff`. With neither a named file nor a working `gh`, review nothing: say in the summary
   that the diff could not be read.
