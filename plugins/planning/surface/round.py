@@ -15,7 +15,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   archive         archive off-path questions with a reason (the server derives their state)
   reconfirm       clear upstream-changed questions that stand as asked after an upstream answer
                   changed (a revise clears the mark too)
-  apply         run a list of ops from one JSON file, as one atomic write; warns on stderr when no
+  apply           run a list of ops from one JSON file, as one atomic write; warns on stderr when no
                   watcher holds the lease
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
                   and each seeded question whose round differs from its ledger round cell
