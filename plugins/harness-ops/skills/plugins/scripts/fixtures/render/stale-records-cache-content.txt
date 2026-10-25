@@ -1,4 +1,4 @@
-Marketplace: market1: needs update (autoUpdate: on)
+Marketplace: market1: current, 1 action(s) pending (autoUpdate: on)
 In-repo: 1 project/local install(s) updated in <case>
 Updated: 1 plugin(s)
   - delta@market1 (project): 0.1.0 → 0.2.0

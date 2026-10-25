@@ -1495,7 +1495,8 @@ report_of "$case_dir" --marketplace market1 --install-new ask --journal-root "$c
 run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
 report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
 assert_exit "render ask partial pick: exit 0" 0 "$REPORT_RC"
-assert_contains "render ask partial pick: the marketplace needs action" "$REPORT_TEXT" "needs update"
+assert_contains "render ask partial pick: the declined install is a pending action" "$REPORT_TEXT" \
+  "Marketplace: market1: current, 1 action(s) pending (autoUpdate: on)"
 assert_contains "render ask partial pick: the declined plugin is named" "$REPORT_TEXT" \
   "1 catalog plugin(s) offered and not installed (policy ask): gamma@market1;"
 assert_eq "render ask partial pick: the installed plugin is not in the gap bullet" "0" \
@@ -1544,10 +1545,11 @@ assert_eq "render second-marketplace id: no error row" "0" \
 assert_eq "render second-marketplace id: it was installed" "1" \
   "$(grep -c 'plugin install gamma@market2' "$case_dir/claude.log")"
 
-# --- every `needs update` carries evidence of what needs doing -----------------
-# A minimal digest per $needs disjunct, rendered directly. Sync mode: an
-# `Action needed` bullet must name it. Audit mode renders predictions as rows
-# (`would run:`, `Would withhold`) instead of bullets.
+# --- every header status carries evidence of what needs doing ------------------
+# A minimal digest per header cause, rendered directly. `needs update` is refresh,
+# update and failure state; a pending action reads `current, 1 action(s) pending`.
+# Sync mode: an `Action needed` bullet must name it. Audit mode renders some
+# predictions as rows (`would run:`, `Would withhold`) instead of bullets.
 CASE_NUM=$((CASE_NUM + 1))
 needs_policy=none
 needs_digest() {
@@ -1570,38 +1572,51 @@ needs_digest() {
   }'
 }
 needs_check() {
-  local label="$1" mode="$2" patch="$3" want="$4" kind="${5:-bullet}" text
+  local label="$1" mode="$2" patch="$3" want="$4" kind="${5:-bullet}" status="${6:-needs update}" text
   text=$(needs_digest "$mode" "$patch" | jq -r -f "$SCRIPT_DIR/render-report.jq")
-  assert_contains "needs: $label marks the marketplace" "$text" "needs update"
+  assert_contains "needs: $label marks the marketplace" "$text" "Marketplace: m: $status (autoUpdate: on)"
   if [[ "$kind" == bullet ]]; then
     assert_contains "needs: $label has an Action needed bullet" "$text" $'Action needed:\n  - '
   fi
   assert_contains "needs: $label names it" "$text" "$want"
 }
+pending_check() { needs_check "$1" "$2" "$3" "$4" "${5:-bullet}" "current, 1 action(s) pending"; }
 failed_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\nboom"}'
 needs_check "failed update" sync "{\"user_sweep\":{\"failed\":[$failed_row]}}" "update failed (exit 1): a@m"
 blank_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\n\r\nboom"}'
 needs_check "failed update with a blank first line" sync "{\"user_sweep\":{\"failed\":[$blank_row]}}" \
   "update failed (exit 1): a@m -s user: boom"
-needs_check "withheld downgrade" sync \
+pending_check "withheld downgrade" sync \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "downgrade withheld: 1"
 needs_check "deferred install gap" sync '{"install_enable_deferred":true,"install_gap":["b@m"]}' "install gap deferred"
 needs_check "deferred enable gap" sync '{"install_enable_deferred":true,"enable_gap":["b@m"]}' "enable gap deferred"
-needs_check "stopped before install" sync '{"stopped_before_install":true,"install_gap":["b@m"]}' "stopped before Step 4"
+pending_check "stopped before install" sync '{"stopped_before_install":true,"install_gap":["b@m"]}' "stopped before Step 4"
 needs_check "failed install" sync "{\"installed\":[$failed_row]}" "install failed (exit 1): a@m"
 needs_check "failed enable" sync "{\"enabled\":[$failed_row]}" "enable failed (exit 1): a@m"
 needs_check "marketplace error" sync '{"errors":["boom"]}' "error: boom"
-needs_check "unfilled enable gap" sync '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
-needs_check "install gap under none" sync '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
+pending_check "unfilled enable gap" sync '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
+pending_check "project-scope enable gap" sync '{"project_enable_rows":[{"id":"b@m","project_path":"/w"}]}' \
+  "project-scope enable gap: (cd \"/w\" && claude plugin enable b@m -s project)"
+pending_check "installed but not enabled" sync '{"installed_disabled":["b@m"]}' "b@m: installed but not enabled"
+pending_check "delisted" sync '{"delisted":["b@m"]}' "delisted, absent from the catalog: b@m"
+pending_check "install gap under none" sync '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
+needs_check "install gap under none beside a failed update" sync \
+  "{\"install_gap\":[\"b@m\"],\"user_sweep\":{\"failed\":[$failed_row]}}" "not installed at user scope (policy none): b@m" \
+  bullet "needs update, 1 action(s) pending"
 needs_policy=ask
-needs_check "declined install gap under ask" sync '{"install_gap":["b@m","c@m"],"installed":[{"id":"b@m","rc":0}]}' \
+pending_check "declined install gap under ask" sync '{"install_gap":["b@m","c@m"],"installed":[{"id":"b@m","rc":0}]}' \
   "1 catalog plugin(s) offered and not installed (policy ask): c@m;"
 needs_policy=none
 needs_check "audit would update" audit '{"in_repo":{"would_update":[{"id":"a@m","scope":"project","installed":"1"}]}}' \
   "would run: claude plugin update a@m" row
-needs_check "audit withheld downgrade" audit \
+pending_check "audit withheld downgrade" audit \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "Would withhold: 1 downgrade(s)" row
-needs_check "audit install gap" audit '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
+pending_check "audit install gap" audit '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
+needs_policy=all
+needs_check "audit would install" audit '{"install_gap":["b@m"]}' "would run: claude plugin install b@m -s user" row
+needs_check "audit would enable" audit '{"enable_gap":["b@m"],"enabled":[{"id":"b@m","scope":"user","predicted":true}]}' \
+  "would run: claude plugin enable b@m -s user" row
+needs_policy=none
 # A sync run whose list file could not be written must not claim audit's reason.
 stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_contains "stale render: a sync run with no list file says it was not written" \
@@ -1624,7 +1639,7 @@ assert_contains "user-home render: the records get a row of their own" \
   $'User-home project records: 1 record(s) keyed to a user home directory\n  - /mnt/c/Users/someone'
 assert_not_contains "user-home render: no records, no row" \
   "$(needs_digest sync '{"user_home_records":{"total":0,"paths":[]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")" "User-home project records"
-needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
+pending_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.
 assert_contains "self-update render: a digest without the row names no plugin" \
