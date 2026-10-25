@@ -1,10 +1,11 @@
 # bugs: consumer configuration
 
-The single home for the `bugs` plugin's config-key contract. The surface is
-`.claude/bugs.md`, layered per the marketplace's config-cascade convention. It is read by
-`/bugs:scan` for lane selection and rotation, plus filing posture, and verified/written by
-`/bugs:setup`. All layers are optional: **zero config is a fully working state**, because
-rotation falls through to the bundled generic default lanes.
+The single home for the `bugs` plugin's config-key contract. The team layer is
+`docs/conventions/bugs.yaml`, validated by [`schemas/bugs.schema.json`](../schemas/bugs.schema.json),
+layered per the marketplace's config-cascade convention. It is read by `/bugs:scan` for lane
+selection and rotation, plus filing posture, and verified/written by `/bugs:setup`. All layers are
+optional: **zero config is a fully working state**, because rotation falls through to the bundled
+generic default lanes.
 
 ## Layers and resolution order
 
@@ -13,8 +14,18 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 | Order | Layer | Path | Version control |
 |---|---|---|---|
 | 1 | user-global | `~/.claude/bugs.md` | outside the worktree, so no git verdict applies |
-| 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/bugs.md` | must be tracked, the only layer teammates receive |
+| 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.yaml` for the keys; `${CLAUDE_PROJECT_DIR}/docs/conventions/bugs.md` for prose and `## Gotchas` | must be tracked, the only layer teammates receive |
 | 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md` | must be gitignored, never staged |
+
+**One-release fallback.** The team layer used to be `.claude/bugs.md`. For one release that file
+is still read: its YAML block only while `docs/conventions/bugs.yaml` is absent, and its
+`## Gotchas` section only while `docs/conventions/bugs.md` is absent. When the new file exists the
+old one is ignored for what the new one holds, and a report of the effective config names it as
+ignored. `/bugs:setup apply` moves the old file's values into `docs/conventions/bugs.yaml` and
+leaves the old file for the operator to delete.
+
+The team files sit in `docs/conventions/` whatever convention home the repository binds; a
+repository that binds another home still keeps them there.
 
 Resolution anchors at the repo root, never at the CWD: `${CLAUDE_PROJECT_DIR}` when set, otherwise
 `git rev-parse --show-toplevel`. Every layer that exists is read and merged;
@@ -51,23 +62,13 @@ them. It is therefore not a recognized key, and a layer that sets it is reported
 
 ## File format
 
-Markdown with a fenced YAML block (human-readable, shell-greppable). Prose outside the block is
-the consumer's own commentary, except a `## Gotchas` section which `/bugs:scan` and `/bugs:write`
-concatenate as the local cascade tier.
-
-### Consumer `## Gotchas` (cascade tier, #3547)
-
-A `## Gotchas` section in this file (outside the YAML fence) is the **local tier** for
-repo-specific lines the model should see when `/bugs:scan` or `/bugs:write` loads. Layers
-concatenate in cascade order after the bundled gotchas. Each line records a failure the model
-actually hit in this repository, the same failure-driven rule the bundled gotchas follow. Generalizable lines belong in the shipped
-skill via an issue to this marketplace; see
-[`docs/conventions/config-cascade/consumer-gotchas.md`](../../../docs/conventions/config-cascade/consumer-gotchas.md).
-
-````markdown
-# bugs config
+The team keys are plain YAML in `docs/conventions/bugs.yaml`, checked against the schema; the
+team prose sits beside it in `docs/conventions/bugs.md`. The user-global and local-overlay layers
+are Markdown with a fenced YAML block holding the same keys; prose outside the block is the
+consumer's own commentary, except a `## Gotchas` section.
 
 ```yaml
+# docs/conventions/bugs.yaml
 lanes:
   - name: entrypoints
     globs:
@@ -78,7 +79,16 @@ lanes:
       - 'src/billing/**/*.ts'
 filing_posture: manual-only
 ```
-````
+
+### Consumer `## Gotchas` (cascade tier, #3547)
+
+A `## Gotchas` section in `docs/conventions/bugs.md`, `~/.claude/bugs.md` or
+`.claude/bugs.local.md` (outside any YAML fence) is the **local tier** for repo-specific lines the
+model should see when `/bugs:scan` or `/bugs:write` loads. Layers concatenate in cascade order after
+the bundled gotchas. Each line records a failure the model actually hit in this repository, the
+same failure-driven rule the bundled gotchas follow. Generalizable lines belong in the shipped
+skill via an issue to this marketplace; see
+[`docs/conventions/config-cascade/consumer-gotchas.md`](../../../docs/conventions/config-cascade/consumer-gotchas.md).
 
 ## Keys
 
