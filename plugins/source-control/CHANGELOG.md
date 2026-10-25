@@ -3,6 +3,44 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.2] - 2026-10-25
+
+### Fixed
+
+- `babysit_verify_evidence.py evidence --lane-link` now applies the trust hold to the linked issue, so a label naming untrusted work that lands on it after admission, while the lane builds, stops the arm. The issue's labels come with the link's GraphQL read, and its timeline costs one more REST read. A label holding `untrusted` in any case refuses as `untrusted-provenance`, one removed by a non-human or through an App as `untrusted-provenance-removed-by-non-human`, and labels that cannot be read whole as `issue-labels-unreadable`; a failed timeline read refuses as `unreadable:`. Each one is reported as `ineligible`. The checks live in one function, `babysit_merge_policy.trust_refusal`, which `eligibility` now calls too.
+
+- `lane_eligibility`, the pr-merge lane's gate when it merges lane pull requests itself (not `merge.lane-prs: native`), now applies the trust hold (`trust_refusal`) to the linked issue, as `eligibility` does. A label naming untrusted work, in any spelling, refuses as `untrusted-provenance`; the match on `untrusted` is ASCII-case-insensitive only, as the merge queue's check matches it, so a letter that folds to an ASCII one (`ſ`, `ﬆ`) no longer matches in one and not the other. One removed by a non-human or through an App refuses as `untrusted-provenance-removed-by-non-human`. Unreadable labels refuse as `issue-labels-unreadable`, and a failed timeline read as `unreadable:`. This adds one REST read of the issue timeline per lane pull request with a linked issue. report-outcome already writes a `Hold:` line when the issue carries the exact label at PR open, so this covers a label added after open, or any other spelling.
+
+## [3.2.1] - 2026-10-25
+
+### Changed
+
+- The babysit-loop promotion-evidence references and `publish-promotion-evidence.mjs`, and `babysit_review_evidence.py` in babysit-prs, cite the autonomy plugin's setup skill and checker through `/autonomy:setup` and the security review through `/review:security-review`, instead of by paths or URLs into those plugins' `skills/` folders.
+
+## [3.2.0] - 2026-10-25
+
+### Added
+
+- Plugin-eval case `babysit-prs-safe-tier-never-resolves-or-merges`: a bare `/source-control:babysit-prs` runs against the gh-forge stand-in, which serves the session's own open, CLEAN PR 214 with one outdated bot review thread. Graders read the stand-in's call record and fail on any `pr merge` (other than `--disable-auto`) or resolve-thread call, and `tool_used` graders fail on a Bash call that merges, arms auto-merge, passes the merge gate's `--merge`, or resolves a thread by any route the stand-in does not record.
+- The gh-forge eval fixture's `install.sh` takes `--outdated-bot-thread <id>`: an unresolved review thread whose author is a `Bot` and which GitHub marks `isOutdated`. Threads are served in the order given.
+
+- The pr-merge gate trusts a size-split sub-issue that copies task-list lines from intake's refinement comment, under the rule Issue Triage now admits it by. A sub-issue whose header names that comment (`<!-- size-split refinement=<id> updated_at=<time> -->`) may also hold the comment's task-list lines, never its prose, heading or marker lines, and, after a listed human's edit, those lines with their box ticked. It counts only while the named comment is still the lanes App's newest refinement on the parent, never edited, with its update time equal to its creation time or to the recorded one, on a parent body a listed human wrote; a deleted, edited or superseded refinement leaves it `verify:untrusted-spec`. The gate still reads the sub-issue, its parent and the parent's comments in one GraphQL call, now with each comment's id and times, and the rule is checked against the shared `split-child.vectors.json` cases.
+
+### Changed
+
+- The unattended merge gate no longer gates on work class. Eligibility reads no `work-class:` label except the trust hold: a pull request whose linked issue carries a label naming untrusted work (any label holding `untrusted` in any case, so a variant spelling of `work-class: untrusted-provenance` still holds), or had one removed by a non-human, is still refused (`untrusted-provenance`, `untrusted-provenance-removed-by-non-human`), and unreadable issue labels refuse as `issue-labels-unreadable`. The `class-missing`, `class-unknown`, `class-provenance:*`, `class-label-removed-by-non-human` and `class-above-rung` refusals are gone.
+- Eligibility now needs the linked issue vouched for by a human, refusing as `issue-not-vouched:<why>` otherwise. Either a write-access human wrote the issue, or one applied the tracker's admission label in person with no body edit after it; either suffices. The admission label is the `autonomous-eligible` role in `.work-item-tracker.json` at the base branch, `agent-ready` by default. A human author's issue also refuses when a non-human, or anyone through an App, retitled it (`title-edited-by-non-human`) or edited its body since (`body-edited-by-non-human`, read from the same edit history as the demotion record), and an admission label refuses when the title changed after it (`title-edited-after-label`). This takes the place of the class-label provenance check as the gate's human vouch. On the local path, an issue the lanes App both filed and admitted now refuses as `issue-not-vouched:labeler-not-human` until a person re-adds the label. It fails closed, and the pr-merge lane is unaffected.
+- Promotion evidence is keyed by the effective rung, not the work class: rung C2 needs the `C2-auto-merge` cell and rung C3 every C3 cell, refusing as `promotion-unqualified:<rung>`. An unreadable or untrusted resolver still refuses as `promotion-unqualified:<reason>`, and the window still restarts at the newest demotion record (`--window-start`), so no cell stays promoted until it is re-ratified. `unattended.promoted` reports the rung's answer, and an unpromoted rung takes the assessed pull request's own entry out of the merge queue, as an unpromoted class did.
+- The risk score reads no work class: the `class-missing`, `class-above-rung`, `class-contradicted` and `blast-radius-missing` reasons are gone, and `RiskInput` drops `work_class`, `rung`, `blast_radius` and `c2_contradictions`. The gate no longer reads `merge.diff-check.c2-contradictions`. The key is deprecated with no effect, and the schema still accepts it; set to anything but false, it adds a note to the config notes, which the `unattended` report now carries as `configNotes`.
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+### Fixed
+
+- Babysit review evidence no longer unbinds both review lanes (`lane-source-changed`) for a pull request that changes `plugins/review/`. The reusable `pr-review-cli.yml` stages the review plugin from claude-code-plugins' default-branch tip, never the head, so a pull request's copy feeds no review. `scripts/ci-review-plugin-source.test.sh` fails if either review caller stops calling that reusable pinned to a commit SHA or passes it a plugin path. Every other lane-source path still unbinds.
+
+- The pr-merge gate reads admission's `task-list` for a size-split sub-issue from `admission-rules.json` at the repository's default branch, as pr-verify reads it from main's checkout, instead of at the pull request's base branch. A failed read of the default branch refuses `verify:unreadable`.
+
 ## [3.1.0] - 2026-10-25
 
 ### Added

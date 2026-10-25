@@ -304,11 +304,11 @@ Read in this order. Stopping early at any step is the finding.
    ```
 
    `<method>` is `${user_config.interval_method}`, and an empty or unfilled value there means the
-   default, `normal`, applies; do not mention the setting's state to the user. Pass
-   `--grader-agreement` unless `${user_config.grader_run_twice}` is `false`. Any other method
-   value is passed as is, and the script falls back to `normal`. These values set the command this
-   skill runs; they say nothing about a user's own run. Exit 2 means the file could not be read or
-   an argument was malformed: say which, and report no interval.
+   default, `normal`, applies; do not mention the setting's state to the user. Pass `--grader-agreement`
+   unless `${user_config.grader_run_twice}` is `false` (unexpanded, empty, or any other value means `true`,
+   the manifest default). Any other `interval_method` value is passed as is, and the script falls back to
+   `normal`. These values set the command this skill runs; they say nothing about a user's own run. Exit 2
+   means the file could not be read or an argument was malformed: say which, and report no interval.
 
 Read the noise report's lines this way:
 
@@ -465,7 +465,7 @@ record is the CI pins row under [Sources](#sources).
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
   When `error` is null, run the validity gate and the noise report before drawing any conclusion,
-  and say nothing yet about the cases themselves.
+  and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
 - A run from inside a Claude Code session keeps its report local and says `kept local`; from a
   terminal it may publish to claude.ai unless `--no-publish` is passed.
 - The sandbox limits what the agent under test can reach. It is not a boundary against the

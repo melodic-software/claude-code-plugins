@@ -92,7 +92,7 @@ const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
     pageInfo: { hasNextPage: false, endCursor: null },
   }),
   getPulls: async () => [],
-  listCheckRuns: async () => [STOPPED],
+  listCheckRuns: async ({ checkName }) => [STOPPED].filter((run) => run.name === checkName),
   listWorkflowRuns: async () => [],
   readRequiredRun: async () => ({ run: null, jobs: [] }),
   // No label event names the lanes App, so a human-gated label holds.

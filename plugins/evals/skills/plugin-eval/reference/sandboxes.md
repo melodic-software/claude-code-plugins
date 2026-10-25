@@ -24,6 +24,23 @@ rm -rf <tmp>/claude-eval-*
 
 A directory `chmod` cannot enter still needs `sudo rm -rf`.
 
+## Sandbox start
+
+A run under the default `<tmp>`, or under a long `$TMPDIR`, can end with no session or no shell:
+the validity gate's `session started` check fails it. Rerun with `TMPDIR` set to a short directory
+outside the system temp directory.
+
+- **Pointer:** [anthropics/claude-code#104631](https://github.com/anthropics/claude-code/issues/104631)
+  and [anthropics/claude-code#104797](https://github.com/anthropics/claude-code/issues/104797) for
+  the default temp directory (the cause is each reporter's attribution); for a long `$TMPDIR`,
+  correlate with the socket path limit in [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html),
+  which no upstream source names as the cause. Probes on Claude Code 2.1.310 are in
+  [#9514](https://github.com/melodic-software/claude-code-plugins/issues/9514#issuecomment-6400874417)
+  and [#9611](https://github.com/melodic-software/claude-code-plugins/issues/9611).
+- **As of:** 2026-10-25.
+- **Recheck when:** either upstream issue closes, or a release note touches `plugin eval` sandbox
+  paths or `TMPDIR`.
+
 ## Record
 
 - **Pointer:** the `--keep-temp` row of <https://code.claude.com/docs/en/plugin-evals#command-options>

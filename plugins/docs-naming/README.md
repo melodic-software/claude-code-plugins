@@ -34,7 +34,8 @@ plugin.
 The skills read one consumer surface, `.claude/docs-naming.json`, layered as
 user-global, team (tracked), and a gitignored personal overlay
 (`.claude/docs-naming.local.json`). All three absent is a valid state: every key
-has a bundled default, and the defaults are this marketplace's own values.
+has a bundled default, and the defaults are this marketplace's own values,
+except `generated`, which is empty.
 `/docs-naming:setup check` verifies the resolved document and names the layer
 that supplied each key, and `/docs-naming:setup apply` writes the team layer and
 nothing else, never the consumer's `.gitignore`. Keys, defaults, merge classes,

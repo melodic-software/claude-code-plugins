@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.5] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [2.0.4] - 2026-10-24
 
 ### Added

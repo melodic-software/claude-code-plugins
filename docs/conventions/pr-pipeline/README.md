@@ -694,9 +694,10 @@ and `C2` or `C3` lets the authority merge. Neither authority reads a work class
 - `off` is the default. The first rung a repository adopts is `C2`, together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - No work class is read, and no class, missing class or diff shape caps the rung. The only
-  class-named check is the local babysit lane's untrusted-provenance hold: a pull request whose
-  linked issue carries `work-class: untrusted-provenance`, or had it removed by a non-human, waits
-  for a human. The pr-merge lane merges on the verifier verdict
+  class-named check is the untrusted-provenance hold: a pull request whose linked issue carries
+  `work-class: untrusted-provenance` (any label naming untrusted work), or had it removed by a
+  non-human, waits for a human, in the local babysit lane and when `enable-auto-merge` arms a
+  lanes App pull request. The pr-merge lane merges on the verifier verdict
   ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
@@ -1021,7 +1022,9 @@ run that finds the comment unchanged (same head and reasons) adds no label. A re
 the lanes App included, by an account off that list, or made through a GitHub App
 (`performed_via_github_app`) lifts nothing, and a new head or new
 reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
-escalations.
+escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes App pull
+request instead, and posts the escalation to a person as a new comment rather than rewriting its
+earlier one, since an edit notifies no one and keeps the comment's old date.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also
@@ -1105,7 +1108,12 @@ gate's veto rule; a later comment lifts it), and whose head changes no path in t
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
-the one issue its plain `Refs: #<n>` lines name; a failed read refuses), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
+the one issue its plain `Refs: #<n>` lines name; a failed read refuses) and whose issue clears
+the trust hold (`babysit_merge_policy.trust_refusal`: its labels read whole, none naming untrusted
+work in any spelling, and none ever removed by a non-human or through an App, so a label added
+after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed-by-non-human` or
+`issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
+issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
 heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
@@ -1194,6 +1202,26 @@ request the gate sends to a person. It runs only in the queue: pr-verify runs on
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
 verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
 `enable-auto-merge.mjs`'s, whose reader arms nothing they refuse.
+
+The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
+already carries `work-class: untrusted-provenance`. At arm time, `enable-auto-merge` refuses it
+through `evidence --lane-link`. In the merge queue, `ci-status`'s step `Fail a queued pull request
+carrying a hold label` reads the queued pull request's linked issue when an automation opened the
+pull request. The linked issue is its closing issues here, or with none, the one issue its plain
+`Refs:` lines name, by the base's `refsIssue`. The step fails when that issue carries a label
+containing `untrusted` in any ASCII case (as `babysit_merge_policy._untrusted` matches it), or had
+one removed by anyone other than a person on the base's trusted-actor list, or through an App. A
+lanes App pull request that does not link exactly one issue here also fails, so dropping the link
+after arming does not skip the check; another automation's pull request that links none passes. An
+unreadable link, label list, timeline or trusted-actor list fails closed. So a label added after
+the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a
+person on that list lifts it by removing the label and re-queuing. A person's own pull request is
+not read.
+
+A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
+issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
+label still holds. The way out is a new issue a person files for the work, and a new pull request
+linking it.
 
 ### Dependabot pull requests
 
@@ -1458,11 +1486,15 @@ is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-chec
 judges a person's pull request at each ready head, before it is idle. A pull request closing no
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
-problem, changes what the code is for, or loosens a hold the owner keeps; then it fails the
+problem, changes what the code is for, or loosens a hold the owner keeps (a hold on a real
+charge, not subscription spend such as a model, effort or schedule change); then it fails the
 verdict, as does unasked-for work on secret values or organization or repository settings.
 Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are judged
-like any other code; a change to the takeover set (the merge gate's HIGH floor) fails whatever
-the spec says. `any` judges every author's. Any other
+like any other code; a change to the takeover set (the merge gate's HIGH floor) is read with extra
+care and fails only when it lets someone outside the organization gain trust or weakens a check
+beyond what the spec asks. A diff too large to judge whole fails when a part not judged is a
+workflow, action, script, hook or binary, or a takeover-set file of any type, and passes with
+notes naming the parts not judged when they are all other prose or data. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
@@ -1691,13 +1723,10 @@ and any change holds. An attended gate run reads both fresh. Without the variabl
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
 `hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
 status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
-comment when the review returns a hold, or when a changed file (or a renamed file's old path)
-matches a hold path, which holds as `trust-gate` whatever the review says:
-
-- `.github/standards/trusted-actors/**`
-- `.github/actions/check-trusted-trigger/**`
-- `**/CODEOWNERS`
-- `**/.gitmodules`
+comment when the review returns a hold: `cost` (only for a real charge, as the wrapper's prompt
+defines it) or `critical-security`. `hold-paths` only flags the files it names for extra security
+scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
+what it gates, and only a CRITICAL finding there holds.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -1721,8 +1750,9 @@ them on every `pull_request` run, contract-only runs included:
   fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
-  author id, except that their PR fails when a changed file (or a renamed file's old path) matches
-  a hold path, since no lane reviews it to hold it; a person merges it. A draft is exempt.
+  author id, except that their PR fails when a changed file (or a renamed file's old path) is
+  under `.github/standards/trusted-actors/`, `.github/actions/check-trusted-trigger/`, or is a
+  `CODEOWNERS` or `.gitmodules` file, since no lane reviews it; a person merges it. A draft is exempt.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head

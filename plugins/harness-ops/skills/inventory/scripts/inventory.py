@@ -4383,7 +4383,7 @@ def _builtin_plugin_loader(
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """The plugins the loader requires, each with its load condition, and the
     loader callee names. A walk that fails leaves every load unresolved."""
-    roster: dict[str, dict[str, Any]] = {}
+    sites: dict[str, list[list[str] | None]] = {}
     callees: set[str] = set()
     for latch in re.finditer(re.escape(_PLUGIN_LATCH) + r"=!0", src):
         block = _function_block(src, braces, latch.start())
@@ -4396,18 +4396,20 @@ def _builtin_plugin_loader(
             guards = {}
         for m in _PLUGIN_LOADER_CALL_RE.finditer(src, lo, hi):
             callees.add(m.group(1))
-            known = m.start() in guards
-            g = guards.get(m.start())
-            roster.setdefault(
-                _unescape(m.group(2)),
-                {
-                    "load": None
-                    if not known or g is None
-                    else ("conditional" if g else "unconditional"),
-                    "load_guards": g if known else None,
-                },
-            )
-    return roster, sorted(callees)
+            sites.setdefault(_unescape(m.group(2)), []).append(guards.get(m.start()))
+    return {name: _combined_load(gs) for name, gs in sites.items()}, sorted(callees)
+
+
+def _combined_load(sites: list[list[str] | None]) -> dict[str, Any]:
+    """One plugin's load condition from every call site that requires it.
+    Any unguarded site loads it unconditionally. Otherwise every site must be
+    read and guarded alike: `load_guards` is one conjunction, so sites guarded
+    differently (a disjunction) leave the load unresolved."""
+    if [] in sites:
+        return {"load": "unconditional", "load_guards": []}
+    if None in sites or any(g != sites[0] for g in sites):
+        return {"load": None, "load_guards": None}
+    return {"load": "conditional", "load_guards": sites[0]}
 
 
 def _object_value(
@@ -4446,6 +4448,24 @@ def _object_value(
 _PLAIN_PART_RE = re.compile(r"(?:(?:get|set|async)\s+)?" + _IDENT + r"\s*[:(]")
 
 
+def _object_keys(src: str, braces: BraceMap, open_i: int) -> tuple[list[str], bool]:
+    """An object literal's top-level keys, and whether every part was read: a
+    spread, or a quoted, computed or shorthand key, may hold any key."""
+    keys = sorted(_object_fields(src, braces, open_i, methods=True))
+    close = braces.pairs.get(open_i)
+    if close is None:
+        return keys, False
+    try:
+        parts = _split_top(src, braces, open_i + 1, close)
+    except (ValueError, IndexError):
+        return keys, False
+    for a, b in parts:
+        a, b = _strip_span(src, a, b)
+        if src.startswith("...", a) or not _PLAIN_PART_RE.match(src, a, b):
+            return keys, False
+    return keys, True
+
+
 def _merged_fields(
     src: str,
     braces: BraceMap,
@@ -4469,7 +4489,8 @@ def _merged_fields(
     complete = True
     last_unresolved = -1
     entries: list[tuple[int, dict[str, tuple[int, str, int]]]] = []
-    own = _object_fields(src, braces, open_i)
+    # Methods too: `isAvailable(){...}` is a present key, not an absent one.
+    own = _object_fields(src, braces, open_i, methods=True)
     for key, (form, pos) in own.items():
         entries.append((pos, {key: (open_i, form, pos)}))
     for a, b in _split_top(src, braces, open_i + 1, close):
@@ -4515,7 +4536,7 @@ def _merged_string(
     entry = fields.get(key)
     if entry is None:
         return None
-    resolved = resolve_field(src, braces, entry[0], key)
+    resolved = resolve_field(src, braces, entry[0], key, methods=entry[1] == "method")
     if resolved and resolved["source"] != "unresolved":
         return resolved
     ident = re.match(_IDENT + r"(?=\s*[,}])", src[entry[2] : entry[2] + 64])
@@ -4919,7 +4940,7 @@ def _plugin_commands(
     argument that is the enclosing arrow's own parameter passes another
     call's object through and is skipped; any other unresolved one leaves
     the list partial."""
-    out: dict[str, dict[str, Any]] = {}
+    out: list[dict[str, Any]] = []
     complete = True
     for m in re.finditer(r"\.(?:command\.register|registerCommand)\(", src[lo:hi]):
         paren = lo + m.end() - 1
@@ -4958,8 +4979,14 @@ def _plugin_commands(
         if rec["description_source"] == "absent" and not ok:
             rec["description_source"] = "unresolved"
         complete = complete and ok and rec["description_source"] != "unresolved"
-        out.setdefault(rec["name"], rec)
-    return list(out.values()), complete
+        if rec in out:
+            continue
+        if any(r["name"] == rec["name"] for r in out):
+            # Two registrations of one name: which runs last is not read, so
+            # both are kept and the list is partial.
+            complete = False
+        out.append(rec)
+    return out, complete
 
 
 def _plugin_registrations(
@@ -5217,17 +5244,18 @@ def extract_builtin_plugins(
         rec["hooks_module"] = hooks_module or (False if complete else None)
         rec["user_config"] = "userConfig" in fields or (False if complete else None)
         classic = fields.get("hooks")
-        rec["classic_hooks"] = (
-            sorted(_object_fields(src, braces, classic[2]))
-            if classic and classic[1] == "value" and src.startswith("{", classic[2])
-            else (None if classic is None else "unresolved")
-        )
+        classic_read = True
+        if classic and classic[1] == "value" and src.startswith("{", classic[2]):
+            # The keys read are a floor when a part of the object is not.
+            rec["classic_hooks"], classic_read = _object_keys(src, braces, classic[2])
+        else:
+            rec["classic_hooks"] = None if classic is None else "unresolved"
         mcp = fields.get("mcpServers")
         rec["mcp_servers"] = None if mcp is None else mcp[1]
         partial += [k for k in ("hooks_module", "user_config") if rec[k] is None]
         if not complete:
             partial += [k for k in ("classic_hooks", "mcp_servers") if rec[k] is None]
-        if rec["classic_hooks"] == "unresolved":
+        if rec["classic_hooks"] == "unresolved" or not classic_read:
             partial.append("classic_hooks")
         rec["skills"] = skills
         rec["agents"] = agents
