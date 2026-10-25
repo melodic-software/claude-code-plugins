@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.3] - 2026-10-25
+
+### Added
+
+- Two eval cases check that a CI code review of a full-diff file larger than one Read still finds the bug: `code-review-large-diff-pages-to-end` puts it in an ordinary file in the diff's last third, `code-review-large-diff-middle-file` in a service file mid-diff ([evals](https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/review/evals)).
+
 ## [1.3.2] - 2026-10-25
 
 ### Changed

@@ -7,7 +7,7 @@ is installed in any session.
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
 | `playground` is a first-party marketplace plugin in `anthropics/claude-plugins-official`, not a bundled Claude Code surface | The upstream repository at commit `ed404106fcd80ba98ecb7c851e531dcb626d13b7` (HEAD of main, re-verified by fetch) | 2026-09-01 | The default branch moves past that commit with changes under `plugins/playground`, or the plugin is renamed, removed, or absorbed into the CLI as a bundled skill |
-| Its `playground` skill builds a page with "interactive controls on one side, a live preview on the other, and a prompt output at the bottom with a copy button" | The upstream `plugins/playground/skills/playground/SKILL.md` at the same commit | 2026-09-01 | Same trigger |
+| Its `playground` skill builds a page with "interactive controls on one side, a live preview on the other, and a prompt output at the bottom with a copy button" | The upstream `playground` skill's `SKILL.md`, in the repository's `playground` plugin, at the same commit | 2026-09-01 | Same trigger |
 | It targets input spaces that are "large, visual, or structural and hard to express as plain text" | The same upstream file | 2026-09-01 | Same trigger |
 | The `playgrounds` wrapper plugin in this marketplace declares the cross-marketplace dependency and carries the install uplift, so the route has a landing surface where the wrapper is installed | The wrapper's manifest (it names `playground` as a dependency) and its `use` skill in this marketplace | 2026-09-29 | The wrapper is renamed or removed, or drops the dependency |
 
