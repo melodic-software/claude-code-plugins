@@ -113,9 +113,20 @@ drive finds a control skill by its hub.
 
 ### 5. Prove
 
-Follow [reference/prove.md](reference/prove.md): its sign-in rule first, then the step 5 drive
-calls on one seeded feature (launch, ready, sign in, drive, capture one artifact, cleanup), then
-the evidence and no-orphan checks.
+Invoke `/app-control:drive` via the Skill tool on one seeded feature, naming the feature and the
+control skill. It runs the hub's Ready first and drives the feature's steps, recording each step's
+entry point. Report done only after that run passes. Never repeat a sign-in step for an account
+that already submitted an attempt in this run. When a step fails because the control skill is
+wrong (a handle, a route, a missing precondition), fix the control skill and run again, once; a
+second failure leaves it written but unproven. When the run fails
+against a healthy app, report the control skill as written but unproven, with drive's evidence; do
+not call it done. When a step cannot run at all (no shell, a missing tool), record it in drive's
+form, `blocked: <reason>`, with its entry point, never a projected or guessed result.
+When the tool the hub names cannot run on this host, the outcome is
+`blocked: driver unavailable` with drive's gap report; do not edit the hub or switch tools.
+
+[reference/prove.md](reference/prove.md) holds the sign-in rule, which comes first, the exact drive
+calls, and the evidence and no-orphan checks that follow the run.
 
 ### 6. Report
 
@@ -129,16 +140,22 @@ the evidence and no-orphan checks.
 - each credential as its variable name, layer and `set` or `unset`, never its value;
 - that the driver CLI enforces the safety floors (drive does not), and the run kept the sign-in
   count;
-- drive's per-entry-point lines, the evidence paths, and the process check;
+- drive's steps copied from its report, each with its entry point, what it observed and its
+  artifact paths, plus drive's capability gaps, `blocked:` lines and the process check;
 - what each stand-in did that the target will not;
 - the features found but not seeded.
 
 ## Check
 
-1. Run `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" <dir>`. It prints one `<rule> | <path> |
-   <detail>` line per structural finding and lists its rules in its header. Without a shell, Read
-   the script and apply those rules by hand, resolving source globs against the directory that
-   holds `.claude/`; report only what the rules find, never a finding that might apply.
+1. Run `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" "<dir>"`, once per directory, the
+   directory quoted; a directory name with a character outside `A-Z a-z 0-9 . _ - /` or a `..`
+   segment is reported and never reaches a shell. With no `<dir>` and no
+   `.claude/skills/control-*/` directory, report that and stop. The script prints one
+   `<rule> | <path> | <detail>` line per structural finding and lists its rules in its header.
+   Without a shell, Read the script and apply those rules by hand, resolving source globs against
+   the directory that holds `.claude/`; a glob that is absolute, has a `..` segment or starts in a
+   symlink that leads outside that directory is an `index-glob` finding and is never resolved.
+   Report only what the rules find, never a finding that might apply.
 2. Judge the copied recipe, which the script cannot: a hub or feature section that repeats the
    commands or steps of a recipe kept elsewhere (a `run-<name>` or verify skill, `cli/README.md`,
    another feature's Drive) instead of naming it, against the contract's "Driver commands". Report
@@ -171,7 +188,8 @@ conversion moves out of.
 
 ## Next
 
-- /app-control:drive <app> <feature> drives a seeded feature and records evidence.
+- /app-control:drive <app> <feature> drives a seeded feature and records evidence. Run it again
+  after `config/defaults.json` is committed to prove the send steps create left unproven.
 - /app-control:map refresh keeps a control skill current after the app changes.
 
 ## Gotchas

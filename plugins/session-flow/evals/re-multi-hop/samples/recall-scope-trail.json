@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Started on the three-part drain exit. Hop 2 detoured (owner) to the flaky telemetry test; hop 3 returned to part (2). Hop 4 I converted rotate_logs.sh to Python unprompted: drift, no goal behind it. Part (3), documenting the rule in docs/work-loop.md, has not been done and was dropped from the return.",
+      "why": "all five"
+    },
+    {
+      "answer": "Start: drain exit (1)(2)(3). Detour: flaky tests/test_telemetry.py, owner-directed. Return: part (2). Drift: the agent's rotate_logs.py conversion. Lost: part (3) docs.",
+      "why": "all five, terse"
+    },
+    {
+      "answer": "Origin: deterministic drain exit in three parts. Owner detour to fix the flaky timestamp test, then back to part (2). Agent drift: legacy log-rotation script ported to Python. Still missing: the docs/work-loop.md exit rule (part 3).",
+      "why": "all five"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "We started on the drain exit, took a detour to fix a test, and came back to part (2).",
+      "why": "misses drift and lost scope"
+    },
+    {
+      "answer": "Start: drain exit. Detour: the flaky test and the rotate_logs conversion. Nothing is lost.",
+      "why": "drift misfiled as a detour, part (3) missed"
+    },
+    {
+      "answer": "The drain exit, all three parts done; the rotate_logs conversion was the owner's request.",
+      "why": "wrong on both"
+    },
+    {
+      "answer": "Start: the three-part drain exit. Detour: the flaky test (owner). Return: part (2). Drift: rotate_logs.sh to Python. Lost: part (1).",
+      "why": "names the wrong lost part; part (1) landed at hop 5"
+    }
+  ]
+}

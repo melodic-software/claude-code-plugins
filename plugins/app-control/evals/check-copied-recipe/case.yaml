@@ -13,7 +13,7 @@ execution:
 graders:
   - name: reports-copied-recipe-line
     type: regex
-    pattern: 'copied-recipe \| [^|\n]*SKILL\.md \| [^\n]*run-shop'
+    pattern: 'copied-recipe \| (?:[^|\n]*control-shop/)?SKILL\.md \| [^\n]*run-shop'
     arm: both
   - name: writes-nothing
     type: tool_used

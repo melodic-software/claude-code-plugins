@@ -179,12 +179,13 @@ the label stays on, and `clear-escalations.mjs` removes it only while no address
 record is on the lanes App's comments since it went on; to stop the lane working such a PR, a
 person adds `do-not-merge`, since re-adding a label already on records no event), the head has no
 `pr-unblock / address-feedback` check run (one that started before the head's newest
-`pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
-the round handled nothing, and the round cap still bounds the retries; a limit stop keeps its
+`pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`
+(the round handled nothing) or `finding-stands` (it left a finding standing at that head), and
+the round cap still bounds the retries; a limit stop keeps its
 reset hold and counts toward `limit-stops-per-head`; since such a head may see no later review,
 each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep that decides one
-such head per tick as for its newest completed review run, under three `no-model-turn` skips at
-that head), and no `pr-unblock.yml` run titled
+such head per tick as for its newest completed review run, under three such skips at that
+head), and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
@@ -500,15 +501,12 @@ Each leaf declares:
   [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
-- `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `admission`). `mergeable` is `conflicting` or `clean`,
-  read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
-  matches only when none of its labels is on the PR. `admission` is an issues lane's
-  work-class rule: an issue carrying a `work-class:` label outside `classes` is refused, even
-  beside a listed one; otherwise a listed class admits it. With no `admission`, the triggering
-  label alone admits the issue; this repository's resolve-issue sets none, so `agent-ready`
-  added by a listed human or the lanes App admits, and its `labels-absent` holds keep an issue a
-  person must decide.
+- `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, events,
+  `mergeable`, `draft`). `mergeable` is `conflicting` or `clean`, read from the PR at the gated
+  head SHA only; unknown mergeability never matches. `labels-absent` matches only when none of its
+  labels is on the PR. No predicate reads a work class: on an issues lane the triggering label
+  alone admits the issue, so `agent-ready` added by a listed human or the lanes App admits, and
+  resolve-issue's `labels-absent` holds keep an issue a person must decide.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
@@ -665,7 +663,9 @@ PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no sam
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
 write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
 held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
-round whose model never ran, so the scan uploaded no replies), `clean-merge` (a resolve-conflicts
+round whose model never ran, so the scan uploaded no replies), `finding-stands` (an
+address-feedback round's reply job, when an adjudicator let a disputed finding stand and the head
+did not move, so no review run starts the round that fixes it), `clean-merge` (a resolve-conflicts
 round whose base merge left no conflict, so no model ran and the push job commits the merge), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
@@ -1220,8 +1220,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored. The
-  review's verdict job posts no merge marker on a pull request that changes a workflow or action
-  file (`dependency-workflow-held`), so a person merges those. A `fix` verdict lands only when
+  review's verdict job posts no merge marker on a pull request whose change to a workflow or
+  action file is anything but a full-SHA pin swap (each `uses:` line keeps its action path and
+  moves from one full SHA to another, with only the trailing comment otherwise changing), and
+  escalates `dependency-workflow-unpinned`. A `fix` verdict lands only when
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
   directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
   `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
@@ -1534,8 +1536,13 @@ head:
   edits a line next to the fix, or adds an empty commit keeps the refusal, as does a diff that
   holds no change or a compare GitHub answers with 404 (a head garbage-collected or force-pushed
   away). Removing whitespace also keeps the refusal for a change that only re-indents, which can
-  matter in Python: it holds more than it must, never less. A pass judged before a later `fail`
-  never clears it. Any other failed read of a run time or a diff refuses as the next item does;
+  matter in Python: it holds more than it must, never less. A `fail`ed head of the same change
+  clears only when every counted `fail` there records `spec_kind` `refs` for this pull request and
+  every counted pass at the head records `spec_kind` `closes` with exactly the `linked_issues` each
+  `fail` records: a closing pass is judged against the whole spec, which holds the `Refs:` slice
+  that failed. The reverse, a missing or other kind, linked issues that differ or cannot be read,
+  or a `fail` record that cannot be read keeps the refusal. A pass judged
+  before a later `fail` never clears it. Any other failed read of a run time or a diff refuses as the next item does;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
@@ -1552,8 +1559,13 @@ head:
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included (otherwise `verify:untrusted-spec`); a Bot or
-  App, the lanes App among them, never counts. The model's spec text holds only what such
-  accounts wrote;
+  App, the lanes App among them, never counts. The model's spec text holds what such
+  accounts wrote and, on an issue whose body such an account wrote, intake triage's newest
+  refinement comment (opening `<!-- intake-triage refinement -->`, by the lanes App's id from
+  `merge.agent-identity` on the trusted-actor list) while unedited and posted before the pull
+  request opened. That comment stays out of the recorded spec comments, so the gate does not see
+  it edited, hidden or replaced after a pass: an edit only takes it out of spec, and a person's
+  correction made after a pass waits for the next head;
 - no counted verdict refuses (`verify:missing`).
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
@@ -1680,8 +1692,11 @@ them on every `pull_request` run, contract-only runs included:
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
-  the cause named. A lane the kill switch stopped passes (no merge freeze), but a kill-switch job
-  that failed does not. A review skips a fork and a bot outside the caller's
+  the cause named. A lane a kill switch stopped (the switch was on when the review run started)
+  fails too: the kill switch pauses review and never waives it. Once it is off, a person on the
+  trusted-actor list re-runs all jobs of that review run, and its completion re-runs ci-status;
+  the admin bypass stays the break-glass. Only runs from this repository's head count, never a
+  fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) matches
@@ -1775,8 +1790,8 @@ list ([Trusted-actor widening](#the-local-babysit-lane)).
 
 [`maintenance-audit-lane-runs.yml`](../../../.github/workflows/maintenance-audit-lane-runs.yml) is a
 `maintenance` producer: once a day (and on a manual run from `main`) it audits the last 24 hours of
-this repository's lane runs and open pull requests and files what it finds into `intake`. It never
-labels an issue `agent-ready`, so nothing it files starts work. Its scripts and tests are in
+this repository's lane runs and open pull requests and writes what it finds into one rolling digest
+issue. It never labels an issue `agent-ready`, so nothing it writes starts work. Its scripts and tests are in
 [`.github/scripts/maintenance-audit-lane-runs/`](../../../.github/scripts/maintenance-audit-lane-runs/).
 
 - **collect**, a script with the job's read-only token, writes one data file per unit, at most 8,
@@ -1794,22 +1809,37 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
   checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
   as data. It returns at most three findings, each citing at least one `path`, `line` and exact
   `quote` from main.
-- **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
-  line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
-  job and the error signature with numbers, SHAs and times removed, kept as the last line of the
-  issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
-  is skipped; any other closed match, whatever its age, is reopened with a comment carrying the
-  checked claims. A finding whose
-  `covered_by` names an open item is skipped. It files at most 5 issues a run, labeled
-  `needs-triage` and `source: lane-sweep` where those labels exist, writes 1 s apart, and stops at 50
-  calls.
+- **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
+  unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
+  lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
+  of the slice, workflow, job and the error signature with numbers, SHAs and times removed. A unit
+  whose data lists no jobs (a C unit, a D unit with no green run, an A unit whose runs list no failed
+  job) leaves the job unbound. The signature is free text in every slice, so binding does not stop a
+  steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
+  per unit. A finding whose fingerprint matches an issue an earlier sweep filed and a person closed
+  as not planned or duplicate is skipped, as is one whose `covered_by` names an open item; one
+  matching such an issue still open is listed as  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
+  found by its first line `<!-- lane-sweep-digest -->`; each entry opens with
+  `<!-- lane-sweep-entry fp=<fingerprint>[ tracked=<issue>] -->`, and the last line,
+  `<!-- lane-sweep:fp=<fingerprint> -->`, holds the fingerprint of the entry set and each entry's
+  tracking issue. A sweep whose set differs replaces the body with the entries it found, so a fixed
+  finding drops off, and adds a comment naming the new and dropped entries and any whose tracking
+  issue opened or closed; an empty set closes the digest, and a later finding reopens it. An
+  entry's details are not in the fingerprint, so they stay as the last rewrite left them. When the
+  collector read part of a workflow's window or stopped before writing every unit
+  (`collect-status.json`), or a unit's findings were not read (a failed judge leg, unparsable
+  output), earlier entries carry over instead of dropping off. A digest closed as not planned or duplicate is muted.
+  Each field is cut at 2,000 characters, and past 60,000 characters an entry keeps only its title
+  and fingerprint. The digest is labeled `source: lane-sweep` where that label exists, never
+  `needs-triage`; writes run 1 s apart and stop at 50 calls.
 
-CI logs can carry text written to steer the judge, so every model-written field of an issue renders
-inside a code fence and its title has links, mentions and references defused. A person rewrites
-such an issue before marking it `agent-ready`.
+CI logs can carry text written to steer the judge, so every model-written field renders inside a
+code fence and each title has links, mentions and references defused. Each rewrite takes
+`agent-ready` off the digest, since a person vetted the earlier text; a person moves a finding
+into its own issue before marking that issue `agent-ready`.
 
-The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so its issues come
-from `github-actions[bot]` and start no workflow, intake triage included. The kill switch stops
+The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so the digest comes
+from `github-actions[bot]` and starts no workflow, intake triage included. The kill switch stops
 every job.
 
 A fourth job, **triage-sweep**, runs alone every hour and with the daily run, with no model
@@ -1829,7 +1859,8 @@ REST calls.
 
 [`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
 every hour (and on a manual run from `main`) with no model. It reads the signals below over the last
-65 minutes, counting a run in the window it completed in, and keeps one issue per key. Its scripts and tests are in
+65 minutes, counting a run in the window it completed in, and keeps one rolling issue per signal, its
+findings listed by key. Its scripts and tests are in
 [`.github/scripts/maintenance-monitor-signals/`](../../../.github/scripts/maintenance-monitor-signals/).
 
 | Signal | Fires when | Key |
@@ -1840,21 +1871,30 @@ every hour (and on a manual run from `main`) with no model. It reads the signals
 | 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
-| 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational | `platform:<incident>`, `platform:actions` |
+| 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap` |
 
-An issue's first body line is `<!-- factory-monitor key=<key> fp=<fingerprint> -->`; the body names
-the signal, the owning area and the key, and carries the evidence inside a text fence as inert lines.
-The fingerprint changes only when the evidence does: the failure text, the run, PR or stop-comment set, the newest
-failed merge group, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
-decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
-the evidence and the marker records it; closed as not planned or duplicate, the key is muted; closed
-otherwise, the issue is reopened with a comment carrying the evidence only on new evidence, or for
-`main-red` on a failed run that started after the close. Issues of every age are read, page by page until a short page, so a quiet key stays open or muted; a run that spends its call budget there stops before writing. It files at most 8 issues a run,
-labeled `needs-triage` and `source: factory-monitor` where those labels exist, writes 1 s apart,
-and stops at 250 REST calls. A source it cannot read is listed in the step summary and the other
-signals still run.
+A rolling issue, titled `Monitoring: <signal>`, has the first body line
+`<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
+and, per current finding, the key, the owning area and the evidence inside a text fence as inert
+lines. Each finding's fingerprint changes only when its evidence does: the failure text, the run, PR or
+stop-comment set, the newest failed merge group, the last merge, or the day for a ceiling; the state
+fingerprint covers the signal's keys and fingerprints, and no finding is the clear state. The newest
+issue for a signal decides: open with the same state, nothing is written; open with a new state, a
+comment names the change and the body is rewritten, and a clear state also closes it; closed as not
+planned or duplicate, the signal is muted; closed otherwise, the same issue is reopened with a new
+state, or for `main-red` on a failed run that started after the close, and never filed a second time.
+A run that could not read one of a signal's sources leaves that signal's open issue as it is, so a
+partly read signal neither clears nor loses findings; a source the lane does not map leaves every
+signal's issue as it is. Each rewrite takes `agent-ready` off
+the issue, since a person vetted the earlier text. Issues of every age are read, page by page until
+a short page; a run that spends its call budget there stops before writing. A still-open issue of
+the earlier one-issue-per-key form (a marker key without `family:`) is closed as not planned with a
+comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
+label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
+no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
+cannot read is listed in the step summary and the other signals still run.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
@@ -1892,7 +1932,9 @@ only when the selected activity sets `applied-by.patch`.
 activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and
 `review-security` for the code and security review lanes, `triage-issue` for intake triage, and
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
-([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). A run no route names takes `models.default-profile`. The config reader rejects a route or default
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
+pr-unblock's read-only judge of a review finding address-feedback disputed
+([pr-run-activity.md](pr-run-activity.md)), on the `review` profile. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
@@ -1920,7 +1962,7 @@ timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-d
 work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
 then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
 its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
-timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
+timeout is 40 minutes. The launcher's leg gets the timeout less 15 minutes, for the steps around it. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
@@ -1935,9 +1977,11 @@ waits on an owner decision and a per-week Fable allowance for the lanes.
 
 ## Funding
 
-Each Claude lane's runs are paid by one funding role. There are six: `reviews` for both review
-lanes, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, and `automations` for the lanes outside
-the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
+Each Claude lane's runs are paid by one funding role. There are seven: `reviews` for both review
+lanes, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, `maintenance` for the eval lane, and
+`automations`, the default for any lane without a dedicated role. Roles divide the work and the
+budget across accounts, so each has its own rate limits and credits; the account behind a role can
+be swapped. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
 [`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
@@ -1955,7 +1999,10 @@ leg hands off (`run-claude-cli`'s `handoff` output: a credit stop, or class `aut
 401 or 402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent`
 runs on the key, and `check-intent-subscription` runs on the token, on a new runner, only after
 `check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
-`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. The read runner's callers
+do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
+and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). Each lane's workflow names
 its role as a literal, and the runner policy admits it. A lane on pr-run-activity-write.yml passes
 its role as the `role` input, and the lane record names that role's token as the run's credential.
 
@@ -1963,9 +2010,18 @@ its role as the `role` input, and the lane record names that role's token as the
 
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
-escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
-rounds have run, unless a write-access trusted person asked for a fix on a thread after the
-newest round: that runs one more round, on the requested threads only. The default is 2; this
+escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
+write-access trusted person's fix request on a thread after the newest round runs one more round,
+on the requested threads only. With no such request, a security lane finding, a pr-verify note (an
+intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold
+hands the PR to a person; any other
+finding goes to one fresh fixer round, a new session like every round. That is the last automatic
+round: once it has run, no sweep, schedule or dispatch starts another, and the next select hands
+the PR to a person as `feedback-not-converging`, a comment that names the open threads (a review
+that does not converge is an intent question). Removing the label alone does not resume it, since
+the rounds already run still count: a person resolves the open threads, or a write-access fix
+request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
+<M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 2; this
 repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
@@ -1992,6 +2048,7 @@ with defaults.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the limit the pool's `x-ratelimit-limit` header reports: `plan`, `writer-pause`, `breaker` and `read-floor`, plus `per-minute` and `per-hour` for `content-creation`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`). The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) reads only `read-floor`, to warn once while calls continue; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -2102,7 +2159,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
 | `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
-| `queued_issues`, `queued_total` | Queued issues with no open lane PR, and those plus the held lane PRs; null when a read failed. |
+| `queued_issues`, `queued_total` | Queued issues with no open lane PR and no blocker that still blocks (at most 30 blocker reads; an unread issue counts), and those plus the held lane PRs; null when a read failed. |
 | `queued_truncated` | `true` when the search counted more queued issues than it lists; admissions then pause. |
 | `queued_cap`, `admission_factor`, `admission_min_per_hour` | The queued cap and its inputs. |
 | `wip_over`, `held_over`, `admission_over`, `queued_over`, `held_alarm` | Which limit is crossed. |

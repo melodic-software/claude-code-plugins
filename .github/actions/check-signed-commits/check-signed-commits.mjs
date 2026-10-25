@@ -151,8 +151,9 @@ const errorDetail = (error) =>
   error?.name === "GitHubError" ? error.message : (error?.name ?? "error");
 
 // Returns the process exit code: 0 once the check ran (whatever it found) and
-// any escalation was posted, 1 otherwise. The outputs are written before the
-// escalation, so a failed escalation write still leaves all-verified=false.
+// any escalation was posted or GitHub refused it for commits that could only
+// not be verified, 1 otherwise. The outputs are written before the escalation,
+// so a failed escalation write still leaves all-verified=false.
 export async function main({ env = process.env, github, log = console.log, sleep } = {}) {
   try {
     if (!PR_NUMBER.test(env.PR_NUMBER ?? "") || !REPOSITORY.test(env.REPOSITORY ?? "")) {
@@ -189,8 +190,13 @@ export async function main({ env = process.env, github, log = console.log, sleep
       try {
         await escalate({ ...target, label: env.ESCALATION_LABEL || "needs-human", result });
       } catch (error) {
-        log(`::error::check-signed-commits: escalation failed (${errorDetail(error)})`);
-        return 1;
+        // GitHub refusing the write on commits that could only not be
+        // verified is no finding about the PR, so it warns instead of failing.
+        if (result.unverified.length > 0 || error?.name !== "GitHubError") {
+          log(`::error::check-signed-commits: escalation failed (${errorDetail(error)})`);
+          return 1;
+        }
+        log(`::warning::check-signed-commits: escalation refused (${errorDetail(error)})`);
       }
     }
     return 0;

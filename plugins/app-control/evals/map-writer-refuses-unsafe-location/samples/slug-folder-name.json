@@ -13,6 +13,14 @@
     {
       "answer": "It becomes features/Billing_Export/README.md.",
       "why": "case kept and an underscore used"
+    },
+    {
+      "answer": "The feature goes to features/billing-export.md.",
+      "why": "flat-file layout, not a feature folder"
+    },
+    {
+      "answer": "It becomes features/billing-exporter/README.md.",
+      "why": "a different slug that only starts the same"
     }
   ]
 }

@@ -3,11 +3,13 @@ name: work-unblock
 # What this does, in plain words:
 #
 # When an issue closes, each issue it was blocking may now be ready to work.
-# This workflow labels `agent-ready` each blocked issue that is open, has every
-# blocker closed as completed by a listed human or a merge (a pull request
-# blocker: merged), carries no hold label (needs-owner-decision,
+# This workflow labels `agent-ready`, oldest first, each blocked issue that is
+# open, has every blocker closed, for any reason, by a listed human or a merge
+# in this repository (a pull request blocker: merged here; another
+# repository's blocker: closed there by a listed human), carries no hold label (needs-owner-decision,
 # status: needs-decision, status: needs-info, needs-human), and whose agent-ready label was never
-# removed. That label starts work-resolve-issue.yml. The rules are in
+# removed, or was marked `status: ready` by the lanes App or a listed human
+# after its newest removal. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
@@ -33,11 +35,16 @@ name: work-unblock
 # files`, or a run
 # cancelled after admit and before resolve-issue started (pick-slot's timeout); a
 # run a newer agent-ready run replaced is not. It does that once per issue
-# per version of the lane's two workflow files on main, recorded in a comment.
+# per version of the lane's two workflow files on main, recorded in a comment,
+# and after that on a backoff (three hours, doubling each time, at most 24),
+# recorded in one comment it edits; it never adds needs-human for it. An open
+# pull request of a listed human's for the issue counts as work running on it.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
-# or was closed unmerged, the App adds needs-triage and takes agent-ready off,
-# after a comment; a person adding agent-ready again re-runs it. A Refs PR
-# merging also lifts the needs-human report-outcome put on the issue for it.
+# or was closed unmerged, the App takes `status: ready` and agent-ready off,
+# after a comment, so the hourly triage sweep sends it back to intake triage. A Refs PR
+# merging or closing unmerged also lifts a needs-human refs-hold already on
+# the issue for it.
+# report-outcome no longer sets that hold, so only an existing one is lifted.
 # It also relabels a red-main fix issue post-merge-demotion-alert.yml reopened
 # on a repeat failure: that reopen keeps agent-ready but, made with the
 # workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
@@ -53,7 +60,8 @@ name: work-unblock
 # a time, so two runs cannot each admit the whole room.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
-# label: no later run labels an issue whose agent-ready label a person removed.
+# label: no later run labels an issue whose agent-ready label a person removed
+# until it is marked `status: ready` again.
 
 on:
   issues:

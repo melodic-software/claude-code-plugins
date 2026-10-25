@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-10-25
+
+### Changed
+
+- `cutover-check.sh` condition 2 resolves a `claude-code-action` pin that is missing from the release map live, by reading `base-action/action.yml` at the pinned ref and taking its `CLAUDE_CODE_VERSION`. A failed fetch, or a file with no such assignment, stays `[UNREACH]`. The map in `sources.md` is now the offline cache. A new `--action-fetch` option overrides how the file is fetched.
+
 ## [0.25.3] - 2026-10-24
 
 ### Changed

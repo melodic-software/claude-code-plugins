@@ -18,7 +18,8 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { GITHUB_STATUS_URL, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -108,6 +109,10 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
       const found = byId.get(Number(latest[1]))?.jobs ?? [];
       return { total_count: found.length, jobs: found };
     }
+    const notes = /^\/repos\/[^/]+\/[^/]+\/check-runs\/([0-9]+)\/annotations\?per_page=100$/.exec(path);
+    if (method === "GET" && notes) {
+      return runs.flatMap((r) => r.jobs ?? []).find((j) => j.id === Number(notes[1]))?.notes ?? [];
+    }
     const one = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)(\/rerun|\/rerun-failed-jobs)?$/.exec(path);
     if (one && method === "GET") {
       return byId.get(Number(one[1]));
@@ -172,14 +177,18 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
 
 // A first-attempt job of pr-verify, lost before (null) or after its judge step
 // started; by default it was lost in the trigger check, before the judge step.
+// A finished job lists every step completed, the ones it never reached as
+// skipped, and ends with "Complete job".
 const verifyJob = (judgeConclusion = null) => [
   {
     name: "verify",
+    status: "completed",
     steps: [
       { name: "Set up job", status: "completed", conclusion: "success" },
       { name: "Check the trigger", status: "completed", conclusion: judgeConclusion === null ? "cancelled" : "success" },
-      { name: "Judge the pull request", status: judgeConclusion === null ? "pending" : "completed", conclusion: judgeConclusion },
-      { name: "Upload the verdict", status: "pending", conclusion: null },
+      { name: "Judge the pull request", status: "completed", conclusion: judgeConclusion ?? "skipped" },
+      { name: "Upload the verdict", status: "completed", conclusion: "skipped" },
+      { name: "Complete job", status: "completed", conclusion: "success" },
     ],
   },
 ];
@@ -315,6 +324,37 @@ test("the first rate-limit error stops the run", async () => {
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
 });
 
+// The rate guard's refusal carries status 429: it stops the run like a 429
+// answer, with no request sent and no wait taken.
+test("a call the rate guard refuses stops the run without a request or a wait", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-stop-"));
+  try {
+    const stopFile = path.join(dir, "stop");
+    writeFileSync(stopFile, `* ${Math.floor(Date.now() / 1000) + 3600}\n`);
+    const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+    let sent = 0;
+    const { code, sleeps } = await reconcile({
+      pulls: [pr(1)],
+      runs: [run(101, sha(1))],
+      github: () =>
+        createGitHub({
+          token: "t",
+          apiUrl: "https://api.example",
+          latch,
+          fetchImpl: async () => {
+            sent += 1;
+            return Response.json({});
+          },
+        }),
+    });
+    assert.equal(code, 1);
+    assert.equal(sent, 0);
+    assert.deepEqual(sleeps, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a refused re-run is reported and the rest go ahead", async () => {
   const { code, calls } = await reconcile({
     pulls: [pr(1), pr(2)],
@@ -425,6 +465,8 @@ test("pr-verify still names its judge step as the reconciler reads it", () => {
   const judge = stepAt(JUDGE_STEP);
   assert.ok(judge >= 0);
   assert.ok(judge < stepAt("Upload the verdict"));
+  const names = [...workflow.matchAll(/^[ ]*- name: (.+)$/gm)].map((m) => m[1]);
+  assert.equal(names[names.indexOf(JUDGE_STEP) - 1], JUDGE_PREDECESSOR);
 });
 
 test("a verify run whose judge step started is never re-run or recorded", async () => {
@@ -455,6 +497,115 @@ test("a verify run none of whose first-attempt jobs started is never re-run or r
     assert.deepEqual(reruns, []);
     assert.deepEqual(records(outputs), ["", "", ""]);
   }
+});
+
+// The jobs API can list a job that ran with no steps, or cut short before its
+// judge step; neither shows whether the judge step started.
+test("a verify run whose job's steps did not list is not re-run or recorded, and is read again next pass", async () => {
+  const cut = [{ name: "Check the trigger", status: "completed", conclusion: "cancelled" }];
+  // Opens with "Set up job" but skips the judge step's number.
+  const midCut = [
+    { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+    { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+    { number: 4, name: "Upload the verdict", status: "pending", conclusion: null },
+  ];
+  // Opens with "Set up job", every listed step done, the rest cut off.
+  const tailCut = [
+    { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+    { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+  ];
+  // Whole, but stale: the judge step still in progress in a finished job.
+  const stale = [
+    { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+    { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+    { number: 3, name: "Judge the pull request", status: "in_progress", conclusion: null },
+    { number: 4, name: "Upload the verdict", status: "pending", conclusion: null },
+    { number: 9, name: "Complete job", status: "completed", conclusion: "success" },
+  ];
+  for (const [label, steps] of Object.entries({ empty: [], cut, midCut, tailCut, stale })) {
+    const { code, reruns, outputs } = await reconcile({
+      pulls: [],
+      runs: [{ ...verifyRun(201), jobs: [{ name: "verify", status: "completed", conclusion: "cancelled", runner_id: 7, steps }] }],
+    });
+    assert.equal(code, 1, label);
+    assert.deepEqual(reruns, [], label);
+    assert.deepEqual(records(outputs), ["", "", ""], label);
+  }
+});
+
+// A runner that dies cuts its job's list at the running step, with no
+// "Complete job"; GitHub's runner-loss annotation on the job's check run tells
+// that cut from one the API made.
+test("a verify run whose job lost its runner is re-run when its cut list stops before the judge step, from the job's annotations", async () => {
+  const lostAt = (running) => ({
+    id: 88,
+    name: "verify",
+    status: "completed",
+    conclusion: "failure",
+    runner_id: 7,
+    steps: [
+      { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+      { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+      { number: 3, name: running, status: "in_progress", conclusion: null },
+    ],
+    notes: [{ annotation_level: "failure", message: "The hosted runner: GitHub Actions 7 lost communication with the server." }],
+  });
+  const before = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [lostAt("Read the spec")] }] });
+  assert.equal(before.code, 0);
+  assert.deepEqual(before.reruns, [201]);
+  assert.deepEqual(records(before.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+  assert.ok(before.calls.includes(`GET /repos/${REPO}/check-runs/88/annotations?per_page=100`));
+  const during = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [lostAt(JUDGE_STEP)] }] });
+  assert.equal(during.code, 0);
+  assert.deepEqual(during.reruns, []);
+  assert.deepEqual(records(during.outputs), ["", "", ""]);
+  const unnoted = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ ...lostAt("Read the spec"), notes: [] }] }] });
+  assert.equal(unnoted.code, 1);
+  assert.deepEqual(unnoted.reruns, []);
+  assert.deepEqual(records(unnoted.outputs), ["", "", ""]);
+});
+
+// The judge step's log can echo model or PR text, so a failure annotation that
+// reads as a runner loss proves one only on a cut list that stops before the
+// judge step's predecessor, in a job that failed.
+test("a runner-loss annotation counts only on a failed job whose cut list stops before the judge step's predecessor", async () => {
+  const cutAt = (names, conclusion = "failure") => ({
+    id: 88,
+    name: "verify",
+    status: "completed",
+    conclusion,
+    runner_id: 7,
+    steps: names.map((name, i) => ({ number: i + 1, name, status: i === names.length - 1 ? "in_progress" : "completed", conclusion: i === names.length - 1 ? null : "success" })),
+    notes: [{ annotation_level: "failure", message: "The hosted runner lost communication with the server." }],
+  });
+  const early = ["Set up job", "Check the trigger", "Read the spec"];
+  const run201 = (job) => reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [job] }] });
+  const genuine = await run201(cutAt(early));
+  assert.equal(genuine.code, 0);
+  assert.deepEqual(genuine.reruns, [201]);
+  for (const reached of [JUDGE_PREDECESSOR, JUDGE_STEP]) {
+    const echoed = await run201(cutAt([...early, reached]));
+    assert.equal(echoed.code, 0, reached);
+    assert.deepEqual(echoed.reruns, [], reached);
+    assert.deepEqual(records(echoed.outputs), ["", "", ""], reached);
+  }
+  const notFailed = await run201(cutAt(early, "cancelled"));
+  assert.equal(notFailed.code, 1);
+  assert.deepEqual(notFailed.reruns, []);
+  assert.deepEqual(records(notFailed.outputs), ["", "", ""]);
+  const judgeNotFailed = await run201(cutAt([...early, JUDGE_STEP], "cancelled"));
+  assert.equal(judgeNotFailed.code, 1);
+  assert.deepEqual(judgeNotFailed.reruns, []);
+});
+
+// Whatever the list looks like, a judge step listed with any state but a
+// finished skip counts as started.
+test("a verify run whose judge step is listed with no conclusion is held", async () => {
+  const [job] = verifyJob(null);
+  const steps = job.steps.map((s) => (s.name === JUDGE_STEP ? { ...s, status: "completed", conclusion: null } : s));
+  const { reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ ...job, steps }] }] });
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
 test("a verify run whose jobs cannot be read is not re-run", async () => {
@@ -583,6 +734,33 @@ test("a run with a real failure at attempt 2, or older than the lookback, is not
   const { code, calls } = await reconcile({ pulls: [pr(1), pr(2)], runs });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});
+
+test("a failed run at attempt 2 whose failed job's steps did not list is not re-run as infra", async () => {
+  const cut = [{ name: "Check out", status: "completed", conclusion: "success" }];
+  for (const steps of [[], cut]) {
+    const jobs = [{ name: "lint-repo", conclusion: "failure", runner_id: 7, steps }];
+    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs, attempt: 2 })] });
+    assert.equal(code, 0);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  }
+});
+
+test("a failed run at attempt 2 whose cut job lost its runner is re-run as infra, from the job's annotations", async () => {
+  const steps = [
+    { name: "Set up job", status: "completed", conclusion: "success" },
+    { name: "Run the suites", status: "in_progress", conclusion: null },
+  ];
+  const lost = { id: 77, name: "lint-repo", status: "completed", conclusion: "failure", runner_id: 7, steps };
+  const message = "The hosted runner: GitHub Actions 7 lost communication with the server.";
+  const { failedJobReruns, calls } = await reconcile({
+    pulls: [pr(1)],
+    runs: [failed(101, sha(1), { jobs: [{ ...lost, notes: [{ annotation_level: "failure", message }] }], attempt: 2, updated: "2026-10-19T19:00:00Z" })],
+  });
+  assert.deepEqual(failedJobReruns, [101]);
+  assert.ok(calls.includes(`GET /repos/${REPO}/check-runs/77/annotations?per_page=100`));
+  const { calls: plain } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: [lost], attempt: 2, updated: "2026-10-19T19:00:00Z" })] });
+  assert.deepEqual(plain.filter((c) => c.startsWith("POST ")), []);
 });
 
 test("a run where only ci-status failed is not re-run", async () => {

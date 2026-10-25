@@ -213,5 +213,69 @@ new_case
 printf '# Sign in\n\nThe sign-in steps.\n' >"$SKILL/shared/sign-in/README.md"
 assert_equals "shared-why" "$(run_check)" "shared-why | shared/sign-in | no 'Why shared: <reason>' line"
 
+new_case
+rm "$SKILL/shared/sign-in/README.md"
+assert_equals "shared-why: folder item with no README.md" "$(run_check)" "shared-why | shared/sign-in | no README.md"
+
+# A file item holds its why line in a comment; a hidden file is not an item.
+new_case
+rm -r "$SKILL/shared/sign-in"
+printf '#!/bin/sh\n# Why shared: cart and export both start signed in.\n' >"$SKILL/shared/sign-in.sh"
+: >"$SKILL/shared/.gitkeep"
+replace "$SKILL/features/cart/README.md" "shared/sign-in" "shared/sign-in.sh"
+replace "$SKILL/features/billing/export/README.md" "shared/sign-in" "shared/sign-in.sh"
+assert_equals "shared: file item with a commented why line, hidden file ignored" "$(run_check)" ""
+
+# A malformed index line is a finding, and later rules still run.
+new_case
+printf -- '- Bad || features/x/README.md | entry points: 1 | sources: src/cart/**/*.py\n' >>"$SKILL/SKILL.md"
+replace "$SKILL/features/cart/README.md" "../billing/export/README.md" "../billing/exports/README.md"
+out="$(run_check)"
+assert_equals "index-form: exit 0" "$?" "0"
+assert_equals "index-form" "$out" "index-form | SKILL.md | - Bad || features/x/README.md | entry points: 1 | sources: src/cart/**/*.py
+link | features/cart/README.md | ../billing/exports/README.md does not resolve"
+
+# An index line whose second field is mistyped or empty is still read, and is an index-form finding.
+new_case
+printf -- '- Cart | feature/cart/README.md | entry points: 2 | sources: src/cart/**/*.py\n' >>"$SKILL/SKILL.md"
+assert_equals "index-form: mistyped feature path" "$(run_check)" \
+  "index-form | SKILL.md | - Cart | feature/cart/README.md | entry points: 2 | sources: src/cart/**/*.py"
+new_case
+printf -- '- Refunds | | entry points: 1 | sources: shop/refunds.py\n' >>"$SKILL/SKILL.md"
+assert_equals "index-form: empty feature path" "$(run_check)" \
+  "index-form | SKILL.md | - Refunds | | entry points: 1 | sources: shop/refunds.py"
+
+# A single-use item moved into its feature's folder is not a feature.
+new_case
+mkdir -p "$SKILL/features/cart/sign-in"
+printf '# Sign in\n\nSteps.\n' >"$SKILL/features/cart/sign-in/README.md"
+assert_equals "index-missing: a folder inside a feature folder is not a feature" "$(run_check)" ""
+
+# Two comma-separated globs: each is checked.
+new_case
+replace "$SKILL/SKILL.md" "sources: src/billing/export.py" "sources: src/billing/export.py, src/billing/gone.py"
+assert_equals "index-glob: second of two globs" "$(run_check)" "index-glob | SKILL.md | features/billing/export/README.md: src/billing/gone.py matches no file"
+
+# A glob that leaves the project root is a finding and is never expanded.
+new_case
+replace "$SKILL/SKILL.md" "sources: src/billing/export.py" "sources: ../../../../../../etc/pass*"
+assert_equals "index-glob: escapes the project root" "$(run_check)" "index-glob | SKILL.md | features/billing/export/README.md: ../../../../../../etc/pass* leaves the project root"
+
+new_case
+ln -s / "$ROOT/rootlink"
+replace "$SKILL/SKILL.md" "sources: src/billing/export.py" "sources: rootlink/**/nonexistent-zzz"
+assert_equals "index-glob: a symlink out of the project root" "$(run_check)" "index-glob | SKILL.md | features/billing/export/README.md: rootlink/**/nonexistent-zzz leaves the project root"
+
+# Dependency folders under the skill are not checked for links.
+new_case
+mkdir -p "$SKILL/cli/node_modules/pkg"
+printf '[a](./docs/a.md)\n' >"$SKILL/cli/node_modules/pkg/README.md"
+assert_equals "link: node_modules is skipped" "$(run_check)" ""
+
+bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
+assert_equals "usage: --root with no value exits 2" "$?" "2"
+bash "$CHECK" "$SKILL" "$SKILL" >/dev/null 2>&1
+assert_equals "usage: a second directory exits 2" "$?" "2"
+
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

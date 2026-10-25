@@ -156,6 +156,18 @@
           "maximum": 100,
           "default": 1,
           "description": "Admissions per hour the queued cap never falls below: it is at least this rate times wip.merge-rate-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
+        },
+        "api": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "GitHub API margins per pool, each a share of the limit the pool's x-ratelimit-limit header reports. A graphql call reads `graphql`; any other call reads the entry its token names. Unset fields take the defaults in $defs/api-pool and $defs/api-content-pool.",
+          "properties": {
+            "github-token": { "$ref": "#/$defs/api-pool" },
+            "lanes-app": { "$ref": "#/$defs/api-pool" },
+            "graphql": { "$ref": "#/$defs/api-pool" },
+            "owner-token": { "$ref": "#/$defs/api-pool" },
+            "content-creation": { "$ref": "#/$defs/api-content-pool" }
+          }
         }
       }
     },
@@ -291,6 +303,63 @@
     "models": { "$ref": "#/$defs/models" }
   },
   "$defs": {
+    "api-pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plan": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.7,
+          "description": "Share of the pool's limit the lanes plan to spend. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+        },
+        "writer-pause": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.4,
+          "description": "Share of the limit left at which writers should pause. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+        },
+        "breaker": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "description": "Share of the limit left at which the repository kill switch should be set. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+        },
+        "read-floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.1,
+          "description": "Share of the limit left below which the rate guard warns once per pool; calls continue."
+        }
+      }
+    },
+    "api-content-pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Content-creating writes (comments, labels, issues, pull requests): no header reports this limit, so it is set here.",
+      "properties": {
+        "plan": { "$ref": "#/$defs/api-pool/properties/plan" },
+        "writer-pause": { "$ref": "#/$defs/api-pool/properties/writer-pause" },
+        "breaker": { "$ref": "#/$defs/api-pool/properties/breaker" },
+        "read-floor": { "$ref": "#/$defs/api-pool/properties/read-floor" },
+        "per-minute": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 80,
+          "description": "Content-creating requests GitHub allows per minute. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+        },
+        "per-hour": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 500,
+          "description": "Content-creating requests GitHub allows per hour. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+        }
+      }
+    },
     "name": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
@@ -349,24 +418,6 @@
           "items": { "type": "boolean" },
           "description": "Whether the PR is a draft."
         },
-        "work-classes": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/work-class" }
-        },
-        "admission": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["classes"],
-          "description": "Which `work-class:` labels an issues lane admits: an issue carrying a `work-class:` label outside `classes` is refused, even beside a listed one; otherwise it is admitted by a listed class label. Work-class labels match in any casing or spacing, and labels are read when the run starts. With no `admission`, no work-class label is read.",
-          "properties": {
-            "classes": {
-              "type": "array",
-              "minItems": 1,
-              "items": { "type": "string", "pattern": "^work-class: [a-z-]+$" }
-            }
-          }
-        },
         "events": {
           "type": "array",
           "minItems": 1,
@@ -386,7 +437,6 @@
         }
       }
     },
-    "work-class": { "enum": ["C1", "C2", "C3", "C4", "C5"] },
     "skip-reason": {
       "enum": [
         "not-applicable-paths",
@@ -404,6 +454,7 @@
         "workflow-modified",
         "rung-up",
         "no-model-turn",
+        "finding-stands",
         "clean-merge"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
@@ -652,7 +703,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["profiles", "default-profile"],
-      "description": "The model, effort and turn budget of every model run, as named profiles and a route from each run to one. A skill activity's route is its activity name; a run that is no activity takes a run route: verify-pr for pr-verify.yml, review-code and review-security for the code and security review lanes, triage-issue for intake triage, summarize-reuse for work-resolve-issue's summary of a reused lane branch. A run with no route takes default-profile. Absent: every run takes the built-in standard profile, model default with 75 turns (README.md, Models).",
+      "description": "The model, effort and turn budget of every model run, as named profiles and a route from each run to one. A skill activity's route is its activity name; a run that is no activity takes a run route: verify-pr for pr-verify.yml, review-code and review-security for the code and security review lanes, triage-issue for intake triage, summarize-reuse for work-resolve-issue's summary of a reused lane branch, adjudicate-feedback for pr-unblock's judge of a disputed review finding. A run with no route takes default-profile. Absent: every run takes the built-in standard profile, model default with 75 turns (README.md, Models).",
       "properties": {
         "profiles": {
           "type": "object",
@@ -668,7 +719,7 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/name" },
-          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, review-code, review-security, triage-issue, summarize-reuse); a value is a key of profiles. The config reader rejects any other key or value."
+          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback); a value is a key of profiles. The config reader rejects any other key or value."
         },
         "issue-dimensions": { "$ref": "#/$defs/issue-dimensions" }
       }

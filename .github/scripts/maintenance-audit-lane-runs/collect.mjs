@@ -7,6 +7,11 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+
+// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
+// is read at call time, so a test's stub is guarded too.
+const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export const MAX_UNITS = 8;
 const A_WORKFLOWS = 4;
@@ -146,7 +151,7 @@ export async function listRuns({ gh, repo, from, to, budget, reserve = DETAIL_RE
 function client({ api, token, budget }) {
   const call = async (path, { text = false } = {}) => {
     budget.spend();
-    const response = await fetch(`${api}${path}`, {
+    const response = await guardedFetch(`${api}${path}`, {
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${token}`,
@@ -311,6 +316,11 @@ export async function main({ env = process.env, now = Date.now() } = {}) {
     writeFileSync(join(out, "units", `${unit.id}.json`), `${JSON.stringify({ ...unit, ...window, ...detail }, null, 2)}\n`);
     written.push(unit.id);
   }
+  // The file job keeps earlier digest entries unless this is true.
+  writeFileSync(
+    join(out, "collect-status.json"),
+    `${JSON.stringify({ complete: truncated === null && partial.length === 0, truncated, partial: partial.map((p) => p.path) })}\n`,
+  );
   writeFileSync(
     join(out, "open-items.json"),
     `${JSON.stringify(

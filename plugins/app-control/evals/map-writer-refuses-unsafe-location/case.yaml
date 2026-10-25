@@ -11,7 +11,13 @@ execution:
 graders:
   - name: slug-folder-name
     type: regex
-    pattern: 'features/billing-export'
+    pattern: 'features/billing-export(?![\w-]|\.\w)'
+    arm: both
+  - name: writes-nothing
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
     arm: both
   - name: default-directory
     type: regex

@@ -26,9 +26,10 @@ name: pr-feedback-dispatch
 #
 # A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
 # starts the dispatch job too, which sweeps the open lanes App PRs for a head
-# whose last address-feedback round had no model turn and dispatches one such
-# head again, through its newest completed review run, at most once per tick
-# (feedback-dispatch.mjs sweepNoModelTurn). That round released the head only
+# whose last address-feedback round had no model turn, or left an adjudicated
+# finding standing with the head unmoved, and dispatches one such head again,
+# through its newest completed review run, at most once per tick
+# (feedback-dispatch.mjs sweepReleased). That round released the head only
 # for a next review or pr-verify completion, which may never come. Taking
 # the tick's completion rather than a schedule of this file's own keeps
 # every dispatch a workflow_run dispatcher's, the one kind the gate and the
@@ -36,7 +37,8 @@ name: pr-feedback-dispatch
 #
 # A completed review run on any same-repository PR also starts the
 # rerun-ci-status job, which re-runs the head's ci-status once the head's
-# last review lane has finished, so it reads both reviews (see that job).
+# last review lane has finished, so it reads both reviews, and records each
+# re-run for pr-verify's trigger gate (see that job).
 #
 # Every completed review run at a head starts this file, so a run leaves a
 # record for the next one at that head in the Actions cache
@@ -303,9 +305,19 @@ jobs:
   # margin covers a lagging read), reads them anyway, so it is left alone
   # too; one that
   # started earlier and is still in progress waits for its run, polled every
-  # 60 s for at most 10 minutes, then is re-run. No checkout, no model: the
-  # token can only read runs and the PR and re-run a job.
-  # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs this body.
+  # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
+  # but the trusted-actors list: the token can only read contents, runs and
+  # the PR and re-run a job.
+  #
+  # The re-run's attempt is started by github-actions[bot], which pr-verify's
+  # trigger gate does not list, so just before the re-run the job uploads
+  # rerun-ci-status-<run id>-<attempt>-<head sha>, naming the attempt the
+  # re-run starts; the gate's ci-status-rerun-workflow input accepts that
+  # attempt through it (check-trusted-trigger's README). Only a review run at
+  # its first attempt, or re-run by a human on the default branch's
+  # trusted-actors list, is recorded; another re-runner's re-run of ci-status
+  # goes ahead unrecorded, and the gate refuses it.
+  # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs the find body.
   rerun-ci-status:
     if: >-
       github.ref == 'refs/heads/main'
@@ -318,10 +330,26 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
+      contents: read # check out the default branch's trusted-actors list
       actions: write # list review and pr-require-checks runs and jobs; re-run the ci-status job
       pull-requests: read # the PR's state and live head
     steps:
-      - name: Re-run ci-status on the reviewed head
+      # The list the record check reads, from the default branch, never the
+      # PR head. A failed checkout leaves no list: ci-status is still re-run,
+      # unrecorded unless the review run is a first attempt.
+      - name: Check out the trusted-actors list
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/standards/trusted-actors/
+          sparse-checkout-cone-mode: false
+
+      - name: Find the ci-status to re-run
+        id: find
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -330,6 +358,10 @@ jobs:
           LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}
           POLL_SECONDS: '60'
           POLL_LIMIT_SECONDS: '600'
+          RECORD_FILE: ${{ runner.temp }}/rerun-ci-status-record.json
+          REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
@@ -400,9 +432,11 @@ jobs:
             exit 1
           }
           # ci-status's own choice of run: the newest pull_request run of the file on the head.
+          # A fork's run at the same SHA is never it.
           newest() {
-            jq -c --arg path ".github/workflows/$1" --arg sha "$HEAD_SHA" '[.workflow_runs[]
-              | select(.path == $path and .head_sha == $sha and .event == "pull_request")]
+            jq -c --arg path ".github/workflows/$1" --arg sha "$HEAD_SHA" --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[]
+              | select(.path == $path and .head_sha == $sha and .event == "pull_request"
+                and .head_repository.full_name == $repo)]
               | max_by(.id) // empty'
           }
           read_api runs "the $other runs on $HEAD_SHA" \
@@ -463,5 +497,55 @@ jobs:
             echo "#$PR_NUMBER is closed or no longer at $HEAD_SHA; nothing to re-run."
             exit 0
           fi
-          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/rerun" >/dev/null
-          echo "Re-ran ci-status (job $job_id) of run $id on $HEAD_SHA."
+          attempt=$(jq -r '.run_attempt // empty' <<<"$run")
+          if [[ ! $attempt =~ ^[1-9][0-9]{0,4}$ ]]; then
+            echo "::error::run $id on $HEAD_SHA reports no attempt number."
+            exit 1
+          fi
+          next=$((attempt + 1))
+          echo "job-id=$job_id" >>"$GITHUB_OUTPUT"
+          echo "Re-running ci-status (job $job_id) of run $id on $HEAD_SHA as attempt $next."
+          # Recorded only for a first review attempt or a listed human's
+          # re-run: anyone with write access can re-run a review run, and the
+          # record vouches for the ci-status attempt that re-run causes. An
+          # unreadable list, attempt or re-runner records nothing, so the
+          # gate refuses that attempt.
+          if [[ $REVIEW_ATTEMPT != 1 ]] && ! {
+            [[ $REVIEW_ATTEMPT =~ ^[1-9][0-9]{0,4}$ && $REVIEW_RERUNNER_ID =~ ^[1-9][0-9]{0,14}$ ]] &&
+              jq -e --argjson id "$REVIEW_RERUNNER_ID" '.actors | any(.id == $id and .kind == "human")' "$TRUSTED_ACTORS" >/dev/null 2>&1
+          }; then
+            echo "::notice::review attempt ${REVIEW_ATTEMPT:-?} was started by ${REVIEW_RERUNNER_ID:-an unnamed actor}, who is not a listed human; the re-run is not recorded, so pr-verify's gate refuses it."
+            exit 0
+          fi
+          jq -cn --argjson recorder "$GITHUB_RUN_ID" --argjson run "$id" --argjson attempt "$next" --arg head "$HEAD_SHA" \
+            --argjson pr "$PR_NUMBER" --argjson job "$job_id" --arg lane "$LANE_PATH" \
+            '{recorder_run_id: $recorder, run_id: $run, attempt: $attempt, head_sha: $head, pr_number: $pr,
+              job_id: $job, lane_path: $lane, reason: "the review lanes finished after ci-status read them"}' >"$RECORD_FILE"
+          echo "record=rerun-ci-status-$id-$next-$HEAD_SHA" >>"$GITHUB_OUTPUT"
+
+      # Uploaded last before the re-run, so the record names the attempt the
+      # re-run starts; a re-run someone else lands in between takes that
+      # attempt, and this one's next attempt has no record and is refused.
+      - name: Record the re-run
+        if: steps.find.outputs.record != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.find.outputs.record }}
+          path: ${{ runner.temp }}/rerun-ci-status-record.json
+          retention-days: 1
+          if-no-files-found: error
+          # A re-run of this job after a failed POST records the same name.
+          overwrite: true
+
+      - name: Re-run ci-status
+        if: steps.find.outputs.job-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: ${{ steps.find.outputs.job-id }}
+        run: |
+          if [[ ! $JOB_ID =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::'$JOB_ID' is not a job id."
+            exit 1
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/rerun" >/dev/null
+          echo "Re-ran ci-status (job $JOB_ID)."

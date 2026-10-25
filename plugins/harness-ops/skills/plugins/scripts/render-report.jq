@@ -298,7 +298,7 @@ def block($d):
          | "Timing: \($t.total | secs) this marketplace"
            + (if $slow == null then "" else "; slowest step \($slow.key) \($slow.value)s" end)
            + (if $t.unattributed == null then "" else "; \($t.unattributed)s outside the named steps" end)
-           + " (\($t.resolution))"
+           + "; clock resolution: \($t.resolution)"
        end),
 
       # Action needed: omitted entirely when nothing needs action.
@@ -383,7 +383,7 @@ def block($d):
     "Timing: \($d.timings.total | secs) run total"
     + (if $d.timings.outside_marketplaces == null then ""
        else "; \($d.timings.outside_marketplaces)s outside the marketplace blocks" end)
-    + " (\($d.timings.resolution))",
+    + "; clock resolution: \($d.timings.resolution)",
     ([
        (if $d.install_new_invalid != null then
           "install_new value \"\($d.install_new_invalid)\" is not all, none, or ask; this run used ask"

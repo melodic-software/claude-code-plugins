@@ -1178,9 +1178,9 @@ assert_eq "render: the renderer carries no user_config placeholder token" "0" \
 # The Timing row's shape, asserted here because the golden elides its figures.
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
 assert_contains "render: the marketplace Timing row names the slowest step, the remainder and the clock" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s; [0-9.]+s outside the named steps \((microseconds|nanoseconds|seconds)\)$' | head -n 1)" "Timing: "
+  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s; [0-9.]+s outside the named steps; clock resolution: (microseconds|nanoseconds|seconds)$' | head -n 1)" "Timing: "
 assert_contains "render: the run Timing row names the run total and its remainder" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s run total; [0-9.]+s outside the marketplace blocks \((microseconds|nanoseconds|seconds)\)$')" "run total"
+  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s run total; [0-9.]+s outside the marketplace blocks; clock resolution: (microseconds|nanoseconds|seconds)$')" "run total"
 
 # --- a withheld downgrade, with the source named as the likely cause --------
 CASE_NUM=$((CASE_NUM + 1))
