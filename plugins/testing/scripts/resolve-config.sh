@@ -75,9 +75,17 @@
 # segment starting with run- or ending in verify is refused the same way an
 # unknown value is; the warning names the value as written.
 #
+# WRITE: `resolve-config.sh write` resolves /testing:write's keys the same
+# way and prints the same three columns: tdd_refactor_step (on | off, default
+# on) and first_test (user-flow | unit, default user-flow). Like
+# feature_map_dir they are repository settings: only the overlay and
+# testing.yaml set them, the user-global file is skipped with a warning, and
+# there is no --user value.
+#
 # Usage:
 #   resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
 #   resolve-config.sh e2e [--root <dir>] [--home <dir>] [--user <key>=<value>]...
+#   resolve-config.sh write [--root <dir>] [--home <dir>]
 #   resolve-config.sh match <glob> <path>     exit 0 on a match, 1 otherwise
 #   resolve-config.sh --help
 #   source resolve-config.sh                  defines tcfg_norm, tcfg_glob_re
@@ -156,8 +164,8 @@ USER_HOME_DIR="${HOME:-}"
 QUICK=0
 MODE=scan
 users=()
-if [[ "${1:-}" == e2e ]]; then
-  MODE=e2e
+if [[ "${1:-}" == e2e || "${1:-}" == write ]]; then
+  MODE="$1"
   shift
 fi
 while [[ $# -gt 0 ]]; do
@@ -194,7 +202,7 @@ done
 if [[ -z "$ROOT" ]]; then
   ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   ROOT="${ROOT:-${CLAUDE_PROJECT_DIR:-}}"
-  [[ -n "$ROOT" || "$MODE" == e2e ]] || die "not inside a git repository, no CLAUDE_PROJECT_DIR and no --root given"
+  [[ -n "$ROOT" || "$MODE" != scan ]] || die "not inside a git repository, no CLAUDE_PROJECT_DIR and no --root given"
 fi
 [[ -z "$ROOT" || -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
 
@@ -204,7 +212,8 @@ LOADER="$PLUGIN/../skills/audit/scripts/adapter-load.awk"
 PCV="$PLUGIN/parse-concern-value.sh"
 PLUGIN="$PLUGIN/.."
 
-warn() { printf 'resolve-config: warning: %s\n' "$1" >&2; }
+# A warning can quote a layer's text: strip non-printing bytes, keeping \t and \n.
+warn() { printf 'resolve-config: warning: %s\n' "$1" | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2; }
 
 # under_link <file>: true when <file>, or a directory above it inside <root>,
 # is a symlink. A repository could point such a layer at any file.
@@ -262,9 +271,10 @@ map_dir_refusal() {
   esac
 }
 
-# e2e: print each run-e2e key's value and source (header, E2E). Exit 0.
-e2e() {
-  local key val shown written q src def f u raw lines allowed why files=() user_driver="" user_reuse="" user_browser=""
+# mode_keys <key>...: print each key's value and source (header, E2E and
+# WRITE). Exit 0.
+mode_keys() {
+  local key val shown written q src def f u raw lines allowed why repo_only files=() user_driver="" user_reuse="" user_browser=""
   local tool_re='^[A-Za-z0-9._-]+$'
   for u in ${users[@]+"${users[@]}"}; do
     val="${u#*=}"
@@ -287,12 +297,14 @@ e2e() {
       files+=("$f")
     fi
   done
-  for key in e2e_driver reuse_running_instance feature_map_dir browser_driver; do
+  for key in "$@"; do
     case "$key" in
-    e2e_driver) allowed="auto harness run playwright chrome" u="$user_driver" def=auto ;;
-    reuse_running_instance) allowed="auto true false" u="$user_reuse" def=auto ;;
-    browser_driver) allowed="" u="$user_browser" def=playwright-cli ;;
-    *) allowed="" u="" def=.claude/skills/feature-map ;;
+    e2e_driver) allowed="auto harness run playwright chrome" u="$user_driver" def=auto repo_only="" ;;
+    reuse_running_instance) allowed="auto true false" u="$user_reuse" def=auto repo_only="" ;;
+    browser_driver) allowed="" u="$user_browser" def=playwright-cli repo_only="" ;;
+    tdd_refactor_step) allowed="on off" u="" def=on repo_only=setting ;;
+    first_test) allowed="user-flow unit" u="" def=user-flow repo_only=setting ;;
+    *) allowed="" u="" def=.claude/skills/feature-map repo_only=path ;;
     esac
     val="" src="" raw=""
     for f in ${files[@]+"${files[@]}"}; do
@@ -300,8 +312,8 @@ e2e() {
       # reaches the parser, so a nested, non-scalar or unparsable value reads
       # as empty and is reported below.
       lines="$(LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" | grep -E "^${key}[[:space:]]*:")" || continue
-      if [[ "$key" == feature_map_dir && "$f" == "$USER_HOME_DIR/.claude/testing.yaml" ]]; then
-        warn "$f: feature_map_dir is a repository path; the user-global layer is not read for it"
+      if [[ -n "$repo_only" && "$f" == "$USER_HOME_DIR/.claude/testing.yaml" ]]; then
+        warn "$f: $key is a repository $repo_only; the user-global layer is not read for it"
         continue
       fi
       src="$f"
@@ -338,7 +350,10 @@ e2e() {
   done
 }
 if [[ "$MODE" == e2e ]]; then
-  e2e
+  mode_keys e2e_driver reuse_running_instance feature_map_dir browser_driver
+  exit 0
+elif [[ "$MODE" == write ]]; then
+  mode_keys tdd_refactor_step first_test
   exit 0
 fi
 

@@ -89,9 +89,13 @@ activities:
     # runs only base code, keeps only unresolved threads the reviewer bot
     # opened on a reviewed head, left by it alone or answered by a trusted
     # person after the lane escalated them, hands the pull request to a person
-    # when it changes .github/workflows/ or `loop.review-rounds` rounds already
-    # ran (a write-access fix request newer than the last round still runs one
-    # more round on its threads), and writes the thread file; the read runner
+    # when it changes .github/workflows/ or, once `loop.review-rounds` rounds
+    # ran, a person gated it or a kept thread is a security or intent
+    # finding (a write-access fix
+    # request newer than the last round still runs one more round on its
+    # threads; other findings get one fresh fixer round, then go to a person
+    # as feedback-not-converging), and
+    # writes the thread file; the read runner
     # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
     # Edits head files, so no write token: the change leaves as a patch.
@@ -421,9 +425,10 @@ activities:
   label-unblocked:
     # When an issue closes (or, hourly, for each issue a listed human or a
     # merge closed in the last three hours), labels agent-ready each issue it
-    # blocked whose blockers are all closed as completed by a listed human or
-    # a merge, meaning a merged PR or a commit (a pull request blocker:
-    # merged; another repository's: never), that carries no
+    # blocked whose blockers are all closed, for any reason, by a listed human
+    # or a merge in this repository, meaning a merged PR or a commit (a pull
+    # request blocker: merged here; another repository's blocker: closed there
+    # by a listed human), oldest first, that carries no
     # hold label, and whose agent-ready label was never removed or was marked
     # `status: ready` by the lanes App or a listed human after its newest
     # removal. The label
@@ -438,12 +443,15 @@ activities:
     # admission rules, and admits it only on their admit verdict; a refusal
     # moves it to `status: needs-decision` with a comment. Hourly it also
     # re-fires an agent-ready issue left stranded (no run, or one that ended
-    # with no report, for three hours) once per version of the lane workflow
-    # files, then hands it to a person with needs-human and a comment; and it
-    # hands an agent-ready issue whose
-    # lanes-App PR merged with `Refs:` or closed unmerged to triage
-    # (needs-triage on, agent-ready off), lifting only the needs-human
-    # report-outcome set for a merged Refs PR. A script, no model.
+    # with no report, for three hours, and no open PR of the lanes App's or a
+    # listed human's for it) once per version of the lane workflow files, then
+    # on a backoff (three hours doubling, at most 24) with one comment it
+    # edits, never needs-human; and it hands an agent-ready issue whose
+    # lanes-App PR merged with `Refs:` or closed unmerged back to intake
+    # triage (`status: ready` and agent-ready off, which the hourly triage
+    # sweep dispatches intake for), lifting only the needs-human
+    # report-outcome set for a Refs PR that merged or closed unmerged. A
+    # script, no model.
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/label-unblocked.mjs
     # Labels, unlabels and comments on issues; nothing else.
@@ -457,14 +465,20 @@ activities:
     # After intake triage, writes its verdict as the lanes App: the work-class
     # label, the Size, Complexity and Uncertainty issue fields, and
     # `status: ready` or `status: needs-decision`, read from the lane comment
-    # the triage run posted. On `status: ready` it adds agent-ready when
+    # the triage run posted, with a blocked-by edge for each open issue its
+    # `Blocked by:` line names. Only needs-human, a person's hold, the triage
+    # run's own escalation, an untrusted setter, a hold set after an earlier
+    # flagged verdict or with no readable earlier verdict, or the verdict
+    # itself holds the issue, and the reasons
+    # go on the issue in one comment it edits in place. On
+    # `status: ready` it adds agent-ready when
     # .github/actions/resolve-config/admission-rules.json holds and the caps
     # have room, else admission-deferred (owner decision Q51, #9212). A
     # script, no model.
     # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/apply-verdict.mjs
-    # Labels issues, sets issue fields, edits the lane comment and posts an
-    # admission comment; nothing else.
+    # Labels issues, sets issue fields, writes blocked-by edges, edits the
+    # lane comment and posts a reasons and an admission comment; nothing else.
     effect: mutate-tracker
     gating: advisory
     # Reads the lane comment, which carries model text.
@@ -481,13 +495,14 @@ activities:
     # to post the criteria as their own decision comment. Not exact: numbered questions with RECOMMENDED
     # answers at `status: needs-decision`. For an issue admission held at the
     # App's needs-decision for some, not all, done-when items a lane run
-    # cannot perform, a split the model judges sound files one needs-human
-    # child issue with those items, rewrites the issue body's done-when to the
-    # rest plus a link to the child, lifts needs-decision and triages once
-    # more. Never agent-ready, and needs-human only on the child. A script, no
-    # model. .github/workflows/intake-triage.yml runs it.
+    # cannot perform, a split the model judges sound lists those items in the
+    # refinement comment as checks a person runs, rewrites the issue body's
+    # done-when to the rest plus a line pointing at that comment, lifts
+    # needs-decision and triages once more. One refinement per body version.
+    # Never agent-ready or needs-human, and no new issue. A script, no model.
+    # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/refine.mjs
-    # Comments on, labels and edits issues, and files a split's child issue.
+    # Comments on, labels and edits issues.
     effect: mutate-tracker
     gating: advisory
     # Reads the model's output, written while it read issue and web text.
@@ -643,6 +658,12 @@ models:
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
+    # An issue's code change, on run-claude-cli, which needs a model alias.
+    resolve-issue: code-fix
+    # pr-unblock's read-only judge of a finding address-feedback disputed: at
+    # least the review lanes' model, so a weaker model never overrules the
+    # reviewer.
+    adjudicate-feedback: review
   # A run on an issue (resolve-issue) takes its budget from the issue's Size,
   # Complexity and Uncertainty org issue fields, read by id. An empty field,
   # or one whose latest setter is not a listed human or the lanes App, reads
@@ -669,15 +690,17 @@ models:
           "85127655": knowable
           "85127656": unknown
     sizes:
-      # 75 turns is the cap every lane run had; 50 minutes covers the high
-      # factor at the 20 seconds a turn the old 75-turn, 25-minute run allowed.
+      # 75 turns is the cap every lane run had; a 50-minute leg covers the
+      # high factor at the 20 seconds a turn the old 75-turn, 25-minute run
+      # allowed, and the job holds 15 minutes more, for the steps around the
+      # launcher's leg (pr-run-activity-read.yml's launch step).
       small:
         base-turns: 75
-        timeout-minutes: 50
-      # Twice small's turns and time.
+        timeout-minutes: 65
+      # Twice small's turns and leg time.
       medium:
         base-turns: 150
-        timeout-minutes: 100
+        timeout-minutes: 115
       # Too big for one run: the lane skips it (split-required) before any
       # model turn, and triage sends it to /work-items:decompose.
       large: split
@@ -735,6 +758,14 @@ limits:
   # Admissions per hour the queued cap never falls below, so a day with no
   # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
+  # GitHub API margins per pool (`api:` with github-token, lanes-app,
+  # graphql, owner-token, content-creation), as shares of the limit each
+  # response's x-ratelimit-limit header reports: plan, writer-pause, breaker
+  # and read-floor; content-creation adds per-minute and per-hour. The rate
+  # guard reads only read-floor, to warn; the others are thresholds meant for
+  # the hub's limits sampler, which nothing here enforces. Their
+  # defaults live in pr-pipeline.schema.json ($defs/api-pool,
+  # $defs/api-content-pool); add an `api:` entry here only to override one.
 
 wip:
   # Cap = lane PRs merged per hour over the window times this target.

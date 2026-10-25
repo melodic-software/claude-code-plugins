@@ -414,10 +414,82 @@ printf 'jobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@000
 commit_all "$UNKNOWN"
 
 rc=0
-OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" --action-fetch 'exit 1' \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
-assert_contains "a pin outside the release map is UNREACH" "$OUT" "is not in the release map"
+assert_contains "a pin outside the map whose fetch fails is UNREACH" "$OUT" "is not in the release map"
+assert_contains "and the fetch failure grades condition 2 [UNREACH]" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
 assert_not_contains "and is never reported as clearing the floor" "$OUT" "[MET]     1 pin"
+
+# A file that carries no CLAUDE_CODE_VERSION assignment resolves nothing.
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "name: base\nruns:\n  using: composite\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a file without CLAUDE_CODE_VERSION is UNREACH" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
+assert_not_contains "and never clears the floor" "$OUT" "[MET]     1 pin"
+
+# A pin the map lacks is resolved live from the file at the pinned ref; the ref
+# is handed to the fetcher as $1.
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "      CLAUDE_CODE_VERSION=\"2.1.290\"\n# ref %s\n" "$1"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a live-resolved pin reports its CLI version" "$OUT" "pin 0000000000000000000000000000000000000000 installs CLI 2.1.290 (base-action/action.yml at 0000000000000000000000000000000000000000), at or above"
+assert_not_contains "and is not reported unmapped" "$OUT" "is not in the release map"
+
+# A live-resolved version below the floor is UNMET, not UNREACH.
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "CLAUDE_CODE_VERSION: 2.1.100\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a live-resolved pin below the floor is UNMET" "$OUT" "[UNMET]   1 of 1 pin(s) install a CLI below"
+
+# A same-named action under another owner is not Anthropic's: neither the
+# release map nor the live lookup speaks for it, whatever its file claims.
+FOREIGN="$TMP/foreignpin"
+make_repo "$FOREIGN"
+mkdir -p "$FOREIGN/.github/workflows"
+printf '# Shared\n' >"$FOREIGN/AGENTS.md"
+printf 'jobs:\n  a:\n    steps:\n      - uses: evil/claude-code-action@0000000000000000000000000000000000000000\n' \
+  >"$FOREIGN/.github/workflows/claude.yml"
+commit_all "$FOREIGN"
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$FOREIGN" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "CLAUDE_CODE_VERSION=\"9.9.9\"\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a pin under another owner is not resolved" "$OUT" "is not anthropics/claude-code-action (owner 'evil')"
+assert_contains "and grades condition 2 [UNREACH]" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
+assert_not_contains "and never borrows the forged version" "$OUT" "installs CLI 9.9.9"
+
+# A nested path is the repository its first two segments name:
+# `evil/anthropics/claude-code-action` is `evil/anthropics`, not Anthropic's.
+NESTED="$TMP/nestedpin"
+make_repo "$NESTED"
+mkdir -p "$NESTED/.github/workflows"
+printf '# Shared\n' >"$NESTED/AGENTS.md"
+printf 'jobs:\n  a:\n    steps:\n      - uses: evil/anthropics/claude-code-action@0000000000000000000000000000000000000000\n' \
+  >"$NESTED/.github/workflows/claude.yml"
+commit_all "$NESTED"
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$NESTED" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "CLAUDE_CODE_VERSION=\"9.9.9\"\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a nested path under another owner is not resolved" "$OUT" "is not anthropics/claude-code-action (owner 'evil')"
+assert_not_contains "and never borrows the forged version" "$OUT" "installs CLI 9.9.9"
+
+# A tag or branch resolved live is labeled mutable; a full SHA is not.
+MUTABLE="$TMP/mutablepin"
+make_repo "$MUTABLE"
+mkdir -p "$MUTABLE/.github/workflows"
+printf '# Shared\n' >"$MUTABLE/AGENTS.md"
+printf 'jobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@main\n' \
+  >"$MUTABLE/.github/workflows/claude.yml"
+commit_all "$MUTABLE"
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$MUTABLE" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "CLAUDE_CODE_VERSION=\"2.1.290\"\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a live-resolved branch pin is labeled mutable" "$OUT" "(base-action/action.yml at main, a mutable ref read as of now)"
 
 # A ref the script cannot parse must not prefix-match the release map's first
 # row and borrow its CLI version.

@@ -30,7 +30,8 @@
 //             limited marker naming when the limit resets, keeps agent-ready
 //             and adds no label, so work-unblock restarts it after the reset.
 //   turn-cap  a run that wrote no readable outcome file and whose lane.json
-//             carries class max-turns: comments with the turn-cap marker,
+//             carries class max-turns, or run-claude-cli's leg timeout
+//             (class timeout): comments with the turn-cap marker,
 //             naming the cap and the branch. While limits.turn-cap-restarts
 //             allows a restart since a person last added agent-ready, it
 //             keeps agent-ready and work-unblock restarts the issue; past
@@ -146,10 +147,11 @@ function prTitle(runTitle, issueTitle, issueNumber) {
   }
   return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
 }
-// Work a human merges: untrusted-provenance work, and any diff
-// that touches a path the merge lane refuses (merge.diff-check.denied-paths in the base
-// pr-pipeline.yaml), so the two lists cannot drift apart.
-const HOLD_CLASSES = new Set(["work-class: untrusted-provenance"]);
+// Work a human merges: an issue labeled untrusted-provenance, a trust hold
+// and the one label read here, and any diff that touches a path the merge
+// lane refuses (merge.diff-check.denied-paths in the base pr-pipeline.yaml),
+// so the two lists cannot drift apart. No other work class holds.
+const UNTRUSTED_PROVENANCE = "work-class: untrusted-provenance";
 // An owner decision that a person merges the issue's PR. It holds only when the
 // lane's labeler check passes: the newest `labeled` event is a listed human's
 // (by id) or the lanes App's, so no one else can add the hold or stand in for it.
@@ -451,8 +453,8 @@ function fundingPlan({ issueNumber, branch, regain, runId, runUrl, onResumed }) 
 // A run that reached its turn cap: the marker names the cap, and the comment
 // names the cause and the branch. With restarts left, agent-ready stays and
 // work-unblock starts the issue again; otherwise it goes to a person.
-function turnCapPlan({ issueNumber, branch, cap, restart, humanLabel, runId, runUrl, onResumed }) {
-  const reached = cap ? `turn cap ${cap} reached` : "turn cap reached";
+function turnCapPlan({ issueNumber, branch, cap, timeout = false, restart, humanLabel, runId, runUrl, onResumed }) {
+  const reached = timeout ? "its time ran out (the launcher's leg timeout)" : cap ? `turn cap ${cap} reached` : "turn cap reached";
   const lines = [
     turnCapMarker({ cap, runId, onResumed }),
     restart
@@ -680,7 +682,7 @@ export function decide({
   }
   if (turnCap && outcome.unread) {
     const restart = turnCapRestarts < limits["turn-cap-restarts"];
-    return turnCapPlan({ issueNumber, branch, cap: turnCap.cap, restart, humanLabel, runId, runUrl, onResumed });
+    return turnCapPlan({ issueNumber, branch, cap: turnCap.cap, timeout: turnCap.timeout === true, restart, humanLabel, runId, runUrl, onResumed });
   }
   // apply-issue-patch refused the run's patch: its work never landed, so no
   // PR opens, from a resumed branch either.
@@ -792,7 +794,7 @@ export function decide({
   // some path is denied.
   const hold =
     humanMerge ||
-    issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
+    issueLabels.includes(UNTRUSTED_PROVENANCE) ||
     holdPaths === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
@@ -922,7 +924,10 @@ export function readBranch(dir, issueNumber, key = "branch") {
 //          continues the work instead of starting from the default branch.
 //          A branch behind the default branch would carry its stale base into
 //          the runner's whole-branch checks, so it starts fresh instead
-//          (`stale` names it) and is left as it is;
+//          (`stale` names it) and is left as it is. With `keepBehind` it
+//          resumes anyway: the read runner's issue-fields job re-derives a
+//          claim made before the model ran, and the default branch may have
+//          moved since;
 //   run    otherwise.
 // `branches` are {name, sha, aheadBy, behindBy, tip, tipAt, pulls, commits} (commits
 // from GET /compare, null when the listing is cut short; tip from GET
@@ -931,7 +936,7 @@ export function readBranch(dir, issueNumber, key = "branch") {
 // GraphQL nodes; `markers` the lanes App's parsed outcome markers, each with
 // `at`. A marker naming no run, posted before markers named one, covers every
 // branch whose tip is not newer than it.
-export function findPrior({ issueNumber, repo, bot, humans, branches, closing, markers }) {
+export function findPrior({ issueNumber, repo, bot, humans, branches, closing, markers, keepBehind = false }) {
   const shape = laneBranch(issueNumber);
   const lane = branches
     .map((branch) => ({ ...branch, match: shape.exec(branch.name) }))
@@ -979,7 +984,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
     RESUMABLE.has(decisive?.outcome) && decisive.run !== ""
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
       : null;
-  if (resume && resume.behindBy !== 0) {
+  if (resume && resume.behindBy !== 0 && !keepBehind) {
     return { action: "run", stale: { branch: resume.name, behindBy: resume.behindBy } };
   }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };
@@ -1036,10 +1041,16 @@ export function readFunding(dir) {
 }
 
 // The runner's turn-cap record in lane.json: {cap} (the run's --max-turns, or
-// null when unreadable) when the run's class is max-turns, else null.
+// null when unreadable) when the run's class is max-turns, else null. A leg
+// run-claude-cli stopped at its leg timeout (class timeout) ran out of time
+// the same way, so it is the same record with `timeout: true` and no cap: it
+// restarts from its branch under limits.turn-cap-restarts, never stops.
 export function readTurnCap(dir) {
   try {
     const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+    if (lane?.class === "timeout") {
+      return { cap: null, timeout: true };
+    }
     if (lane?.class !== "max-turns") {
       return null;
     }
@@ -1102,7 +1113,7 @@ const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       closedByPullRequestsReferences(first: 100, after: $after, includeClosedPrs: false) {
-        nodes { number author { __typename login ... on User { databaseId } } repository { nameWithOwner } }
+        nodes { number state author { __typename login ... on User { databaseId } } repository { nameWithOwner } }
         pageInfo { hasNextPage endCursor }
       }
     }
@@ -1110,7 +1121,8 @@ const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
 }`;
 
 // Every open PR that closes the issue, across pages, so no number of other
-// PRs can push a trusted one out of reach.
+// PRs can push a trusted one out of reach. `includeClosedPrs: false` still
+// lists a merged PR, so each node's state decides.
 export async function closingPulls(github, { owner, name, number }, maxPages = 50) {
   const nodes = [];
   let after = null;
@@ -1120,7 +1132,10 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
     if (answer?.errors?.length || !Array.isArray(refs?.nodes)) {
       throw new Error("the issue's closing pull requests could not be read");
     }
-    nodes.push(...refs.nodes);
+    if (!refs.nodes.every((node) => typeof node?.state === "string")) {
+      throw new Error("the issue's closing pull requests answered one with no state");
+    }
+    nodes.push(...refs.nodes.filter((node) => node.state === "OPEN"));
     if (typeof refs.pageInfo?.hasNextPage !== "boolean") {
       throw new Error("the issue's closing pull requests answered no page information");
     }
@@ -1201,7 +1216,8 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
         Array.isArray(comparison.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
       branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, behindBy: comparison.behind_by, tip, tipAt, pulls, commits });
     }
-    const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers });
+    const keepBehind = env.FIND_PRIOR_KEEP_BEHIND === "true";
+    const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers, keepBehind });
     const runs = prior.action === "run" || prior.action === "resume";
     const outputs = runs
       ? {

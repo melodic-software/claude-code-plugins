@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2] - 2026-10-25
+
+### Changed
+
+- The admission policy's rule-admission cost hit splits charge terms, which always refuse, from spend words, which refuse unless a phrase naming the subscribed model vendor claims them; the evaluator holds both closed lists and refuses any spend word not tied to that vendor, matching `rule-admit.sh`.
+
 ## [0.31.1] - 2026-10-23
 
 ### Changed

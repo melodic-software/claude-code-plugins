@@ -10,20 +10,22 @@
 // applied. This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
-//   parent issue a listed human filed that awaits no decision;
+//   parent issue a listed human filed that awaits no decision; a type in
+//   `types-parent-if-present` needs that parent only when it has one (Q83);
 // - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
 //   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
 //   work; no other work class gates admission (owner Q85, #9668);
-// - 7 (with owner decision Q9, #8999): a `task-list` line, the criteria the
-//   lane checks, in text pr-verify will read: the body or a comment written,
-//   and last edited if ever, by a listed human (resolve-pr.mjs linkedIssues).
-//   Criteria only the lanes App wrote (refine.mjs's refinement comment, an
-//   App-filed issue) do not count, since pr-verify never sees them, and an
-//   issue with more comments than the 100 pr-verify reads is refused, since
-//   pr-verify stops on it;
-// - 8: no `refuse-labels` label, every blocker a merged pull request or an
-//   issue closed as completed by a listed human or a merge here (the close
-//   work-unblock counts), and no open pull request in this repository is for
+// - 7: a `task-list` line, the criteria the lane checks, in text pr-verify
+//   will read (resolve-pr.mjs linkedIssues): the body or a comment written,
+//   and last edited if ever, by a listed human, and, on an issue whose body a
+//   listed human wrote, refine.mjs's newest refinement comment while unedited
+//   (refinementSpec). Nothing else the lanes App wrote counts, an App-filed
+//   issue included, and an issue with more comments than the 100 pr-verify
+//   reads is refused, since pr-verify stops on it;
+// - 8: no `refuse-labels` label, every blocker a merged pull request in this
+//   repository or an issue closed, for any reason, by a listed human or (in
+//   this repository only) a merge or commit, read there when it is another
+//   repository's, and no open pull request in this repository is for
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human or the lanes App;
@@ -36,7 +38,8 @@
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
-//   is room.
+//   is room. With room, an issue still waits behind an older open issue in
+//   `admission-deferred`, so admission takes the oldest first (owner Q95).
 //
 // A refusal a person must settle swaps `status: ready` for
 // `status: needs-decision`; a blocker or an open pull request keeps
@@ -67,7 +70,7 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // The one work class that holds an issue for a person (owner Q85, #9668).
 export const UNTRUSTED = "work-class: untrusted-provenance";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
-const LISTS = ["types", "types-under-parent", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
@@ -83,10 +86,51 @@ export function loadRules(path) {
   return rules;
 }
 
+// The issues and pull requests GitHub lists as blocking the issue at `base`
+// (`/repos/<owner>/<repo>/issues/<n>`). Admission, work-unblock, the issue
+// lane's gate and the queued count all read blockers here, and judge them
+// with blockerDone or stillBlocking.
+export const blockersOf = (github, base) => paginate(github, `${base}/dependencies/blocked_by`);
+
 const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
+
+const BLOCKER_NUMBER = /^[1-9][0-9]{0,9}$/;
+
+// The one definition of a blocker that no longer blocks: a pull request
+// merged in this repository, or an issue closed, for any reason, with a
+// trusted close (`trusted(blocker)`, sync). Anyone may close their own issue,
+// so the close must be a listed human's or, in this repository only, a merge
+// or commit; another repository's merge carries no trust check.
+export const blockerDone = (blocker, repository, trusted) =>
+  blocker?.state === "closed" &&
+  (blocker.pull_request
+    ? here(blocker.repository_url, repository) && Boolean(blocker.pull_request.merged_at)
+    : BLOCKER_NUMBER.test(String(blocker.number)) && Boolean(trusted(blocker)));
+
+// Those of `blockers` that still block by blockerDone. `isTrusted(number)`
+// (async) reads a close in this repository, `elsewhere(blocker)` (async, by
+// default false) one in another repository (trustedElsewhere); they are asked
+// only when every blocker is otherwise done, so a blocker that still blocks by
+// its state costs no read.
+export async function stillBlocking(blockers, repository, isTrusted, elsewhere = async () => false) {
+  const pending = blockers.filter((blocker) => !blockerDone(blocker, repository, () => true));
+  if (pending.length > 0) {
+    return pending;
+  }
+  const untrusted = [];
+  for (const blocker of blockers) {
+    if (blocker.pull_request) {
+      continue;
+    }
+    if (!(await (here(blocker.repository_url, repository) ? isTrusted(Number(blocker.number)) : elsewhere(blocker)))) {
+      untrusted.push(blocker);
+    }
+  }
+  return untrusted;
+}
 
 // The open pull requests in `repository` for issue `number`: those `closing`
 // (closedByPullRequestsReferences nodes) lists in this repository, and those
@@ -200,9 +244,10 @@ export const taskItems = (body, taskList) => {
   return items;
 };
 
-// The admission comment's text for a refusal, after ADMIT_MARKER.
+// The admission comment's text for a refusal, after ADMIT_MARKER: each reason
+// names what admission needs; only a security or intent reason asks a person.
 export const refusalText = (reasons) =>
-  `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`;
+  `Not admitted to the issue lane: ${reasons}. Admission takes the issue once each of those is met, when intake triages it again (\`.github/actions/resolve-config/admission-rules.json\`).`;
 
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
@@ -247,6 +292,16 @@ export function unrunnableReason({ items, found }) {
 }
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+
+// Whether UNTRUSTED holds the issue: the label is on it, or its newest add or
+// removal of the label is a removal by neither a listed human (`humans`, ids)
+// nor the lanes App (`isApp(actor)`). Admission and the issue lane's gate
+// both judge provenance here. Pure.
+export function untrustedHold({ labels, events, humans, isApp }) {
+  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
+  const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
+  return names(labels).includes(UNTRUSTED) || removedByOther;
+}
 
 // Whether events[a] happened before events[b]: by created_at when both have
 // one and they differ, else by their order as listed.
@@ -302,36 +357,39 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push("the author is neither a listed human nor the lanes App");
   }
   const type = issue.type?.name ?? "none";
-  if (rules["types-under-parent"].includes(type)) {
+  const underParent = rules["types-under-parent"].includes(type);
+  if (!underParent && !rules.types.includes(type) && !rules["types-parent-if-present"].includes(type)) {
+    refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"], ...rules["types-parent-if-present"]].join(", ")}`);
+  } else if (underParent || (rules["types-parent-if-present"].includes(type) && parent !== null)) {
     const parentOk =
       parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.labels).some((label) => PARENT_HOLDS.has(label));
     if (!parentOk) {
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
-  } else if (!rules.types.includes(type)) {
-    refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"]].join(", ")}`);
   }
-  // The hold also stands when its newest event is a removal by neither a
-  // listed human nor the lanes App.
-  const untrustedEvent = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
-  const removedByOther = untrustedEvent?.event === "unlabeled" && !humans.has(untrustedEvent.actor?.id) && !(appId !== undefined && untrustedEvent.actor?.id === appId);
-  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
+  if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
   }
-  if (!rules.sizes.includes(verdict.dimensions?.size)) {
+  // Reasons the owner already settled without a person: they park the issue
+  // at status: ready (a wait with no pull request), never needs-decision.
+  const parked = [];
+  if (verdict.dimensions?.size === "large" && !rules.sizes.includes("large")) {
+    parked.push(`Size large: the split into sub-issues at intake is pending (owner Q93)`);
+  } else if (!rules.sizes.includes(verdict.dimensions?.size)) {
     refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);
   }
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  // pr-verify judges a lane PR only against text a listed human wrote, so
-  // the criteria count only there, and it stops on an issue with more
-  // comments than it reads (resolve-pr.mjs linkedIssues).
+  // pr-verify judges a lane PR only against text a listed human wrote and
+  // the refinement on their issue, so the criteria count only there, and it
+  // stops on an issue with more comments than it reads (resolve-pr.mjs
+  // linkedIssues).
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  const lines = trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n"));
-  if (!hasTrustedCriteria(spec, humans, rules["task-list"])) {
+  const lines = trustedSpecTexts(spec, humans, appId).flatMap((text) => text.split("\n"));
+  if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
   // A copied refinement breaks `://` and `www.` with a zero-width space so no
@@ -346,19 +404,17 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     }
   }
   if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: refuse };
+    return { verdict: "refuse", reasons: [...refuse, ...parked] };
+  }
+  if (parked.length > 0) {
+    return { verdict: "wait", reasons: parked, pulls: [] };
   }
 
   const wait = [];
   for (const blocker of blockers) {
-    const done =
-      blocker.state === "closed" &&
-      here(blocker.repository_url, repository) &&
-      (blocker.pull_request
-        ? Boolean(blocker.pull_request.merged_at)
-        : blocker.state_reason === "completed" && trustedCloses.has(blocker.number));
-    if (!done) {
-      wait.push(`blocker #${blocker.number} is not closed as completed by a listed human or a merge`);
+    if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
+      const name = here(blocker.repository_url, repository) ? `#${blocker.number}` : blockerKey(blocker, repository);
+      wait.push(`blocker ${name} is not closed by a listed human or a merge`);
     }
   }
   for (const pull of pulls) {
@@ -368,6 +424,30 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   return { verdict: "admit", reasons: [] };
+}
+
+// A blocker's repository, `owner/name`, from its API URL, or null.
+const repoOf = (url) => /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(url ?? ""))?.[1]?.toLowerCase() ?? null;
+
+// trustedCloses' key for a blocker: its number here, `owner/name#number` in
+// another repository.
+export const blockerKey = (blocker, repository) =>
+  here(blocker.repository_url, repository) ? blocker.number : `${repoOf(blocker.repository_url)}#${blocker.number}`;
+
+// Whether another repository's closed blocker issue was closed by a listed
+// human, read fresh from that repository. A commit or merge there carries no
+// trust check, as for a pull-request blocker. A read that fails leaves it
+// blocking.
+export async function trustedElsewhere(github, blocker, humans) {
+  const repo = repoOf(blocker.repository_url);
+  if (repo === null || !/^[1-9][0-9]{0,9}$/.test(String(blocker.number))) {
+    return false;
+  }
+  try {
+    return humans.has((await github("GET", `/repos/${repo}/issues/${blocker.number}`))?.closed_by?.id);
+  } catch {
+    return false;
+  }
 }
 
 async function parentOf(github, base) {
@@ -427,21 +507,48 @@ export async function specOf(github, repository, number) {
 }
 
 export const noTrustedSpec = (taskList) =>
-  `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment (owner Q9, #8999)`;
+  `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited`;
 
-// The texts pr-verify will read as spec: the body and each comment written,
-// and last edited if ever, by a User among `humans`
-// (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). Bots and Apps, the
-// lanes App among them, never count. Pure.
-export function trustedSpecTexts(spec, humans) {
-  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
-  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
-  return spec ? [spec, ...(spec.comments ?? [])].filter(written).map((item) => String(item.body ?? "")) : [];
+// The one comment of the lanes App's (a Bot whose id is `appId`) that counts
+// as spec, or undefined: the newest that opens with REFINE_MARKER, and only
+// while never edited; an older one never stands in for it. `comments` are in
+// GraphQL order, oldest first. The caller checks the body a listed human
+// wrote; resolve-pr.mjs linkedIssues shares this rule and also requires the
+// comment to predate the pull request. Pure.
+export function refinementSpec(comments, appId) {
+  const newest = (comments ?? []).findLast(
+    (comment) =>
+      appId !== undefined &&
+      comment?.author?.__typename === "Bot" &&
+      comment.author.databaseId === appId &&
+      String(comment.body ?? "").startsWith(REFINE_MARKER),
+  );
+  return newest?.lastEditedAt == null ? newest : undefined;
 }
 
+// The texts pr-verify will read as spec: the body and each comment written,
+// and last edited if ever, by a User among `humans`, and, when the body is
+// such text, the lanes App's refinement (refinementSpec)
+// (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). No other Bot or
+// App text counts. Pure.
+export function trustedSpecTexts(spec, humans, appId) {
+  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+  if (!spec) {
+    return [];
+  }
+  const refinement = written(spec) ? refinementSpec(spec.comments, appId) : undefined;
+  return [spec, ...(spec.comments ?? [])].filter((item) => written(item) || item === refinement).map((item) => String(item.body ?? ""));
+}
+
+const hasTaskLine = (text, taskList) =>
+  String(text ?? "")
+    .split("\n")
+    .some((line) => line.trimStart().startsWith(taskList));
+
 // Whether that text holds a `taskList` line: criterion 7. Pure.
-export const hasTrustedCriteria = (spec, humans, taskList) =>
-  trustedSpecTexts(spec, humans).some((text) => text.split("\n").some((line) => line.trimStart().startsWith(taskList)));
+export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
+  trustedSpecTexts(spec, humans, appId).some((text) => hasTaskLine(text, taskList));
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
 // a hold), the same split note a refusal posts, when a done-when item is one
@@ -470,16 +577,19 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 // default it reads the blocker fresh.
 export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted }) {
   const base = `/repos/${repository}/issues/${number}`;
-  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  // Anyone may close their own issue as completed, so a blocking issue counts
-  // only with a trusted close, read fresh from the issue.
+  const blockers = await blockersOf(github, base);
+  // Anyone may close their own issue, so a blocking issue counts only with a
+  // trusted close, read fresh from the issue; one closed as not planned or a
+  // duplicate counts too, since nothing is left to wait for. `isTrusted`
+  // answers for this repository's blockers only.
   const trusted =
     isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans));
   const trustedCloses = new Set();
   for (const blocker of blockers) {
-    if (!blocker.pull_request && blocker.state === "closed" && blocker.state_reason === "completed" && here(blocker.repository_url, repository)) {
-      if (await trusted(blocker.number)) {
-        trustedCloses.add(blocker.number);
+    if (!blocker.pull_request && blockerDone(blocker, repository, () => true)) {
+      const ok = here(blocker.repository_url, repository) ? await trusted(blocker.number) : await trustedElsewhere(github, blocker, humans);
+      if (ok) {
+        trustedCloses.add(blockerKey(blocker, repository));
       }
     }
   }
@@ -490,12 +600,34 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     // Read for the admission comment's own earlier copy (sayWhy).
     comments: await paginate(github, `${base}/comments`),
     spec,
-    parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
+    parent: [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name) ? await parentOf(github, base) : null,
     blockers,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
     events: await paginate(github, `${base}/events`),
   };
+}
+
+// Whether an open issue created before `issue` carries admission-deferred:
+// one search. An unreadable or incomplete answer counts as one, since the
+// sweep admits deferred issues oldest first anyway. It counts every older
+// deferred issue, including one the sweep keeps deferred for an open pull
+// request or an untrusted label; that costs a newer issue at most one hourly
+// sweep's wait, never a stall, and reading each one's events to tell them
+// apart would cost a call per deferred issue.
+async function deferredAhead(github, repository, issue) {
+  const created = Date.parse(issue.created_at);
+  if (!Number.isFinite(created)) {
+    return true;
+  }
+  const before = new Date(created).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const q = `repo:${repository} is:issue is:open label:${DEFERRED} created:<${before}`;
+  try {
+    const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=1`);
+    return answer?.incomplete_results !== false || answer.total_count !== 0;
+  } catch {
+    return true;
+  }
 }
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
@@ -545,9 +677,14 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "waiting", reasons: decision.reasons };
   }
   const s = await status();
-  if (s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0) {
+  const full = s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0;
+  if (full || (await deferredAhead(github, repository, issue))) {
+    const why = !full
+      ? `an older ${DEFERRED} issue is ahead of it`
+      : s.paused
+        ? `the lane is paused (${s.pause_reason})`
+        : `admissions are closed (${s.admission_reason})`;
     await github("POST", `${base}/labels`, { labels: [DEFERRED] });
-    const why = s.paused ? `the lane is paused (${s.pause_reason})` : `admissions are closed (${s.admission_reason})`;
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }

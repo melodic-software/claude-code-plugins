@@ -80,22 +80,30 @@ BeforeAll {
 }
 
 Describe 'audit SKILL.md command templates' -Tag 'skill' {
-    It 'holds the roots block and five commands' {
-        $script:AuditBlocks.Count | Should -Be 6
+    It 'holds the roots block and six commands' {
+        $script:AuditBlocks.Count | Should -Be 7
         foreach ($token in $script:AuditTokens) { $script:AuditBlocks[0] | Should -BeLike "*$token*" }
         # The PowerShell tool takes newlines only inside a here-string.
         @($script:AuditBlocks[0].Trim() -split '\n').Count | Should -Be 5
-        foreach ($command in $script:AuditBlocks[1..5]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+        foreach ($command in $script:AuditBlocks[1..6]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+    }
+
+    It 'says what step 5 does when research is missing or halts, and keeps checkboxes out of TODO.md' {
+        $text = Get-Content -Raw -LiteralPath (Join-Path $script:SkillRoot 'SKILL.md')
+        $text | Should -Match 'Without that skill, research nothing and say so in the notes file'
+        $text | Should -Match 'When research halts or fails, that ends research for this run only'
+        $text | Should -Match 'never write a checkbox line there'
     }
 
     Context 'a root holding <Case>' -ForEach $script:HostileRoots {
         It 'parses the <Name> command to only its own commands' -ForEach @(
             @{ Name = 'roots'; Index = 0; Expected = @('ForEach-Object', 'Join-Path', 'Write-Warning') }
             @{ Name = 'run'; Index = 1; Expected = @('&', 'Join-Path') }
-            @{ Name = 'short report'; Index = 2; Expected = @('&', 'Join-Path', 'Join-Path') }
-            @{ Name = 'prepare'; Index = 3; Expected = @('.', 'Format-List', 'Get-Content', 'Join-Path', 'New-ElevatedLaunch') }
-            @{ Name = 'launch'; Index = 4; Expected = @('.', 'Get-ElevatedLaunch', 'Join-Path', 'Start-ElevatedLaunch') }
-            @{ Name = 'import'; Index = 5; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
+            @{ Name = 'research candidates'; Index = 2; Expected = @('&', 'Join-Path', 'Join-Path') }
+            @{ Name = 'short report'; Index = 3; Expected = @('&', 'Join-Path', 'Join-Path') }
+            @{ Name = 'prepare'; Index = 4; Expected = @('.', 'Format-List', 'Get-Content', 'Join-Path', 'New-ElevatedLaunch') }
+            @{ Name = 'launch'; Index = 5; Expected = @('.', 'Get-ElevatedLaunch', 'Join-Path', 'Start-ElevatedLaunch') }
+            @{ Name = 'import'; Index = 6; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
         ) {
             $command = if ($Index -eq 0) { '' } else { $script:AuditBlocks[$Index].Replace('<ScriptSha256>', 'AB' * 32) }
             # Substituted across the command too, so a command that types a token itself fails.
@@ -161,7 +169,7 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
             @{ Name = 'picks write'; Index = 4
                 Expected = @('.', 'Get-Content', 'Join-Path', 'Write-CheckupPick')
             }
-            @{ Name = 'schedule roots'; Index = 5; Expected = @('.', 'Assert-ScheduleRoot', 'Join-Path', 'Join-Path') }
+            @{ Name = 'schedule report folder'; Index = 5; Expected = @('Join-Path') }
             @{ Name = 'schedule sync root'; Index = 6; Expected = @('.', 'Assert-StateBaseLocation', 'Join-Path') }
             @{ Name = 'schedule install'; Index = 7
                 Expected = @('.', 'Get-Command', 'Install-MonthlyRun', 'Join-Path', 'schtasks', 'Select-Object')
