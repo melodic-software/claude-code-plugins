@@ -648,19 +648,23 @@ test("a head whose required run's jobs cannot be read is dispatched fix-ci, and 
 test("an unreadable required run still keeps the per-head cap, the restart count and an in-flight run", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const fix = check("pr-unblock / fix-ci", "FAILURE");
+  // #1's three failures ran on an older base, so only the per-head cap stops it.
+  const oldFix = check("pr-unblock / fix-ci", "FAILURE", { completedAt: "2026-10-22T09:00:00Z" });
   const failed = lanes("FAILURE");
   const requiredRuns = new Map([1, 2, 3].map((number) => [head(number), new Error("GET returned 502")]));
   const { api, lines, result } = await run(
     {
-      pages: [[pr(1, { checks: [failed, fix, fix, fix] }), pr(2, { checks: [failed, fix, fix] }), pr(3)]],
+      pages: [[pr(1, { checks: [failed, oldFix, oldFix, oldFix] }), pr(2, { checks: [failed, fix, fix] }), pr(3)]],
       requiredRuns,
       workflowRuns: [{ id: 99, status: "in_progress", display_title: "pr-unblock fix-ci #3" }],
+      baseCommittedAt: "2026-10-22T10:00:00Z",
     },
     { maxDispatch: 5 },
   );
   assert.deepEqual(result.dispatched, []);
   assert.deepEqual(api.calls.dispatch, []);
-  assert.ok(lines.some((line) => line.startsWith("skip fix-ci #1:")), lines.join("\n"));
+  assert.ok(lines.includes(`::warning::#1: head ${head(1)}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`), lines.join("\n"));
+  assert.ok(!api.calls.jobs.includes(head(1)), "the cap stops #1 before its required run is read");
   assert.ok(lines.some((line) => line.startsWith("skip fix-ci #2:")), lines.join("\n"));
 });
 
