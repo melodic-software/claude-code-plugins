@@ -43,8 +43,10 @@ jobs:
   # Skips intake for an issue /work-items:decompose published already
   # triaged; see .github/actions/check-born-triaged. A failed gate leaves
   # skip empty, so intake falls through to the reusable, which turns away
-  # every person when human-ids is empty too. The job also resolves the lane's
-  # model, turns and effort from the triage-issue route of the default
+  # every person when human-ids is empty too. A rate limit on the gate's read
+  # sets rate-limited, which stops intake and its GitHub calls. The job also
+  # resolves the lane's model, turns and effort from the triage-issue route of
+  # the default
   # branch's models block; when that fails, claude-args is empty and intake
   # does not run, so it never falls back to the CLI's own model and an
   # unbounded turn budget. A dispatch runs only from main, so the trusted-actor
@@ -58,6 +60,7 @@ jobs:
       issues: read # read the issue's current body, type and labels
     outputs:
       skip: ${{ steps.check.outputs.skip }}
+      rate-limited: ${{ steps.check.outputs.rate-limited }}
       # When this run started: apply-verdict acts only on a lane comment
       # written at or after it.
       started-at: ${{ steps.started.outputs.at }}
@@ -81,6 +84,7 @@ jobs:
             /.github/actions/check-born-triaged/
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
+            /.github/actions/log-api-budget/
             /.github/actions/resolve-config/
             /.github/CODEOWNERS
             /.github/standards/github-actions-conventions/vocabulary.json
@@ -188,6 +192,7 @@ jobs:
     if: >-
       ${{ !cancelled()
       && needs.kill-switch.outputs.proceed == 'true'
+      && needs.born-triaged.outputs.rate-limited != 'true'
       && (github.event_name == 'workflow_dispatch' || needs.born-triaged.outputs.skip != 'true')
       && needs.born-triaged.outputs.claude-args != '' }}
     permissions:

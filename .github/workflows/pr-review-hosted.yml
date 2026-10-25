@@ -78,6 +78,7 @@ jobs:
           sparse-checkout: |
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
+            /.github/actions/log-api-budget/
             /.github/actions/resolve-config/
             /.github/CODEOWNERS
             /.github/standards/github-actions-conventions/vocabulary.json
@@ -202,6 +203,7 @@ jobs:
         .github/actions/resolve-config/**
         .github/actions/request-lane-token/**
         .github/actions/check-kill-switch/**
+        .github/actions/log-api-budget/rate-guard.mjs
         .github/scripts/pr-merge/merge-holds.mjs
         .github/scripts/pr-merge/enable-auto-merge.mjs
         .github/workflows/pr-require-checks.yml

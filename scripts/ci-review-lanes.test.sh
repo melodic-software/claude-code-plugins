@@ -89,8 +89,8 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
     fail "$file does not grant actions: read to job ${job%:}"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
-  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n.github/actions/resolve-config/**\n.github/actions/request-lane-token/**\n.github/actions/check-kill-switch/**\n.github/scripts/pr-merge/merge-holds.mjs\n.github/scripts/pr-merge/enable-auto-merge.mjs\n.github/workflows/pr-require-checks.yml\nplugins/source-control/skills/babysit-prs/scripts/babysit_risk.py\n**/CODEOWNERS\n**/.gitmodules' ]]; then
-    ok "$file names the eleven trusted paths"
+  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n.github/actions/resolve-config/**\n.github/actions/request-lane-token/**\n.github/actions/check-kill-switch/**\n.github/actions/log-api-budget/rate-guard.mjs\n.github/scripts/pr-merge/merge-holds.mjs\n.github/scripts/pr-merge/enable-auto-merge.mjs\n.github/workflows/pr-require-checks.yml\nplugins/source-control/skills/babysit-prs/scripts/babysit_risk.py\n**/CODEOWNERS\n**/.gitmodules' ]]; then
+    ok "$file names the twelve trusted paths"
   else
     fail "$file hold-paths are '$paths'"
   fi
