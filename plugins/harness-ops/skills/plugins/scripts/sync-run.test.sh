@@ -87,6 +87,13 @@ norm_path() {
 
 # The `claude` stub. Records every invocation and, on `plugin update`, rewrites the
 # fixture's installed_plugins.json so the post-sweep re-read really moves.
+# With `--json` on `plugin install|update`, it ends with the result line in the
+# shape an attended probe captured from Claude Code 2.1.310 (`outcome`, `message`,
+# `failureCode`, and on update `updateOutcome`, `oldVersion`, `newVersion`), and
+# the failure's `✘` line beside it, as the CLI's stderr is merged into the
+# capture. CLAUDE_STUB_TEXT=1 prints the text-only output of a CLI older than
+# the flag. CLAUDE_STUB_REWORD=1 keeps the fields and rewords an update's
+# message, so a case can show the fields decide, not the sentence.
 write_claude_stub() {
   local case_dir="$1"
   cat >"$case_dir/stubs/claude" <<'STUB'
@@ -94,6 +101,20 @@ write_claude_stub() {
 printf '%s\n' "$*" >>"$CLAUDE_STUB_LOG"
 if IFS= read -r -t 1 _stdin_line; then printf 'stdin was open\n' >>"$CLAUDE_STUB_LOG.stdin"; fi
 verb="${1:-} ${2:-}"
+json=false
+[[ " $* " == *" --json "* && -z "${CLAUDE_STUB_TEXT:-}" ]] && json=true
+# result <command> <outcome> <message> [extra-json]: the --json result line,
+# or the message alone in text mode.
+result() {
+  if [[ "$json" == "true" ]]; then
+    [[ -z "${CLAUDE_STUB_REWORD:-}" || "$1" != update ]] || set -- "$1" "$2" "$3" "Done: ${3:-}." "${5:-"{}"}"
+    jq -c -n --arg c "$1" --arg o "$2" --arg id "${3:-}" --arg sc "$scope" --arg m "$4" --argjson x "${5:-"{}"}" \
+      '{command: $c, outcome: $o, plugin: $id, pluginId: $id, scope: $sc, message: $m} + $x'
+  else
+    printf '%s\n' "$4"
+  fi
+}
+scope="${5:-user}"
 case "$verb" in
 "plugin marketplace")
   mp="${4:-}"
@@ -116,13 +137,15 @@ case "$verb" in
   if [[ -n "${CLAUDE_STUB_UPDATE_FAIL_ID:-}" && "$id" == "$CLAUDE_STUB_UPDATE_FAIL_ID" ]]; then
     echo "Checking for updates for plugin \"$id\" at ${scope} scope…"
     echo "✘ Failed to update plugin \"$id\": Plugin not found"
+    [[ "$json" == "false" ]] || result update failed "$id" "Plugin \"${id%@*}\" not found" '{"failureCode":"not_found"}'
     exit 1
   fi
   if [[ -n "${CLAUDE_STUB_NOOP_ID:-}" && "$id" == "$CLAUDE_STUB_NOOP_ID" ]]; then
     cur=$(jq -r --arg id "$id" --arg sc "$scope" \
       'first(.plugins[$id][]? | select(.scope == $sc) | .version) // "0.0.0"' \
       "$CLAUDE_STUB_INSTALLED_JSON")
-    echo "${id%@*} is already at the latest version ($cur)."
+    result update ok "$id" "${id%@*} is already at the latest version ($cur)." \
+      "$(jq -c -n --arg v "$cur" '{updateOutcome: "up_to_date", oldVersion: $v, newVersion: $v}')"
     exit 0
   fi
   # CLAUDE_STUB_CONCURRENT_IDS: something else already moved these ids since the
@@ -136,7 +159,8 @@ case "$verb" in
       '.plugins[$id] = [.plugins[$id][] | if .scope == $sc then .version = $v else . end]' \
       "$CLAUDE_STUB_INSTALLED_JSON" >"$CLAUDE_STUB_INSTALLED_JSON.next" &&
       mv "$CLAUDE_STUB_INSTALLED_JSON.next" "$CLAUDE_STUB_INSTALLED_JSON"
-    echo "${id%@*} is already at the latest version ($moved_to)."
+    result update ok "$id" "${id%@*} is already at the latest version ($moved_to)." \
+      "$(jq -c -n --arg v "$moved_to" '{updateOutcome: "up_to_date", oldVersion: $v, newVersion: $v}')"
     exit 0
     ;;
   *) ;;
@@ -152,15 +176,10 @@ case "$verb" in
   jq --arg id "$id" --arg sc "$scope" --arg v "$new" --arg only "$only" \
     '.plugins[$id] = [.plugins[$id][] | if .scope == $sc and ($only == "" or .projectPath == $only) then .version = $v else . end]' \
     "$CLAUDE_STUB_INSTALLED_JSON" >"$tmp" && mv "$tmp" "$CLAUDE_STUB_INSTALLED_JSON"
-  echo "Plugin \"${id%@*}\" updated from $old to $new for scope $scope. Restart to apply changes"
+  result update ok "$id" "Plugin \"${id%@*}\" updated from $old to $new for scope $scope. Restart to apply changes." \
+    "$(jq -c -n --arg o "$old" --arg n "$new" '{updateOutcome: "updated", oldVersion: $o, newVersion: $n}')"
   ;;
 "plugin install")
-  echo "Installed ${3:-}"
-  # The CLI's own post-install line about userConfig options the user has not
-  # set, in the shape the shipped binary prints (the dash it uses is replaced
-  # by a hyphen here; the parser keys on the words before it).
-  [[ -z "${CLAUDE_STUB_INSTALL_UNSET:-}" ]] ||
-    echo "$CLAUDE_STUB_INSTALL_UNSET - run /plugin configure ${3:-} in Claude Code, or pass --config KEY=VALUE."
   # A disabled-by-default notice. The padding sits in front so the notice is
   # past the 400 characters the digest keeps, and classification has to read
   # the untruncated output to see it. `1` marks every install; anything else is
@@ -170,14 +189,22 @@ case "$verb" in
   " 1 " | *" ${3:-} "*) disabled=true ;;
   *) ;;
   esac
-  if [[ "$disabled" == "true" ]]; then
-    printf '%400s\n' 'install progress'
-    echo "This plugin is disabled by default"
-  fi
+  [[ "$disabled" == "false" ]] || printf '%400s\n' 'install progress'
   if [[ -n "${CLAUDE_STUB_INSTALL_FAIL_ID:-}" && "${3:-}" == "$CLAUDE_STUB_INSTALL_FAIL_ID" ]]; then
     echo "✘ Failed to install plugin \"${3:-}\""
+    [[ "$json" == "false" ]] || result install failed "${3:-}" "Plugin install failed" '{"failureCode":"error"}'
     exit 1
   fi
+  # The CLI's message: the install line, then the disabled-by-default sentence
+  # and the sentence about userConfig options the user has not set, as the
+  # shipped binary words them (the dash it uses is replaced by a hyphen here;
+  # the parser keys on the words before it).
+  message="Successfully installed plugin: ${3:-} (scope: user)"
+  [[ "$disabled" == "false" ]] ||
+    message+=". This plugin is disabled by default - enable it with: claude plugin enable ${3:-}"
+  [[ -z "${CLAUDE_STUB_INSTALL_UNSET:-}" ]] ||
+    message+=$'\n'"$CLAUDE_STUB_INSTALL_UNSET - run /plugin configure ${3:-} in Claude Code, or pass --config KEY=VALUE."
+  result install ok "${3:-}" "$message"
   # Opt-in user-settings state: an install writes the user-scope key as the CLI
   # does, `false` for a disabled-by-default plugin and `true` otherwise.
   if [[ -n "${CLAUDE_STUB_SETTINGS_STATE:-}" ]]; then
@@ -1225,6 +1252,37 @@ assert_eq "render self-update: the digest names this plugin's own row" \
   "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
 assert_golden "render self-update: the note names this plugin" self-update-not-first.txt "$REPORT_TEXT"
 
+# --- the --json result decides, not its sentence -------------------------------
+# The update's message is reworded, so only `updateOutcome` and `newVersion` say
+# what happened: an applied update is an Updated row at the CLI's version, and an
+# up-to-date result for an id something else moved is a moved-during-run row.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0 CC_STUB_CLEAN=1 CLAUDE_STUB_REWORD=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "json result: exit 0" 0 $?
+assert_eq "json result: the update is the CLI's call, as --json" "plugin update alpha@market1 -s user --json" \
+  "$(grep 'plugin update' "$case_dir/claude.log")"
+assert_eq "json result: updateOutcome updated is an Updated row at newVersion" "alpha@market1 0.1.0 0.2.0" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated[0] | "\(.id) \(.old) \(.new)"' <<<"$out")"
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_CONCURRENT_IDS=alpha@market1 CLAUDE_STUB_CONCURRENT_VERSION=0.2.0 CC_STUB_CLEAN=1 CLAUDE_STUB_REWORD=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "json result: up_to_date for an id that moved is a moved-during-run row" \
+  '[{"id":"alpha@market1","scope":"user","kind":"user_sweep","old":"0.1.0","new":"0.2.0","direction":"forward"}]' \
+  "$(jq -c '.marketplaces[0].moved_during_run' <<<"$out")"
+# A CLI older than the flag prints text only; the sentences still classify.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0 CC_STUB_CLEAN=1 CLAUDE_STUB_TEXT=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "text result: the update line still yields an Updated row" "alpha@market1 0.1.0 0.2.0" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated[0] | "\(.id) \(.old) \(.new)"' <<<"$out")"
+
 # --- an id the CLI calls current while the snapshots show it moved -------------
 # The stub prints "already at the latest version (X)" for alpha after something
 # else moved it. X differs from the mid snapshot's version, so the id is a
@@ -2209,7 +2267,7 @@ write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true,
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
 assert_exit "recurrence: exit 0" 0 "$REPORT_RC"
-assert_eq "recurrence: only the uninstalled plugin is installed again" "plugin install gamma@market1 -s user" \
+assert_eq "recurrence: only the uninstalled plugin is installed again" "plugin install gamma@market1 -s user --json" \
   "$(grep 'plugin install' "$case_dir/claude.log")"
 
 # An `ask` pick is the user's choice, so a pick the CLI installs disabled is then

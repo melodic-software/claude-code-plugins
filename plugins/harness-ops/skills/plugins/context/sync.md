@@ -192,7 +192,10 @@ Three sources, in precedence order, and **never** a synthesized value:
 1. **`<old>`**: that id's `installed[].version` from the pre-mutation `fleet-state.sh` re-read the
    section above already requires. It is the pre-update value by construction.
 2. **`<new>`**: the `claude plugin update` call's own output for that id when it names a version.
-   Capture the CLI's line as it runs; it is the only source that reflects the update immediately.
+   Capture it as it runs; it is the only source that reflects the update immediately. The run
+   passes `--json` and reads `newVersion` when `updateOutcome` is `updated` or `up_to_date`; from a
+   CLI that prints no result line, it reads the `updated from X to Y` or `already at the latest
+   version (X)` sentence instead.
 3. **`<new>` fallback**: that id's `installed[].version` from one `fleet-state.sh` re-read after
    the Step 2 + Step 3 sweep completes, diffed against the pre-sweep snapshot.
 
@@ -204,7 +207,14 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
-The CLI's "already at the latest version (X)" line is not a source for `<new>`: this run's call
+**Two install facts have no `--json` field, so they stay a read of `message`.** The result line
+of `claude plugin install --json` carries `outcome`, `message` and, on failure, `failureCode`.
+Unset userConfig options (`<N> userConfig option(s) not yet set[ (<M> required)]`) and a
+disabled-by-default install (`This plugin is disabled by default`) appear only as sentences inside
+`message` (attended probe, Claude Code 2.1.310), so `sync-run.sh` matches those sentences in it.
+
+An up-to-date result (`updateOutcome: up_to_date`, or the "already at the latest version (X)"
+sentence) is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
 an already-current id whose post version differs from `<old>` is reported as moved during the run,
 never dropped and never filed under `Updated:`.

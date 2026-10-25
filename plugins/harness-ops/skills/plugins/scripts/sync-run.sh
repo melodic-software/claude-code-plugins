@@ -533,14 +533,60 @@ predict_cli() {
   CLI_OUT="would run: $label"
 }
 
-# `<new>` from the CLI's own line, which is the only source that reflects an update
-# immediately (sync.md's source 2). Empty when the line names no version. For an
-# already-current line it is the version in the line's parentheses, the install's
-# version as the CLI read it, which finalize_moves checks against the snapshots.
+# The result line `claude plugin install|update --json` prints (Claude Code
+# 2.1.268 or later): the last output line that is a JSON object with a `command`
+# key, or empty when there is none, as from a CLI older than the flag. stderr is
+# merged into the capture, so a `✘ Failed ...` line and a marketplace-declared
+# command's review text can sit beside it.
+#   Claim: update prints `updateOutcome` (`updated`, `up_to_date`), `oldVersion`
+#     and `newVersion`; install and update print `outcome` (`ok`, `failed`),
+#     `message` and, on failure, `failureCode`. No field names unset userConfig
+#     options or a disabled-by-default install: both are sentences in `message`.
+#   Basis: attended probe on Claude Code 2.1.310 (WSL2), captured in
+#     sync-run.test.sh's stub shapes; plugins CLI reference, plugin JSON result.
+#   As of: 2026-10-25.
+#   Recheck: a Claude Code release that adds a field for either sentence, or
+#     changes `updateOutcome`'s values.
+cli_json() {
+  local __var="$1"
+  local __text="$2"
+  local __line __found=""
+  while IFS= read -r __line || [[ -n "$__line" ]]; do
+    [[ "$__line" == '{'* ]] || continue
+    jq -e 'type == "object" and has("command")' <<<"$__line" >/dev/null 2>&1 && __found="$__line"
+  done <<<"$__text"
+  printf -v "$__var" '%s' "$__found"
+}
+
+# The text the sentence classifiers below read: the result's `message` when the
+# CLI printed a result line, the whole output otherwise.
+cli_message() {
+  local __var="$1"
+  local __text="$2"
+  local __json
+  cli_json __json "$__text"
+  if [[ -n "$__json" ]]; then
+    jq_to "$__var" -r '.message // ""' <<<"$__json"
+  else
+    printf -v "$__var" '%s' "$__text"
+  fi
+}
+
+# `<new>` from the CLI's own result, which is the only source that reflects an
+# update immediately (sync.md's source 2): `newVersion` when `updateOutcome` is
+# `updated` or `up_to_date`. Without a result line, the text's `updated from X to
+# Y` or `already at the latest version (X)`. Empty when neither names a version.
+# For an already-current result it is the install's version as the CLI read it,
+# which finalize_moves checks against the snapshots.
 cli_reported_version() {
   local __var="$1"
   local text="$2"
-  if [[ "$text" =~ updated\ from\ ([^[:space:]]+)\ to\ ([^[:space:]]+) ]]; then
+  local json
+  cli_json json "$text"
+  if [[ -n "$json" ]]; then
+    jq_to "$__var" -r 'if .updateOutcome == "updated" or .updateOutcome == "up_to_date"
+      then .newVersion // "" else "" end' <<<"$json"
+  elif [[ "$text" =~ updated\ from\ ([^[:space:]]+)\ to\ ([^[:space:]]+) ]]; then
     printf -v "$__var" '%s' "${BASH_REMATCH[2]}"
   elif [[ "$text" =~ already\ at\ the\ latest\ version\ \(([^\)[:space:]]+)\) ]]; then
     printf -v "$__var" '%s' "${BASH_REMATCH[1]}"
@@ -549,22 +595,20 @@ cli_reported_version() {
   fi
 }
 
-# The install's own line about userConfig options the user has not set, as a
-# JSON object `{options_unset, required}` or `null`. Classified at capture time
-# from the UNTRUNCATED output: the digest row keeps 400 characters, and the line
-# sits after the install's other output.
-#   Claim: `claude plugin install` ends with "<N> userConfig option(s) not yet
-#     set[ (<M> required)] … run /plugin configure <id> in Claude Code, or pass
-#     --config KEY=VALUE." when the installed manifest declares options the
-#     user has not set.
-#   Basis: the shipped binary's own strings (Claude Code 2.1.268); the plugins
-#     reference documents the option schema, not this line.
-#   As of: 2026-09-11.
-#   Recheck: a journaled install that names an unset option in other words, or
-#     a Claude Code release whose `plugin install` output changes shape.
+# The install's sentence about userConfig options the user has not set, as a
+# JSON object `{options_unset, required}` or `null`. The result line has no field
+# for it (cli_json's claim), so this reads the sentence in `message`. Classified at
+# capture time from the UNTRUNCATED output: the digest row keeps 400 characters.
+#   Claim: the sentence is "<N> userConfig option(s) not yet set[ (<M> required)]
+#     — run /plugin configure <id> in Claude Code, or pass --config KEY=VALUE."
+#   Basis: attended probe on Claude Code 2.1.310, `plugin install --json`
+#     `message` with two options and with three.
+#   As of: 2026-10-25.
+#   Recheck: as cli_json.
 unset_user_config_of() {
   local __var="$1"
-  local text="$2"
+  local text
+  cli_message text "$2"
   if [[ "$text" =~ ([0-9]+)\ userConfig\ options?\ not\ yet\ set(\ \(([0-9]+)\ required\))? ]]; then
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to "$__var" -c -n --arg n "${BASH_REMATCH[1]}" --arg r "${BASH_REMATCH[3]:-}" \
@@ -579,15 +623,26 @@ unset_user_config_of() {
 # update the state write has not landed for both read as "no version change" from a
 # post-sweep snapshot. Reporting the first as an update with an unknown version
 # would put most of an already-current fleet under `Updated:`.
-#   updated  the CLI named a version pair
-#   noop     the CLI said the id is already at the latest version. That is the
-#            CLI's text only: finalize_moves checks it against the snapshots
-#            before it drops the id, because an id that something else moved
-#            earlier in the run prints the same line
-#   other   the CLI named neither; the post-sweep read decides
+#   updated  `updateOutcome: updated`, or text naming a version pair
+#   noop     `updateOutcome: up_to_date`, or "already at the latest version". That
+#            is the CLI's word only: finalize_moves checks it against the
+#            snapshots before it drops the id, because an id that something else
+#            moved earlier in the run reads the same
+#   other    neither; the post-sweep read decides
 cli_move_result() {
   local __var="$1"
   local text="$2"
+  local json outcome=""
+  cli_json json "$text"
+  if [[ -n "$json" ]]; then
+    jq_to outcome -r '.updateOutcome // ""' <<<"$json"
+    case "$outcome" in
+    updated) printf -v "$__var" '%s' "updated" ;;
+    up_to_date) printf -v "$__var" '%s' "noop" ;;
+    *) printf -v "$__var" '%s' "other" ;;
+    esac
+    return 0
+  fi
   case "$text" in
   *"updated from"*) printf -v "$__var" '%s' "updated" ;;
   *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
@@ -600,11 +655,11 @@ cli_move_result() {
 # is not the journal's `$ <command>` echo is often a progress line, so the
 # failure reason has to be picked before truncation. The last line is the wrong
 # fallback: it can be a userConfig note or a truncated tail. The first line
-# that starts with ✘ or contains Failed or Error wins; otherwise the first
-# non-`$` line, which is what the report used to show unconditionally.
+# that starts with ✘ or contains Failed or Error wins; then the first line of a
+# result line's `message`; otherwise the first non-`$` line.
 cli_outcome_line() {
   local text="$1"
-  local line
+  local line json message
   local fallback=""
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line//$'\r'/}"
@@ -614,20 +669,31 @@ cli_outcome_line() {
       fallback="$line"
     fi
     if [[ "$line" == ✘* || "$line" == *Failed* || "$line" == *Error* ]]; then
+      [[ "$line" == '{'* ]] && continue
       printf '%s' "$line"
       return 0
     fi
   done <<<"$text"
+  cli_json json "$text"
+  if [[ -n "$json" ]]; then
+    jq_to message -r '.message // "" | split("\n")[0]' <<<"$json"
+    [[ -z "$message" ]] || {
+      printf '%s' "$message"
+      return 0
+    }
+  fi
   printf '%s' "$fallback"
 }
 
-# Whether the install's own output says the plugin was left disabled. Classified
-# from the untruncated output: install_one keeps 400 characters, and the notice
-# can sit past that. The catalog's defaultEnabled field is not the signal,
-# because the CLI's line and that field can disagree. The CLI writes an explicit
-# enabledPlugins false for this case.
+# Whether the install says the plugin was left disabled, read from `message` (no
+# field carries it; cli_json's claim). Classified from the untruncated output:
+# install_one keeps 400 characters, and the notice can sit past that. The
+# catalog's defaultEnabled field is not the signal, because the CLI's sentence and
+# that field can disagree. The CLI writes an explicit enabledPlugins false for
+# this case.
 install_disabled_notice() {
-  local text="$1"
+  local text
+  cli_message text "$1"
   case "$text" in
   *"disabled by default"* | *"Disabled by default"*) return 0 ;;
   *) return 1 ;;
@@ -1153,7 +1219,7 @@ run_marketplace() {
             '{id: $id, scope: $sc, installed: $old}')")
           continue
         fi
-        run_cli "claude plugin update $id -s $scope" plugin update "$id" -s "$scope"
+        run_cli "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
@@ -1204,7 +1270,7 @@ run_marketplace() {
           US_WOULD+=("$(jq -c -n --arg id "$id" --arg old "$old" '{id: $id, installed: $old}')")
           continue
         fi
-        run_cli "claude plugin update $id -s user" plugin update "$id" -s user
+        run_cli "claude plugin update $id -s user --json" plugin update "$id" -s user --json
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
@@ -1228,8 +1294,8 @@ run_marketplace() {
       old="${old//$'\r'/}"
       new="${new//$'\r'/}"
       if ((ALLOW_DOWNGRADE == 1)) && [[ "$MODE" == "sync" ]]; then
-        run_cli "claude plugin update $id -s $scope   # downgrade $old -> $new" \
-          plugin update "$id" -s "$scope"
+        run_cli "claude plugin update $id -s $scope --json   # downgrade $old -> $new" \
+          plugin update "$id" -s "$scope" --json
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
@@ -1439,7 +1505,7 @@ install_one() {
   local unset_cfg="null"
   local reason=""
   local disabled="false"
-  run_cli "claude plugin install $id -s user" plugin install "$id" -s user
+  run_cli "claude plugin install $id -s user --json" plugin install "$id" -s user --json
   # Classify before truncation: the digest row keeps 400 characters, and both
   # the failure reason and the disabled-by-default notice can sit past that.
   reason=$(cli_outcome_line "$CLI_OUT")
