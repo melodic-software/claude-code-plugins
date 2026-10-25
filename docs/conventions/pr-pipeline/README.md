@@ -1033,7 +1033,9 @@ run that finds the comment unchanged (same head and reasons) adds no label. A re
 the lanes App included, by an account off that list, or made through a GitHub App
 (`performed_via_github_app`) lifts nothing, and a new head or new
 reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
-escalations.
+escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes App pull
+request instead, and posts the escalation to a person as a new comment rather than rewriting its
+earlier one, since an edit notifies no one and keeps the comment's old date.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also

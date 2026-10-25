@@ -81,9 +81,10 @@
 // A reader run that leaves a lanes App pull request unarmed, or disarms it,
 // on the lane's hold line, a hold path, a cost hold, the gate's verdict or
 // its risk score says why on the pull request, since under merge.lane-prs
-// native the gate never lists it: one `<!-- babysit-merge-risk -->`
-// comment, edited in place and left alone while the reason and head are
-// unchanged (refusalWrites). The
+// native the gate never lists it: a `<!-- babysit-merge-risk -->` comment,
+// edited in place while it is a lane's, posted anew when it becomes a
+// person's, and left alone while the reason and head are unchanged
+// (refusalWrites). The
 // comment is the record; only a cause a person must clear (owner direction
 // 2026-10-24: untrusted provenance, a security finding, a trusted-actor
 // widening or a real charge, see verifyClears; a hold path, a configured
@@ -538,7 +539,9 @@ export function refusalWrites(pull, comments, { clears, reason }, { bot, label }
   if (prior?.body === body) {
     return body === person ? { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) } : null;
   }
-  return { body, commentId: prior?.databaseId ?? null, label: body === person ? label : null };
+  // An escalation to a person posts a new comment: an edit notifies no one
+  // and keeps the old date, so the label would stand unexplained.
+  return body === person ? { body, commentId: null, label } : { body, commentId: prior?.databaseId ?? null, label: null };
 }
 
 // The newest label removals on a pull request, for refusalWrites' lift check.

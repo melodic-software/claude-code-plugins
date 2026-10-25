@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [1.4.5] - 2026-10-25
+
+### Changed
+
+- `audit-sessions`' `redact.py` is now a generated copy of the repository's shared `lib/redact.py`, which the corrections plugin also carries; the code is unchanged and it gains a generated-file header. The header changes the collector digest, so the next `collect` run re-ingests every transcript once.
+
+## [1.4.4] - 2026-10-25
+
+### Changed
+
+- The handoff skill's phase-boundary owner record cites `/implementation:implement-dispatch` by its slash invocation instead of by a path into the implementation plugin's `skills/` folder.
+
 ## [1.4.3] - 2026-10-25
 
 ### Changed

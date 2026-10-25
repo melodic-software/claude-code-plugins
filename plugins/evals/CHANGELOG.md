@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.10.6] - 2026-10-25
+
+### Fixed
+
+- **plugin-eval:** the validity gate's new `session started` check marks a run INVALID when it ended at 0 turns with no run error, or when its kept trace shows the shell sandbox failing to start. Both had passed as VALID and scored a session that never ran or had no shell. The sandbox notes give the `TMPDIR` workaround and its upstream pointers.
+
+## [0.10.5] - 2026-10-25
+
+### Fixed
+
+- `/evals:plugin-eval` says what an unset `grader_run_twice` setting means where it decides whether to pass `--grader-agreement`: an unexpanded, empty or other value means `true`, the manifest default, so an unset key no longer reads as neither true nor false.
+
 ## [0.10.4] - 2026-10-25
 
 ### Changed

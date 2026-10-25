@@ -29,6 +29,8 @@ import {
   decide,
   liftedByPerson,
   READER_EVENTS,
+  refusalBody,
+  refusalWrites,
   main,
   pythonRoom,
   pythonVerify,
@@ -419,6 +421,51 @@ test("a risk hold is a person's only for a security finding, an aliasing path, a
       reviews,
     );
   }
+});
+
+// An edit notifies no one and keeps the comment's old date, so an escalation
+// edited into a lane's comment would show only a bare label event.
+test("an escalation to a person posts a new comment, never an edit of the lane's", async () => {
+  const held = pull(1, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
+  const { notes } = await run([held]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  const posted = notes[0].body.body.split("\n");
+  assert.equal(posted[0], "<!-- work-items:escalation lane=pr-merge kind=escalated -->");
+  assert.equal(posted[1], "<!-- babysit-merge-risk -->");
+  assert.ok(posted.includes(HOLD_PATH_REASON));
+});
+
+test("a person's refusal at a new head posts a new comment too", async () => {
+  const earlier = refusalBody(true, HOLD_PATH_REASON, "c".repeat(40), "needs-human");
+  const held = pull(1, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(earlier)] } });
+  const { notes } = await run([held]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("an unchanged person's refusal is not posted again", () => {
+  const writes = refusalWrites(
+    { headRefOid: HEAD },
+    [lanesSaid(personNote(HOLD_PATH_REASON))],
+    { clears: "person", reason: HOLD_PATH_REASON },
+    { bot: LANES.login, label: "needs-human" },
+  );
+  assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
+});
+
+test("a lane's refusal over a person's comment still edits it, with no label", () => {
+  const writes = refusalWrites(
+    { headRefOid: HEAD },
+    [lanesSaid(personNote(HOLD_PATH_REASON))],
+    { clears: "lane", reason: MISSING_REASON },
+    { bot: LANES.login, label: "needs-human" },
+  );
+  assert.deepEqual(writes, { body: laneNote(MISSING_REASON), commentId: 77, label: null });
 });
 
 test("an armed pull request, an event run and report-only write no refusal note", async () => {
@@ -1192,6 +1239,23 @@ test("the lane's own hold line is commented on once and labeled human-gated", as
   // The label write failed earlier: it goes back on.
   const unlabeledOnce = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
   assert.deepEqual(unlabeledOnce.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
+});
+
+// An escalation posts a second comment beside the lane's earlier one, so later
+// runs must read the newer one and never post it again.
+test("the lane's hold line over a lane's comment posts once, then reads the posted one", async () => {
+  const laneComment = lanesSaid(laneNote(MISSING_REASON));
+  const first = await run([laneHeld(1, { discussion: { comments: [laneComment] } })]);
+  assert.deepEqual(first.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  const posted = { ...lanesSaid(personNote(LANE_HOLD_REASON), "2026-10-23T10:05:00Z"), databaseId: 78, createdAt: "2026-10-23T10:05:00Z" };
+  const both = [laneComment, posted];
+  const lifted = await run([laneHeld(1, { discussion: { comments: both }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
+  assert.deepEqual(lifted.notes, []);
+  const relabel = await run([laneHeld(1, { discussion: { comments: both } })]);
+  assert.deepEqual(relabel.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
 });
 
 test("a person's own hold text and an event run write no note, and an event run disarms the lane's hold line with no read", async () => {
