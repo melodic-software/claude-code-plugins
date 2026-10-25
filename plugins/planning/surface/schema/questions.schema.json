@@ -41,7 +41,7 @@
       }
     },
     "notes": {"type": "array", "items": {"$ref": "#/$defs/line"}},
-    "handled":{"type": "array", "items": {"type": "integer"}},
+    "handled": {"type": "array", "items": {"type": "integer"}},
     "handledSeq": {"type": "integer"},
     "status": {
       "description": "What Claude is doing now, set and cleared by the set-status op.",
