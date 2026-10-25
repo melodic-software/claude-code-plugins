@@ -26,6 +26,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import {
   allLaneCommits,
   checksPassed,
@@ -117,7 +118,8 @@ function api({ fetch, apiUrl, token }) {
   };
 }
 
-export async function main({ env = process.env, fetch = globalThis.fetch } = {}) {
+// Every call goes through the rate guard (rate-guard.mjs).
+export async function main({ env = process.env, fetch = rateLimitLatch.guard(globalThis.fetch) } = {}) {
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
       throw new Error("ISSUE_NUMBER is not an issue number");

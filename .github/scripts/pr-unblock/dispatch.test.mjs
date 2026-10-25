@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
@@ -815,17 +816,22 @@ test("main still exits 1 on a run listing that fails for any other reason", asyn
 
 test("the adapter marks a run listing budgetedFetch gave up on as rate limited, and a refusal as not", async () => {
   const reset = Math.floor(Date.now() / 1000) + 19 * 60;
-  const answers = [
+  // Each listing gets its own latch: a limit refuses its latch's later calls.
+  const apiFor = (answer) => {
+    const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+    const budget = budgetedFetch({ fetch: async () => answer, log: () => {}, sleep: async () => assert.fail("no wait fits"), latch });
+    return createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
+  };
+  const limited = apiFor(
     new Response('{"message":"API rate limit exceeded for installation."}', {
       status: 403,
       headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset) },
     }),
-    new Response('{"message":"Resource not accessible by integration"}', { status: 403, headers: { "x-ratelimit-remaining": "4000" } }),
-  ];
-  const budget = budgetedFetch({ fetch: async () => answers.shift(), log: () => {}, sleep: async () => assert.fail("no wait fits") });
-  const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
-  await assert.rejects(api.listWorkflowRuns("pr-unblock.yml"), (error) => error.rateLimited === true && /returned 403/.test(error.message));
-  await assert.rejects(api.listWorkflowRuns("pr-refine.yml"), (error) => error.rateLimited !== true && /returned 403/.test(error.message));
+  );
+  await assert.rejects(limited.listWorkflowRuns("pr-unblock.yml"), (error) => error.rateLimited === true && /returned 403/.test(error.message));
+  await assert.rejects(limited.listWorkflowRuns("pr-refine.yml"), (error) => error.rateLimited === true, "a refused later listing is rate limited too");
+  const refused = apiFor(new Response('{"message":"Resource not accessible by integration"}', { status: 403, headers: { "x-ratelimit-remaining": "4000" } }));
+  await assert.rejects(refused.listWorkflowRuns("pr-refine.yml"), (error) => error.rateLimited !== true && /returned 403/.test(error.message));
 });
 
 test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {

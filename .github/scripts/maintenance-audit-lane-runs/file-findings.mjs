@@ -22,6 +22,11 @@ import {
   renderDigestComment,
   validateFinding,
 } from "./findings.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+
+// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
+// is read at call time, so a test's stub is guarded too.
+const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export const FILER_LOGIN = "github-actions[bot]";
 // No needs-triage: the digest is a status record the sweep rewrites daily,
@@ -199,7 +204,7 @@ async function main() {
   const budget = createBudget(Number(env.CALL_BUDGET ?? 50));
   const call = async (method, path, body) => {
     budget.spend();
-    const response = await fetch(`${env.GITHUB_API_URL}${path}`, {
+    const response = await guardedFetch(`${env.GITHUB_API_URL}${path}`, {
       method,
       headers: {
         accept: "application/vnd.github+json",

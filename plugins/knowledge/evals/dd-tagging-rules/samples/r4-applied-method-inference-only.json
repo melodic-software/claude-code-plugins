@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R4 | cc-applicable | unverified-inference | event-hooks.md:5 and event-hooks.md:7 document a PostToolUse hook after edits; the license-header check is a new case."
+    },
+    {
+      "answer": "**ROW R4** | `cc-applicable` | `unverified-inference` | event-hooks.md:7.\nROW R5 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | contradicted by delegates.md:5."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R4 | cc-applicable | unverified-inference, vendor-claimed (blog, 2026-10-20 fetch) | No page names a license-header check.",
+      "why": "documented method applied to a new case wrongly marked"
+    },
+    {
+      "answer": "ROW R4a | cc-applicable | none | event-hooks.md:5.\nROW R4b | cc-applicable | unverified-inference, vendor-claimed (blog, 2026-10-20 fetch) | license-header check is blog-only.",
+      "why": "split that puts the marker on the new case"
+    },
+    {
+      "answer": "ROW R4 | cc-applicable | none | event-hooks.md:7.",
+      "why": "inference not disclosed"
+    }
+  ]
+}
