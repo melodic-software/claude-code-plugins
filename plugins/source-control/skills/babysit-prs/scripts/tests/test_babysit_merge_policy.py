@@ -3607,8 +3607,10 @@ class LaneEligibility(unittest.TestCase):
     a pull request the lanes App opened, not a fork or a dependency
     manager's, with exactly one closing issue in this repository and a diff
     touching no denied path, is fixed class C2. No `work-class:` label is
-    read, on the issue or the pull request; the verifier verdict, bound to
-    that closing issue, is the merge criterion."""
+    read, on the issue or the pull request, but the trust hold
+    (`trust_refusal`) still refuses an issue carrying a label naming untrusted
+    work, or one a non-human removed; the verifier verdict, bound to that
+    closing issue, is the merge criterion."""
 
     ISSUE = 41
     TIMELINE = f"repos/{REPO}/issues/41/timeline?per_page=100"
@@ -3639,11 +3641,13 @@ class LaneEligibility(unittest.TestCase):
         author: dict[str, str] | None = None,
         base_ref: str = "main",
         body: str | None = None,
+        timeline: Any = (),
     ) -> GhFake:
         issues = [self.issue_node(labels=labels)] if closing is None else closing
         names = pr_labels or []
         gh = GhFake().install(self)
         gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
+        gh.rest[self.TIMELINE] = list(timeline) if timeline != 502 else 502
         gh.graphql["PolicyEligibility"] = {
             "repository": {
                 "pullRequest": {
@@ -3690,23 +3694,67 @@ class LaneEligibility(unittest.TestCase):
         result = self.eligibility()
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
-        # No label history and no issue comment is read: the agent-ready
-        # label alone admitted the issue, and the fake answers neither call.
+        # One label history read, the trust hold's, and no issue comment:
+        # the agent-ready label alone admitted the issue.
         calls = [" ".join(c) for c in gh.calls]
-        self.assertFalse(any(self.TIMELINE in c or self.COMMENTS in c for c in calls))
+        self.assertEqual(sum(self.TIMELINE in c for c in calls), 1)
+        self.assertFalse(any(self.COMMENTS in c for c in calls))
 
     def test_a_class_label_on_the_issue_or_the_pr_is_ignored(self) -> None:
         # The admitted issues still carrying these labels (#5981, #6821).
         for labels in (
             ["work-class: scoped"],
             ["Work-Class: Structural"],
-            [MECHANICAL, "work-class: untrusted-provenance"],
         ):
             with self.subTest(labels=labels):
                 self.fake(labels=labels, pr_labels=["work-class: structural"])
                 result = self.eligibility()
                 self.assertTrue(result.eligible, result.reason)
                 self.assertEqual(result.work_class, "C2")
+
+    def test_an_issue_labeled_untrusted_refuses_in_any_spelling(self) -> None:
+        for label in (
+            "work-class: untrusted-provenance",
+            "Work-Class: Untrusted_Provenance",
+            "untrusted",
+        ):
+            with self.subTest(label=label):
+                self.fake(labels=[MECHANICAL, label])
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "untrusted-provenance")
+
+    def test_the_trust_label_removed_by_a_non_human_refuses(self) -> None:
+        def unlabeled(actor: dict[str, str], via: Any = None) -> dict[str, Any]:
+            return {
+                "event": "unlabeled",
+                "label": {"name": "work-class: untrusted-provenance"},
+                "actor": actor,
+                "performed_via_github_app": via,
+            }
+
+        for event in (
+            unlabeled({"login": IDENTITY, "type": "Bot"}),
+            unlabeled({"login": OPERATOR, "type": "User"}, {"slug": "agent"}),
+            unlabeled({"login": "reader", "type": "User"}),
+        ):
+            with self.subTest(event=event):
+                self.fake(timeline=[event])
+                self.assertEqual(
+                    self.eligibility().reason,
+                    "untrusted-provenance-removed-by-non-human",
+                )
+        # A write-access person's removal lifts it.
+        self.fake(timeline=[unlabeled({"login": "maintainer", "type": "User"})])
+        self.assertTrue(self.eligibility().eligible)
+
+    def test_unreadable_labels_or_timeline_refuse(self) -> None:
+        cut = self.issue_node(labels=[MECHANICAL])
+        cut["labels"]["totalCount"] = 101
+        self.fake(closing=[cut])
+        self.assertEqual(self.eligibility().reason, "issue-labels-unreadable")
+        self.fake(timeline=502)
+        self.assertTrue(str(self.eligibility().reason).startswith("unreadable: "))
 
     def test_a_pr_the_lanes_app_did_not_open_is_ineligible(self) -> None:
         # Anyone with write access could name an issue in `Closes #N`.
@@ -3882,6 +3930,7 @@ class RefsIssueEligibility(unittest.TestCase):
     issue_node = LaneEligibility.issue_node
     fake = LaneEligibility.fake
     FILES = LaneEligibility.FILES
+    TIMELINE = LaneEligibility.TIMELINE
     eligibility = LaneEligibility.eligibility
 
     def refs_calls(self, gh: GhFake) -> int:

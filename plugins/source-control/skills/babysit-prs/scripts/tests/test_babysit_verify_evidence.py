@@ -3343,6 +3343,8 @@ class LaneRequiresAVerdict(unattended.Unattended):
         reads = [
             ("_graphql", {"repository": {"pullRequest": node}}),
             ("_base_refusal", None),
+            # The trust hold's label history: no removal.
+            ("_timeline", []),
         ]
         if not real_denied_paths:
             reads.append(("_denied_path_refusal", None))
