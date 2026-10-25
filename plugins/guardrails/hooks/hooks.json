@@ -42,6 +42,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "secret-pattern-detection.sh",
               "hardcoded-path-check.sh",
@@ -61,6 +62,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "secret-pattern-detection.sh",
               "hardcoded-path-check.sh"
@@ -79,6 +81,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "block-unresolved-pr-merge.sh"
             ],
@@ -96,6 +99,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "block-fix-request-post.sh"
             ],
@@ -113,6 +117,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "--lib",
               "lib/powershell/ps-command.sh",

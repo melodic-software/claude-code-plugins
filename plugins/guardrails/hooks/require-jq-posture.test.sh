@@ -311,7 +311,8 @@ if ((JQ_HIDING_WORKS)); then
   # and on a later one.
   ROW_ARGS=()
   while IFS= read -r arg; do ROW_ARGS+=("$arg"); done < <(jq -r '
-    .hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].args[2:][]' "$HOOK_DIR/hooks.json")
+    .hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].args
+    | .[(map(endswith("/hooks/run-guards.sh")) | index(true)) + 1:][]' "$HOOK_DIR/hooks.json")
   ROW_DATA="$TEST_TMPDIR/data-row"
   for call in first later; do
     row_err=$(cd "$HOOK_DIR" && BASH_ENV="$HIDE_JQ" CLAUDE_PLUGIN_DATA="$ROW_DATA" CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.." \

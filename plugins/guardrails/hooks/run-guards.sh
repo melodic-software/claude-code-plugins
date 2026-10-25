@@ -200,8 +200,13 @@ source "$_RG_DIR/abort-boundary.sh"
 # event is filled in once the payload is read (it names the additionalContext
 # block; until then the notice is systemMessage only), and the trap is
 # released right before the deliberate aggregated exit, so a non-block status
-# a guard returned still surfaces exactly as it did.
+# a guard returned still surfaces exactly as it did. That fail-open holds only
+# for a run without the verdict marker (run_guards::verdict below): an abort
+# writes none, so a row passing exec-bash --require-verdict, as every
+# hooks.json row does, denies the call. With a marker to write the boundary is
+# closed, so its line says the call is denied.
 guard::abort_boundary run-guards "" open 0 2
+[[ -z "${EXEC_BASH_VERDICT_FILE-}" ]] || guard::abort_boundary run-guards "" closed 0 2
 # shellcheck source=hook-utils.sh
 source "$_RG_DIR/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
@@ -258,7 +263,24 @@ while (($#)); do
     ;;
   esac
 done
-((${#GUARDS[@]})) || exit 0
+
+# The verdict marker (#7681). Every hooks.json row passes exec-bash.mjs
+# --require-verdict, which names a file in EXEC_BASH_VERDICT_FILE and denies a
+# call whose dispatcher exits 0 without writing it: on Git Bash a dispatcher
+# that crashed reads as exit 0 with no output. So each deliberate exit below
+# writes the file as its last action, and nothing else does: an abort the
+# dispatcher's own boundary reports, and a crash, leave no file, and a blocking
+# row denies them. A --report process is not the answer, its parent is, so it
+# never writes. The redirection is a builtin (no fork); a write that fails
+# leaves no file, which denies.
+run_guards::verdict() {
+  ((RUN_GUARDS_REPORT)) || [[ -z "${EXEC_BASH_VERDICT_FILE-}" ]] || : >"$EXEC_BASH_VERDICT_FILE"
+}
+
+((${#GUARDS[@]})) || {
+  run_guards::verdict
+  exit 0
+}
 
 # --- stdin once, fields once --------------------------------------------------
 RUN_GUARDS_PRIMED=0
@@ -297,7 +319,10 @@ RUN_GUARDS_INPUT=""
 RUN_GUARDS_STDIN_RC=0
 hook::buffer_stdin_to RUN_GUARDS_INPUT "${PRIME_FILTERS[@]}" || RUN_GUARDS_STDIN_RC=$?
 # Nothing arrived: every guard would take its empty-stdin skip. Take it once.
-((RUN_GUARDS_STDIN_RC == 1)) && exit 0
+if ((RUN_GUARDS_STDIN_RC == 1)); then
+  run_guards::verdict
+  exit 0
+fi
 # The payload was cut short at EOF (rc 3): a transport fault, so every guard
 # would skip with the same notice. Say it once and stop. The event name is
 # not known here (this dispatcher is wired under PreToolUse and PostToolUse
@@ -308,6 +333,7 @@ hook::buffer_stdin_to RUN_GUARDS_INPUT "${PRIME_FILTERS[@]}" || RUN_GUARDS_STDIN
 # on it.
 if ((RUN_GUARDS_STDIN_RC == 3)); then
   hook::stdin_cut_short_notice "" "guardrails"
+  run_guards::verdict
   exit 0
 fi
 
@@ -566,6 +592,7 @@ if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
       hook::json_str_object_to _rg_data tool "${RUN_GUARDS_FIELD['.tool_name']-}" form "too-many-substitutions" count "$_rg_subst"
       hook::emit_telemetry run-guards "${_GAB_EVENT:-PreToolUse}" blocked "$RUN_GUARDS_START" "$_rg_data" "${CLAUDE_PROJECT_DIR:-}"
     fi
+    run_guards::verdict
     exit 2
   fi
   unset _rg_subst _rg_data
@@ -1071,6 +1098,7 @@ run_guards::finish() {
   # an abort in the merge must not turn the block into an allow.
   local __rg_posture=open
   ((RC == 2)) && __rg_posture=closed
+  [[ -n "${EXEC_BASH_VERDICT_FILE-}" ]] && __rg_posture=closed
   guard::abort_boundary run-guards "$_GAB_EVENT" "$__rg_posture" 0 2
   # A guard that exited 2 denies the call, so an ask another guard emitted is
   # dropped rather than shown beside the deny.
@@ -1119,6 +1147,7 @@ run_guards::finish() {
   # other than 2 (a guard-not-found 1, a stub's 3) denies the call. Release
   # the boundary so it is not reported as an abort.
   guard::abort_boundary_release
+  run_guards::verdict
   builtin exit "$RC"
 }
 
