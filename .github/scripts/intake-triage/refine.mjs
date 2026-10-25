@@ -40,7 +40,10 @@
 // `**Decision recorded.**` sends back through intake-reenter.yml. An exact
 // output that names a duplicate or fixing change becomes not exact, with one
 // question whether to close the issue. It never adds `agent-ready` or
-// `needs-human`, and files no issue.
+// `needs-human`, and files no issue. It lifts no App needs-decision while the
+// App's verdict comment lists a flag other than intent, or records that an
+// earlier flag is unknown (apply-verdict earlierFlags); that hold stays for a
+// person.
 //
 // A split the model judges sound names exactly the held item numbers; the
 // model writes no text the lanes read. The refinement comment lists those
@@ -81,7 +84,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
-import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
+import { earlierFlags, LANES_APP_LOGIN, MARKER, ownVerdict } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
 export { REFINE_MARKER };
@@ -163,9 +166,27 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
 }
 
-// Who last set `status: needs-decision`, by account id.
-const decisionSetter = async (github, base) =>
-  (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
+// Why the lanes App may not lift `status: needs-decision`, or null: someone
+// else set it, or the App's verdict comment lists a flag other than the intent
+// a refinement resolves, or records that an earlier flag is unknown
+// (apply-verdict earlierFlags null). Once lifted, a re-triage sees no hold and
+// so carries no earlier flag. No such comment lifts: refine's own question
+// hold writes none.
+async function decisionStays(github, base, comments, appId) {
+  const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
+  if (setter !== appId) {
+    return `a person set its ${NEEDS_DECISION}`;
+  }
+  if (!ownVerdict(comments, appId)) {
+    return null;
+  }
+  const flags = earlierFlags(comments, appId);
+  if (flags === null) {
+    return `its ${NEEDS_DECISION} stands: whether an earlier verdict flagged is unknown`;
+  }
+  const stops = flags.filter((flag) => flag !== "intent");
+  return stops.length > 0 ? `its ${NEEDS_DECISION} stands for flagged: ${stops.join(", ")}` : null;
+}
 
 // Up to four plain lowercase words from the title, each 4 or more letters or
 // digits, so no search qualifier or operator survives.
@@ -379,8 +400,9 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
-  if (split !== null && (await decisionSetter(github, base)) !== appId) {
-    return no(`a person set its ${NEEDS_DECISION}`);
+  const stays = split === null ? null : await decisionStays(github, base, comments, appId);
+  if (stays !== null) {
+    return no(stays);
   }
   const { kept } = await selectTrustedIssueComments({ github, repository, issueNumber: number, ids: humans });
   return {
@@ -605,8 +627,8 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip("is already refined");
   }
   if (output.split.length > 0) {
-    if (!labels.includes(NEEDS_DECISION) || (await decisionSetter(github, base)) !== appId) {
-      return skip(`is no longer held by the lanes App's ${NEEDS_DECISION}`);
+    if (!labels.includes(NEEDS_DECISION) || (await decisionStays(github, base, comments, appId)) !== null) {
+      return skip(`is no longer held by the lanes App's ${NEEDS_DECISION} alone`);
     }
     const after = splitBody(issue.body, rules["task-list"], output.split);
     const posted = comments.some((comment) => refinedBody([comment], appId, after) && String(comment.body).split("\n")[2] === splitSource(issue.body));
@@ -663,11 +685,12 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is exact; triage asked again so admission reads the criteria`);
     return { outcome: "exact", redispatch: true };
   }
-  // Only the lanes App's own needs-decision gives way: a person's stays.
-  const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
-  if (setter !== appId) {
+  // Only the lanes App's own needs-decision gives way, and not for a flag past
+  // intent: a person's stays.
+  const stays = await decisionStays(github, base, comments, appId);
+  if (stays !== null) {
     await post();
-    log(`refine: #${number} is exact; a person set its needs-decision, so it stays`);
+    log(`refine: #${number} is exact; ${stays}, so it stays`);
     return { outcome: "exact", redispatch: false };
   }
   if (await untrusted()) {

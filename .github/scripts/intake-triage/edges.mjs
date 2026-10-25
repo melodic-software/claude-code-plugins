@@ -8,7 +8,11 @@
 // Each named issue gets an edge on the triaged issue only when it is an open
 // issue in this repository, not a pull request and not the issue itself, and
 // the edge is not there yet. The POST body's `issue_id` is the blocker's REST
-// `id`, read from the blocker itself.
+// `id`, read from the blocker itself. GitHub answering 403, 429 or 5xx on a
+// read or write for an edge leaves that edge missed, not the run stopped.
+// When any edge misses, the edges this run wrote are deleted again, so the
+// work-unblock lane, which reads only native edges, never sees a partial set;
+// an edge that was already there stays.
 import { GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const BLOCKED_BY = "Blocked by";
@@ -36,21 +40,68 @@ export function parseBlockedBy(lines) {
 }
 
 const here = (url, repository) => String(url ?? "").endsWith(`/repos/${repository}`);
+// A refusal (a missing permission or a rate limit) or a server error.
+const unwritable = (error) => error instanceof GitHubError && (error.status === 403 || error.status === 429 || error.status >= 500);
 
-// Writes the edges; returns {written, skipped: [{number, why}]}. An API error
-// other than a missing blocker or a refused edge stops it.
+// Writes the edges; returns {written, skipped: [{number, why}], missed:
+// [{number, status}], unwritten, undeleted: [{number, status}]}: written are
+// the run's edges still standing, unwritten the ones it deleted after a miss,
+// undeleted the ones whose delete failed. Any other API error on a read or
+// write stops it.
 export async function writeEdges({ github, repository, number, blockers }) {
+  const { result, ids } = await addEdges({ github, repository, number, blockers });
+  if (result.missed.length === 0) {
+    return result;
+  }
+  const standing = [];
+  for (const { blocker, id } of ids) {
+    try {
+      await github("DELETE", `/repos/${repository}/issues/${number}/dependencies/blocked_by/${id}`);
+      result.unwritten.push(blocker);
+    } catch (error) {
+      if (error instanceof GitHubError && error.status === 404) {
+        result.unwritten.push(blocker);
+      } else {
+        standing.push(blocker);
+        result.undeleted.push({ number: blocker, status: error instanceof GitHubError ? error.status : String(error?.message ?? error) });
+      }
+    }
+  }
+  result.written = standing;
+  return result;
+}
+
+async function addEdges({ github, repository, number, blockers }) {
   const base = `/repos/${repository}/issues/${number}`;
-  const result = { written: [], skipped: [] };
+  const ids = [];
+  const result = { written: [], skipped: [], missed: [], unwritten: [], undeleted: [] };
   const skip = (blocker, why) => result.skipped.push({ number: blocker, why });
+  const miss = (blocker, error) => {
+    if (!unwritable(error)) {
+      throw error;
+    }
+    result.missed.push({ number: blocker, status: error.status });
+  };
   const wanted = blockers.filter((blocker) => blocker !== number);
   if (wanted.length < blockers.length) {
     skip(number, "the issue itself");
   }
   if (wanted.length === 0) {
-    return result;
+    return { result, ids };
   }
-  const existing = new Set((await paginate(github, `${base}/dependencies/blocked_by`)).map((issue) => issue?.number));
+  let existing;
+  try {
+    existing = new Set((await paginate(github, `${base}/dependencies/blocked_by`)).map((issue) => issue?.number));
+  } catch (error) {
+    for (const [index, blocker] of wanted.entries()) {
+      if (index < MAX_EDGES) {
+        miss(blocker, error);
+      } else {
+        skip(blocker, `past the first ${MAX_EDGES}`);
+      }
+    }
+    return { result, ids };
+  }
   for (const [index, blocker] of wanted.entries()) {
     if (index >= MAX_EDGES) {
       skip(blocker, `past the first ${MAX_EDGES}`);
@@ -66,9 +117,10 @@ export async function writeEdges({ github, repository, number, blockers }) {
     } catch (error) {
       if (error instanceof GitHubError && (error.status === 404 || error.status === 410)) {
         skip(blocker, "no such issue");
-        continue;
+      } else {
+        miss(blocker, error);
       }
-      throw error;
+      continue;
     }
     if (issue?.pull_request) {
       skip(blocker, "a pull request");
@@ -82,14 +134,15 @@ export async function writeEdges({ github, repository, number, blockers }) {
       try {
         await github("POST", `${base}/dependencies/blocked_by`, { issue_id: issue.id });
         result.written.push(blocker);
+        ids.push({ blocker, id: issue.id });
       } catch (error) {
         if (error instanceof GitHubError && error.status === 422) {
           skip(blocker, "GitHub refused the edge");
-          continue;
+        } else {
+          miss(blocker, error);
         }
-        throw error;
       }
     }
   }
-  return result;
+  return { result, ids };
 }

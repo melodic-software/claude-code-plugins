@@ -50,8 +50,10 @@
 // whose untrusted-provenance label someone unlisted removed, is never
 // re-fired and gets no needs-human: admission's refusal reaches a person.
 //
-// On `schedule` it sweeps instead: every issue closed in the last
-// LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
+// On `schedule` it sweeps instead: every issue closed since the last
+// successful scheduled run that ran its labeling step began (less
+// SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS back; the full window when that
+// cannot be shown) goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
 // swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
@@ -136,7 +138,10 @@
 //   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
 //                          must be a listed human (`issues` only)
 //   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
-//                          work-resolve-issue runs; unset skips the re-fire
+//                          work-resolve-issue runs and find the last sweep
+//                          and its jobs;
+//                          unset skips the re-fire and uses the full window
+//   GITHUB_RUN_ID          this run, skipped when reading the last sweep
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -179,6 +184,11 @@ const STALE_STEP = "Stop on stale workflow files";
 const BLOCKER_STEP = "Wait for open blockers";
 // The admit job's step a run stops at for good on untrusted provenance.
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
+// work-unblock.yml's job and its step that runs this script. The kill switch
+// and a lane the config turns off skip the step and leave the run green, so
+// only this step's success shows a sweep ran.
+const SWEEP_JOB = "label-unblocked";
+const SWEEP_STEP = "Label the unblocked issues";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -194,8 +204,11 @@ export const RECURRENCE_PREFIX = "This check failed on main again at `";
 const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
 // A work-resolve-issue run in any of these has not finished.
 const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
-// The sweep's window: three hourly runs overlap, so a missed run loses nothing.
+// The sweep's widest window, used when the last good sweep is unknown or
+// older: a missed run loses nothing up to this far back.
 export const LOOKBACK_HOURS = 3;
+// The sweep reads from this long before the last good sweep started.
+export const SWEEP_MARGIN_MIN = 15;
 // How long an agent-ready issue may sit with no run working on it.
 export const STRANDED_HOURS = 3;
 // The one comment per issue that says it keeps being re-fired on a backoff,
@@ -312,6 +325,47 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
     return `${LABEL} was removed and ${READY} not added since`;
   }
   return null;
+}
+
+// Where the sweep's window starts and why: SWEEP_MARGIN_MIN before the last
+// successful scheduled run of this workflow (not the current one), no further
+// back than LOOKBACK_HOURS, and only when that run's SWEEP_STEP succeeded.
+// Anything else (an unreadable listing, no steps, a skipped step) gives the
+// full window, so a failed read re-processes and never skips.
+async function sweepSince({ actions, repo, now, runId }) {
+  const widest = now - LOOKBACK_HOURS * HOUR_MS;
+  if (!actions) {
+    return { since: widest, why: "no Actions token to read the last sweep" };
+  }
+  try {
+    const path = `/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+    const runs = (await actions("GET", path))?.workflow_runs;
+    if (!Array.isArray(runs)) {
+      throw new Error("the workflow run listing has an unexpected shape");
+    }
+    const last = runs.find((run) => String(run.id) !== String(runId ?? ""));
+    const started = Date.parse(last?.run_started_at ?? last?.created_at);
+    if (!Number.isFinite(started) || started > now) {
+      return { since: widest, why: "no earlier successful sweep was found" };
+    }
+    const at = new Date(started).toISOString();
+    const from = started - SWEEP_MARGIN_MIN * 60_000;
+    if (from <= widest) {
+      return { since: widest, why: `the last successful run started ${at}, past the widest window` };
+    }
+    if (!RUN_ID.test(String(last.id))) {
+      throw new Error("the last successful run has no usable id");
+    }
+    const jobs = await jobLister(actions, repo)(last);
+    const swept = namedJobs(jobs, SWEEP_JOB).some((job) =>
+      (job?.steps ?? []).some((step) => step?.name === SWEEP_STEP && step.conclusion === "success"),
+    );
+    return swept
+      ? { since: from, why: `the last sweep started ${at}` }
+      : { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step` };
+  } catch (error) {
+    return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})` };
+  }
 }
 
 // The issues closed at or after `since`. The listing's `since` filters on the
@@ -1387,11 +1441,14 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     const repo = env.GITHUB_REPOSITORY;
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
-    const closed = sweep
-      ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
-      : [Number(event.issue.number)];
     if (sweep) {
-      console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${LOOKBACK_HOURS} hours`);
+      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+    }
+    const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
+    const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];
+    if (sweep) {
+      const minutes = Math.round((now - window.since) / 60_000);
+      console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${minutes} minutes (${window.why})`);
     }
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
     const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
@@ -1405,7 +1462,6 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
-      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
       failed += await restartLimited({ github, actions, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;

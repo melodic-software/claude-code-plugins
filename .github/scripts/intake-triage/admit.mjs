@@ -636,15 +636,16 @@ export const splitChildHeader = (parent, part, parts, source = null) =>
 // human wrote (refinementSpec, as trustedSpecTexts counts it), with every
 // comment read and its updated_at equal to its created_at or to the value
 // recorded; a deleted, edited or superseded refinement leaves the body
-// untrusted, whoever edited the body since. Then either nobody edited the
-// body and every line after the header is one of the parent's trusted
-// task-list lines (trustedTaskLines with `taskList`, the rules' `task-list`;
-// owner decision on #9906) or, under a source line, one of that
-// refinement's task-list lines, never its other lines; or a listed human
-// last edited it (ticking a task box is an edit), which makes it that
-// human's text as trustedSpecTexts reads any body. An edit by anyone else,
-// the App included, leaves it untrusted, and so does a missing or empty
-// `taskList`. Pure.
+// untrusted, whoever edited the body since. Every line after the header is
+// then one of the allowed lines: the parent's trusted task-list lines
+// (trustedTaskLines with `taskList`, the rules' `task-list`; owner decision
+// on #9906) and, under a source line, that refinement's task-list lines,
+// never its other lines. Either nobody edited the body since, or a listed
+// human last edited it and the lines may also be allowed lines with their
+// box ticked (tickedForms). GitHub names only the last editor, so a listed
+// human's edit after anyone else's vouches for ticked boxes, never for other
+// text. An edit by anyone else, the App included, leaves it untrusted, and
+// so does a missing or empty `taskList`. Pure.
 export function splitChildBody(spec, humans, taskList) {
   const parent = spec?.splitParent;
   const author = spec?.author;
@@ -675,13 +676,23 @@ export function splitChildBody(spec, humans, taskList) {
     }
     refinement = taskLinesOf(newest.body, taskList);
   }
-  if (edited) {
-    return body;
-  }
-  const allowed = new Set([...trustedTaskLines(parent.spec, humans, taskList), ...refinement]);
+  const exact = [...trustedTaskLines(parent.spec, humans, taskList), ...refinement];
+  const allowed = new Set(edited ? exact.flatMap((line) => [line, ...tickedForms(line, taskList)]) : exact);
   const lines = body.slice(header.length).split("\n");
   return lines.every((line) => allowed.has(line)) ? body : null;
 }
+
+// `line`, a task-list line, with its box ticked: the one `[ ]` in `taskList`
+// written `[x]` or `[X]`, indent and text unchanged. None when `taskList`
+// does not hold exactly one `[ ]`.
+const tickedForms = (line, taskList) => {
+  if (taskList.split("[ ]").length !== 2) {
+    return [];
+  }
+  const indent = line.slice(0, line.length - line.trimStart().length);
+  const text = line.trimStart().slice(taskList.length);
+  return ["[x]", "[X]"].map((box) => indent + taskList.replace("[ ]", box) + text);
+};
 
 // The split record on the second line of the lanes App's SIZE_SPLIT_MARKER
 // comment: the sha256 of the task lines split, the parts (1-based item

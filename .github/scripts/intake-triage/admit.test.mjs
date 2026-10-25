@@ -1055,6 +1055,15 @@ describe("size split sub-issues", () => {
     }
   });
 
+  test("splitChildBody's edited path takes only exact lines when the marker has no box to tick", () => {
+    const edited = vectorSpec(VECTORS.cases.find((item) => item.name === "edited by a listed human"));
+    const header = edited.body.slice(0, edited.body.indexOf("- [x]"));
+    const spec = (lines) => ({ ...edited, body: header + lines.join("\n"), splitParent: { ...edited.splitParent, spec: { ...edited.splitParent.spec, body: "## Done when\n\n* Line 3.\n  * Line 4." } } });
+    assert.notEqual(splitChildBody(spec(["* Line 3.", "  * Line 4."]), humans, "* "), null);
+    assert.equal(splitChildBody(spec(["* Line 3.", "* Line 4."]), humans, "* "), null, "the indent is part of the line");
+    assert.equal(splitChildBody(spec(["* [x] Line 3."]), humans, "* "), null, "no ticked form to derive");
+  });
+
   test("an issue waits while a sub-issue is open, and not for a closed one", () => {
     const subIssues = [
       { number: 8, state: "open" },

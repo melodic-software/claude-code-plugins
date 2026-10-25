@@ -930,6 +930,21 @@ for (const vector of VECTORS.cases) {
   });
 }
 
+// A parent read short of its comments, or not read at all, stops the run:
+// judging without the child's criteria leaves a pass the gate would count
+// once the parent reads whole again (an outsider deleting padding comments).
+test("a split child whose parent cannot be read whole stops the run", async () => {
+  const vector = VECTORS.cases.find((item) => item.name === "the trusted child");
+  const cut = { ...parentNode(vector), comments: { totalCount: 101, nodes: [] } };
+  await assert.rejects(resolveChild(childNode(vector), cut), { message: "#8: the split parent's comments could not be read" });
+  const github = fake({ issues: [childNode(vector)] });
+  const unread = async (method, apiPath, body) => (apiPath === "/graphql" && body.query.includes("parent {") ? { data: null } : github(method, apiPath, body));
+  await assert.rejects(
+    resolvePull({ github: unread, repository: REPO, upstreamRunId: String(RUN), humans: new Set(VECTORS.humans), laneIdentity: LANE, taskList: TASK_LIST, laneAppId: VECTORS.app_id }),
+    { message: "#8: the split parent could not be read" },
+  );
+});
+
 test("with no task-list marker, even the trusted split child is not spec", async () => {
   const vector = VECTORS.cases.find((item) => item.name === "the trusted child");
   for (const taskList of [undefined, ""]) {

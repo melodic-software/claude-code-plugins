@@ -329,9 +329,20 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
     if (laneAppId === undefined || issue.author?.__typename !== "Bot" || issue.author.databaseId !== laneAppId || !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
       continue;
     }
-    const parent = (await github("POST", "/graphql", { query: PARENT_QUERY, variables: { owner, name, number: issue.number } }))?.data?.repository?.issue?.parent;
-    const complete = parent?.repository?.nameWithOwner === repository && Array.isArray(parent.comments?.nodes) && parent.comments.totalCount === parent.comments.nodes.length;
-    const body = complete ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId: laneAppId } }, humans, taskList) : null;
+    // A parent read short of its comments stops the run, as the issue's own
+    // comments do above: a judgment without the child's criteria would leave
+    // a pass the gate counts once the parent reads whole again (an outsider
+    // padding the parent past the page, then deleting the padding).
+    const read = (await github("POST", "/graphql", { query: PARENT_QUERY, variables: { owner, name, number: issue.number } }))?.data?.repository?.issue;
+    if (read === null || typeof read !== "object" || !Object.hasOwn(read, "parent")) {
+      throw new Error(`#${issue.number}: the split parent could not be read`);
+    }
+    const parent = read.parent;
+    const here = parent?.repository?.nameWithOwner === repository;
+    if (here && (!Array.isArray(parent.comments?.nodes) || parent.comments.totalCount !== parent.comments.nodes.length)) {
+      throw new Error(`#${issue.number}: the split parent's comments could not be read`);
+    }
+    const body = here ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId: laneAppId } }, humans, taskList) : null;
     if (body !== null) {
       childBodies.set(issue.number, body);
     }
