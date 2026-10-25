@@ -322,6 +322,45 @@ class RunValidityTest(unittest.TestCase):
         proc = self.run_script(result, "--runs", "1")
         self.assertIn("check session started: PASS", proc.stdout)
 
+    def bash_trace(self, name, results):
+        """A trace with one Bash call per (is_error, text) pair in results."""
+        uses = [{"type": "tool_use", "id": "b%d" % i, "name": "Bash", "input": {"command": "ls"}}
+                for i in range(len(results))]
+        outs = [{"type": "tool_result", "tool_use_id": "b%d" % i, "is_error": err, "content": text}
+                for i, (err, text) in enumerate(results)]
+        trace = self.dir / name
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            + json.dumps({"type": "assistant", "message": {"content": uses}}) + "\n"
+            + json.dumps({"type": "user", "message": {"content": outs}}) + "\n"
+            + '{"type":"result","subtype":"success","is_error":false,"num_turns":4}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=4)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "1"), trace
+
+    def test_a_run_whose_every_bash_call_failed_is_invalid_whatever_the_wording(self):
+        proc, trace = self.bash_trace(
+            "all-failed.jsonl", [(True, "Exit code 1\nREADME.md"), (True, "some new wording")]
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: all 2 Bash calls failed (%s)"
+            % trace,
+            proc.stdout,
+        )
+
+    def test_one_failed_bash_call_or_a_mixed_run_passes(self):
+        for name, results in (
+            ("one.jsonl", [(True, "Exit code 1")]),
+            ("mixed.jsonl", [(True, "Exit code 1"), (False, "ok")]),
+        ):
+            proc, _ = self.bash_trace(name, results)
+            self.assertIn("check session started: PASS", proc.stdout, name)
+
     def test_a_trace_showing_the_sandbox_failing_to_start_is_invalid(self):
         trace = self.dir / "no-sandbox.jsonl"
         trace.write_text(
