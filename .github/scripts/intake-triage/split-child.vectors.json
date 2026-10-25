@@ -1,0 +1,1130 @@
+{
+  "description": "Cases for the size-split sub-issue trust rule (admit.mjs splitChildBody, owner Q93 with the Q9 extension): a body counts as the listed human's text only when the lanes App wrote it, its native parent was filed by a listed human, its header names that parent, and either nobody edited it and every line after the header is one of the parent's trusted task-list lines (lines starting with the admission rules' `task-list`, `- [ ] `), or a listed human last edited it and every line after the header is one of those lines or that line with its box ticked (`- [ ] ` written `- [x] ` or `- [X] `, the rest unchanged). GitHub names only the last editor, so that edit vouches only for ticked boxes. An edit by any other account leaves it untrusted. A header whose third line is `<!-- size-split refinement=<id> updated_at=<time> -->` (its part line then reads \"copied from #N and intake's refinement comment on it as written\") also allows that comment's task-list lines, never its other lines, on both paths and with the same ticked forms after a listed human's edit, and counts at all only while that comment is still the parent's newest refinement (the lanes App's comment opening with `<!-- intake-triage refinement -->`), never edited (last_edited_at null), with updated_at equal to its created_at or to the recorded time, on a parent body a listed human wrote; this holds even when a listed human edited the child. Actors are {type, id} with type User or Bot; parent is the child's native parent number or null; size is the triage Size. admit.test.mjs and resolve-pr.test.mjs read this file. child.parent is null or {number, repo}, repo as owner/name and absent for this repository; a parent elsewhere never counts. A parent's comments, oldest first, are {id, author, body, created_at, updated_at, last_edited_at, editor}, id the REST and GraphQL databaseId. A case-level app_id overrides the top-level one, and null means the reader has no lanes App id, so nothing counts.",
+  "app_id": 337595936,
+  "humans": [
+    153232337
+  ],
+  "parents": {
+    "trusted": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.\n- [ ] Line 5 says twenty-one.",
+      "comments": []
+    },
+    "outsider": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 4242
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.\n- [ ] Line 5 says twenty-one.",
+      "comments": []
+    },
+    "trusted with prose": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\nKeep the old flag working for callers.\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.\n- [ ] Line 5 says twenty-one.",
+      "comments": []
+    },
+    "refined": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+      "comments": [
+        {
+          "id": 901,
+          "author": {
+            "type": "Bot",
+            "id": 337595936
+          },
+          "body": "<!-- intake-triage refinement -->\n<!-- refined body sha256:0000000000000000000000000000000000000000000000000000000000000000 -->\n**Refinement.** A read-only run drafted what follows.\n\n**Acceptance criteria**\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+          "created_at": "2026-10-20T00:00:00Z",
+          "updated_at": "2026-10-20T00:00:00Z",
+          "last_edited_at": null,
+          "editor": null
+        }
+      ]
+    },
+    "refined-outsider": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 4242
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+      "comments": [
+        {
+          "id": 901,
+          "author": {
+            "type": "Bot",
+            "id": 337595936
+          },
+          "body": "<!-- intake-triage refinement -->\n<!-- refined body sha256:0000000000000000000000000000000000000000000000000000000000000000 -->\n**Refinement.** A read-only run drafted what follows.\n\n**Acceptance criteria**\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+          "created_at": "2026-10-20T00:00:00Z",
+          "updated_at": "2026-10-20T00:00:00Z",
+          "last_edited_at": null,
+          "editor": null
+        }
+      ]
+    },
+    "refined-edited": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+      "comments": [
+        {
+          "id": 901,
+          "author": {
+            "type": "Bot",
+            "id": 337595936
+          },
+          "body": "<!-- intake-triage refinement -->\n<!-- refined body sha256:0000000000000000000000000000000000000000000000000000000000000000 -->\n**Refinement.** A read-only run drafted what follows.\n\n**Acceptance criteria**\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+          "created_at": "2026-10-20T00:00:00Z",
+          "updated_at": "2026-10-21T00:00:00Z",
+          "last_edited_at": "2026-10-21T00:00:00Z",
+          "editor": {
+            "type": "Bot",
+            "id": 337595936
+          }
+        }
+      ]
+    },
+    "refined-touched": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+      "comments": [
+        {
+          "id": 901,
+          "author": {
+            "type": "Bot",
+            "id": 337595936
+          },
+          "body": "<!-- intake-triage refinement -->\n<!-- refined body sha256:0000000000000000000000000000000000000000000000000000000000000000 -->\n**Refinement.** A read-only run drafted what follows.\n\n**Acceptance criteria**\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+          "created_at": "2026-10-20T00:00:00Z",
+          "updated_at": "2026-10-21T00:00:00Z",
+          "last_edited_at": null,
+          "editor": null
+        }
+      ]
+    },
+    "refined-deleted": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+      "comments": []
+    },
+    "refined-newer": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+      "comments": [
+        {
+          "id": 901,
+          "author": {
+            "type": "Bot",
+            "id": 337595936
+          },
+          "body": "<!-- intake-triage refinement -->\n<!-- refined body sha256:0000000000000000000000000000000000000000000000000000000000000000 -->\n**Refinement.** A read-only run drafted what follows.\n\n**Acceptance criteria**\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+          "created_at": "2026-10-20T00:00:00Z",
+          "updated_at": "2026-10-20T00:00:00Z",
+          "last_edited_at": null,
+          "editor": null
+        },
+        {
+          "id": 902,
+          "author": {
+            "type": "Bot",
+            "id": 337595936
+          },
+          "body": "<!-- intake-triage refinement -->\n<!-- refined body sha256:0000000000000000000000000000000000000000000000000000000000000000 -->\n**Refinement.** A read-only run drafted what follows.\n\n**Acceptance criteria**\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+          "created_at": "2026-10-21T00:00:00Z",
+          "updated_at": "2026-10-21T00:00:00Z",
+          "last_edited_at": null,
+          "editor": null
+        }
+      ]
+    },
+    "refined-other-bot": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+      "comments": [
+        {
+          "id": 901,
+          "author": {
+            "type": "Bot",
+            "id": 4343
+          },
+          "body": "<!-- intake-triage refinement -->\n<!-- refined body sha256:0000000000000000000000000000000000000000000000000000000000000000 -->\n**Refinement.** A read-only run drafted what follows.\n\n**Acceptance criteria**\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+          "created_at": "2026-10-20T00:00:00Z",
+          "updated_at": "2026-10-20T00:00:00Z",
+          "last_edited_at": null,
+          "editor": null
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "the trusted child",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "the App's unedited copy of its listed-human parent's lines"
+      }
+    },
+    {
+      "name": "a line not in the parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Delete the trusted-actor list.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a line is not one of the parent's trusted task-list lines"
+      }
+    },
+    {
+      "name": "a parent's prose line copied",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\nKeep the old flag working for callers.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted with prose",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a copied line is the parent's trusted prose, not one of its task-list lines"
+      }
+    },
+    {
+      "name": "a parent's heading copied",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n## Done when",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a copied line is the parent's heading, not one of its task-list lines"
+      }
+    },
+    {
+      "name": "task lines of a parent with prose",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted with prose",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "the App's unedited copy of only its listed-human parent's task-list lines"
+      }
+    },
+    {
+      "name": "an untrusted parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "outsider",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "no listed human filed the parent"
+      }
+    },
+    {
+      "name": "a missing marker",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- other -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the body does not open with the split header"
+      }
+    },
+    {
+      "name": "edited by a listed human",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [x] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "a listed human's edit (a ticked box) makes the body that human's text"
+      }
+    },
+    {
+      "name": "edited by another account",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "an account that is not a listed human last edited the body"
+      }
+    },
+    {
+      "name": "edited by an outsider",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 4242
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "an outsider last edited the body"
+      }
+    },
+    {
+      "name": "edited by an unreadable editor",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the body was edited and its editor cannot be read"
+      }
+    },
+    {
+      "name": "a header naming another parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #6, split at intake (owner Q93). The done-when below is copied from #6 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the header names an issue other than the native parent"
+      }
+    },
+    {
+      "name": "another Bot",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 999
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the lanes App did not write it"
+      }
+    },
+    {
+      "name": "no parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": null
+      },
+      "parent": null,
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "it has no native parent"
+      }
+    },
+    {
+      "name": "a trusted Large child",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 2 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 5 says twenty-one.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "large",
+      "expect": {
+        "trusted": true,
+        "reason": "trusted, and Size Large neither parks nor refuses a split child"
+      }
+    },
+    {
+      "name": "a parent in another repository",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5,
+          "repo": "someone/else"
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the native parent is in another repository"
+      }
+    },
+    {
+      "name": "no lanes App id",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the reader has no lanes App id to match the author against"
+      },
+      "app_id": null
+    },
+    {
+      "name": "edited by a listed human with a line not in the parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [x] Line 3 says nineteen.\n- [ ] Delete the trusted-actor list.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "GitHub names only the last editor, so a listed human's edit does not vouch for a line that is neither one of the parent's trusted task-list lines nor its ticked form"
+      }
+    },
+    {
+      "name": "edited by a listed human, a box ticked with a capital X",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [X] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "each line is one of the parent's trusted task-list lines or that line with its box ticked"
+      }
+    },
+    {
+      "name": "edited by a listed human, a ticked line not in the parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [x] Line 3 says nineteen.\n- [x] Delete the trusted-actor list.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a ticked line counts only when its unticked form is one of the parent's trusted task-list lines"
+      }
+    },
+    {
+      "name": "an unedited child with a ticked box",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [x] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the App copies lines as written, so an unedited body holds only the parent's trusted task-list lines exactly"
+      }
+    },
+    {
+      "name": "a refinement-only child",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "every line is the newest unedited refinement's, on a listed human's body, and the header names it"
+      }
+    },
+    {
+      "name": "mixed human and refinement lines",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 6 says twenty-two.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "each line is the listed human's or the named refinement's, and both sources pass"
+      }
+    },
+    {
+      "name": "a refinement updated_at equal to the recorded one",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-21T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-touched",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "updated_at differs from created_at but equals the value recorded at split time"
+      }
+    },
+    {
+      "name": "a refinement on a non-listed author's body",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-outsider",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "no listed human filed the parent, so its refinement is no one's spec"
+      }
+    },
+    {
+      "name": "an edited refinement",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-edited",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the refinement was edited after the split"
+      }
+    },
+    {
+      "name": "a refinement updated since the split",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-touched",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the refinement's updated_at matches neither its created_at nor the recorded value"
+      }
+    },
+    {
+      "name": "a deleted refinement",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-deleted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the named refinement comment is gone"
+      }
+    },
+    {
+      "name": "a refinement line not found verbatim",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 8 says nothing.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a line is in neither the listed human's text nor the refinement"
+      }
+    },
+    {
+      "name": "a newer refinement exists",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-newer",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the named refinement is no longer intake's newest"
+      }
+    },
+    {
+      "name": "mixed, the human side failing",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 3 says ninety.\n- [ ] Line 6 says twenty-two.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the refinement passes, but a line is not the listed human's"
+      }
+    },
+    {
+      "name": "mixed, the refinement side failing",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 6 says twenty-two.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-edited",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the human line passes, but the refinement was edited"
+      }
+    },
+    {
+      "name": "refinement lines without the source line",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a header that names no refinement allows only the listed human's lines"
+      }
+    },
+    {
+      "name": "a source naming another comment",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=999 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the header names a comment id that is not the refinement's"
+      }
+    },
+    {
+      "name": "a listed human's edit over an edited refinement",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": "2026-10-21T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-edited",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a listed human's edit does not stand in for the named refinement's check"
+      }
+    },
+    {
+      "name": "a listed human edit of a child whose parent an outsider filed",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [x] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "outsider",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "no listed human filed the parent, whoever edited the child"
+      }
+    },
+    {
+      "name": "a refinement's prose line copied",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n**Acceptance criteria**",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a copied line is the refinement's prose, not one of its task-list lines"
+      }
+    },
+    {
+      "name": "a refinement's marker line copied",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n<!-- intake-triage refinement -->",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a copied line is the refinement's marker, not one of its task-list lines"
+      }
+    },
+    {
+      "name": "a refinement another Bot wrote",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined-other-bot",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the named comment is not the lanes App's refinement"
+      }
+    },
+    {
+      "name": "a refinement-only Large child",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "large",
+      "expect": {
+        "trusted": true,
+        "reason": "trusted, and Size Large neither parks nor refuses a split child"
+      }
+    },
+    {
+      "name": "a listed human's edit over a fresh refinement",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [x] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.",
+        "last_edited_at": "2026-10-21T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "the named refinement is still fresh, and a listed human's edit makes the body that human's text"
+      }
+    },
+    {
+      "name": "edited by a listed human, a refinement-sourced box ticked",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [x] Line 7 says twenty-three.",
+        "last_edited_at": "2026-10-21T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "a listed human's edit ticked a box on one of the named refinement's task-list lines"
+      }
+    },
+    {
+      "name": "edited by a listed human, a line added to a refinement child",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 and intake's refinement comment on it as written.\n<!-- size-split refinement=901 updated_at=2026-10-20T00:00:00Z -->\n\n## Done when\n\n- [ ] Line 6 says twenty-two.\n- [ ] Line 7 says twenty-three.\n- [ ] Delete the trusted-actor list.",
+        "last_edited_at": "2026-10-21T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "refined",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a listed human's edit vouches only for ticked boxes, and the added line is in neither the parent's nor the refinement's task-list lines"
+      }
+    }
+  ]
+}

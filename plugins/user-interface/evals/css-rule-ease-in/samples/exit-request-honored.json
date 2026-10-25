@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```css\n.toast {\n  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);\n}\n.toast[data-state=\"closing\"] {\n  transform: translateY(16px);\n  opacity: 0;\n}\n```\n\nI used an ease-out curve so the toast responds the moment it is dismissed.",
+      "why": "every curve ends slow (ease-out), branch (a)"
+    },
+    {
+      "answer": "```css\n@media (prefers-reduced-motion: no-preference) {\n  .toast[data-state=\"closing\"] {\n    transition: transform 220ms ease-in, opacity 220ms ease-in;\n    transform: translateY(24px);\n    opacity: 0;\n  }\n}\n```\n\nYou asked for it to accelerate as it falls away, so the exit uses `ease-in`. The trade-off: ease-in starts slow, so the first frames after the dismiss barely move and can read as lag.",
+      "why": "honors the explicit request with ease-in and names that it starts slow, branch (b)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```css\n.toast[data-state=\"closing\"] {\n  transition: transform 220ms ease-in, opacity 220ms ease-in;\n  transform: translateY(24px);\n  opacity: 0;\n}\n```\n\nThis slides the toast down and fades it out, accelerating as it leaves.",
+      "why": "ease-in exit with no trade-off named"
+    },
+    {
+      "answer": "```css\n.toast[data-state=\"closing\"] {\n  transform: translateY(24px);\n  opacity: 0;\n}\n```\n\nSet the closing state and remove the element once it is hidden.",
+      "why": "no transition or animation"
+    }
+  ]
+}

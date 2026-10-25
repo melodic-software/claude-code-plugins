@@ -1,5 +1,5 @@
 ---
-description: "Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the JSON-parsing audit scripts) and curl (the plugin-drift check), and the tracked suppression record audit-pass reads at .claude/audit-pass.md, so the audit skills run instead of failing. Use when: 'set up harness-config', 'configure harness-config', 'is harness-config working', 'set up audit-pass suppressions', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found) | wsl-profile (print an opt-in WSL hardening settings block, writes nothing). Re-runnable and safe."
+description: "Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the JSON-parsing audit scripts) and curl (the plugin-drift check), and the tracked suppression record in docs/conventions/harness-config.yaml, so the audit skills run instead of failing. Use when: 'set up harness-config', 'configure harness-config', 'is harness-config working', 'set up audit-pass suppressions', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found) | wsl-profile (print an opt-in WSL hardening settings block, writes nothing). Re-runnable and safe."
 argument-hint: "[check|apply|wsl-profile]"
 user-invocable: true
 disable-model-invocation: true
@@ -33,8 +33,10 @@ the marketplace repository): `check` inspects and reports, `apply` resolves. Thi
 
 - the external command-line tools its bundled scripts require, where `apply` is guidance-and-verify
   with no write path: it points at platform install instructions and never installs a system package;
-- the **tracked consumer-project configuration** `audit-pass` reads, the suppression record at
-  `.claude/audit-pass.md`, the one surface `apply` may write.
+- the **tracked consumer-project configuration** `audit` and `audit-pass` read, the `suppressions`
+  mapping of `<home>/harness-config.yaml`, the one surface `apply` may write. `<home>` is the
+  convention home the repository binds in the pointer region of its `AGENTS.md` or `CLAUDE.md`
+  (`bash ${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` prints it), else `docs/conventions`.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then remediation;
 `wsl-profile` runs only its own section. All are non-interactive, so never prompt when the action is given.
@@ -100,10 +102,18 @@ nested worktree the skill was invoked from, then report one row per layer. The s
 tracked/ignored question has opposite correct answers per layer, so verify each on its own terms:
 
 - **user-global** `~/.claude/audit-pass.md`: outside the worktree; no git command applies. INFO only.
-- **team** `.claude/audit-pass.md`: must be tracked, probed as the pair:
+- **team** `<home>/harness-config.yaml`: must be tracked, probed as the pair:
   `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
   `git ls-files --error-unmatch` exits 0. Untracked while present is a hard STOP:
-  teammates never receive the shared suppressions.
+  teammates never receive the shared suppressions. Parse it with
+  `awk -v STRICT=1 -f ${CLAUDE_PLUGIN_ROOT}/lib/yaml-subset.awk <file>`, the parser the audit engine
+  uses: a non-zero exit is FAIL with the line it prints, because the engine then drops the whole team
+  layer. The common cause is an unquoted `anchor/v1` key; the parser takes a plain key only of
+  letters, digits, `_` and `-`, so the key is written `"anchor/v1":`.
+- **compatibility read** of the plugin's previous team location, `.claude/audit-pass.md`: the engine
+  reads its fenced block as the team layer only while `<home>/harness-config.yaml` is absent, for one
+  release. Present with the YAML absent is WARN, naming `apply` as the migration; present beside the
+  YAML is INFO, ignored by the engine and safe to delete.
 - **local overlay** `.claude/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
 
@@ -153,7 +163,17 @@ reports "already configured".
 Then converge the one surface this plugin owns, conservatively:
 
 - **No suppression record anywhere**: leave it that way and say so. Absent is valid; an empty
-  scaffold is noise. Scaffold the team layer with the documented shape only on an explicit request.
+  scaffold is noise. Scaffold `<home>/harness-config.yaml` with the documented shape only on an
+  explicit request.
+- **Team YAML absent, compatibility-read file present**: write `<home>/harness-config.yaml` with a
+  `suppressions` mapping carrying every entry of that file's block unchanged, keys and values as
+  written, with the `anchor/v1` key and each `date` quoted. The YAML parser unescapes `\\`, `\"`,
+  `\/` and `\t` inside double quotes and drops a comment tail (whitespace, then `#`) from a plain
+  value, which the old reader kept, so write each value so it reads back as the same text. Parse the result with the
+  `yaml-subset.awk` command above, then run
+  `bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh --json` and confirm its
+  `suppressions` object lists no `malformed` team entry and the same applied entries as before. Leave the old file in place: the operator stages the YAML and deletes the
+  old file. The schema the YAML follows is `${CLAUDE_PLUGIN_ROOT}/schemas/harness-config.schema.json`.
 - **Team layer present but untracked**: report the STOP and the exact `git add` the operator should
   run. Never stage on their behalf.
 - **Overlay present but not ignored**: recommend the recursive `.claude/**/*.local.*` line and leave

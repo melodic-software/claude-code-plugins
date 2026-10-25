@@ -50,8 +50,9 @@ files in a plugin's cache directory actually match the commit its install record
 `--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
 as `fleet-state.sh --ids`. Step 5b does not use it beside the JSON form: the ids are already in that
 JSON, and a second call would repeat the run's most expensive read. It is the fallback for a JSON
-that could not be produced. The script never writes anything and never runs `git fetch`; a commit
-that is not in the local marketplace clone is reported as `sha-not-local`, not fetched. See
+that could not be produced. The script never writes anything and never runs `git fetch`; it
+compares only installs recorded at the marketplace clone's HEAD, and reports every other install as
+`not-at-head`, counted in `not_checked`. See
 [sync.md](sync.md) Step 5b, [stale-records-cache-content.md](stale-records-cache-content.md) for
 how the finding is reported, and [scope-semantics.md](scope-semantics.md) for the mechanism that
 makes a cache directory and its recorded sha disagree in the first place.

@@ -1062,24 +1062,29 @@ model turn.
 
 #### The adjudicator
 
-pr-unblock.yml's `adjudicate-feedback` job runs after the model job, before the push and reply jobs, whenever
-the leg the reply job reads uploaded replies. It runs only base code with a read-only token and
-no OIDC token. `adjudicate-feedback.mjs prepare` checks the select job's thread file and the
-scan job's replies against the SHA-256 each writer recorded, then stages each `INCORRECT` reply on
-a thread no adjudication stood before and no trusted person directed, up to three: the finding's
-path, line and claim (the review comment's first paragraph and its `severity:` line, never the
-later rationale or the lane's footer; a verifier note's whole quoted finding), the locations the
-lane cited, at most ten (never its note), and those files at the select job's head, read through
-the contents API, each up to 200 KiB and staged with a `.txt` suffix so a cited `CLAUDE.md` or
-`.claude/**` file is never loaded as instructions. A thread a trusted person directed (a fix
-request, or a reply after an escalation) stays theirs: an `INCORRECT` reply on it escalates
-`feedback-disputed` with no adjudication. Only a finding a verifier note opened, or a
+pr-unblock.yml's `adjudicate-feedback` job runs after the model job, before the push and reply jobs, when
+the leg the reply job reads uploaded replies holding an `INCORRECT` reply or a line that is not
+JSON (the read runner's scan job sets `feedback-disputed` from the bytes it uploaded); otherwise it
+is skipped, and an `INCORRECT` reply with no verdict still escalates `feedback-unadjudicated`. It
+runs only base code with a read-only token and no OIDC token. `adjudicate-feedback.mjs prepare`
+checks the select job's thread file and the scan job's replies against the SHA-256 each writer
+recorded, then stages each `INCORRECT` reply on a thread no adjudication stood before and no
+trusted person directed, up to three: the finding's path and line, the whole review comment, the
+locations the comment cites (`path:line` tokens and line-numbered permalinks into this repository,
+at most ten), the locations the lane cited, at most ten (never its note), and those files at the
+select job's head, read through the contents API with each response's rate-limit reading logged at
+the job's end (`.github/actions/log-api-budget`), each up to 200 KiB and staged with a `.txt`
+suffix so a cited `CLAUDE.md` or `.claude/**` file is never loaded as instructions. A thread a
+trusted person directed (a fix request, or a reply after an escalation) stays theirs: an
+`INCORRECT` reply on it escalates `feedback-disputed` with no adjudication. Only a
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
-a footer in a claude[bot] comment, whose body the model writes, names none), is adjudicated: a
-security-review finding, or one whose lane its root comment does not name, always goes to a
-person, so an `INCORRECT` reply on it escalates `feedback-disputed`, takes no slot, and any verdict
-for it is ignored. Each thread gets one fresh
+a footer in a claude[bot] comment, whose body the model writes, names none) and that carries no
+`severity: CRITICAL` line is adjudicated. A CRITICAL finding, a security-review finding, one whose
+lane its root comment does not name, and a pr-verify verifier note always go to a person: an
+`INCORRECT` reply on one escalates `feedback-disputed`, takes no slot, and any verdict for it is
+ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the
+FAIL still holds the merge, and pr-verify judges each head once. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
 pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read alone, `Read(./adjudicate/**)` the one allow rule, Read
 denied on the base checkout and the runner's temp directory (which holds the lane's replies and
@@ -1327,8 +1332,9 @@ refusal posts nothing.
    `model-rung` 1. A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
-   with nothing minted. A report that escalated a check sets `ci-fix-escalated` and proceeds, so
-   the fixes that landed are pushed and the rest go to a person.
+   with nothing minted. A `written` patch proceeds with no escalation, whatever the report
+   escalated: the push makes a new head, and that head's own CI decides. A red new head gets its
+   own fix-ci run, which escalates what it cannot fix, and `loop.fix-ci-rounds` ends the rounds.
 2. The hold-label step runs as for a skill, before the head checkout (depth 1).
 3. The script, from its base copy, with the lane token and `/usr/bin/git` under an allowlisted
    environment (no hooks, fsmonitor, global or system config), applies the patch to the gated

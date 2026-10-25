@@ -1,5 +1,5 @@
 ---
-description: "Check where /bugs:write --file reports land and check or write the tracked .claude/bugs.md lanes and filing posture /bugs:scan reads."
+description: "Check where /bugs:write --file reports land and check or write the tracked docs/conventions/bugs.yaml lanes and filing posture /bugs:scan reads."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -10,7 +10,7 @@ disable-model-invocation: true
 | Surface | Holds | Written by |
 |---|---|---|
 | `output_dir`. Native `userConfig` | one operator's personal `--file` destination on one machine | Claude Code's own plugin configuration prompt, never this skill |
-| `.claude/bugs.md`. Tracked, cascade-layered | team policy: `/bugs:scan` lanes and filing posture | `apply` here, team layer only |
+| `docs/conventions/bugs.yaml`. Tracked, cascade-layered | team policy: `/bugs:scan` lanes and filing posture | `apply` here, team layer only |
 
 This is the narrow-write setup shape: `apply` writes only the one artifact this plugin owns. `output_dir` stays check-only: Claude Code
 prompts for and stores it, so writing it here would mean writing the `pluginConfigs` the uniform
@@ -53,7 +53,7 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
    fresh session and report the observed destination. Convention:
    <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>.
 
-### B. `.claude/bugs.md` (tracked lane config)
+### B. `docs/conventions/bugs.yaml` (tracked lane config)
 
 Anchor at the repo root (`${CLAUDE_PROJECT_DIR}` when set, otherwise
 `git rev-parse --show-toplevel`), never the CWD. Report **each layer separately** and the effective
@@ -61,15 +61,23 @@ merged result:
 
 1. **Per-layer presence.** For every layer in the reference's layer table: absent,
    present-and-parsed, or malformed. A malformed layer degrades soft: surface the error, name the
-   layer, resolve as if it were absent.
+   layer, resolve as if it were absent. Check a present team YAML against
+   [`${CLAUDE_PLUGIN_ROOT}/schemas/bugs.schema.json`](../../schemas/bugs.schema.json) and report
+   each violation; the reference still governs how a run treats an unknown key or a bad lane entry.
+   When the team YAML is absent and the old `.claude/bugs.md` is present, report that the old file
+   supplies the team layer for one release and recommend `apply` to move it. When both are present,
+   WARN that the old file's settings are ignored; it can be deleted once any `## Gotchas` section in
+   it has moved to `docs/conventions/bugs.md`, since until then its gotchas are still read.
 2. **Effective config and provenance.** The merged `lanes` and `filing_posture` and the layer that
    supplied each, honoring the reference's merge semantics; an explicit empty-list opt-out is
    reported as an opt-out, not a broken layer. All layers absent is a fully working state: INFO,
    never FAIL, since `/bugs:scan` falls through to its bundled default lanes.
 3. **Per-layer version-control verdict.** A present team file must be tracked, which takes **two**
-   probes. `git check-ignore -v .claude/bugs.md`: a non-empty result is FAIL, naming the matching
-   pattern. `git ls-files --error-unmatch .claude/bugs.md`: a non-zero exit on a present file is
-   FAIL, "present but untracked, commit it so teammates receive it". The `.local.md` overlay must be
+   probes per file. `git check-ignore -v docs/conventions/bugs.yaml`: a non-empty result is FAIL,
+   naming the matching pattern. `git ls-files --error-unmatch docs/conventions/bugs.yaml`: a
+   non-zero exit on a present file is FAIL, "present but untracked, commit it so teammates receive
+   it". Probe `docs/conventions/bugs.md` the same way when present, and `.claude/bugs.md` while it
+   supplies any part of the team layer. The `.local.md` overlay must be
    gitignored; staged or unignored is FAIL. The user-global layer sits outside the worktree: say no
    git verdict applies rather than run a meaningless command.
 4. **Unreachable layers.** When a layer cannot be read (often the user-global one), WARN that it was
@@ -77,37 +85,44 @@ merged result:
 5. **Unknown keys.** Report them as inert, naming their layer, including `output_dir`, which is not a
    recognized key here.
 
-## `apply` (idempotent, bounded to `.claude/bugs.md`)
+## `apply` (idempotent, bounded to `docs/conventions/bugs.yaml`)
 
-Run `check` first, then converge the **team** file, the only artifact this action writes. Never
+Run `check` first, then converge the **team** YAML, the only artifact this action writes. Never
 touch `settings.json`, `settings.local.json`, managed settings, `pluginConfigs`, `userConfig`, the
-user-global layer, the `.local.md` overlay, or the consumer's `.gitignore`. An `output_dir` change
-requested here routes to the native flow in `check` step A4, never written.
+user-global layer, the `.local.md` overlay, the old `.claude/bugs.md`, or the consumer's
+`.gitignore`. An `output_dir` change requested here routes to the native flow in `check` step A4,
+never written.
 
 1. **Read the effective config across every layer** and present it. Where a user-global or overlay
    layer changes the team file's effect (adding lanes, replacing one by name, opting out with an
    empty list, or supplying `filing_posture` nearest-wins), say so: a team-scope edit alone will not
    account for it, and re-adding a lane an overlay opts out of will not restore it on this machine.
    Prompt the user to update that layer; do not edit it for them.
-2. **Draft lanes from the repository** before asking anything: entrypoint and API directories, the
+2. **Move the old team file first.** When the team YAML is absent and the old `.claude/bugs.md`
+   holds a YAML block, its `lanes` and `filing_posture` are the starting values: carry every one
+   into the new file and say which moved. Name a `## Gotchas` section there as one to move by hand
+   to `docs/conventions/bugs.md` before the old file goes, and say that deleting the old file is
+   the operator's step.
+3. **Draft lanes from the repository** before asking anything: entrypoint and API directories, the
    highest-churn source areas in `git log`, and any subsystem the repo's own docs treat as critical.
-   Propose kebab-case lane names with globs relative to the repo root. With nothing to infer from,
-   propose the bundled generic default lanes.
-3. **Confirm one decision at a time.** Present each drafted lane with a recommendation; the user
+   Propose kebab-case lane names with globs relative to the repo root. With lanes carried over in
+   step 2, propose only additions; with nothing to infer from, propose the bundled generic default
+   lanes.
+4. **Confirm one decision at a time.** Present each drafted lane with a recommendation; the user
    accepts, edits, or drops it. Then settle `filing_posture`, stating what each value permits per the
    reference and that neither value ever lets a bare invocation file.
-4. **Write conservatively.** Scaffold the file in the reference's format when absent; otherwise make a
-   targeted update. Fill absent keys at their documented defaults, preserve prose and keys you do not
-   recognize, and report rather than silently rewrite anything you cannot reconcile. Never rewrite a
-   file you did not first read.
-5. **Verify after writing.** Re-run the `check` B probes against the file on disk: it parses, every
-   lane declares `name` and `globs`, the globs match real paths (a lane matching nothing is reported
-   as skipped), and `git check-ignore -v .claude/bugs.md` confirms it is not ignored. Report the
-   values observed, never an unobserved change.
-6. **Recommend the overlay line; do not write it.** Personal deviations belong in
+5. **Write conservatively.** Scaffold the file in the reference's format when absent; otherwise
+   make a targeted update. Fill absent keys at their documented defaults, preserve comments, and
+   report rather than silently rewrite anything you cannot reconcile. Never rewrite a file you did
+   not first read.
+6. **Verify after writing.** Re-run the `check` B probes against the file on disk: it parses, it
+   meets the schema, every lane declares `name` and `globs`, the globs match real paths (a lane
+   matching nothing is reported as skipped), and `git check-ignore -v docs/conventions/bugs.yaml`
+   confirms it is not ignored. Report the values observed, never an unobserved change.
+7. **Recommend the overlay line; do not write it.** Personal deviations belong in
    `.claude/bugs.local.md`; recommend the recursive `.gitignore` line the reference names if not
    already covered.
-7. **Remind them to stage it.** The team file reaches teammates only once committed.
+8. **Remind them to stage it.** The team file reaches teammates only once committed.
 
 Re-running `apply` when everything already matches changes nothing and reports "already configured".
 

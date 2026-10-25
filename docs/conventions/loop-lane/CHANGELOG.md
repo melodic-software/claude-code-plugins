@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.5.0] - 2026-10-24
+
+Minor. Describes a change in the unattended merge gate's own contract (the babysit-prs scripts);
+the babysit loop's C4/C5 partition floor, the topology, escalation contract, capability tiers and
+§4 invariants are unchanged.
+
+- **Autonomy ladder.** The C4/C5 floor is scoped to the babysit loop's partition. The unattended
+  merge gate reads no work class: it gates on the promotion cells of its effective rung (C2 needs
+  `C2-auto-merge`, C3 every C3 cell), and its rung and rung cap remain pacing caps. Its one class-named check is the trust hold on an issue
+  carrying `work-class: untrusted-provenance` (#9668).
+
 ## [12.4.0] - 2026-10-22
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

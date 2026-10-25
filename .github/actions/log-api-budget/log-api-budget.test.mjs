@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -369,3 +369,58 @@ test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () =
   const carried = block[1].replace(/^ {8}/gm, "").replace(/\n+$/, "\n");
   assert.equal(carried, readFileSync(LIB, "utf8"));
 });
+
+// pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
+// no other notice, so without these lines their calls go unattributed.
+// post-verify-notes' notice covers only its artifact listing, the one call
+// that leaves a reading: `gh run download` goes through the gh wrapper but is
+// not `gh api`, so it leaves none, and verify-notes.mjs calls through
+// address-feedback's createGitHubApi, a plain fetch that keeps no reading.
+// That notice understates the job's spend.
+const FEEDBACK = new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url);
+
+// The job's steps, from `  <job>:` to the next job.
+function jobText(job) {
+  const lines = readFileSync(FEEDBACK, "utf8").split("\n");
+  const start = lines.indexOf(`  ${job}:`);
+  assert.notEqual(start, -1, job);
+  const end = lines.findIndex((line, i) => i > start && /^ {2}[a-z][\w-]*:$/.test(line));
+  return lines.slice(start + 1, end === -1 ? undefined : end).join("\n");
+}
+
+test("pr-feedback-dispatch.yml: each job that calls the API ends by logging its github-token readings", () => {
+  for (const job of ["post-verify-notes", "dispatch", "rerun-ci-status"]) {
+    const steps = jobText(job).split("\n      - name: ");
+    assert.equal(
+      steps.at(-1).split("\n").filter((line, i) => i === 0 || line.startsWith("        ")).join("\n"),
+      "Log the API budget at the end\n        if: always()\n        continue-on-error: true\n        timeout-minutes: 1\n" +
+        "        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]\n        with:\n          tokens: github-token",
+      job,
+    );
+  }
+});
+
+test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artifact listing and decides as before", () =>
+  withDir((dir) => {
+    const step = jobText("post-verify-notes").split("\n      - name: ").find((text) => text.startsWith("Download the fail verdict"));
+    const body = /\n {8}run: \|\n((?: {10}[^\n]*\n|\n)+)/.exec(`${step}\n`)[1].replace(/^ {10}/gm, "");
+    for (const sub of [".base/.github/actions/log-api-budget", "bin", "rt"]) {
+      mkdirSync(join(dir, sub), { recursive: true });
+    }
+    copyFileSync(LIB, join(dir, ".base/.github/actions/log-api-budget/api-budget.bash"));
+    // A gh that answers `api -i <artifacts route> --jq <filter>` with a header block and no FAIL name.
+    writeFileSync(
+      join(dir, "bin/gh"),
+      `#!/usr/bin/env bash\n[[ $1 == api && $2 == -i && $3 == repos/o/r/actions/runs/77/artifacts* && $4 == --jq ]] || { echo "args: $*" >&2; exit 9; }\n` +
+        `printf '${head({ used: 41 }).replace(/\r/g, "\\r").replace(/\n/g, "\\n")}'\n`,
+    );
+    chmodSync(join(dir, "bin/gh"), 0o755);
+    const result = spawnSync("bash", ["-e", "-c", body], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "::notice::run 77 uploaded no fail verdict; nothing to post\n");
+    assert.equal(state(join(dir, "rt"), "github-token"), "200 5000 4959 41 1792748042 core\n");
+  }));

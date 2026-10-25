@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # actionlint pre-commit check: report what actionlint finds in the GitHub
 # Actions workflow files this commit changes, on the lines it adds.
 #
@@ -18,14 +18,19 @@
 # installed copies and are skipped. Missing actionlint follows the
 # check-placement contract in every mode: checks.skipmissing, else fail for an
 # agent and a notice for a person.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 
 checks_init pre-commit "$@" || exit 0
 checks_require_tool actionlint "brew install actionlint, or another method at https://github.com/rhysd/actionlint/blob/main/docs/install.md"

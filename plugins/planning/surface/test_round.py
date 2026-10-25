@@ -4036,6 +4036,107 @@ class TestSupersedeResolve(DirCase):
         self.assertEqual(list(self.tmp.glob("*.bak")), [])
 
 
+class TestLedgerCheck(DirCase):
+    """ledger-check, and wake.sh running it after apply, show ledger drift while the interview runs."""
+
+    def setUp(self):
+        super().setUp()
+        self.ledger = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        doc["meta"]["seededFrom"] = {
+            "ledger": str(self.ledger),
+            "at": "2026-01-01T00:00:00Z",
+            "rows": {},
+        }
+        self.write_doc(doc)
+
+    def drift_one_row(self):
+        text = self.ledger.read_text(encoding="utf-8")
+        row = next(x for x in text.splitlines() if x.startswith("- Q2 |"))
+        # Keep the status, round and title cells; the resolution cell is the last.
+        edited = "|".join(row.split("|")[:4]) + "| edited in the ledger"
+        self.ledger.write_text(text.replace(row, edited), encoding="utf-8")
+
+    def wake(self, *, ops=None):
+        """wake.sh copied beside a control script that runs round.py and a watch.sh that exits."""
+        scripts = self.tmp / "scripts"
+        scripts.mkdir(exist_ok=True)
+        shutil.copy(HERE / "wake.sh", scripts / "wake.sh")
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        (scripts / "session-bridge.conf").write_text(
+            conf.replace("CONTROL=round.sh", "CONTROL=ctl.sh"), encoding="utf-8"
+        )
+        (scripts / "ctl.sh").write_text(
+            f'exec "{sys.executable}" "{ROUND}" "$@"\n', encoding="utf-8"
+        )
+        (scripts / "watch.sh").write_text("exit 0\n", encoding="utf-8")
+        if ops:
+            (self.dir / "ops.json").write_text(json.dumps(ops), encoding="utf-8")
+        return subprocess.run(
+            ["bash", str(scripts / "wake.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def activity(self):
+        return [e["text"] for e in self.doc().get("activity", [])]
+
+    def test_the_conf_names_the_check(self):
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        self.assertIn("\nAFTER_APPLY=ledger-check\n", conf)
+
+    def test_matching_ledger_records_in_sync_and_logs_nothing(self):
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+        sync = self.doc()["meta"]["ledgerSync"]
+        self.assertEqual(sync, {"rev": self.doc()["rev"], "rows": []})
+        self.assertEqual(self.activity(), [])
+
+    def test_an_unchanged_result_writes_nothing(self):
+        self.rp("ledger-check")
+        before = self.raw()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.raw(), before)
+
+    def test_a_disagreeing_row_is_recorded_and_logged_once(self):
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
+        self.assertEqual(len(self.activity()), 1)
+        self.assertRegex(self.activity()[0], r"^Ledger out of sync, 1 row: Q2 ")
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(len(self.activity()), 1)
+
+    def test_a_page_without_a_ledger_is_not_checked(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_wake_logs_the_disagreeing_row_after_apply(self):
+        self.drift_one_row()
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        log = self.activity()
+        self.assertEqual(log[0], "Applied one op")
+        self.assertTrue(any(x.startswith("Ledger out of sync") and "Q2" in x for x in log), log)
+
+    def test_wake_with_a_matching_ledger_logs_no_drift(self):
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.activity(), ["Applied one op"])
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
+
+
 class TestConfirmationRecap(DirCase):
     """export-ledger --recap emits a recap that fits the restate cap on a long interview."""
 

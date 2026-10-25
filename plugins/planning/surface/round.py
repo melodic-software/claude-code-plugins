@@ -29,6 +29,10 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
+  ledger-check    compare the page with the ledger it was seeded from (or --ledger F) as
+                  export-ledger --diff does; records meta.ledgerSync for the page header and logs
+                  an Activity line when the rows that disagree change; exit 1 when any does
+                  (session-bridge.conf runs it after each apply, AFTER_APPLY)
   supersede       set an answered register row of --ledger F to superseded-by-plan with --proposes
                   (needs no data dir): the row's resolution becomes `was`, escaped as the exporter does
   resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
@@ -2292,6 +2296,55 @@ def cmd_export_ledger(d, a):
         report_notes(exporters.merged_register(d, text)[2], ("conflict",))
 
 
+def cmd_ledger_check(d, a):
+    """Compare the page with the ledger it was seeded from (or --ledger), as `export-ledger --diff`
+    does, and record the result in meta.ledgerSync for the page header. A change in which rows
+    disagree adds an Activity Log line; exit 1 when any row does."""
+    with sidecar_lock(d):
+        doc = load(d)
+        ledger = a.ledger or (doc["meta"].get("seededFrom") or {}).get("ledger")
+        if not ledger:
+            print("no ledger to check: the page was not seeded from one")
+            return
+        notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
+        drift = [line for kind, line in notes if kind in ("change", "conflict")]
+        # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
+        rows = list(
+            dict.fromkeys(
+                (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
+                for line in drift
+            )
+        )
+        was = doc["meta"].get("ledgerSync") or {}
+        if was.get("rows") != rows or was.get("rev") != doc["rev"]:
+            if rows and was.get("rows") != rows:
+                log_activity(
+                    doc,
+                    capped_text(
+                        f"Ledger out of sync, {len(rows)} "
+                        f"{'row' if len(rows) == 1 else 'rows'}: {drift[0]}",
+                        LINE_CAP,
+                    ),
+                    [],
+                )
+            doc["meta"]["ledgerSync"] = {"rev": doc["rev"] + 1, "rows": rows}
+            save(d, doc)
+    for line in drift:
+        print(line)
+    print(
+        f"{len(rows)} rows out of sync with {ledger}"
+        if rows
+        else f"ledger in sync, rev {doc['rev']}"
+    )
+    if rows:
+        sys.exit(1)
+
+
+def capped_text(text, cap):
+    """`text` cut to `cap` characters, with an ellipsis when it was cut."""
+    return text if len(text) <= cap else text[: cap - 1] + "…"
+
+
 def write_synced_ledger(d, ledger):
     """Rewrite only the register rows of ledger from page state; return the merge notes."""
     path = Path(ledger)
@@ -2906,6 +2959,17 @@ def main(argv=None):
         "restate cap",
     )
     s.set_defaults(fn=cmd_export_ledger)
+
+    s = sub.add_parser(
+        "ledger-check",
+        help="compare the page with its ledger as export-ledger --diff does, record the result "
+        "for the page header, and log the rows that disagree; exit 1 when any does",
+    )
+    s.add_argument(
+        "--ledger",
+        help="the ledger to compare with (default: the one import-ledger seeded the page from)",
+    )
+    s.set_defaults(fn=cmd_ledger_check)
 
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")

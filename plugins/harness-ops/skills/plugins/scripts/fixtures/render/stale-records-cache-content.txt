@@ -1,4 +1,4 @@
-Marketplace: market1: needs update (autoUpdate: on)
+Marketplace: market1: current, 1 action(s) pending (autoUpdate: on)
 In-repo: 1 project/local install(s) updated in <case>
 Updated: 1 plugin(s)
   - delta@market1 (project): 0.1.0 → 0.2.0
@@ -15,6 +15,7 @@ Stale project records (market1): 3 record(s) across 2 path(s) not present on thi
   Of these, 1 local-scope record(s); nothing reaps them yet.
 Cache content: 1 user-scope install(s) whose cache files disagree with their recorded gitCommitSha
   - alpha@market1 0.1.0: 4 file(s) differ
+  (of 3 user-scope install(s): 1 match, 1 not checked (recorded at an older commit))
   Remediation: remove that version's directory under the plugin cache, then re-run
   `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
 Timing: <elided>

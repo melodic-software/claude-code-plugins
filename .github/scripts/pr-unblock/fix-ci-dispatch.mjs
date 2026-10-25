@@ -19,14 +19,17 @@
 // `fix-ci-restarts` failed and none found nothing; at most `fix-ci-per-run`
 // per dispatcher run, lowest PR number first.
 // A head whose lanes passed but whose pr-test-windows run failed is a
-// candidate too. A head is skipped while the lost-run reconciler still re-runs
-// its failed run (infra-failure.mjs reconcilerOwns: an infra-only failure for
-// its backoff re-runs, any other for one re-run at attempt 1, inside the
-// lookback); past that, fix-ci takes it.
+// candidate too. A head is skipped only while a re-run of its tested run is
+// queued or going, or while an infra-only first failure's one re-run by the
+// lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
+// RERUN_DUE_MINUTES); a real failure (a test, lint or typecheck step), an
+// infra failure that failed again, and a run or field that cannot be read go
+// to fix-ci, with the cause logged.
 // The fix-ci-context job decides the round cap. Logs carry PR numbers, SHAs,
-// run ids and counts only.
+// run ids, counts and failed job and step names (control characters dropped,
+// 80 characters each at most) only.
 
-import { reconcilerOwns } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { AGGREGATE_JOBS, FAILED, infraCause, infraOnly, RERUN_DUE_MINUTES, reconcilerOwns, reconcilerRetries, stepsKnown, stepsUnread } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { prHold } from "./gate-source.mjs";
 
@@ -155,6 +158,53 @@ const lanesFailed = (node) => failedState(lanesState(node));
 const advisoryFailed = (node, checks, checkName) =>
   lanesState(node) === "SUCCESS" &&
   checks.some((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE");
+
+// A job or step name comes from the PR head's workflow file: control characters
+// are dropped and the length capped, so it cannot start a workflow command in
+// the log of a job that holds actions: write.
+const logName = (name) => String(name ?? "").replace(/[\x00-\x1f\x7f]+/g, " ").slice(0, 80);
+
+// What failed on the tested run, for the dispatch log: a real failure's job and
+// first failed step, an infra failure's attempt, or what could not be read.
+export function failureCause(required, now = Date.now()) {
+  if (required === undefined) {
+    return "required run unreadable";
+  }
+  const { run, jobs } = required;
+  if (!run) {
+    return "no tested run found";
+  }
+  if (run.conclusion !== "failure") {
+    return `tested run ${run.status}/${run.conclusion}`;
+  }
+  if (!Array.isArray(jobs)) {
+    return "failed jobs unreadable";
+  }
+  const failed = jobs.filter((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
+  if (failed.length === 0) {
+    return "no failed lane job";
+  }
+  if (infraOnly(jobs)) {
+    const bad = [
+      ["status", run.status === "completed"],
+      ["run_attempt", Number.isInteger(run.run_attempt)],
+      ["updated_at", !Number.isNaN(Date.parse(run.updated_at))],
+    ].find(([, ok]) => !ok)?.[0];
+    if (bad !== undefined) {
+      return `infra failure, run field ${bad} unreadable`;
+    }
+    return reconcilerRetries(run, now)
+      ? `infra failure at attempt 1, no re-run within ${RERUN_DUE_MINUTES} min`
+      : `infra failure at attempt ${run.run_attempt}`;
+  }
+  if (stepsUnread(jobs)) {
+    const unlisted = failed.filter((job) => job?.conclusion === "failure" && !stepsKnown(job));
+    return `steps unlisted past ${RERUN_DUE_MINUTES} min in ${unlisted.map((job) => logName(job.name)).join(", ")}`;
+  }
+  const real = failed.filter((job) => infraCause(job) === "");
+  const step = (job) => (Array.isArray(job.steps) ? job.steps.find((s) => s?.conclusion === "failure")?.name : undefined);
+  return `code failure in ${real.map((job) => [job.name, step(job)].filter(Boolean).map(logName).join(" / ")).join(", ")}`;
+}
 
 // Why a listed PR is not dispatched, or "" when it is a candidate.
 export function skipReason(
@@ -351,15 +401,19 @@ export async function dispatchCiFixes({
       log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
       continue;
     }
-    // A failure an outside outage explains, or a first failure, is the
-    // lost-run reconciler's to re-run before a model run fixes it.
+    // A re-run going, or an infra-only first failure's re-run still due,
+    // decides before a model run; an unreadable run waits on nothing.
     const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
     let requiredRun;
     try {
       requiredRun = await api.readRequiredRun(node.headRefOid, path);
     } catch (error) {
-      log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); left for a later run`);
-      continue;
+      // A rate limit is no reason to spend a model run: a later run retries.
+      if (error.rateLimited) {
+        log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+        continue;
+      }
+      log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
     }
     const reason = skipReason({ ...node, requiredRun, laneGate }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
     if (reason !== "") {
@@ -380,7 +434,7 @@ export async function dispatchCiFixes({
         continue;
       }
       dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
+      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: ${failureCause(requiredRun, now)})`);
     } catch (error) {
       failed += 1;
       log(`::error::#${node.number}: dispatch failed: ${error.message}`);

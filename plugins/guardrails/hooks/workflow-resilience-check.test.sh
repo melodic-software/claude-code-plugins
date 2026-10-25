@@ -35,6 +35,8 @@ run_hook() {
 out=$(run_hook "$(workflow_script_json 'phase("x"); const r = await pipeline(FILES, s1, s2)')")
 assert_contains "un-throttled pipeline warns" "$out" "no wave cap or retry wrapper"
 assert_contains "names the throttle fix" "$out" "inWavesPipeline"
+assert_contains "names the overloaded-retry ceiling" "$out" "CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS"
+assert_contains "points at the retry docs section" "$out" "errors#tune-retry-behavior"
 
 # CASE 2: parallel() fan-out, no throttle/retry → advisory fires.
 out=$(run_hook "$(workflow_script_json 'const r = await parallel(thunks)')")

@@ -105,16 +105,18 @@ Which settings files it is read from is upstream-owned: see
 (as of 2026-10-11; recheck when that section changes which settings files option values are read
 from).
 
-**Team, the tracked `.claude/bugs.md`**, which `/bugs:scan` reads for its lanes
-(`lanes`) and its filing policy (`filing_posture`). A `## Gotchas` section in that file
-(and the user-global and local overlay layers) concatenates after the bundled gotchas when
+**Team, the tracked `docs/conventions/bugs.yaml`**, which `/bugs:scan` reads for its lanes
+(`lanes`) and its filing policy (`filing_posture`), checked against
+[`schemas/bugs.schema.json`](schemas/bugs.schema.json). A `## Gotchas` section in the prose file
+beside it, `docs/conventions/bugs.md` (and in the user-global and local overlay layers),
+concatenates after the bundled gotchas when
 `/bugs:scan` or `/bugs:write` loads. Repo-specific lines stay in the layer; a line that is not
 repo-specific is filed as an issue on this marketplace (`melodic-software/claude-code-plugins`) for
 curation into the shipped skill. The config is layered per the marketplace's
 config-cascade convention, a user-global file, this tracked team file, and a gitignored local
 overlay. All layers are optional: with no config at all, `scan` rotates over bundled generic
-default lanes. Keys, defaults, layer order, and per-key merge semantics live in
-[`reference/config.md`](reference/config.md), their single home.
+default lanes. Keys, defaults, layer order, per-key merge semantics, and the one-release read of
+the old team location live in [`reference/config.md`](reference/config.md), their single home.
 
 Run `/bugs:setup` to work on either surface. `check` (the default) reports both read-only:
 the rendered `output_dir` and which layer supplied each lane config value. `apply` writes the

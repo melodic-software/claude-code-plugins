@@ -1093,14 +1093,41 @@ for (const [why, reply, rung, want] of [
   });
 }
 
-test("a written fix-ci patch with an unfixed check still pushes and escalates, whatever the rung", (t) => {
+// A written fix pushes a new head whose own CI has not run yet: escalating
+// then would hand a PR to a person on the old head's checks. The new head's
+// CI decides, and a later fix-ci run on it escalates or meets the round cap.
+for (const [why, reply] of [
+  ["a fixed check beside a flaky one", "check-skills: fixed\ntest-bash (2): escalated flaky passes on the unchanged head\n"],
+  ["an unfixed check", "test-node: escalated unfixed x\n"],
+  ["a protected-path check", "lint: escalated protected-path edits .github\n"],
+]) {
+  test(`a written fix-ci patch with ${why} pushes and escalates nothing, whatever the rung`, (t) => {
+    const dir = scratch(t);
+    writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
+    const reportDir = scratch(t);
+    writeFileSync(join(reportDir, "reply.txt"), reply);
+    const head = "a".repeat(40);
+    const base = { row: row("ci-context"), patchState: "written", patchSha256: sha256("diff --git a/x b/x\n"), patchHeadSha: head, headSha: head, patchDir: dir, reportDir };
+    for (const rung of [0, 1]) {
+      assert.deepEqual(select({ ...base, rung }), { proceed: true, skipReason: "", escalationReason: "" }, `rung ${rung}`);
+    }
+  });
+}
+
+test("a written fix escalates nothing, and a run that writes no patch escalates its check", (t) => {
+  const reply = "test-bash (2): escalated flaky passes on the unchanged head\n";
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), `check-skills: fixed\n${reply}`);
   const dir = scratch(t);
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
-  const reportDir = scratch(t);
-  writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated unfixed x\n");
-  const head = "a".repeat(40);
-  const base = { row: row("ci-context"), patchState: "written", patchSha256: sha256("diff --git a/x b/x\n"), patchHeadSha: head, headSha: head, patchDir: dir, reportDir };
-  assert.deepEqual(select({ ...base, rung: 0 }), { proceed: true, skipReason: "", escalationReason: "ci-fix-escalated" });
+  const first = "a".repeat(40);
+  const pushed = { row: row("ci-context"), patchState: "written", patchSha256: sha256("diff --git a/x b/x\n"), patchHeadSha: first, headSha: first, patchDir: dir, reportDir };
+  assert.deepEqual(select(pushed), { proceed: true, skipReason: "", escalationReason: "" });
+  const nextReport = scratch(t);
+  writeFileSync(join(nextReport, "reply.txt"), reply);
+  const next = "b".repeat(40);
+  const red = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: next, headSha: next, patchDir: scratch(t), reportDir: nextReport };
+  assert.deepEqual(select(red), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
 });
 
 test("select reads the rung from MODEL_RUNG and refuses any other value", async (t) => {
@@ -1134,7 +1161,7 @@ test("select proceeds on a good artifact, reads the row's report, and names the 
   assert.deepEqual(select({ row: row("default"), patchState: "written", ...base }), { proceed: true, skipReason: "", escalationReason: "" });
   const reportDir = scratch(t);
   writeFileSync(join(reportDir, "reply.txt"), "lint: fixed\ntest-node: escalated unfixed three fixes failed\n");
-  assert.equal(select({ row: row("ci-context"), patchState: "written", ...base, reportDir }).escalationReason, "ci-fix-escalated");
+  assert.equal(select({ row: row("ci-context"), patchState: "written", ...base, reportDir }).escalationReason, "");
   assert.equal(select({ row: row("default"), patchState: "empty", ...base }).escalationReason, "patch-empty");
   assert.equal(select({ row: row("default"), patchState: "written", ...base, patchSha256: "0".repeat(64) }).escalationReason, "patch-invalid");
 });

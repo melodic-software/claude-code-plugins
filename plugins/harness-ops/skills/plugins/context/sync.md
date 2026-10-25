@@ -90,7 +90,20 @@ not run, because `audit` predicted it, the policy stopped before Step 4, or an `
 re-entry reuses the first pass's result, reads `null`, never 0. The digest's top-level
 `timings.total` times the run from its start until the digest is about to be assembled (so it
 excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
-is the part of it no block's window covers (run setup and each block's assembly into the digest). Its `cwd` is what the `In-repo:` row names when no
+is the part of it no block's window covers (run setup and each block's assembly into the digest).
+An `--only-install` re-entry times both passes: the first pass saves its run timings to
+`first-pass-run.json` in the run directory, and the re-entry's `timings.total` and
+`timings.outside_marketplaces` sum the two passes, `timings.resolution` is the coarser of their
+clocks, and `timings.passes[]` holds each pass's own `{pass, total, outside_marketplaces,
+resolution}` (`first`, then `only_install`). The wait between the passes is in neither, and the
+report's run `Timing:` row names both passes and says the wait is not counted. The blocks still
+time only the re-entry, so on a re-entry the block totals plus `outside_marketplaces` fall short
+of `timings.total` by the first pass's block time. Only the first pass writes the file, so a
+second re-entry reports the first pass and itself, and the earlier re-entry's time is in neither.
+A run directory with no `first-pass-run.json` (an older version's) times the re-entry alone. The
+re-entry also reads `install_new` and `install_new_invalid` back from `flags.json`, so an invalid
+policy value the first pass named is still named in the digest and report that supersede it. The
+digest's `cwd` is what the `In-repo:` row names when no
 project root resolved. Ids and counts only: the per-file cache detail and every snapshot stay in
 the run directory, which the digest names.
 
@@ -753,11 +766,12 @@ rewrites a cache directory whose version number has not moved. So both actions r
 the remediation and stop. Emit SKILL.md's `Cache content:` row, and omit it entirely when the check
 found nothing.
 
-The check reads the marketplace clone at the recorded commit. It never fetches one it does not
-have, since that would be a network mutation and would repair the very condition being reported, so
-an install whose sha is not in the clone is reported as `sha-not-local` and counted as unverifiable,
-not as a pass. A report in which most installs are unverifiable has established very little; say so
-rather than leading with the match count.
+The check compares only installs recorded at the marketplace clone's HEAD. It never fetches a
+commit, since that would be a network mutation and would repair the very condition being reported,
+so an install recorded at any other commit is reported as `not-at-head` and counted in
+`not_checked`, never as a pass and never as unverifiable. The rendered row says `N not checked
+(recorded at an older commit)`. A report in which most installs are not checked has established
+very little; say so rather than leading with the match count.
 
 ## Step 6: Report
 
@@ -845,6 +859,27 @@ points at `/source-control:worktree audit` (if installed); the blocked part poin
 project records note below it, which says why a path can be absent. `divergences[]` is not filtered
 (`projectPathPresent` stays advisory), and a digest written before the split carries none of the four
 counts and renders the row as it did.
+
+**Name where the skew sits, one sub-line per project path.** A count alone tells the operator how
+much to converge but not where. The digest's `divergences.records[]` carries every diverging id as
+`{id, scope, version, projectPath}`, one entry per record that makes a counted row skewed: the
+project/local pins the class rule above judges, plus a user-scope record behind a project pin
+(`projectPath` null). A row whose versions differ only past the numeric triple has no such pin, so
+all of its scopes are listed rather than none. `divergences.by_path[]` groups the records that carry
+a `projectPath` as `{path, class, count, ids, more}`: `class` is the path's pin class under the rule
+above (`actionable`, `worktree` or `blocked`), `ids` holds the first three distinct ids in sorted
+order and `more` the number left. The actionable paths come first, then the linked worktrees, then
+the paths that are not present, each group with the most records first, so the first sub-line under
+the `converge` pointer is a place `converge` can run from. The render keeps the count line and adds
+one sub-line per entry, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
+`+<more> more` tail only when ids were left out, and `(linked worktree)` or `(not present)` after
+the path, one space from it, when `converge` cannot act on it there. Three ids per path is a judgment cap
+(`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of paths is not capped, since each path is one
+place the operator acts: `converge` from an actionable path, a worktree removal, or a stale record to
+clear. `count` counts records and `more` counts distinct ids, so an id with both a project and a
+local record at one path is counted twice and named once. A digest written before these fields
+carries neither and renders the count line alone; one written before `class` renders every path
+without a suffix.
 
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the

@@ -108,7 +108,7 @@ def refusal(
             return_value=None if effect else (evidence, []),
         ),
     ):
-        return ve.lane_risk_refusal(REPO, 41, PR, config, "C2", 7)
+        return ve.lane_risk_refusal(REPO, 41, PR, config, 7)
 
 
 class LaneRiskRefusal(unittest.TestCase):
@@ -182,12 +182,11 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         self.read = read
         return json.loads(out.getvalue())
 
-    def test_a_pass_carries_the_risk_hold_at_the_room_s_rung(self) -> None:
+    def test_a_pass_carries_the_risk_hold_when_the_room_has_a_rung(self) -> None:
         report = self.cli(ve.Evidence(None, HEAD, (), 0), "unsafe-path: docs/link")
         self.assertEqual(
             (report["refusal"], report["reviews"]), (None, "unsafe-path: docs/link")
         )
-        self.assertEqual(self.read.call_args.args[4], "C2")
         self.assertIsNone(self.cli(ve.Evidence(None, HEAD, (), 0), None)["reviews"])
 
     def test_no_rung_from_the_room_holds(self) -> None:
