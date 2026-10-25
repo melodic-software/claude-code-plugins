@@ -3886,6 +3886,44 @@ class ReasonsComment(Unattended):
             {"label": "present", "comment": "unchanged"},
         )
 
+    def test_a_stored_escalation_differing_only_in_whitespace_writes_nothing(
+        self,
+    ) -> None:
+        # GitHub can return a body with CRLF endings or trailing spaces; a
+        # re-post would notify on every run.
+        body = self.body()
+        self.setUp()
+        stored = f"{body}\n\n{merge.RISK_ESCALATION_LINE}".replace("\n", "  \r\n")
+        self.earlier_sweep(stored + "  ")
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_changed_reasons_on_an_escalated_comment_keep_the_escalation(
+        self,
+    ) -> None:
+        # The label stays on, so the comment beside it must still say why.
+        self.earlier_sweep(
+            f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`."
+            f"\n\n{merge.RISK_ESCALATION_LINE}"
+        )
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+        posted = self.posted_escalation()
+        self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
+        self.assertEqual(posted.count(merge.RISK_ESCALATION_LINE), 1)
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "created"},
+        )
+
     def test_a_new_head_rewrites_the_comment_without_a_label(self) -> None:
         self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **MED** at head `{'d' * 40}`.")
         self.lanes = UNBOUND
@@ -5226,6 +5264,25 @@ class DependabotMajorEscalation(unittest.TestCase):
         self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
         self.assertEqual(
             out["majorEscalation"], {"label": "present", "comment": "created"}
+        )
+
+    def test_a_stored_body_differing_only_in_whitespace_is_not_reposted(
+        self,
+    ) -> None:
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        stored = merge.major_escalation_body("x", self.HEAD).replace("\n", " \r\n")
+        self.comments = [
+            {
+                "id": 93,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": stored + "\r\n",
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
         )
 
     def test_a_held_major_under_an_earlier_refusal_escalates_once(self) -> None:

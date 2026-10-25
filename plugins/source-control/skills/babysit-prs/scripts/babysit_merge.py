@@ -3347,7 +3347,14 @@ def _floor_held(risk: babysit_risk.RiskResult) -> bool:
 
 def _marker_lines(text: Any) -> list[str]:
     """The first two lines, where a lane comment carries its markers."""
-    return [line.rstrip("\r") for line in str(text or "").split("\n", 2)[:2]]
+    return [line.rstrip() for line in str(text or "").split("\n", 2)[:2]]
+
+
+def _normalized(text: Any) -> str:
+    """A comment body as compared for "unchanged": GitHub can return it with
+    CRLF endings or trailing whitespace, which must not read as a change."""
+    lines = str(text or "").replace("\r\n", "\n").split("\n")
+    return "\n".join(line.rstrip() for line in lines).rstrip()
 
 
 def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
@@ -3410,7 +3417,7 @@ def _stood_unchanged(comment: dict[str, Any], body: str, minutes: int) -> bool:
     """Whether `comment` already reads `body` (the same score, reasons and
     head) and has for at least `minutes`, timed from its last change: a
     rewrite of its reasons restarts the time."""
-    if str(comment.get("body") or "") != body:
+    if _normalized(comment.get("body")) != _normalized(body):
         return False
     changed = parse_github_timestamp(
         str(comment.get("updated_at") or comment.get("created_at") or "")
@@ -3438,7 +3445,7 @@ def upsert_marker_comment(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
         )
     newest = _newest_marker_comment(comments, identity, marker)
-    if newest is not None and str(newest.get("body") or "") == body:
+    if newest is not None and _normalized(newest.get("body")) == _normalized(body):
         return "unchanged"
     if newest is not None and not post_changed:
         args = [
@@ -3937,8 +3944,15 @@ def unattended_writes(
                 repo, policy, body, head, prior
             )
             escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
+            text = _normalized((prior or {}).get("body"))
+            # An escalated comment at this head stays escalated when its
+            # reasons change, so the label never stands beside a comment that
+            # no longer says why.
             if prior is not None and (
-                str(prior.get("body") or "") == escalated
+                text == _normalized(escalated)
+                or (
+                    text.endswith(RISK_ESCALATION_LINE) and f" at head `{head}`" in text
+                )
                 or _stood_unchanged(prior, body, minutes)
             ):
                 escalation = escalate(
