@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [5.10.0] - 2026-10-25
+
+### Added
+
+- Intake's size split also copies, as written, the task-list lines of intake's refinement comment on an issue a listed human filed, where admission already counts that comment as spec. A Size Large issue whose done-when lives only in that refinement no longer stays parked with no one asked. Each sub-issue that copies a refinement line names that comment's id and update time in its header.
+- Admission and pr-verify trust such a sub-issue only while the named comment is still intake's newest refinement on the parent, never edited, with its update time equal to its creation time or to the recorded one, and only on a parent body a listed human wrote. Every line must be one of the listed human's task-list lines or one of that comment's task-list lines, never its prose; after a listed human's edit, either kind may also have its box ticked, and nothing else. A deleted, edited or superseded refinement makes the sub-issue untrusted, even when a listed human has edited it since.
+
+### Changed
+
+- `merge.rung` is a pacing cap: no work class is read, and no class, missing class or diff shape caps it. The only check that names a class is the local babysit lane's untrusted-provenance hold. That lane also needs a human to vouch for the linked issue: a write-access human wrote it, or one applied the admission label in person with no body edit after. The risk score's `class-contradicted`, `blast-radius-missing` and rung reasons are gone (#9668).
+- `merge.diff-check.c2-contradictions` is deprecated and has no effect. The schema still accepts it so existing configs validate, and a config that sets it true gets a `configNotes` entry in the gate's `unattended` report saying it has no effect.
+
+- `resolve-issue` reads any web page and runs the research skills; it was limited to six official docs hosts. It runs on the run-claude-cli launcher, which stages no curl-based docs script, from a job with no write token, and admission no longer refuses a done-when item for naming a page outside those hosts ([pr-pipeline.yaml](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline.yaml)).
+
+### Fixed
+
+- fix-ci no longer hands a pull request to a person (`ci-fix-escalated`) in the same run that pushed its fix: a written patch now pushes with no escalation, whatever the model escalated beside it, and the new head's own CI decides. A red new head gets its own fix-ci run, which escalates what it cannot fix, and `loop.fix-ci-rounds` still ends the rounds with `ci-fix-round-cap` ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#prepare-apply-patch)).
+
+- The issue lane's blocker gate counts the same closes admission does: a size-split parent the lanes App closed once a listed human or a merge closed every sub-issue no longer blocks a run admission already let through (`.github/scripts/work-resolve-issue/check-blockers.mjs`, now on `admit.mjs` `closedByTrusted`).
+
+- The pr-pipeline convention names the repository's default branch, not the pull request's base, as where the merge gate reads admission's `task-list` for a size-split sub-issue.
+
 ## [5.9.5] - 2026-10-25
 
 ### Fixed

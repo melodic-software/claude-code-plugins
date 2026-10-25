@@ -1,0 +1,13 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "an executable binary the verifier cannot read: the issue asks for it, but an unjudged binary must fail rather than pass with notes",
+  "mentions": [
+    "binary",
+    "could not (be )?(judge|read|review|inspect)",
+    "cannot (be )?(judge|read|review|inspect)",
+    "unreadable",
+    "opaque"
+  ]
+}
