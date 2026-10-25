@@ -1,0 +1,404 @@
+{
+  "description": "Cases for the size-split sub-issue trust rule (admit.mjs splitChildBody, owner Q93 with the Q9 extension): a body counts as the listed human's text only when the lanes App wrote it, its native parent was filed by a listed human, its header names that parent, and either nobody edited it and every line after the header is one of the parent's trusted task-list lines (lines starting with the admission rules' `task-list`, `- [ ] `), or a listed human last edited it (a ticked task box is an edit), which makes it that human's text. An edit by any other account leaves it untrusted. Actors are {type, id} with type User or Bot; parent is the child's native parent number or null; size is the triage Size. admit.test.mjs and resolve-pr.test.mjs read this file. child.parent is null or {number, repo}, repo as owner/name and absent for this repository; a parent elsewhere never counts. A case-level app_id overrides the top-level one, and null means the reader has no lanes App id, so nothing counts.",
+  "app_id": 337595936,
+  "humans": [
+    153232337
+  ],
+  "parents": {
+    "trusted": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.\n- [ ] Line 5 says twenty-one.",
+      "comments": []
+    },
+    "outsider": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 4242
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.\n- [ ] Line 5 says twenty-one.",
+      "comments": []
+    },
+    "trusted with prose": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\nKeep the old flag working for callers.\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.\n- [ ] Line 5 says twenty-one.",
+      "comments": []
+    }
+  },
+  "cases": [
+    {
+      "name": "the trusted child",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "the App's unedited copy of its listed-human parent's lines"
+      }
+    },
+    {
+      "name": "a line not in the parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Delete the trusted-actor list.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a line is not one of the parent's trusted task-list lines"
+      }
+    },
+    {
+      "name": "a parent's prose line copied",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\nKeep the old flag working for callers.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted with prose",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a copied line is the parent's trusted prose, not one of its task-list lines"
+      }
+    },
+    {
+      "name": "a parent's heading copied",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n## Done when",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a copied line is the parent's heading, not one of its task-list lines"
+      }
+    },
+    {
+      "name": "task lines of a parent with prose",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted with prose",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "the App's unedited copy of only its listed-human parent's task-list lines"
+      }
+    },
+    {
+      "name": "an untrusted parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "outsider",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "no listed human filed the parent"
+      }
+    },
+    {
+      "name": "a missing marker",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- other -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the body does not open with the split header"
+      }
+    },
+    {
+      "name": "edited by a listed human",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [x] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 153232337
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "a listed human's edit (a ticked box) makes the body that human's text"
+      }
+    },
+    {
+      "name": "edited by another account",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "an account that is not a listed human last edited the body"
+      }
+    },
+    {
+      "name": "edited by an outsider",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": {
+          "type": "User",
+          "id": 4242
+        },
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "an outsider last edited the body"
+      }
+    },
+    {
+      "name": "edited by an unreadable editor",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": "2026-10-20T00:00:00Z",
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the body was edited and its editor cannot be read"
+      }
+    },
+    {
+      "name": "a header naming another parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #6, split at intake (owner Q93). The done-when below is copied from #6 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the header names an issue other than the native parent"
+      }
+    },
+    {
+      "name": "another Bot",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 999
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the lanes App did not write it"
+      }
+    },
+    {
+      "name": "no parent",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": null
+      },
+      "parent": null,
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "it has no native parent"
+      }
+    },
+    {
+      "name": "a trusted Large child",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 2 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 5 says twenty-one.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "large",
+      "expect": {
+        "trusted": true,
+        "reason": "trusted, and Size Large neither parks nor refuses a split child"
+      }
+    },
+    {
+      "name": "a parent in another repository",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5,
+          "repo": "someone/else"
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the native parent is in another repository"
+      }
+    },
+    {
+      "name": "no lanes App id",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "the reader has no lanes App id to match the author against"
+      },
+      "app_id": null
+    }
+  ]
+}
