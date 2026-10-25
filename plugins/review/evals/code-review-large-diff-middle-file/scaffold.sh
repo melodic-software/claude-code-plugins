@@ -745,7 +745,8 @@ mkdir -p .claude-lane
 git diff main...HEAD >.claude-lane/pr.diff
 
 # The case measures nothing unless the first Read returns a partial page and the defect
-# sits in the middle band: past that first page, before the utils the diff ends with.
+# sits in the middle band: past that first page and before the utils, so the test files
+# and the utils follow it in the diff (git diff orders files by path).
 bytes="$(wc -c <.claude-lane/pr.diff)"
 if ((bytes < 120000 || bytes > 250000)); then
   echo "scaffold: pr.diff is $bytes bytes, outside 120000-250000" >&2
@@ -755,9 +756,5 @@ line="$(grep -n -A 6 'function reserveStock' .claude-lane/pr.diff | grep 'stockL
 utils="$(grep -n '^diff --git a/src/utils/' .claude-lane/pr.diff | head -n 1 | cut -d: -f1)"
 if ((line < 1900 || line > utils - 100)); then
   echo "scaffold: the defect is on diff line $line, outside 1900 to $((utils - 100))" >&2
-  exit 1
-fi
-if [[ "$(git diff --name-only main...HEAD | tail -n 1)" == "src/services/product-service.js" ]]; then
-  echo "scaffold: the defect is in the diff's last file" >&2
   exit 1
 fi

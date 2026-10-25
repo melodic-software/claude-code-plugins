@@ -610,7 +610,8 @@ git diff main...HEAD >.claude-lane/pr.diff
 
 # The case measures nothing unless the first Read returns a partial page: the diff must be
 # over Read's token limit and under its whole-file byte refusal, and the defect must sit in
-# the diff's last third, past the first page, in a file that is not the diff's last.
+# the diff's last third, past the first page. The test files follow it (git diff orders
+# files by path), so it is never the diff's last file.
 bytes="$(wc -c <.claude-lane/pr.diff)"
 if ((bytes < 120000 || bytes > 250000)); then
   echo "scaffold: pr.diff is $bytes bytes, outside 120000-250000" >&2
@@ -619,9 +620,5 @@ fi
 offset="$(grep -b -o 'i <= orders.length' .claude-lane/pr.diff | cut -d: -f1)"
 if ((offset * 3 < bytes * 2 || offset < 100000)); then
   echo "scaffold: the defect sits at byte $offset of $bytes, not in the last third past 100000" >&2
-  exit 1
-fi
-if [[ "$(git diff --name-only main...HEAD | tail -n 1)" == "src/utils/orders.js" ]]; then
-  echo "scaffold: the defect is in the diff's last file" >&2
   exit 1
 fi
