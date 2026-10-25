@@ -211,7 +211,7 @@
     {
       "id": 16,
       "name": "plugin-shipped-control-skill-resolves",
-      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. The available skills include harness-ops:control-claude-code, and when loaded the Skill tool reports its base directory as ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0/skills/control-claude-code, under the plugins root, which holds features/mods/toast/README.md.",
+      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. The available skills include harness-ops:control-claude-code, `claude plugin list --json` reports harness-ops@melodic-software with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0 (manifest name harness-ops), and when loaded the Skill tool reports its base directory as ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0/skills/control-claude-code, under the plugins root, which holds features/mods/toast/README.md.",
       "expected_output": "Finds no repository control skill on disk, resolves the plugin-shipped harness-ops:control-claude-code skill, loads it through the Skill tool, reads features/mods/toast/README.md under the reported base directory, names the skill by its full name with the source plugin in the report, and does not fall back to the run skill or a project-type recipe.",
       "files": [],
       "narration": true,

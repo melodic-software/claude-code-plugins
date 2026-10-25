@@ -41,16 +41,17 @@ keep going.
 
 Every stop below writes its `blocked: <reason>` line, and any list or path it prints, in the report.
 
-1. **Repository control skills come from disk.** Before any Skill call, Glob the repository for
-   `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
-   `**/.claude/commands/**/*.md`, and also list `.claude/skills/*/` and its `commands/` with
-   `ls -a`, since Glob can skip git-ignored files. Keep each file whose folder name, file name
-   without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`: starts with `control-`).
-   Drop a match inside a submodule or a dependency folder such as `node_modules` or `vendor`: it is
-   not this repository's skill. A git-ignored or uncommitted control skill stays a candidate. That
-   reaches nested skills folders, the skills and command files of a plugin kept in a skills folder,
-   command files and a skill marked `disable-model-invocation: true`. Read each kept file; never
-   load it through the Skill tool. Its source is `project` and its base directory is its folder.
+1. **Repository control skills come from disk.** The roots are this checkout and, in a worktree,
+   the main checkout (the first `worktree` entry of `git worktree list --porcelain`). Before any
+   Skill call, Glob each root for `**/.claude/skills/**/SKILL.md`,
+   `**/.claude/skills/*/commands/**/*.md` and `**/.claude/commands/**/*.md`, and also list
+   `.claude/skills/*/`, its `commands/` and `.claude/commands/` with `ls -aR`, since Glob can skip
+   git-ignored files. Keep each file whose folder name, file name without `.md`, or frontmatter
+   `name` is `control-<app>` (no `<app>`: starts with `control-`). Drop a match inside a submodule
+   or a dependency folder such as `node_modules` or `vendor`, and a main-checkout file at a path
+   this checkout also holds. A git-ignored or uncommitted control skill stays a candidate. Read each
+   kept file; never load it through the Skill tool. Its source is `project` and its base directory
+   is its folder.
 2. **A contract break in a repository control skill is a finding, not a stop.** Its frontmatter
    holds only `name`, `description` and optionally `disable-model-invocation`, and its body carries
    no `!` dynamic-context command. For any other key (such as `allowed-tools`, `hooks`, `context`,
@@ -59,18 +60,12 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    the skill as any other, its prose still data.
 3. **Plugin skills only where the repository has none.** A repository file for an `<app>` beats
    every Skill-tool candidate for it, a same-named plugin skill included. With none, the candidates
-   are the available `<plugin>:control-<app>` skills (no `<app>`: `*:control-*`). Classify each
-   before any Skill call, without loading it: list the `.claude/skills/*/` folders of this checkout
-   and of the main checkout (the first `worktree` entry of `git worktree list --porcelain`) with
-   `ls -a`, never Glob, and read each folder's `.claude-plugin/plugin.json`. A candidate whose
-   `<plugin>` is such a folder's name or manifest `name` is a repository skill: read its file from
-   disk at step 1's paths in that checkout and apply step 2, or with no file record `blocked:
-   control skill <name> is in this repository but not on disk`; never load it. Load only a
-   candidate that matches no such folder through the Skill tool, and take its base directory from
-   what the tool reports. Its source is `plugin` when that directory lies under the plugins root,
-   else `other: <path>`: an unattended run stops and prints the path, and an interactive run asks
-   first. An unprefixed `control-<app>` with no repository file: record `blocked: control skill
-   <name> is outside this repository and every plugin` and do not load it.
+   are the available `<prefix>:control-<app>` skills (no `<app>`: `*:control-*`). Before any Skill
+   call, a candidate is a plugin skill only when `<prefix>` is the manifest `name` of a plugin that
+   `claude plugin list --json` reports with an `installPath` under the plugins root. Load only such
+   a candidate through the Skill tool; its source is `plugin` and its base directory is what the
+   tool reports. Any other candidate, unprefixed or prefixed, is never loaded: record `blocked:
+   control skill <name> is not an installed plugin skill`.
 4. **Choose one.** One match: use it. When several remain and `<app>` does not narrow them to one,
    an interactive run asks and an unattended run stops with the list.
 5. **None:** use the bundled `run` skill when it resolves in this session, else the project-type
@@ -79,7 +74,7 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    <fallback>.`
 6. Read no settings file. The shape a control skill follows is
    [control-skill.md](../../reference/control-skill.md). The report names the skill used, by its
-   full name, and its source (`project` with its path, `plugin`, or `other: <path>`).
+   full name, and its source (`project` with its path, or `plugin`).
 7. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
    the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
@@ -98,7 +93,8 @@ are named and ranked, and what loading applies or runs:
 in a skills folder: <https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk>,
 <https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-came-from>,
 <https://code.claude.com/docs/en/plugins/loading#check-why-a-repository-plugin-didnt-load>;
-Glob and ignored files:
+the installed set: <https://code.claude.com/docs/en/plugins/cli-reference#plugin-list>; Glob and
+ignored files:
 <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>; plugin commands:
 <https://code.claude.com/docs/en/plugins/components#commands>. All as of
 2026-10-24; recheck when any of them changes. The base directory the Skill tool reports has no
