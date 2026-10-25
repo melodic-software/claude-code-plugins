@@ -452,8 +452,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     const calm = await until(() => document.getElementById("pill").textContent === "Idle", Math.max(40000, readLeft + 5000));
     ok("with nothing pending and no watcher the pill reads Idle, not an error", calm && await page.$eval("#pill", el => el.className === "pill rest" && el.getAttribute("aria-live") === "off"), await text("#pill"));
     await post({kind: "note", text: "Anything else?"});
-    const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
-    ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
+    const prompt = await until(() => document.getElementById("pill").textContent === "Not listening for your note: type next", 5000);
+    ok("once an event waits on Claude the pill names it: Not listening for your note: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
     await page.evaluate(b => { window.__badge7 = b; }, await badge());
   }
   if (PHASE === 14) { // the shell added Q9 and posted a Notes reply that asks; the user answers Q9 with their own text
