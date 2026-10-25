@@ -672,10 +672,26 @@ class TestOpenFindings(unittest.TestCase):
             'var vm=require("vm");vm.runInContext(s,vm.createContext({}));',
             'import{Script}from"vm";new Script(s).runInNewContext();',
             'import*as V from"node:vm";new V.SourceTextModule(s);',
+            # A load whose specifier is no literal may be node:vm.
+            'const s="node:vm",k="runInThisContext";const V=await import(s);V[k](c);',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
         self.assert_across_modules(False, named, 'import{isContext}from"node:vm";')
+
+    def test_a_vm_load_with_a_non_literal_specifier_stays_partial(self) -> None:
+        """#5640: the sink rule named a vm load only by a literal specifier,
+        so this list, local to the module, read literal though the string
+        run through node:vm makes `includes` push `B`."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];const s="node:vm",k="runInThisContext";'
+            "const V=await import(s);"
+            "V[k](\"Array.prototype.includes=function(){this.push('B');return false}\");"
+            'pY.includes("x");',
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
 
     def test_a_load_the_parser_cannot_name_stays_partial(self) -> None:
         """#5970 verifier probes: a load whose file the AST does not name
@@ -695,12 +711,19 @@ class TestOpenFindings(unittest.TestCase):
             'const{require:r}=import.meta;var n=r("/a.js");for(var k in n)n[k].push("B");',
             'var m=import.meta,n=m["req"+"uire"]("/a.js");for(var k in n)n[k].push("B");',
             'var{require:r}=globalThis;var n=r("/a.js");for(var k in n)n[k].push("B");',
+            # #5640: a computed key that is or may be `require`. The push
+            # takes no computed read, which would count on its own.
+            'const k="require";var n=module[k]("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
+            'var n=globalThis["req"+"uire"]("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
+            'const k=c?"require":"foo";const{[k]:r}=globalThis;var n=r("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
         for module in (
             'var x=require("/c.js").q,t=typeof require,p=require.resolve("/c.js");',
             "function f(require){return 1}var o={require:1};",
+            # A computed key known to be no `require`.
+            'var k="other";f(Q[k]);',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(False, named, module)
