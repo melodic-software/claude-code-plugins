@@ -117,9 +117,11 @@ if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SEN
 else
   fail "LANES_APP_ID is not set once, at ci-status's job level, from vars.AUTOMATION_LANES_APP_SENDER_ID: '$pins'"
 fi
-# The lanes App's bot account the variable names (a stand-in id), and another
-# automation's.
-LANES=337595936 DEPENDABOT=49699333
+# The lanes App's bot account the variable names, merge.agent-identity's
+# trusted-actor id, and another automation's.
+identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
+LANES="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")" DEPENDABOT=49699333
+[[ "$LANES" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES'"
 
 SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef
