@@ -53,10 +53,10 @@ The path argument, when given, is one of:
   rule it breaks. A legacy map is converted only when the person passes its path; refresh reads no
   testing setting and looks in no default place to find one.
 
-A feature id in place of a path names the control skill whose `features/<id>/README.md` exists
-(with several, an attended pass asks which; an unattended one is **blocked**, naming them). Steps 4
-and 5 then cover that feature only, and a clean outcome skips the `record` command, since the other
-features went unchecked.
+A feature id in place of a path names the control skill whose `features/<id>/README.md`, else the
+legacy `features/<id>.md`, exists (with several, an attended pass asks which; an unattended one is
+**blocked**, naming them). Steps 4 and 5 then cover that feature only, and a clean outcome skips
+the `record` command, since the other features went unchecked.
 
 Without an argument, take each `.claude/skills/control-*/` directory, each held to the same rules
 and checks as a given one (a refused directory is skipped and named in the report); with several,
