@@ -299,15 +299,16 @@ judged `fail` on `effort=low`. The saved stream shows the subagent's Skill call 
 `print-effort` with no error, then `echo effort=low`; no literal `${CLAUDE_EFFORT}` appears, so the
 skill text reached the subagent already expanded. `expect.json` was corrected to `effort=low` and
 the stream re-read with `probe.py rejudge` (no new run). The stream does not carry the session's
-level and the workdir was not kept; the session's `medium` rests on the fixture's
-`effortLevel: medium`, the same settings with which record 13 read `medium` on 2.1.296. The control
-`subagent/preloaded-skill-placeholder-reflects-session-effort` was not rerun on 2.1.310.
+level and this run's workdir was not kept. Record 15's control, run on the same version with the
+same `settings.json` and its workdir kept, read `medium` through a preloaded skill. The two loading
+paths differ on 2.1.310; neither moved between versions.
 
 ## 14. `${CLAUDE_EFFORT}` in a skill a subagent loads through the Skill tool is the subagent's level
 
 **Claim.** In a skill a subagent pinned at `effort: low` loads through the Skill tool (no `skills`
 preload), `${CLAUDE_EFFORT}` expands to the pin (`low`), not to the session's `effortLevel`
-(`medium`). This differs from record 13's preloaded path. A `fail` showing `medium` would mean the
+(`medium`). Record 15 shows the preloaded path still giving `medium` on the same version, so the
+substituted level depends on how the skill is loaded. A `fail` showing `medium` would mean the
 Skill-tool path now follows the session level.
 
 **Recheck trigger.** A release note naming `${CLAUDE_EFFORT}`, skill string substitution, or the
@@ -316,3 +317,32 @@ Skill tool inside subagents.
 | Case | Expected | Observed | Verdict |
 |---|---|---|---|
 | `subagent/skill-tool-skill-placeholder-effort` | ran, `effort=low` | `echo effort=low` | pass |
+
+## Basis for record 15
+
+One live run,
+`probe.py run --live --max-runs 1 --keep --case subagent/preloaded-skill-placeholder-reflects-session-effort`,
+with the launch above. Linux (WSL2), Claude Code **2.1.310**, 2026-10-25: 1 run, no retry, workdir
+kept. The fixture's hook wrote this `effort.log`:
+
+```text
+event=SubagentStart agent_type=effort-probe tool=- effort=unset env=unset
+event=PreToolUse agent_type=effort-probe tool=Bash effort=low env=low
+```
+
+The subagent ran at its `low` pin when it ran `echo effort=medium`. The hooks fire only for the
+subagent, so no line names the session's level directly. `medium` appears nowhere in the run but
+the case's `effortLevel`, and the substituted value is not the subagent's.
+
+## 15. On 2.1.310, a preloaded skill still reads the session's level while the subagent runs at its pin
+
+**Claim.** The record 13 case, rerun with the record 14 case on the same version: `${CLAUDE_EFFORT}`
+in a skill preloaded into a subagent pinned at `effort: low` still expands to `medium`, while the
+hook payload for that subagent's Bash call reports `effort.level` `low`. The preloaded and
+Skill-tool paths differ; the preloaded path did not change between 2.1.296 and 2.1.310.
+
+**Recheck trigger.** As record 13.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `subagent/preloaded-skill-placeholder-reflects-session-effort` | ran, `effort=medium` | `echo effort=medium`; hook `effort=low` | pass |
