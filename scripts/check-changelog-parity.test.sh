@@ -1464,4 +1464,65 @@ legacy_reuse() { ship_change "$repo" beta; }
 fragment_case legacy_reuse
 if [[ $rc -eq 1 && "$out" == *"PUBLISHED VERSION REUSE: beta"* ]]; then ok "a plugin not in fragment mode keeps the per-PR bump rules"; else fail "legacy plugin lost PUBLISHED VERSION REUSE: rc=$rc out='$out'"; fi
 
+# ------------- synthetic PR merge after main released the plugin -------------
+# On a pull_request run HEAD is the merge of the branch into the base tip, so
+# the working tree carries every release main made after the fork. The gate
+# judges the branch's own tip (HEAD^2), never that tree.
+# merge_case <mode> <main-change> <branch-change>: alpha is in fragment mode,
+# beta is not. The manifest is multi-line so a branch field edit and main's
+# version bump merge without a conflict.
+# wide_manifest <plugin> <version> <description>: that multi-line manifest.
+wide_manifest() {
+  printf '{\n  "name": "%s",\n  "version": "%s",\n  "author": "a",\n  "license": "MIT",\n  "description": "%s"\n}\n' "$1" "$2" "$3" >"$repo/plugins/$1/.claude-plugin/plugin.json"
+}
+merge_case() {
+  mk_repo repo
+  git_init_test_repo "$repo"
+  local p fork main
+  for p in alpha beta; do
+    mk_plugin "$repo" "$p" 1.0.0 yes
+    wide_manifest "$p" 1.0.0 d
+    printf '# Changelog\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/$p/CHANGELOG.md"
+    printf 'readme\n' >"$repo/plugins/$p/README.md"
+  done
+  printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+  mkdir -p "$repo/.changes/alpha"
+  printf -- '---\nbump: minor\n---\n\n### Added\n\n- A feature.\n' >"$repo/.changes/alpha/feat-x-0123abcd.md"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+  fork="$(git -C "$repo" rev-parse HEAD)"
+  "$2"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm main
+  main="$(git -C "$repo" rev-parse HEAD)"
+  git -C "$repo" checkout -q -b pr "$fork"
+  "$3"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm pr
+  git -C "$repo" checkout -q -b synthetic "$main"
+  if ! git -C "$repo" merge -q --no-ff -m 'synthetic PR merge' pr >/dev/null 2>&1; then
+    out="synthetic merge conflicted"
+    rc=99
+  else
+    out="$(cd "$repo" && bash scripts/check-changelog-parity.sh "$1" "$main" 2>&1)"
+    rc=$?
+  fi
+  rm -rf "$repo"
+}
+# main runs the release pull request for alpha: 1.1.0, its entry, fragment consumed.
+release_alpha() {
+  wide_manifest alpha 1.1.0 d
+  printf '# Changelog\n\n## [1.1.0]\n\n### Added\n\n- A feature.\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/alpha/CHANGELOG.md"
+  rm "$repo/.changes/alpha/feat-x-0123abcd.md"
+}
+describe_alpha() { wide_manifest alpha 1.0.0 changed; }
+merge_case --check-bump release_alpha describe_alpha
+if [[ $rc -eq 0 ]]; then ok "a non-version manifest edit passes after main releases the fragment-mode plugin (version read at the branch tip)"; else fail "main's release read as the branch's version move: rc=$rc out='$out'"; fi
+
+retouch_alpha_notes() { printf '# Changelog\n\n## [1.0.0]\n\n%s.\n' "$long_body" >"$repo/plugins/alpha/CHANGELOG.md"; }
+merge_case --check-bump release_alpha retouch_alpha_notes
+if [[ $rc -eq 0 ]]; then ok "a CHANGELOG body edit passes after main releases the fragment-mode plugin (headings read at the branch tip)"; else fail "main's release heading read as added by the branch: rc=$rc out='$out'"; fi
+
+add_beta_file() { printf 'new\n' >"$repo/plugins/beta/NEW.md"; }
+remove_beta() { git -C "$repo" rm -rq plugins/beta; }
+merge_case --check-preserved add_beta_file remove_beta
+if [[ $rc -eq 0 ]]; then ok "removing a plugin passes --check-preserved after main adds a file to it (directory read at the branch tip)"; else fail "plugin removal read as a deleted changelog: rc=$rc out='$out'"; fi
+
 test_harness::report
