@@ -63,7 +63,7 @@
 #
 # The branch it would push (named, current, or the --pr head) refuses when it is
 # main, master, or the push remote's default branch as `git ls-remote --symref`
-# reports it; a failed ls-remote refuses too. `--check` runs only that check
+# reports it; a read that fails or names no default refuses too. `--check` runs only that check
 # (create.md calls it before opening a PR) and pushes nothing.
 #
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
@@ -150,16 +150,18 @@ fi
 # refuse_default <remote> <branch>: exit 1 when <branch> is main, master, or
 # <remote>'s default branch. The default is read from the remote itself
 # (`ls-remote --symref`), never the local <remote>/HEAD, which can be unset or
-# stale. A failed read refuses; an empty remote has no HEAD, so only main and
-# master refuse there.
+# stale. A failed read refuses, and so does a read that names no default (an
+# empty remote, a server that does not advertise the symref, a detached HEAD).
 refuse_default() {
-  local out default
-  if ! out=$(git ls-remote --symref "$1" HEAD 2>/dev/null); then
-    echo "push-branch.sh: the default branch of $1 could not be read (git ls-remote failed); not pushing" >&2
+  local out="" default=""
+  if out=$(git ls-remote --symref "$1" HEAD 2>/dev/null); then
+    default=$(sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}")
+  fi
+  if [[ -z "$default" ]]; then
+    echo "push-branch.sh: the default branch of $1 could not be read (git ls-remote failed or named no HEAD branch); not pushing" >&2
     exit 1
   fi
-  default=$(sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}")
-  if [[ -n "$default" && "$2" == "$default" ]]; then
+  if [[ "$2" == "$default" ]]; then
     echo "push-branch.sh: '$2' is the default branch of $1; not pushing" >&2
     exit 1
   fi

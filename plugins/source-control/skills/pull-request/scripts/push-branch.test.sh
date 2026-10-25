@@ -122,7 +122,9 @@ PUSH_BRANCH="$PLUGIN/skills/pull-request/scripts/push-branch.sh"
 
 # Build a working clone under $WORKDIR/$1 with `feat/x` checked out (one commit),
 # plus a bare remote per remaining `name` arg. The clone's `origin` is a bare
-# repo of its own so a real push has somewhere to land. Echoes the clone path.
+# repo of its own so a real push has somewhere to land. Every remote holds the
+# commit as `trunk`, its HEAD, so ls-remote reports a default branch, as a real
+# remote does. Echoes the clone path.
 make_clone() {
   local name="$1"
   shift
@@ -137,6 +139,10 @@ make_clone() {
   for extra in "$@"; do
     git init -q --bare "$base/$extra.git"
     git -C "$base/wc" remote add "$extra" "$base/$extra.git"
+  done
+  for bare in "$base"/*.git; do
+    git -C "$base/wc" push -q "$bare" "HEAD:refs/heads/trunk" 2>/dev/null
+    git -C "$bare" symbolic-ref HEAD refs/heads/trunk
   done
   echo "$base/wc"
 }
@@ -524,7 +530,15 @@ bare="$WORKDIR/lsremote-fail/origin.git"
 git -C "$wc" remote set-url origin "$WORKDIR/lsremote-fail/missing.git"
 git -C "$wc" remote set-url --push origin "$bare"
 refuse_case "ls-remote failed" "$bare" "$BRANCH" \
-  "the default branch of origin could not be read (git ls-remote failed)" "$wc" "$BRANCH"
+  "the default branch of origin could not be read" "$wc" "$BRANCH"
+
+# A remote that answers ls-remote but advertises no HEAD symref (here a HEAD
+# naming no branch) has an unreadable default: refused like a failed read.
+wc=$(make_clone no-head)
+bare="$WORKDIR/no-head/origin.git"
+git -C "$bare" symbolic-ref HEAD refs/heads/absent
+refuse_case "remote advertises no HEAD" "$bare" "$BRANCH" \
+  "the default branch of origin could not be read" "$wc" "$BRANCH"
 
 # --check runs the same check and pushes nothing.
 wc=$(make_clone check-mode)
