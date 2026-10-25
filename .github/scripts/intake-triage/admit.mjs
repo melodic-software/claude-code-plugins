@@ -33,8 +33,8 @@
 // - 9: the author is a listed human or the lanes App;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
-//   OS, a run repeated N times, a measurement over time, or a page on a host
-//   outside resolve-issue's web-access domains. The refusal
+//   OS, a paid eval, a run repeated N times, a measurement over time, or a
+//   page on a host outside resolve-issue's web-access domains. The refusal
 //   recommends splitting those items into a needs-human child issue, which
 //   refine.mjs files when some items are left for the lane;
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
@@ -148,6 +148,10 @@ const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
     /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
+  ],
+  [
+    "a paid eval",
+    /\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b))/i,
   ],
   [
     "a repeated run",

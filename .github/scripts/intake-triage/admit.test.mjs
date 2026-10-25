@@ -874,6 +874,8 @@ describe("unrunnableCriteria", () => {
     ["a Windows host run", "Run `/machine-health:audit` on a Windows 11 host and confirm 27 results.", /host/],
     ["a macOS machine", "Install the plugin on a macOS machine and see the banner.", /host/],
     ["a WSL box", "The hook fires from a WSL2 box.", /host/],
+    ["a paid eval", "Run a paid eval of the skill and record the delta.", /paid eval/],
+    ["a plugin eval run", "Run `claude plugin eval` on the suite and the delta is positive.", /paid eval/],
     ["N consecutive runs", "Run the lane 20 consecutive runs without a failure.", /repeated run/],
     ["consecutive runs pass", "Twenty consecutive runs pass on main.", /repeated run/],
     ["a measurement over time", "Monitor the queue for two weeks and confirm no backlog.", /over time/],
@@ -890,8 +892,8 @@ describe("unrunnableCriteria", () => {
     ["a Windows-host criterion named in prose", "A test covers a Windows-host criterion staying out of the lane."],
     ["a host named without a run", "The README says Windows host support is fully implemented."],
     ["the lane's own OS", "Run the script on a Linux host and it exits 0."],
-    ["a model eval run", "Run claude plugin eval on the work-items suite and the delta is positive."],
-    ["a paid eval", "Run a paid eval of the skill and record the delta."],
+    ["a list that names a paid eval", "Intake's rubric marks a host or OS run, a paid eval, or a loaded multi-run."],
+    ["a no-spend eval", "Run `claude plugin eval --validate` on the suite and it passes."],
     ["a failure threshold", "The lane pauses after 3 consecutive failures."],
     ["a retention period", "The sweep deletes files older than 30 days."],
     ["a config duration", "Set `cleanupPeriodDays` to keep transcripts for 30 days."],
@@ -946,11 +948,6 @@ test("decide: every done-when item unrunnable says a person takes the issue, wit
   const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
   assert.equal(result.verdict, "refuse");
   assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
-});
-
-test("decide: a done-when item that runs claude plugin eval is not refused as unrunnable", () => {
-  const result = decide(facts({ issue: issueOf({ body: "- [ ] Run claude plugin eval on the work-items suite." }) }));
-  assert.doesNotMatch(result.reasons.join("; "), /unattended lane run cannot perform/);
 });
 
 describe("noteUnrunnable", () => {
