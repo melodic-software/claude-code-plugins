@@ -796,6 +796,131 @@ class TestBriefRestatements(SessionCase):
         self.assertIn("brief=ok", out)
 
 
+class TestBriefDecisionsOnce(SessionCase):
+    """Each decision reaches the Brief once, in its current form: a superseded row stays in the
+    ledger, and an answered row the confirmed restatement carries adds no raw Constraints line."""
+
+    OLD = ("Cache builds in S3?", "S3 cache", "Use the shared S3 bucket.")
+
+    def section(self, text, name):
+        return text.split(f"### {name}")[1].split("###")[0].split("\n## ")[0]
+
+    def confirmed(self, qs, events, **sections):
+        """Rewrite the session with a confirmed rev 1 of sections; events may differ from the
+        ones the recap was taken over."""
+        confirm = {
+            **event(len(events) + 1, None, "confirm-understanding", "confirm"),
+            "contentRev": 1,
+        }
+        rev = {"rev": 1, "at": AT, "sections": sections}
+        self.session(qs, [*events, confirm], restatements=[rev])
+        return self.export("brief").read_text(encoding="utf-8")
+
+    def gated(self, name, text):
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        return name, text
+
+    def briefs(self, constraints=""):
+        """(name, Brief) without a restatement, then with a confirmed one whose decisions are
+        the register recap, each gated as it is exported: Q1..Q28 all accepted, Q13 then
+        superseded by Q28, Q13 with a confirmed commitment."""
+        qs = [question(f"Q{i}") for i in range(1, 29)]
+        title, short, rec = self.OLD
+        qs[12].update(
+            title=title,
+            short=short,
+            recommendation=rec,
+            commits=["Bucket is shared"],
+            supersededBy="Q28",
+        )
+        qs[27].update(
+            title="Cache builds on local disk?",
+            short="Local cache",
+            recommendation="Use the runner's local disk.",
+            supersedes="Q13",
+        )
+        events = [event(i, f"Q{i}", "accept") for i in range(1, 29)]
+        events.append(event(29, "Q13", "confirm", alt="0"))
+        self.session(qs, events)
+        out = [self.gated("no restatement", self.export("brief").read_text(encoding="utf-8"))]
+        recap, fits = exporters.confirmation_recap(self.dir, 20000)
+        self.assertTrue(fits)
+        sections = {"decisions": recap}
+        if constraints:
+            sections["constraints"] = constraints
+        out.append(self.gated("restated", self.confirmed(qs, events, **sections)))
+        return out
+
+    def test_a_superseded_row_leaves_the_brief_and_its_replacement_appears_once(self):
+        for name, text in self.briefs():
+            with self.subTest(name):
+                for where in ("Constraints", "Captured assumptions", "Out-of-scope"):
+                    part = self.section(text, where)
+                    for said in (*self.OLD, "Bucket is shared"):
+                        self.assertNotIn(said, part, where)
+                    self.assertNotRegex(part, r"\bQ13\b", where)
+                q28 = [x for x in text.splitlines() if re.search(r"\bQ28\b", x)]
+                self.assertEqual(len(q28), 1, q28)
+                if name == "restated":
+                    # The recap carries every answered row, Q28 marked as Q13's replacement
+                    # in Decisions.
+                    self.assertEqual(
+                        self.section(text, "Constraints").strip(), "- none recorded"
+                    )
+                    self.assertTrue(q28[0].startswith("- Q28 answered: "), q28)
+                    self.assertTrue(q28[0].endswith("; replaces Q13"), q28)
+                    self.assertIn(q28[0], self.section(text, "Decisions"))
+
+    def test_no_decision_line_appears_twice(self):
+        for name, text in self.briefs(constraints="- stdlib only (Q2)"):
+            with self.subTest(name):
+                # A decision line is a bullet naming a Q<N>; `- none` repeats by design.
+                lines = [
+                    x
+                    for x in text.splitlines()
+                    if x.startswith("- ") and re.search(r"\bQ[0-9]+\b", x)
+                ]
+                self.assertEqual(
+                    sorted(x for x in set(lines) if lines.count(x) > 1), []
+                )
+                leads = [
+                    x.split()[1] for x in lines if re.match(r"^- Q[0-9]+\b", x)
+                ]
+                twice = sorted({q for q in leads if leads.count(q) > 1})
+                self.assertEqual(twice, [])
+                answered = {f"Q{i}" for i in range(1, 29)} - {"Q13"}
+                if name == "restated":
+                    # The recap carries Q2; the constraint citing it stays as written.
+                    self.assertNotIn("- Q2 Short Q2:", text)
+                    self.assertIn("- stdlib only (Q2)", self.section(text, "Constraints"))
+                self.assertEqual(set(leads), answered)
+
+    def test_a_cut_stale_or_uncopied_restatement_line_keeps_the_row_line(self):
+        long = " ".join(["Keep the build cache on the runner's local disk."] * 8)
+        qs = [question("Q1", recommendation=long), *(question(f"Q{i}") for i in (2, 3, 4))]
+        events = [event(i, f"Q{i}", "accept") for i in range(1, 5)]
+        self.session(qs, events)
+        recap, _ = exporters.confirmation_recap(self.dir, 20000)
+        cut = [x for x in recap.splitlines() if x.startswith(("Q1 ", "Q2 "))]
+        self.assertTrue(cut[0].endswith("…)"), cut)
+        own = "Q3 Short Q3: accepted: Recommended answer for Q3."
+        text = self.confirmed(
+            qs,
+            # Q2's answer changes after the recap was taken.
+            [*events, event(5, "Q2", "alt", alt="a")],
+            decisions="\n".join(cut),
+            constraints=f"- launch before Q4 2026\n- {own}",
+        )
+        constraints = self.section(text, "Constraints")
+        self.assertIn(f"- Q1 Short Q1: accepted: {long}\n", constraints)
+        self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
+        self.assertEqual(text.splitlines().count(f"- {own}"), 1)
+        self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
+
+
 class TestSupersededCommitments(SessionCase):
     """A commitment list a later revise replaced never reaches the Brief."""
 
