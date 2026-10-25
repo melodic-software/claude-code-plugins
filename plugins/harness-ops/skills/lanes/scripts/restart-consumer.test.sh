@@ -29,6 +29,8 @@
 #   - the morning-brief issue-discovery literals are byte-identical in both files
 #   - print-schedule emits schtasks create + delete lines and mutates nothing,
 #     and substitutes a passed --data-dir into the offline form
+#   - every scheduled `claude -p` passes --permission-mode auto, and
+#     --permission-prompts none only from the CLI version that accepts it
 #   - argument validation exit codes
 #
 # PATH-stubs `claude` and `gh`, and injects the session list, the telemetry, and
@@ -65,6 +67,10 @@ STUBS="$TMP/stubs"
 mkdir -p "$STUBS"
 cat >"$STUBS/claude" <<'SH'
 #!/usr/bin/env bash
+if [[ "${1:-}" == --version ]]; then
+  [[ -n "${CLAUDE_STUB_VERSION:-}" ]] && echo "$CLAUDE_STUB_VERSION (Claude Code)"
+  exit 0
+fi
 echo '[]'
 SH
 # The gh stub is loud-by-default: reaching it means a test forgot an injection
@@ -402,6 +408,20 @@ assert_contains "print-schedule names the headless reader" "$OUT" "-p \"/harness
 assert_not_contains "the scheduled command never defaults to read-only check" "$OUT" "consume-restarts\" --output-format"
 assert_contains "print-schedule offers the non-Windows form" "$OUT" "cron form"
 assert_contains "print-schedule states that registering is the operator's" "$OUT" "OPERATOR action"
+
+# The unattended reader states its permission posture rather than inheriting
+# the user's defaultMode; --permission-prompts none only where the CLI takes it.
+OUT="$(CLAUDE_STUB_VERSION=2.1.259 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_eq "every scheduled claude -p passes explicit auto and no prompts" "4" \
+  "$(grep -c -- 'run.\{0,2\} --permission-mode auto --permission-prompts none --output-format text' <<<"$OUT")"
+OUT="$(CLAUDE_STUB_VERSION=2.1.258 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_contains "a CLI below the floor still gets explicit auto" "$OUT" 'run" --permission-mode auto --output-format text'
+assert_not_contains "a CLI below the floor never gets --permission-prompts" "$OUT" "--permission-prompts"
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_not_contains "an unreadable CLI version omits --permission-prompts" "$OUT" "--permission-prompts"
+assert_eq "the --permission-prompts floor matches lane-launcher.sh" \
+  "$(grep '^PERMISSION_PROMPTS_MIN_VERSION=' "$(dirname "$SCRIPT")/lane-launcher.sh")" \
+  "$(grep '^PERMISSION_PROMPTS_MIN_VERSION=' "$SCRIPT")"
 
 # --- 14. Argument validation --------------------------------------------------
 bash "$SCRIPT" bogus --repo "$REPO" >/dev/null 2>&1

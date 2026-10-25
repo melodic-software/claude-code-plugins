@@ -1596,19 +1596,21 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "d02b8697e092705153f0996549b05f95a446bb52",
 ]);
 
-test("pr-run-activity-read.yml: every run-claude-cli pin is a launcher checked to pass --permission-prompts none", () => {
-  const pins = [];
-  for (const [id, job] of Object.entries(workflow("pr-run-activity-read.yml").jobs ?? {})) {
-    for (const step of job.steps ?? []) {
-      const uses = String(step.uses ?? "");
-      if (!uses.includes("/run-claude-cli@")) continue;
-      const sha = uses.slice(uses.indexOf("@") + 1);
-      pins.push(sha);
-      assert.match(sha, /^[0-9a-f]{40}$/, `${id} ${step.id} pins a full SHA`);
-      assert.ok(PERMISSION_PROMPTS_NONE_LAUNCHERS.has(sha), `${id} ${step.id}: ${sha} is not checked to pass --permission-prompts none`);
+test("every workflow's run-claude-cli pin is a launcher checked to pass --permission-prompts none", () => {
+  const files = new Set();
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        const uses = String(step.uses ?? "");
+        if (!uses.includes("/run-claude-cli@")) continue;
+        const sha = uses.slice(uses.indexOf("@") + 1);
+        files.add(file);
+        assert.match(sha, /^[0-9a-f]{40}$/, `${file} ${id} ${step.id} pins a full SHA`);
+        assert.ok(PERMISSION_PROMPTS_NONE_LAUNCHERS.has(sha), `${file} ${id} ${step.id}: ${sha} is not checked to pass --permission-prompts none`);
+      }
     }
   }
-  assert.ok(pins.length >= 2, pins.join(", "));
+  for (const file of ["pr-run-activity-read.yml", "pr-verify.yml", "pr-unblock.yml"]) assert.ok(files.has(file), [...files].join(", "));
 });
 
 // Each launcher leg is followed by a check that the CLI's init message
