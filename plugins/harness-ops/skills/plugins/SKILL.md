@@ -118,7 +118,8 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
    token. Pass the WORD, never the token: a placeholder inside a command is a shell substitution
    error, not a policy. Any other value is treated as `ask` and named back in the digest's
-   `install_new_invalid` so the report can flag it.
+   `install_new_invalid` so the report can flag it, on the first pass and on an `--only-install`
+   re-entry alike.
 
 2. **Read the output.** The first line is one compact JSON digest, also written to
    `<run_dir>/digest.json`; after a blank line comes the rendered report, also written to
