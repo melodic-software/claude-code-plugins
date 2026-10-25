@@ -2292,11 +2292,12 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
     through aliases, returns, arguments and callbacks of array methods that
     never change the array; this follows the hops that leave the module:
 
-    - an export, to every module importing the exported name (a re-export
-      exports it again), when no module reads that name as a property,
-      since `ns.name` on a module namespace reaches the export too, and
-      every whole load of the exporting file reads other exports only by
-      name (`_namespace_holds`);
+    - an export, to every module whose import or re-export declaration
+      takes the exported name (`_imports_of`; a re-export exports it
+      again), when no module reads that name as a property, since
+      `ns.name` on a module namespace reaches the export too, and every
+      whole load of the exporting file reads other exports only by name
+      (`_namespace_holds`);
     - an argument to an imported function, to that function's parameter in
       the module its `from` path names in Bun's module table.
 
@@ -2334,13 +2335,16 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
             name = hop[1]
             if name == "default" or _PARSER.keys_used(src, name, _module_spans(src)):
                 return False
-            held = _namespace_holds(src, span[0], name)
+            importers = _imports_of(src, name)
+            if importers is None:
+                return False
+            held = _namespace_holds(src, span[0], name, [p for _, p in importers])
             if held is None:
                 return False
             trusted.update(held)
             pending.extend(
-                (importer, {"import": name, "calls": hop[0] == "export-call"})
-                for importer in _importers(src, name)
+                (site, {"import": name, "calls": hop[0] == "export-call"})
+                for site in dict.fromkeys(s for s, _ in importers)
             )
     return not trusted or not _sink_hit(src, sorted(trusted))
 
@@ -2389,59 +2393,42 @@ def _exporter_of(
     return lo, local
 
 
-@functools.lru_cache(maxsize=256)
-def _import_lists(src: str, name: str) -> tuple[tuple[tuple[int, int], str], ...]:
-    """Every `{...}from"<path>"` list holding `name` as a word: the module
-    holding it and the path it names. A superset of the modules that import
-    or re-export `name`; the parser's `flow` op reads the specifiers."""
-    token = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
-    tail = re.compile(r"\s*from\s*([\"'`])(.*?)\1")
+def _imports_of(src: str, name: str) -> list[tuple[tuple[int, int], str]] | None:
+    """Every module whose import or re-export declaration takes `name` by
+    name (`import{name}from f`, `export{name}from f`), as the
+    `_chunk_span` the flow reads, with the path `f`. The declarations come
+    from the parser's AST, so a comment inside one hides none. None when a
+    module does not parse, since it may be one."""
+    assert _PARSER is not None
     out: list[tuple[tuple[int, int], str]] = []
-    for m in token.finditer(src):
-        opened = src.rfind("{", max(0, m.start() - 262_144), m.start())
-        closed = src.find("}", m.end())
-        if (
-            opened < 0
-            or closed < 0
-            or "}" in src[opened : m.start()]
-            or "{" in src[m.end() : closed]
-        ):
-            continue
-        path = tail.match(src, closed + 1)
-        if path is None:
-            continue
-        hit = (_chunk_span(src, m.start()), path.group(2))
-        if hit not in out:
-            out.append(hit)
-    return tuple(out)
+    for lo, hi in _module_spans(src):
+        found = _PARSER.imports(src, lo, hi)
+        if found is None:
+            return None
+        out.extend(
+            (_chunk_span(src, lo), path) for imported, path in found if imported == name
+        )
+    return out
 
 
-def _importers(src: str, name: str) -> list[tuple[int, int]]:
-    return list(dict.fromkeys(span for span, _ in _import_lists(src, name)))
-
-
-def _namespace_holds(src: str, lo: int, name: str) -> set[str] | None:
+def _namespace_holds(src: str, lo: int, name: str, paths: list[str]) -> set[str] | None:
     """The built-in names trusted in showing that no whole load of the
     module starting at `lo`, which exports `name`, reaches that export, or
     None when one may.
 
     Its files are the Bun module table's path for it and every file its
-    importers import `name` from; with neither, the file is unknown and
-    nothing rules out a namespace of it. Every module that loads one of
-    those files whole (`import(...)`, `require(...)`, `import*as`,
-    `export*`, the parser's `loads` op) is followed by the `namespace` op,
-    which accepts only reads of other exports by name. A module that may
-    load a file the parser cannot name (an aliased `require`,
-    `require.call`, `import(x)`) could load this one, so it fails the hop.
-    A promise settled
-    with the namespace reads its `then` export, so each file's module
-    must be known and export no `then`."""
+    importers import `name` from (`paths`); with neither, the file is
+    unknown and nothing rules out a namespace of it. Every module that
+    loads one of those files whole (`import(...)`, `require(...)`,
+    `import*as`, `export*`, the parser's `loads` op) is followed by the
+    `namespace` op, which accepts only reads of other exports by name. A
+    module that may load a file the parser cannot name (an aliased
+    `require`, `require.call`, `import(x)`) could load this one, so it
+    fails the hop. A promise settled with the namespace reads its `then`
+    export, so each file's module must be known and export no `then`."""
     assert _PARSER is not None
     path = _PARSER.module_path(src, lo)
-    files = {
-        p.rsplit("/", 1)[-1]
-        for p in ([path] if path else []) + [p for _, p in _import_lists(src, name)]
-    }
+    files = {p.rsplit("/", 1)[-1] for p in ([path] if path else []) + paths}
     if not files:
         return None
     trusted: set[str] = set()
