@@ -1,0 +1,122 @@
+{
+  "skill": "retro-audio:music",
+  "plugin": "retro-audio",
+  "skill_dir": "plugins/retro-audio/skills/music",
+  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "retro-audio:sfx"
+  ],
+  "competitor_dirs": {
+    "retro-audio:sfx": "plugins/retro-audio/skills/sfx"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make me a looping 8-bit tune for the title screen of my platformer, something upbeat in the NES style."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you turn this MML into a wav file? T150 L8 O4 cdefgab>c"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need chiptune background music for a dungeon level, kinda spooky, with a Game Boy sound."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Compose a short seamless loop for my pico-8 game's overworld, 4 bars, happy vibe."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write some retro boss battle music with a fast arpeggio lead and noise-channel drums, and export it as wav."
+    },
+    {
+      "id": "pos-validation-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a chill 8-bit loop I can play on the pause menu."
+    },
+    {
+      "id": "pos-validation-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Here's an MML score for a two-channel melody. Render it to audio so I can hear how it sounds."
+    },
+    {
+      "id": "pos-validation-08",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Generate a 16-bar NES-style town theme with a square-wave lead and a triangle bassline."
+    },
+    {
+      "id": "pos-validation-09",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "my game jam entry needs a soundtrack that sounds like an old Game Boy cartridge, can you make one as a wav"
+    },
+    {
+      "id": "pos-validation-10",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn this melody into chip-style music and loop it for the menu screen: E E F G G F E D."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a coin pickup sound for my 8-bit platformer."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write lyrics for a song about a pixel hero saving the princess."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Trim the first 10 seconds off this podcast MP3 and normalize the volume."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a 16x16 pixel art sprite of a knight with a walk cycle."
+    },
+    {
+      "id": "neg-validation-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I need a short retro laser zap for when the player shoots."
+    },
+    {
+      "id": "neg-validation-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Compose a sweeping orchestral score with strings and brass for my RPG trailer."
+    },
+    {
+      "id": "neg-validation-07",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make a jump sound with a rising pitch sweep for my character."
+    },
+    {
+      "id": "neg-validation-08",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Animate an 8-bit explosion sprite sheet for my shooter game."
+    }
+  ]
+}

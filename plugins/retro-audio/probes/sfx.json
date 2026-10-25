@@ -1,0 +1,122 @@
+{
+  "skill": "retro-audio:sfx",
+  "plugin": "retro-audio",
+  "skill_dir": "plugins/retro-audio/skills/sfx",
+  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "retro-audio:music"
+  ],
+  "competitor_dirs": {
+    "retro-audio:music": "plugins/retro-audio/skills/music"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a coin collect blip for my platformer, short and bright."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need a jump sound for my little pixel guy, a quick rising boing saved as a wav."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Generate a retro laser shot for the player's blaster."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you make an 8-bit explosion noise for when an enemy ship blows up?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a power-up sound like the old NES games, saved as a .wav."
+    },
+    {
+      "id": "pos-validation-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Need a short chippy click/select beep for my game's menu."
+    },
+    {
+      "id": "pos-validation-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Create a hurt sound for when the player takes damage, with a retro arcade feel."
+    },
+    {
+      "id": "pos-validation-08",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "make me an sfxr-like blip for picking up a heart"
+    },
+    {
+      "id": "pos-validation-09",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My shmup needs a crunchy noise-burst when bombs go off, 8-bit please, exported as wav."
+    },
+    {
+      "id": "pos-validation-10",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Randomize a few retro pickup chimes and give me the best one as a wav file."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Compose a looping 8-bit soundtrack for my game's first level."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Remove the background hiss from this recorded MP3 of door slams."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw an animated pixel-art explosion effect for my sprite sheet."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Render this MML score into a wav: T120 O5 L4 c e g >c"
+    },
+    {
+      "id": "neg-validation-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a Game Boy-style chiptune boss theme that loops seamlessly."
+    },
+    {
+      "id": "neg-validation-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write lyrics for a catchy theme song about a robot."
+    },
+    {
+      "id": "neg-validation-07",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I need a realistic recorded thunderclap and glass-shatter sound for my film."
+    },
+    {
+      "id": "neg-validation-08",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make a 30-second NES-style victory song that loops over the credits screen."
+    }
+  ]
+}
