@@ -321,15 +321,25 @@ def cmd_ensure_running(d, a):
         nonce = secrets.token_hex(8)
         cmd = [bridge.interpreter(), str(HERE / "view_bridge.py"), "--dir", str(d)]
         idle = ["--idle-seconds", str(a.idle_seconds)]
-        proc = bridge.spawn(
-            [*cmd, "serve", "--port", str(port), "--nonce", nonce, *idle]
-        )
+        with bridge.open_server_log(d, NAME) as log:
+            proc = bridge.spawn(
+                [*cmd, "serve", "--port", str(port), "--nonce", nonce, *idle],
+                stderr=log,
+            )
         s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
         if s is None:
-            if proc.poll() is None:
+            code = proc.poll()
+            if code is None:
                 proc.kill()
+            why = (
+                f"the server exited with status {code}"
+                if code is not None
+                else f"the server did not start within {START_SECONDS} s"
+            )
+            tail = bridge.log_tail(bridge.server_log(d, NAME))
             sys.exit(
-                f"the server did not start within {START_SECONDS} s (data dir {d})"
+                f"{why} (data dir {d})"
+                + (f"\nserver stderr (last lines):\n{tail}" if tail else "")
             )
     origin = f"http://127.0.0.1:{int(s['port'])}"
     print(
