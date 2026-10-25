@@ -1092,6 +1092,16 @@ test("an ejection count that cannot be read arms nothing and writes no note", as
   }
 });
 
+// A GraphQL read that keeps failing holds every clean lane pull request, so
+// the run names why on each one.
+test("an unreadable ejection count is warned with the read's error", async () => {
+  const unreadable = { failedEjections: null, limit: 2, refusal: "the merge queue's removals of this head are unreadable", comment: null, readError: "could not read the merge queue: gh: HTTP 502" };
+  const { writes, lines } = await run([pull(1, { verdict: { ...PASSED, queue: unreadable } }), pull(2)]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 its merge-queue ejections could not be read: could not read the merge queue: gh: HTTP 502"), lines.join("\n"));
+  assert.equal(lines.filter((line) => line.startsWith("::warning")).length, 1, lines.join("\n"));
+});
+
 test("report-only writes no ejection comment", async () => {
   const { notes, lines } = await run([pull(1, { verdict: EJECTED })], { REPORT_ONLY: "true" });
   assert.deepEqual(notes, []);

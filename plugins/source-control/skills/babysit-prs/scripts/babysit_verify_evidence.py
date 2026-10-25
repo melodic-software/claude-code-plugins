@@ -1931,28 +1931,32 @@ def lane_queue(
 ) -> dict[str, Any]:
     """The merge queue's failed-check removals of `head` and whether pr-merge's
     gate would enqueue it again under `merge.max-queue-ejections` `limit`
-    (`babysit_merge.queue_ejection_refusal`), with the gate's marked comment
-    (`queue_ejection_body`) when the cap refuses. A read that fails refuses
-    as the gate's unreadable hold, with no comment."""
+    (`babysit_merge.queue_ejection_hold`), with the gate's marked comment when
+    the cap refuses. A read that fails refuses as the gate's unreadable hold,
+    with no comment, and names why in `readError`; a failed runs read keeps
+    the refusal, with no comment and its error in `commentError`."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
 
     try:
         queue = babysit_merge.read_merge_queue(repo, number)
-    except Exception:  # noqa: BLE001 - any doubt holds, as the gate's
-        queue = {"readError": "unreadable"}
-    count = None if queue.get("readError") else queue.get("failedEjections")
+    except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
+        queue = {"readError": f"{type(exc).__name__}: {exc}"}
+    read_error = queue.get("readError") or None
+    count = None if read_error else queue.get("failedEjections")
     count = count if isinstance(count, int) else None
-    refusal = babysit_merge.queue_ejection_refusal(count, limit, head)
-    comment = None
-    if refusal is not None and count is not None:
-        runs = babysit_merge._failed_merge_group_runs(repo, branch, number)
-        comment = babysit_merge.queue_ejection_body(head, count, runs)
+    if count is None and read_error is None:
+        read_error = "the merge queue's timeline items could not be counted"
+    refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
+        repo, branch, number, head, count, limit
+    )
     return {
         "failedEjections": count,
         "limit": limit,
         "refusal": refusal,
         "comment": comment,
+        "readError": str(read_error) if read_error else None,
+        "commentError": comment_error,
     }
 
 

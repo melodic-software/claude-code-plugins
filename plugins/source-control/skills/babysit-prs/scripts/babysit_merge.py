@@ -3763,6 +3763,23 @@ def queue_ejection_refusal(ejections: int | None, limit: int, head: str) -> str 
     return None
 
 
+def queue_ejection_hold(
+    repo: str, branch: str, number: int, head: str, ejections: int | None, limit: int
+) -> tuple[str | None, str | None, str | None]:
+    """The gate's refusal of `head` (`queue_ejection_refusal`), its marked
+    comment body at the cap (`queue_ejection_body`, naming the failing
+    merge_group runs), and the error when the runs read raised, which leaves
+    no body. The unattended enqueue and `evidence --lane-queue` both use it."""
+    refusal = queue_ejection_refusal(ejections, limit, head)
+    if refusal is None or ejections is None:
+        return refusal, None, None
+    try:
+        runs = _failed_merge_group_runs(repo, branch, number)
+    except (RuntimeError, ValueError, OSError) as exc:
+        return refusal, None, f"error: {exc}"
+    return refusal, queue_ejection_body(head, ejections, runs), None
+
+
 def queue_ejection_body(head: str, count: int, runs: list[str] | None) -> str:
     """The comment for a head the gate stopped enqueuing: a function of the
     head, the count and the runs read, so a rerun renders the same body."""
@@ -4231,19 +4248,19 @@ def unattended_enqueue(
     # same commits; only a push (which resets the count) can change that.
     ejections = queue.get("failedEjections")
     step["failedEjections"] = ejections
-    ejected = queue_ejection_refusal(
-        ejections, inputs["config"].max_queue_ejections, pin
+    ejected, body, error = queue_ejection_hold(
+        repo, branch, number, pin, ejections, inputs["config"].max_queue_ejections
     )
-    if ejected is not None and ejections is not None:
+    if error is not None:
+        step["ejectionComment"] = error
+    if body is not None:
         # One marked comment, so fix-ci or a person sees why the lane stopped.
         try:
             step["ejectionComment"] = upsert_marker_comment(
                 repo,
                 number,
                 identity,
-                queue_ejection_body(
-                    pin, ejections, _failed_merge_group_runs(repo, branch, number)
-                ),
+                body,
                 inputs.get("comments"),
                 marker=QUEUE_EJECTION_MARKER,
             )

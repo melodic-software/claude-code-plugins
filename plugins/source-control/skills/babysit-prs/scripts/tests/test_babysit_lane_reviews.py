@@ -227,8 +227,11 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
         *,
         evidence: ve.Evidence | None = None,
         risk: str | None = None,
+        runs: list[str] | Exception | None = None,
     ) -> dict[str, object]:
         out = io.StringIO()
+        runs = [RUN] if runs is None else runs
+        runs_effect = runs if isinstance(runs, Exception) else None
         argv = ["evidence", "--lane-reviews", "--lane-queue", "--repo", REPO]
         argv += ["--base-sha", BASE, "--rung", "C2", "41", HEAD]
         effect = queue if isinstance(queue, Exception) else None
@@ -249,7 +252,10 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                 return_value=None if effect else queue,
             ) as read,
             mock.patch.object(
-                babysit_merge, "_failed_merge_group_runs", return_value=[RUN]
+                babysit_merge,
+                "_failed_merge_group_runs",
+                side_effect=runs_effect,
+                return_value=None if runs_effect else runs,
             ),
             contextlib.redirect_stdout(out),
         ):
@@ -268,6 +274,8 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                         "limit": 2,
                         "refusal": None,
                         "comment": None,
+                        "readError": None,
+                        "commentError": None,
                     },
                 )
 
@@ -286,11 +294,17 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                 self.assertIn(f"head `{HEAD}` {count} times", comment[1])
                 self.assertIn(f"- {RUN}", comment)
 
-    def test_an_unreadable_count_refuses_with_no_comment(self) -> None:
-        for queue in (
-            {"readError": "could not read the merge queue: boom"},
-            {"readError": None, "failedEjections": None},
-            RuntimeError("boom"),
+    def test_an_unreadable_count_refuses_with_no_comment_and_says_why(self) -> None:
+        for queue, why in (
+            (
+                {"readError": "could not read the merge queue: boom"},
+                "could not read the merge queue: boom",
+            ),
+            (
+                {"readError": None, "failedEjections": None},
+                "the merge queue's timeline items could not be counted",
+            ),
+            (RuntimeError("boom"), "RuntimeError: boom"),
         ):
             with self.subTest(queue=repr(queue)):
                 self.assertEqual(
@@ -300,8 +314,27 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                         "limit": 2,
                         "refusal": UNREADABLE_QUEUE,
                         "comment": None,
+                        "readError": why,
+                        "commentError": None,
                     },
                 )
+
+    def test_a_failed_runs_read_still_refuses_and_names_its_error(self) -> None:
+        queue = self.cli(
+            {"readError": None, "failedEjections": 2}, runs=RuntimeError("boom")
+        )["queue"]
+        self.assertEqual(
+            (queue["refusal"], queue["comment"], queue["commentError"]),
+            (EJECTED, None, "error: boom"),
+        )
+
+    def test_the_comment_is_the_one_the_gate_posts(self) -> None:
+        queue = self.cli({"readError": None, "failedEjections": 2})["queue"]
+        with mock.patch.object(
+            babysit_merge, "_failed_merge_group_runs", return_value=[RUN]
+        ):
+            gate = babysit_merge.queue_ejection_hold(REPO, "main", 41, HEAD, 2, 2)
+        self.assertEqual((queue["refusal"], queue["comment"]), gate[:2])
 
     def test_a_refused_verdict_or_a_risk_hold_reads_no_queue(self) -> None:
         for kwargs in (

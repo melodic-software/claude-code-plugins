@@ -855,6 +855,10 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
         }
+        // A read failing on every run holds every clean lane pull request: say why.
+        if (typeof evidence?.queue?.readError === "string") {
+          console.log(`::warning title=enable-auto-merge::#${pull.number} its merge-queue ejections could not be read: ${escapeCommand(evidence.queue.readError)}`);
+        }
         ({ action, reason, clears, comment } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
       }
       // A pull request armed earlier in this run counts toward the cap.
