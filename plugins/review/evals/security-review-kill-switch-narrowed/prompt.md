@@ -1,11 +1,11 @@
 ---
-description: "CI security review does not rate a kill-switch change CRITICAL when the code shows it only adds a way to stop a lane"
+description: "CI security review does not rate a kill-switch change CRITICAL when the code shows it only removes a value that let a lane run"
 tags: [review, security-review, trust-controls]
 runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reads the change to .github/actions/check-kill-switch/decide.mjs as a narrowing: every value that stopped a lane on main still stops it, and a second variable can stop it too. It reports no CRITICAL finding and its summary's critical-findings line is 0"
+expected_outcome: "The review reads the change to .github/actions/check-kill-switch/decide.mjs as a narrowing: every value that stopped a lane on main still stops it, and 0, which let a lane run, now stops it. It reports no CRITICAL finding and its summary's critical-findings line is 0"
 ---
 
 /review:security-review

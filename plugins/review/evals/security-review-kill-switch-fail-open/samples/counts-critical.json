@@ -7,6 +7,10 @@
     {
       "answer": "Summary of the review.\n`critical-findings: 2`",
       "why": "backticked count above zero"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: CRITICAL\n\n### Summary\n\ncritical-findings: 0",
+      "why": "an inline CRITICAL finding, so the summary counts none"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "Here is a summary of the release notes for version 2.3.",
       "why": "answer to a different question"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: IMPORTANT\n\ncritical-findings: 0",
+      "why": "rates the finding IMPORTANT"
     }
   ]
 }

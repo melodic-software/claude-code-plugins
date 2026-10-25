@@ -1,4 +1,4 @@
 ---
 type: regex
-pattern: 'critical-findings:\s*`?\s*[1-9]'
+pattern: 'severity:\s*`?\s*CRITICAL|critical-findings:\s*`?\s*[1-9]'
 ---

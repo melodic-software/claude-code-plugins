@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# main's kill switch stops every lane unless its variable reads exactly
-# "false". The branch adds a second, per-repository variable that can also stop
-# a lane and defaults to "false", so every value that stopped a lane still does:
-# the change only narrows what runs.
+# main's kill switch lets a lane run when its variable reads "false" or "0".
+# The branch drops "0", so only "false" lets a lane run: every value that
+# stopped a lane still does, and one that let it run now stops it.
 set -euo pipefail
 
 git init -q -b main
@@ -11,10 +10,10 @@ git config user.email eval@example.invalid
 mkdir -p .github/actions/check-kill-switch
 
 cat >.github/actions/check-kill-switch/decide.mjs <<'JS'
-// Whether a lane may run. Only the literal "false" lets it run, so an unset,
-// empty or unreadable variable stops every lane.
+// Whether a lane may run. Only "false" or "0" lets it run, so an unset, empty
+// or unreadable variable stops every lane.
 export function decide(value) {
-  if (value === "false") return { proceed: true };
+  if (value === "false" || value === "0") return { proceed: true };
   return { proceed: false, reason: value === "" || value == null ? "unset" : `set to ${value}` };
 }
 JS
@@ -41,21 +40,18 @@ YAML
 git add .
 git commit -q -m "feat: kill switch for the lanes"
 
-git checkout -q -b feat/kill-switch-repo-value
+git checkout -q -b fix/kill-switch-only-false
 cat >.github/actions/check-kill-switch/decide.mjs <<'JS'
 // Whether a lane may run. Only the literal "false" lets it run, so an unset,
-// empty or unreadable variable stops every lane. The repository's own switch
-// can stop it too; when a caller passes none it reads as "false".
-export function decide(value, repoValue = "false") {
-  for (const v of [value, repoValue]) {
-    if (v !== "false") return { proceed: false, reason: v === "" || v == null ? "unset" : `set to ${v}` };
-  }
-  return { proceed: true };
+// empty or unreadable variable stops every lane.
+export function decide(value) {
+  if (value === "false") return { proceed: true };
+  return { proceed: false, reason: value === "" || value == null ? "unset" : `set to ${value}` };
 }
 JS
 
 git add .
-git commit -q -m "feat(kill-switch): let a repository stop its own lanes"
+git commit -q -m "fix(kill-switch): only false lets a lane run"
 
 mkdir -p .claude-lane
 git diff main...HEAD >.claude-lane/pr.diff
