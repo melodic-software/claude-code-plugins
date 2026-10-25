@@ -75,10 +75,14 @@ Sections, in the one order `validate` checks:
 | 10 | Pending commands | every command waiting on the user, verbatim |
 | 11 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 12 | Decisions in force | the decisions the remaining actions depend on |
-| 13 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
-| 14 | Prior sessions | the last rows of the table, the newest describing the predecessor |
-| 15 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
-| 16 | Resume prompt | the rails block, as in shape 2; always last |
+| 13 | Suggested skills | which skills to invoke for the remaining work, as in shape 2; the purpose argument selects them |
+| 14 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
+| 15 | Prior sessions | the last rows of the table, the newest describing the predecessor |
+| 16 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
+| 17 | Resume prompt | the rails block, as in shape 2; always last |
+
+A shape-3 file written before `Suggested skills` joined this list still validates, with a warning;
+the next hop's skeleton adds the section.
 
 What the writer owns, since no script can judge it:
 
@@ -734,7 +738,7 @@ an interrupted write cannot leave a truncated handoff.
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
-after a shape-3 predecessor, a shape-3 hot file (frontmatter below, the 16 headings in order) and
+after a shape-3 predecessor, a shape-3 hot file (frontmatter below, the 17 headings in order) and
 its hop file holding the predecessor's sections other than Original goal and Resume prompt,
 copied with the Read and Write tools, never retyped; otherwise a shape-2 file (the 17 headings in
 order). Both end in the `## Resume prompt` section in the engine doc's full-path form. Mark the checklist box `validate: SKIPPED (no interpreter)`, and

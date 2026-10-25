@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.11] - 2026-10-25
+
+### Changed
+
+- The babysit risk gate holds `.github/actions/log-api-budget/rate-guard.mjs` on its HIGH floor, since `check-trusted-trigger.mjs`, already on the floor, sends every GitHub call through it.
+
 ## [3.0.10] - 2026-10-24
 
 ### Fixed
