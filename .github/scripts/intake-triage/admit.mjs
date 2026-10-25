@@ -567,8 +567,9 @@ export const refinementExact = (body) => {
 // Whether `parent` (an issue at `status: needs-decision`, as just read) still
 // awaits a decision: the lanes App (`appId`) may not lift the label
 // (decisionStays), or the App's newest refinement on it is not exact
-// (refinementExact) and no decision comment of a listed human's
-// (select-trusted-text's isDecisionComment) is newer. A parent in another
+// (refinementExact), or it has no refinement but an App verdict, and no
+// decision comment of a listed human's (select-trusted-text's
+// isDecisionComment) is newer. A parent in another
 // repository, or any failed read, counts as open.
 export async function parentDecisionOpen({ github, repository, parent, humans, appId }) {
   if (appId === undefined || !here(parent?.repository_url, repository) || !Number.isInteger(parent?.number)) {
@@ -583,10 +584,12 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
     const refinement = comments.findLast(
       (comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER),
     );
-    if (refinement === undefined || refinementExact(refinement.body)) {
+    // With no refinement yet, the App's verdict is what still asks.
+    const asking = refinement ?? ownVerdict(comments, appId);
+    if (asking === undefined || (refinement !== undefined && refinementExact(refinement.body))) {
       return false;
     }
-    const since = Date.parse(refinement.created_at);
+    const since = Date.parse(asking.created_at);
     const { kept } = await selectTrustedIssueComments({ github, repository, issueNumber: parent.number, ids: humans });
     return !kept.some((item) => Date.parse(item.comment.created_at) > since && isDecisionComment(item, humans));
   } catch {

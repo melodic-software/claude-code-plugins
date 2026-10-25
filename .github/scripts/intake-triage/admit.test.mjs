@@ -1244,16 +1244,22 @@ describe("a Feature under a parent at status: needs-decision", () => {
     assert.equal((await go(withParent({ comments: [refinement(true)] }))).outcome, "admitted");
   });
 
+  const verdict = (flag) => ({
+    id: 39,
+    node_id: "IC_39",
+    user: { id: APP },
+    performed_via_github_app: null,
+    created_at: "2026-10-20T00:00:00Z",
+    body: [VERDICT_MARKER, `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`, "", `- flagged: ${flag}`].join("\n"),
+  });
+
   test("is refused when the lanes App's newest verdict on the parent flags security, with no refinement", async () => {
-    const verdict = {
-      id: 39,
-      node_id: "IC_39",
-      user: { id: APP },
-      performed_via_github_app: null,
-      created_at: "2026-10-20T00:00:00Z",
-      body: [VERDICT_MARKER, `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`, "", "- flagged: security"].join("\n"),
-    };
-    assert.ok(refusedForParent(await go(withParent({ comments: [verdict] }))));
+    assert.ok(refusedForParent(await go(withParent({ comments: [verdict("security")] }))));
+  });
+
+  test("is refused while the parent's intent verdict has no refinement and no later decision, and admitted after one", async () => {
+    assert.ok(refusedForParent(await go(withParent({ comments: [verdict("intent")] }))));
+    assert.equal((await go(withParent({ comments: [verdict("intent"), decision] }))).outcome, "admitted");
   });
 
   test("is refused when the parent also carries needs-human", async () => {
