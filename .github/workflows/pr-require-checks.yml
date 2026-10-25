@@ -2789,7 +2789,19 @@ jobs:
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
+      # A stalled Chromium download can take minutes of this job's 7-minute limit, so the
+      # browser is cached under the locked playwright version (the lockfile hash) and a hit
+      # skips the download.
+      - name: Restore the Playwright browser
+        id: playwright_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install locked plugin test toolchains
+        id: toolchains
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
         run: |
           # The animation lock must hold every pin its requirements.in declares, so an edit to
           # the .in without regenerating the lock fails here instead of testing a stale lock.
@@ -2807,7 +2819,12 @@ jobs:
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests capture through the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* ]]; then
-            node node_modules/playwright/cli.js install --only-shell chromium
+            if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
+              echo "The Playwright browser cache hit; no Chromium download."
+            else
+              node node_modules/playwright/cli.js install --only-shell chromium
+              echo "browser_downloaded=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -2827,6 +2844,12 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ steps.pip_cache.outputs.cache-primary-key }}
+      - name: Save the Playwright browser
+        if: github.ref == 'refs/heads/main' && steps.playwright_cache.outputs.cache-hit != 'true' && steps.toolchains.outputs.browser_downloaded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright_cache.outputs.cache-primary-key }}
       - name: Run this leg's Python suites
         env:
           ANIMATION_REQUIRE_DEPS: '1'
