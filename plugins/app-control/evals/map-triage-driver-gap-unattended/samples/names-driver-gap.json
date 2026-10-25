@@ -7,6 +7,18 @@
     {
       "answer": "**Triage class:** Driver gap. The fix stays in the report.",
       "why": "labels the class in bold"
+    },
+    {
+      "answer": "The send failure is a driver gap.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "I'd classify the failure as a driver gap.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "This failure is a driver gap.",
+      "why": "names the class after is or as"
     }
   ],
   "fail": [
@@ -17,6 +29,10 @@
     {
       "answer": "Triage: product regression, not a driver gap; the send fails against a healthy app.",
       "why": "names driver gap only to reject it"
+    },
+    {
+      "answer": "The failure is not a driver gap; the send fails against a healthy app.",
+      "why": "negates the class after is"
     }
   ]
 }

@@ -15,6 +15,18 @@
     {
       "answer": "I classify this as doc drift.",
       "why": "classes it in prose"
+    },
+    {
+      "answer": "The moved route is doc drift.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "I'd classify the 404 as doc drift.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "This difference is doc drift.",
+      "why": "names the class after is or as"
     }
   ],
   "fail": [
@@ -29,6 +41,10 @@
     {
       "answer": "It is not doc drift; the old route is gone, so this is a product regression.",
       "why": "negates doc drift"
+    },
+    {
+      "answer": "The 404 is not doc drift; the old route is gone.",
+      "why": "negates the class after is"
     }
   ]
 }

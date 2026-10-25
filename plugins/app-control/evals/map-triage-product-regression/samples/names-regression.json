@@ -15,6 +15,18 @@
     {
       "answer": "I class it as a regression: Ready passed before and after.",
       "why": "classes it in prose"
+    },
+    {
+      "answer": "The failed approval is a product regression.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "I'd classify the failure as a product regression.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "This failure is a product regression.",
+      "why": "names the class after is or as"
     }
   ],
   "fail": [
@@ -29,6 +41,10 @@
     {
       "answer": "This is not a product regression; the files just describe it wrongly, so it is doc drift.",
       "why": "negates regression"
+    },
+    {
+      "answer": "The failure is not a product regression; the files describe it wrongly.",
+      "why": "negates the class after is"
     }
   ]
 }
