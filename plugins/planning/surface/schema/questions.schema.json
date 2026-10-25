@@ -282,6 +282,11 @@
           "description": "On a line that changed the recommendation: the questions.json rev that write produced. It orders the change against a terminal answer recorded in the same second."
         },
         "alt": {"type": ["string", "null"]},
+        "changed": {
+          "type": "array",
+          "items": {"enum": ["title", "short", "facts", "basis", "recommendation", "alternatives", "commitments"]},
+          "description": "On a revise line: the fields that revise changed. The page does not put an answered question back under Review for a revise that changed only its title or short."
+        },
         "alternatives": {
           "enum": ["rewritten", "kept"],
           "description": "On a line that changed the recommendation: whether the same op rewrote the alternatives or stated that the current ones were checked against it."
