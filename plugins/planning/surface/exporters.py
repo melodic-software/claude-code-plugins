@@ -13,7 +13,9 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  recorded constraints and the ledger's `## Constraint ledger` rows), as do a
                  Decisions section from its decisions recap and the Deferred questions entries
                  from its deferred and planningOwned bullets, and the TLDR's `Restatement:` line
-                 stamps it confirmed or UNCONFIRMED. An answered row's own Constraints line is
+                 stamps it confirmed or UNCONFIRMED (`UNCONFIRMED (no restatement posted)` with
+                 no rev) beside a `Page title:` line, the Goal's fallback without a confirmed
+                 goal; the --brief gate reads both. An answered row's own Constraints line is
                  left out when a restated constraints or decisions line names its Q<N> and
                  holds its whole current answer; a row a newer question in the register
                  superseded stays in the ledger, out of Out-of-scope and Captured assumptions,
@@ -1059,19 +1061,22 @@ def export_brief(d, text=None):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
-    if latest is not None:
-        # The stamp the --brief gate reads. A Brief edited after a Confirm needs a new restate.
-        if restated and restated["rev"] == latest:
-            stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
-        elif restated:
-            stamp = (
-                f"UNCONFIRMED (latest rev {latest}); the sections below are from "
-                f"confirmed rev {restated['rev']}"
-            )
-        else:
-            stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
-        out.append(f"- Restatement: {stamp}")
+    # The stamp and page title the --brief gate reads; every page export carries both, so the
+    # gate tells it from a hand-written Brief. A Brief edited after a Confirm needs a new restate.
+    if latest is None:
+        stamp = "UNCONFIRMED (no restatement posted)"
+    elif restated and restated["rev"] == latest:
+        stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
+    elif restated:
+        stamp = (
+            f"UNCONFIRMED (latest rev {latest}); the sections below are from "
+            f"confirmed rev {restated['rev']}"
+        )
+    else:
+        stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
+    out.append(f"- Restatement: {stamp}")
     title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    out.append(f"- Page title: {para(title)}")
     unset_problem = [f"- {f}: unknown" for f in PROBLEM_FIELDS]
     out += ["", "### Problem", "", *(bullets(sections.get("problem")) or unset_problem)]
     out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
