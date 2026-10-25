@@ -195,7 +195,8 @@ rebuilds only on the events in
 as OAuth claude.ai connectors at [claude.ai/customize/connectors](https://claude.ai/customize/connectors); the cloud
 host passes them into every cloud session on the account. Add one only on a vendor plan with a
 set cost and no automatic overage or automatic top-up, so more usage happens only when the
-account owner buys it by hand. The endpoints, the vendors' plan pages, and how Miro and
+account owner buys it by hand. Context7 and Ref are confirmed; Firecrawl and Perplexity wait
+until the owner confirms their plans. The endpoints, the vendors' plan pages, and how Miro and
 Dometrain behave in cloud sessions are in
 [cloud-sessions.md](cloud-sessions.md#documentation-and-search-connectors). No repository
 adds an MCP route for them: no `.mcp.json`, no `claude mcp add` in the bootstrap.

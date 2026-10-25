@@ -453,6 +453,8 @@ add them.
   [Firecrawl pricing](https://www.firecrawl.dev/pricing).
   The owner confirmed on 2026-10-24 that this fleet's Context7 and Ref accounts meet the rule
   ([recorded on #7006](https://github.com/melodic-software/claude-code-plugins/issues/7006#issuecomment-6395023400)).
+  The Firecrawl and Perplexity accounts are not yet confirmed; the account owner adds them only
+  after confirming they meet the rule.
 - **Perplexity.** Its connector bills tool calls to the API organization chosen at sign-in, not a
   consumer subscription ([Perplexity MCP server](https://docs.perplexity.ai/guides/mcp-server));
   the same cost rule applies to that organization's billing.
