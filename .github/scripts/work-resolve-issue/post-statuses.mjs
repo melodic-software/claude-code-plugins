@@ -38,6 +38,7 @@ import {
   readOutcome,
   readTurnCap,
 } from "./report-outcome.mjs";
+import { retryFetch } from "./retry-fetch.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
@@ -100,10 +101,14 @@ export function plan({ outcome, branch, resolveResult, reportResult, turnCap = n
   }));
 }
 
-function api({ fetch, apiUrl, token }) {
-  return async (method, path, body) => {
-    const response = await fetch(`${apiUrl}${path}`, {
+// A read, and a write marked safeToResend, is sent again after a network
+// error or a 5xx (retry-fetch.mjs), each attempt through the rate guard.
+function api({ fetch, apiUrl, token, sleep }) {
+  const send = retryFetch(fetch, { sleep });
+  return async (method, path, body, { safeToResend = false } = {}) => {
+    const response = await send(`${apiUrl}${path}`, {
       method,
+      safeToResend,
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
@@ -119,7 +124,7 @@ function api({ fetch, apiUrl, token }) {
 }
 
 // Every call goes through the rate guard (rate-guard.mjs).
-export async function main({ env = process.env, fetch = rateLimitLatch.guard(globalThis.fetch) } = {}) {
+export async function main({ env = process.env, fetch = rateLimitLatch.guard(globalThis.fetch), sleep } = {}) {
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
       throw new Error("ISSUE_NUMBER is not an issue number");
@@ -144,7 +149,7 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
       !reuse && !ran && resume !== "" && readBranch(dir, Number(env.ISSUE_NUMBER), "resume") === resume ? resume : "";
     const checks = resumed ? readChecks(env.RUNNER_CHECKS ?? "", { branch: resumed }) : null;
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
+    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
     const headSha = (branch) =>
       github("GET", `${repo}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`).then(
         (answer) => answer?.object?.sha,
@@ -181,8 +186,10 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
       env.GITHUB_SERVER_URL && env.GITHUB_RUN_ID
         ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
         : undefined;
+    // A context's newest status is the one that counts, so a resend leaves
+    // the same state.
     for (const status of statuses) {
-      await github("POST", `${repo}/statuses/${sha}`, { ...status, target_url: targetUrl });
+      await github("POST", `${repo}/statuses/${sha}`, { ...status, target_url: targetUrl }, { safeToResend: true });
     }
     console.log(`post-statuses: posted ${statuses.length} statuses on ${sha}`);
     return 0;
