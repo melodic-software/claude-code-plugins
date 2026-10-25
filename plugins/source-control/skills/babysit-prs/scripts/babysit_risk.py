@@ -189,10 +189,11 @@ class RiskResult:
 # their verdicts through, code owners and submodules; and the files that
 # enforce the floor (owner decision Q-ENFORCE (A)): the merge-holds,
 # enable-auto-merge, superseded and clear-escalations scripts, this module,
-# the ci-status workflow, the pipeline config, and every module those
-# scripts import (test_merge_holds_sync.py derives the closure and requires
-# it here). merge-holds.mjs HOLD_PATH_FLOOR is the same list
-# (test_merge_holds_sync.py).
+# the ci-status workflow, the pipeline config, every module those scripts
+# import, and the babysit-prs modules this module and the Python those
+# scripts run (babysit_verify_evidence.py) import (test_merge_holds_sync.py
+# derives both closures and requires them here). merge-holds.mjs
+# HOLD_PATH_FLOOR is the same list (test_merge_holds_sync.py).
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/check-trusted-trigger/**",
     "**/CODEOWNERS",
@@ -206,6 +207,23 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
     ".github/workflows/pr-require-checks.yml",
     "docs/conventions/pr-pipeline.yaml",
     ".github/scripts/pr-unblock/address-feedback.mjs",

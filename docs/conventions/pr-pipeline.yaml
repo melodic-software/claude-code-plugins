@@ -967,9 +967,12 @@ merge:
   # .gitmodules and the files that enforce the floor (owner decision
   # Q-ENFORCE (A)): merge-holds, enable-auto-merge, superseded,
   # clear-escalations, babysit_risk.py, pr-require-checks.yml, this file,
-  # and every module those scripts import (pr-unblock's address-feedback,
+  # every module those scripts import (pr-unblock's address-feedback,
   # gate-source and thread-scope, work-resolve-issue's report-outcome and
-  # limits), which test_merge_holds_sync.py requires on the floor.
+  # limits), and the babysit-prs Python that decides the holds
+  # (babysit_risk.py, babysit_verify_evidence.py, which enable-auto-merge
+  # runs, and every module they import), which test_merge_holds_sync.py
+  # derives and requires on the floor.
   # It holds whatever `high-path-floor` says. `high-path-floor:
   # false` turns off the manifest review, which the security lane flags
   # instead. The trusted-actor widening and cost holds stay on either way. The

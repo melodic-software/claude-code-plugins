@@ -3290,7 +3290,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.config, denied_paths=(), max_changed_lines=None
         )
         self.unlabeled_lane_pr(real_denied_paths=True)
-        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        gate = "plugins/source-control/scripts/source-control-babysit-merge"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
         # The workflow's patch adds no cost line, so the cost hold passes it.
         self.files = (

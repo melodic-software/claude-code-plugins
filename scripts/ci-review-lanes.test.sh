@@ -89,8 +89,13 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
     fail "$file does not grant actions: read to job ${job%:}"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
-  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n.github/actions/resolve-config/**\n.github/actions/request-lane-token/**\n.github/actions/check-kill-switch/**\n.github/actions/log-api-budget/rate-guard.mjs\n.github/scripts/pr-merge/merge-holds.mjs\n.github/scripts/pr-merge/enable-auto-merge.mjs\n.github/workflows/pr-require-checks.yml\nplugins/source-control/skills/babysit-prs/scripts/babysit_risk.py\ndocs/conventions/pr-pipeline.yaml\n**/CODEOWNERS\n**/.gitmodules\nplugins/review/skills/security-review/**\nplugins/review/evals/security-review-*/**' ]]; then
-    ok "$file names the thirteen trusted paths and the security review's own files"
+  # test_merge_holds_sync.py checks the list covers the path floor; here the
+  # two callers agree and keep the trusted-actor list and the security
+  # review's own files.
+  first_paths="${first_paths-$paths}"
+  if [[ "$paths" == "$first_paths" && $'\n'"$paths"$'\n' == *$'\n.github/standards/trusted-actors/**\n'* &&
+    $'\n'"$paths"$'\n' == *$'\nplugins/review/skills/security-review/**\nplugins/review/evals/security-review-*/**\n' ]]; then
+    ok "$file names the same hold-paths as pr-review-hosted.yml, ending with the security review's own files"
   else
     fail "$file hold-paths are '$paths'"
   fi
@@ -99,11 +104,7 @@ done
 # An exempt author's pull request, which no review lane reads, still fails on
 # the trust-gate paths in bash form: `**/X` is X or */X, a trailing `**` is
 # `*`. The security review's own files in hold-paths are scrutiny only.
-want_patterns="$(printf '%s\n' '.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' \
-  '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' \
-  '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/workflows/pr-require-checks.yml' \
-  'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'docs/conventions/pr-pipeline.yaml' \
-  CODEOWNERS '*/CODEOWNERS' .gitmodules '*/.gitmodules' | sort)"
+want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
   ok "the exempt-author hold patterns are the trust-gate paths"

@@ -797,7 +797,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   `.github/workflows/pr-require-checks.yml`, `docs/conventions/pr-pipeline.yaml`, and every module
   those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
   `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
-  which `test_merge_holds_sync.py` derives from their imports and requires on the floor. No other path
+  and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which
+  `enable-auto-merge.mjs` runs, with every `babysit-prs/scripts/` module they import
+  (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more). `test_merge_holds_sync.py` derives
+  both closures from their imports and requires them on the floor. No other path
   is held for being trusted (owner direction 2026-10-24): the trusted-actor list and every other
   path merge on the review lanes, which judge them. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
@@ -1749,26 +1752,13 @@ status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> cr
 comment when the review returns a hold: `cost` (only for a real charge, as the wrapper's prompt
 defines it) or `critical-security`. `hold-paths` only flags the files it names for extra security
 scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
-what it gates, and only a CRITICAL finding there holds. The callers name:
-
-- `.github/standards/trusted-actors/**`
-- `.github/actions/check-trusted-trigger/**`
-- `.github/actions/resolve-config/**`
-- `.github/actions/request-lane-token/**`
-- `.github/actions/check-kill-switch/**`
-- `.github/actions/log-api-budget/rate-guard.mjs`
-- `.github/scripts/pr-merge/merge-holds.mjs`
-- `.github/scripts/pr-merge/enable-auto-merge.mjs`
-- `.github/workflows/pr-require-checks.yml`
-- `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`
-- `docs/conventions/pr-pipeline.yaml`
-- `**/CODEOWNERS`
-- `**/.gitmodules`
-- `plugins/review/skills/security-review/**`
-- `plugins/review/evals/security-review-*/**`
-
-All but the last two, the security review's own criteria and its eval cases, are also the
-trust-gate paths ci-status's exempt-author check below fails on.
+what it gates, and only a CRITICAL finding there holds. The callers name
+`.github/standards/trusted-actors/**`, every entry of the narrow path floor above
+(`babysit_risk.HIGH_FLOOR`), and the security review's own criteria and eval cases
+(`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
+those last two are also the trust-gate paths ci-status's exempt-author check below fails on.
+`test_merge_holds_sync.py` checks that both callers' `hold-paths` and that check's
+`hold_patterns` each match every floor entry.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:

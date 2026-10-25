@@ -159,10 +159,12 @@ and the finding says which control and what now gets through:
   effects decide what the broker mints; resolve-config's tests, fixtures and docs are not this
   control);
 - it weakens, narrows or removes a merge hold (in this repository
-  `.github/scripts/pr-merge/merge-holds.mjs`, `.github/scripts/pr-merge/enable-auto-merge.mjs`,
-  the ci-status hold steps in `.github/workflows/pr-require-checks.yml`,
-  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`, and the `merge` settings
-  in `docs/conventions/pr-pipeline.yaml`);
+  `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`, `superseded.mjs` and
+  `clear-escalations.mjs`, the `pr-unblock/` and `work-resolve-issue/` modules they import, the
+  ci-status hold steps in `.github/workflows/pr-require-checks.yml`,
+  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
+  `babysit_verify_evidence.py` and the `babysit-prs/scripts/` modules they import, and the `merge`
+  settings in `docs/conventions/pr-pipeline.yaml`);
 - it widens what any other action under `.github/actions/` lets through: who is trusted
   (`check-trusted-base`, `check-signed-commits`), what untrusted text reaches a lane
   (`select-trusted-text`, `seal-lane-output`, `open-lane-output`), or how pull request code is

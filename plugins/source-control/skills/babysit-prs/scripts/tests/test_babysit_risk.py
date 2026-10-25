@@ -288,6 +288,23 @@ class HighReasonTests(unittest.TestCase):
                 ".github/scripts/pr-merge/superseded.mjs",
                 ".github/scripts/pr-merge/clear-escalations.mjs",
                 "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
                 ".github/workflows/pr-require-checks.yml",
                 "docs/conventions/pr-pipeline.yaml",
                 ".github/scripts/pr-unblock/address-feedback.mjs",
@@ -311,6 +328,8 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
             (".github/scripts/pr-merge/clear-escalations.mjs", ".github/scripts/pr-merge/clear-escalations.mjs"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"),
+            ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py"),
+            ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"),
             (".github/workflows/pr-require-checks.yml", ".github/workflows/pr-require-checks.yml"),
             ("docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             ("Docs/Conventions/PR-Pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
@@ -1163,6 +1182,8 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-merge/superseded.mjs",
             ".github/scripts/pr-merge/clear-escalations.mjs",
             "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
             ".github/workflows/pr-require-checks.yml",
             "docs/conventions/pr-pipeline.yaml",
             ".github/scripts/pr-unblock/address-feedback.mjs",
@@ -1178,7 +1199,7 @@ class LanePathFloorTests(unittest.TestCase):
     def test_trusted_paths_off_the_floor_merge(self):
         for path in (
             ".github/scripts/pr-merge/gate-check.mjs",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+            "plugins/source-control/scripts/source-control-babysit-merge",
             ".github/actions/log-api-budget/action.yml",
         ):
             with self.subTest(path):
@@ -1209,7 +1230,7 @@ class LanePathFloorTests(unittest.TestCase):
             "docs/conventions/x.md",
             "REVIEW.md",
             "plugins/review/skills/x/SKILL.md",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+            "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
             "plugins/source-control/lib/x.awk",
             "plugins/work-items/x.md",
@@ -1555,12 +1576,12 @@ class TrustGateTests(unittest.TestCase):
         self.assertEqual(_codes(result), (TRUSTED,))
 
     def test_paths_the_owner_lifted_do_not_hold_with_the_floor_off(self):
-        # The merge gate, workflows and the security review merge normally;
-        # the scorer and the pipeline config are on the floor (owner decision
-        # Q-ENFORCE (A)).
+        # The merge gate's wrapper and skill, workflows and the security review
+        # merge normally; the scorer, the Python that decides the holds and the
+        # pipeline config are on the floor (owner decision Q-ENFORCE (A)).
         for path in (
-            f"{B}babysit_merge.py",
-            f"{B}babysit_review_evidence.py",
+            "plugins/source-control/scripts/source-control-babysit-merge",
+            "plugins/source-control/skills/babysit-prs/SKILL.md",
             ".github/workflows/pr-merge.yml",
             ".github/scripts/pr-merge/gate.mjs",
             ".github/workflows/pr-review-security-hosted.yml",
