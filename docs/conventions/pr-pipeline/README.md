@@ -1006,10 +1006,11 @@ naming the score, the reasons and the head. While `merge.report-only` is false, 
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
-rewrites that comment once to end with a line saying the refusal persisted and needs a person, then
-adds the tracker's human-gated role label when no label matches it ignoring case, so the pull
-request leaves the WIP count and reaches the attended queue. The rewrite dates the comment beside
-the label, which the head-moved clear needs to pair them. The minimum lets a review still
+posts a new comment, that comment's text ending with a line saying the refusal persisted and needs a
+person, then adds the tracker's human-gated role label when no label matches it ignoring case, so
+the pull request leaves the WIP count and reaches the attended queue. A new comment notifies and is
+dated beside the label, which the head-moved clear needs to pair them; an edit would do neither. An
+unchanged escalation is never posted again. The minimum lets a review still
 running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
 restart the time; a new head, or a score back at LOW, writes no label. A LOW score rewrites a
 refusal comment naming that head, unless it is escalated, to say the refusal no longer holds, so a
@@ -1021,10 +1022,9 @@ with write access; an unreadable default branch lifts nothing), it lifts that es
 run that finds the comment unchanged (same head and reasons) adds no label. A removal by a bot,
 the lanes App included, by an account off that list, or made through a GitHub App
 (`performed_via_github_app`) lifts nothing, and a new head or new
-reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
-escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes App pull
-request instead, and posts the escalation to a person as a new comment rather than rewriting its
-earlier one, since an edit notifies no one and keeps the comment's old date.
+reasons escalate afresh, each as a new comment. The same holds for pr-merge's verifier, held-major
+and shared-copy escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes
+App pull request instead, and posts its escalation to a person as a new comment the same way.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also

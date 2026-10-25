@@ -3068,7 +3068,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             {"label": "present", "comment": "unchanged"},
         )
 
-    def test_a_failed_read_still_rewrites_another_heads_comment(self) -> None:
+    def test_a_failed_read_still_reposts_another_heads_comment(self) -> None:
         self.fail_with_summary(ve.SummaryUnreadable("gh: boom (HTTP 502)"))
         self.comments = [
             {
@@ -3082,7 +3082,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         ]
         _, out = self.lane()
         self.assertEqual(
-            out["unattended"]["writes"]["escalation"]["comment"], "updated"
+            out["unattended"]["writes"]["escalation"]["comment"], "created"
         )
         # The old head's reason stays, under the head it was given at.
         (comment, _) = self.escalation_writes()

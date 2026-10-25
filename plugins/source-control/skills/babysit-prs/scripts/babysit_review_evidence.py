@@ -376,7 +376,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if first.get("conclusion") != "failure" or not _rate_limited(
+        if first.get("conclusion") != "failure" or not rate_limited(
             lane, _lane_job(lane, newest["id"], first)
         ):
             raise Unbound("rerun-not-allowed")
@@ -432,7 +432,7 @@ def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str
     return job
 
 
-def _rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
+def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
     def limited(message: str) -> bool:
         publish = PUBLISH_RATE_LIMIT_RE.match(message)
         return bool(RATE_LIMIT_CLASS_RE.search(message)) or (

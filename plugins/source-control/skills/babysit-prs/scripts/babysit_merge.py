@@ -13,10 +13,11 @@ Contract enforced here (encoded as code, not convention):
   check that governs the merge, and the exact blockers, so the caller can react.
 - A merge only happens with `--merge` AND only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
-  workflow run when its check run carries a `class=rate-limit` annotation, five
-  hours after the failure, once per run on the pinned live head. No other
-  failure class is re-run, and the re-run never counts as a pass: auto-merge
-  still arms only on SUCCESS.
+  workflow run when its check run carries a failure annotation the review
+  evidence binds a re-run after (`class=rate-limit`, or the lane's publish
+  failure on GitHub's API rate limit), five hours after the failure, once per
+  run on the pinned live head. No other failure class is re-run, and the
+  re-run never counts as a pass: auto-merge still arms only on SUCCESS.
 - Merges use the repository's allowed method (squash preferred) and NEVER pass
   `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
   resolve or reply to review threads, force-push, or change settings.
@@ -296,14 +297,17 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 
 # An AI review check that failed on the Claude usage limit carries a
 # `class=rate-limit` annotation on its check run (ci-workflows
-# `.github/actions/report-lane-outcome`). Under `--merge` the gate re-runs that
-# check's workflow run once the limit has reset, instead of holding on it until
-# a person re-runs it. "Reset" is conservative: the shortest plan limit is a
-# five-hour session window (https://support.claude.com/en/articles/11145838,
-# checked 2026-10-09), so five hours after the failure that window has reset
-# whenever it started. A weekly limit outlasts it; the re-run then fails again
-# and stays failed, since a run is re-run at most once.
-RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# `.github/actions/report-lane-outcome`); one whose review post hit GitHub's
+# API rate limit carries the lane's publish failure line. Under `--merge` the
+# gate re-runs that check's workflow run once the limit has reset, instead of
+# holding on it until a person re-runs it, on exactly the annotations
+# `review_evidence.rate_limited` accepts, so the re-run's attempt binds.
+# "Reset" is conservative: the shortest plan limit is a five-hour session
+# window (https://support.claude.com/en/articles/11145838, checked
+# 2026-10-09), so five hours after the failure that window has reset whenever
+# it started, and GitHub's API limits reset sooner. A weekly limit outlasts
+# it; the re-run then fails again and stays failed, since a run is re-run at
+# most once.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
 ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
@@ -387,10 +391,16 @@ def rerun_rate_limited_review(
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         report["reason"] = f"could not read the job: {type(exc).__name__}: {exc}"
         return report
-    if not any(
-        RATE_LIMIT_CLASS_RE.search(str(json_object(a).get("message") or ""))
-        for a in annotations
-    ):
+    segment = str(job.get("name") or "").rsplit(" / ", 1)[-1]
+    lane = next(
+        (
+            lane
+            for lane, (_, suffix) in review_evidence.LANES.items()
+            if suffix == segment
+        ),
+        "",
+    )
+    if not review_evidence.rate_limited(lane, {"annotations": annotations}):
         report["reason"] = "failure class is not rate-limit; never re-run"
         return report
     proc = gh_capture(
@@ -3416,19 +3426,22 @@ def upsert_marker_comment(
     body: str,
     comments: list[dict[str, Any]] | None,
     marker: str = RISK_MARKER,
+    post_changed: bool = False,
 ) -> str:
     """Post or rewrite the identity's one comment whose first or second line
     is `marker` (the reasons comment, Design T14, by default): `unchanged` when
     the newest one already says this, else
-    `updated` or `created`. Raises `RuntimeError` on a failed read or write."""
+    `updated` or `created`. With `post_changed`, a changed body is posted as a
+    new comment instead of rewriting the newest. Raises `RuntimeError` on a
+    failed read or write."""
     if comments is None:
         comments = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
         )
     newest = _newest_marker_comment(comments, identity, marker)
-    if newest is not None:
-        if str(newest.get("body") or "") == body:
-            return "unchanged"
+    if newest is not None and str(newest.get("body") or "") == body:
+        return "unchanged"
+    if newest is not None and not post_changed:
         args = [
             "api",
             "-X",
@@ -3605,10 +3618,12 @@ def escalate(
     marker: str,
     inputs: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """The escalation contract (loop-lane README §2): one comment carrying
+    """The escalation contract (loop-lane README §2): a comment carrying
     `marker`, then the tracker's human-gated role label on the pull request,
     added only when no label matches it case-insensitively. The comment goes
-    first so a label never stands unexplained; a failed label is retried by
+    first so a label never stands unexplained, and a changed one is posted
+    new: an edit notifies no one and keeps the old date. An unchanged one is
+    not posted again; a failed label is retried by
     the next run, which finds the comment unchanged. A label a person removed
     after that comment last changed is not a failed write but a lift
     (`_lifted_by_person`): it stays off, as `lifted`, until the comment
@@ -3621,7 +3636,7 @@ def escalate(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
         )
     comment = upsert_marker_comment(
-        repo, number, identity, body, comments, marker=marker
+        repo, number, identity, body, comments, marker=marker, post_changed=True
     )
     try:
         label = human_gated_label(repo)
