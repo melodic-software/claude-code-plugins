@@ -3979,7 +3979,7 @@ def unattended_writes(
     elif not stopped and risk is not None and inputs.get("comments") is not None:
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
-        text = str((prior or {}).get("body") or "")
+        text = _normalized((prior or {}).get("body"))
         # Every whole-review record stays, so the cap counts across heads.
         cleared = whole_review.with_records(
             risk_cleared_body(head), whole_review.record_lines(text)
@@ -3987,7 +3987,7 @@ def unattended_writes(
         if (
             prior is not None
             and f" at head `{head}`" in text
-            and text != cleared
+            and text != _normalized(cleared)
             and not text.endswith(RISK_ESCALATION_LINE)
         ):
             try:
@@ -4046,7 +4046,7 @@ def _whole_review_record(
     comment is not escalated, with no record at this head and fewer than
     `MAX_TOGGLES` in all (record lines and the identity's conversions to
     draft on the timeline), is recorded when this sweep's limits allow it."""
-    text = str((prior or {}).get("body") or "")
+    text = _normalized((prior or {}).get("body"))
     lines = whole_review.record_lines(text)
     kept = whole_review.with_records(body, lines)
     if whole_review.recorded(text, head):

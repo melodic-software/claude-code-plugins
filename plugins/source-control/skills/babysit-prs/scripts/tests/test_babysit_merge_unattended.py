@@ -3974,6 +3974,15 @@ class ReasonsComment(Unattended):
         self.run_main()
         self.assertEqual(self.comment_writes(), [])
 
+    def test_a_low_score_leaves_an_escalated_comment_stored_with_crlf(self) -> None:
+        # GitHub can return the escalation with CRLF and trailing spaces; it
+        # is still escalated, so the label it explains keeps its line.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}  \r\n")
+        self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+
     def test_a_low_score_leaves_a_comment_at_an_old_head(self) -> None:
         # A later refusal at this head renders a different body anyway.
         old = self.body().replace(HEAD, "d" * 40)
@@ -4184,6 +4193,17 @@ class WholeReviewRequest(Unattended):
         self.earlier_sweep(
             f"{merge.whole_review.RECORD_RE.sub('', body).rstrip()}"
             f"\n\n{merge.RISK_ESCALATION_LINE}"
+        )
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_an_escalated_comment_stored_with_crlf_is_not_toggled(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(
+            f"{merge.whole_review.RECORD_RE.sub('', body).rstrip()}"
+            f"\n\n{merge.RISK_ESCALATION_LINE}  \r\n"
         )
         self.run_main()
         self.assertNotIn("toggle", self.log)
