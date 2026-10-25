@@ -381,6 +381,7 @@ ERROR_COUNT=0
 declare -A SUPPRESS_REASON=()
 declare -A SUPPRESS_DATE=()
 declare -A SUPPRESS_LAYER=()
+declare -A SUPPRESS_SOURCE=()
 PERSONAL_ONLY=()
 MALFORMED=()
 
@@ -389,9 +390,9 @@ MALFORMED=()
 # Windows, so no row starts one of its own.
 # Fields: kind (row | finding | suppressed), category, check, status, severity,
 # surface, claim, detail, anchor, finding_id, and the suppression's reason,
-# date and layer.
+# date, layer and source file.
 REC=()
-REC_WIDTH=13
+REC_WIDTH=14
 
 # progress <category> <what>: one line on stderr as each category starts, so a
 # long run shows where it is. SETTINGS_AUDIT_ENGINE_PROGRESS=0 silences it.
@@ -408,7 +409,7 @@ row() {
   local cat="$1" slug="$2" status="$3" sev="$4" surface="$5" claim="$6" detail="$7" excerpt="${8:--}"
   local check="harness-config/audit/$cat/$slug" anchor="" fid=""
   if [[ "$status" != "finding" ]]; then
-    REC+=(row "$cat" "$check" "$status" "$sev" "$surface" "$claim" "$detail" "" "" "" "" "")
+    REC+=(row "$cat" "$check" "$status" "$sev" "$surface" "$claim" "$detail" "" "" "" "" "" "")
     return 0
   fi
   if [[ "$excerpt" == "-" ]]; then
@@ -419,11 +420,11 @@ row() {
   finding_id_to fid "$check" "$claim" "$surface" "$anchor"
   if [[ -n "${SUPPRESS_REASON[$fid]:-}" ]]; then
     REC+=(suppressed "$cat" "$check" suppressed "$sev" "$surface" "$claim" "$detail" "$anchor" "$fid"
-      "${SUPPRESS_REASON[$fid]}" "${SUPPRESS_DATE[$fid]}" "${SUPPRESS_LAYER[$fid]}")
+      "${SUPPRESS_REASON[$fid]}" "${SUPPRESS_DATE[$fid]}" "${SUPPRESS_LAYER[$fid]}" "${SUPPRESS_SOURCE[$fid]}")
     return 0
   fi
   [[ "$sev" == "error" ]] && ERROR_COUNT=$((ERROR_COUNT + 1))
-  REC+=(finding "$cat" "$check" "$status" "$sev" "$surface" "$claim" "$detail" "$anchor" "$fid" "" "" "")
+  REC+=(finding "$cat" "$check" "$status" "$sev" "$surface" "$claim" "$detail" "$anchor" "$fid" "" "" "" "")
 }
 
 # --- Scopes ------------------------------------------------------------------
@@ -529,16 +530,75 @@ USER_OK=0
 MCP_OK=0
 [[ "${SCOPE_STATE[mcp]}" == "ok" ]] && MCP_OK=1
 
-# --- Suppression record (.claude/audit-pass.md, three cascade layers) ---------
+# --- Suppression record (three cascade layers) ---------------------------------
 #
-# The record's keys are the finding-suppression convention's. Only the team
-# layer suppresses: a personal entry for an id the team layer does not carry is
-# reported personal-only, not applied. An entry whose constituents do not hash
-# to its own key, or that lacks a required key, is reported malformed and does
-# not suppress.
+# The record's keys are the finding-suppression convention's. The team layer is
+# the `suppressions` mapping of <home>/harness-config.yaml, read with the shared
+# YAML-subset parser; <home> is the convention home the repository binds, else
+# docs/conventions. The fenced block of .claude/audit-pass.md is read in its
+# place only while that file is absent, for one release; a team file that does
+# not parse drops the team layer and never falls back to the old file. Only the
+# team layer suppresses: a personal entry for an id the team layer does not
+# carry is reported personal-only, not applied. An entry whose constituents do
+# not hash to its own key, or that lacks a required key, is reported malformed
+# and does not suppress. Every layer is listed with the file read and its state.
+
+YAML_SUBSET="$PLUGIN_ROOT/lib/yaml-subset.awk"
+if [[ ! -r "$YAML_SUBSET" ]]; then
+  echo "ERROR: cannot read $YAML_SUBSET; the plugin's shared YAML parser is missing" >&2
+  exit 2
+fi
+
+SUPPRESSION_LAYERS=()
+note_layer() {
+  # note_layer <layer> <source> <state>
+  SUPPRESSION_LAYERS+=("$1"$'\t'"$2"$'\t'"$3")
+}
+
+# No pointer, a declined home and a root no home applies to all mean
+# docs/conventions; a broken pointer does too, and is listed.
+CONVENTION_HOME="docs/conventions"
+home_rc=0
+home_out="$(bash "$PLUGIN_ROOT/lib/resolve-convention-home.sh" --root "$PROJECT_ROOT" 2>/dev/null)" || home_rc=$?
+if [[ $home_rc -eq 0 && -n "$home_out" ]]; then
+  CONVENTION_HOME="$home_out"
+elif [[ $home_rc -eq 2 || $home_rc -eq 3 ]]; then
+  note_layer home "AGENTS.md or CLAUDE.md" "convention-home pointer unusable (resolve-convention-home.sh exit $home_rc); docs/conventions read"
+fi
+TEAM_RECORD="$CONVENTION_HOME/harness-config.yaml"
+LEGACY_TEAM_RECORD=".claude/audit-pass.md"
+
+parse_suppressions_yaml() {
+  # parse_suppressions_yaml < yaml-subset records -> the TSV lines parse_suppressions prints
+  awk -F'\t' '
+    BEGIN { RS_SEP = "\x1e"; US_SEP = "\x1f"; n = 0 }
+    index($1, "suppressions.") != 1 { next }
+    {
+      p = substr($1, 14); v = substr($0, length($1) + 2); gsub(/\t/, " ", v)
+      id = p; sub(/\..*$/, "", id); rest = (p == id) ? "" : substr(p, length(id) + 2)
+      if (!(id in seen)) { seen[id] = 1; order[++n] = id }
+      if (rest == "check" || rest == "claim" || rest == "reason" || rest == "date") { f[id, rest] = v; next }
+      if (rest ~ /^sites\.[0-9]+\.surface$/ || rest ~ /^sites\.[0-9]+\.anchor\/v1$/) {
+        i = rest; sub(/^sites\./, "", i); k = i; sub(/\..*$/, "", i); sub(/^[0-9]+\./, "", k); i += 0
+        if (i + 1 > ns[id]) ns[id] = i + 1
+        s[id, i, k] = v
+      }
+    }
+    END {
+      for (j = 1; j <= n; j++) {
+        id = order[j]; sites = ""
+        for (i = 0; i < ns[id]; i++) {
+          if (s[id, i, "surface"] == "" && s[id, i, "anchor/v1"] == "") continue
+          sites = sites (sites == "" ? "" : RS_SEP) s[id, i, "surface"] US_SEP s[id, i, "anchor/v1"]
+        }
+        printf "%s\t%s\t%s\t%s\t%s\t%s\n", id, f[id, "check"], f[id, "claim"], sites, f[id, "reason"], f[id, "date"]
+      }
+    }'
+}
 
 parse_suppressions() {
   # parse_suppressions <file> -> TSV lines: id, check, claim, sites(surface US anchor RS ...), reason, date
+  # Reads the fenced block of the Markdown record (the old team location and the personal layers).
   awk '
     BEGIN { infence = 0; inblock = 0; id = ""; RS_SEP = "\x1e"; US_SEP = "\x1f" }
     function strip(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); if (s ~ /^".*"$/) { s = substr(s, 2, length(s) - 2) } else if (s ~ /^\x27.*\x27$/) { s = substr(s, 2, length(s) - 2) } return s }
@@ -561,10 +621,9 @@ parse_suppressions() {
 }
 
 declare -A TEAM_IDS=()
-load_suppression_layer() {
-  # load_suppression_layer <layer> <file>
-  local layer="$1" file="$2" id check claim sites reason date rec_id
-  [[ -f "$file" ]] || return 0
+load_suppression_entries() {
+  # load_suppression_entries <layer> <source> < TSV lines from a parse_suppressions* reader
+  local layer="$1" source="$2" id check claim sites reason date rec_id
   while IFS=$'\t' read -r id check claim sites reason date; do
     [[ -n "$id" ]] || continue
     if [[ -z "$check" || -z "$claim" || -z "$sites" || -z "$reason" || -z "$date" ]]; then
@@ -589,6 +648,7 @@ load_suppression_layer() {
       SUPPRESS_REASON[$id]="$reason"
       SUPPRESS_DATE[$id]="$date"
       SUPPRESS_LAYER[$id]="$layer"
+      SUPPRESS_SOURCE[$id]="$source"
       ;;
     *)
       if [[ -z "${TEAM_IDS[$id]:-}" ]]; then
@@ -596,11 +656,37 @@ load_suppression_layer() {
       fi
       ;;
     esac
-  done < <(parse_suppressions "$file")
+  done
 }
-load_suppression_layer team "$PROJECT_ROOT/.claude/audit-pass.md"
-[[ -n "$USER_DIR" ]] && load_suppression_layer user-global "$USER_DIR/audit-pass.md"
-load_suppression_layer local "$PROJECT_ROOT/.claude/audit-pass.local.md"
+
+load_markdown_layer() {
+  # load_markdown_layer <layer> <source> <file> [<state when read>]
+  if [[ -f "$3" ]]; then
+    note_layer "$1" "$2" "${4:-read}"
+    load_suppression_entries "$1" "$2" < <(parse_suppressions "$3")
+  else
+    note_layer "$1" "$2" absent
+  fi
+}
+
+if [[ -f "$PROJECT_ROOT/$TEAM_RECORD" ]]; then
+  [[ -f "$PROJECT_ROOT/$LEGACY_TEAM_RECORD" ]] && note_layer team "$LEGACY_TEAM_RECORD" "ignored: $TEAM_RECORD is present"
+  if team_records="$(LC_ALL=C awk -v STRICT=1 -f "$YAML_SUBSET" "$PROJECT_ROOT/$TEAM_RECORD" 2>/dev/null)"; then
+    note_layer team "$TEAM_RECORD" read
+    load_suppression_entries team "$TEAM_RECORD" < <(parse_suppressions_yaml <<<"$team_records")
+  else
+    team_error="$(awk -F'\t' '$1 == "error" { m = "line " $2 ": " $3 } END { print m }' <<<"$team_records")"
+    team_error="${team_error//[[:cntrl:]]/?}"
+    note_layer team "$TEAM_RECORD" "dropped: does not parse (${team_error:-no parser message})"
+    MALFORMED+=("team:$TEAM_RECORD does not parse (${team_error:-no parser message}); no team entry applies")
+  fi
+elif [[ -f "$PROJECT_ROOT/$LEGACY_TEAM_RECORD" ]]; then
+  load_markdown_layer team "$LEGACY_TEAM_RECORD" "$PROJECT_ROOT/$LEGACY_TEAM_RECORD" "read: $TEAM_RECORD is absent (compatibility read)"
+else
+  note_layer team "$TEAM_RECORD" absent
+fi
+[[ -n "$USER_DIR" ]] && load_markdown_layer user-global "user:audit-pass.md" "$USER_DIR/audit-pass.md"
+load_markdown_layer local ".claude/audit-pass.local.md" "$PROJECT_ROOT/.claude/audit-pass.local.md"
 
 # --- Upstream sources: the docs pages and the installed CLI ---------------------
 #
@@ -2290,10 +2376,10 @@ if [[ ${#REC[@]} -gt 0 ]]; then
     @base64d | split("\u0000")[:-1] as $f
     | [range(0; $f | length; $w) | $f[. : . + $w]
        | {kind: .[0], category: .[1], check: .[2], status: .[3], severity: .[4], surface: .[5], claim: .[6],
-          detail: .[7], anchor: .[8], finding_id: .[9], reason: .[10], date: .[11], layer: .[12]}
+          detail: .[7], anchor: .[8], finding_id: .[9], reason: .[10], date: .[11], layer: .[12], source: .[13]}
        | {kind, row: ({category, check, status, severity, surface, claim, detail}
            + (if .kind == "row" then {} else {anchor, finding_id} end)
-           + (if .kind == "suppressed" then {suppressed: {reason, date, layer}} else {} end)),
+           + (if .kind == "suppressed" then {suppressed: {reason, date, layer, source}} else {} end)),
           finding: (if .kind == "finding" then
             {finding_id, identity: {check, claim, sites: [{surface, "anchor/v1": .anchor}]}, severity, category, detail,
              lane: "harness-config/audit", tier: "derived"} else null end)}] as $all
@@ -2301,6 +2387,7 @@ if [[ ${#REC[@]} -gt 0 ]]; then
 fi
 personal_json="$(if [[ ${#PERSONAL_ONLY[@]} -gt 0 ]]; then printf '%s\n' "${PERSONAL_ONLY[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORMED[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
+layers_json="$(printf '%s\n' "${SUPPRESSION_LAYERS[@]}" | jq -R 'split("\t") | {layer: .[0], source: .[1], state: .[2]}' | jq -cs '.')"
 
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), mod_plane:(.mod_plane // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
 version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg bin "$CLAUDE_BIN" --arg search "$BIN_SEARCH" \
@@ -2320,15 +2407,15 @@ DOC="$(printf '%s\n' \
   "${SCOPES_JSON:-null}" "${rows_json:-null}" "${findings_json:-null}" \
   "${suppressed_json:-null}" "${personal_json:-null}" "${malformed_json:-null}" \
   "${inv_json:-null}" "${COVERAGE_JSON:-null}" "${G_JSON:-null}" \
-  "${version_json:-null}" "${docs_json:-null}" |
+  "${version_json:-null}" "${docs_json:-null}" "${layers_json:-null}" |
   jq -s \
     --arg root "$PROJECT_ROOT" \
     --arg drift_state "$DRIFT_STATE" \
     --argjson errors "$ERROR_COUNT" \
-    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing,$version,$docs] |
+    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing,$version,$docs,$layers] |
      {engine:"harness-config/audit-engine/1",project_root:$root,claude_version:$version,docs:$docs,scopes:$scopes,
       hook_inventory:$inv,coverage_manifests:$coverage,drift:{state:$drift_state},skill_listing:$listing,
-      suppressions:{applied:$suppressed,personal_only:$personal,malformed:$malformed},
+      suppressions:{layers:$layers,applied:$suppressed,personal_only:$personal,malformed:$malformed},
       summary:{rows:($rows|length),findings:($findings|length),errors:$errors,
         warnings:([$findings[]|select(.severity=="warning")]|length),
         info:([$findings[]|select(.severity=="info")]|length)},
@@ -2366,7 +2453,8 @@ else
   jq -r '.rows[] | select(.claim | startswith("mod-key-set:")) | "  \(.detail)"' <<<"$DOC"
   echo
   echo "Suppressed:"
-  jq -r '.suppressions.applied[]? | "  \(.check | sub("^harness-config/audit/"; "")) \(.claim): \(.suppressed.reason) (\(.suppressed.layer), \(.suppressed.date))"' <<<"$DOC"
+  jq -r '.suppressions.layers[]? | "  layer \(.layer): \(.source) (\(.state))"' <<<"$DOC"
+  jq -r '.suppressions.applied[]? | "  \(.check | sub("^harness-config/audit/"; "")) \(.claim): \(.suppressed.reason) (\(.suppressed.layer) \(.suppressed.source), \(.suppressed.date))"' <<<"$DOC"
   jq -r '.suppressions.personal_only[]? | "  \(.)"' <<<"$DOC"
   jq -r '.suppressions.malformed[]? | "  malformed: \(.)"' <<<"$DOC"
   echo
