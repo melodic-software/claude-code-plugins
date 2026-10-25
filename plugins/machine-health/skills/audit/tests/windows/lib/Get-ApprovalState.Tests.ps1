@@ -2,13 +2,13 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 <#
 .SYNOPSIS
-Tests for scripts/windows/lib/Get-ApprovalState.ps1 -- reader + TODO.md
-one-shot migration path + Test-ApprovalGranted helper.
+Tests for scripts/windows/lib/Get-ApprovalState.ps1 -- the reader, which
+reads only approvals.json, and the Test-ApprovalGranted helper.
 
 .DESCRIPTION
 Every run consults approvals.json before dispatching any remediation. These
 tests pin the fail-safe posture: missing files, empty files, invalid JSON,
-schema violations, and migration failures all produce a default "nothing
+and schema violations all produce a default "nothing
 approved" state rather than throwing.
 #>
 
@@ -30,7 +30,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
     }
 
     Context 'fail-safe defaults' {
-        It 'returns defaults when approvals.json is missing and no TODO.md is provided' {
+        It 'returns defaults when approvals.json is missing' {
             $state = Get-ApprovalState -StateDir $script:stateDir
             $state.schema_version | Should -Be '1.0'
             @($state.remediations.PSObject.Properties).Count | Should -Be 0
@@ -111,95 +111,15 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
         }
     }
 
-    Context 'migration from legacy TODO.md' {
-        It 'writes approvals.json when TODO.md has [x] checkboxes and approvals.json is missing' {
-            $todo = @'
-# Remediation checklist
+    Context 'a checked TODO.md beside the state folder' {
+        It 'returns the default state, approves nothing and writes no approvals.json' {
+            Set-Content -LiteralPath $script:todoPath -Value '- [x] restart-stopped-service' -Encoding utf8
 
-- [x] Enable Restart-StoppedService
-- [ ] Enable Clear-TempFiles
-'@
-            Set-Content -LiteralPath $script:todoPath -Value $todo -Encoding utf8
+            $state = Get-ApprovalState -StateDir $script:stateDir -LogPath $script:logPath
 
-            $state = Get-ApprovalState -StateDir $script:stateDir `
-                -TodoPath $script:todoPath -LogPath $script:logPath
-
-            $state.remediations.'restart-stopped-service'.approved | Should -BeTrue
-            $state.remediations.PSObject.Properties['clear-temp-files'] | Should -BeNullOrEmpty
-            $state.migration.migrated_from_todo_md | Should -BeTrue
-            $state.migration.source_checksum | Should -Not -BeNullOrEmpty
-
-            Test-Path -LiteralPath $script:approvalsPath | Should -BeTrue
-        }
-
-        It 'records approved_by and a timestamp in migrated entries' {
-            Set-Content -LiteralPath $script:todoPath `
-                -Value '- [x] Clear-TempFiles' -Encoding utf8
-
-            $state = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
-
-            $state.remediations.'clear-temp-files'.approved_by | Should -Not -BeNullOrEmpty
-            $state.remediations.'clear-temp-files'.approved_at | Should -Match '^\d{4}-\d{2}-\d{2}T'
-        }
-
-        It 'separates host and user in approved_by with exactly one backslash' {
-            # #3369: count the separators; rebuilding the expected value with the same
-            # expression would pass while both sides are wrong.
-            Set-Content -LiteralPath $script:todoPath `
-                -Value '- [x] Clear-TempFiles' -Encoding utf8
-
-            $state = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
-
-            $approvedBy = $state.remediations.'clear-temp-files'.approved_by
-            @($approvedBy.ToCharArray() | Where-Object { $_ -eq '\' }).Count | Should -Be 1
-            $approvedBy | Should -Not -BeLike '*\\*'
-        }
-
-        It 'does NOT overwrite an existing approvals.json with a migration' {
-            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
-            $existing = '{"schema_version":"1.0","remediations":{"clear-temp-files":{"approved":false}}}'
-            Set-Content -LiteralPath $script:approvalsPath -Value $existing -Encoding utf8
-
-            Set-Content -LiteralPath $script:todoPath `
-                -Value '- [x] Clear-TempFiles' -Encoding utf8
-
-            $state = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
-            $state.remediations.'clear-temp-files'.approved | Should -BeFalse
-            $state.PSObject.Properties['migration'] | Should -BeNullOrEmpty
-        }
-
-        It 'returns defaults when TODO.md exists but has no [x] markers' {
-            Set-Content -LiteralPath $script:todoPath `
-                -Value '- [ ] Clear-TempFiles (pending review)' -Encoding utf8
-
-            $state = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
-            $state.schema_version | Should -Be '1.0'
             @($state.remediations.PSObject.Properties).Count | Should -Be 0
+            Test-ApprovalGranted -State $state -RemediationId 'restart-stopped-service' | Should -BeFalse
             Test-Path -LiteralPath $script:approvalsPath | Should -BeFalse
-        }
-
-        It 'hands the migration to Write-StateFile with an update that declines a file already present' {
-            Set-Content -LiteralPath $script:todoPath -Value '- [x] Clear-TempFiles' -Encoding utf8
-            $script:update = $null
-            Mock Write-StateFile { $script:update = $Update; $true }
-
-            $null = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
-
-            Should -Invoke Write-StateFile -Times 1 -Exactly -ParameterFilter { $Path -eq $script:approvalsPath }
-            (& $script:update $null | ConvertFrom-Json).migration.migrated_from_todo_md | Should -BeTrue
-            & $script:update '{"schema_version":"1.0","remediations":{}}' | Should -BeNullOrEmpty
-        }
-
-        It 'logs a migration event when LogPath is provided' {
-            Set-Content -LiteralPath $script:todoPath `
-                -Value '- [x] Clear-TempFiles' -Encoding utf8
-
-            $null = Get-ApprovalState -StateDir $script:stateDir `
-                -TodoPath $script:todoPath -LogPath $script:logPath
-
-            $logContent = Get-Content -LiteralPath $script:logPath -Raw
-            $logContent | Should -Match 'approvals_migrated'
-            $logContent | Should -Match 'TODO\.md'
         }
     }
 }

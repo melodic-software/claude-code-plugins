@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
+import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
@@ -21,11 +22,15 @@ const NOW = Date.parse("2026-10-22T12:00:00Z");
 const REQUIRED = ".github/workflows/pr-require-checks.yml";
 const ADVISORY = ".github/workflows/pr-test-windows.yml";
 const tested = (attempt, hoursAgo = 1) => ({
+  id: 40119285048,
   status: "completed",
   conclusion: "failure",
   run_attempt: attempt,
   created_at: new Date(NOW - hoursAgo * 3_600_000).toISOString(),
+  updated_at: new Date(NOW - hoursAgo * 3_600_000).toISOString(),
 });
+// A tested run whose re-run is queued or going: the same run id at its next attempt.
+const rerunning = (attempt, status) => ({ ...tested(attempt), status, conclusion: null });
 
 const check = (name, conclusion, extra = {}) => ({
   __typename: "CheckRun",
@@ -101,6 +106,9 @@ function fakeApi({
     },
     async listWorkflowRuns() {
       calls.runs += 1;
+      if (workflowRuns instanceof Error) {
+        throw workflowRuns;
+      }
       return workflowRuns;
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
@@ -362,6 +370,16 @@ test("a fix-ci run for the PR that is not done yet holds the dispatch", async ()
   assert.equal(api.calls.runs, 1);
 });
 
+test("a rate-limited run listing defers with a warning; any other listing error fails", async () => {
+  const limited = Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
+  const deferred = await run({ pages: [[pr(5)]], workflowRuns: limited });
+  assert.deepEqual(deferred.result, { dispatched: [], failed: 0 });
+  assert.ok(deferred.lines.some((line) => line.startsWith("::warning::") && line.includes("rate limited")));
+  const broken = await run({ pages: [[pr(5)]], workflowRuns: new Error("GET runs returned 404") });
+  assert.deepEqual(broken.result, { dispatched: [], failed: 1 });
+  assert.ok(broken.lines.some((line) => line.startsWith("::error::") && line.includes("404")));
+});
+
 test("no candidate reads no workflow runs", async () => {
   const { api } = await run({ pages: [[pr(1, { isDraft: true })]] });
   assert.equal(api.calls.runs, 0);
@@ -515,7 +533,7 @@ test("a head whose ci-status failed on infra only gets no fix-ci run, and takes 
     [6, 7],
   );
   assert.deepEqual(api.calls.jobs, [head(5), head(6), head(7)]);
-  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
+  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job re-runs it once"), lines.join("\n"));
 });
 
 test("an adopted owner PR whose ci-status failed on infra only is the reconciler's too", async () => {
@@ -526,29 +544,92 @@ test("an adopted owner PR whose ci-status failed on infra only is the reconciler
     result.dispatched.map((d) => d.number),
     [14],
   );
-  assert.ok(lines.includes("skip fix-ci #13: infra failure, re-run job owns it"));
+  assert.ok(lines.includes("skip fix-ci #13: infra failure, re-run job re-runs it once"), lines.join("\n"));
 });
 
-test("a head whose required run's jobs cannot be read gets no fix-ci run this time", async () => {
+// A gate never hangs on one API field: a required run that cannot be read is
+// no reason to wait, so fix-ci takes the head under its usual caps.
+test("a head whose required run's jobs cannot be read is dispatched fix-ci, and the log says why", async () => {
   const head = "5".padStart(40, "a");
   const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, new Error("GET returned 502")]]) });
-  assert.deepEqual(result, { dispatched: [], failed: 0 });
-  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs")));
-});
-
-test("an infra-only head is the reconciler's for its two re-runs; at attempt 3 fix-ci takes it", async () => {
-  // The reconciler re-runs an infra-only run at attempts 1 and 2 only (INFRA_BACKOFF_MINUTES, two entries).
-  const head = (number) => String(number).padStart(40, "a");
-  const requiredRuns = new Map([
-    [head(5), { run: tested(2), jobs: INFRA_JOBS }],
-    [head(6), { run: tested(3), jobs: INFRA_JOBS }],
-  ]);
-  const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
-    [6],
+    [5],
   );
-  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs (GET returned 502); dispatching fix-ci")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: required run unreadable)")), lines.join("\n"));
+});
+
+test("an unreadable required run still keeps the per-head cap, the restart count and an in-flight run", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const fix = check("pr-unblock / fix-ci", "FAILURE");
+  const failed = lanes("FAILURE");
+  const requiredRuns = new Map([1, 2, 3].map((number) => [head(number), new Error("GET returned 502")]));
+  const { api, lines, result } = await run(
+    {
+      pages: [[pr(1, { checks: [failed, fix, fix, fix] }), pr(2, { checks: [failed, fix, fix] }), pr(3)]],
+      requiredRuns,
+      workflowRuns: [{ id: 99, status: "in_progress", display_title: "pr-unblock fix-ci #3" }],
+    },
+    { maxDispatch: 5 },
+  );
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.ok(lines.some((line) => line.startsWith("skip fix-ci #1:")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("skip fix-ci #2:")), lines.join("\n"));
+});
+
+// Rule: fix-ci skips a failed head only while a re-run of its tested run is
+// actually queued or going on that head; that re-run's result decides.
+test("a head whose tested run is being re-run waits for the re-run's result", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(5), { run: rerunning(2, "queued"), jobs: null }],
+    [head(6), { run: rerunning(2, "in_progress"), jobs: null }],
+    [head(7), { run: rerunning(3, "waiting"), jobs: null }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns }, { maxDispatch: 5 });
+  assert.deepEqual(result.dispatched, []);
+  assert.ok(lines.includes("skip fix-ci #5: run 40119285048 attempt 2 is queued; its result decides"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #6: run 40119285048 attempt 2 is in_progress; its result decides"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #7: run 40119285048 attempt 3 is waiting; its result decides"), lines.join("\n"));
+});
+
+// Once per head: an infra-only failure gets one re-run, then fix-ci.
+test("an infra-only head gets one re-run; once it failed again at attempt 2, fix-ci takes it", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(5), { run: tested(1), jobs: INFRA_JOBS }],
+    [head(6), { run: tested(2), jobs: INFRA_JOBS }],
+    [head(7), { run: tested(3), jobs: INFRA_JOBS }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns }, { maxDispatch: 5 });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [6, 7],
+  );
+  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job re-runs it once"), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #6 ") && line.endsWith("(cause: infra failure at attempt 2)")), lines.join("\n"));
+});
+
+// The re-run job runs half-hourly and can defer a head; an infra-only first
+// failure no re-run picked up within RERUN_DUE_MINUTES is fix-ci's, not a
+// silent wait.
+test("an infra-only first failure that no re-run picked up in time is fix-ci's", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
+  const run1 = (minutes) => ({ ...tested(1), created_at: minutesAgo(minutes), updated_at: minutesAgo(minutes) });
+  const requiredRuns = new Map([
+    [head(5), { run: run1(RERUN_DUE_MINUTES + 1), jobs: INFRA_JOBS }],
+    [head(6), { run: run1(RERUN_DUE_MINUTES - 1), jobs: INFRA_JOBS }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns }, { maxDispatch: 5 });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5],
+  );
+  assert.ok(lines.includes("skip fix-ci #6: infra failure, re-run job re-runs it once"), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith(`(cause: infra failure at attempt 1, no re-run within ${RERUN_DUE_MINUTES} min)`)), lines.join("\n"));
 });
 
 test("an infra-only head past the reconciler's 24-hour lookback is fix-ci's", async () => {
@@ -556,54 +637,86 @@ test("an infra-only head past the reconciler's 24-hour lookback is fix-ci's", as
   const head = (number) => String(number).padStart(40, "a");
   const requiredRuns = new Map([
     [head(5), { run: tested(1, 25), jobs: INFRA_JOBS }],
-    [head(6), { run: tested(1, 23), jobs: INFRA_JOBS }],
+    [head(6), { run: { ...tested(1, 23), updated_at: new Date(NOW - 60_000).toISOString() }, jobs: INFRA_JOBS }],
   ]);
   const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [5],
   );
-  assert.ok(lines.includes("skip fix-ci #6: infra failure, re-run job owns it"));
+  assert.ok(lines.includes("skip fix-ci #6: infra failure, re-run job re-runs it once"), lines.join("\n"));
 });
 
-// Any other failure at attempt 1 is the reconciler's for one re-run of its
-// failed jobs (reconcile.mjs), so a flaky test the diff did not cause spends
-// no model run; a second failure, or one past the lookback, is fix-ci's.
-test("a real failure at attempt 1 is the reconciler's to re-run once; at attempt 2 fix-ci takes it", async () => {
+// A test assertion, lint or typecheck failure (a failed step that is not an
+// install or a stop) goes straight to fix-ci: no re-run is waited for unless
+// one is actually queued.
+test("a real failure goes straight to fix-ci at attempt 1, and the log names its job and step", async () => {
   const head = (number) => String(number).padStart(40, "a");
+  const typos = [
+    { name: "lint-repo", conclusion: "failure", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Check spelling", conclusion: "failure" }] },
+    { name: "ci-status", conclusion: "failure", steps: [] },
+  ];
   const requiredRuns = new Map([
     [head(5), { run: tested(1), jobs: MIXED_JOBS }],
     [head(6), { run: tested(2), jobs: MIXED_JOBS }],
     [head(7), { run: tested(1, 25), jobs: MIXED_JOBS }],
-    // Only ci-status failed: the reconciler re-runs none of it.
+    // Only ci-status failed.
     [head(8), { run: tested(1), jobs: [{ name: "lint-repo", conclusion: "success" }, { name: "ci-status", conclusion: "failure" }] }],
+    [head(9), { run: tested(1), jobs: typos }],
   ]);
-  const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7), pr(8)]], requiredRuns }, { maxDispatch: 4 });
+  const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7), pr(8), pr(9)]], requiredRuns }, { maxDispatch: 5 });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
-    [6, 7, 8],
+    [5, 6, 7, 8, 9],
   );
-  assert.ok(lines.includes("skip fix-ci #5: first failure, re-run job re-runs it once"));
+  assert.ok(!lines.some((line) => line.includes("first failure")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #9 ") && line.endsWith("(cause: code failure in lint-repo / Check spelling)")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #8 ") && line.endsWith("(cause: no failed lane job)")), lines.join("\n"));
+});
+
+// Missing or malformed data fails toward recovery: fix-ci is dispatched and
+// the log says what could not be classified.
+test("a tested run that is missing or malformed dispatches fix-ci with the reason logged", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(1), { run: null, jobs: [] }],
+    [head(2), { run: tested(1), jobs: null }],
+    [head(3), { run: { ...tested(1), status: undefined }, jobs: INFRA_JOBS }],
+    [head(4), { run: { ...tested(1), updated_at: "not a date" }, jobs: INFRA_JOBS }],
+    [head(5), { run: { ...tested(1), run_attempt: "1" }, jobs: INFRA_JOBS }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(1), pr(2), pr(3), pr(4), pr(5)]], requiredRuns }, { maxDispatch: 5 });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [1, 2, 3, 4, 5],
+  );
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #1 ") && line.endsWith("(cause: no tested run found)")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #2 ") && line.endsWith("(cause: failed jobs unreadable)")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #3 ") && line.endsWith("(cause: infra failure, run field status unreadable)")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #4 ") && line.endsWith("(cause: infra failure, run field updated_at unreadable)")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: infra failure, run field run_attempt unreadable)")), lines.join("\n"));
 });
 
 // pr-test-windows is not in ci-status, but the merge gate holds a PR on any
 // failing check, such as a macOS test_tunnel flake.
-test("a failed advisory pr-test-windows run with ci-status green is fix-ci's once its one re-run failed", async () => {
+test("a failed advisory pr-test-windows run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const advisory = [lanes("SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
   const requiredRuns = new Map([
     [`${head(5)} ${ADVISORY}`, { run: tested(1), jobs: MIXED_JOBS }],
     [`${head(6)} ${ADVISORY}`, { run: tested(2), jobs: MIXED_JOBS }],
     [`${head(7)} ${ADVISORY}`, { run: { ...tested(2), conclusion: "success" }, jobs: [] }],
+    [`${head(8)} ${ADVISORY}`, { run: rerunning(2, "in_progress"), jobs: null }],
   ]);
-  const { api, lines, result } = await run({ pages: [[pr(5, { checks: advisory }), pr(6, { checks: advisory }), pr(7, { checks: advisory })]], requiredRuns }, { maxDispatch: 3 });
+  const prs = [5, 6, 7, 8].map((number) => pr(number, { checks: advisory }));
+  const { api, lines, result } = await run({ pages: [prs], requiredRuns }, { maxDispatch: 4 });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
-    [6],
+    [5, 6],
   );
-  assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY]);
-  assert.ok(lines.includes("skip fix-ci #5: first failure, re-run job re-runs it once"));
-  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-windows run failed"));
+  assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY, ADVISORY]);
+  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-windows run failed"), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("skip fix-ci #8:")), lines.join("\n"));
 });
 
 test("a green ci-status with only a failed fix-ci run, or no failure, is left alone", async () => {
@@ -665,4 +778,48 @@ test("a listed head with failed lanes that is skipped logs why; a passing or pen
     lines.filter((line) => line.includes("fix-ci #")),
     ["skip fix-ci #1: not a ready same-repository PR into the base", "skip fix-ci #5: not a ready same-repository PR into the base"],
   );
+});
+
+// A rate-limited read is no reason to spend a model run: the head waits for a
+// later dispatcher run, as a rate-limited workflow listing does.
+test("a rate-limited required-run read dispatches nothing and says so", async () => {
+  const head = "5".padStart(40, "a");
+  const limited = Object.assign(new Error("GET https://api.example/runs returned 403"), { rateLimited: true });
+  const { api, lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, limited]]) });
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: its required run read is rate limited")), lines.join("\n"));
+});
+
+// Job and step names come from the PR head's workflow file, so the log line
+// that carries them can hold no workflow command.
+test("a failed job or step name with a newline or control character cannot start a workflow command in the log", async () => {
+  const head = "5".padStart(40, "a");
+  const evil = [
+    { name: "lint\n::error::x", conclusion: "failure", steps: [{ name: "Set up job", conclusion: "success" }, { name: `run\r\n::add-mask::y\u0007${"z".repeat(300)}`, conclusion: "failure" }] },
+  ];
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, { run: tested(1), jobs: evil }]]) });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5],
+  );
+  const line = lines.find((l) => l.startsWith("dispatched fix-ci #5 "));
+  assert.ok(line, lines.join("\n"));
+  assert.ok(!/[\r\n\x00-\x1f]/.test(line), JSON.stringify(line));
+  assert.ok(line.length < 400, String(line.length));
+  assert.ok(line.includes("(cause: code failure in lint ::error::x / run ::add-mask::y"), line);
+});
+
+// A job whose steps never listed is not shown as a code failure once the
+// re-read window has passed.
+test("a failed job whose steps never listed is logged as such past the deadline", async () => {
+  const head = "5".padStart(40, "a");
+  const old = new Date(NOW - (RERUN_DUE_MINUTES + 5) * 60_000).toISOString();
+  const unlisted = [{ name: "lint-repo", status: "completed", conclusion: "failure", runner_id: 7, steps: [] }];
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, { run: { ...tested(2), updated_at: old }, jobs: unlisted }]]) });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5],
+  );
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith(`(cause: steps unlisted past ${RERUN_DUE_MINUTES} min in lint-repo)`)), lines.join("\n"));
 });

@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.1] - 2026-10-25
+
+### Changed
+
+- `plugins` cache content check: only an install recorded at the marketplace clone's HEAD is compared. Every other install gets the new `not-at-head` verdict and is counted in a new `not_checked` field, not in `unverifiable`, so the answer no longer depends on how deep the clone is and nothing is fetched. The `sha-not-local` verdict is gone, and `no-clone-head` covers a clone whose HEAD names no commit. The sync digest carries `cache_content.not_checked`, and the `Cache content:` row and its tally sub-line render the count as `N not checked (recorded at an older commit)`.
+
+## [4.5.0] - 2026-10-25
+
+### Added
+
+- The `plugins` sync report's `Divergences:` row names where the skew sits: under the count line, one sub-line per project path gives its diverging record count and up to 3 ids, then `+K more`. The digest's `divergences.records` carries every diverging id with its scope, version and projectPath, and `divergences.by_path` the per-path grouping the sub-lines render. A digest without these fields renders the count line alone.
+
+## [4.4.2] - 2026-10-25
+
+### Fixed
+
+- `plugins sync`: an `--only-install` re-entry keeps the first pass's state. The `install_new` policy and the invalid value it replaced are saved in the run's `flags.json` and read back, so the superseding digest and report still warn that the configured value is not `all`, `none`, or `ask`. The first pass's run timings are saved to `first-pass-run.json`, so the re-entry's run `timings` sum both passes, list each one under `timings.passes[]`, and the run `Timing:` row names both passes and says the wait between them is not counted.
+
+## [4.4.1] - 2026-10-24
+
+### Fixed
+
+- The `/harness-ops:plugins` sync report's Timing rows now end `; clock resolution: microseconds` (or `nanoseconds`, `seconds`) instead of appending `(microseconds)` after a seconds value, which read as the unit of the figures.
+
 ## [4.4.0] - 2026-10-24
 
 ### Added

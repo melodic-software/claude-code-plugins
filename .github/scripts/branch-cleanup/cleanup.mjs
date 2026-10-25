@@ -17,6 +17,11 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { excluded, laneIssue, lastPull, linkedIssues, resolveBranchCleanup } from "./rules.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+
+// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
+// is read at call time, so a test's stub is guarded too.
+const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export class BudgetSpent extends Error {}
 
@@ -28,7 +33,7 @@ export function client(env, { pace = () => delay(200), dryRun = true } = {}) {
     if (used >= budget) throw new BudgetSpent(`call budget of ${budget} spent`);
     used += 1;
     await pace();
-    const response = await fetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
+    const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
       method,
       headers: {
         accept: "application/vnd.github+json",

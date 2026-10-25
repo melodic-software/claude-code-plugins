@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import {
   checkActors,
+  earlierFlags,
   MARKER,
+  missedAnnotation,
   NEEDS_DECISION,
   NEW_BASIS,
   NEW_FOOTER,
@@ -15,6 +17,8 @@ import {
   planWrites,
   READY,
   run,
+  UNRECORDED,
+  VERDICT_MARKER,
 } from "./apply-verdict.mjs";
 
 const TRUSTED = fileURLToPath(new URL("../work-unblock/fixtures/trusted-actors.json", import.meta.url));
@@ -22,6 +26,7 @@ const HUMAN = 153232337;
 const LANES_APP = 337595936;
 const CLASSES = new Set(["work-class: scoped", "work-class: structural", "work-class: mechanical", "work-class: untrusted-provenance"]);
 const OUTSIDER = 4242;
+const ACTIONS_BOT = 41898282;
 const humans = new Set([HUMAN]);
 const logins = new Map([
   ["kyle-sexton", HUMAN],
@@ -59,8 +64,40 @@ describe("parseVerdict", () => {
       untrusted: false,
       dimensions: { size: "small", complexity: "low", uncertainty: "known" },
       flags: [],
+      blockedBy: [],
+      blockedByProblem: null,
       problems: [],
     });
+  });
+
+  test("reads the Blocked by line, ignoring a quoted one", () => {
+    const lines = ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none"];
+    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "Blocked by: #12, #13"] }), DIMS, CLASSES).blockedBy, [12, 13]);
+    assert.deepEqual(parseVerdict(laneBody({ lines: [...lines, "> Blocked by: #12"] }), DIMS, CLASSES).blockedBy, []);
+  });
+
+  test("an unreadable Blocked by line names no blocker and holds nothing", () => {
+    const verdict = parseVerdict(
+      laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: 12"] }),
+      DIMS,
+      CLASSES,
+    );
+    assert.deepEqual(verdict.blockedBy, []);
+    assert.match(verdict.blockedByProblem, /not none or a list of #<number>/);
+    assert.deepEqual(verdict.problems, []);
+  });
+
+  test("model text quoted in a problem keeps no mention, backtick or markup", () => {
+    const verdict = parseVerdict(
+      laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: @owner `x` <b>"] }),
+      DIMS,
+      CLASSES,
+    );
+    assert.equal(verdict.flags, null);
+    assert.equal(verdict.problems.length, 1);
+    const quoted = /^`Flags: (.*)` is not none/.exec(verdict.problems[0]);
+    assert.ok(quoted, verdict.problems[0]);
+    assert.doesNotMatch(quoted[1], /[@`<>]/);
   });
 
   test("reads a flag list", () => {
@@ -150,7 +187,7 @@ describe("parseVerdict", () => {
 });
 
 describe("planWrites", () => {
-  const plan = (body, { labels = [], fields = {}, classSetters = {} } = {}) =>
+  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {}, earlierFlags = [] } = {}) =>
     planWrites(parseVerdict(body, DIMS, CLASSES), {
       labels,
       fields,
@@ -158,6 +195,8 @@ describe("planWrites", () => {
       appId: LANES_APP,
       humans,
       classSetters,
+      holdSetters,
+      earlierFlags,
     });
 
   test("a clean verdict adds the class and status: ready and writes the three fields", () => {
@@ -204,7 +243,88 @@ describe("planWrites", () => {
       assert.ok(!result.add.includes(READY));
       assert.equal(result.add.includes(NEEDS_DECISION), hold === "needs-human");
     });
+
+    if (hold !== "needs-human") {
+      test(`${hold} the lanes App set gives way to a clean verdict and is taken off`, () => {
+        const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP } });
+        assert.equal(result.ready, true);
+        assert.deepEqual(result.add, ["work-class: scoped", READY]);
+        assert.deepEqual(result.remove, [hold]);
+      });
+
+      // Owner decision on #9799's review: a flagged hold is not lifted by a later clean verdict.
+      test(`${hold} the lanes App set after an earlier flagged verdict stays on a clean verdict`, () => {
+        const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: ["security"] });
+        assert.equal(result.ready, false);
+        assert.deepEqual(result.remove, []);
+        assert.ok(!result.add.includes(READY));
+        assert.ok(result.reasons.includes(`held by ${hold}`), result.reasons.join("; "));
+        // Carried forward, so the next clean verdict still reads the flag.
+        assert.ok(result.reasons.includes("flagged: security (an earlier verdict)"), result.reasons.join("; "));
+      });
+    }
+
+    for (const [name, setter] of [
+      ["the triage run (github-actions[bot])", ACTIONS_BOT],
+      ["a listed human", HUMAN],
+      ["an unlisted account", OUTSIDER],
+      ["a null actor", null],
+    ]) {
+      test(`${hold} ${name} set still holds`, () => {
+        const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: setter } });
+        assert.equal(result.ready, false);
+        assert.deepEqual(result.remove, []);
+        assert.ok(result.reasons.includes(`held by ${hold}`), result.reasons.join("; "));
+      });
+    }
   }
+
+  // Owner decision on #9799's review, fail-closed: with no readable earlier
+  // verdict, the earlier run may have flagged, so the hold stays and says so.
+  for (const hold of ["status: needs-info", NEEDS_DECISION]) {
+    test(`${hold} the lanes App set with no readable earlier verdict stays on a clean verdict`, () => {
+      const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: null });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.remove, []);
+      assert.ok(!result.add.includes(READY));
+      assert.ok(result.reasons.includes(`held by ${hold}`), result.reasons.join("; "));
+      assert.ok(result.reasons.includes(UNRECORDED), result.reasons.join("; "));
+    });
+  }
+
+  test("no readable earlier verdict on an issue with no hold reaches ready", () => {
+    const result = plan(laneBody(), { earlierFlags: null });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.reasons, []);
+  });
+
+  // Owner decision on #9799's review: a clean verdict never lifts needs-human, whoever set it.
+  test("needs-human the lanes App set stays on a clean verdict", () => {
+    const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": LANES_APP } });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
+    assert.ok(!result.add.includes(READY));
+    assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+  });
+
+  test("an earlier flag the current verdict repeats is not listed twice", () => {
+    const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] }), {
+      labels: [NEEDS_DECISION],
+      holdSetters: { [NEEDS_DECISION]: LANES_APP },
+      earlierFlags: ["security", "intent"],
+    });
+    assert.deepEqual(result.reasons, ["flagged: security", `held by ${NEEDS_DECISION}`, "flagged: intent (an earlier verdict)"]);
+  });
+
+  test("a lanes App hold stays on a verdict that is not ready", () => {
+    const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent"] }), {
+      labels: [NEEDS_DECISION],
+      holdSetters: { [NEEDS_DECISION]: LANES_APP },
+    });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
+    assert.deepEqual(result.reasons, ["flagged: intent"]);
+  });
 
   // Owner decision Q85 (#9668): the work class gates nothing.
   test("another work class a listed human added is kept and does not hold the issue", () => {
@@ -343,10 +463,17 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, [READY]);
   });
 
-  test("needs-triage keeps a clean verdict from ready and adds needs-decision", () => {
+  test("needs-triage the triage left does not keep a clean verdict from ready, and is taken off", () => {
     const result = plan(laneBody(), { labels: ["needs-triage"] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.remove, ["needs-triage"]);
+  });
+
+  test("needs-triage is taken off a held verdict too", () => {
+    const result = plan(ESCALATED_BODY, { labels: ["needs-triage"] });
     assert.equal(result.ready, false);
-    assert.deepEqual(result.add, ["work-class: scoped", NEEDS_DECISION]);
+    assert.deepEqual(result.remove, ["needs-triage"]);
   });
 
   test("area: security alone does not hold a clean verdict; only the security flag does", () => {
@@ -361,15 +488,25 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, [READY]);
   });
 
-  test("a field a listed human set to another value is kept and holds the issue", () => {
+  test("a field a listed human set to another value is kept, counts for admission, and does not hold", () => {
     const result = plan(laneBody(), {
       fields: { 15462270: { option: 27053566, setter: HUMAN } },
     });
-    assert.equal(result.ready, false);
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.reasons, []);
     assert.deepEqual(
       result.fieldWrites.map(({ key }) => key),
       ["complexity", "uncertainty"],
     );
+    assert.deepEqual(result.dimensions, { size: "large", complexity: "low", uncertainty: "known" });
+  });
+
+  test("a listed human's field option the config does not map holds the issue", () => {
+    const result = plan(laneBody(), {
+      fields: { 15462270: { option: 1, setter: HUMAN } },
+    });
+    assert.equal(result.ready, false);
+    assert.ok(result.reasons.includes("Size holds an option models.issue-dimensions does not map"), result.reasons.join("; "));
   });
 
   test("a field the lanes App or nobody listed set is overwritten; one already right is not rewritten", () => {
@@ -384,6 +521,21 @@ describe("planWrites", () => {
       result.fieldWrites.map(({ key }) => key),
       ["size", "uncertainty"],
     );
+  });
+});
+
+describe("earlierFlags", () => {
+  const own = (body) => [{ id: 51, body: `${VERDICT_MARKER}\n${body}`, user: { id: LANES_APP, type: "Bot" } }];
+  test("reads the flags the lanes App's verdict comment listed, an earlier verdict's too", () => {
+    assert.deepEqual(earlierFlags(own("x:\n\n- flagged: security\n- flagged: intent (an earlier verdict)"), LANES_APP), ["security", "intent"]);
+  });
+  test("an unflagged verdict comment lists none", () => {
+    assert.deepEqual(earlierFlags(own("x:\n\n- no `Size:` line"), LANES_APP), []);
+  });
+  test("no lanes App verdict comment, or one carrying the unrecorded line, is unknown", () => {
+    assert.equal(earlierFlags([], LANES_APP), null);
+    assert.equal(earlierFlags([{ id: 50, body: `${VERDICT_MARKER}\n- no \`Size:\` line`, user: { id: HUMAN, type: "User" } }], LANES_APP), null);
+    assert.equal(earlierFlags(own(`x:\n\n- ${UNRECORDED}`), LANES_APP), null);
   });
 });
 
@@ -439,10 +591,20 @@ describe("checkActors", () => {
 });
 
 // A fake GitHub: the issue, its comments and field values, recording every call.
-function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events = [] } = {}) {
+function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events = [], blockers = {} } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (method === "GET" && path.startsWith("/repos/o/r/issues/7/dependencies/blocked_by")) {
+      return [];
+    }
+    const other = /^\/repos\/o\/r\/issues\/([0-9]+)$/.exec(path);
+    if (method === "GET" && other && other[1] !== "7") {
+      if (!blockers[other[1]]) {
+        throw new GitHubError(404, path);
+      }
+      return blockers[other[1]];
+    }
     if (method === "GET" && path.startsWith("/repos/o/r/labels")) {
       return [...CLASSES, READY, NEEDS_DECISION].map((name) => ({ name }));
     }
@@ -510,6 +672,13 @@ const go = (fake, env = ENV) =>
     log: () => {},
   });
 const writes = (calls) => calls.filter((call) => call.method !== "GET");
+// The lanes App's earlier verdict comment, listing no flag.
+const unflagged = (text = "The latest triage verdict holds nothing: admission did not finish, so the issue's status is not settled.") => ({
+  id: 51,
+  body: `${VERDICT_MARKER}\n${text}`,
+  user: { id: LANES_APP, type: "Bot" },
+});
+const APP_HOLD = [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }];
 
 describe("run", () => {
   test("writes the fields, the class and status: ready, then rewords the comment", async () => {
@@ -531,14 +700,15 @@ describe("run", () => {
     assert.ok(!/maintainer/.test(done[2].body.body));
   });
 
-  test("an escalated run writes only needs-decision and keeps the comment", async () => {
+  test("an escalated run writes only needs-decision and its reasons, and keeps the lane comment", async () => {
     const fake = fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] });
     const result = await go(fake);
     assert.equal(result.outcome, "needs-decision");
     assert.deepEqual(
-      writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`),
-      [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`],
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/labels"],
     );
+    assert.deepEqual(writes(fake.calls)[1].body, { labels: [NEEDS_DECISION] });
   });
 
   test("an older lane comment is refused: this run's triage wrote none", async () => {
@@ -587,7 +757,7 @@ describe("run", () => {
     assert.deepEqual(fake.calls, []);
   });
 
-  test("an option GitHub keeps under another id sets needs-decision and fails", async () => {
+  test("an option GitHub keeps under another id fails the run and adds no label", async () => {
     const fake = fakeGitHub({
       comments: [laneComment()],
       answerRows: [
@@ -598,10 +768,9 @@ describe("run", () => {
       ],
     });
     await assert.rejects(go(fake), /GitHub kept other options/);
-    const labelWrites = writes(fake.calls).filter(({ path }) => path.endsWith("/labels"));
     assert.deepEqual(
-      labelWrites.map(({ body }) => body.labels),
-      [[NEEDS_DECISION]],
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["POST /repos/o/r/issues/7/issue-field-values"],
     );
   });
 
@@ -716,19 +885,25 @@ describe("run", () => {
     );
   });
 
-  test("a current human-set field is read through the setters and kept", async () => {
+  test("a current human-set field is read through the setters, kept, and handed to admission", async () => {
     const fake = fakeGitHub({
       comments: [laneComment()],
       fieldRows: [{ issue_field_id: 15462270, single_select_option: { id: 27053566 } }],
     });
+    const seen = [];
     const result = await run({
       env: ENV,
       github: fake.github,
       dimensionsConfig: DIMS,
       fieldSetters: async () => ({ 15462270: HUMAN }),
+      admitIssue: async (verdict) => {
+        seen.push(verdict.dimensions);
+        return { outcome: "refused", reasons: [] };
+      },
       log: () => {},
     });
-    assert.equal(result.outcome, "needs-decision");
+    assert.equal(result.outcome, "ready");
+    assert.deepEqual(seen, [{ size: "large", complexity: "low", uncertainty: "known" }]);
     const post = writes(fake.calls).find(({ path }) => path.endsWith("/issue-field-values"));
     assert.deepEqual(
       post.body.issue_field_values.map(({ field_id }) => field_id),
@@ -843,5 +1018,388 @@ describe("run", () => {
     assert.deepEqual(result.admission, { outcome: "error", reasons: ["admission-rules.json: `types` must be a list of strings"] });
     assert.ok(writes(fake.calls).some(({ method }) => method === "PATCH"));
     assert.match(result.summary, /- Admission: error \(admission-rules\.json/);
+  });
+
+  test("a needs-decision the lanes App set earlier, read from the events, is lifted by a clean verdict", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [laneComment(), unflagged()],
+      events: APP_HOLD,
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(
+      writes(fake.calls).some(
+        ({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(NEEDS_DECISION)}`,
+      ),
+    );
+  });
+
+  test("a needs-human the triage run's escalation set last, read from the events, keeps the hold", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: LANES_APP } },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT } },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  test("a hold the lanes App set after its earlier verdict comment listed a flag stays on a clean verdict", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [
+        laneComment(),
+        { id: 51, body: `${VERDICT_MARKER}\nThe triage verdict left this issue at \`${NEEDS_DECISION}\`:\n\n- flagged: security`, user: { id: LANES_APP, type: "Bot" } },
+      ],
+      events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+    const patch = writes(fake.calls).find(({ path }) => path === "/repos/o/r/issues/comments/51");
+    assert.match(patch.body.body, /- flagged: security \(an earlier verdict\)/);
+  });
+
+  test("a hold the lanes App set after an earlier verdict with no flag is lifted on a clean verdict", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [
+        laneComment(),
+        { id: 51, body: `${VERDICT_MARKER}\nThe triage verdict left this issue at \`${NEEDS_DECISION}\`:\n\n- no \`Size:\` line`, user: { id: LANES_APP, type: "Bot" } },
+      ],
+      events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(NEEDS_DECISION)}`));
+  });
+
+  test("a flagged look-alike verdict comment from anyone but the lanes App does not keep the hold", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [
+        laneComment(),
+        { id: 50, body: `${VERDICT_MARKER}\n- flagged: security`, user: { id: HUMAN, login: "kyle-sexton", type: "User" } },
+        unflagged(),
+      ],
+      events: APP_HOLD,
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+  });
+
+  // Issues the App held before verdict comments existed have none to read.
+  test("a needs-decision the lanes App set with no verdict comment stays on two clean verdicts in a row", async () => {
+    const first = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()], events: APP_HOLD });
+    assert.equal((await go(first)).outcome, "needs-decision");
+    assert.ok(!writes(first.calls).some(({ method }) => method === "DELETE"));
+    const posted = writes(first.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.ok(posted?.body.body.includes(`- ${UNRECORDED}`), posted?.body.body);
+    // The second run reads the comment the first posted, which must not read as unflagged.
+    const second = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [laneComment(), { id: 52, body: posted.body.body, user: { id: LANES_APP, type: "Bot" } }],
+      events: APP_HOLD,
+    });
+    assert.equal((await go(second)).outcome, "needs-decision");
+    assert.ok(!writes(second.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  // The record goes before the hold: a hold never lands without the comment
+  // that says whether it was flagged.
+  for (const [name, comments, failing] of [
+    ["no earlier verdict comment and a failed post", [], "POST /repos/o/r/issues/7/comments"],
+    ["an earlier unflagged verdict comment and a failed edit", [unflagged("The triage verdict left this issue at `status: needs-decision`:\n\n- no `Size:` line")], "PATCH /repos/o/r/issues/comments/51"],
+  ]) {
+    test(`a flagged verdict with ${name} writes no label, reports the failure, and fails the run`, async () => {
+      const fake = fakeGitHub({ comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] })), ...comments] });
+      const github = async (method, path, body) => {
+        if (`${method} ${path}` === failing) {
+          fake.calls.push({ method, path, body });
+          throw new GitHubError(403, failing);
+        }
+        return fake.github(method, path, body);
+      };
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+      assert.ok(result.plan.classApplied);
+      assert.ok(result.reasonsError, "the failure is on the result");
+      assert.match(result.summary, /- Reasons comment: not written \(/);
+      const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
+      assert.deepEqual(labelWrites, [], "no hold lands without its record");
+      assert.ok(!writes(fake.calls).some(({ path }) => path === "/repos/o/r/issues/comments/99"), "no class, so no reword");
+    });
+  }
+
+  // Taking status: ready off adds no hold, so it needs no record and never waits on one.
+  for (const [name, comments, failing] of [
+    ["a failed post", [], "POST /repos/o/r/issues/7/comments"],
+    ["a failed edit", [unflagged()], "PATCH /repos/o/r/issues/comments/51"],
+  ]) {
+    test(`a flagged re-triage of an issue at status: ready with ${name} still takes status: ready off and adds no hold`, async () => {
+      const fake = fakeGitHub({
+        issue: { labels: [{ name: READY }] },
+        comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] })), ...comments],
+      });
+      const github = async (method, path, body) => {
+        if (`${method} ${path}` === failing) {
+          fake.calls.push({ method, path, body });
+          throw new GitHubError(403, failing);
+        }
+        return fake.github(method, path, body);
+      };
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+      assert.ok(result.reasonsError, "the run fails");
+      const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
+      assert.deepEqual(
+        labelWrites.map(({ method, path }) => `${method} ${path}`),
+        [`DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(READY)}`],
+      );
+      assert.match(result.summary, /removed: status: ready/);
+    });
+  }
+
+  test("a failed edit of the reasons comment on a ready verdict still rewords the lane comment and reports the failure", async () => {
+    const fake = fakeGitHub({ comments: [laneComment(), unflagged()] });
+    const github = async (method, path, body) => {
+      if (method === "PATCH" && path === "/repos/o/r/issues/comments/51") {
+        fake.calls.push({ method, path, body });
+        throw new GitHubError(403, "PATCH comments");
+      }
+      return fake.github(method, path, body);
+    };
+    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+    assert.equal(result.outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/99"));
+    assert.ok(result.reasonsError, "the failure is on the result");
+    assert.match(result.summary, /- Reasons comment: not written \(/);
+  });
+
+  test("an admission refusal on a ready verdict leaves an unflagged verdict record, so a later clean verdict can lift it", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => ({ outcome: "refused", reasons: ["no acceptance criteria"] }),
+      log: () => {},
+    });
+    const posted = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.ok(posted?.body.body.startsWith(`${VERDICT_MARKER}\n`), posted?.body.body);
+    assert.deepEqual(earlierFlags([{ ...posted.body, id: 53, user: { id: LANES_APP } }], LANES_APP), []);
+  });
+
+  test("takes needs-triage off after the verdict's labels", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
+    assert.equal((await go(fake)).outcome, "ready");
+    const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
+    const removal = done.indexOf("DELETE /repos/o/r/issues/7/labels/needs-triage");
+    assert.ok(removal > done.indexOf("POST /repos/o/r/issues/7/labels"), done.join("\n"));
+  });
+
+  test("posts the reasons on the issue when it sets needs-decision", async () => {
+    const fake = fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] });
+    await go(fake);
+    const posted = writes(fake.calls).filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.equal(posted.length, 1);
+    assert.ok(posted[0].body.body.startsWith(`${VERDICT_MARKER}\n`));
+    assert.match(posted[0].body.body, /the triage run escalated/);
+  });
+
+  test("edits its own earlier reasons comment in place, and leaves a look-alike from anyone else", async () => {
+    const fake = fakeGitHub({
+      comments: [
+        laneComment(ESCALATED_BODY),
+        { id: 50, body: `${VERDICT_MARKER}\nold`, user: { id: HUMAN, login: "kyle-sexton", type: "User" } },
+        { id: 51, body: `${VERDICT_MARKER}\nold`, user: { id: LANES_APP, login: "melodic-automation-lanes[bot]", type: "Bot" } },
+      ],
+    });
+    await go(fake);
+    const done = writes(fake.calls).filter(({ path }) => path.includes("/comments"));
+    assert.deepEqual(
+      done.map(({ method, path }) => `${method} ${path}`),
+      ["PATCH /repos/o/r/issues/comments/51"],
+    );
+    assert.match(done[0].body.body, /the triage run escalated/);
+  });
+
+  test("a ready verdict posts no reasons comment, and marks an earlier one settled", async () => {
+    const fresh = fakeGitHub({ comments: [laneComment()] });
+    await go(fresh);
+    assert.ok(!writes(fresh.calls).some(({ path }) => path === "/repos/o/r/issues/7/comments"));
+    const earlier = fakeGitHub({
+      comments: [laneComment(), { id: 51, body: `${VERDICT_MARKER}\nold`, user: { id: LANES_APP, type: "Bot" } }],
+    });
+    await go(earlier);
+    const patch = writes(earlier.calls).find(({ path }) => path === "/repos/o/r/issues/comments/51");
+    assert.ok(patch, "the earlier comment is edited");
+    assert.ok(patch.body.body.includes(READY), patch.body.body);
+  });
+
+  test("a ready verdict that admission refuses or errors on does not mark the earlier comment ready", async () => {
+    for (const outcome of ["refused", "error"]) {
+      const fake = fakeGitHub({
+        comments: [laneComment(), { id: 51, body: `${VERDICT_MARKER}\nold`, user: { id: LANES_APP, type: "Bot" } }],
+      });
+      const result = await run({
+        env: ENV,
+        github: fake.github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          if (outcome === "error") throw new Error("boom");
+          return { outcome, reasons: ["no acceptance criteria"] };
+        },
+        log: () => {},
+      });
+      const patch = writes(fake.calls).find(({ path }) => path === "/repos/o/r/issues/comments/51");
+      assert.ok(patch, `${outcome}: the earlier comment is edited`);
+      assert.ok(!patch.body.body.includes(READY), `${outcome}: ${patch.body.body}`);
+      assert.ok(!result.summary.includes(`- Status: ${READY}`), `${outcome}: ${result.summary}`);
+    }
+  });
+
+  test("writes a blocked-by edge for each open issue the verdict names, before admission", async () => {
+    const order = [];
+    const fake = fakeGitHub({
+      comments: [
+        laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12, #13"] })),
+      ],
+      blockers: {
+        12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" },
+        13: { id: 9013, number: 13, state: "closed", repository_url: "https://api.github.com/repos/o/r" },
+      },
+    });
+    const github = async (method, path, body) => {
+      if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
+        order.push(`edge ${body.issue_id}`);
+      }
+      return fake.github(method, path, body);
+    };
+    const result = await run({
+      env: ENV,
+      github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => {
+        order.push("admit");
+        return { outcome: "waiting", reasons: [] };
+      },
+      log: () => {},
+    });
+    assert.deepEqual(order, ["edge 9012", "admit"]);
+    assert.ok(result.summary.includes("- Blocked by: #12 written; #13 skipped (not open)"), result.summary);
+  });
+
+  for (const [status, labels, own] of [
+    [403, [], []],
+    [429, [], []],
+    [500, [], []],
+    [500, [{ name: READY }], [{ id: 51, body: `${VERDICT_MARKER}\nold`, user: { id: LANES_APP, type: "Bot" } }]],
+  ]) {
+    test(`a ${status} on an edge write misses the edge: the other labels land, but not ${READY}, and no admission runs${labels.length ? " (it was already ready)" : ""}`, async () => {
+      const fake = fakeGitHub({
+        issue: { labels },
+        comments: [
+          laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12"] })),
+          ...own,
+        ],
+        blockers: { 12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" } },
+      });
+      const github = async (method, path, body) => {
+        if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
+          throw new GitHubError(status, "POST");
+        }
+        return fake.github(method, path, body);
+      };
+      let admitted = false;
+      const result = await run({
+        env: ENV,
+        github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          admitted = true;
+          return { outcome: "admitted", reasons: [] };
+        },
+        log: () => {},
+      });
+      assert.deepEqual(result.missed, [{ number: 12, status }]);
+      assert.ok(!admitted, "admission reads blockers from native edges only, so it waits");
+      const added = fake.calls.filter(({ method, path }) => method === "POST" && path.endsWith("/labels")).flatMap(({ body }) => body.labels);
+      assert.ok(added.includes("work-class: scoped"), added.join(", "));
+      assert.ok(!added.includes(READY), added.join(", "));
+      assert.ok(fake.calls.some(({ method, path }) => method === "DELETE" && path.endsWith(`/labels/${encodeURIComponent(READY)}`)));
+      assert.ok(result.summary.includes(`- Blocked by: #12 not written (GitHub answered ${status})`), result.summary);
+      assert.match(result.summary, /- Status: none: admission waits for intake to run again, since a blocked-by edge is missing/);
+      const said = fake.calls.find(({ method, path }) => (method === "POST" && path.endsWith("/comments")) || (method === "PATCH" && path.endsWith("/comments/51")));
+      assert.ok(said?.body.body.startsWith(`${VERDICT_MARKER}\n`), said?.body.body);
+      assert.ok(!said.body.body.includes(`is at \`${READY}\``), said.body.body);
+      assert.match(said.body.body, /blocked-by edge is missing/);
+    });
+  }
+
+  test("a missed edge is an error that fails the job on a 403, else a warning", () => {
+    assert.equal(missedAnnotation([]), null);
+    assert.equal(missedAnnotation(undefined), null, "a skipped or stopped run carries no missed list");
+    assert.deepEqual(missedAnnotation([{ number: 12, status: 502 }]), {
+      fail: false,
+      line: "::warning title=apply-verdict::blocked-by edges not written: #12 not written (GitHub answered 502); the verdict's labels are written without status: ready, and admission waits until the hourly triage sweep runs intake again, which writes them",
+    });
+    const forbidden = missedAnnotation([
+      { number: 12, status: 502 },
+      { number: 13, status: 403 },
+    ]);
+    assert.equal(forbidden.fail, true);
+    assert.match(forbidden.line, /^::error title=apply-verdict::blocked-by edges not written: #12 not written \(GitHub answered 502\); #13 not written \(GitHub answered 403\);/);
+  });
+
+  test("an edge the run wrote and could not delete is named, and fails the job on a 403", () => {
+    const warned = missedAnnotation([{ number: 13, status: 429 }], [{ number: 12, status: 500 }]);
+    assert.equal(warned.fail, false);
+    assert.match(warned.line, /#12 written and not deleted \(GitHub answered 500\)/);
+    assert.equal(missedAnnotation([{ number: 13, status: 429 }], [{ number: 12, status: 403 }]).fail, true);
+  });
+
+  test("two blockers, the first edge written and the second missed: the first is deleted, and no admission runs", async () => {
+    const fake = fakeGitHub({
+      comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12, #13"] }))],
+      blockers: {
+        12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" },
+        13: { id: 9013, number: 13, state: "open", repository_url: "https://api.github.com/repos/o/r" },
+      },
+    });
+    const github = async (method, path, body) => {
+      if (method === "POST" && path.endsWith("/dependencies/blocked_by") && body.issue_id === 9013) {
+        throw new GitHubError(502, "POST");
+      }
+      if (method === "DELETE" && path.includes("/dependencies/blocked_by/")) {
+        fake.calls.push({ method, path, body });
+        return null;
+      }
+      return fake.github(method, path, body);
+    };
+    let admitted = false;
+    const result = await run({
+      env: ENV,
+      github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => {
+        admitted = true;
+        return { outcome: "admitted", reasons: [] };
+      },
+      log: () => {},
+    });
+    assert.ok(!admitted);
+    assert.ok(fake.calls.some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/dependencies/blocked_by/9012"));
+    assert.deepEqual(result.undeleted, []);
+    assert.ok(result.summary.includes("- Blocked by: #12 written, then deleted, since an edge missed; #13 not written (GitHub answered 502)"), result.summary);
+  });
+
+  test("an escalated verdict writes no edge", async () => {
+    const fake = fakeGitHub({ comments: [laneComment(`${ESCALATED_BODY}\nBlocked by: #12`)] });
+    await go(fake);
+    assert.ok(!fake.calls.some(({ path }) => path.includes("dependencies")));
   });
 });

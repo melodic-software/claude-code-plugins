@@ -65,11 +65,29 @@
 # more than one merge is blocked as well, so each merge runs, and is checked,
 # as its own command. ALSO FAILS CLOSED: a GraphQL merge,
 # auto-merge or merge-queue mutation whose PR cannot be resolved (an id from a
-# variable or `$(...)`, an unreadable node, no gh) is blocked, because a
-# scripted mutation almost always takes its id that way. In a Claude Code
-# cloud session GraphQL is refused and no cloud route resolves a node id, so
-# every GraphQL merge mutation is blocked there, literal id or not; merge with
+# variable or `$(...)`, an unreadable node) is blocked, because a
+# scripted mutation almost always takes its id that way. A literal `PR_...` id
+# with gh missing or unauthenticated fails open with the notice (#7376, the
+# owner's decision on #6463); a non-literal id is blocked whether or not gh is
+# there. In a Claude Code
+# cloud session GraphQL is refused (HTTP 403, not an auth failure) and no cloud
+# route resolves a node id, so every GraphQL merge mutation is blocked there
+# when gh answers, literal id or not; merge with
 # `gh pr merge <number>` or the REST route, which the guard can check.
+#
+# TARGET RESOLUTION (#8657). The pre-filter also reads a copy with quotes and
+# backslashes dropped, so `gh pr mer"ge" 5` is parsed. A `gh pr` subcommand or a
+# `-X`/`--method` value from an expansion (`gh pr $VERB`, `-X "$M"` on a merge
+# route) is blocked as unresolvable, since either may be the merge. A `gh pr
+# merge` with no -R and no URL is blocked when the command also changes directory
+# (`cd`, `pushd`, `popd`, PowerShell's `Set-Location`, `Push-Location`,
+# `Pop-Location`, `sl`) or names GH_REPO or GH_HOST (quotes dropped, so
+# `export GH_RE""PO=x` counts), because the repository it merges in is then not
+# the session's. A repo written `HOST/OWNER/REPO` is read without the
+# host, passing a host other than github.com as `--hostname`. A 404 on the PR or
+# its branch lookup, for a repo the command wrote, is blocked rather than run
+# unchecked; a repo taken from the working directory still fails open. The branch
+# in the pulls `head=` query is percent-encoded.
 #
 # COMMAND POSITION. Leading assignments, a reserved word the tokenizer leaves
 # at a segment head (`then`, `do`, `{`, `if`, ...), and the `command`, `time`,
@@ -86,7 +104,7 @@
 # not read; more than 100 review threads with none unresolved in the first 100
 # is reported as unchecked; the backtick refusal keys on merge-shaped text, so
 # an obfuscated spelling of `pr merge` itself (`pr mer"ge"`) with a backtick is
-# parsed as usual (#8657);
+# parsed as usual (#8657); a merge verb built from pieces (`V=mer; gh pr ${V}ge`);
 # a cancelled run `<name>` is cleared by a newer successful `<name> (...)` run
 # of the same app in another check suite even when that run belongs to an unrelated
 # workflow, which the check-runs payload cannot tell apart from a matrix leg;
@@ -162,6 +180,9 @@ BUPM_UNRESOLVED=""
 BUPM_MERGES=0 # merge paths found in the command
 BUPM_BT=0     # 1: the command holds a backtick
 BUPM_CONT=0   # 1: merge-shaped text continued with a backslash-newline
+BUPM_CD=0     # 1: a segment changes directory (cd, pushd, popd, Set-Location)
+BUPM_GHREPO=0 # 1: the command text names GH_REPO or GH_HOST
+BUPM_HOST=""  # a host other than github.com that qualified the repo
 
 # _bupm_literal <word>: true when the word holds no expansion the guard
 # cannot evaluate (a parameter, `$(...)` or a backtick substitution).
@@ -190,7 +211,15 @@ _bupm_rest_path() {
   p="${p#/}"
   p="${p%%\?*}"
   p="${p%/}"
-  [[ "$m" == PUT ]] || return 1
+  if [[ "$m" != PUT ]]; then
+    # A method from a variable (`-X "$M"`) may be PUT: refuse a merge route
+    # called that way, since the method cannot be read.
+    _bupm_literal "$m" && return 1
+    [[ "$p" =~ ^repos/.+/pulls/[^/]+/(merge|ccr/auto_merge)$ ]] || return 1
+    BUPM_FORM="rest-merge"
+    BUPM_UNRESOLVED="the method $2 is not literal"
+    return 0
+  fi
   if [[ "$p" =~ ^repos/.+/pulls/[^/]+/(merge|ccr/auto_merge)$ ]] && ! _bupm_literal "$p"; then
     BUPM_FORM="rest-merge"
     BUPM_UNRESOLVED="the route $p is not literal"
@@ -349,10 +378,28 @@ _bupm_curl() {
   _bupm_rest_path "${url#*api.github.com}" "$method"
 }
 
+# _bupm_is_cd <argv>...: true when the segment changes directory, past the
+# reserved words and prefixes _bupm_command also steps over.
+# shellcheck disable=SC2329  # reached from _bupm_segment
+_bupm_is_cd() {
+  while (($#)); do
+    case "$1" in
+    '{' | '}' | '!' | then | do | else | elif | if | while | until | command | builtin | time | exec | nohup | -p | --) shift ;;
+    *) break ;;
+    esac
+  done
+  # PowerShell's cmdlets and their `sl` alias too, which it matches in any case.
+  local w="${1-}"
+  case "${w,,}" in cd | pushd | popd | chdir | set-location | push-location | pop-location | sl) return 0 ;; *) return 1 ;; esac
+}
+
 # hook::bash_parse_segments callback: one segment's argv words. Counts the
 # merge paths found; a recorder returns 0 only when it recorded one.
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 _bupm_segment() {
+  # A directory change before a merge with no -R moves the repository gh reads
+  # from the session's to another. Same prefixes stepped over as in _bupm_command.
+  ((BUPM_MERGES == 0)) && _bupm_is_cd "$@" && BUPM_CD=1
   _bupm_command "$@" && ((++BUPM_MERGES))
   return 0
 }
@@ -393,6 +440,12 @@ _bupm_command() {
         *) break ;;
         esac
       done
+      # `VERB=merge; gh pr $VERB 5`: a subcommand from an expansion may be merge.
+      if [[ "${1-}" == *[\$\`]* ]]; then
+        BUPM_FORM=gh-pr-merge
+        BUPM_UNRESOLVED="the gh pr subcommand $1 is not literal"
+        return 0
+      fi
       [[ "${1-}" == merge ]] || return 1
       shift
       if [[ -n "$pre_repo" ]]; then
@@ -427,7 +480,14 @@ else
   # comment, a quoted heredoc or after an escaped backslash.
   _bupm_lc="${COMMAND,,}"
   _bupm_joined="${_bupm_lc//$'\\\n'/}"
-  [[ "$_bupm_joined" == *merge* || "$_bupm_joined" == *enqueue* ]] || exit 0
+  # A second copy with quotes and backslashes dropped, as the tokenizer drops
+  # them, reads `mer"ge"` and `en\queue` as the words they spell.
+  _bupm_bare="${_bupm_joined//[\"\'\\]/}"
+  [[ "$_bupm_joined" == *merge* || "$_bupm_joined" == *enqueue* ||
+    "$_bupm_bare" == *merge* || "$_bupm_bare" == *enqueue* ]] || exit 0
+  # The bare copy too: `export GH_RE""PO=x` sets GH_REPO.
+  [[ "$_bupm_lc" == *gh_repo* || "$_bupm_bare" == *gh_repo* ||
+    "$_bupm_lc" == *gh_host* || "$_bupm_bare" == *gh_host* ]] && BUPM_GHREPO=1
   # A backtick or a line continuation in merge-shaped text is refused below
   # without parsing; in PowerShell a backtick is the escape character, not a
   # substitution, and a backslash is not a continuation.
@@ -566,7 +626,7 @@ _bupm_api() {
   BUPM_OUT=$(
     [[ -n "$BUPM_CWD" ]] && cd "$BUPM_CWD" 2>/dev/null
     export GH_PROMPT_DISABLED=1
-    _bupm_limited "$left" gh api "$@" 2>"$errf"
+    _bupm_limited "$left" gh api "$@" ${BUPM_HOST:+--hostname "$BUPM_HOST"} 2>"$errf"
   ) || rc=$?
   BUPM_ERR=""
   if [[ "$errf" != /dev/null ]]; then
@@ -620,16 +680,59 @@ _bupm_refuse_target() {
 ((BUPM_MERGES > 1)) &&
   _bupm_refuse_target "this command holds $BUPM_MERGES merges and only one can be checked; run each merge as its own command"
 [[ -z "$BUPM_UNRESOLVED" ]] || _bupm_refuse_target "$BUPM_UNRESOLVED"
+# A merge with no -R and no URL reads its repository from the working directory
+# and the environment, which `cd other &&` and `GH_REPO=x/y` change: the PR the
+# guard would check is then the session repo's, not the one gh merges.
+if [[ "$BUPM_FORM" == gh-pr-merge && -z "$BUPM_REPO" && ! "$BUPM_SEL" =~ ^https?:// ]]; then
+  ((BUPM_CD)) &&
+    _bupm_refuse_target "the command changes directory before the merge and names no -R repository, so the merge may not run in the session's repository"
+  ((BUPM_GHREPO)) &&
+    _bupm_refuse_target "the command names GH_REPO or GH_HOST and no -R repository, so the merge may not run in the session's repository"
+fi
 
 # A GraphQL mutation must name its PR by a literal node id the guard can
 # resolve; see the fail-closed note below.
 if [[ "$BUPM_FORM" == graphql ]]; then
   [[ -n "$BUPM_NODE" ]] || _bupm_refuse "the mutation's pull request id is not a literal PR_ node id in the command"
-  command -v gh >/dev/null 2>&1 || _bupm_refuse "gh is not on PATH to resolve node $BUPM_NODE"
 fi
 command -v gh >/dev/null 2>&1 || _bupm_unchecked "gh is not on PATH"
 
 [[ -n "$BUPM_REPO" ]] || BUPM_REPO="{owner}/{repo}"
+
+# gh takes -R as [HOST/]OWNER/REPO; the REST path takes OWNER/REPO. A host other
+# than github.com goes to gh api as --hostname.
+if [[ "$BUPM_REPO" =~ ^([^/]+)/([^/]+/[^/]+)$ ]]; then
+  BUPM_REPO="${BASH_REMATCH[2]}"
+  [[ "${BASH_REMATCH[1],,}" == github.com ]] || BUPM_HOST="${BASH_REMATCH[1]}"
+fi
+
+# _bupm_pr_unreadable: a read of the PR or its branch lookup failed. A 404 on a
+# repository the command wrote literally means the guard is not looking where gh
+# will merge, which is refused; any other failure fails open.
+_bupm_pr_unreadable() {
+  if [[ "$BUPM_ERR" == *"HTTP 404"* && "$BUPM_REPO" != *'{'* ]]; then
+    _bupm_refuse_target "GitHub answered HTTP 404 for ${BUPM_REPO}${BUPM_NUM:+#$BUPM_NUM}, so the guard cannot tell which pull request this merge targets"
+  fi
+  _bupm_unchecked "$BUPM_ERR"
+}
+
+# _bupm_urlencode <var> <text>: percent-encode text for a query value into var,
+# leaving letters, digits and . _ ~ / : - as they are.
+_bupm_urlencode() {
+  local s="$2" out="" c code i LC_ALL=C
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    case "$c" in
+    [A-Za-z0-9._~/:-]) out+="$c" ;;
+    *)
+      printf -v code '%d' "'$c"
+      printf -v c '%%%02X' "$((code & 255))"
+      out+="$c"
+      ;;
+    esac
+  done
+  printf -v "$1" '%s' "$out"
+}
 
 # A GraphQL mutation names its PR by node id. Unlike every other path, one
 # whose PR cannot be resolved FAILS CLOSED: the id usually arrives through a
@@ -638,8 +741,15 @@ command -v gh >/dev/null 2>&1 || _bupm_unchecked "gh is not on PATH"
 if [[ "$BUPM_FORM" == graphql ]]; then
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
   _bupm_api graphql -f query='query($id:ID!){node(id:$id){... on PullRequest{number repository{nameWithOwner}}}}' \
-    -f id="$BUPM_NODE" --jq '.data.node | "\(.repository.nameWithOwner) \(.number)"' ||
+    -f id="$BUPM_NODE" --jq '.data.node | "\(.repository.nameWithOwner) \(.number)"' || {
+    # A literal id with gh unauthenticated fails open like the other paths (#7376);
+    # any other failed read of the node still fails closed. Only gh's own
+    # not-logged-in phrasings match: a 403 that merely mentions authentication
+    # (SSO, SAML, a proxy) is not a missing login.
+    [[ "$BUPM_ERR" =~ (Bad\ credentials|HTTP\ 401|gh\ auth\ login|not\ logged\ in) ]] &&
+      _bupm_unchecked "node $BUPM_NODE: $BUPM_ERR"
     _bupm_refuse "node $BUPM_NODE could not be read: $BUPM_ERR"
+  }
   read -r BUPM_REPO BUPM_NUM <<<"$BUPM_OUT"
   [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_refuse "node $BUPM_NODE is not a pull request"
 fi
@@ -649,9 +759,11 @@ if [[ "$BUPM_FORM" == gh-pr-merge ]]; then
   _bupm_branch=""
   if [[ "$BUPM_SEL" =~ ^#?([0-9]+)$ ]]; then
     BUPM_NUM="${BASH_REMATCH[1]}"
-  elif [[ "$BUPM_SEL" =~ ^https?://[^/]+/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
-    BUPM_REPO="${BASH_REMATCH[1]}"
-    BUPM_NUM="${BASH_REMATCH[2]}"
+  elif [[ "$BUPM_SEL" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
+    BUPM_REPO="${BASH_REMATCH[2]}"
+    BUPM_NUM="${BASH_REMATCH[3]}"
+    BUPM_HOST=""
+    [[ "${BASH_REMATCH[1],,}" == github.com ]] || BUPM_HOST="${BASH_REMATCH[1]}"
   elif [[ -n "$BUPM_SEL" ]]; then
     _bupm_branch="$BUPM_SEL"
   else
@@ -659,10 +771,12 @@ if [[ "$BUPM_FORM" == gh-pr-merge ]]; then
     [[ -n "$_bupm_branch" ]] || _bupm_refuse_target "no PR was named and the current branch could not be read"
   fi
   if [[ -z "$BUPM_NUM" ]]; then
-    _bupm_head="$_bupm_branch"
-    [[ "$_bupm_head" == *:* ]] || _bupm_head="${BUPM_REPO%%/*}:$_bupm_head"
+    # The branch is encoded: a name holding `&`, `#` or `%` would otherwise add a
+    # query parameter or cut the query short and list a different PR.
+    _bupm_urlencode _bupm_head "$_bupm_branch"
+    [[ "$_bupm_branch" == *:* ]] || _bupm_head="${BUPM_REPO%%/*}:$_bupm_head"
     _bupm_api "repos/$BUPM_REPO/pulls?state=open&head=$_bupm_head" --jq '.[0].number // empty' ||
-      _bupm_unchecked "$BUPM_ERR"
+      _bupm_pr_unreadable
     BUPM_NUM="$BUPM_OUT"
     # A bare branch is looked up under the base repo's owner; a fork's branch needs owner:branch or the number.
     [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_refuse_target "no open pull request found for branch $_bupm_head; for a fork's branch write <fork-owner>:<branch> or the PR number"
@@ -673,7 +787,7 @@ fi
 
 # The PR: open state, head commit, and the canonical repo name.
 _bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq '"\(.state) \(.head.sha) \(.base.repo.full_name)"' ||
-  _bupm_unchecked "$BUPM_ERR"
+  _bupm_pr_unreadable
 read -r _bupm_state _bupm_sha _bupm_full <<<"$BUPM_OUT"
 # A closed or merged PR has nothing to guard; gh reports the refusal itself.
 [[ "$_bupm_state" == open ]] || exit 0

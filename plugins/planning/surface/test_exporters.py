@@ -506,6 +506,66 @@ class TestBriefIds(SessionCase):
         self.assertIn("- Q2 Short Q2: alt a:", constraints)
         self.assertNotIn("Q3 Short Q2", constraints)
 
+    def constraint_ledger(self):
+        ledger = self.tmp / "constraint-ledger.md"
+        ledger.write_text(
+            "## Constraint ledger\n\n"
+            "- C1 | confirmed | internal tool only | user, round 1\n"
+            "- C2 | inherited | floor scanners run a browser | PRD Assumptions\n"
+            "```\n- C9 | confirmed | fenced, not a row\n```\n\n"
+            "## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? | \n",
+            encoding="utf-8",
+        )
+        return ledger
+
+    def test_the_ledger_constraint_section_fills_constraints_without_a_restatement(self):
+        self.session([question("Q1")], [])
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn(
+            "- C1 (confirmed): internal tool only (user, round 1)", constraints
+        )
+        self.assertIn(
+            "- C2 (inherited): floor scanners run a browser (PRD Assumptions)",
+            constraints,
+        )
+        self.assertNotIn("C9", constraints)
+        self.assertNotIn("none recorded", constraints)
+
+    def test_a_confirmed_restatement_outranks_the_ledger_constraint_section(self):
+        rev = {
+            "rev": 1,
+            "at": AT,
+            "sections": {"constraints": "- stdlib only"},
+        }
+        self.session(
+            [question("Q1")],
+            [
+                {
+                    **event(1, None, "confirm-understanding", "confirm"),
+                    "contentRev": 1,
+                }
+            ],
+            restatements=[rev],
+        )
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- stdlib only", constraints)
+        self.assertNotIn("C1", constraints)
+
+    def test_the_page_constraints_lead_and_the_ledger_adds_only_other_ids(self):
+        self.session([question("Q1")], [])
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["constraints"] = [{"id": "C1", "text": "Page wording.", "at": AT}]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- C1: Page wording.", constraints)
+        self.assertNotIn("internal tool only", constraints)
+        self.assertIn("- C2 (inherited):", constraints)
+
     def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
         self.session(
             [question("Q1"), question("Q3"), question("Q4")],
@@ -527,7 +587,7 @@ class TestBriefIds(SessionCase):
 
 
 class TestBriefRestatements(SessionCase):
-    """Goal, Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed rev."""
+    """Every restated section comes from the newest confirmed rev."""
 
     def rev(self, n, **sections):
         return {"rev": n, "at": f"2026-09-24T10:0{n}:00Z", "sections": sections}
@@ -548,7 +608,8 @@ class TestBriefRestatements(SessionCase):
         return self.export("brief").read_text(encoding="utf-8")
 
     def section(self, text, name):
-        return text.split(f"### {name}")[1].split("###")[0].strip().splitlines()
+        section = text.split(f"### {name}")[1].split("###")[0].split("\n## ")[0]
+        return section.strip().splitlines()
 
     def test_a_confirmed_rev_one_survives_an_unconfirmed_rev_three(self):
         text = self.brief(
@@ -631,6 +692,66 @@ class TestBriefRestatements(SessionCase):
             ["- Gap: builds lose their cache", "- Evidence: observed"],
         )
         self.assertEqual(self.section(text, "Work size"), ["- Size: Small"])
+
+    def test_restated_deferred_planning_owned_and_decisions_reach_the_brief(self):
+        deferred = ["Q3: moderation model, defer until after V1", "offline mode"]
+        owned = ["cache key layout", "Q4: retry budget"]
+        decisions = ["Q2 answered: Question Q2? (accepted)", "Withdrawn (1): Q1"]
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    goal="Ship it.",
+                    deferred="\n".join(f"- {x}" for x in deferred),
+                    planningOwned="\n".join(f"- {x}" for x in owned),
+                    decisions="\n".join(decisions),
+                )
+            ],
+            [self.confirm(2, 1)],
+        )
+        self.assertEqual(
+            self.section(text, "Deferred questions"),
+            [f"- {x}; **arbiter: /planning:plan**" for x in deferred + owned],
+        )
+        self.assertEqual(
+            self.section(text, "Decisions"), [f"- {x}" for x in decisions]
+        )
+        self.assertNotIn("- none", self.section(text, "Deferred questions"))
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_a_restated_deferral_of_a_user_reserved_row_keeps_its_arbiter(self):
+        self.session(
+            [question("Q1")],
+            [event(1, "Q1", "accept"), self.confirm(2, 1)],
+            restatements=[
+                self.rev(
+                    1,
+                    deferred="- q2: which cap\n- the launch date, USER-RESERVED",
+                    planningOwned="- Q1 follow-up wording",
+                )
+            ],
+        )
+        ledger = self.tmp / "reserved-ledger.md"
+        ledger.write_text(
+            LEDGER_HEAD + "- Q1 | answered | round 1 | Question Q1? | accepted\n"
+            "- Q2 | deferred | round 1 | Which cap? | USER-RESERVED until the pilot\n",
+            encoding="utf-8",
+        )
+        out = self.tmp / "reserved-brief.md"
+        rc, msg = self.rp("export-brief", "--out", str(out), "--ledger", str(ledger))
+        self.assertEqual(rc, 0, msg)
+        lines = self.section(out.read_text(encoding="utf-8"), "Deferred questions")
+        self.assertEqual(
+            lines[1:],
+            [
+                "- q2: which cap; **arbiter: USER-RESERVED**",
+                "- the launch date, USER-RESERVED; **arbiter: USER-RESERVED**",
+                "- Q1 follow-up wording; **arbiter: /planning:plan**",
+            ],
+        )
 
     def test_no_restatement_writes_no_stamp(self):
         self.session([question("Q1")], [event(1, "Q1", "accept")])

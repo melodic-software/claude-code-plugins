@@ -3,6 +3,44 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.0] - 2026-10-25
+
+### Added
+
+- `block-root-delete-target` refuses a recursive delete of a protected tree ahead of every root it allows, so even inside the working tree, a temp root, the session scratchpad or a listed root: a `.git` (and a glob straight inside one, `rm -rf .git/*`), a directory holding a `.git`, the git toplevel itself, every worktree root git has registered for the cwd's repository (read from its `worktrees/*/gitdir` files), anything under `~/.claude`, and Claude Code's temp tree outside this session's own scratchpad (another session's scratchpad, a project or session directory, the base). A directory holding one, or a glob whose matches reach one, is refused too, a glob matching dot names on the PowerShell tool or after `dotglob`; a path named under the toplevel, a worktree or `.git` is not, nor is the toplevel's bash `rm -rf *` ([#9751](https://github.com/melodic-software/claude-code-plugins/issues/9751)).
+- `block_root_delete_target_protected_trees`: comma-separated absolute directories the guard protects the same way, read from the hook's own environment.
+
+### Changed
+
+- `rm -rf .` at the toplevel, a delete of a sibling worktree under a listed root, and a delete of a throwaway clone under temp, which the allowed roots used to pass, are now refused; the README's Option details list what stays allowed.
+
+### Fixed
+
+- **Git hooks:** no git hook file the plugin installs starts a `bash` by name, which on Windows can be System32's WSL launcher. `commit-msg-convention` and the convention resolver it runs are POSIX sh, run with `sh`, so they need no bash beside git's sh. `pre-commit-content` and `reference-verify` start under `sh`, and the vendored check lib reruns them under the first bash on `PATH` outside System32; with none, bash is a missing tool under the check-placement contract (`checks.skipmissing`, else fail for an agent and a notice for a person). `reference-verify` starts `run-guards.sh` through the check lib's `checks_bash_run`, never a bash found by name, and the lefthook remote runs its scripts with `sh`. The vendored installer's plain dispatcher runs an entry that starts `#!/bin/sh` with `sh` (an older copy by its own first line until it is refreshed), its lefthook and husky run lines read `sh <path>`, and it replaces a dispatcher an earlier release wrote instead of refusing it as modified. Rerun `/guardrails:setup apply install-git-hooks` to pick it up ([#9774](https://github.com/melodic-software/claude-code-plugins/issues/9774)).
+
+## [0.57.0] - 2026-10-25
+
+### Added
+
+- **`block-cross-domain`, a guard on the Bash and PowerShell row that classifies each call against a machine-local identity-domain map (#9743).** It reads `${CLAUDE_PLUGIN_DATA}/identity-domains.json`: `domains.<name>` with per-OS `roots`, `owners`, `identity_markers` and optional `gh_config_dir` and `az_config_dir`, then top-level `identity_files`, `shared_exceptions` and `messages`. It compiles the map with `jq` once per change into `identity-domains.cache` and reads that back with builtins, classifies the session cwd into the domain whose root holds it or neutral, and parses a command only when its text names a configured root or marker. It never denies a call: the result goes to the telemetry envelope (`cwd` and `form`, never a domain name), and a malformed map tells the user once per session. With no map it reads and parses nothing. The `block_cross_domain_enabled` option turns it off.
+
+### Fixed
+
+- `block-unresolved-pr-merge` closes four target-resolution gaps (#8657). A quote-split `gh pr mer"ge" 5` is parsed, and a `gh pr` subcommand or a `-X` method taken from a variable on a merge route is blocked as unresolvable. A `gh pr merge` with no `-R` is blocked when the command runs `cd`, `pushd` or `popd` or names `GH_REPO`. A `-R HOST/OWNER/REPO` is read without its host, and a 404 on a repo the command wrote is blocked instead of run unchecked. A branch name is percent-encoded into the pulls `head=` query (`plugins/guardrails/hooks/block-unresolved-pr-merge.sh`).
+
+## [0.56.3] - 2026-10-24
+
+### Fixed
+
+- cli-flag-verify treats a quoted argument as one argument: no word inside a quoted prompt (the prompt given to the print option, or a positional prompt) or a quoted flag value is read as a flag or a subcommand. The machine-health setup skill's scheduled prompt no longer reports its slash-command argument as an unknown Claude CLI flag.
+- The reference-verify pre-push entry judges a pushed branch that merged the default branch only on the lines the branch itself adds, not on the lines the merge brought in, so a finding on the default branch no longer blocks every branch that merges it, and the push checks only the branch's own files.
+
+## [0.56.2] - 2026-10-24
+
+### Fixed
+
+- `block-unresolved-pr-merge` now lets a GraphQL merge mutation through with the two-channel "not checked" notice when its pull request id is a literal `PR_...` value and gh is missing or unauthenticated, as the owner decided on #6463. A non-literal id (a variable, `$(...)` or a file reference) is still blocked, with or without gh, and so is a literal id whose node cannot be read for any other reason.
+
 ## [0.56.1] - 2026-10-24
 
 ### Fixed

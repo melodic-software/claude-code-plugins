@@ -28,12 +28,16 @@ import {
   READER_EVENTS,
   main,
   pythonRoom,
+  pythonVerify,
+  costLine,
+  ghCalls,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
   readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
@@ -503,20 +507,43 @@ test("a GET that fails on the network is left to the client's own retry, not sen
   assert.deepEqual(writes, []);
 });
 
-test("an arm that fails three times on the network fails the run, naming the cause", async () => {
+test("a lone arm that fails three times on the network is warned with its cause, and with no arm landing the run fails", async () => {
   const { code, writes, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), reset(), reset(), reset()] } });
   assert.equal(code, 1);
   assert.equal(writes.length, 3);
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: ECONNRESET read ECONNRESET)"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed (cause: ECONNRESET read ECONNRESET)"));
 });
 
-test("one pull request whose arm still fails leaves it unarmed and the next is still armed", async () => {
-  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [closed(), closed(), closed()] } });
-  assert.equal(code, 1);
+const bare = () => new TypeError("fetch failed");
+
+test("one pull request whose arm fails on the network every attempt is skipped, the other is armed, and the run stays green", async () => {
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()] } });
+  assert.equal(code, 0);
   assert.deepEqual(writes.at(-1), { mutation: "arm", id: "PR_2", head: HEAD });
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET other side closed)"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed"));
   assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
   assert.ok(!lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("every arm in the run failing on the network, after the listing read, is an outage and fails red", async () => {
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()], PR_2: [bare(), bare(), bare()] } });
+  assert.equal(code, 1);
+  assert.equal(writes.length, 6);
+  assert.ok(lines.includes("::error title=enable-auto-merge::every arm this run failed: #1, #2"));
+});
+
+test("an arm that failed on the network keeps its slot, since it may have landed", async () => {
+  const { writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()] } }, { ...ROOM, cap: 1 });
+  assert.deepEqual(writes, Array(3).fill({ mutation: "arm", id: "PR_1", head: HEAD }));
+  assert.ok(lines.includes("enable-auto-merge: #2 left: merge.max-in-flight is 1 and 1 merges are in flight"));
+});
+
+test("a refusal after a resend keeps the slot, since the first attempt may have landed", async () => {
+  const { writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } }, { ...ROOM, cap: 1 });
+  assert.deepEqual(writes, Array(2).fill({ mutation: "arm", id: "PR_1", head: HEAD }));
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#1 arm refused")));
+  assert.ok(lines.includes("enable-auto-merge: #2 left: merge.max-in-flight is 1 and 1 merges are in flight"));
 });
 
 test("each network trigger alone is sent again, and an error with another code is not", async () => {
@@ -542,19 +569,116 @@ test("every request asks GitHub to close its connection after answering", async 
   assert.ok(calls.every(({ headers }) => headers?.Connection === "close"));
 });
 
-test("an arm GitHub answers 4xx, or with GraphQL errors, is not sent again", async () => {
-  for (const error of [new GitHubError(422, "POST /graphql"), new GitHubError(200, "POST /graphql (GraphQL errors)")]) {
-    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
-    assert.equal(code, 1);
+test("an arm GitHub refuses with GraphQL errors or a 4xx is skipped with a warning, not sent again, and the run stays green", async () => {
+  for (const error of [new GitHubError(200, "POST /graphql (GraphQL errors)"), new GitHubError(422, "POST /graphql"), new GitHubError(404, "POST /graphql")]) {
+    const { code, writes, slept, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
+    assert.equal(code, 0);
     assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
     assert.deepEqual(slept, []);
+    assert.ok(lines.includes(`::warning title=enable-auto-merge::#1 arm refused, skipped this run: ${error.message}`));
+    assert.ok(!lines.some((line) => line.startsWith("::error")));
+  }
+});
+
+test("a refused arm on one of two pull requests still arms the other, inside a cap of one", async () => {
+  const refusal = new GitHubError(200, "POST /graphql (GraphQL errors)");
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [refusal] } }, { ...ROOM, cap: 1 });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "arm", id: "PR_2", head: HEAD },
+  ]);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#1 arm refused")));
+  assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
+});
+
+test("two arms each refused for their own reason (422) are warned and the run stays green", async () => {
+  const refusal = () => new GitHubError(422, "POST /graphql");
+  const { code, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [refusal()], PR_2: [refusal()] } });
+  assert.equal(code, 0);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#1 arm refused")));
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#2 arm refused")));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::every arm this run failed: #1, #2"));
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("two or more arms all answered 404 fail the run and say so", async () => {
+  const missing = () => new GitHubError(404, "POST /graphql");
+  const { code, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [missing()], PR_2: [missing()] } });
+  assert.equal(code, 1);
+  assert.ok(lines.includes("::error title=enable-auto-merge::every arm this run failed: #1, #2"));
+});
+
+test("an arm answered 401, 403, 429 or 5xx is not a refusal of that pull request: not sent again, and the run fails", async () => {
+  for (const status of [401, 403, 429, 502]) {
+    const { code, writes, slept, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [new GitHubError(status, "POST /graphql")] } });
+    assert.equal(code, 1);
+    assert.equal(writes.length, 1);
+    assert.deepEqual(slept, []);
+    assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm:")));
+  }
+});
+
+// main's own client over a stubbed fetch, so the arm's answer carries real
+// headers and body: `arm` is the Response every arm gets.
+async function served(pulls, arm) {
+  const { github, verify } = world(pulls);
+  const saved = globalThis.fetch;
+  const lines = [];
+  const log = console.log;
+  globalThis.fetch = async (url, init) => {
+    const body = init.body === undefined ? undefined : JSON.parse(init.body);
+    if (body?.query === ARM_MUTATION) {
+      return arm();
+    }
+    const answer = await github(init.method, new URL(url).pathname + new URL(url).search, body, init.headers);
+    return new Response(answer == null ? "" : JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  console.log = (line) => lines.push(line);
+  try {
+    // Its own latch: one case's rate limit neither refuses the next case's
+    // calls nor fails this process.
+    const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+    return { code: await main({ env: { ...ENV, GH_TOKEN: "t" }, verify, room: room(), sleep: async () => {}, latch }), lines };
+  } finally {
+    globalThis.fetch = saved;
+    console.log = log;
+  }
+}
+
+test("a refused arm's warning carries GitHub's own message", async () => {
+  const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ message: "Pull request is in clean status" }] }));
+  assert.equal(code, 0);
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm refused, skipped this run: POST /graphql (GraphQL errors) failed with status 200: Pull request is in clean status"));
+});
+
+test("a rate-limited GraphQL answer to an arm is not a refusal, and the run fails", async () => {
+  for (const headers of [{ "x-ratelimit-remaining": "0" }, { "retry-after": "60" }]) {
+    const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ message: "API rate limit exceeded" }] }, { headers }));
+    assert.equal(code, 1);
+    assert.ok(!lines.some((line) => line.includes("arm refused")));
+  }
+});
+
+test("a GraphQL answer typed RATE_LIMITED is rate-limited without its headers, and the run fails", async () => {
+  const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] }));
+  assert.equal(code, 1);
+  assert.ok(!lines.some((line) => line.includes("arm refused")));
+});
+
+test("a GraphQL answer typed FORBIDDEN or INSUFFICIENT_SCOPES is not a refusal of that pull request, and the run fails", async () => {
+  for (const type of ["FORBIDDEN", "INSUFFICIENT_SCOPES"]) {
+    const { code, lines } = await served([pull(1), pull(2)], () => Response.json({ errors: [{ type, message: "Resource not accessible by integration" }] }));
+    assert.equal(code, 1);
+    assert.ok(!lines.some((line) => line.includes("arm refused")));
+    assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm:")));
   }
 });
 
 test("a logged cause has any token in it scrubbed", async () => {
   const leak = new TypeError("fetch failed", { cause: Object.assign(new Error("bad header Bearer ghs_abc123 sent github_pat_11AB_cd"), { code: "UND_ERR_SOCKET" }) });
   const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [leak, leak, leak] } });
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET bad header *** sent ***)"));
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed (cause: UND_ERR_SOCKET bad header *** sent ***)"));
   assert.ok(!lines.some((line) => line.includes("ghs_abc123") || line.includes("github_pat_")));
 });
 
@@ -1241,6 +1365,92 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
     budget: "github-token",
   });
   assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+});
+
+// The calls line as babysit_gh.py itself prints it, for three Actions-token
+// reads (the paginated artifact listing and two run records) and one
+// lane-token GraphQL read: 4 in all, 3 under GITHUB_TOKEN, 1 paginated.
+const BABYSIT_SCRIPTS = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+function producedCallsLine() {
+  const done = spawnSync(
+    "python3",
+    [
+      "-c",
+      `import sys
+sys.path.insert(0, sys.argv[1])
+import babysit_gh as g
+job = {"GH_TOKEN": "job"}
+for args, env in (
+    (["api", "repos/o/r/actions/artifacts?per_page=100", "--paginate", "--slurp"], job),
+    (["api", "repos/o/r/actions/runs/1"], job),
+    (["api", "repos/o/r/actions/runs/2"], job),
+    (["api", "graphql", "-f", "query=q"], None),
+):
+    kind = g.gh_call_kind(args, env)
+    g._gh_call_counts[kind] = g._gh_call_counts.get(kind, 0) + 1
+print(g.gh_call_summary())
+g.reset_gh_call_counts()`,
+      BABYSIT_SCRIPTS,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(done.status, 0, done.stderr);
+  return done.stdout.trim();
+}
+
+test("ghCalls reads babysit_gh.py's calls line: in all, under GITHUB_TOKEN, and paginated", () => {
+  const line = producedCallsLine();
+  assert.deepEqual(ghCalls(`warning: something\n${line}\n`), { total: 4, githubToken: 3, paginated: 1 });
+  assert.equal(ghCalls("no calls line\n"), null);
+  assert.equal(ghCalls("babysit-gh-calls {not json\n"), null);
+  assert.equal(costLine({ number: 7, calls: { total: 4, githubToken: 3, paginated: 1 }, ms: 1500 }), "#7 calls=4 github-token=3 paginated=1 ms=1500");
+  assert.equal(costLine({ number: 7, calls: null, ms: 20 }), "#7 calls=unknown ms=20");
+});
+
+test("pythonVerify logs each read's calls and time, keeps them, and names the error line, not the calls line, on a failure", async () => {
+  const line = producedCallsLine();
+  const answers = [
+    { status: 0, stdout: `${JSON.stringify(PASSED)}\n`, stderr: `${line}\n` },
+    { status: 1, stdout: "", stderr: `Traceback\nRuntimeError: listing 502\n${line}\n` },
+  ];
+  const spawn = () => answers.shift();
+  let at = 1000;
+  const clock = () => (at += 250);
+  const verify = pythonVerify({ GITHUB_REPOSITORY: REPO }, { spawn, clock });
+  const lines = [];
+  const log = console.log;
+  console.log = (text) => lines.push(text);
+  try {
+    assert.deepEqual(await verify(pull(1)), PASSED);
+    await assert.rejects(verify(pull(2)), /exited 1: RuntimeError: listing 502$/);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250"]);
+  assert.deepEqual(
+    verify.costs.map(({ number, ms }) => [number, ms]),
+    [
+      [1, 250],
+      [2, 250],
+    ],
+  );
+});
+
+test("the step summary carries each verifier read's cost even when the run raised nothing", async () => {
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const { github, writes } = world([pull(1)]);
+  const verify = async ({ headRefOid: head }) => ({ ...PASSED, head });
+  verify.costs = [{ number: 1, calls: { total: 9, githubToken: 7, paginated: 1 }, ms: 46800 }];
+  const log = console.log;
+  console.log = () => {};
+  try {
+    assert.equal(await main({ env: { ...ENV, GITHUB_STEP_SUMMARY: summary }, github, verify, room: room(), sleep: async () => {} }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.equal(readFileSync(summary, "utf8"), "enable-auto-merge: #1 calls=9 github-token=7 paginated=1 ms=46800\n");
 });
 
 test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a kill as unreadable", async () => {

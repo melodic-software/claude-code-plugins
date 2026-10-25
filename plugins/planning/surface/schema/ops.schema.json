@@ -26,12 +26,14 @@
           {"$ref": "#/$defs/archive-visual"},
           {"$ref": "#/$defs/record-terminal"},
           {"$ref": "#/$defs/set-status"},
+          {"$ref": "#/$defs/glossary"},
           {"$ref": "#/$defs/revising-by-claude"},
           {"$ref": "#/$defs/context"},
           {"$ref": "#/$defs/wait"},
           {"$ref": "#/$defs/activity"},
           {"$ref": "#/$defs/confirm-commitments"},
           {"$ref": "#/$defs/restate"},
+          {"$ref": "#/$defs/constraint"},
           {"$ref": "#/$defs/finish"}
         ]
       }
@@ -124,7 +126,10 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["add"]},
-        "question": {"type": "object"},
+        "question": {
+          "description": "The new question. It declares `dependsOn` (an empty list when it has no prerequisite) and names no question still open in its own round; either miss is a warning, and a refusal under the requireDepends setting.",
+          "type": "object"
+        },
         "repoint": {
           "description": "With `question.supersedes`: move every live question whose `dependsOn` names the superseded one to the new one. Without it the output only names them.",
           "type": "boolean"
@@ -280,6 +285,18 @@
         "clear": {"type": "boolean"}
       }
     },
+    "glossary": {
+      "description": "Define a coined session term: `term` (at most 60 characters) with a non-empty `definition`, or remove the term with `clear`; exactly one of the two. A term already defined is redefined. The page lists the terms in its Terms panel and shows the definition on hover wherever the term appears in question text. At most 100 terms.",
+      "type": "object",
+      "required": ["op", "term"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["glossary"]},
+        "term": {"type": "string", "maxLength": 60},
+        "definition": {"$ref": "#/$defs/line"},
+        "clear": {"type": "boolean"}
+      }
+    },
     "revising-by-claude": {
       "description": "Declare that Claude is revising the questions in `ids`, with a reason: the page shows \"Claude is revising this: <why>\" on each. Takes `ids` and a non-empty `why`, or `clear`; exactly one of the two. Every id must be a known question. `clear` with `ids` removes the mark from those questions, and without `ids` from every question. A `revise` or `reply` of a question also removes its mark. The mark informs only: answering stays possible. It is not the derived `revising` flag, which marks the user's own unhandled answer.",
       "type": "object",
@@ -361,6 +378,17 @@
       "properties": {
         "op": {"enum": ["restate"]},
         "sections": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/questions#/$defs/sections"}
+      }
+    },
+    "constraint": {
+      "description": "Record one constraint the interview found, shown in the page header's Constraints panel. Appends `{id, text, at}` to `constraints` with the next `C<N>`; an `id` already recorded has its text replaced instead. `text` is one line.",
+      "type": "object",
+      "required": ["op", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["constraint"]},
+        "id": {"type": "string"},
+        "text": {"$ref": "#/$defs/line"}
       }
     }
   }

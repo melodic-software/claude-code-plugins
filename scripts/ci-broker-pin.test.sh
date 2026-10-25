@@ -26,7 +26,7 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
 export RUNNER_TEMP="$TMP_ROOT"
-ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" budget || fail "the ci-status gh_read helper step is missing or fails"
 
 NAME='Require a broker deploy PR for a resolve-config dependency change'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }

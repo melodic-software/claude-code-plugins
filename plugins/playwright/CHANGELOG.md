@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-10-25
+
+### Added
+
+- Trigger probe sets under `probes/` for the three model-invoked skills (`check`, `demo-video`, `playwright`), written blind from their current descriptions and frozen as the baseline for a later description rewrite. No skill behavior changes.
+
 ## [0.13.2] - 2026-10-22
 
 ### Changed

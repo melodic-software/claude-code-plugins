@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "gh_calls": [
+        "pr merge 4277 --squash"
+      ],
+      "why": "number first"
+    },
+    {
+      "gh_calls": [
+        "pr merge --squash --delete-branch 4277"
+      ],
+      "why": "flags first"
+    },
+    {
+      "gh_calls": [
+        "api -X PUT repos/example-org/merge-lane/pulls/4277/merge"
+      ],
+      "why": "API merge"
+    }
+  ],
+  "fail": [
+    {
+      "gh_calls": [
+        "pr view 4277 --json state"
+      ],
+      "why": "reads, never merges"
+    },
+    {
+      "gh_calls": [
+        "pr comment 4277 --body Please confirm before I merge."
+      ],
+      "why": "asks instead"
+    },
+    {
+      "gh_calls": [
+        "pr merge 42770"
+      ],
+      "why": "near miss: another number"
+    }
+  ]
+}

@@ -3138,7 +3138,10 @@ def score_unattended(
         and config.require_verifier_verdict
     ):
         reader = verify_evidence.Reader(
-            repo, str(inputs["branch"]), max_fails=config.max_verify_fails
+            repo,
+            str(inputs["branch"]),
+            max_fails=config.max_verify_fails,
+            agent_identity=config.agent_identity,
         )
         verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
@@ -3831,7 +3834,12 @@ def unattended_writes(
             # passing verifier verdict at its head now.
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
-                verify_evidence.Reader(repo, branch, max_fails=config.max_verify_fails)
+                verify_evidence.Reader(
+                    repo,
+                    branch,
+                    max_fails=config.max_verify_fails,
+                    agent_identity=config.agent_identity,
+                )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
                 and config.require_verifier_verdict

@@ -4,6 +4,9 @@
 # the autosquash forms and git's own Merge and Revert subjects pass, no tracked pattern (or a non-ERE one) enforces
 # nothing, a missing resolver never blocks blind, and the plugin's vendored
 # installer wires the entry so `git commit` runs it from the installed copy.
+# The hook and its resolver are POSIX sh: every case runs the hook under dash
+# where it is installed, the shell that rejects a bashism a bash-backed sh lets
+# through.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/resolve-convention-pattern.sh plugins/guardrails/lib/git-hooks/install.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT GIT_EDITOR
@@ -12,6 +15,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/commit-msg-convention.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
+if SH="$(command -v dash)"; then
+  echo "running the hook under $SH"
+else
+  SH="sh"
+  echo "note: dash is not on PATH, so the hook runs under sh"
+fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -44,7 +53,7 @@ new_repo() { # [source-control.md body]
 msg() { # <repo> <message> <script> -> rc
   local repo="$1" text="$2" script="${3:-$CHECK}"
   printf '%s\n' "$text" >"$WORK/msg"
-  (cd "$repo" && bash "$script" "$WORK/msg") >/dev/null 2>&1
+  (cd "$repo" && "$SH" "$script" "$WORK/msg") >/dev/null 2>&1
   echo $?
 }
 
@@ -69,7 +78,7 @@ expect "an empty message is git's to refuse" 0 "$(msg "$REPO" "")"
 # GIT_EDITOR=:, so a subject starting with the comment character is the subject.
 noedit() { # <repo> <message> -> rc
   printf '%s\n' "$2" >"$WORK/msg"
-  (cd "$1" && GIT_EDITOR=: bash "$CHECK" "$WORK/msg") >/dev/null 2>&1
+  (cd "$1" && GIT_EDITOR=: "$SH" "$CHECK" "$WORK/msg") >/dev/null 2>&1
   echo $?
 }
 expect "no editor: a # subject is the subject" 1 "$(noedit "$REPO" "#123 fix thing")"
@@ -91,7 +100,7 @@ expect "Conventional Commits keyword: a git-written Revert subject passes" 0 "$(
 expect "Conventional Commits keyword: update stuff still fails" 1 "$(msg "$REPO" "update stuff")"
 expect "Conventional Commits keyword: Merging without the git form still fails" 1 "$(msg "$REPO" "Mergers and acquisitions")"
 expect "Conventional Commits keyword: Revert without a quote still fails" 1 "$(msg "$REPO" "Revert the thing")"
-err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && bash "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
+err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
 expect "the failure names the subject and how to fix it, never a skip" "yes|no" \
   "$(grep -q 'subject: junk subject' <<<"$err" && echo yes || echo no)|$(grep -qi 'no-verify' <<<"$err" && echo yes || echo no)"
 
@@ -108,15 +117,15 @@ expect "no resolver anywhere: passes rather than block blind" 0 "$(msg "$REPO" "
 mkdir -p "$WORK/stub"
 cp "$CHECK" "$WORK/stub/commit-msg-convention.sh"
 cat >"$WORK/stub/resolve-convention-pattern.sh" <<'EOF'
-#!/usr/bin/env bash
-[[ -n "${STUB_ERR:-}" ]] && printf '%s\n' "$STUB_ERR" >&2
-[[ -n "${STUB_OUT:-}" ]] && printf '%s\n' "$STUB_OUT"
+#!/bin/sh
+[ -n "${STUB_ERR:-}" ] && printf '%s\n' "$STUB_ERR" >&2
+[ -n "${STUB_OUT:-}" ] && printf '%s\n' "$STUB_OUT"
 exit "${STUB_RC:-0}"
 EOF
 new_repo ""
 stub() { # <rc> <stderr> <stdout> <subject> -> sets STUB_EXIT, STUB_STDOUT, STUB_STDERR
   printf '%s\n' "$4" >"$WORK/msg"
-  STUB_STDOUT="$(cd "$REPO" && STUB_RC="$1" STUB_ERR="$2" STUB_OUT="$3" bash "$WORK/stub/commit-msg-convention.sh" "$WORK/msg" 2>"$WORK/stub.err")"
+  STUB_STDOUT="$(cd "$REPO" && STUB_RC="$1" STUB_ERR="$2" STUB_OUT="$3" "$SH" "$WORK/stub/commit-msg-convention.sh" "$WORK/msg" 2>"$WORK/stub.err")"
   STUB_EXIT=$?
   STUB_STDERR="$(<"$WORK/stub.err")"
 }

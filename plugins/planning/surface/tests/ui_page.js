@@ -294,6 +294,54 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("each question keeps its own note draft across a switch and a reload", kept === "draft on Q1" && await page.inputValue("#note") === "draft on Q1", kept);
     await page.fill("#note", ""); await page.setViewportSize({width: 1440, height: 900});
   }
+  if (PHASE === 12) { // gap G8: the shell recorded two constraints with the constraint op; the header lists them
+    await page.setViewportSize({width: 1440, height: 900});
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    const sum = await text("#consSum");
+    ok("the header shows \"Constraints (2)\" for two recorded constraints", sum === "Constraints (2)" && await page.$eval("#consPanel", el => !el.hidden), sum);
+    await page.click("#consSum"); await page.waitForTimeout(150);
+    const items = await page.$$eval("#consList li", els => els.map(li => li.textContent));
+    ok("the open panel lists each constraint with its id", items.length === 2 && items[0] === "C1Builds stop at ten minutes." && items[1] === "C2Stdlib only.", JSON.stringify(items));
+  }
+  const events = async () => (await (await page.request.get(base + "api/state")).json()).responses.events;
+  const dialog = () => page.evaluate(() => { const a = document.getElementById("dlgAlt"); return {open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent, ok: document.getElementById("dlgOk").textContent, alt: a.hidden ? null : a.textContent}; });
+  if (PHASE === 13) { // #9709: frontierLock confirm, the default; the shell added Q11 (round 2, open) and Q12 (round 3, needs Q11)
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    const chip = await page.$eval('.qbtn[data-q="Q12"] .qmeta', el => ({text: el.textContent, lock: !!el.querySelector(".lockchip svg.padlock")})).catch(e => ({error: String(e)}));
+    ok("#9709: the rail shows a padlock chip in place of Blocked on a question whose prerequisite is open", chip.lock && /Locked/.test(chip.text) && !/Blocked/.test(chip.text), JSON.stringify(chip));
+    await pick("Q12"); await page.click("#choices .choice.rec"); const n0 = (await events()).length;
+    await page.click("[data-save]"); await page.waitForSelector("#dlg[open]");
+    const d1 = await dialog();
+    ok("#9709: Save on a blocked question opens the confirm dialog with Go to and Answer anyway, and sends nothing yet", d1.title === "Q12 depends on Q11, which is still open." && d1.ok === "Go to Q11" && d1.alt === "Answer anyway" && (await events()).length === n0, JSON.stringify(d1));
+    await page.click("#dlgOk"); await page.waitForTimeout(300);
+    const at = await page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || null);
+    ok("#9709: Go to opens the open prerequisite and saves nothing", at === "Q11" && (await events()).length === n0, at);
+    await pick("Q12"); await page.click("#choices .choice.rec"); await page.click("[data-save]"); await page.waitForSelector("#dlg[open]");
+    await page.click("#dlgAlt"); await page.waitForTimeout(900);
+    const ev = await events(), last = ev[ev.length - 1] || {};
+    ok("#9709: Answer anyway saves the decision with outOfOrder naming the open prerequisite", ev.length === n0 + 1 && last.id === "Q12" && last.kind === "accept" && JSON.stringify(last.outOfOrder) === '["Q11"]', JSON.stringify(last));
+  }
+  if (PHASE === 14) { // #9709: the shell set frontierLock hard in the data dir's settings.json; Q11 is still open
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q12"); await page.click("#choices .choice.rec"); await page.fill("#note", "Why does this wait on the rollout?"); await page.waitForTimeout(150);
+    const ctl = await page.evaluate(() => { const on = s => { const e = document.querySelector(s); return e ? !e.disabled : null; }; return {save: on("[data-save]"), ask: on('#talkRow [data-act="ask"]'), rephrase: on('#talkRow [data-act="rephrase"]'), research: on('#talkRow [data-research="research"]'), hint: document.getElementById("saveHint").textContent}; });
+    ok("#9709: under hard, Save is disabled and names the lock while Ask, Rephrase and Research this stay enabled", ctl.save === false && ctl.ask === true && ctl.rephrase === true && ctl.research === true && ctl.hint === "Locked: answer Q11 first", JSON.stringify(ctl));
+    const n0 = (await events()).length;
+    await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForSelector("#dlg[open]");
+    const d2 = await dialog();
+    ok("#9709: Ctrl+Enter under hard offers Go to and no Answer anyway, and sends nothing", d2.title === "Q12 depends on Q11, which is still open." && d2.ok === "Go to Q11" && d2.alt === null && (await events()).length === n0, JSON.stringify(d2));
+    await page.click("#dlgCancel"); await page.waitForTimeout(150);
+    const res = await post({id: "Q12", kind: "accept", alt: null, text: "", outOfOrder: ["Q11"]}), body = await res.json();
+    ok("#9709: under hard the server answers a decision ahead of an open prerequisite 409 blocked", res.status() === 409 && body.error === "blocked" && JSON.stringify(body.waitsOn) === '["Q11"]', res.status() + " " + JSON.stringify(body));
+    await page.click('#talkRow [data-act="ask"]'); await page.waitForTimeout(800);
+    const ev = await events(), last = ev[ev.length - 1] || {};
+    ok("#9709: Ask still sends under hard", ev.length === n0 + 1 && last.id === "Q12" && last.kind === "ask", JSON.stringify(last));
+    await post({id: "Q11", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(600);
+    const q12 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q12") || {};
+    ok("#9709: deciding the prerequisite marks the out-of-order answer stale", q12.state === "stale", q12.state);
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

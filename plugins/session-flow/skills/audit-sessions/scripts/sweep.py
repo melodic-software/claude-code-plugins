@@ -11,7 +11,9 @@
 Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
 raise one finding listing every session above the threshold (the markdown report names the worst
-few); a null threshold reports only.
+few); a null threshold reports only. Each metric also reports this store's p90 beside the shipped
+threshold and is marked `baseline_stale` when that p90 exceeds the rules file's `stale_p90_factor`
+times the threshold; the mark is advisory and leaves the exit code unchanged.
 Metrics and findings cover interactive sessions: a session whose stored entrypoints are all
 headless or Agent SDK ones (`census.session_class`) is set aside and counted, one with no known
 entrypoint is kept and counted, and the drift check reads every record. A
@@ -122,14 +124,30 @@ def _churn(records: list[dict]) -> list[tuple[int, dict]]:
 PER_TICKET = {"edits.churn_per_pr": _churn}
 
 
-def load_rules(path: Path) -> list[dict]:
+def load_rules(path: Path) -> dict:
     rules = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(rules, dict) or rules.get("schema") != RULES_SCHEMA:
         raise ValueError(f"{path}: not an {RULES_SCHEMA} file")
+    factor = rules.get("stale_p90_factor")
+    if not isinstance(factor, (int, float)) or isinstance(factor, bool) or factor < 1:
+        raise ValueError(f"{path}: stale_p90_factor must be a number of 1 or more")
     unknown = [r.get("metric") for r in rules["rules"] if r.get("metric") not in {**PER_SESSION, **MACHINE_WIDE, **PER_TICKET}]
     if unknown:
         raise ValueError(f"{path}: no extractor for metrics {unknown}")
-    return rules["rules"]
+    return rules
+
+
+def p90(values: list[float]) -> float | None:
+    """collect.py's `_percentile` rule, so a store p90 reads like a stored one."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, int(round(0.9 * (len(ordered) - 1))))]
+
+
+def baseline_stale(store_p90: float | None, threshold: float | None, factor: float) -> bool:
+    """The rules file's recheck trigger: one-sided, so a threshold of 0 fires on any p90 above 0."""
+    return store_p90 is not None and threshold is not None and store_p90 > factor * threshold
 
 
 def in_window(record: dict, since: date | None, until: date | None) -> bool:
@@ -157,7 +175,7 @@ def impact(unit: str, excess: float) -> dict | None:
     return None
 
 
-def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
+def build_data(records, rules, drift, fed, scope, window, catalog, factor) -> dict:
     degraded = set(drift["degraded_metrics"])
     metrics, findings, unchecked = {}, [], []
     for rule in rules:
@@ -172,16 +190,19 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
                 per = [(v, {"session_id": r["session_id"]}) for r in records if (v := PER_SESSION[metric](r)) is not None]
             value, n = (statistics.median(v for v, _ in per) if per else None), len(per)
         if metric in degraded:
-            metrics[metric] = {"value": None, "unit": unit, "n": n, "degraded": True}
+            metrics[metric] = {"value": None, "unit": unit, "n": n, "p90": None, "threshold": threshold, "baseline_stale": False, "degraded": True}
             unchecked.append({"what": metric, "reason": "unavailable: a drift canary feeding it is lost"})
             continue
-        metrics[metric] = {"value": value, "unit": unit, "n": n}
+        store_p90 = p90([v for v, _ in per])
+        stale = baseline_stale(store_p90, threshold, factor)
+        metrics[metric] = {"value": value, "unit": unit, "n": n, "p90": store_p90, "threshold": threshold, "baseline_stale": stale}
         if metric not in fed:
             unchecked.append({"what": metric, "reason": "drift not checked: no canary feeds this metric"})
         if rule.get("caveat"):
             unchecked.append({"what": metric, "reason": rule["caveat"]})
         if threshold is None:
-            unchecked.append({"what": metric, "reason": f"reported only, no threshold: {rule['basis']}"})
+            reason = f"reported only, no threshold (basis measured on the reference machine, not this store): {rule['basis']}"
+            unchecked.append({"what": metric, "reason": reason})
             continue
         over = sorted(((v, e) for v, e in per if v > threshold), key=lambda p: (-p[0], *_evidence_key(p[1])))
         if not over:
@@ -211,6 +232,7 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
     return {
         "window": {**window, "sessions": len(records), "cc_versions": versions},
         "scope": scope,
+        "stale_p90_factor": factor,
         "metrics": metrics,
         "findings": findings,
         "drift": {k: drift[k] for k in ("window", "counts", "changes", "degraded_metrics")},
@@ -311,10 +333,28 @@ def render_md(data: dict) -> str:
         n = window["unclassified"]
         sessions += f"; {n} session{'s' * (n != 1)} without an entrypoint kept"
     lines = [f"# Session audit ({data['scope']})", "", sessions, ""]
-    lines += ["## Metrics", "", "| Metric | Value | Statistic | Unit | n |", "|---|---|---|---|---|"]
+    lines += [
+        "## Metrics",
+        "",
+        "| Metric | Value | Statistic | Store p90 | Threshold | Unit | n |",
+        "|---|---|---|---|---|---|---|",
+    ]
     for metric, row in data["metrics"].items():
         value = "unavailable (canary lost)" if row.get("degraded") else _fmt(row["value"])
-        lines.append(f"| `{metric}` | {value} | {STATISTIC.get(metric, 'median')} | {row['unit']} | {row['n']} |")
+        store_p90 = _fmt(row.get("p90")) + (" (stale baseline)" if row.get("baseline_stale") else "")
+        lines.append(
+            f"| `{metric}` | {value} | {STATISTIC.get(metric, 'median')} | {store_p90} | {_fmt(row.get('threshold'))} | "
+            f"{row['unit']} | {row['n']} |"
+        )
+    stale = [metric for metric, row in data["metrics"].items() if row.get("baseline_stale")]
+    if stale:
+        lines += [
+            "",
+            f"Stale baseline: this store's p90 exceeds {_fmt(data['stale_p90_factor'])} times the shipped threshold for "
+            + ", ".join(f"`{m}`" for m in stale)
+            + ". The thresholds are a reference machine's baseline (`reference/sweep-rules.json`), so a finding on"
+            " these metrics may flag normal use here. Advisory: it does not change the exit code.",
+        ]
     lines += ["", "## Findings", ""]
     if data["findings"]:
         lines += ["| Lens | Metric | Worst | Threshold | Over | Route | Suggested |", "|---|---|---|---|---|---|---|"]
@@ -435,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         records, skipped = census.load_records(data_dir)
         canaries = census.load_canaries(Path(args.canaries))["canaries"]
-        rules = load_rules(BUNDLED_RULES)
+        rules_file = load_rules(BUNDLED_RULES)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return emit("json", "error", str(exc), {}, 2)
     if skipped:
@@ -465,7 +505,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     fed = {metric for canary in canaries for metric in canary["feeds"]}
     catalog = {name.lstrip("/") for name in args.catalog} if args.catalog else None
-    data = build_data(records, rules, drift, fed, scope, window, catalog)
+    data = build_data(records, rules_file["rules"], drift, fed, scope, window, catalog, rules_file["stale_p90_factor"])
     summary = f"{len(records)} sessions, {len(data['findings'])} findings"
     if classes["automated"]:
         summary += f"; {classes['automated']} automated set aside"

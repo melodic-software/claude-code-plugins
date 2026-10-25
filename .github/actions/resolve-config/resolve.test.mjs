@@ -38,7 +38,6 @@ const FACTS = {
   event: "synchronize",
   changedPaths: ["src/app.js"],
   labels: [],
-  workClasses: [],
 };
 
 const files = (config, overrides = {}) => ({
@@ -355,6 +354,8 @@ const LIMITS = {
   "admission-factor": 0.8,
   // The release-point floor the owner chose (2026-10-21 interview).
   "admission-min-per-hour": 1,
+  // Passed through as set; rate-guard.mjs fills it from the schema's defaults.
+  api: {},
 };
 
 test("limits: a config with no limits leaf resolves today's thirteen values", () => {
@@ -366,6 +367,20 @@ test("limits: a set leaf overrides its default and leaves the others", () => {
     doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 };
   });
   assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 });
+});
+
+test("limits: api passes through as set, and an unknown pool or field, or a share past 1, is rejected", () => {
+  const api = { "lanes-app": { "read-floor": 0.3 }, "content-creation": { "per-minute": 40 } };
+  const config = edited((doc) => {
+    doc.limits = { api };
+  });
+  assert.deepEqual(run(config).limits.api, api);
+  for (const bad of [{ search: {} }, { graphql: { floor: 0.1 } }, { graphql: { breaker: 1.5 } }, { "github-token": { "per-hour": 10 } }]) {
+    const rejected = edited((doc) => {
+      doc.limits = { api: bad };
+    });
+    assertRejected(() => run(rejected), "invalid-config");
+  }
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
@@ -523,11 +538,10 @@ test("a paths miss gives not-applicable-paths", () => {
   );
 });
 
-test("a label, event or work-class miss gives not-applicable", () => {
+test("a label or event miss gives not-applicable", () => {
   for (const predicate of [
     { labels: ["security"] },
     { events: ["push"] },
-    { "work-classes": ["C3"] },
   ]) {
     const config = edited((doc) => {
       doc.activities["run-tests"]["applies-when"] = predicate;
@@ -582,11 +596,10 @@ test("with an activity, neededFacts names only what the selected slot reads", ()
 test("with an activity, another slot's undecidable predicate leaves that slot undecided", () => {
   const config = edited((doc) => {
     doc.activities["measure-coverage"]["applies-when"] = {
-      "work-classes": ["C1"],
+      draft: [false],
     };
   });
   const facts = { ...FACTS };
-  delete facts.workClasses;
   const resolved = run(config, { activity: "run-tests", facts });
   assert.deepEqual(
     [resolved.selected.applies, resolved.selected["skip-reason"]],
@@ -596,7 +609,7 @@ test("with an activity, another slot's undecidable predicate leaves that slot un
   assert.deepEqual([other.applies, other["skip-reason"]], [null, null]);
   assert.throws(
     () => run(config, { activity: "measure-coverage", facts }),
-    /work/i,
+    /needs draft/,
   );
 });
 
@@ -1539,7 +1552,6 @@ const EXAMPLE_FACTS = {
   changedPaths: ["README.md"],
   changedTargets: ["README.md"],
   labels: [],
-  workClasses: [],
   mergeable: "conflicting",
   draft: false,
 };

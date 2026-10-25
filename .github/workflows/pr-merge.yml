@@ -212,10 +212,18 @@ jobs:
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
           rerun=$(jq -r '[.reruns[]? | select(.laneDispatched == true) | .runId][0] // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true)
           echo "lane-rerun=$rerun" >>"$GITHUB_OUTPUT"
+          # The report kept below: the check's JSON, its exit code and the
+          # lane records it read and proved.
+          kept=$RUNNER_TEMP/post-merge-report
+          mkdir -p "$kept"
+          cp "$RUNNER_TEMP/post-merge.json" "$kept/post-merge.json"
+          echo "$code" >"$kept/post-merge-code"
+          [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
 
       # The check's report for this run's enable-auto-merge job, which reads
-      # the lane's room from it instead of running the check again. That job
-      # downloads it from this run only.
+      # the lane's room from it, and its merge job, which reuses it while it
+      # judged main at that job's commit: neither runs the check again. They
+      # download it from this run only.
       - name: Keep the post-merge report for enable-auto-merge
         if: steps.post-merge.conclusion == 'success'
         continue-on-error: true
@@ -223,7 +231,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-post-merge-report
-          path: ${{ runner.temp }}/post-merge.json
+          path: ${{ runner.temp }}/post-merge-report/
           retention-days: 1
           if-no-files-found: error
 
@@ -692,12 +700,17 @@ jobs:
       # pr-merge-gate-cursor artifact) and wraps round: every candidate is
       # reached across runs. The cursor sets only the order; any error
       # leaves the listing order. Rules: .github/scripts/pr-merge/rotation.mjs.
+      # This read, the head-ref map's and the lane records' share main's run
+      # listing, each run's artifact list and each compare through
+      # PR_MERGE_READS_PATH (rotation.mjs sharedReads); each still picks and
+      # checks its own run and file.
       - name: Start after the candidate the last run reached
         if: steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/rotation.mjs
 
       # The head ref each untied pr-verify FAIL's verdict.json records, by
@@ -712,6 +725,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
       # The verdict reads that never change (FAIL run records, FAIL head refs,
@@ -754,6 +768,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
 
       # The post-merge check, read-only, on every run whether or not any PR is
@@ -769,6 +784,25 @@ jobs:
       # failed listing nor a long gate loop holds that run back. Read-only,
       # so it reads with this job's own token, off the lane App's quota; only
       # --remediate below needs the lane token.
+      # The same check of this run's post-merge-dispatch job, with the same
+      # inputs, is reused instead when it judged (exit 0, 1 or 5) main at this
+      # job's commit under REUSE_MINUTES ago: its report, exit code and lane
+      # records. That job starts at once and this one waits on its group, so
+      # its report is usually kept by the time this step starts; with none,
+      # or any other, this job runs the check. A pattern, not a name: a
+      # pattern that matches nothing downloads nothing and does not fail.
+      - name: Read this run's post-merge report
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pr-merge-post-merge-report
+          merge-multiple: true
+          path: ${{ runner.temp }}/post-merge-kept
+
       - name: Check earlier lane merges
         id: post-merge
         if: steps.lane-token.outputs.token != ''
@@ -777,13 +811,32 @@ jobs:
           API_BUDGET_TOKEN: github-token
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
+          REUSE_MINUTES: 6
         run: |
           set -euo pipefail
-          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          code=0
-          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
-            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          kept=$RUNNER_TEMP/post-merge-kept
+          code=
+          if [ -f "$kept/post-merge.json" ] && [ -f "$kept/post-merge-code" ]; then
+            kept_code=$(cat "$kept/post-merge-code")
+            kept_main=$(jq -r '.shared.mainSha // ""' "$kept/post-merge.json" 2>/dev/null || true)
+            computed=$(jq -r '.shared.computedAt // ""' "$kept/post-merge.json" 2>/dev/null || true)
+            at=$(date -d "${computed:-unset}" +%s 2>/dev/null || echo 0)
+            age=$(($(date +%s) - at))
+            if [[ $kept_code =~ ^[015]$ ]] && [ "$at" != 0 ] && ((age >= 0 && age < REUSE_MINUTES * 60)) &&
+              [ "$kept_main" = "$(git -C .base rev-parse HEAD)" ]; then
+              cp "$kept/post-merge.json" "$RUNNER_TEMP/post-merge.json"
+              [ ! -f "$kept/lane-records.json" ] || cp "$kept/lane-records.json" "$RUNNER_TEMP/lane-records.json"
+              code=$kept_code
+              echo "::notice::post-merge-dispatch's check judged main at $kept_main ${age}s ago (exit $code); reused, not run again"
+            fi
+          fi
+          if [ -z "$code" ]; then
+            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+            code=0
+            python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+              </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          fi
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
           echo "::endgroup::"
@@ -1005,7 +1058,10 @@ jobs:
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
               --postmerge-result "$RUNNER_TEMP/post-merge.json" "${cap[@]}" \
-              --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
+              --expected-head "$head" "$REPO#$number" </dev/null >"$out" 2> >(tee "$out.err" >&2) || code=$?
+            wait $! || true
+            # Its gh invocations, from the babysit-gh-calls lines it printed.
+            calls=$(sed -n 's/^babysit-gh-calls //p' "$out.err" | jq -s 'map(.total) | add') || calls=null
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
             echo "::endgroup::"
@@ -1015,8 +1071,8 @@ jobs:
             # Keep only the verdict fields; a gate that printed no JSON object
             # is recorded as an error with its exit code.
             jq -e 'type == "object"' "$out" >/dev/null 2>&1 || echo '{"error": "gate printed no JSON"}' >"$out"
-            jq -c --argjson n "$number" --arg head "$head" --arg updated "$updated" --argjson code "$code" '
-              {pr: $n, head: $head, updatedAt: $updated, exit: $code,
+            jq -c --argjson n "$number" --arg head "$head" --arg updated "$updated" --argjson code "$code" --argjson calls "${calls:-null}" '
+              {pr: $n, head: $head, updatedAt: $updated, exit: $code, calls: $calls,
                ready: (.ready == true), enqueued: (.enqueued == true), merged: (.merged == true),
                reportOnly: .unattended.reportOnly, reason: (.unattended.reason // .error),
                dispatched: .unattended.dispatched, blockers: (.blockers // [])}
@@ -1350,13 +1406,17 @@ jobs:
     # !cancelled() runs this one anyway.
     needs: [post-merge-dispatch]
     # An issue run that skipped every job (a label other than agent-ready)
-    # opened nothing.
+    # opened nothing. A pull request event wakes it only for a lanes App pull
+    # request (its author's id is AUTOMATION_LANES_APP_SENDER_ID), the only
+    # kind it arms: any other event's job is skipped before it joins the
+    # group, so its check reads skipped, never pending behind the queue.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'skipped')
       && (github.event_name != 'pull_request_target'
-      || github.event.pull_request.head.repo.full_name == github.repository)
+      || (github.event.pull_request.head.repo.full_name == github.repository
+      && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID))
     # A pending run is never replaced: a cancelled run leaves a CANCELLED
     # check on the pull request that woke it.
     concurrency:
@@ -1420,9 +1480,27 @@ jobs:
             echo "proceed=false" >>"$GITHUB_OUTPUT"
           fi
 
+      # The merge job's skip, for this job's group: when another run's
+      # enable-auto-merge job still waits and does all this one would (a
+      # scheduled or hand-started run arms, every run disarms on a hold), this
+      # run ends green here with a notice before it takes the lane token or
+      # reads anything else, so a backlog costs one pass and no run is
+      # cancelled. Any error leaves superseded unset and the job runs.
+      # Rules: .github/scripts/pr-merge/superseded.mjs.
+      - name: Check for a newer run that does this work
+        id: superseded
+        if: steps.who.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          SUPERSEDED_JOB: enable-auto-merge
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/pr-merge/superseded.mjs
+
       - name: Resolve the config
         id: config
-        if: steps.who.outputs.proceed == 'true'
+        if: steps.who.outputs.proceed == 'true' && steps.superseded.outputs.superseded != 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-merge
@@ -1455,6 +1533,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
       - name: Restore the verdict reads the last gate run kept
@@ -1508,6 +1587,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
 
       # While merge.report-only is anything but false it reports each

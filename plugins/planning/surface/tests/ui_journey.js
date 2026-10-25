@@ -447,7 +447,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the summary reads All answered once the research returns", (await text("#dscroll .done-h")) === "All answered", await text("#dscroll .done-h"));
 
     // no watcher has polled since phase 1: calm while nothing waits on Claude, a prompt once something does
-    const calm = await until(() => document.getElementById("pill").textContent === "Idle", 40000);
+    // the 180 s reading window after phase 1's delivery shows Claude is working; Idle follows once it ends
+    const lis = (await state()).listener, readLeft = lis.lastDeliverAt ? (lis.lastDeliverAt + 180) * 1000 - Date.now() : 0;
+    const calm = await until(() => document.getElementById("pill").textContent === "Idle", Math.max(40000, readLeft + 5000));
     ok("with nothing pending and no watcher the pill reads Idle, not an error", calm && await page.$eval("#pill", el => el.className === "pill rest" && el.getAttribute("aria-live") === "off"), await text("#pill"));
     await post({kind: "note", text: "Anything else?"});
     const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);

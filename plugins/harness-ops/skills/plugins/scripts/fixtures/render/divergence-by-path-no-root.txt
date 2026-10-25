@@ -1,0 +1,9 @@
+Marketplace: m: current (autoUpdate: on)
+In-repo: skipped: no project context resolved from /w
+Divergences: 6 actionable elsewhere on this machine → run `/harness-ops:plugins converge` (of 6 in all: 6 pre-existing, 0 newly created by this run (0 by the in-repo update, 0 by the user-scope sweep))
+  - /w/a: 5 diverging record(s): a@m, b@m, c@m, +2 more
+  - /w/b: 2 diverging record(s): a@m, f@m
+Timing: 1s this marketplace; clock resolution: seconds
+
+Run journal: /r
+Timing: 1s run total; clock resolution: seconds

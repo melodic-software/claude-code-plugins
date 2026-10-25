@@ -2539,6 +2539,124 @@ class TestArchivedPrerequisiteIsMet(OpsCase):
         self.assertEqual(data["skipped"], [{"id": "D", "reason": "ineligible"}])
 
 
+class TestFrontierLockConfirm(OpsCase):
+    """frontierLock confirm, the default: a decision ahead of an open prerequisite saves, the
+    event keeps the outOfOrder the page sent, and the prerequisite's first decision marks the
+    dependent stale."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("Q22"),
+            question("Q100", dependsOn=["Q22"]),
+            question("Q7"),
+            question("Q8", dependsOn=["Q7"]),
+        )
+
+    def event(self, seq):
+        return next(e for e in self.state()["responses"]["events"] if e["seq"] == seq)
+
+    def test_1_answer_anyway_is_stored_and_the_prerequisite_stales_it(self):
+        self.assertEqual(self.state()["settings"]["frontierLock"]["value"], "confirm")
+        seq = self.decide("Q100", outOfOrder=["Q22"])
+        self.assertEqual(self.event(seq)["outOfOrder"], ["Q22"])
+        self.assertEqual(self.states()["Q100"], "open")
+        self.decide("Q22")
+        self.assertEqual(self.states()["Q100"], "stale")
+
+    def test_2_it_stays_owed_after_the_dependency_is_dropped(self):
+        self.decide("Q8", outOfOrder=["Q7"])
+        rc, out = self.rp("revise", "Q8", "--depends", "none")
+        self.assertEqual(rc, 0, out)
+        self.decide("Q7")
+        self.assertEqual(self.states()["Q8"], "stale")
+
+    def test_3_only_open_prerequisites_are_kept_and_a_bad_list_is_400(self):
+        seq = self.decide("Q22", "alt", alt="a", outOfOrder=["Q7"])
+        self.assertNotIn("outOfOrder", self.event(seq), "Q22 has no prerequisite")
+        code, data = self.post({"id": "Q100", "kind": "accept", "outOfOrder": "Q22"})
+        self.assertEqual(code, 400, data)
+
+    def test_4_the_log_rebuilds_and_validates(self):
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
+class TestFrontierLockHard(OpsCase):
+    """frontierLock hard: every decision ahead of an open prerequisite is 409 blocked, naming
+    the open ids; Ask, Rephrase and Research this still save, and a met prerequisite (decided,
+    archived or superseded) lets the decision through."""
+
+    @classmethod
+    def prepare(cls):
+        gone = {"why": "Off the path.", "at": "2026-09-24T10:00:00Z"}
+        seed_questions(
+            cls.dir,
+            question("Q21"),
+            question("Q22"),
+            question("Q23", archived=gone),
+            question("Q24", supersededBy="Q22"),
+            question("Q25"),
+            question("Q100", dependsOn=["Q21", "Q22", "Q23", "Q24", "Q25"]),
+            question("Q26", waiting=True, waitsOn="the benchmark"),
+            question("Q101", dependsOn=["Q26"]),
+        )
+        (cls.dir / "settings.json").write_text(
+            json.dumps(
+                {
+                    "settleQuiet": FAST_QUIET,
+                    "settleBurst": FAST_BURST,
+                    "frontierLock": "hard",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_1_a_decision_ahead_of_open_prerequisites_is_409_blocked(self):
+        self.decide("Q22")
+        decisions = (
+            ("accept", {}),
+            ("alt", {"alt": "a"}),
+            ("own", {"text": "Mine."}),
+            ("defer", {}),
+            ("hedged", {"text": "If it holds."}),
+        )
+        for kind, extra in decisions:
+            code, data = self.post(
+                {"id": "Q100", "kind": kind, "outOfOrder": ["Q21", "Q25"], **extra}
+            )
+            self.assertEqual(code, 409, (kind, data))
+            self.assertEqual(data, {"error": "blocked", "waitsOn": ["Q21", "Q25"]})
+        self.assertFalse(
+            any(e.get("id") == "Q100" for e in self.state()["responses"]["events"])
+        )
+
+    def test_2_ask_rephrase_and_research_still_save(self):
+        requests = (("ask", "Why does this wait?"), ("rephrase", ""), ("research", ""))
+        for kind, text in requests:
+            code, data = self.post({"id": "Q100", "kind": kind, "text": text})
+            self.assertEqual(code, 200, (kind, data))
+
+    def test_3_once_every_live_prerequisite_is_decided_the_decision_saves(self):
+        self.decide("Q21")
+        code, data = self.post({"id": "Q100", "kind": "accept"})
+        self.assertEqual((code, data), (409, {"error": "blocked", "waitsOn": ["Q25"]}))
+        self.decide("Q25")
+        seq = self.decide("Q100")
+        event = next(e for e in self.state()["responses"]["events"] if e["seq"] == seq)
+        self.assertNotIn("outOfOrder", event)
+
+    def test_4_accept_audit_leaves_out_a_question_whose_prerequisite_is_held(self):
+        self.decide("Q26")  # answered anyway while its research hold stands
+        items = [{"id": "Q101", "contentRev": 0}]
+        code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
+        skipped = [{"id": "Q101", "reason": "ineligible"}]
+        self.assertEqual(
+            (code, data), (409, {"error": "nothing accepted", "skipped": skipped})
+        )
+
+
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):
     @classmethod
     def prepare(cls):
@@ -2623,6 +2741,8 @@ class TestSettingsLayers(ServerCase):
             "leaseTimeout": 600,
             "settleQuiet": 10.0,
             "settleBurst": 30.0,
+            "frontierLock": "confirm",
+            "requireDepends": False,
         }
         self.assertEqual({k: v["value"] for k, v in s.items()}, want)
         self.assertEqual({v["layer"] for v in s.values()}, {"default"})

@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
+import { MAX_THREADS } from "./adjudicate-feedback.mjs";
 
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
@@ -224,6 +225,7 @@ const JOBS = [
   "address-feedback-handoff",
   "address-feedback-subscription",
   "apply-feedback-patch",
+  "adjudicate-feedback",
   "publish-feedback",
 ];
 
@@ -232,7 +234,7 @@ const JOBS = [
 // too, so the push and the reply would never run.
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
   const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription"));
-  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "apply-feedback-patch", "publish-feedback"]);
+  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "apply-feedback-patch", "adjudicate-feedback", "publish-feedback"]);
   for (const job of [...after, "address-feedback", "address-feedback-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -243,10 +245,80 @@ test("pr-unblock.yml: every address-feedback job after a model call starts its i
 // round still posts its marker, so the round cap holds.
 test("pr-unblock.yml: publish-feedback runs exactly when the select job proceeded, whatever a model call reports", () => {
   const { gate, needs } = jobGate(UNBLOCK, "publish-feedback");
-  assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "apply-feedback-patch"]);
+  assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "apply-feedback-patch", "adjudicate-feedback"]);
   // The evaluator refuses any reference left unset: the gate reads nothing else.
   for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
     assert.equal(evaluate(gate, { "needs.address-feedback-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+});
+
+// The post-hoc review of #9565: the job checked out, set up and staged on
+// every round, though only an INCORRECT reply gives it work. Skipping it is
+// fail-closed: an INCORRECT reply with no verdict escalates
+// feedback-unadjudicated (adjudicate-feedback.mjs settleDisputes).
+test("pr-unblock.yml: adjudicate-feedback runs on an INCORRECT reply from the leg that answered, whatever its patch", () => {
+  const { gate } = jobGate(UNBLOCK, "adjudicate-feedback");
+  const runs = (proceed, subResult, replies, disputed = "true", other = "") =>
+    evaluate(gate, {
+      "needs.address-feedback-select.outputs.proceed": proceed,
+      "needs.address-feedback-subscription.result": subResult,
+      "needs.address-feedback-subscription.outputs.feedback-attempt": subResult === "skipped" ? "" : replies,
+      "needs.address-feedback.outputs.feedback-attempt": subResult === "skipped" ? replies : "",
+      "needs.address-feedback-subscription.outputs.feedback-disputed": subResult === "skipped" ? other : disputed,
+      "needs.address-feedback.outputs.feedback-disputed": subResult === "skipped" ? disputed : other,
+    });
+  assert.equal(runs("true", "skipped", "1"), true, "the key call's INCORRECT reply");
+  assert.equal(runs("true", "success", "1"), true, "the subscription call's INCORRECT reply after a handoff");
+  assert.equal(runs("true", "skipped", "1", ""), false, "replies with no INCORRECT one");
+  assert.equal(runs("true", "success", "1", "", "true"), false, "the other leg's INCORRECT reply never counts");
+  assert.equal(runs("true", "skipped", ""), false, "no replies");
+  assert.equal(runs("false", "skipped", "1"), false, "a select job that did not proceed");
+});
+
+// prepare's contents reads go through request-budget.mjs, which records each
+// reading under API_BUDGET_TOKEN; the job ends by logging them.
+test("pr-unblock.yml: adjudicate-feedback logs the API budget its prepare step spends", () => {
+  const block = jobBlock(UNBLOCK, "adjudicate-feedback").join("\n");
+  assert.match(block, /\n {6}- name: Stage the disputed threads\n(?: {8}.*\n)*? {10}API_BUDGET_TOKEN: github-token\n/);
+  assert.match(block, /\n {6}- name: Log the API budget at the end\n {8}if: always\(\)\n {8}continue-on-error: true\n(?: {8}.*\n)*? {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget.*\n {8}with:\n {10}tokens: github-token\n/);
+});
+
+// adjudicate-feedback.mjs stages up to MAX_THREADS slots, and the job has one
+// stage, judge and keep step per slot; a slot with no steps would read as
+// unadjudicated with no error.
+test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each with the same grants", () => {
+  const steps = [];
+  for (const line of jobBlock(UNBLOCK, "adjudicate-feedback")) {
+    if (line.startsWith("      - ")) steps.push([]);
+    steps.at(-1)?.push(line);
+  }
+  const field = (step, key) => step.find((line) => line.startsWith(`        ${key}: `))?.slice(`        ${key}: `.length);
+  const nameOf = (step) => step[0].slice("      - name: ".length);
+  const gateOf = (step) => ifAt(step, step.findIndex((line) => line.startsWith("        if: ")), 8);
+  const slotOf = (step) => /\/adjudicate\/(\d+)$/.exec(step.find((line) => line.includes("SLOT_DIR:")) ?? "")?.[1];
+  const judges = steps.filter((step) => /run-claude-cli@/.test(field(step, "uses") ?? ""));
+  const slots = Array.from({ length: MAX_THREADS }, (_, n) => n);
+  assert.deepEqual(judges.map((step) => field(step, "id")), slots.map((n) => `judge-${n}`));
+  for (const n of slots) {
+    const stage = steps.find((step) => nameOf(step) === `Stage disputed thread ${n}`);
+    const judge = judges[n];
+    const keep = steps.find((step) => nameOf(step) === `Keep disputed thread ${n}'s verdict`);
+    const counted = `steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
+    assert.equal(gateOf(stage), counted, `stage ${n}`);
+    assert.equal(gateOf(judge), counted, `judge ${n}`);
+    assert.equal(gateOf(keep), `always() && steps.judge-${n}.outputs.structured-output-file != ''`, `keep ${n}`);
+    assert.equal(slotOf(stage), String(n), `stage ${n} copies its own slot`);
+    assert.equal(slotOf(keep), String(n), `keep ${n} writes its own slot`);
+  }
+  const withOf = (step) => step.slice(step.indexOf("        with:")).join("\n");
+  for (const judge of judges.slice(1)) {
+    assert.equal(withOf(judge), withOf(judges[0]), "every slot's model call has the same inputs and grants");
+  }
+  assert.match(withOf(judges[0]), /\n {10}allowed-tools: Read\(\.\/adjudicate\/\*\*\)\n/, "Read is allowed in the slot alone");
+  assert.match(withOf(judges[0]), /\n {10}tools: Read\n/, "the judge's one tool is Read");
+  const denied = withOf(judges[0]).match(/\n {10}disallowed-tools: \|\n((?: {12}.*\n)+)/)?.[1].trim().split(/\n\s*/) ?? [];
+  for (const rule of ["Read(./.base/**)", "Read(/${{ runner.temp }}/**)", "Glob", "Grep", "mcp__*", "Bash", "WebFetch"]) {
+    assert.ok(denied.includes(rule), `the judge denies ${rule}`);
   }
 });
 

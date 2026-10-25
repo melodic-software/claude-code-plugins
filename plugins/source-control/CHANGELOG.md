@@ -3,6 +3,36 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.0] - 2026-10-25
+
+### Added
+
+- The pr-merge gate now trusts a verifier pass on a sub-issue that intake's size split filed, under the same rule Issue Triage admits it by. The sub-issue counts when the lanes App wrote it, a listed human filed its native parent in this repository, its body opens with the split header for that parent, every line after the header is one of the parent's trusted task-list lines, and either nobody edited it or a listed human last edited it. On that edited path a line may also be a trusted line with its box ticked (the one `[ ]` of the prefix written `[x]` or `[X]`, indent and text unchanged; a prefix without exactly one `[ ]` takes exact lines only), since GitHub names only the last editor and that edit vouches for ticked boxes, never for other text. A trusted task-list line is a line of the parent's listed-human body or comments that starts with admission's `task-list` prefix, read from `admission-rules.json` at the base branch; a prose line or heading copied from the parent does not count, and a missing or empty prefix counts nothing. An outsider's parent, an edit by anyone else, a line not among the parent's task lines (an unedited ticked box included), or a parent with more than 100 comments leaves it `verify:untrusted-spec`, and a failed read of the sub-issue, its parent or the rules refuses `verify:unreadable`. The gate reads the sub-issue, its parent and the parent's comments in one GraphQL call under the job's Actions token, and the rules once, only for an issue the lanes App wrote. The rule is checked against the shared `split-child.vectors.json` cases.
+
+## [3.0.12] - 2026-10-25
+
+### Changed
+
+- The pr-merge gate and the verifier reader read the pipeline config at a commit once per run: `babysit_merge_policy.config_at` saves each clean read in the run cache keyed by repository and commit, and both the default branch head's config (`with_default_branch`) and `babysit_verify_evidence.py evidence --base-sha` read through it. The default branch head itself is still read live once its two-minute window passes, so a moved head reads its new config; a read with an error or a note is never saved. Each later candidate whose base commit or default branch head was already read skips that read: local git reads where the `.base` clone holds the commit, two lane-token contents reads where it does not. The GITHUB_TOKEN reads, and the per-candidate artifact listing refresh, are unchanged.
+
+## [3.0.11] - 2026-10-25
+
+### Changed
+
+- The babysit risk gate holds `.github/actions/log-api-budget/rate-guard.mjs` on its HIGH floor, since `check-trusted-trigger.mjs`, already on the floor, sends every GitHub call through it.
+
+## [3.0.10] - 2026-10-24
+
+### Fixed
+
+- The post-merge check no longer drops a red job when the jobs API lists its steps empty or cut short. A failed job that lists no failed step now counts as a failing check of its own, as a failed non-hygiene step does, so a job failing only on the gitleaks gate is still charged when its steps are missing. With the full step list, the hygiene-aggregate rule is unchanged. Such a job still excuses no test suite.
+
+## [3.0.9] - 2026-10-24
+
+### Changed
+
+- The review-dependency reference no longer tells the reviewer that a `merge` on an update that changes a workflow or action file goes to a person; the runner now acts on that verdict like any other.
+
 ## [3.0.8] - 2026-10-24
 
 ### Changed
