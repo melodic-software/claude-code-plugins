@@ -41,7 +41,8 @@
 // it applied a class it rewrites the comment's "a maintainer confirms" lines.
 // It writes a native blocked-by edge for each open issue of this repository
 // the verdict names; an edge GitHub answers 403, 429 or 5xx for is missed,
-// named in the summary and an annotation, and a ready verdict then lands
+// named in the summary and an annotation, the edges the run wrote are
+// deleted again, and a ready verdict then lands
 // without `status: ready` and is not admitted, so the hourly triage sweep runs
 // intake again (a 403 also fails the job after every write). Then on
 // `status: ready` it hands the verdict to admit.mjs,
@@ -192,8 +193,8 @@ export function parseVerdict(body, dimensionsConfig, classes) {
       problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS].join(", ")}`);
     }
   }
-  // An unreadable line names no blocker and holds nothing: a missed edge is a
-  // finding for review, not a stop.
+  // An unreadable line names no blocker and holds nothing: an unnamed edge is
+  // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
   return { escalated, workClass, untrusted, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
@@ -464,8 +465,9 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // from the native edges, so a missed one would be invisible to it: a ready
   // verdict then lands without `status: ready` and is not admitted, and the
   // hourly triage sweep (maintenance-audit-lane-runs/triage-sweep.mjs), which
-  // dispatches intake on an issue with no `status:` label, runs it again. A
-  // re-run skips the edges written.
+  // dispatches intake on an issue with no `status:` label, runs it again.
+  // writeEdges deletes the edges this run wrote when any misses, so
+  // work-unblock never reads a partial set; the re-run writes them all.
   const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
   const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
   const add = waits ? plan.add.filter((name) => name !== READY) : plan.add;
@@ -543,7 +545,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     ...(reasonsError ? [`- Reasons comment: not written (${reasonsError})`] : []),
   ].join("\n");
   log(summary);
-  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, missed: edges?.missed ?? [], summary };
+  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, missed: edges?.missed ?? [], undeleted: edges?.undeleted ?? [], summary };
 }
 
 async function removeLabels(github, base, names) {
@@ -561,22 +563,32 @@ async function removeLabels(github, base, names) {
 const edgeSummary = (edges, problem) =>
   [
     ...(edges?.written.length ? [`${edges.written.map((n) => `#${n}`).join(", ")} written`] : []),
+    ...(edges?.unwritten.length ? [`${edges.unwritten.map((n) => `#${n}`).join(", ")} written, then deleted, since an edge missed`] : []),
+    ...undeletedEdges(edges?.undeleted ?? []),
     ...(edges?.skipped ?? []).map(({ number, why }) => `#${number} skipped (${why})`),
     ...missedEdges(edges?.missed ?? []),
     ...(problem ? [problem] : []),
   ].join("; ");
 
 const missedEdges = (missed) => missed.map(({ number, status }) => `#${number} not written (GitHub answered ${status})`);
+const undeletedEdges = (undeleted) => undeleted.map(({ number, status }) => `#${number} written and not deleted (GitHub answered ${status})`);
 
 // The annotation for missed edges, or null. A 403 is a missing permission,
 // which no re-run fixes, or a rate limit: it fails the job, after every write.
-// Either way a ready verdict waits without `status: ready` for the sweep.
-export function missedAnnotation(missed = []) {
+// Either way a ready verdict waits without `status: ready` for the sweep. An
+// edge the run wrote and could not delete after a miss is a partial set
+// work-unblock reads: when that blocker closes first, it can admit the issue.
+export function missedAnnotation(missed = [], undeleted = []) {
   if (missed.length === 0) {
     return null;
   }
-  const edges = missedEdges(missed).join("; ");
-  return missed.some(({ status }) => status === 403)
+  const edges = [
+    ...missedEdges(missed),
+    ...(undeleted.length
+      ? [`${undeletedEdges(undeleted).join("; ")}, so work-unblock can admit the issue when that blocker closes before intake runs again`]
+      : []),
+  ].join("; ");
+  return [...missed, ...undeleted].some(({ status }) => status === 403)
     ? {
         fail: true,
         line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; the lanes App may lack the issues dependencies permission, or a rate limit answered. The verdict's labels are written without ${READY}, and admission waits for intake to run again`,
@@ -705,7 +717,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
       }
-      const missed = missedAnnotation(result.missed);
+      const missed = missedAnnotation(result.missed, result.undeleted);
       if (missed) {
         console.log(missed.line);
         if (missed.fail) {
