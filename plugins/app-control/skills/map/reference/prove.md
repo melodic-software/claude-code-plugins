@@ -28,11 +28,11 @@ from the app argument when `--dir` names another directory:
    `/app-control:drive capture --kind <kind> <slug> --out <dir>` for one artifact, then
    `/app-control:drive cleanup <slug> --out <dir>`.
 
-Step 2's report must carry `No control skill: drive used <fallback>.` or name
-`.claude/skills/control-<slug>` as its control skill. Any other control skill means drive ran
-another app's skill: stop, write nothing, and name that skill. Drive keeps only `control-<slug>`
-when given `<slug>`, so another app's control skill already in `.claude/skills/` is never chosen and
-step 2 runs as written. Step 5's report must name
+Step 2's report must carry `No control skill: drive used <fallback>.`, name
+`.claude/skills/control-<slug>`, or name a plugin's `<plugin>:control-<slug>` as its control skill.
+A plugin's one means a plugin already ships this app's control skill: stop, write nothing, and name
+it. Any other control skill means drive ran another app's skill: stop, write nothing, and name that
+skill. Step 5's report must name
 `.claude/skills/control-<slug>`.
 
 ## Proving
