@@ -3184,10 +3184,12 @@ jobs:
         # next. A stop the file cannot take (no space, no permission) would leave
         # every later call free to reach the exhausted pool. So the step ends there:
         # the error names the pool, API_BUDGET_UNRECORDED refuses every later call in
-        # this shell, and from a subshell the step's shell ($$) is sent TERM. A caller
-        # may hold a subshell's stderr in a file it reads only after the call, so from
-        # a subshell both error lines go to $$'s stderr. Callers must not trap TERM or
-        # run the wrapper under a nested bash -c, whose $$ is the inner shell: either
+        # this shell, and from a subshell every shell from its parent up to the
+        # step's shell ($$) is sent TERM, so no caller's retry loop in a capture
+        # around it sends again. A caller may hold a subshell's stderr in a file it
+        # reads only after the call, so both error lines go to a copy of the stderr
+        # the step had when api_budget_wrap_gh ran. Callers must not trap TERM or run
+        # the wrapper under a nested bash -c, whose $$ is the inner shell: either
         # leaves the step running.
         #
         #   api_budget_classify         jq filter: rate-guard.mjs's classify over
@@ -3252,6 +3254,7 @@ jobs:
 
         api_budget_wrap_gh() {
           API_BUDGET_GH_TOKEN=$1
+          [[ -n ${API_BUDGET_ERR_FD:-} ]] || exec {API_BUDGET_ERR_FD}>&2
           # shellcheck disable=SC2329 # called by the script that sources this file
           gh() {
             local arg out pool rc=0
@@ -3358,9 +3361,18 @@ jobs:
           fi
           API_BUDGET_UNRECORDED=$1
           lines+=("::error::GitHub's $(api_budget_label "$1") stop could not be recorded in $dir; later calls would reach the exhausted pool, so this step ends")
-          # >> and not >: a step stderr that is a file is not truncated.
-          ((BASH_SUBSHELL > 0)) && { printf '%s\n' "${lines[@]}" >>"/proc/$$/fd/2"; } 2>/dev/null || printf '%s\n' "${lines[@]}" >&2
-          ((BASH_SUBSHELL == 0)) || kill -s TERM "$$" 2>/dev/null
+          { printf '%s\n' "${lines[@]}" >&"${API_BUDGET_ERR_FD:-2}"; } 2>/dev/null || printf '%s\n' "${lines[@]}" >&2
+          if ((BASH_SUBSHELL > 0)); then
+            # Each parent up to $$, from /proc/<pid>/stat's ppid; only $$ when the
+            # walk cannot reach it.
+            local pid=$BASHPID stat up=()
+            while ((pid != $$)) && read -r stat 2>/dev/null <"/proc/$pid/stat"; do
+              read -r _ pid _ <<<"${stat##*) }"
+              up+=("$pid")
+            done
+            ((pid == $$)) || up=("$$")
+            kill -s TERM "${up[@]}" 2>/dev/null
+          fi
           exit 1
         }
 
