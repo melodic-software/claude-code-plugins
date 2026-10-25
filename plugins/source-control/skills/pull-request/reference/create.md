@@ -516,9 +516,23 @@ out of the gated content:
 # heredoc, so a `$`-bearing configured ATTRIBUTION value is never re-evaluated.
 [[ -n "$ATTRIBUTION" ]] && printf '\n\n%s\n' "$ATTRIBUTION" >>"$BODY_FILE"
 
-BRANCH=$(git branch --show-current)
+# Read the branch from the checkout §2.4.1 pushed (the same literal absolute
+# path), never the cwd, which can reset to the main checkout.
+BRANCH=$(git -C "<checkout>" branch --show-current)
 if [[ -z "$BRANCH" ]]; then
-  echo "Cannot create PR: not on a named branch (detached HEAD?)." >&2
+  echo "create: '<checkout>' is not on a named branch (detached HEAD?); not creating a PR" >&2
+  exit 1
+fi
+# The default-branch check push-branch.sh makes: <remote>/HEAD, else main and master.
+REMOTE=$(cd "<checkout>" && bash "<skill-dir>/scripts/resolve-remote.sh" --push "$BRANCH") || exit 1
+DEFAULT=$(git -C "<checkout>" symbolic-ref -q "refs/remotes/$REMOTE/HEAD" | tr -d '\r')
+DEFAULT="${DEFAULT#"refs/remotes/$REMOTE/"}"
+if [[ -n "$DEFAULT" && "$BRANCH" == "$DEFAULT" ]]; then
+  echo "create: '$BRANCH' is the default branch of $REMOTE; not creating a PR" >&2
+  exit 1
+fi
+if [[ -z "$DEFAULT" && ("$BRANCH" == main || "$BRANCH" == master) ]]; then
+  echo "create: '$BRANCH' may be the default branch of $REMOTE ($REMOTE/HEAD is unset, so main and master are refused); not creating a PR" >&2
   exit 1
 fi
 ```
