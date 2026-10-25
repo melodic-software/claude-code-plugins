@@ -20,8 +20,9 @@
 //   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
 //   (refinementSpec); and the body of a sub-issue a size split filed, while
-//   unedited and copying only that human's task-list lines verbatim, or last
-//   edited by a listed human (splitChildBody). Nothing else the lanes App wrote counts,
+//   copying only that human's task-list lines verbatim, unedited or last
+//   edited by a listed human who at most ticked boxes (splitChildBody).
+//   Nothing else the lanes App wrote counts,
 //   an App-filed issue included, and an issue with more comments than the
 //   100 pr-verify reads is refused, since pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request in this
@@ -589,13 +590,15 @@ export const splitChildHeader = (parent, part, parts) =>
 // reads it, and the lanes App's id, set only by the reader that read the
 // parent link (admissionFacts, resolve-pr.mjs). It counts when the lanes App
 // wrote the body, the parent was filed by a listed human, the body opens
-// with splitChildHeader for that parent, and either nobody edited it since
-// and every line after the header is one of the parent's trusted task-list
-// lines (trustedTaskLines with `taskList`, the rules' `task-list`; owner
-// decision on #9906), or a listed human last edited it (ticking a task box
-// is an edit), which makes it that human's text as trustedSpecTexts reads
-// any body. An edit by anyone else, the App included, leaves it untrusted,
-// and so does a missing or empty `taskList`. Pure.
+// with splitChildHeader for that parent, and every line after the header is
+// one of the parent's trusted task-list lines (trustedTaskLines with
+// `taskList`, the rules' `task-list`; owner decision on #9906), and either
+// nobody edited it since, or a listed human last edited it and the lines may
+// also be those lines with their box ticked (tickedForms). GitHub names only
+// the last editor, so a listed human's edit after anyone else's vouches for
+// ticked boxes, never for other text. An edit by anyone else, the App
+// included, leaves it untrusted, and so does a missing or empty `taskList`.
+// Pure.
 export function splitChildBody(spec, humans, taskList) {
   const parent = spec?.splitParent;
   const author = spec?.author;
@@ -613,13 +616,23 @@ export function splitChildBody(spec, humans, taskList) {
   if (header === null || !body.startsWith(header)) {
     return null;
   }
-  if (edited) {
-    return body;
-  }
-  const allowed = new Set(trustedTaskLines(parent.spec, humans, taskList));
+  const exact = trustedTaskLines(parent.spec, humans, taskList);
+  const allowed = new Set(edited ? exact.flatMap((line) => [line, ...tickedForms(line, taskList)]) : exact);
   const lines = body.slice(header.length).split("\n");
   return lines.every((line) => allowed.has(line)) ? body : null;
 }
+
+// `line`, a task-list line, with its box ticked: the one `[ ]` in `taskList`
+// written `[x]` or `[X]`, indent and text unchanged. None when `taskList`
+// does not hold exactly one `[ ]`.
+const tickedForms = (line, taskList) => {
+  if (taskList.split("[ ]").length !== 2) {
+    return [];
+  }
+  const indent = line.slice(0, line.length - line.trimStart().length);
+  const text = line.trimStart().slice(taskList.length);
+  return ["[x]", "[X]"].map((box) => indent + taskList.replace("[ ]", box) + text);
+};
 
 // The split record on the second line of the lanes App's SIZE_SPLIT_MARKER
 // comment: the sha256 of the task lines split, the parts (1-based item
