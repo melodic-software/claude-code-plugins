@@ -1712,6 +1712,11 @@ lane rates a change that widens one of these controls CRITICAL (`/review:securit
 - `docs/conventions/pr-pipeline.yaml`
 - `**/CODEOWNERS`
 - `**/.gitmodules`
+- `plugins/review/skills/security-review/**`
+- `plugins/review/evals/security-review-*/**`
+
+The last two, the security review's own criteria and its eval cases, are scrutiny only: ci-status's
+exempt-author check below does not fail on them.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -1736,7 +1741,8 @@ them on every `pull_request` run, contract-only runs included:
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) matches
-  a hold path, since no lane reviews it to hold it; a person merges it. A draft is exempt.
+  a hold path other than the security review's own files, since no lane reviews it to hold it; a
+  person merges it. A draft is exempt.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head

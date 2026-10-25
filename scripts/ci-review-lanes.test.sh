@@ -89,17 +89,18 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
     fail "$file does not grant actions: read to job ${job%:}"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
-  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n.github/actions/resolve-config/**\n.github/actions/request-lane-token/**\n.github/actions/check-kill-switch/**\n.github/actions/log-api-budget/rate-guard.mjs\n.github/scripts/pr-merge/merge-holds.mjs\n.github/scripts/pr-merge/enable-auto-merge.mjs\n.github/workflows/pr-require-checks.yml\nplugins/source-control/skills/babysit-prs/scripts/babysit_risk.py\ndocs/conventions/pr-pipeline.yaml\n**/CODEOWNERS\n**/.gitmodules' ]]; then
-    ok "$file names the thirteen trusted paths"
+  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n.github/actions/resolve-config/**\n.github/actions/request-lane-token/**\n.github/actions/check-kill-switch/**\n.github/actions/log-api-budget/rate-guard.mjs\n.github/scripts/pr-merge/merge-holds.mjs\n.github/scripts/pr-merge/enable-auto-merge.mjs\n.github/workflows/pr-require-checks.yml\nplugins/source-control/skills/babysit-prs/scripts/babysit_risk.py\ndocs/conventions/pr-pipeline.yaml\n**/CODEOWNERS\n**/.gitmodules\nplugins/review/skills/security-review/**\nplugins/review/evals/security-review-*/**' ]]; then
+    ok "$file names the thirteen trusted paths and the security review's own files"
   else
     fail "$file hold-paths are '$paths'"
   fi
 done
 
 # The exempt-author patterns are the callers' hold-paths in bash form: `**/X`
-# is X or */X, a trailing `**` is `*`.
+# is X or */X, a trailing `**` is `*`. The security review's own files are
+# scrutiny only: an exempt author changing them still passes.
 want_patterns="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$ROOT/.github/workflows/pr-review-hosted.yml" |
-  sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
+  grep -v '^plugins/review/' | sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
   ok "the exempt-author hold patterns are the callers' hold-paths"
@@ -353,7 +354,8 @@ for changed in .github/standards/trusted-actors/trusted-actors.json .github/acti
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
 done
-for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml .github/scripts/pr-merge/gate.mjs; do
+for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml .github/scripts/pr-merge/gate.mjs \
+  plugins/review/skills/security-review/SKILL.md plugins/review/evals/security-review-kill-switch-narrowed/prompt.md; do
   STUB_FILES="$(files "$changed")" STUB_CHANGED=1
   AUTHOR_ID=300666570 expect "an exempt author changing $changed passes" 0 "no trust-gate path changed"
 done

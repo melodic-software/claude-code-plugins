@@ -195,7 +195,9 @@ jobs:
       # fails while the label is on. The review holds only for a real-charge
       # cost or a CRITICAL security finding; hold-paths names the files the
       # prompt sends to extra security scrutiny and never holds by itself.
-      # Keep both lists equal in the two callers.
+      # Keep both lists equal in the two callers. ci-status's exempt-author
+      # hold_patterns mirror them, except the security review's own files,
+      # which are scrutiny only.
       hold-label: needs-human
       hold-paths: |
         .github/standards/trusted-actors/**
@@ -211,6 +213,8 @@ jobs:
         docs/conventions/pr-pipeline.yaml
         **/CODEOWNERS
         **/.gitmodules
+        plugins/review/skills/security-review/**
+        plugins/review/evals/security-review-*/**
     # The reviews role's key runs first; its subscription token only after the
     # key hands off. Named secrets only, never `secrets: inherit`.
     secrets:

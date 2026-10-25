@@ -4132,7 +4132,8 @@ jobs:
       # Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
-      # (or a renamed file's old path) matches the callers' hold-paths, since
+      # (or a renamed file's old path) matches the callers' hold-paths (all
+      # but the security review's own files, which are scrutiny only), since
       # no lane is there to hold it as trust-gate; a person merges it. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
@@ -4181,7 +4182,8 @@ jobs:
             done
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
-            # The callers' hold-paths, as bash patterns (`*` crosses `/`).
+            # The callers' hold-paths, as bash patterns (`*` crosses `/`),
+            # less the security review's own files, which are scrutiny only.
             hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/workflows/pr-require-checks.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
