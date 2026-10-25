@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Lowest friction, highest throughput: do reversible, authorized work without asking and report after.",
+      "why": "full"
+    },
+    {
+      "answer": "Act, then report; don't ask before routine reversible steps.",
+      "why": "the posture"
+    },
+    {
+      "answer": "Lowest friction and highest throughput: on reversible, already-authorized work, act without asking, then report what was done.",
+      "why": "meets every part of the criterion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ask the owner before each merge.",
+      "why": "the opposite"
+    },
+    {
+      "answer": "Be careful and confirm risky steps.",
+      "why": "vague, not the posture"
+    },
+    {
+      "answer": "Highest throughput.",
+      "why": "half: no act-without-asking"
+    },
+    {
+      "answer": "Throughput first: no approval round-trips for already-authorized work.",
+      "why": "leaves out acting on reversible work and reporting after"
+    }
+  ]
+}

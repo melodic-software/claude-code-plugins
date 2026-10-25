@@ -148,7 +148,8 @@ fallback), then:
    lists files inside untracked directories individually; the default collapses a brand-new
    handoff directory into one directory entry, which both defeats the exemption below and can
    hide other dirt behind it) and IGNORE save-point files under the handoff location, the
-   just-written one AND any prior sessions' (this skill never commits them; they are
+   just-written one AND any prior sessions', with the shape-3 hop files under its `archive/`
+   subdirectory counted as save-point files (this skill never commits them; they are
    session-chain artifacts, part of the launch rather than disqualifying dirty state; the
    background session starts in this working directory, so it reads the handoff file before any
    edit moves it into a worktree). Before judging other changes, read the effective

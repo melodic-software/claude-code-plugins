@@ -105,7 +105,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Security
 
-- [`guardrails`](../plugins/guardrails): Thirteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.
+- [`guardrails`](../plugins/guardrails): Fifteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Tracks identity domains. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.
 
 ## Workflow
 

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Yes: part (3), the exit rule in docs/work-loop.md, has not been done.",
+      "why": "names part 3"
+    },
+    {
+      "answer": "The documentation part, docs/work-loop.md, fell off after the detour.",
+      "why": "names it"
+    },
+    {
+      "answer": "Part (3) is at risk; the return named only part (2).",
+      "why": "names it with cause"
+    },
+    {
+      "answer": "Parts (1) and (2) have landed; part (3), the docs/work-loop.md rule, has not.",
+      "why": "matches the hop-5 workspace"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, everything is on track.",
+      "why": "misses it"
+    },
+    {
+      "answer": "Part (1) is at risk.",
+      "why": "wrong part"
+    },
+    {
+      "answer": "The rotate_logs conversion is unfinished.",
+      "why": "names the drift instead"
+    },
+    {
+      "answer": "Part (2) is at risk: the return only started it.",
+      "why": "part (2) landed at hop 4"
+    }
+  ]
+}
