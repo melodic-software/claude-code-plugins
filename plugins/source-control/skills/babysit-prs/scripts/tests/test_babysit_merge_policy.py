@@ -4127,6 +4127,7 @@ OWNER_ID = 153232337
 ADOPT_NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
 IDLE = "2026-10-11T11:00:00Z"  # 25 hours before ADOPT_NOW
 FRESH = "2026-10-11T13:00:00Z"  # 23 hours before ADOPT_NOW
+NOW_ISH = "2026-10-11T14:00:00Z"  # an hour after FRESH
 HEAD = "c" * 40
 
 
@@ -4569,6 +4570,136 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         result = self.eligibility(pr, queued_at_head=lambda: False)
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
+    # --- After a person's enqueue left the queue on failed checks ----------
+    # Owner decision Q-REQ (a): that person's enqueue of this head stands in
+    # for the idle wait; every other rule still applies.
+
+    def ejected(self, **changes: Any) -> dict[str, Any]:
+        enqueue = {
+            "__typename": "AddedToMergeQueueEvent",
+            "createdAt": FRESH,
+            "actor": {"__typename": "User", "databaseId": OWNER_ID},
+            "enqueuer": {"databaseId": OWNER_ID},
+        }
+        enqueue.update(changes.pop("enqueue", {}))
+        return {"enqueue": enqueue, "requeued": False, **changes}
+
+    def requeued(self, ejected: Any, **kwargs: Any) -> bool:
+        args: dict[str, Any] = {
+            "human_ids": (OWNER_ID,),
+            "head_committed": lambda: FRESH,
+            "queued_at_head": lambda: False,
+        }
+        args.update(kwargs)
+        return policy.requeued_by_person(ejected, **args)
+
+    def test_a_persons_ejected_enqueue_at_this_head_requeues(self) -> None:
+        self.assertTrue(self.requeued(self.ejected()))
+        # The lane's own retry, queued at this head, keeps it adopted.
+        retry = self.ejected(requeued=True)
+        self.assertTrue(self.requeued(retry, queued_at_head=lambda: True))
+        self.assertFalse(self.requeued(retry))
+
+    def test_only_a_trusted_persons_enqueue_requeues(self) -> None:
+        app = {"__typename": "Bot", "databaseId": 337595936}
+        for label, enqueue, humans in (
+            ("an App actor", {"actor": app}, (OWNER_ID,)),
+            # GitHub types the lanes App's enqueuer a User: only the id counts.
+            (
+                "an App enqueuer typed User",
+                {"enqueuer": {"login": "agent-lanes[bot]", "databaseId": 337595936}},
+                (OWNER_ID,),
+            ),
+            ("a null enqueuer", {"enqueuer": None}, (OWNER_ID,)),
+            ("a null actor", {"actor": None}, (OWNER_ID,)),
+            (
+                "a person not on the list",
+                {
+                    "actor": {"__typename": "User", "databaseId": 77},
+                    "enqueuer": {"databaseId": 77},
+                },
+                (OWNER_ID,),
+            ),
+            ("a login and no id", {"enqueuer": {"login": OWNER_LOGIN}}, (OWNER_ID,)),
+            ("no people on the list", {}, ()),
+        ):
+            with self.subTest(label):
+                ejected = self.ejected(enqueue=enqueue)
+                self.assertFalse(self.requeued(ejected, human_ids=humans))
+
+    def test_a_head_committed_after_the_enqueue_does_not_requeue(self) -> None:
+        self.assertFalse(self.requeued(self.ejected(), head_committed=lambda: NOW_ISH))
+
+        def unreadable() -> str:
+            raise policy.PolicyReadError("502")
+
+        self.assertFalse(self.requeued(self.ejected(), head_committed=unreadable))
+        self.assertFalse(self.requeued(self.ejected(enqueue={"createdAt": None})))
+
+    def test_no_ejected_enqueue_does_not_requeue(self) -> None:
+        for ejected in (None, {}, [], {"enqueue": None, "requeued": False}):
+            with self.subTest(ejected=ejected):
+                self.assertFalse(self.requeued(ejected))
+        self.assertFalse(self.requeued(self.ejected(requeued=None)))
+
+    def test_an_unreadable_queue_reads_no_ejected_enqueue(self) -> None:
+        import babysit_merge  # noqa: PLC0415
+
+        for queue, expected in (
+            ({"readError": "502", "ejectedEnqueue": self.ejected()}, None),
+            ({"readError": None, "ejectedEnqueue": self.ejected()}, self.ejected()),
+        ):
+            with self.subTest(queue=queue["readError"]):
+                with mock.patch.object(
+                    babysit_merge, "read_merge_queue", return_value=queue
+                ) as read:
+                    self.assertEqual(policy.ejected_enqueue(REPO, 7), expected)
+                read.assert_called_once_with(REPO, 7)
+
+    def test_a_fresh_owner_pr_a_person_enqueued_is_adopted(self) -> None:
+        self.owner_fake(committed=FRESH)
+        pr = owner_pr(updated_at=FRESH)
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.adoption, policy.REQUEUE_ADOPTION)
+        self.assertTrue(result.body_is_intent)
+        for label, kwargs, reason in (
+            ("not ejected", {"ejected_enqueue": lambda: None}, "updated-fresh"),
+            ("no people", {"adoption_human_ids": ()}, "updated-fresh"),
+        ):
+            with self.subTest(label):
+                args = {
+                    "adoption_human_ids": (OWNER_ID,),
+                    "ejected_enqueue": self.ejected,
+                    **kwargs,
+                }
+                result = self.eligibility(pr, **args)
+                self.assertEqual(result.reason, f"not-adopted:{reason}")
+                self.assertIsNone(result.adoption)
+
+    def test_a_hold_or_an_idle_pr_never_reads_the_queue(self) -> None:
+        def unread() -> Any:
+            raise AssertionError("merge queue read")
+
+        self.owner_fake()
+        result = self.eligibility(
+            owner_pr(), adoption_human_ids=(OWNER_ID,), ejected_enqueue=unread
+        )
+        self.assertEqual(result.adoption, "idle-owner:24h")
+        for pr, reason in (
+            (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
+            (owner_pr(body="Hold: the owner merges"), "hold-body"),
+            (owner_pr(draft=True), "draft"),
+        ):
+            with self.subTest(reason):
+                pr["updated_at"] = FRESH
+                result = self.eligibility(
+                    pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=unread
+                )
+                self.assertEqual(result.reason, f"not-adopted:{reason}")
+
     def test_another_author_stays_not_lane_authored(self) -> None:
         self.owner_fake()
         pr = owner_pr(user={"login": OWNER_LOGIN, "id": 1, "type": "User"})
@@ -4980,6 +5111,11 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(kwargs["adoption_owner_ids"], (5, 77))
         # The people (kind human) and the configured Apps: whose body is intent.
         self.assertEqual(kwargs["spec_from_body_ids"], (5,))
+        # Q-REQ (a): the people may stand in for the idle wait, by the queue read.
+        self.assertEqual(kwargs["adoption_human_ids"], (5,))
+        with mock.patch.object(policy, "ejected_enqueue", return_value=None) as read:
+            self.assertIsNone(kwargs["ejected_enqueue"]())
+        read.assert_called_once_with(REPO, 1)
         self.assertEqual(result.details["eligibility"]["adoption"], "idle-owner:24h")
 
     def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:

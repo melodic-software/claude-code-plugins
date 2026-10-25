@@ -2581,6 +2581,52 @@ def lane_queued_at_head(
         return False
 
 
+# The adoption a person's ejected enqueue grants (`requeued_by_person`).
+REQUEUE_ADOPTION = "requeue-after-ejection"
+# The idle refusals a person's ejected enqueue may stand in for.
+FRESH_REFUSALS = ("updated-fresh", "head-fresh")
+
+
+def ejected_enqueue(repo: str, number: int) -> Any:
+    """`babysit_merge.read_merge_queue`'s `ejectedEnqueue` for the pull
+    request, or None when the queue cannot be read."""
+    from babysit_merge import read_merge_queue  # noqa: PLC0415 - import cycle
+
+    queue = read_merge_queue(repo, number)
+    return None if queue.get("readError") else queue.get("ejectedEnqueue")
+
+
+def requeued_by_person(
+    ejected: Any,
+    *,
+    human_ids: Collection[int],
+    head_committed: Callable[[], Any],
+    queued_at_head: Callable[[], bool],
+) -> bool:
+    """Whether a person's merge-queue enqueue of this head stands in for the
+    idle wait (owner decision Q-REQ (a)): `ejected` (`ejected_enqueue`) is the
+    enqueue whose entry the queue removed for failed checks with no head
+    change since; its actor and its enqueuer are both a kind human id on the
+    trusted list (`human_ids`; never a login or a GitHub type, since GitHub
+    types an App's enqueuer a User); the head was committed no later than that
+    enqueue; and no other enqueue followed but the lane's own entry at this
+    head (`queued_at_head`). Anything unreadable is False."""
+    item = json_object(ejected)
+    enqueue = json_object(item.get("enqueue"))
+    ids = [
+        json_object(enqueue.get(who)).get("databaseId") for who in ("actor", "enqueuer")
+    ]
+    if not all(type(i) is int and i in human_ids for i in ids):
+        return False
+    requeued = item.get("requeued")
+    if requeued is not False and not (requeued is True and queued_at_head()):
+        return False
+    try:
+        return _time(head_committed()) <= _time(enqueue.get("createdAt"))
+    except PolicyReadError:
+        return False
+
+
 def lane_eligibility(
     repo: str,
     number: int,
@@ -2596,12 +2642,15 @@ def lane_eligibility(
     human_gated: str | None = None,
     now: datetime | None = None,
     queued_at_head: Callable[[], bool] = lambda: False,
+    adoption_human_ids: Collection[int] = (),
+    ejected_enqueue: Callable[[], Any] = lambda: None,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request: not a fork or a
     dependency manager's, opened by the agent identity or adopted
     (`adoption_refusal`, with `adoption_idle_hours`, `adoption_owner_ids`,
     the resolved `human_gated` label and `queued_at_head`; None or empty
-    adopts nothing),
+    adopts nothing; a refusal only for not being idle is excused by
+    `requeued_by_person` over `ejected_enqueue()` and `adoption_human_ids`),
     exactly one linked
     issue in this repository (`_linked_issue`; the verifier verdict binds to
     it), and a diff
@@ -2627,9 +2676,10 @@ def lane_eligibility(
         # Anyone could name an issue in `Closes #N`; only a pull request the
         # lane opened, or one it adopted, counts.
         if not _lane_authored(node, agent_identity):
+            committed = lambda: _head_committed(owner, name, pr)  # noqa: E731
             not_adopted = adoption_refusal(
                 pr,
-                lambda: _head_committed(owner, name, pr),
+                committed,
                 idle_hours=adoption_idle_hours,
                 owner_ids=adoption_owner_ids,
                 human_gated=human_gated,
@@ -2638,9 +2688,17 @@ def lane_eligibility(
             )
             if not_adopted == AUTHOR_NOT_OWNER:
                 return Eligibility(False, "not-lane-authored")
-            if not_adopted:
+            if not_adopted in FRESH_REFUSALS and requeued_by_person(
+                ejected_enqueue(),
+                human_ids=adoption_human_ids,
+                head_committed=committed,
+                queued_at_head=queued_at_head,
+            ):
+                adoption = REQUEUE_ADOPTION
+            elif not_adopted:
                 return Eligibility(False, f"not-adopted:{not_adopted}")
-            adoption = f"idle-owner:{adoption_idle_hours}h"
+            else:
+                adoption = f"idle-owner:{adoption_idle_hours}h"
         issue, refusal = _linked_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
@@ -4805,6 +4863,8 @@ def assess(
                 inputs["identity"],
                 str(json_object(pr.get("head")).get("sha") or ""),
             ),
+            adoption_human_ids=trusted[1],
+            ejected_enqueue=lambda: ejected_enqueue(repo, number),
             **readers,
         )
         promoted = True

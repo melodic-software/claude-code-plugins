@@ -949,6 +949,53 @@ class MergeQueueReadBack(unittest.TestCase):
                 result = self._read(_queue(timeline=timeline))
                 self.assertEqual(result["lastRemovalReason"], expected)
 
+    def test_the_enqueue_a_failed_checks_removal_ended_is_read(self) -> None:
+        added = {
+            "__typename": "AddedToMergeQueueEvent",
+            "createdAt": "2026-10-25T16:59:28Z",
+            "actor": {"__typename": "User", "databaseId": 5},
+            "enqueuer": {"databaseId": 5},
+        }
+        lane = {**added, "actor": {"__typename": "Bot", "databaseId": 9}}
+        for events, expected in (
+            ([COMMIT, added, _removed()], {"enqueue": added, "requeued": False}),
+            ([added, _removed(), lane], {"enqueue": added, "requeued": True}),
+            ([added, _removed("merge_conflict")], None),
+            ([added, _removed("manually_removed")], None),
+            ([_removed(), added, _removed("merged")], None),
+            ([added, _removed(), COMMIT], None),
+            ([added, _removed(), FORCE_PUSH], None),
+            ([added, COMMIT, _removed()], None),
+            # The lane's retry ejected: its own enqueue, which no person made.
+            (
+                [added, _removed(), lane, _removed()],
+                {"enqueue": lane, "requeued": False},
+            ),
+            ([_removed()], None),
+            ([added], None),
+            ([], None),
+            ([None, added, _removed()], {"enqueue": added, "requeued": False}),
+            ([added, None, _removed()], None),
+            (None, None),
+        ):
+            with self.subTest(events=events):
+                payload = _queue()
+                pr = payload["data"]["repository"]["pullRequest"]
+                pr["queueEvents"] = None if events is None else {"nodes": events}
+                result = self._read(payload)
+                self.assertEqual(result["ejectedEnqueue"], expected)
+        # The extra read leaves the ejection count and removal reason alone.
+        payload = _queue(timeline=[COMMIT, _removed()])
+        payload["data"]["repository"]["pullRequest"]["queueEvents"] = {
+            "nodes": [added, _removed()]
+        }
+        result = self._read(payload)
+        self.assertEqual(
+            (result["failedEjections"], result["lastRemovalReason"]),
+            (1, "failed_checks"),
+        )
+        self.assertIn("ADDED_TO_MERGE_QUEUE_EVENT", merge.MERGE_QUEUE_QUERY)
+
     def test_failed_merge_group_runs_are_the_pull_requests_own(self) -> None:
         runs = {
             "workflow_runs": [
