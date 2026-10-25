@@ -28,6 +28,11 @@ import {
   renderReport,
   resolveRedMain,
 } from "./red-main.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+
+// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
+// is read at call time, so a test's stub is guarded too.
+const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 const DAY_MS = 86_400_000;
 const FULL_EVENTS = new Set(["schedule", "workflow_dispatch"]);
@@ -43,7 +48,7 @@ export function client(env, { pace = () => delay(300) } = {}) {
     if (used >= budget) throw new Error(`call budget of ${budget} spent`);
     used += 1;
     await pace();
-    const response = await fetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
+    const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
       method,
       headers: {
         accept: "application/vnd.github+json",

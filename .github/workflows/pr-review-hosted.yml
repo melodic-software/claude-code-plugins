@@ -78,6 +78,7 @@ jobs:
           sparse-checkout: |
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
+            /.github/actions/log-api-budget/
             /.github/actions/resolve-config/
             /.github/CODEOWNERS
             /.github/standards/github-actions-conventions/vocabulary.json

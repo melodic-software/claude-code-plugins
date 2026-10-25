@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R1a | cc-applicable | none | skill-folders.md:5 states the folder and SKILL.md clause.\nROW R1b | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch), unverified-inference | No page states the CHANGELOG.md clause."
+    },
+    {
+      "answer": "**ROW R1a** | `cc-applicable` | none | Basis: corpus/harness/skill-folders.md line 5.\n**ROW R1b** | `cc-applicable` | `vendor-claimed (blog, 2026-10-20 fetch)` | blog-only."
+    },
+    {
+      "answer": "ROW R1a | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | CHANGELOG clause; no page states it.\nROW R1b | cc-applicable | none | skill-folders.md#L5.",
+      "why": "order of the two halves does not decide the grade"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R1 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | skill-folders.md:5 covers the folder layout; the CHANGELOG clause is blog-only.",
+      "why": "unsplit row: the documented clause keeps the marker"
+    },
+    {
+      "answer": "ROW R1 | cc-applicable | none | skill-folders.md:5.",
+      "why": "unsplit row: the blog-only clause loses the marker"
+    },
+    {
+      "answer": "ROW R1a | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | skill-folders.md:5.\nROW R1b | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | blog-only.",
+      "why": "both halves marked"
+    },
+    {
+      "answer": "ROW R1a | cc-applicable | none | skill-folders.md:5.\nROW R1b | cc-applicable | unverified-inference | inferred.",
+      "why": "both halves unmarked"
+    }
+  ]
+}
