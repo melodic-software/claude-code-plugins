@@ -46,7 +46,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=262
+EXPECTED_CASES=263
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -739,12 +739,13 @@ assert_contains "show-config: disabled rules shown" "$out" "disabled_rules=rule-
 HOMEROOT="$TEST_TMPDIR/home-root"
 mkdir -p "$HOMEROOT/.claude"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 777 } }' >"$HOMEROOT/.claude/ai-slop.json"
+# Count the "Config layers" rows only: each Effective line also names its layer.
 out="$(HOME="$HOMEROOT" CLAUDE_PROJECT_DIR="$HOMEROOT" bash "$DETECT" --show-config 2>&1)"
-assert_eq "home root: the user-global file is listed once" "$(printf '%s\n' "$out" | grep -c "$HOMEROOT/.claude/ai-slop.json")" "1"
+assert_eq "home root: the user-global file is listed once" "$(printf '%s\n' "$out" | grep -cxF "  $HOMEROOT/.claude/ai-slop.json")" "1"
 assert_contains "home root: the user-global threshold applies" "$out" "threshold_ai_vocabulary=777"
 make_repo "$HOMEROOT"
 out="$(HOME="$HOMEROOT" CLAUDE_PROJECT_DIR="$HOMEROOT" bash "$DETECT" --show-config 2>&1)"
-assert_eq "a git repository at the home is still a home root" "$(printf '%s\n' "$out" | grep -c "$HOMEROOT/.claude/ai-slop.json")" "1"
+assert_eq "a git repository at the home is still a home root" "$(printf '%s\n' "$out" | grep -cxF "  $HOMEROOT/.claude/ai-slop.json")" "1"
 NONREPO="$TEST_TMPDIR/non-repo-root"
 mkdir -p "$NONREPO/.claude"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 555 } }' >"$NONREPO/.claude/ai-slop.json"
