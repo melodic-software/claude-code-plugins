@@ -138,7 +138,7 @@ def _lane_comment(lane: str, login: object, body: str) -> bool:
 
 
 # The lane whose findings hold the merge only at its top tier, CRITICAL
-# (plugins/review/skills/security-review/SKILL.md, "Reporting"): each inline
+# (/review:security-review, "Reporting"): each inline
 # comment carries one `severity:` line, and the summary one
 # `critical-findings:` line counting its CRITICAL findings with no inline
 # comment. A comment or summary without exactly one readable line counts every
