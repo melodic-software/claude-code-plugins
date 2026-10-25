@@ -348,6 +348,9 @@ GRAPHQL_RATE_LIMITED = "RATE_LIMITED"
 # minute, as does a header time already past; any other stop waits the hour.
 FALLBACK_RESET_SECONDS = 60
 PRIMARY_FALLBACK_SECONDS = 3600
+# Stop-file readers take at most 12 digits, so a later stop is written at the
+# largest they read, as rate-guard.mjs MAX_RESET clamps it.
+MAX_RESET = 999_999_999_999
 RESOURCE_RE = re.compile(r"^[a-z_]+$")
 # The pool a URL spends when the response names none; else `core`.
 URL_POOLS = (
@@ -556,7 +559,7 @@ def evaluate_rate_response(
     else:
         wait = FALLBACK_RESET_SECONDS if best or secondary else PRIMARY_FALLBACK_SECONDS
         reset, source = now + wait, "fallback"
-    result.update(pool=pool, reset=reset, reset_source=source)
+    result.update(pool=pool, reset=min(reset, MAX_RESET), reset_source=source)
     return result
 
 
