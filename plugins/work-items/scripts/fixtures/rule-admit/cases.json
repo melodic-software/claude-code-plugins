@@ -270,6 +270,138 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger runner" }
     },
     {
+      "name": "body naming a spending limit refuses as a cost hit",
+      "source": "owner rule 2026-10-24: metered or renewing charges hold",
+      "issue": { "body": "Raise the Actions spending limit for the org." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spending limit" }
+    },
+    {
+      "name": "Claude eval cost and quota admit",
+      "source": "owner decision #9904: spend covered by the subscription or the fixed API credit is fine",
+      "issue": { "title": "Run claude plugin eval and report the Claude eval cost", "body": "The Claude eval quota covers each run." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "spend words not tied to Claude refuse even beside a Claude mention",
+      "source": "owner decision #9904: only spend on Claude itself is exempt",
+      "issue": { "title": "Run claude plugin eval on the paid tier and report the cost", "body": "Spend the eval quota; pricing is per run." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost, paid, pricing, quota, spend;" }
+    },
+    {
+      "name": "Datadog cost of Claude telemetry refuses",
+      "source": "owner decision #9904: an unlisted provider's charge waits",
+      "issue": { "title": "Report the Datadog cost of the Claude lane telemetry" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "Sentry quota for Claude errors refuses",
+      "source": "owner decision #9904: an unlisted provider's charge waits",
+      "issue": { "title": "Raise the Sentry quota for Claude lane errors" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: quota;" }
+    },
+    {
+      "name": "Claude Slack pricing refuses",
+      "source": "owner decision #9904: an unlisted provider's charge waits",
+      "issue": { "title": "Check the Claude Slack pricing for lane alerts" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: pricing;" }
+    },
+    {
+      "name": "Claude API key spend for an eval admits",
+      "source": "owner rule 2026-10-24: spend covered by the subscription or the fixed API credit is fine",
+      "issue": { "title": "Report the Claude API key spend for the eval run" },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a cost word with no model work refuses",
+      "source": "owner rule 2026-10-24: everything else waits, since it costs more money",
+      "issue": { "title": "Report the cost of the nightly job" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "eval spend on Azure refuses",
+      "source": "owner rule 2026-10-24: runaway Azure costs wait",
+      "issue": { "title": "Run the model eval on Azure and report the cost" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "eval spend on GitHub Actions refuses",
+      "source": "owner rule 2026-10-24: runaway GitHub costs wait",
+      "issue": { "title": "Raise the eval spend on GitHub Actions" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spend;" }
+    },
+    {
+      "name": "eval cost on Vercel refuses",
+      "source": "owner decision #9904: every charge outside the Claude subscriptions and API credit waits",
+      "issue": { "title": "Report the Claude eval cost on Vercel" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "eval cost on another model vendor refuses",
+      "source": "owner decision #9904: every charge outside the Claude subscriptions and API credit waits",
+      "issue": { "title": "Run the eval against the OpenAI API and report the cost" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "model spend with no Claude or Anthropic name refuses",
+      "source": "owner decision #9904: the exemption covers Claude and Anthropic spend only",
+      "issue": { "title": "Report the cost of the data model rebuild" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "Claude eval spend on an unnamed paid service refuses",
+      "source": "owner decision #9904: every charge outside the Claude subscriptions and API credit waits",
+      "issue": { "title": "Move the Claude eval runs to a paid hosted service and track spend" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: paid, spend;" }
+    },
+    {
+      "name": "a paid Copilot seat refuses",
+      "source": "owner rule 2026-10-24: GitHub charges wait",
+      "issue": { "title": "Buy a paid Copilot seat", "body": "One more seat for the docs work." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: seat;" }
+    },
+    {
+      "name": "an LFS storage quota raise refuses",
+      "source": "owner rule 2026-10-24: GitHub charges wait",
+      "issue": { "title": "Raise the LFS storage quota", "body": "The repo is near its limit." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: quota;" }
+    },
+    {
+      "name": "Codespaces spend refuses",
+      "source": "owner rule 2026-10-24: GitHub charges wait",
+      "issue": { "title": "Increase Codespaces spend", "body": "Contributors need bigger machines." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: codespaces;" }
+    },
+    {
+      "name": "paid Advanced Security refuses",
+      "source": "owner rule 2026-10-24: GitHub charges wait; the trust-surface step refuses first",
+      "issue": { "title": "Enable paid GitHub Advanced Security", "body": "Turn it on for the org." },
+      "expect": { "verdict": "refuse", "reason": "trust-surface hit in title or body: security" }
+    },
+    {
+      "name": "paid Actions minutes refuse",
+      "source": "owner rule 2026-10-24: GitHub charges wait",
+      "issue": { "title": "Enable paid Actions minutes", "body": "The free allowance runs out mid-month." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: paid;" }
+    },
+    {
+      "name": "paid seats for the org refuse",
+      "source": "owner rule 2026-10-24: GitHub charges wait",
+      "issue": { "title": "Buy paid seats for the org", "body": "Two new contributors join next week." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: paid seats" }
+    },
+    {
+      "name": "a paid hosting plan refuses",
+      "source": "owner rule 2026-10-24: everything else waits",
+      "issue": { "title": "Move docs hosting to a paid plan", "body": "The free plan caps page views." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: paid plan;" }
+    },
+    {
+      "name": "an auto top-up refuses even for model work",
+      "source": "owner rule 2026-10-24: only the subscription and the fixed API credit are fine",
+      "issue": { "title": "Turn on auto-reload for the Claude API key" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: auto-reload;" }
+    },
+    {
       "name": "plain docs wording with no charge term still admits",
       "source": "the cost list stays narrow so ordinary work is not refused",
       "issue": { "title": "Fix the plan step wording in the README" },

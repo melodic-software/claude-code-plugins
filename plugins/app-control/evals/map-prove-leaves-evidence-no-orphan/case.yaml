@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: map-prove-leaves-evidence-no-orphan
+description: After the proving run, create checks every evidence path exists and is not empty and that no process the run started is alive, by the launch record's pid, and does not call the skill proven when either check fails or cannot run
+tags: [map, prove, evidence]
+expected_outcome: "The reply checks the evidence paths drive's report lists, finds cart-header-02-trace.zip missing from ./evidence, and does not report the control skill as proven or done. It says the process check is made against pid 52140 from the launch record, never a lookup by process name, and that it could not run that check here."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map create shop. Continue this create run at step 5: the control skill was written earlier in this run, and the proving run through /app-control:drive has just finished with its evidence in ./evidence (report.json and the artifacts). Bash is not available in this session and the process table cannot be read, so say how you would check processes instead of trying. Finish the run."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: reads-report
+    type: tool_used
+    tool: Read
+    input_match: 'evidence/report\.json'
+    min: 1
+    arm: both
+  - name: names-missing-trace
+    type: regex
+    pattern: 'cart-header-02-trace\.zip'
+    arm: both
+  - name: not-proven
+    type: llm
+    criteria: "PASS only if the reply says cart-header-02-trace.zip, which drive's report lists, is missing from the evidence directory, does not call the control skill proven or done, and says the check that nothing the run started is still alive uses pid 52140 from drive's launch record rather than a lookup by process name, noting it could not run that check in this session. FAIL if it reports the control skill as proven or done, treats the listed trace as present, or checks processes by name (pgrep, pidof, ps filtered by name)."

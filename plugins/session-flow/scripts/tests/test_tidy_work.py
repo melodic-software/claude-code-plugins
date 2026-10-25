@@ -1022,3 +1022,106 @@ def test_a_kept_handoff_that_names_no_issue_keeps_what_it_names(env):
     assert items[HANDOFF_STALE]["keep"]
     assert items["measure-4608"]["reasons"] == ["named by a later handoff"]
     assert "would remove" not in clean(env).stdout
+
+
+# --- shape-3 archives: handoffs/archive/<chain-root-stem>/ ---------------------------
+#
+# PLAN.md Phase 4: an archive directory is kept while any hot file of its chain is
+# kept, and removed with the last one.
+
+ROOT3 = "20260101T100000Z-handoff-three.md"
+HOP3_2 = "20260102T100000Z-handoff-three.md"
+
+
+def hot_file(path: Path, chain_root: str, body: str = "") -> None:
+    """A shape-3 hot file as the writer produces it: `chain_root` names its chain."""
+    write(
+        path,
+        "---\ntype: handoff\nhandoff_shape: 3\ndate: 2026-01-01T10:00:00Z\n"
+        "topic: three\nsession_id: 00000000-0000-4000-8000-000000000000\n"
+        f"transcript: /t.jsonl\nchain_root: {chain_root}\nhop: 1\n"
+        f"archive: archive/{chain_root[:-3]}/\narchive_from: 1\nrepo: r\n---\n\n{body}\n",
+    )
+
+
+def three_chain(env, *, newest_body: str = SHIPPED, newest_days: float = 60) -> Path:
+    _, _, repo = env
+    handoffs = repo / ".work" / "handoffs"
+    hot_file(handoffs / ROOT3, ROOT3, SHIPPED)
+    hot_file(handoffs / HOP3_2, ROOT3, newest_body)
+    archive = handoffs / "archive" / ROOT3[:-3]
+    write(archive / "h1-00000000.md", "---\ntype: handoff-archive\n---\n")
+    write(archive / "h2-00000000.md", "---\ntype: handoff-archive\n---\n")
+    age(handoffs / ROOT3, 60)
+    age(handoffs / HOP3_2, newest_days)
+    age(archive, 60)
+    return archive
+
+
+def test_an_archive_is_kept_while_a_hot_file_of_its_chain_is_kept(env):
+    archive = three_chain(env, newest_body="Open follow-up: #5222.")
+    items = report(env, *links(env[0], STATE))
+    assert items[archive.name]["kind"] == "archive"
+    assert items[archive.name]["keep"]
+    # The root stays too: the kept successor names it (`chain_root:`).
+    kept = f"a kept handoff of its chain: {ROOT3}, {HOP3_2}"
+    assert items[archive.name]["reasons"] == [kept]
+    assert "archive" not in items
+    assert "h1-00000000.md" not in items
+    result = clean(env, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert archive.is_dir()
+
+
+def test_an_archive_leaves_with_the_last_hot_file_of_its_chain(env):
+    archive = three_chain(env)
+    _, _, repo = env
+    items = report(env, *links(env[0], STATE))
+    assert not items[archive.name]["keep"], items[archive.name]
+    result = clean(env, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert not archive.exists()
+    assert not (repo / ".work" / "handoffs" / HOP3_2).exists()
+    assert not (repo / ".work" / "handoffs" / ROOT3).exists()
+
+
+def test_an_archive_with_no_hot_file_of_its_chain_left_is_kept(env):
+    archive = three_chain(env)
+    _, _, repo = env
+    for name in (ROOT3, HOP3_2):
+        (repo / ".work" / "handoffs" / name).unlink()
+    items = report(env, *links(env[0], STATE))
+    assert items[archive.name]["kind"] == "archive"
+    assert items[archive.name]["reasons"] == ["no hot file of its chain is on disk"]
+    assert clean(env, "--apply").returncode == 0
+    assert archive.is_dir()
+
+
+def test_a_shape2_hot_file_of_the_chain_counts_by_its_chain_root(env):
+    archive = three_chain(env)
+    _, _, repo = env
+    handoffs = repo / ".work" / "handoffs"
+    (handoffs / HOP3_2).unlink()
+    handoff(handoffs / ROOT3, "Open follow-up: #5222.")
+    age(handoffs / ROOT3, 60)
+    items = report(env, *links(env[0], STATE))
+    assert items[archive.name]["reasons"] == [f"a kept handoff of its chain: {ROOT3}"]
+
+
+def test_an_archive_stays_when_a_hot_file_of_its_chain_is_refused(env):
+    archive = three_chain(env)
+    _, _, repo = env
+    subprocess.run(["git", "-C", str(repo), "add", "-f", f".work/handoffs/{HOP3_2}"], check=True)
+    result = clean(env, "--apply")
+    assert result.returncode == 1, result.stdout
+    assert (repo / ".work" / "handoffs" / HOP3_2).exists()
+    assert archive.is_dir()
+    assert f"refused: {archive.as_posix()}" in result.stdout, result.stdout
+
+
+def test_a_stray_file_in_the_archive_dir_is_unknown_and_kept(env):
+    archive = three_chain(env)
+    write(archive.parent / "notes.txt", "stray")
+    age(archive.parent / "notes.txt", 60)
+    items = report(env, *links(env[0], STATE))
+    assert items["notes.txt"]["kind"] == "unknown"

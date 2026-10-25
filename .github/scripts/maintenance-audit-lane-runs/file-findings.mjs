@@ -1,7 +1,8 @@
-// The lane sweep's file job: checks every claim against main, fingerprints
-// each finding, reads the issues earlier sweeps filed, and writes the open
-// findings into one rolling digest issue per planDigest. No model. Writes with
-// the job's own token, one call at a time, 1 s apart, within its call budget.
+// The lane sweep's file job: binds every finding to the unit it came from,
+// checks every claim against main, fingerprints each finding, reads the issues
+// earlier sweeps filed, and writes the open findings into one rolling digest
+// issue per planDigest. No model. Writes with the job's own token, one call at
+// a time, 1 s apart, within its call budget.
 import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -27,6 +28,27 @@ export const FILER_LOGIN = "github-actions[bot]";
 // not an intake item.
 const LABELS = ["source: lane-sweep"];
 
+// The job names a unit's data shows: failed jobs of slice A, sampled jobs of
+// slice D. Slice C names pull requests, not workflows, so it binds neither.
+export function unitJobs(unit) {
+  if (unit.slice === "A") return (unit.runs ?? []).flatMap((r) => (r.failed_jobs ?? []).map((j) => j.name));
+  if (unit.slice === "D") return (unit.sampled_success_runs ?? []).flatMap((r) => (r.jobs ?? []).map((j) => j.name));
+  return null;
+}
+
+// Why a finding does not belong to the unit it came from, else null. The
+// judge reads CI text that can steer it, so slice, and the workflow of A and
+// D, must be what collect wrote for the unit, and so must the job when the
+// unit's data lists any (a D unit with no green run, or an A run whose jobs
+// did not end in failure, lists none).
+export function unitMismatch(finding, unit) {
+  if (finding.slice !== unit.slice) return "slice-not-unit";
+  if (unit.slice !== "C" && finding.workflow !== unit.workflow) return "workflow-not-unit";
+  const jobs = unitJobs(unit);
+  if (jobs?.length && !jobs.includes(finding.job)) return "job-not-in-unit";
+  return null;
+}
+
 // complete: the collector read every unit's whole window and every unit has a
 // findings file the judge parsed, so a finding missing from this sweep is gone
 // rather than unread.
@@ -46,6 +68,14 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
     }
     if ((data.dropped ?? []).some((d) => d?.reason === "unparsable")) complete = false;
     else read.add(data.unit);
+    let unit = null;
+    if (unitsDir && /^[acd][1-8]$/.test(String(data.unit))) {
+      try {
+        unit = JSON.parse(readFileSync(join(unitsDir, `${data.unit}.json`), "utf8"));
+      } catch {
+        unit = null;
+      }
+    }
     for (const finding of Array.isArray(data.findings) ? data.findings : []) {
       const bad = validateFinding(finding);
       if (bad.length > 0) {
@@ -54,6 +84,11 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
           title: String(finding?.title ?? ""),
           reason: bad.join(","),
         });
+        continue;
+      }
+      const mismatch = unit ? unitMismatch(finding, unit) : "unit-unreadable";
+      if (mismatch) {
+        dropped.push({ unit: data.unit, title: finding.title, reason: mismatch });
         continue;
       }
       const failed = finding.evidence

@@ -42,8 +42,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 
 status, lease, doctor and validate take --json: one JSON object on stdout in place of the text lines
 (the text output is unchanged without it; exit codes are the same).
-  status --json    {groups: [{id, title, total, closed, open[], archived[], waiting[{id, short,
-                   hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
+  status --json    {groups: [{id, title, total, closed, live, answered, toConfirm[{id, short,
+                   commitments[]}], open[], archived[], superseded[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
                    handledSeq, unhandled[]}; with --latency: {latency: {saveToDelivered|saveToReply:
                    {n, p50, p95}}}
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
@@ -55,6 +55,9 @@ lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
 New questions need a `commits` key (an explicit empty list is allowed; `--commit none` on the
 flags) and at least two alternatives (exactly one for a yes/no question flagged `"binary": true`,
 whose alternative may not repeat or contain the recommendation).
+add and add-round warn when a new question omits `dependsOn` (an explicit empty list declares it
+independent; `--depends none` on the flags) or names a question still open in its own round; with
+the requireDepends setting on, both refuse.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
@@ -104,6 +107,7 @@ from server import (  # noqa: E402
     check_alt,
     is_handled,
     load_json,
+    open_prereqs,
     rebuild_responses,
     release_user_holds,
     repo_root,
@@ -151,6 +155,7 @@ LOGGED_OPS = {
     "wait",
     "confirm-commitments",
     "restate",
+    "constraint",
     "finish",
 }
 BASIS_SENTENCES = 3
@@ -493,6 +498,49 @@ def add_question(doc, q, repoint=False, latest=None):
     return touched, notes
 
 
+def require_depends(d):
+    """The resolved requireDepends: the repo file, the user file the server recorded, then the
+    data dir's settings.json."""
+    try:
+        s = json.loads((d / bridge.session_files(NAME)[0]).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        s = {}
+    user = s.get("userSettings") if isinstance(s, dict) else None
+    settings, _ = Settings(repo_root(d)).resolve(d, user if isinstance(user, str) else None)
+    return settings["requireDepends"]["value"]
+
+
+def check_depends(d, doc, qs):
+    """Warn, or refuse under requireDepends, when a new question omits dependsOn (`[]` declares
+    it independent) or names a question still open in its own round. Run after the adds, so a
+    prerequisite added in the same write counts as open."""
+    strict = require_depends(d)
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    view = json.loads(json.dumps(doc))  # release_user_holds edits the copy it is given
+    release_user_holds(view, r)
+    rounds = {x.get("id"): x.get("round") for x in view["questions"]}
+    for q in qs:
+        if "dependsOn" not in q:
+            why = (
+                f"{q['id']} declares no dependsOn; name its prerequisites, or declare it "
+                'independent with "dependsOn": [] (--depends none)'
+            )
+        else:
+            same = [
+                p for p in open_prereqs(view, r, q) if rounds.get(p) == q.get("round")
+            ]
+            if not same:
+                continue
+            why = (
+                f"{q['id']} depends on {', '.join(same)}, open in the same round "
+                f"({q.get('round')}); ask it in a later round, after "
+                f"{'they are' if len(same) > 1 else 'it is'} answered (R-A)"
+            )
+        if strict:
+            sys.exit(f"refused: {why} (requireDepends)")
+        warn(why)
+
+
 def repoint_dependents(doc, new, old, repoint):
     """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
     supersedes. With `repoint` each moves to `new`; one that `new` itself depends on, directly or
@@ -769,6 +817,7 @@ def op_add(d, doc, a):
     doc.pop("finished", None)
     before = newest_round(doc)
     touched, notes = add_question(doc, a.question, a.repoint)
+    check_depends(d, doc, [a.question])
     warn_stage(doc, [a.question])
     warn_stale_meta(doc, before)
     warn_stale_summaries(doc, [a.question])
@@ -801,6 +850,7 @@ def op_add_round(d, doc, a):
         t, n = add_question(doc, q, a.repoint, before)
         touched += t
         notes += n
+    check_depends(d, doc, a.questions or [])
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
@@ -1440,6 +1490,26 @@ def op_restate(d, doc, a):
     return [], "restated the shared understanding"
 
 
+def op_constraint(d, doc, a):
+    """Record one constraint on the page's ledger: a new `C<N>`, or the text of an existing `id`."""
+    text = capped("constraint text", (a.text or "").strip(), LINE_CAP)
+    if not text or "\n" in text:
+        sys.exit("refused: constraint needs one line of text")
+    kept = doc.get("constraints") or []
+    cid = a.id
+    if cid is None:
+        nums = [int(c["id"][1:]) for c in kept if re.fullmatch(r"C[0-9]+", c["id"])]
+        cid = f"C{max(nums, default=0) + 1}"
+    elif not re.fullmatch(r"C[0-9]+", str(cid)):
+        sys.exit(f"refused: constraint id {cid!r} is not C<N>")
+    entry = {"id": cid, "text": text, "at": now()}
+    if any(c["id"] == cid for c in kept):
+        doc["constraints"] = [entry if c["id"] == cid else c for c in kept]
+        return [], f"revised constraint {cid}"
+    doc["constraints"] = [*kept, entry]
+    return [], f"recorded constraint {cid}"
+
+
 def op_activity(d, doc, a):
     text = capped("activity text", (a.text or "").strip(), LINE_CAP)
     if not text:
@@ -1547,7 +1617,7 @@ def cmd_add(d, a):
     if a.alt:
         q["alternatives"] = [split_alt(s) for s in a.alt]
     if a.depends:
-        q["dependsOn"] = a.depends
+        q["dependsOn"] = [] if a.depends == ["none"] else a.depends
     if a.waiting:
         q["waiting"] = True
     a.question = q
@@ -1675,6 +1745,7 @@ OP_ARGS = {
         {"id": None, "indices": None, "reason": None},
     ),
     "restate": (op_restate, {"sections": None}),
+    "constraint": (op_constraint, {"id": None, "text": None}),
 }
 
 
@@ -1807,6 +1878,10 @@ def cmd_status(d, a):
         q["id"]: (exporters.hold_label(q), q.get("waitsOn", ""))
         for q in doc["questions"]
     }
+    pending_commits = {
+        q["id"]: exporters.commitments(q, r.get("events") or [])[1]
+        for q in doc["questions"]
+    }
     for q in doc["questions"]:
         dec = effective(q, resp)
         state = (
@@ -1831,22 +1906,38 @@ def cmd_status(d, a):
         items = rows[gid]
         opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
         archived = [i for i, _, st, _ in items if st == "archived"]
+        superseded = [i for i, _, st, _ in items if st == "superseded"]
         waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
+        live = len(items) - len(archived) - len(superseded)
+        answered = live - len(opened) - len(waits)
+        confirm = [
+            (i, s, pending_commits[i])
+            for i, s, st, _ in items
+            if st == "accept" and pending_commits.get(i)
+        ]
         lines.append(
-            f"{title}: {len(items) - len(opened) - len(waits)} of {len(items)} closed"
+            f"{title}: {answered} of {live} live answered"
+            + (f"; {len(archived)} archived" if archived else "")
+            + (f"; {len(superseded)} superseded" if superseded else "")
             + (f"; open: {', '.join(opened)}" if opened else "")
-            + (f"; archived: {', '.join(archived)}" if archived else "")
         )
         lines.extend(waits)
+        lines.extend(
+            f"  {i} {s} accepted, to confirm: {json.dumps(cs)}" for i, s, cs in confirm
+        )
         data["groups"].append(
             {
                 "id": gid,
                 "title": title,
                 "total": len(items),
                 "closed": len(items) - len(opened) - len(waits),
+                "live": live,
+                "answered": answered,
+                "toConfirm": [{"id": i, "short": s, "commitments": cs} for i, s, cs in confirm],
                 "open": [i for i, _, st, _ in items if st == "open"],
                 "archived": archived,
+                "superseded": superseded,
                 "waiting": [
                     {"id": i, "short": s, "hold": hold[i][0], "waitsOn": hold[i][1]}
                     for i, s, st, _ in items
@@ -2486,7 +2577,11 @@ def main(argv=None):
         help="repeatable; `--commit none` alone: commits nothing",
     )
     s.add_argument("--alt", action="append", help="key:text, repeatable")
-    s.add_argument("--depends", action="append", help="question id, repeatable")
+    s.add_argument(
+        "--depends",
+        action="append",
+        help="question id, repeatable; `--depends none` alone: depends on nothing",
+    )
     s.add_argument("--follow-up-of", dest="followUpOf")
     s.add_argument("--supersedes")
     s.add_argument(

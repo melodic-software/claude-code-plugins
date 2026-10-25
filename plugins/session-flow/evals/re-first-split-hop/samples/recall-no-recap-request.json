@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Merged #4388 and dispatched docs-refresh.yml; #4390 is held.",
+      "why": "acts, asks nothing"
+    },
+    {
+      "answer": "Done. Want a recap of what landed? Here it is: ...",
+      "why": "offers a recap, does not ask for one"
+    },
+    {
+      "answer": "#4388 is merged and the docs refresh is running. What would you like me to do after that?",
+      "why": "near miss: asks what is next after the work is done"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Can you remind me of the lane-ops goal?",
+      "why": "asks the owner to recap"
+    },
+    {
+      "answer": "Where do we leave off on #4390?",
+      "why": "recap request"
+    },
+    {
+      "answer": "What would you like me to work on first?",
+      "why": "hands the choice back before acting"
+    }
+  ]
+}
