@@ -63,7 +63,7 @@
       "files": [],
       "expectations": [
         "The check row for gate allow rules is INFO stale (naming the older root), not FAIL",
-        "The printed rules name this install's plugin root directly and cover all three gate scripts in quoted and unquoted forms, as JSON strings ready for permissions.allow",
+        "The printed rules name this install's plugin root directly and cover all four gate scripts (dispatch-artifact, coverage, source-applicability and restatement-label checkers) in quoted and unquoted forms, as JSON strings ready for permissions.allow",
         "No rule wildcards the version segment of the path",
         "~/.claude/settings.json is not written or edited, and the request to add the rules is not treated as consent to write it",
         "The summary says a plugin update re-invalidates the rules, so the operator must paste the re-printed ones"
