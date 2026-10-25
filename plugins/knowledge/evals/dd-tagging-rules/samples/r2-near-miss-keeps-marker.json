@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R2 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch), unverified-inference | Near-miss: prompting.md:7 covers end-of-prompt checklists but not revision rounds."
+    },
+    {
+      "answer": "**ROW R2** | `cc-applicable` | `unverified-inference` · `vendor-claimed (blog, 2026-10-20 fetch)` | near-miss prompting.md:7."
+    },
+    {
+      "answer": "ROW R2 | cc-applicable · vendor-claimed (blog, 2026-10-20 fetch) | unverified-inference | near-miss prompting.md:7.",
+      "why": "marker written in the tag field still counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R2 | cc-applicable | none | prompting.md:7 documents output checklists at the end of a prompt.",
+      "why": "near-miss treated as the stating page and the marker dropped"
+    },
+    {
+      "answer": "ROW R2 | cc-applicable | unverified-inference | prompting.md:7; not vendor-claimed because the platform covers checklists.",
+      "why": "marker named only in the note as dropped"
+    }
+  ]
+}

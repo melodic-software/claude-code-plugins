@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -171,7 +171,7 @@ function runCli(env) {
 test("CLI triages a non-numeric issue number and exits 0", () => {
   const { status, outputs } = runCli({ ISSUE_NUMBER: "7; echo", TRUSTED_ACTORS_PATH: "/nonexistent" });
   assert.equal(status, 0);
-  assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "" });
+  assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "", "rate-limited": "false" });
 });
 
 test("CLI triages an unreadable trusted-actor list and exits 0", () => {
@@ -181,7 +181,7 @@ test("CLI triages an unreadable trusted-actor list and exits 0", () => {
     GITHUB_API_URL: "http://127.0.0.1:9",
   });
   assert.equal(status, 0);
-  assert.deepEqual(outputs, { skip: "false", reason: "list-unreadable", "human-ids": "" });
+  assert.deepEqual(outputs, { skip: "false", reason: "list-unreadable", "human-ids": "", "rate-limited": "false" });
 });
 
 test("CLI emits the listed human ids even when the issue is unreadable", () => {
@@ -195,7 +195,29 @@ test("CLI emits the listed human ids even when the issue is unreadable", () => {
       GITHUB_API_URL: "http://127.0.0.1:9",
     });
     assert.equal(status, 0);
-    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "153232337" });
+    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "153232337", "rate-limited": "false" });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A rate-guard stop the job already holds: no request, rate-limited=true for
+// the callers to stop their API jobs on, and the step still exits 0.
+test("CLI reports rate-limited=true and sends nothing while the job's rate guard holds a stop", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "born-triaged-stop-"));
+  try {
+    const listPath = path.join(dir, "trusted-actors.json");
+    writeFileSync(listPath, JSON.stringify(LIST));
+    mkdirSync(path.join(dir, "api-budget"));
+    writeFileSync(path.join(dir, "api-budget", "stop"), `core ${Math.floor(Date.now() / 1000) + 3600}\n`);
+    const { status, outputs } = runCli({
+      ISSUE_NUMBER: "7",
+      TRUSTED_ACTORS_PATH: listPath,
+      GITHUB_API_URL: "http://127.0.0.1:9",
+      RUNNER_TEMP: dir,
+    });
+    assert.equal(status, 0);
+    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "153232337", "rate-limited": "true" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

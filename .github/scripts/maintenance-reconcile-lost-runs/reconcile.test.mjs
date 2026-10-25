@@ -18,6 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -321,6 +322,37 @@ test("the first rate-limit error stops the run", async () => {
   assert.equal(code, 1);
   assert.equal(calls.filter((c) => c.includes(`head_sha=${sha(2)}`)).length, 0);
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
+});
+
+// The rate guard's refusal carries status 429: it stops the run like a 429
+// answer, with no request sent and no wait taken.
+test("a call the rate guard refuses stops the run without a request or a wait", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-stop-"));
+  try {
+    const stopFile = path.join(dir, "stop");
+    writeFileSync(stopFile, `* ${Math.floor(Date.now() / 1000) + 3600}\n`);
+    const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+    let sent = 0;
+    const { code, sleeps } = await reconcile({
+      pulls: [pr(1)],
+      runs: [run(101, sha(1))],
+      github: () =>
+        createGitHub({
+          token: "t",
+          apiUrl: "https://api.example",
+          latch,
+          fetchImpl: async () => {
+            sent += 1;
+            return Response.json({});
+          },
+        }),
+    });
+    assert.equal(code, 1);
+    assert.equal(sent, 0);
+    assert.deepEqual(sleeps, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a refused re-run is reported and the rest go ahead", async () => {
