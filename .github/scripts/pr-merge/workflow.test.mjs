@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
@@ -487,6 +488,25 @@ test("a 429 is stopped like a 403", () => {
   const r = runDispatch([{ ...limited({ "Retry-After": "5" }), status: "429 Too Many Requests" }, ok(1)]);
   stopped(r);
 });
+
+// Any 429 is a rate limit, and a limit no header times waits as
+// rate-guard.mjs classify decides: the minute for a secondary one, else the hour.
+const DISPATCH_URL = "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches";
+for (const [name, status, body] of [
+  ["a bare 429 with no headers or message", 429, ""],
+  ["a 403 whose message names a primary rate limit, with no headers", 403, JSON.stringify({ message: "API rate limit exceeded for installation" })],
+  ["a 403 whose message names a secondary rate limit, with no headers", 403, JSON.stringify({ message: "You have exceeded a secondary rate limit" })],
+]) {
+  test(`${name} stops every pool until the guard's reset`, () => {
+    const want = classify({ url: DISPATCH_URL, status, headers: {}, body }, { now: NOW * 1000 });
+    assert.equal(want.pool, "*");
+    for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+      const r = runDispatch([{ status: `${status} X`, headers: {}, body }, ok(1)], { jobId, event: "schedule" });
+      stopped(r);
+      assert.match(r.out, new RegExp(`::error title=GitHub rate limit::every pool is exhausted \\(HTTP ${status}: .*before ${resetLabel(want.reset)}`));
+    }
+  });
+}
 
 const refused = () => limited({ "X-Ratelimit-Remaining": "900" }, "Resource not accessible by integration");
 

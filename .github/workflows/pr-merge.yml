@@ -280,7 +280,7 @@ jobs:
               message=$(jq -r '.message // ""' <<<"$body" 2>/dev/null || true)
               after=$(header retry-after) left=$(header x-ratelimit-remaining) reset=$(header x-ratelimit-reset)
               why="HTTP $status: ${message:-no message} (retry-after=${after:-none} remaining=${left:-none} reset=${reset:-none})"
-              if [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
+              if [ "$status" = 429 ] || [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
                 now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
                 if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
                 if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
@@ -288,7 +288,14 @@ jobs:
                   [[ $resource =~ ^[a-z_]+$ ]] || resource=core
                   pool="the $resource pool"
                 fi
-                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@${until:-$((now + 60))}" +%Y-%m-%dT%H:%M:%SZ)"
+                # No header time ahead, as rate-guard.mjs classify: a secondary
+                # limit or a past header time waits the minute, any other the hour.
+                if [ -z "$until" ]; then
+                  if [[ ${message,,} =~ secondary\ rate\ limit|abuse\ detection ]]; then until=$((now + 60)); else until=$((now + 3600)); fi
+                elif ((until <= now)); then
+                  until=$((now + 60))
+                fi
+                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ)"
                 echo "rate-limited=true" >>"$GITHUB_OUTPUT"
                 exit 1
               fi
@@ -1714,11 +1721,12 @@ jobs:
     permissions:
       actions: write # start pr-require-checks.yml on main, read its status, and send a red one to post-merge-demotion-alert.yml
     steps:
-      # At most three POSTs. A rate-limited 403 or 429 (a retry-after,
-      # remaining 0, or a message naming a rate limit) is never sent again:
+      # At most three POSTs. Any 429, or a 403 with a retry-after, remaining
+      # 0, or a message naming a rate limit, is never sent again:
       # GitHub may ban an integration that keeps calling while limited, so the
       # step fails red naming the reset, the later of retry-after and
-      # x-ratelimit-reset while remaining is 0, else a minute on. No response
+      # x-ratelimit-reset while remaining is 0, else a minute on for a
+      # secondary limit and an hour on for any other. No response
       # is sent again, after a full-jitter backoff (up to
       # 10 s, then 20 s), only when gh's error shows the connection failed
       # before the request went out: a `dial tcp` error (a DNS lookup, a
@@ -1769,7 +1777,7 @@ jobs:
               message=$(jq -r '.message // ""' <<<"$body" 2>/dev/null || true)
               after=$(header retry-after) left=$(header x-ratelimit-remaining) reset=$(header x-ratelimit-reset)
               why="HTTP $status: ${message:-no message} (retry-after=${after:-none} remaining=${left:-none} reset=${reset:-none})"
-              if [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
+              if [ "$status" = 429 ] || [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
                 now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
                 if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
                 if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
@@ -1777,7 +1785,14 @@ jobs:
                   [[ $resource =~ ^[a-z_]+$ ]] || resource=core
                   pool="the $resource pool"
                 fi
-                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@${until:-$((now + 60))}" +%Y-%m-%dT%H:%M:%SZ)"
+                # No header time ahead, as rate-guard.mjs classify: a secondary
+                # limit or a past header time waits the minute, any other the hour.
+                if [ -z "$until" ]; then
+                  if [[ ${message,,} =~ secondary\ rate\ limit|abuse\ detection ]]; then until=$((now + 60)); else until=$((now + 3600)); fi
+                elif ((until <= now)); then
+                  until=$((now + 60))
+                fi
+                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ)"
                 echo "rate-limited=true" >>"$GITHUB_OUTPUT"
                 exit 1
               fi
