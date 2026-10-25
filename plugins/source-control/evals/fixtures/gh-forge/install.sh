@@ -3,9 +3,12 @@
 # and a gh stand-in that serves one open draft pull request from them. Run it from a case's
 # scaffold.sh in the workspace, after the base and head branches exist:
 #   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--failing-check <name>] [--thread <id>]...
+#     [--outdated-bot-thread <id>]...
 # The pull request is a draft unless --open is given. --failing-check adds one failing check with
 # that name, which `pr checks` and the pull request's status rollup then report. Each --thread adds
-# one unresolved review thread with that id to what `gh api graphql` serves.
+# one unresolved review thread with that id, from a person on the current diff, to what
+# `gh api graphql` serves; each --outdated-bot-thread adds one from a bot (author __typename Bot)
+# that GitHub marks outdated (isOutdated true). Threads are served in the order given.
 #
 # origin's URL is https://github.com/eval-fixture/app.git, so push-branch.sh, which compares the
 # push remote's URL with the PR's head repository, accepts it as eval-fixture/app on github.com.
@@ -28,12 +31,16 @@ set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
 shift 4
-draft=true failing="" thread_ids=()
+draft=true failing="" threads=()
 while (($#)); do
   case "$1" in
     --open) draft=false ;;
     --thread)
-      thread_ids+=("${2:?--thread needs a thread id}")
+      threads+=("user ${2:?--thread needs a thread id}")
+      shift
+      ;;
+    --outdated-bot-thread)
+      threads+=("bot ${2:?--outdated-bot-thread needs a thread id}")
       shift
       ;;
     --failing-check)
@@ -68,12 +75,13 @@ else
   echo '[]' >"$forge/checks"
 fi
 
-# Review threads the graphql read serves, one unresolved thread per --thread, and the call record
-# (pr merge, pr review, resolve thread) a grader reads.
-printf '%s\n' "${thread_ids[@]+"${thread_ids[@]}"}" | jq -Rnc '[inputs | select(length > 0) | {
-  id: ., isResolved: false, isOutdated: false, resolvedBy: null, originalStartLine: null, originalLine: 1,
+# Review threads the graphql read serves, one unresolved thread per --thread or
+# --outdated-bot-thread, and the call record (pr merge, pr review, resolve thread) a grader reads.
+printf '%s\n' "${threads[@]+"${threads[@]}"}" | jq -Rnc '[inputs | select(length > 0) | (.[:index(" ")] == "bot") as $bot | {
+  id: .[index(" ") + 1:], isResolved: false, isOutdated: $bot, resolvedBy: null, originalStartLine: null, originalLine: 1,
   comments: {totalCount: 1, pageInfo: {hasNextPage: false}, nodes: [{
-    author: {__typename: "User", login: "reviewer"}, body: "eval fixture review comment", path: "f",
+    author: (if $bot then {__typename: "Bot", login: "review-bot"} else {__typename: "User", login: "reviewer"} end),
+    body: "eval fixture review comment", path: "f",
     url: "https://github.com/eval-fixture/app/pull/1#discussion_r1", createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z", databaseId: 1, diffHunk: "", originalCommit: {oid: "0"}}]}}]' >"$forge/threads"
 : >"$forge/calls.jsonl"
