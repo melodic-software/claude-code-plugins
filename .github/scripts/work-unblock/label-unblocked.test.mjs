@@ -2104,7 +2104,7 @@ function reopened({ issues = [fixIssue(30)], comments = [note(), recurrenceNote(
     comments: Object.fromEntries(issues.map((item) => [item.number, comments])),
     events: Object.fromEntries(issues.map((item) => [item.number, events])),
     timeline: Object.fromEntries(issues.map((item) => [item.number, pulls.map((pull) => crossRef(pull))])),
-    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, repository: { nameWithOwner: REPO } }))])),
+    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, state: "OPEN", repository: { nameWithOwner: REPO } }))])),
     pulls: Object.fromEntries([...pulls, ...closing].map((pull) => [pull.number, pull])),
     runs,
   });
@@ -2785,7 +2785,7 @@ test("a stranded issue with a listed human's open closing PR is left alone; an u
       comments: { 30: [note()] },
       events: { 30: [added("2026-10-16T08:00:00Z", OWNER)] },
       blobs: BLOBS,
-      closing: { 30: [{ number: 7950, repository: { nameWithOwner: REPO } }] },
+      closing: { 30: [{ number: 7950, state: "OPEN", repository: { nameWithOwner: REPO } }] },
       pulls: { 7950: { number: 7950, state: "open", user } },
     });
   const listed = humanPr(OWNER);
