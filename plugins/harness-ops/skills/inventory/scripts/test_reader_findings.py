@@ -823,6 +823,97 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(modules=modules):
                 self.assert_across_modules(True, *modules)
 
+    # #9954, the Codex findings on #5891 head d53b60dcd:
+    # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5962096909
+
+    DEFAULTED = 'function f({cb=a=>a.push("B")}){cb(pY)}'
+
+    def test_an_undefined_argument_runs_the_destructuring_default(self) -> None:
+        """A key whose value is undefined takes the destructuring default,
+        which pushes `B`. So may one whose value may be undefined: a branch,
+        a `var` read before its initializer runs, a binding another module
+        exports."""
+        imp = 'import{pY}from"/a.js";'
+        for call in (
+            "f({cb:undefined});",
+            "f({cb:void 0});",
+            "var g;f({cb:g});",
+            'f({cb:g});var g=(a)=>a.includes("x");',
+            'f({cb:[].length?(a)=>a.includes("x"):undefined});',
+        ):
+            with self.subTest(call=call):
+                self.assert_across_modules(True, imp + self.DEFAULTED + call)
+        self.assert_across_modules(
+            True,
+            imp + 'import{g}from"/c.js";' + self.DEFAULTED + "f({cb:g});",
+            "var g;export{g};",
+        )
+
+    def test_a_defined_destructured_callback_keeps_the_literal(self) -> None:
+        """The control: `g` is a local function that never changes its
+        argument, so the default never runs and the list stands."""
+        for g in (
+            'function g(a){return a.includes("x")}',
+            'const g=(a)=>a.includes("x");',
+        ):
+            with self.subTest(g=g):
+                self.assert_across_modules(
+                    False, 'import{pY}from"/a.js";' + g + self.DEFAULTED + "f({cb:g});"
+                )
+
+    def test_a_destructured_key_is_read_where_destructuring_finds_it(self) -> None:
+        """A numeric key matches the literal's key of that number, and a key
+        the literal lacks is read from its prototype: the one `__proto__:`
+        sets, or Object.prototype, where another module may put it."""
+        imp = 'import{pY}from"/a.js";'
+        keep = '(a)=>a.includes("x")'
+        push = '(a)=>a.push("B")'
+        for module in (
+            imp + f"function f({{1:cb={keep}}}){{cb(pY)}}f({{1:{push}}});",
+            imp + f"function f({{cb={keep}}}){{cb(pY)}}f({{__proto__:{{cb:{push}}}}});",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, module)
+        self.assert_across_modules(
+            True,
+            imp + f"function f({{cb={keep}}}){{cb(pY)}}f({{}});",
+            f"Object.prototype.cb={push};",
+        )
+
+    def test_function_prototype_constructor_is_a_sink(self) -> None:
+        """`Function.prototype.constructor` is the Function constructor, so a
+        `.prototype` read that can go on to it, by name, by a computed key
+        that may spell it, through an alias or a call's result, or in code
+        it is handed to, builds code from a string as `Function(...)` does.
+        A chain that names other members only and is discarded stays
+        clear."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        code = "\"Array.prototype.includes=function(){this.push('B')}\""
+        for module in (
+            f"Function.prototype.constructor({code})();",
+            f'Function.prototype["constructor"]({code})();',
+            f'var k="constr"+"uctor";Function.prototype[k]({code})();',
+            f"var P=Function.prototype;P.constructor({code})();",
+            f"Function.prototype.toString.constructor({code})();",
+            f"Function.prototype.valueOf().constructor({code})();",
+            f"class H{{static[Symbol.hasInstance](a){{a.constructor({code})()}}}}"
+            "Function.prototype instanceof H;",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+        self.assert_across_modules(False, named, "Function.prototype.toString.call(f);")
+
+    def test_an_importer_with_a_comment_before_from_is_followed(self) -> None:
+        """Importers come from the parsed import and re-export declarations,
+        so a comment beside `from` hides none."""
+        for modules in (
+            ('import{pY}/*c*/from"/a.js";pY.push("B");',),
+            ('import{pY}from/*c*/"/a.js";pY.push("B");',),
+            ('export{pY as W}/*c*/from"/a.js";', 'import{W}from"/b.js";W.push("B");'),
+        ):
+            with self.subTest(modules=modules):
+                self.assert_across_modules(True, *modules)
+
     def test_finding_4_an_arrow_earlier_in_the_statement_leaves_a_spread_partial(
         self,
     ) -> None:

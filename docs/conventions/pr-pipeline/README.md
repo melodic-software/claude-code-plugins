@@ -884,7 +884,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   head last changed; the queue would eject it again on the same commits. A push resets the count.
   An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
-  failing `merge_group` runs.
+  failing `merge_group` runs. Under `merge.lane-prs` `native`, `enable-auto-merge` applies the
+  same cap before it arms a lanes App pull request (see [Native auto-merge](#native-auto-merge)).
 - **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
   When the base changed one since a pull request's merge base, the wrapper updates the branch from
   the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
@@ -1119,7 +1120,14 @@ heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` find
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
-review, the trust gate and the cost review all hold. Each such run also
+review, the trust gate and the cost review all hold; and `evidence --lane-queue` finds the merge
+queue has removed the head for failed checks fewer than `merge.max-queue-ejections` times since it
+last changed, the gate's own count and limit (`babysit_merge.queue_ejection_refusal`). GitHub does
+not re-arm a pull request the queue removes, so without this cap each scheduled run would arm a head
+that keeps failing its merge group again. At the cap the pull request is left unarmed with the
+gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a push resets the
+count; an unread count leaves it unarmed with no comment, and the next run reads it again. An
+armed one is not disarmed on the count. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
 report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report, or
 one the gate would not reuse (`shared_refusal`: too old, a demotion record changed since, or a lane
