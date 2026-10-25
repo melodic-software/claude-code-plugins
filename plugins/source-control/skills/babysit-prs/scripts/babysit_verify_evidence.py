@@ -273,53 +273,49 @@ SPLIT_CHILD_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
     "parent{number repository{nameWithOwner} body lastEditedAt author{...actor} "
-    "editor{...actor} comments(first:100){totalCount nodes{databaseId createdAt "
-    "updatedAt body lastEditedAt author{...actor} editor{...actor}}}}}}}"
+    "editor{...actor} comments(first:100){totalCount nodes{body lastEditedAt "
+    "author{...actor} editor{...actor}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
-REFINE_MARKER = "<!-- intake-triage refinement -->"
+# Admission's rules, whose `task-list` is the prefix a split copies by.
+ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
+# admit.mjs SPLIT_CHILD_MARKER and the part line.
 SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->"
 SPLIT_PART_RE = re.compile(r"Part ([1-9][0-9]?) of ([1-9][0-9]?) of #")
-SPLIT_SOURCE_RE = re.compile(
-    r"<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->"
-)
+# What JavaScript's trimStart strips: WhiteSpace and LineTerminator.
+JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
-def split_child_header(
-    parent: int, part: int, parts: int, source: tuple[int, str] | None = None
-) -> str:
+def split_child_header(parent: int, part: int, parts: int) -> str:
     """admit.mjs splitChildHeader: the fixed header of part `part` of
-    `parts` a size split files from issue `parent`, with the refinement
-    source line when `source` (id, updated_at) is given."""
-    also = " and intake's refinement comment on it" if source else ""
-    rows = [
-        SPLIT_CHILD_MARKER,
-        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
-        f"The done-when below is copied from #{parent}{also} as written.",
-    ]
-    if source:
-        rows.append(
-            f"<!-- size-split refinement={source[0]} updated_at={source[1]} -->"
-        )
-    return "\n".join([*rows, "", "## Done when", ""])
+    `parts` a size split files from issue `parent`."""
+    return "\n".join(
+        [
+            SPLIT_CHILD_MARKER,
+            f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
+            f"The done-when below is copied from #{parent} as written.",
+            "",
+            "## Done when",
+            "",
+        ]
+    )
 
 
 def split_child_body(
-    issue: Any, repo: str, humans: frozenset[int], app_id: int | None
+    issue: Any, repo: str, humans: frozenset[int], app_id: int | None, task_list: Any
 ) -> str | None:
     """The body of `issue` (as `SPLIT_CHILD_QUERY` reads it) when it counts
     as the text a size split copied into it, else None: the split-child trust
     rule, whose one home is admit.mjs splitChildBody, read the way
     resolve-pr.mjs reads it (a parent in this repository with every comment
     read). The lanes App (`app_id`) wrote it, a listed human filed its native
-    parent, and it opens with `split_child_header` for that parent. A source
-    line names a refinement comment, which must still be the App's newest
-    refinement on the parent, unedited, on a body a listed human wrote, its
-    updated_at its created_at or the recorded one. Then either nobody edited
-    the body and every line after the header is a line of the parent's
-    listed-human text or of that refinement, or a listed human last edited
-    it. Pure. split-child.vectors.json holds its cases."""
+    parent, and it opens with `split_child_header` for that parent. Then
+    either nobody edited the body and every line after the header is one of
+    the parent's trusted task-list lines (a line of its listed-human text
+    starting, after leading space, with `task_list`, admission's
+    `task-list`), or a listed human last edited it. A missing or empty
+    `task_list` counts nothing. Pure. split-child.vectors.json holds its
+    cases."""
     issue = json_object(issue)
     parent = json_object(issue.get("parent"))
     author = json_object(issue.get("author"))
@@ -328,7 +324,9 @@ def split_child_body(
     number = parent.get("number")
     body = issue.get("body")
     if (
-        type(app_id) is not int
+        not isinstance(task_list, str)
+        or not task_list
+        or type(app_id) is not int
         or author.get("__typename") != "Bot"
         or type(author.get("databaseId")) is not int
         or author["databaseId"] != app_id
@@ -339,7 +337,6 @@ def split_child_body(
         or not isinstance(body, str)
     ):
         return None
-    nodes = [json_object(node) for node in nodes]
 
     def human(actor: Any) -> bool:
         actor = json_object(actor)
@@ -354,60 +351,26 @@ def split_child_body(
             item.get("lastEditedAt") is None or human(item.get("editor"))
         )
 
-    def text(item: dict[str, Any]) -> str:
-        value = item.get("body")
-        return "" if value is None else str(value)
-
     edited = issue.get("lastEditedAt") is not None
     if not human(parent.get("author")) or (edited and not human(issue.get("editor"))):
         return None
     rows = body.split("\n")
     part = SPLIT_PART_RE.match(rows[1]) if len(rows) > 1 else None
-    tag = SPLIT_SOURCE_RE.fullmatch(rows[2]) if len(rows) > 2 else None
-    source = (int(tag[1]), tag[2]) if tag else None
     if part is None:
         return None
-    header = f"{split_child_header(number, int(part[1]), int(part[2]), source)}\n"
+    header = f"{split_child_header(number, int(part[1]), int(part[2]))}\n"
     if not body.startswith(header):
         return None
-    refinement: list[str] = []
-    if source is not None:
-        # admit.mjs countedRefinement: the newest refinement, never an older
-        # one, only while unedited and on a body a listed human wrote.
-        newest = next(
-            (
-                c
-                for c in reversed(nodes)
-                if json_object(c.get("author")).get("__typename") == "Bot"
-                and json_object(c.get("author")).get("databaseId") == app_id
-                and text(c).startswith(REFINE_MARKER)
-            ),
-            None,
-        )
-        if (
-            newest is None
-            or newest.get("lastEditedAt") is not None
-            or not written(parent)
-        ):
-            return None
-        updated = newest.get("updatedAt")
-        if (
-            type(newest.get("databaseId")) is not int
-            or newest["databaseId"] != source[0]
-            or not isinstance(updated, str)
-            or updated not in (newest.get("createdAt"), source[1])
-        ):
-            return None
-        refinement = text(newest).split("\n")
     if edited:
         return body
+    # admit.mjs trustedTaskLines: the lanes App's refinement is left out.
     allowed = {
         line
-        for item in (parent, *nodes)
+        for item in (parent, *map(json_object, nodes))
         if written(item)
-        for line in text(item).split("\n")
+        for line in str(item.get("body") or "").split("\n")
+        if line.lstrip(JS_SPACE).startswith(task_list)
     }
-    allowed.update(refinement)
     lines = body[len(header) :].split("\n")
     return body if all(line in allowed for line in lines) else None
 
@@ -691,6 +654,9 @@ class Reader:
     # Every login on the trusted list, lowercased, to its id, and when read.
     _logins: dict[str, int] | None = None
     _logins_at: datetime | None = None
+    # Admission's `task-list` (`_task_list`), once read.
+    _task_list_value: Any = None
+    _task_list_read: bool = False
     # Whether each size-split sub-issue judged counts (`_split_child`).
     _split_children: dict[int, bool] = field(default_factory=dict)
     # The pull requests `link_refusal` read, each taken by the next
@@ -1087,11 +1053,41 @@ class Reader:
         app_id = (self._logins or {}).get(f"{identity}[bot]")
         return app_id if type(app_id) is int else None
 
+    def _task_list(self) -> str | None:
+        """Admission's `task-list` at the branch, as resolve-pr.mjs reads it
+        from main's checkout, shared by the run's gate processes; None when
+        the rules hold no string there. A failed read raises `_Unreadable`."""
+        key = f"{self.repo}@{self.branch}"
+        if not self._task_list_read:
+            shared = run_cache.get_dated("task-list", key, run_cache.MAX_AGE)
+            if shared is not None:
+                self._task_list_value, at = shared
+            else:
+                at = run_cache.now()
+                rules = json_object(
+                    _read(
+                        [
+                            "api",
+                            "-H",
+                            "Accept: application/vnd.github.raw",
+                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={self.branch}",
+                        ],
+                        "admission rules",
+                    )
+                )
+                self._task_list_value = rules.get("task-list")
+                run_cache.put("task-list", key, self._task_list_value, at)
+            self._task_list_read = True
+            run_cache.note(at)
+        value = self._task_list_value
+        return value if isinstance(value, str) and value else None
+
     def _split_child(self, issue: dict[str, Any]) -> bool:
         """Whether recorded linked issue `issue`, which the lanes App wrote,
         is a size split's sub-issue whose body counts (`split_child_body`),
         read once per Reader under the Actions token (`issues: read`). A
-        failed or cut read counts nothing."""
+        failed read raises `_Unreadable` (`verify:unreadable`), as
+        resolve-pr.mjs fails on it; a cut comment read counts nothing."""
         app_id = self._lane_app_id()
         number = issue.get("number")
         if (
@@ -1102,13 +1098,13 @@ class Reader:
         ):
             return False
         if number not in self._split_children:
-            try:
-                node = self._graphql(
-                    SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
-                ).get("issue")
-            except _Unreadable:
-                node = None
-            body = split_child_body(node, self.repo, self._trusted_humans(), app_id)
+            task_list = self._task_list()
+            node = self._graphql(
+                SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
+            ).get("issue")
+            body = split_child_body(
+                node, self.repo, self._trusted_humans(), app_id, task_list
+            )
             self._split_children[number] = body is not None
         return self._split_children[number]
 
@@ -1535,9 +1531,7 @@ class Reader:
         except postmerge.PostMergeReadError:
             return None
 
-    def _newest(
-        self, passes: list[tuple[int, str, Any]]
-    ) -> list[tuple[int, str, Any]]:
+    def _newest(self, passes: list[tuple[int, str, Any]]) -> list[tuple[int, str, Any]]:
         """The passes whose runs started last (`run_started_at`, which a
         re-attempt moves, and which a re-attempt's judgment read the spec
         at): a pr-verify run that judged the head again after the spec
@@ -1652,9 +1646,10 @@ class Reader:
                 sliced.add(_issue_numbers(record))
             for run_id, name, artifact in passes:
                 record = self._record(run_id, name, artifact)
-                if record.get("spec_kind") != "closes" or {
-                    _issue_numbers(record)
-                } != sliced:
+                if (
+                    record.get("spec_kind") != "closes"
+                    or {_issue_numbers(record)} != sliced
+                ):
                     return False
         except _Unreadable:
             return False

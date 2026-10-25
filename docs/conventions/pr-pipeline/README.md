@@ -1465,7 +1465,8 @@ value judges none (`verify-authors-invalid`). The trusted-spec rule below does n
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
-reads `verify:untrusted-spec`, so a lane pull request never supplies its own spec.
+reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
+parent's task-list lines (below), so a lane pull request never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -1558,8 +1559,16 @@ head:
   included) are the ones it recorded by id and update time, none added, edited or deleted; a partial
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
-  list's humans, the pull request's author included (otherwise `verify:untrusted-spec`); a Bot or
-  App, the lanes App among them, never counts. The model's spec text holds what such
+  list's humans, the pull request's author included, or is a sub-issue intake's size split filed
+  whose body counts as its parent's text (otherwise `verify:untrusted-spec`). That sub-issue counts
+  when the lanes App wrote it, a listed human filed its native parent in this repository, its body
+  opens with the split header for that parent, and either nobody edited it and every line after
+  the header is one of the parent's trusted task-list lines (a line of the parent's listed-human
+  body or comments that starts with admission's `task-list`, `- [ ] `, from
+  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty
+  `task-list` counts nothing), or a listed human last edited it. A parent with more than 100
+  comments leaves it untrusted, and a failed read of the sub-issue, its parent or the rules
+  refuses `verify:unreadable`. Otherwise a Bot or App, the lanes App among them, never counts. The model's spec text holds what such
   accounts wrote and, on an issue whose body such an account wrote, intake triage's newest
   refinement comment (opening `<!-- intake-triage refinement -->`, by the lanes App's id from
   `merge.agent-identity` on the trusted-actor list) while unedited and posted before the pull
