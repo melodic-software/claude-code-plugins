@@ -205,8 +205,9 @@ class RiskResult:
 # (code owners), what code is pulled in from elsewhere (submodules), and the
 # code the token broker runs from main in its signer process (resolve-config,
 # owner decision Q51), with check-kill-switch, whose writeOutputs both of those
-# actions write their verdicts through, and request-lane-token, which mints and
-# hands out the lanes App token in every privileged workflow.
+# actions write their verdicts through, request-lane-token, which mints and
+# hands out the lanes App token in every privileged workflow, and the rate
+# guard check-trusted-trigger sends every call through.
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
@@ -215,6 +216,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/resolve-config/**",
     ".github/actions/check-kill-switch/**",
     ".github/actions/request-lane-token/**",
+    ".github/actions/log-api-budget/rate-guard.mjs",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

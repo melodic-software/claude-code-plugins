@@ -55,6 +55,7 @@ declare -A GUARD_FIELDS=(
   ["run-guards.sh"]='.tool_name .hook_event_name .tool_input.command'
   ["block-convention-violation.sh"]='.tool_input.command .tool_name .cwd'
   ["block-credential-read.sh"]='.tool_input.command'
+  ["block-cross-domain.sh"]='.tool_input.command .tool_name .cwd'
   ["block-dangerous-git.sh"]='.tool_input.command .cwd .tool_name'
   ["block-fix-request-post.sh"]='.tool_input.command .tool_name .cwd'
   ["block-exported-msys-pathconv.sh"]='.tool_input.command .tool_name'

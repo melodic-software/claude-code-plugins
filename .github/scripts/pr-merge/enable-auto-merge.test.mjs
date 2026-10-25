@@ -34,6 +34,7 @@ import {
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
@@ -632,7 +633,10 @@ async function served(pulls, arm) {
   };
   console.log = (line) => lines.push(line);
   try {
-    return { code: await main({ env: { ...ENV, GH_TOKEN: "t" }, verify, room: room(), sleep: async () => {} }), lines };
+    // Its own latch: one case's rate limit neither refuses the next case's
+    // calls nor fails this process.
+    const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+    return { code: await main({ env: { ...ENV, GH_TOKEN: "t" }, verify, room: room(), sleep: async () => {}, latch }), lines };
   } finally {
     globalThis.fetch = saved;
     console.log = log;

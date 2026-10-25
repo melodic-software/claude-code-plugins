@@ -14,12 +14,58 @@ on:
 permissions: {}
 
 jobs:
+  # The pinned reusable reads no kill switch, so this caller does, as
+  # intake-triage.yml does: the org and repository switches fail closed
+  # (check-kill-switch), and a failed job leaves proceed empty, which stops
+  # both jobs below and every API call they make.
+  kill-switch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the default branch for the kill-switch action
+    outputs:
+      proceed: ${{ steps.kill.outputs.proceed }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::notice::the lanes kill switch stops the needs-triage label (reason: ${REASON:-unreadable})"
+
   # Skips the floor label for an issue /work-items:decompose published
   # already triaged; see .github/actions/check-born-triaged. A failed gate
-  # leaves skip empty, so the label lane runs. It runs on opened only, so a
-  # reopened issue still re-acquires the floor.
+  # leaves skip empty, so the label lane runs; a rate limit on its read sets
+  # rate-limited, which stops the label lane and its calls with the same
+  # token. It runs on opened only, so a reopened issue still re-acquires the
+  # floor.
   born-triaged:
-    if: github.event.action == 'opened'
+    needs: kill-switch
+    if: github.event.action == 'opened' && needs.kill-switch.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -27,6 +73,7 @@ jobs:
       issues: read # read the issue's current body, type and labels
     outputs:
       skip: ${{ steps.check.outputs.skip }}
+      rate-limited: ${{ steps.check.outputs.rate-limited }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,8 +82,10 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-born-triaged/
+            /.github/actions/log-api-budget/
             /.github/standards/trusted-actors/
             /.node-version
+            /docs/conventions/pr-pipeline/pr-pipeline.schema.json
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
@@ -52,8 +101,8 @@ jobs:
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
 
   intake-label-needs-triage:
-    needs: born-triaged
-    if: ${{ !cancelled() && needs.born-triaged.outputs.skip != 'true' }}
+    needs: [kill-switch, born-triaged]
+    if: ${{ !cancelled() && needs.kill-switch.outputs.proceed == 'true' && needs.born-triaged.outputs.rate-limited != 'true' && needs.born-triaged.outputs.skip != 'true' }}
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
     uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0

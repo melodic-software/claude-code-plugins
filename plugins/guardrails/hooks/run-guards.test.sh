@@ -844,7 +844,7 @@ done
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
   flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
-  block-root-delete-target block-fix-request-post; do
+  block-root-delete-target block-fix-request-post block-cross-domain; do
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOKS_JSON")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
