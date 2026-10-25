@@ -1139,7 +1139,15 @@ saved listing, head-ref map and run cache; an event run reads no link or verdict
 only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
 turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
 armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
-any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
+any of those, and does not turn it back on once a person has turned it off. A scheduled or
+hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
+`Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
+says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
+label only for a cause a person must clear: that hold line (owner decision Q-HOLDLINE), a
+configured denied path or a [path floor](#merge-authority) path, a cost hold, an untrusted spec,
+the repeated-FAIL round cap, a security finding or a trusted-actor widening. It puts the label
+back while the comment stands unless a person removed it since; a person's own hold text gets
+neither. GitHub then merges the pull request through the merge queue
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
 the body must still close, or with no closing issue name by a plain `Refs:` line, the one issue
 the pass judged, linked the same way (`merge-holds.mjs` `linkHold`), so a body edited after arming
@@ -2271,9 +2279,10 @@ the author on the trusted-actor list, as every pr-unblock run does. A pushed fix
 PR and its head, so the next fix waits another `idle-hours`: a person's PR gets at most one fix
 round per idle window. A lanes App PR waits for no idle window, and its
 `Hold: a human merges this` line holds the merge, not a CI fix. With an `adoption` section the
-human-gated label holds a lanes App PR from `fix-ci` too; without one the tracker file and the
-trusted-actor list are not read, nothing is adopted, and only `do-not-merge` and `needs-human`
-hold.
+human-gated label holds a lanes App PR from `fix-ci` too, including the label `enable-auto-merge`
+adds for that line, since its pr-merge escalation comment is not a pr-unblock lane escalation;
+without one the tracker file and the trusted-actor list are not read, nothing is adopted, and only
+`do-not-merge` and `needs-human` hold.
 
 | Key | Default | Meaning |
 |---|---|---|

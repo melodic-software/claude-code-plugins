@@ -1133,6 +1133,48 @@ test("the lane's own hold line holds a lanes App body", async () => {
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
 });
 
+// Owner decision Q-HOLDLINE: report-outcome's own hold line is a cause a
+// person must clear, so a reader run comments once and adds the human-gated
+// label, as for a configured denied path; it puts the label back unless a
+// person removed it. A person's own hold text gets neither: they set it.
+const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
+const APP_ONLY = { totalCount: 0, nodes: [] };
+const laneHeld = (number, overrides = {}) => pull(number, { body: `Closes #5\n\n${HOLD_LINE}`, userContentEdits: APP_ONLY, ...overrides });
+test("the lane's own hold line is commented on once and labeled human-gated", async () => {
+  const first = await run([laneHeld(1)]);
+  assert.equal(first.code, 0);
+  assert.deepEqual(first.writes, []);
+  assert.deepEqual(first.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  // The next run: labeled, it writes nothing and reads no discussion.
+  const labeled = await run([laneHeld(1, { labels: labels("needs-human"), discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
+  assert.deepEqual(labeled.notes, []);
+  assert.ok(!labeled.calls.some(({ body }) => body?.query === DETAIL_QUERY));
+  // A person removed the label after the comment: it stays off.
+  const lifted = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
+  assert.deepEqual(lifted.notes, []);
+  // The label write failed earlier: it goes back on.
+  const unlabeledOnce = await run([laneHeld(1, { discussion: { comments: [lanesSaid(personNote(LANE_HOLD_REASON))] } })]);
+  assert.deepEqual(unlabeledOnce.notes, [{ method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } }]);
+});
+
+test("a person's own hold text and an event run write no note, and an event run disarms the lane's hold line with no read", async () => {
+  const person = { totalCount: 1, nodes: [{ editor: { __typename: "User" } }] };
+  const { notes, writes } = await run([pull(1, { body: "Closes #5\n\nHold: waiting on a review", userContentEdits: person })]);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, []);
+  const event = await run([laneHeld(2, { autoMergeRequest: {} }), laneHeld(3)], { EVENT_NAME: "pull_request_target" });
+  assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_2" }]);
+  assert.deepEqual(event.notes, []);
+  assert.ok(!event.calls.some(({ body }) => body?.query === DETAIL_QUERY));
+  // A reader run disarms an armed one at once too, and notes it on its next run.
+  const reader = await run([laneHeld(4, { autoMergeRequest: {} })]);
+  assert.deepEqual(reader.writes, [{ mutation: "disarm", id: "PR_4" }]);
+  assert.deepEqual(reader.notes, []);
+});
+
 // The start moves with the run number, so the pull requests past the
 // verify budget differ from run to run.
 test("the run starts at an offset that moves with the run number", async () => {

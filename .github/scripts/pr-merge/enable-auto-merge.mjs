@@ -10,8 +10,9 @@
 //   of this repository, and it is not a draft.
 // - It carries no hold: no `do-not-merge` and no human-gated label (the
 //   tracker's role label, `needs-human` by default), and no body hold: the
-//   lane's own hold line, or hold text a person wrote (merge-holds.mjs
-//   bodyHolds). Labels past the listing's 100 are read whole.
+//   lane's own hold line (merge-holds.mjs LANE_HOLD), or hold text a person
+//   wrote (BODY_HOLD and personWrote). Labels past the listing's 100 are
+//   read whole.
 // - No member vetoes it (merge-holds.mjs), its discussion read whole page by
 //   page (wholeDiscussion). ci-status fails on both holds too, so one added
 //   after arming stops the merge queue rather than waiting for this job's
@@ -74,20 +75,21 @@
 //   mode, a high path, the manifest review, the trust gate and the cost
 //   review hold. Read only after the verdict allows.
 // A reader run that leaves a lanes App pull request unarmed, or disarms it,
-// on a hold path, a cost hold, the gate's verdict or its risk score says why
-// on the pull request, since under merge.lane-prs native the gate never
-// lists it: one `<!-- babysit-merge-risk -->` comment, edited in place and
-// left alone while the reason and head are unchanged (refusalWrites). The
+// on the lane's hold line, a hold path, a cost hold, the gate's verdict or
+// its risk score says why on the pull request, since under merge.lane-prs
+// native the gate never lists it: one `<!-- babysit-merge-risk -->`
+// comment, edited in place and left alone while the reason and head are
+// unchanged (refusalWrites). The
 // comment is the record; only a cause a person must clear (owner direction
 // 2026-10-24: untrusted provenance, a security finding, a trusted-actor
-// widening or a real charge, see verifyClears; and a hold path, a configured
-// denied path or the floor, which only a trusted approval lifts) also gets
-// the human-gated
+// widening or a real charge, see verifyClears; a hold path, a configured
+// denied path or the floor, which only a trusted approval lifts; and the
+// lane's own hold line, owner decision Q-HOLDLINE) also gets the human-gated
 // label, put back while the comment stands unless a person removed it
 // since. clear-escalations takes the label off once the head moves, and
 // this run labels the new head again only if its cause still holds. Holds a
-// person already set (labels, a body hold, a veto), the room and failed
-// reads write nothing.
+// person already set (labels, their own body hold, a veto), the room and
+// failed reads write nothing.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. Before it arms, the run
 // posts the gate's pin comment for that head (pinBody) unless the lanes App's
@@ -129,7 +131,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, bodyHolds, costDecision, costHold, humansOf, pathHold, personWrote, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, pathHold, personWrote, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -285,6 +287,10 @@ async function answerBody(text) {
   }
 }
 
+// The hold reason for report-outcome's own hold line (merge-holds.mjs
+// LANE_HOLD), a cause a person must clear (owner decision Q-HOLDLINE).
+export const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
+
 // Why `pull` must not be armed, or null when it may be.
 export function holdReason(pull, humanGated) {
   const labels = pull.labels?.nodes ?? [];
@@ -297,7 +303,10 @@ export function holdReason(pull, humanGated) {
     return `it carries ${label}`;
   }
   const body = String(pull.body ?? "");
-  return bodyHolds(body, BODY_HOLD.test(body) && personWrote(pull)) ? "its body holds it" : null;
+  if (LANE_HOLD.test(body)) {
+    return LANE_HOLD_REASON;
+  }
+  return BODY_HOLD.test(body) && personWrote(pull) ? "its body holds it" : null;
 }
 
 const whole = (connection) => Array.isArray(connection?.nodes) && connection.totalCount <= connection.nodes.length;
@@ -695,6 +704,12 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
         : !SHA.test(String(pull.headRefOid))
           ? "its head is not a commit SHA"
           : holdReason(pull, humanGated);
+  // The lane's hold line gets the comment and label once a reader run has
+  // read the discussion, so the note finds the comment it wrote before; an
+  // armed one is disarmed at once and noted on the next reader run.
+  if (held === LANE_HOLD_REASON && !armed && detail !== null) {
+    return detail === undefined ? { action: "read", reason: "its discussion is not read yet" } : { action: "none", reason: held, clears: "person" };
+  }
   if (held !== null) {
     return { action: armed ? "disarm" : "none", reason: held };
   }
@@ -825,8 +840,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     if (holdPaths === null) {
       console.log("::warning title=enable-auto-merge::the resolved config's hold paths did not read, so nothing is armed this run; the next run reads them again");
     }
-    // A reader run's per pull request refusal (a hold path or cost hold, or
-    // the gate's verdict or risk score) goes on the pull request itself:
+    // A reader run's per pull request refusal (the lane's hold line, a hold
+    // path or cost hold, or the gate's verdict or risk score) goes on the
+    // pull request itself:
     // under merge.lane-prs native the gate never lists it, so a log line
     // would be all anyone saw.
     const note = async (pull, detail, refusal) => {
