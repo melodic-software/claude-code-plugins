@@ -11,7 +11,7 @@ effort, turn budget) and the App token grant. The config's contract is the
 |---|---|---|
 | `lane` | empty | The lane, its workflow's file stem; required unless `model-route` is set |
 | `activity` | empty | The activity to select from the lane's slots |
-| `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`): resolve only its models profile. Set it or `lane`, not both |
+| `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`): resolve only its models profile. Set it or `lane`, not both |
 | `base-path` | `.base` | The base-SHA checkout; every config, schema and vocabulary read is under it |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | The config, relative to `base-path`; for test callers only |
 | `output-path` | required | Where the `ResolvedConfig` JSON file is written |
@@ -77,13 +77,12 @@ The step fails and writes no file when:
     (`applied-by-unsupported`). The action checks this; `resolveGrant` does not.
 16. `models.default-profile` or a route names a profile `models.profiles` does not define
     (`undefined-profile`), or a route key is neither a skill activity nor a run route
-    (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`; `undefined-route`), so a mistyped route cannot quietly take the default.
+    (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`, `adjudicate-feedback`; `undefined-route`), so a mistyped route cannot quietly take the default.
 
 It also fails when a predicate it decides cannot be decided: `pulls/{n}/files` lists 3000 files or
-fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, a
-`mergeable` predicate has no `head-sha`, or a predicate reads `work-classes`, which no run supplies
-yet. With `activity` set it decides only the selected slot's predicates, so another slot's
-predicate cannot fail the run; without it, every enabled slot's.
+fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, or a
+`mergeable` predicate has no `head-sha`. With `activity` set it decides only the selected slot's
+predicates, so another slot's predicate cannot fail the run; without it, every enabled slot's.
 
 `mergeable` comes only from `GET /pulls/{n}`, never from the event payload, and only from a
 response whose `head.sha` is `head-sha`: `mergeable: false` is `conflicting`, `true` is `clean`.
@@ -95,7 +94,7 @@ predicate always reads labels from that response, never from the payload, so a h
 the event still holds a queued run.
 
 On an `issues` event there is no PR: `labeled` maps to the `labeled` event, labels come from the
-issue in the payload (a `labels-absent` or `admission` predicate reads `GET /issues/{n}` instead).
+issue in the payload (a `labels-absent` predicate reads `GET /issues/{n}` instead).
 
 ## Output
 
@@ -130,7 +129,7 @@ leaf that sets `prepare` carries it.
 Each resolved slot carries `applies` and `skip-reason`: `disabled-by-config` when the lane or a
 slot on the path sets `enabled: false`, `not-applicable-paths` when a `paths` predicate misses,
 `awaiting-human` when a `labels-absent` label is on the PR, `not-applicable` when a `labels`,
-`events`, `work-classes`, `admission`, `mergeable` or `draft` predicate misses, and `prerequisite-missing` when
+`events`, `mergeable` or `draft` predicate misses, and `prerequisite-missing` when
 mergeability stayed unknown, in that order when several miss. An enabled slot whose predicate was
 not decided carries `applies` and `skip-reason` null. Its `grant` is the effect's row in
 `effect-grants.json`, plus `actions: read` when its lane's `lane-rules.json` row lists the leaf

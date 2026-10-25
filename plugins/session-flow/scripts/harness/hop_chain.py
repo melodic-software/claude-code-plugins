@@ -18,7 +18,9 @@ Three modes, only one of which spends money:
 uses, against a fake runner that writes a synthetic transcript and result JSON
 while calling the real `save_point.py new` / `emit` / `validate`. `--budget`
 generates a 20-hop chain through `new` with deterministic filler sized from the
-shape-1 corpus median and reports the growth at hops 1, 5, and 20.
+shape-1 corpus median, cumulative entries sized to the audited per-hop growth,
+and reports the size at hops 1, 5, and 20 and the median growth per hop; its
+shape-3 projection runs to the longest audited chain's 56 hops.
 
 Stdlib only; Python 3.10+. Every file is opened UTF-8 and every subprocess runs
 with `text=True, encoding="utf-8"`.
@@ -137,9 +139,20 @@ SHAPE1_MEDIAN_LINES = 154
 SHAPE1_MEDIAN_TOKENS = 3200
 BUDGET_HOPS = 20
 BUDGET_REPORT_HOPS = (1, 5, 20)
+# The longest audited chain has 56 hops; the shape-3 projection checks the hot
+# file against its cap that far.
+SHAPE3_BUDGET_HOPS = 56
+SHAPE3_REPORT_HOPS = (1, 5, 20, 56)
 ATTESTATION_CHECK_HOPS = 9
 ATTESTATION_MARK = "Re-scan"
 CUMULATIVE_ENTRIES_PER_HOP = 2
+# The audited lane chains grow a median 6.2 to 7.0 KB per hop, 6.4 KB across the
+# five longest (.work/handoff-efficiency/audit/AUDIT.md Q1, "Growth by chain").
+# Each cumulative entry is sized so a generated hop adds that much; the band
+# check in cmd_budget holds the projection there.
+AUDITED_GROWTH_BYTES = 6400
+GROWTH_BAND = 0.10
+CUMULATIVE_ENTRY_WIDTH = 600
 BUDGET_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
 BUDGET_EPOCH = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
@@ -312,7 +325,19 @@ def parse_iso(stamp: str) -> float | None:
 # 20-hop chain and what lets `--dry-run` hand `emit` and `validate` a real file.
 
 
-DELETED_SLOTS = ("goal-first", "goal-after", "below-rail")
+DELETED_SLOTS = (
+    "goal-first",
+    "goal-after",
+    "below-rail",
+    "goal-new",
+    "rules-new",
+    "preferences-new",
+)
+# Shape 3: hop 1 writes the chain's current rules, sized like a shape-2 hop 1's
+# Constraints, and later hops rewrite rules in place rather than add them (an
+# assumption: no audit measures how many rules stay current; AUDIT.md Q3 finds
+# the problem is supersession, not volume). Every hop adds one trail line.
+SHAPE3_RULES = CUMULATIVE_ENTRIES_PER_HOP
 CUMULATIVE_SLOTS = ("constraints", "side-effects", "decisions", "abandoned", "findings")
 PADDED_SLOTS = (
     "brief",
@@ -412,16 +437,28 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
                 ]
             )
             continue
+        if slot == "rules":
+            out.extend(
+                f"- [R{i + 1}] {filler_line(slot, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
+                for i in range(SHAPE3_RULES)
+            )
+            continue
+        if slot == "preferences":
+            out.append("None. A generated chain records no standing preference.")
+            continue
+        if slot in ("trail", "trail-new"):
+            out.append(f"- [h{hop}] {filler_line(slot, counter, size.width)}")
+            continue
         if slot.endswith("-new") and slot[: -len("-new")] in CUMULATIVE_SLOTS:
             base = slot[: -len("-new")]
             out.extend(
-                f"- [h{hop}] {filler_line(base, counter + i, size.width)}"
+                f"- [h{hop}] {filler_line(base, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
                 for i in range(CUMULATIVE_ENTRIES_PER_HOP)
             )
             continue
         if slot in CUMULATIVE_SLOTS:
             out.extend(
-                f"- [h{hop}] {filler_line(slot, counter + i, size.width)}"
+                f"- [h{hop}] {filler_line(slot, counter + i, CUMULATIVE_ENTRY_WIDTH)}"
                 for i in range(CUMULATIVE_ENTRIES_PER_HOP)
             )
             continue
@@ -445,13 +482,16 @@ def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerS
     whatever makes the total land on the token median, clamped so the filler
     stays readable prose rather than a wall or a stub.
     """
-    fixed_lines = (
-        len(CUMULATIVE_SLOTS) * CUMULATIVE_ENTRIES_PER_HOP + 2
-    )  # +2 = the Next: headlines
+    cumulative_lines = len(CUMULATIVE_SLOTS) * CUMULATIVE_ENTRIES_PER_HOP
+    fixed_lines = cumulative_lines + 2  # +2 = the Next: headlines
     budget = max(SHAPE1_MEDIAN_LINES - skeleton_lines - fixed_lines, slots)
     pad_lines = max(1, budget // max(slots, 1))
-    filler_lines = pad_lines * slots + fixed_lines
-    want_chars = SHAPE1_MEDIAN_TOKENS * 4 - skeleton_chars
+    filler_lines = pad_lines * slots + 2
+    want_chars = (
+        SHAPE1_MEDIAN_TOKENS * 4
+        - skeleton_chars
+        - cumulative_lines * CUMULATIVE_ENTRY_WIDTH
+    )
     width = want_chars // max(filler_lines, 1)
     return FillerSize(pad_lines=pad_lines, width=max(40, min(200, width)))
 
@@ -1152,9 +1192,10 @@ def report(outcome: ChainOutcome) -> int:
 # --- --budget ---------------------------------------------------------------
 
 
-def generate_chain(root: Path, hops: int) -> list[Path]:
-    """Generate `hops` handoff files through the real `save_point.py new`, each
-    filled with deterministic filler, each validated strictly."""
+def generate_chain(root: Path, hops: int, shape: int = 2) -> list[Path]:
+    """Generate `hops` handoff files of `shape` through the real
+    `save_point.py new`, each filled with deterministic filler, each validated
+    strictly."""
     repo = root / "repo"
     memory = repo / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
@@ -1185,6 +1226,8 @@ def generate_chain(root: Path, hops: int) -> list[Path]:
             session_id,
             "--now",
             when,
+            "--shape",
+            str(shape),
         ]
         args += ["--previous", str(previous)] if previous else ["--no-previous"]
         made = run_save_point(args)
@@ -1231,9 +1274,9 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
     root = work_dir / "budget"
     rmtree(root)
     try:
-        files = generate_chain(root, BUDGET_HOPS)
+        files = generate_chain(root / "shape2", BUDGET_HOPS)
         print(
-            f"generated {len(files)} hops through save_point.py new; every hop validates strictly"
+            f"generated {len(files)} shape-2 hops through save_point.py new; every hop validates strictly"
         )
         print("hop\tlines\tchars\ttokens_chars_div_4\tsource")
         for hop in BUDGET_REPORT_HOPS:
@@ -1241,6 +1284,33 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
             print(
                 f"{hop}\t{len(text.splitlines())}\t{len(text)}\t{token_estimate(text)}\tgenerated"
             )
+        sizes = [len(path.read_bytes()) for path in files]
+        steps = sorted(b - a for a, b in zip(sizes, sizes[1:]))
+        growth = steps[len(steps) // 2]
+        low = AUDITED_GROWTH_BYTES * (1 - GROWTH_BAND)
+        high = AUDITED_GROWTH_BYTES * (1 + GROWTH_BAND)
+        print(
+            f"median growth per hop: {growth} bytes (audited {AUDITED_GROWTH_BYTES}, band {low:.0f}-{high:.0f})"
+        )
+        if not low <= growth <= high:
+            print(
+                f"budget: median growth {growth} bytes is outside the audited band",
+                file=sys.stderr,
+            )
+            return 1
+        from save_point import HOT_FILE_MAX_BYTES
+
+        hot = generate_chain(root / "shape3", SHAPE3_BUDGET_HOPS, shape=3)
+        hot_sizes = [len(path.read_bytes()) for path in hot]
+        print(f"shape 3: {len(hot)} hot files validate strictly")
+        for hop in SHAPE3_REPORT_HOPS:
+            print(f"{hop}\t{hot_sizes[hop - 1]} bytes\tshape-3 hot file")
+        if max(hot_sizes) > HOT_FILE_MAX_BYTES:
+            print(
+                f"budget: a projected shape-3 hot file reaches {max(hot_sizes)} bytes by hop {SHAPE3_BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
+                file=sys.stderr,
+            )
+            return 1
         if cfg.live_hop1:
             live = Path(cfg.live_hop1)
             if not live.is_file():
@@ -1253,7 +1323,8 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
         print(
             f"filler rule: shape-1 corpus median {SHAPE1_MEDIAN_LINES} lines / "
             f"{SHAPE1_MEDIAN_TOKENS} tokens, split across the padded sections at hop 1 and held "
-            f"constant; each cumulative section grows {CUMULATIVE_ENTRIES_PER_HOP} entries per hop"
+            f"constant; each cumulative section grows {CUMULATIVE_ENTRIES_PER_HOP} entries of "
+            f"{CUMULATIVE_ENTRY_WIDTH} characters per hop"
         )
         return 0
     finally:

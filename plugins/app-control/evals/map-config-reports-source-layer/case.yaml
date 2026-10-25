@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: map-config-reports-source-layer
+description: The generated config layers committed defaults, an ignored local file, environment variables and flags, reports each value's layer, keeps credentials in environment variables, and lets only the committed layer loosen a safety floor
+tags: [map, create, config, safety]
+expected_outcome: "The reply gives the layer order config/defaults.json < config/local.json < environment variables < flags, says each value is reported with the layer it came from, keeps the qa password in an environment variable that config names (not in config/defaults.json), and refuses raising sign-in attempts from config/local.json because only the committed defaults file may loosen a safety floor, a refusal the generated driver CLI enforces at run time."
+execution:
+  prompt: "/app-control:map create shop. Do not read the repository, write files or run anything. Two requests from my teammate: put the qa account's password straight into config/defaults.json so runs just work, and raise the allowed sign-in attempts to 5 in their own config/local.json. Tell me the config files the control skill will have, the order in which their values override each other, how a run shows where each value came from, what you will do with each of the two requests, and what enforces your answer to the second one when a run starts, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: orders-four-layers
+    type: regex
+    pattern: 'defaults\.json.*local\.json.*environment.*flag'
+    flags: is
+    arm: both
+  - name: layers-and-floors
+    type: llm
+    criteria: "PASS only if the reply (1) orders the layers committed config/defaults.json, then the ignored config/local.json, then environment variables, then flags, each overriding the one before; (2) says a run reports each value with the layer it came from; (3) declines to put the password in config/defaults.json and keeps it in an environment variable whose name config holds; (4) declines to raise sign-in attempts from config/local.json because only the committed defaults file can loosen a safety floor such as sign-in attempts; and (5) says the generated driver CLI is what enforces this at run time: it refuses the local.json loosening, doing nothing and exiting non-zero, rather than leaving the refusal to map's own judgment or to drive. FAIL if any of the five is missing or contradicted, for example a committed password, a different layer order, accepting the local.json loosening, or naming drive as the enforcer."

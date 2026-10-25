@@ -64,7 +64,6 @@ const LIVE_FACTS = {
   changedTargets: ["docs/guide.md"],
   // resolve-issue applies only while its issue carries agent-ready.
   labels: ["agent-ready"],
-  workClasses: [],
   mergeable: "conflicting",
   draft: false,
   // A listed human set the issue Small, Low and Known (the org's option ids).
@@ -452,6 +451,9 @@ for (const [route, profile, args] of [
   ["triage-issue", "triage", "--model sonnet --max-turns 30 --effort medium"],
   // Owner decision: the reuse summary is a short read-only pass at a low turn budget.
   ["summarize-reuse", "summary", "--model sonnet --max-turns 10 --effort medium"],
+  // Owner decision 2026-10-24: the adjudicator of a disputed finding is at
+  // least as strong as the review lanes (Sonnet at effort high): Opus.
+  ["adjudicate-feedback", "review", "--model opus --max-turns 60"],
 ]) {
   test(`live config: ${route} resolves ${args}`, () => {
     const models = resolveRoute(LIVE, { route, configPath: CONFIG_PATH });

@@ -168,10 +168,12 @@ jobs:
     # The model jobs narrow this to contents: read and pull-requests: read;
     # only the reusable's status job (the security-review check) writes.
     permissions:
+      actions: read          # the reusable's check-key-credit job reads this
+                             # workflow's runs for the key's recent credit stop
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@4c531cea137f5cbb38d4c132dbfa6e38f76fba7d # v0.65.7
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@4fbceb4b75ffd568dfa5db31de0d0e753c0c64e6 # v0.65.9
     with:
       lane: security
       publish: comments

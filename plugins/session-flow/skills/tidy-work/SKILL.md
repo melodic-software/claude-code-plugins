@@ -29,7 +29,7 @@ Nothing runs unless the user invokes this skill.
 |---|---|
 | `report` (default) | Read-only inventory: path, age, size, kind, in-flight or stale, per item; a scratch entry also shows the issue or PR its name carries and that item's state |
 | `normalize` | Moves misplaced known-kind items into the standard layout. Never deletes, never overwrites an existing target |
-| `clean` | Removes an item only when it is a known kind, is not in flight, and names at least one issue or PR, every one closed or merged: a handoff or running retro by the references in its text, a scratch entry by the number in its name. An item that names no issue or PR is kept and reported however old it is; a slice or checklist has no attribution source, so `clean` never removes one |
+| `clean` | Removes an item only when it is a known kind, is not in flight, and names at least one issue or PR, every one closed or merged: a handoff or running retro by the references in its text, a scratch entry by the number in its name. An item that names no issue or PR is kept and reported however old it is; a slice or checklist has no attribution source, so `clean` never removes one; a shape-3 chain's `handoffs/archive/` directory is kept while a handoff of its chain is kept and leaves with the last one |
 
 Pass `--days N` (default 14) to change the recency window. Pass `--offline` to treat every linked
 issue or PR as unknown, which counts as in flight; without it the script asks `gh` for the open

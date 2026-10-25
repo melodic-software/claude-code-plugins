@@ -9,7 +9,8 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
                  restatement rev (without one, each Problem field reads `unknown` and each Work
-                 size field `not assessed`), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
+                 size field `not assessed`; with no confirmed Constraints it lists the page's
+                 recorded constraints and the ledger's `## Constraint ledger` rows), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
@@ -879,6 +880,34 @@ def bullets(text):
     ]
 
 
+CONSTRAINT_ROW = re.compile(r"^\s*[-*+]\s+(C[0-9]+)\s*\|(.*)$")
+
+
+def ledger_constraints(text):
+    """(id, bullet) for each `- C<N> | status | constraint | source` row under a ledger's
+    `## Constraint ledger` heading, outside fenced blocks; none when the section is absent."""
+    out, fenced, inside = [], False, False
+    for line in (text or "").splitlines():
+        if FENCE.match(line):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        if re.match(r"^#+\s", line):
+            inside = "constraint ledger" in line.lower()
+            continue
+        m = CONSTRAINT_ROW.match(line) if inside else None
+        if not m:
+            continue
+        cells = [c.strip() for c in m.group(2).split("|")]
+        status, rest = cells[0], [c for c in cells[1:] if c]
+        body = rest[0] if rest else status
+        source = f" ({'; '.join(rest[1:])})" if len(rest) > 1 else ""
+        label = f" ({status})" if rest and status else ""
+        out.append((m.group(1), f"- {m.group(1)}{label}: {para(body + source)}"))
+    return out
+
+
 def ledger_row(n, qid, status, title, res):
     """A brief row for a question only the ledger has, in the shape register() gives a page one."""
     lead = LEAD.match(res)
@@ -978,8 +1007,17 @@ def export_brief(d, text=None):
         ),
     ]
     out += ["", "### Constraints", ""]
+    recorded = []
+    if not bullets(sections.get("constraints")):
+        # No confirmed restatement supplies constraints: the page's own ledger, then the
+        # ledger file's rows under a C<N> the page has not recorded.
+        page = doc.get("constraints") or []
+        recorded = [f"- {c['id']}: {para(c['text'])}" for c in page]
+        seen = {c["id"] for c in page}
+        recorded += [b for i, b in ledger_constraints(text) if i not in seen]
     out += [
         *bullets(sections.get("constraints")),
+        *recorded,
         *(
             f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
             for r in answered

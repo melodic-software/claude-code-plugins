@@ -1,6 +1,6 @@
 // `applies-when` over the facts of one run: every listed key must match, and
 // within a key any listed value matches, except `labels-absent`, which matches
-// only when none of its labels is on the PR or issue, and `admission` (admits()).
+// only when none of its labels is on the PR or issue. No key reads a work class.
 import { posix } from "node:path";
 
 export class MissingFact extends Error {
@@ -10,20 +10,6 @@ export class MissingFact extends Error {
     );
     this.name = "MissingFact";
   }
-}
-
-// Any casing or spacing of `work-class:` names a class.
-const WORK_CLASS = /^\s*work-class\s*:\s*/i;
-const normalClass = (label) => `work-class: ${label.replace(WORK_CLASS, "").trim().toLowerCase()}`;
-
-// An issue carrying a work-class label outside `classes` is refused, even
-// beside a listed one; otherwise a listed class admits.
-export function admits({ classes }, labels) {
-  const allowed = new Set(classes.map(normalClass));
-  if (labels.some((label) => WORK_CLASS.test(label) && !allowed.has(normalClass(label)))) {
-    return false;
-  }
-  return classes.some((cls) => labels.includes(cls));
 }
 
 // Predicate key, the fact it reads, and whether the listed values match the
@@ -42,8 +28,6 @@ const KEYS = [
     "labels",
     (listed, labels) => !listed.some((label) => labels.includes(label)),
   ],
-  ["admission", "labels", admits],
-  ["work-classes", "workClasses", any((cls, classes) => classes.includes(cls))],
   ["events", "event", any((event, current) => event === current)],
   // null is unknown mergeability, which never matches.
   ["mergeable", "mergeable", any((state, current) => state === current)],
@@ -99,7 +83,7 @@ export function factsFor(predicate) {
   const facts = KEYS.filter(
     ([key, fact]) => predicate?.[key] !== undefined && fact !== "event",
   ).map(([, fact]) => fact);
-  if (predicate?.["labels-absent"] !== undefined || predicate?.admission !== undefined) {
+  if (predicate?.["labels-absent"] !== undefined) {
     facts.push("freshLabels");
   }
   return [...new Set(facts)];

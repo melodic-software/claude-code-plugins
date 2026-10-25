@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "edits": [
+        "{repo}/docs/work-loop.md"
+      ],
+      "why": "part (3), the only open part"
+    },
+    {
+      "edits": [
+        "{repo}/lane/drain.py",
+        "{repo}/docs/work-loop.md"
+      ],
+      "why": "touches code, then documents the rule"
+    },
+    {
+      "edits": [
+        "docs/work-loop.md"
+      ],
+      "why": "relative path"
+    }
+  ],
+  "fail": [
+    {
+      "edits": [
+        "{repo}/lane/drain.py"
+      ],
+      "why": "near miss: part (1) already landed at hop 5"
+    },
+    {
+      "edits": [
+        "{repo}/lane/telemetry.py"
+      ],
+      "why": "near miss: part (2) already landed at hop 4"
+    },
+    {
+      "edits": [
+        "{repo}/docs/work-loop.md.bak"
+      ],
+      "why": "near miss: a backup copy"
+    }
+  ]
+}

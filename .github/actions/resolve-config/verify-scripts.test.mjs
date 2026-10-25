@@ -30,7 +30,7 @@ const run = (fixDocs) => {
       activity: "fix-prose",
       configPath: "docs/conventions/pr-pipeline.yaml",
       basePath: ".base",
-      facts: { event: "synchronize", changedPaths: ["README.md"], labels: [], workClasses: [] },
+      facts: { event: "synchronize", changedPaths: ["README.md"], labels: [] },
     },
   );
 };
@@ -98,7 +98,7 @@ test("verify-scripts on a script activity fails the schema", () => {
           lane: "pr-run-checks",
           configPath: "docs/conventions/pr-pipeline.yaml",
           basePath: ".base",
-          facts: { event: "synchronize", changedPaths: ["src/app.js"], labels: [], workClasses: [] },
+          facts: { event: "synchronize", changedPaths: ["src/app.js"], labels: [] },
         },
       ),
     (error) => error instanceof Rejection && error.code === "invalid-config",
