@@ -53,11 +53,3 @@ test("the log read goes through the rate guard's latch", async () => {
   } };
   await assert.rejects(reader(fetchImpl, shut)("o/r", 1, { maxBytes: 10 }), /latched/);
 });
-
-test("the log read's budget readings land under the pool named by budgetToken", async () => {
-  const options = [];
-  const latch = { guard: (fetchImpl, opts) => (options.push(opts), fetchImpl) };
-  const fetchImpl = async () => new Response("log\n", { status: 200 });
-  createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch, budgetToken: "github-token" });
-  assert.deepEqual(options, [{ token: "github-token" }]);
-});

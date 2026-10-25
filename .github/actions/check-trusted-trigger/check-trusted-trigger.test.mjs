@@ -2853,16 +2853,3 @@ test("ci-status re-run: the record vouches only for the upstream run, never this
   assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
   assert.deepEqual(github.calls, [commitPulls]);
 });
-
-test("createGitHub hands its budgetToken to the rate guard, and none when unset", () => {
-  const seen = [];
-  const latch = {
-    guard: (fetchImpl, options) => {
-      seen.push(options);
-      return fetchImpl;
-    },
-  };
-  createGitHub({ token: "t", fetchImpl: async () => new Response("{}"), latch, budgetToken: "github-token" });
-  createGitHub({ token: "t", fetchImpl: async () => new Response("{}"), latch });
-  assert.deepEqual(seen, [{ token: "github-token" }, { token: undefined }]);
-});

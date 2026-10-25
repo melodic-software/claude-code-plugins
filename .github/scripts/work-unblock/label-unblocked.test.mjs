@@ -13,7 +13,11 @@ import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { createJobLogReader } from "./job-log.mjs";
 import {
+  budgetLatch,
   checkCloser,
   escalationComment,
   main,
@@ -3369,4 +3373,28 @@ test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as don
   });
   assert.equal(await sweep({ github }, { LANES_BOT_LOGIN: app.login }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "label-unblocked-budget-"));
+  const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
+  process.env.API_BUDGET_TOKEN = "lanes-app";
+  process.env.RUNNER_TEMP = dir;
+  try {
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4999", "x-ratelimit-used": "1", "x-ratelimit-reset": "1792378942", "x-ratelimit-resource": "core" };
+    const fetchImpl = async () => new Response("{}", { status: 200, headers });
+    const latch = createRateLimitLatch();
+    const actions = budgetLatch("github-token", latch);
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("GET", "/repos/o/r/actions/runs");
+    await createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("o/r", 1, { maxBytes: 10 });
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch })("GET", "/repos/o/r/issues");
+    const line = "200 5000 4999 1 1792378942 core\n";
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line + line);
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line);
+  } finally {
+    for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
