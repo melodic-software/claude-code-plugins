@@ -63,9 +63,11 @@ const SHELL_DENIED = [
 ];
 // The write lanes' git deny rule: all of git.
 const WRITE_GIT_DENIED = ["Bash(git *)"];
-// The deny rules other than the write lanes' shell and git sets.
-const ownDenied = (denied) =>
-  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule));
+// Every write lane also denies Edit on the plugin copy the skill loads from.
+const marketplaceDenied = (env) => `Edit(/${env.MARKETPLACE}/**)`;
+// The deny rules other than the write lanes' shell, git and plugin-copy sets.
+const ownDenied = (denied, env) =>
+  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule) && rule !== marketplaceDenied(env));
 
 // The Bash rules other than the commit grant's chmod rule.
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
@@ -1008,17 +1010,17 @@ const RESEARCH_SKILLS = [
 ];
 
 test("a write skill without web-access has no web tools and only its own plugin", () => {
-  const { status, allowed, denied, plugins } = stage({ SKILL: "work-items:work" });
+  const { status, allowed, denied, plugins, env } = stage({ SKILL: "work-items:work" });
   assert.equal(status, 0);
-  assert.deepEqual(ownDenied(denied), ["WebFetch", "WebSearch"]);
+  assert.deepEqual(ownDenied(denied, env), ["WebFetch", "WebSearch"]);
   assert.ok(!allowed.some((rule) => rule.startsWith("Web")), allowed.join(" | "));
   assert.deepEqual(plugins, ["work-items@melodic-software"]);
 });
 
 test("web-access disabled grants nothing", () => {
-  const { status, allowed, denied } = withWebAccess({ enabled: false, domains: "any" });
+  const { status, allowed, denied, env } = withWebAccess({ enabled: false, domains: "any" });
   assert.equal(status, 0);
-  assert.deepEqual(ownDenied(denied), ["WebFetch", "WebSearch"]);
+  assert.deepEqual(ownDenied(denied, env), ["WebFetch", "WebSearch"]);
   assert.ok(!allowed.some((rule) => rule.startsWith("Web") || RESEARCH_SKILLS.includes(rule)), allowed.join(" | "));
 });
 
@@ -1049,7 +1051,7 @@ test("web-access with any domain allows the read-docs scripts and points their f
   // Both the bare and the double-quoted path, since a rule matches the path as written.
   assert.deepEqual(wrapperRules(allowed), readDocsRules(env));
   // The skill's bare Edit and Write must not reach the scripts its rules run.
-  assert.deepEqual(ownDenied(denied), [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
+  assert.deepEqual(ownDenied(denied, env), [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
   for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) {
     assert.equal(statSync(path.join(env.DOCS_DIR, name)).mode & 0o222, 0, name);
   }
@@ -1100,9 +1102,9 @@ test("web-access with any domain points the run at the research skills", () => {
 });
 
 test("web-access with a domain list allows a fetch to those domains only", () => {
-  const { status, allowed, denied } = withWebAccess({ enabled: true, domains: ["code.claude.com", "*.github.com"] });
+  const { status, allowed, denied, env } = withWebAccess({ enabled: true, domains: ["code.claude.com", "*.github.com"] });
   assert.equal(status, 0);
-  assert.deepEqual(ownDenied(denied), []);
+  assert.deepEqual(ownDenied(denied, env), []);
   const web = allowed.filter((rule) => rule.startsWith("WebFetch"));
   assert.deepEqual(web, ["WebFetch(domain:code.claude.com)", "WebFetch(domain:*.github.com)"]);
   assert.ok(allowed.includes("WebSearch"), allowed.join(" | "));
@@ -1177,7 +1179,8 @@ test("prepare: ci-context with applied-by.patch keeps the ci-context tool set", 
 });
 
 // Every write lane, in every mode the runner builds, carries the whole shell
-// deny set: a mode that resets or rebuilds the deny list must not drop it.
+// deny set and the plugin copy's Edit deny: a mode that resets or rebuilds the
+// deny list must not drop them.
 for (const [name, run] of [
   ["mutate-branch", () => stage({})],
   ["mutate-tracker", () => stage({ EFFECT: "mutate-tracker" })],
@@ -1204,6 +1207,26 @@ for (const [name, run] of [
     for (const rule of WRITE_GIT_DENIED) {
       assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
     }
+  });
+  test(`a write lane denies Edit of the plugin copy: ${name}`, () => {
+    const { status, denied, env } = run();
+    assert.equal(status, 0);
+    assert.ok(denied.includes(marketplaceDenied(env)), `${marketplaceDenied(env)} in ${denied.join(" | ")}`);
+  });
+}
+
+// The plugin loads in place from the marketplace copy, so the copy is
+// read-only to every process the skill starts, whatever the activity's effect.
+for (const effect of ["read", "mutate-branch"]) {
+  test(`the marketplace copy is read-only for a ${effect} skill`, () => {
+    const { status, env } = stage({ EFFECT: effect, CAN_COMMIT: "false" });
+    assert.equal(status, 0);
+    const manifest = path.join(env.MARKETPLACE, ".claude-plugin", "marketplace.json");
+    assert.equal(JSON.parse(readFileSync(manifest, "utf8")).name, "melodic-software");
+    const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", manifest]);
+    assert.notEqual(write.status, 0, "the manifest is read-only");
+    const create = spawnSync("bash", ["-c", ': >"$1"', "_", path.join(env.MARKETPLACE, "plugins", "source-control", "new")]);
+    assert.notEqual(create.status, 0, "no file can be added to a plugin");
   });
 }
 

@@ -181,6 +181,9 @@ runs:
         fi
         mkdir -p "$MARKETPLACE"
         cp -R "$BASE_PATH/plugins" "$BASE_PATH/.claude-plugin" "$MARKETPLACE/"
+        # The plugin loads in place from this copy, so its hooks run from
+        # here: no process the skill starts may rewrite them.
+        chmod -R a-w "$MARKETPLACE"
         marketplace=$(jq -r '.name' "$MARKETPLACE/.claude-plugin/marketplace.json")
         name='^[a-z0-9][a-z0-9-]*$'
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
@@ -672,6 +675,11 @@ runs:
                 system_prompt="$system_prompt Run a test file only through $VERIFY_DIR/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
               fi
             fi
+            # The skill's bare Edit and Write must not reach the plugin copy.
+            # An Edit rule covers every built-in file tool and the Bash file
+            # writes Claude Code recognizes; a Write path rule is never
+            # consulted (https://code.claude.com/docs/en/permissions#read-and-edit).
+            disallowed="${disallowed:+$disallowed,}Edit(/$MARKETPLACE/**)"
             # The shell deny set above; the Read rules keep the skill out of
             # process files and out of the checkout's git config, where the
             # action stores its token.
