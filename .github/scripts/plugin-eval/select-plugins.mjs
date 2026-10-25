@@ -75,9 +75,13 @@ const ALIAS = /(?:^|[:[{,]|^[ \t]*-)[ \t]*\*[A-Za-z0-9_]/m;
 // mapping, a quoted or repeated key, frontmatter after a blank line) returns
 // null, which refuses the file.
 export function frontmatter(text) {
-  const lines = String(text ?? "")
-    .replace(/^﻿/, "")
-    .split(/\r?\n/);
+  const raw = String(text ?? "").replace(/^﻿/, "");
+  // A YAML reader breaks lines on these too, so a key after one is hidden
+  // from a split on \r?\n.
+  if (/\r(?!\n)|[\u0085\u2028\u2029]/.test(raw)) {
+    return null;
+  }
+  const lines = raw.split(/\r?\n/);
   const entries = new Map();
   const first = lines.findIndex((line) => line.trim() !== "");
   if (first === -1 || !lines[first].trimStart().startsWith("---")) {

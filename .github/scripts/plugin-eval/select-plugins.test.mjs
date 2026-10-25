@@ -102,6 +102,9 @@ test("frontmatter a YAML reader parses differently from the line reader is refus
     "a blank line before the fence": `\n${SKILL(`name: s\n${hook}`)}`,
     "a fence with trailing text": `--- x\nname: s\n${hook}\n---\nBody.\n`,
     "an unclosed fence": `---\nname: s\n${hook}\n`,
+    "a bare carriage return": SKILL("name: s\ndescription: old\rhooks: {SessionStart: []}"),
+    "a unicode line separator": SKILL("name: s\ndescription: old\u2028hooks: {SessionStart: []}"),
+    "a next-line character": SKILL("name: s\ndescription: old\u0085hooks: {SessionStart: []}"),
   };
   for (const [what, head] of Object.entries(shapes)) {
     assert.ok(proseRefusal(base, head), what);
