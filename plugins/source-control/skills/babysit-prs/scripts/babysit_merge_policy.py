@@ -169,8 +169,7 @@ class UnattendedPolicy:
     omission. `enabled` (Design T20) means the path is configured and no
     identity, credential, kill-switch or post-merge refusal stands; left None
     it follows `reason`. `promoted` is the promotion-evidence read for the
-    effective rung (`Promotion.promoted`), None when not read; a merge needs
-    both.
+    effective rung's cells, None when not read; a merge needs both.
     `agent_identity` is the configured `merge.agent-identity` login, stripped
     of surrounding whitespace, or None when unset or blank. `details` carries
     the readers' answers for the report; `inputs` carries what the later steps
@@ -4017,9 +4016,9 @@ PROMOTION_RESOLVER = (
     / "resolve-promotion-evidence.mjs"
 )
 PROMOTABLE_CELLS = ("C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking")
-# The cells the effective rung needs effective-promoted
-# (promotion-evidence-resolution.md "Promotable cells and rung mapping"). No
-# work class is read, so every merge at a rung needs that rung's cells.
+# The cells a merge rung needs effective-promoted (promotion-evidence-resolution.md
+# "Promotable cells and rung mapping"); `off` has none and never merges. No
+# work class is read.
 RUNG_CELLS = {
     "C2": ("C2-auto-merge",),
     "C3": PROMOTABLE_CELLS,
@@ -4430,8 +4429,10 @@ def assess(
     `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
-    in-flight rule, the promotion evidence for the effective rung and the
-    pull request's eligibility: each refuses a merge, and all are reported, but an in-flight refusal of a pull request not in the merge queue stops the
+    in-flight rule, the promotion evidence for the rung (`RUNG_CELLS`; no
+    work class is read) and the pull request's eligibility: each refuses a
+    merge, and all are reported, but
+    an in-flight refusal of a pull request not in the merge queue stops the
     reads there.
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
@@ -4786,6 +4787,8 @@ def assess(
             "verifier-verdict-not-required",
         ),
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
+        # The rung's promotion cells, keyed by the rung, never by the pull
+        # request's work class.
         (not promoted, f"promotion-unqualified:{rung.rung}"),
     )
     inputs["own_refusal"] = next((text for refused, text in own if refused), None)

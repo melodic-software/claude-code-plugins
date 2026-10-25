@@ -78,9 +78,8 @@ Contract enforced here (encoded as code, not convention):
 - `--unattended` runs the gate under the unattended merge policy, in the
   wiring order: identity, the `gh auth status` credential chokepoint, the kill
   switch, the post-merge check (`babysit_postmerge`), demotion and cap, in
-  flight, promotion evidence for the effective rung, eligibility, the review
-  evidence and the diff score (`babysit_merge_policy`,
-  `babysit_review_evidence`, `babysit_risk`).
+  flight, promotion evidence, eligibility, the review evidence and the diff
+  score (`babysit_merge_policy`, `babysit_review_evidence`, `babysit_risk`).
   Any refusal is the blocker `unattended merge refused: <reason>` and the
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
