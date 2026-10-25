@@ -101,11 +101,12 @@ Precedence, top-down, first hit decides:
    refuses: billing, billed, spending limit, subscription, SKU, retention, a larger, hosted or
    self-hosted runner, macOS minutes, seat, Codespaces, a paid plan, top-up, auto-renew,
    auto-reload, extra usage. A spend word (cost, spend, spending, pricing, paid, quota) refuses
-   unless the issue is model or eval work (the model vendor or product name, model, eval, API
-   key or credit) and names no other provider or metered service (the forge, a cloud provider,
-   the forge's CI minutes, code assistant, large-file storage or paid code scanning, storage, a
-   runner, hosting, a domain): spend on the model subscription or the fixed API credit adds no
-   charge (owner decision 2026-10-24). The evaluator script holds the exact term lists. Work
+   unless the issue names the subscribed model vendor or its product and names no other
+   provider, vendor, service, plan or metered resource (the forge and its paid features, any
+   cloud, hosting or payment provider, another model vendor, storage, a runner, a domain): spend
+   on the model subscription or the fixed API credit adds no charge, and every other charge
+   waits (owner decision 2026-10-24). A bare "model" or "eval" does not exempt. The evaluator
+   script holds the exact term lists. Work
    that adds or raises a charge waits for the owner unless an owner-recorded decision already
    covers it, and that check is a person's, not the evaluator's.
 4. Any `work-class:` label present → refuse, label left untouched.

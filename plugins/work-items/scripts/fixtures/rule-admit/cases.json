@@ -306,6 +306,30 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spend;" }
     },
     {
+      "name": "eval cost on Vercel refuses",
+      "source": "owner decision #9904: every charge outside the Claude subscriptions and API credit waits",
+      "issue": { "title": "Report the Claude eval cost on Vercel" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "eval cost on another model vendor refuses",
+      "source": "owner decision #9904: every charge outside the Claude subscriptions and API credit waits",
+      "issue": { "title": "Run the eval against the OpenAI API and report the cost" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "model spend with no Claude or Anthropic name refuses",
+      "source": "owner decision #9904: the exemption covers Claude and Anthropic spend only",
+      "issue": { "title": "Report the cost of the data model rebuild" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "Claude eval spend on an unnamed paid service refuses",
+      "source": "owner decision #9904: every charge outside the Claude subscriptions and API credit waits",
+      "issue": { "title": "Move the Claude eval runs to a paid hosted service and track spend" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: paid, spend;" }
+    },
+    {
       "name": "a paid Copilot seat refuses",
       "source": "owner rule 2026-10-24: GitHub charges wait",
       "issue": { "title": "Buy a paid Copilot seat", "body": "One more seat for the docs work." },
