@@ -223,6 +223,11 @@ def block($d):
                 else empty end)] | join("; ")) as $parts
            | "Divergences: \($parts) (of \($v.post) in all: \($intervals))"
          end),
+      # One sub-line per project path holding a skewed record, so the count names where
+      # the work is. A digest written before `by_path` renders the count line alone.
+      ((.divergences.by_path // [])[]
+       | "  - \(.path): \(.count) diverging record(s): \(.ids | join(", "))"
+         + (if (.more // 0) > 0 then ", +\(.more) more" else "" end)),
 
       # The digest names this plugin's own row; a digest written before it did
       # carries no row, so the note names no plugin rather than guess one.

@@ -235,7 +235,8 @@ whose update call the CLI answered "already at the latest version" while the run
 their version changed, which the run did not do and does not attribute; with a `Not verified:` row
 for already-current answers the snapshots could not confirm); `Catalog regression:`; `Installed:` with the policy-`all`
 recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
-when a root resolved; the self-update note when this plugin's install record moved during the run; the stale project
+when a root resolved, with one sub-line per project path naming its record count and up to three
+ids (`+K more` past that); the self-update note when this plugin's install record moved during the run; the stale project
 records and user-scope cache content sections; the `Timing:` row (the marketplace total, its slowest step,
 and the seconds outside the named steps, with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
