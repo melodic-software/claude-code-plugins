@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, loadRules, refusalText } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import {
   checkCloser,
@@ -109,6 +109,8 @@ function world({
   searchIncomplete = false,
   fieldValues = {},
   specs = {},
+  parents = {},
+  subIssues = {},
   failOn,
 } = {}) {
   const calls = [];
@@ -196,6 +198,12 @@ function world({
     }
     if ((match = route.match(/\/issues\/(\d+)\/dependencies\/blocked_by$/))) {
       return listed(blockedBy[match[1]] ?? []);
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/parent$/)) && parents[match[1]]) {
+      return parents[match[1]];
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/sub_issues$/))) {
+      return listed(subIssues[match[1]] ?? []);
     }
     if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/issue-field-values$/))) {
       return fieldValues[match[1]] ?? [];
@@ -578,6 +586,92 @@ test("the sweep labels an issue whose last blocker a bot closed", async () => {
       `GET /repos/${REPO}/issues?state=closed&since=${encodeURIComponent(SINCE)}&sort=updated&direction=desc&per_page=100&page=1`,
     ),
   );
+});
+
+// The window starts 15 minutes before the last successful scheduled run of
+// work-unblock.yml whose label-unblocked job ran its sweep step, at most 3
+// hours back; anything else, or any failed read, gives the 3 hours.
+const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
+const sweptJobs = (conclusion = "success", extraSteps = []) => ({
+  jobs: [
+    { name: "save-wip-state", conclusion: "success", steps: [{ name: "Save the WIP cap's last known state", conclusion: "success" }] },
+    {
+      name: "label-unblocked",
+      conclusion: "success",
+      steps: [{ name: "Check the kill switch", conclusion: "success" }, ...extraSteps, { name: "Label the unblocked issues", conclusion }],
+    },
+  ],
+});
+async function windowOf(answer, extra = {}, jobs = sweptJobs()) {
+  const { github, calls } = sweptDependent();
+  const actionCalls = [];
+  const actions = async (method, path) => {
+    actionCalls.push(`${method} ${path}`);
+    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) {
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer;
+    }
+    if (/^\/repos\/[^/]+\/[^/]+\/actions\/runs\/5\/jobs\b/.test(path)) {
+      if (jobs instanceof Error) {
+        throw jobs;
+      }
+      return jobs;
+    }
+    return { workflow_runs: [], jobs: [] };
+  };
+  assert.equal(await sweep({ github, actions }, extra), 0);
+  const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+  const since = Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]));
+  return { minutes: (NOW - since) / 60_000, actionCalls };
+}
+
+test("the sweep reads back to 15 minutes before the last sweep that ran its labeling step", async () => {
+  const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(60) }] });
+  assert.equal(minutes, 75);
+  const windowCalls = actionCalls.filter((call) => call.includes("/work-unblock.yml/") || call.includes("/actions/runs/5/"));
+  assert.deepEqual(windowCalls, [`GET ${SWEEP_RUNS}`, `GET /repos/${REPO}/actions/runs/5/jobs?filter=latest&per_page=100`]);
+});
+
+test("a last sweep older than the 3-hour window is capped at 3 hours without reading its jobs", async () => {
+  const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(300) }] });
+  assert.equal(minutes, 180);
+  assert.ok(!actionCalls.some((call) => call.includes("/actions/runs/5/jobs")));
+});
+
+test("a failed or empty read of the last sweep falls back to 3 hours", async () => {
+  for (const answer of [new Error("GET failed with status 403"), { workflow_runs: [] }, { nope: true }, { workflow_runs: [{ id: "x", run_started_at: ago(60) }] }]) {
+    assert.equal((await windowOf(answer)).minutes, 180);
+  }
+});
+
+// A green run proves nothing by itself: the kill switch and a lane the config
+// turns off each skip the labeling step and still end the job green.
+test("a last successful run that did not sweep falls back to 3 hours", async () => {
+  const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
+  const killed = sweptJobs("skipped", [{ name: "Report the kill switch", conclusion: "success" }]);
+  const offByConfig = sweptJobs("skipped", [
+    { name: "Resolve the config", conclusion: "success" },
+    { name: "Report a lane the config turns off", conclusion: "success" },
+  ]);
+  const noSteps = { jobs: [{ name: "label-unblocked", conclusion: "success", steps: [] }] };
+  const noJob = { jobs: [{ name: "save-wip-state", conclusion: "success", steps: [] }] };
+  for (const jobs of [killed, offByConfig, noSteps, noJob, { jobs: [] }, { nope: true }, new Error("GET failed with status 502")]) {
+    assert.equal((await windowOf(runs, {}, jobs)).minutes, 180);
+  }
+});
+
+test("the current run is skipped when finding the last sweep", async () => {
+  const runs = { workflow_runs: [{ id: 77, run_started_at: ago(5) }, { id: 5, run_started_at: ago(60) }] };
+  assert.equal((await windowOf(runs, { GITHUB_RUN_ID: "77" })).minutes, 75);
+});
+
+test("a sweep with no Actions client reads the full 3 hours", async () => {
+  const { github, calls } = sweptDependent();
+  assert.equal(await sweep({ github }), 0);
+  assert.ok(calls.some((call) => call.includes(`since=${encodeURIComponent(SINCE)}`)));
 });
 
 test("the sweep skips an issue with an open sibling blocker", async () => {
@@ -2032,6 +2126,10 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
     return Object.fromEntries(ids.map((id, i) => [id, body.split(/^ {2}[a-z][a-z-]*:$/m)[i + 1]]));
   };
   const steps = (block) => [...block.matchAll(/^ {6}- name: (.+)$/gm)].map((m) => m[1]);
+  const unblock = jobs(workflow("work-unblock.yml"));
+  assert.ok(unblock["label-unblocked"] !== undefined);
+  assert.doesNotMatch(unblock["label-unblocked"], /^ {4}name:/m, "label-unblocked keeps its id as its name");
+  assert.ok(steps(unblock["label-unblocked"]).includes("Label the unblocked issues"));
   const caller = jobs(workflow("work-resolve-issue.yml"));
   for (const id of ["admit", "pick-slot", "resolve-issue"]) {
     assert.ok(caller[id] !== undefined, id);
@@ -3143,4 +3241,90 @@ test("a stranded issue whose re-fired run failed again is re-fired on a backoff 
   const body = infraComment(KEY, "The work-resolve-issue run that `agent-ready` started failed or was cancelled before it reported, over 3 hours ago.", 2);
   assert.deepEqual(writes(calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body })}`, ...restarted(30)]);
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+});
+
+// Owner Q93: a size split's parent (30) closes as completed, by the App, once
+// every sub-issue (31 and 32) is closed by a listed human or a merge; the App
+// posted the split record listing them. Only that close by the App counts.
+const SPLIT_PARENT_URL = `${API}/repos/${REPO}/issues/30`;
+const splitRecordComment = (user = LANES_BOT) => ({
+  id: 77,
+  user,
+  body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}\nSplit at intake.`,
+  created_at: STAMP,
+});
+const subIssue = (number, overrides = {}) => ({ ...issue(number, { state: "closed" }), parent_issue_url: SPLIT_PARENT_URL, ...overrides });
+const closeParentWrites = [
+  `POST /repos/${REPO}/issues/30/comments`,
+  `PATCH /repos/${REPO}/issues/30 {"state":"closed","state_reason":"completed"}`,
+];
+function splitWorld({ second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) }), record = splitRecordComment() } = {}) {
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  return world({
+    closedList: [first],
+    issues: { 30: issue(30), 31: first, 32: second },
+    parents: { 31: issue(30) },
+    subIssues: { 30: [first, second] },
+    comments: { 30: record === null ? [] : [record] },
+  });
+}
+const writtenPaths = (calls) => writes(calls).map((call) => (call.includes("/comments ") ? call.slice(0, call.indexOf(" {")) : call));
+
+test("the last sub-issue closing by a listed human or a merge closes its split parent as completed, comment first", async () => {
+  const { github, calls } = splitWorld();
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), closeParentWrites);
+  const comment = JSON.parse(writes(calls)[0].slice(writes(calls)[0].indexOf(" {") + 1)).body;
+  assert.match(comment, /^<!-- work-unblock split parent closed -->\n/);
+  assert.match(comment, /#31, #32/);
+});
+
+test("a split parent stays open while a sub-issue is open, or closed by someone else, or with no split record from the App", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const setup of [
+    { second: subIssue(32, { state: "open", closed_by: null }) },
+    { second: subIssue(32, { closed_by: outsider }) },
+    { record: null },
+    { record: splitRecordComment(outsider) },
+  ]) {
+    const { github, calls } = splitWorld(setup);
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("the App's close of a split parent counts as done for what it blocks; without the split record it does not", async () => {
+  for (const [record, expected] of [
+    [splitRecordComment(), [labeled(20)]],
+    [null, []],
+  ]) {
+    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const { github, calls } = world({
+      closedList: [parent],
+      blockingOf: { 30: [issue(20)] },
+      issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+      blockedBy: { 20: [parent] },
+      subIssues: { 30: [subIssue(31), subIssue(32)] },
+      comments: { 20: [note()], 30: record === null ? [] : [record] },
+    });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), expected);
+  }
+});
+
+// main resolves the App as LANES_BOT_LOGIN; the split parent's close and its
+// record count under that login, not the default one.
+test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as done for what it blocks", async () => {
+  const app = { id: LANES_APP_ID, login: "other-lanes[bot]", type: "Bot" };
+  const parent = issue(30, { state: "closed", closer: app, at: "2026-10-16T11:30:00Z" });
+  const { github, calls } = world({
+    closedList: [parent],
+    blockingOf: { 30: [issue(20)] },
+    issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+    blockedBy: { 20: [parent] },
+    subIssues: { 30: [subIssue(31), subIssue(32)] },
+    comments: { 20: [note()], 30: [splitRecordComment(app)] },
+  });
+  assert.equal(await sweep({ github }, { LANES_BOT_LOGIN: app.login }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
 });

@@ -18,6 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { main, resolvePull } from "./resolve-pr.mjs";
+import { loadRules } from "../intake-triage/admit.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
@@ -752,7 +753,9 @@ test("main identifies the lanes App by merge.agent-identity's id on the trusted 
     }
     return JSON.parse(readFileSync(files.text, "utf8"))[0].comments;
   };
+  // loginKey strips a trailing [bot], so both spellings of the identity resolve.
   assert.deepEqual(await run(LANE), [body]);
+  assert.deepEqual(await run("melodic-automation-lanes"), [body]);
 });
 
 test("a pass judged before the spec last changed is judged again at the same head", async () => {
@@ -888,4 +891,47 @@ test("main reports an invalid verify-authors value in the step summary", async (
     { github: fake() },
   );
   assert.equal(readFileSync(summary, "utf8"), "skipped: verify-authors value is invalid\n");
+});
+
+// Owner Q93 with the coordinator's Q9 extension: the unedited body of a
+// sub-issue the lanes App filed in a size split, holding only lines of its
+// native parent a listed human filed, is spec text; any other App body is not.
+// The cases are shared with admit.test.mjs (split-child.vectors.json).
+const VECTORS = JSON.parse(readFileSync(new URL("../intake-triage/split-child.vectors.json", import.meta.url), "utf8"));
+const actorOf = (actor) => (actor ? { __typename: actor.type, login: actor.type === "Bot" ? "some-app" : "someone", databaseId: actor.id } : null);
+const childNode = ({ child }) => ({
+  ...ISSUE,
+  number: 8,
+  body: child.body,
+  lastEditedAt: child.last_edited_at,
+  author: actorOf(child.author),
+  editor: actorOf(child.editor),
+});
+const parentNode = ({ child, parent }) =>
+  child.parent === null
+    ? null
+    : { ...ISSUE, number: child.parent.number, repository: { nameWithOwner: child.parent.repo ?? REPO }, body: VECTORS.parents[parent].body, author: actorOf(VECTORS.parents[parent].author), comments: { totalCount: VECTORS.parents[parent].comments.length, nodes: VECTORS.parents[parent].comments } };
+const withParent = (setup, parent) => {
+  const github = fake(setup);
+  return async (method, apiPath, body) =>
+    apiPath === "/graphql" && body.query.includes("parent {") ? { data: { repository: { issue: { parent } } } } : github(method, apiPath, body);
+};
+const TASK_LIST = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
+const resolveChild = (child, parent, options = { laneAppId: VECTORS.app_id }) =>
+  resolvePull({ github: withParent({ issues: [child] }, parent), repository: REPO, upstreamRunId: String(RUN), humans: new Set(VECTORS.humans), laneIdentity: LANE, taskList: TASK_LIST, ...options });
+const specBody = async (...args) => (await resolveChild(...args)).specText.map(({ number, body }) => [number, body]);
+
+for (const vector of VECTORS.cases) {
+  test(`split-child vector: ${vector.name}`, async () => {
+    const appId = "app_id" in vector ? vector.app_id : VECTORS.app_id;
+    const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
+    assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
+  });
+}
+
+test("with no task-list marker, even the trusted split child is not spec", async () => {
+  const vector = VECTORS.cases.find((item) => item.name === "the trusted child");
+  for (const taskList of [undefined, ""]) {
+    assert.deepEqual(await specBody(childNode(vector), parentNode(vector), { laneAppId: VECTORS.app_id, taskList }), [[8, null]], JSON.stringify(taskList));
+  }
 });
