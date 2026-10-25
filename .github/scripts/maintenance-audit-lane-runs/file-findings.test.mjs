@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { droppedLine, prepareItems, writeDigest } from "./file-findings.mjs";
+import { createBudget } from "./collect.mjs";
+import { droppedLine, listSweepIssues, prepareItems, writeDigest } from "./file-findings.mjs";
 import { planDigest } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 
@@ -324,4 +325,34 @@ test("a failed filing is recorded", async () => {
   const plan = planDigest({ items: [{ fingerprint: FP, finding: finding() }], existing: [], openNumbers: new Set() });
   const result = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
   assert.deepEqual(result, { ...nothing, failed: [{ target: "digest", error: "POST /repos/o/r/issues: HTTP 422" }] });
+});
+
+// Only the sweep's own issues can be adopted as the digest or rewritten: the
+// listing names github-actions[bot] as creator, and a body the sweep did not
+// write is dropped.
+test("listSweepIssues lists only github-actions[bot]'s digest and finding issues, at most ten pages", async () => {
+  const paths = [];
+  const digest = { number: 1, body: "<!-- lane-sweep-digest -->\nx" };
+  const call = async (method, path) => {
+    paths.push(path);
+    return [digest, { number: 2, body: "unrelated" }, { number: 3, pull_request: {}, body: digest.body }, ...Array.from({ length: 97 }, (_, i) => ({ number: 10 + i, body: "y" }))];
+  };
+  assert.deepEqual((await listSweepIssues({ call, repo: "o/r" })).map((i) => i.number), Array(10).fill(1));
+  assert.equal(paths.length, 10);
+  for (const path of paths) assert.equal(new URL(path, "https://x").searchParams.get("creator"), "github-actions[bot]");
+});
+
+// The 50-call budget is a hard stop: spend() throws before the request, and
+// the throw ends the write before the PATCH that carries the new state.
+test("a budget spent mid-rewrite stops before the PATCH and reports the failure", async () => {
+  const s = store([{ number: 100, state: "open", state_reason: null, labels: [], body: "" }]);
+  const budget = createBudget(1);
+  const call = async (...args) => {
+    budget.spend();
+    return s.call(...args);
+  };
+  const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
+  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", wait: async () => {} });
+  assert.deepEqual(done.failed, [{ target: "#100", error: "call budget of 1 reached" }]);
+  assert.deepEqual(s.calls.map(([m]) => m), ["POST"], "no DELETE, no PATCH");
 });

@@ -252,19 +252,35 @@ test("pr-unblock.yml: publish-feedback runs exactly when the select job proceede
   }
 });
 
-test("pr-unblock.yml: adjudicate-feedback runs on replies from the leg that answered, whatever its patch", () => {
+// The post-hoc review of #9565: the job checked out, set up and staged on
+// every round, though only an INCORRECT reply gives it work. Skipping it is
+// fail-closed: an INCORRECT reply with no verdict escalates
+// feedback-unadjudicated (adjudicate-feedback.mjs settleDisputes).
+test("pr-unblock.yml: adjudicate-feedback runs on an INCORRECT reply from the leg that answered, whatever its patch", () => {
   const { gate } = jobGate(UNBLOCK, "adjudicate-feedback");
-  const runs = (proceed, subResult, replies) =>
+  const runs = (proceed, subResult, replies, disputed = "true", other = "") =>
     evaluate(gate, {
       "needs.address-feedback-select.outputs.proceed": proceed,
       "needs.address-feedback-subscription.result": subResult,
       "needs.address-feedback-subscription.outputs.feedback-attempt": subResult === "skipped" ? "" : replies,
       "needs.address-feedback.outputs.feedback-attempt": subResult === "skipped" ? replies : "",
+      "needs.address-feedback-subscription.outputs.feedback-disputed": subResult === "skipped" ? other : disputed,
+      "needs.address-feedback.outputs.feedback-disputed": subResult === "skipped" ? disputed : other,
     });
-  assert.equal(runs("true", "skipped", "1"), true, "the key call's replies");
-  assert.equal(runs("true", "success", "1"), true, "the subscription call's replies after a handoff");
+  assert.equal(runs("true", "skipped", "1"), true, "the key call's INCORRECT reply");
+  assert.equal(runs("true", "success", "1"), true, "the subscription call's INCORRECT reply after a handoff");
+  assert.equal(runs("true", "skipped", "1", ""), false, "replies with no INCORRECT one");
+  assert.equal(runs("true", "success", "1", "", "true"), false, "the other leg's INCORRECT reply never counts");
   assert.equal(runs("true", "skipped", ""), false, "no replies");
   assert.equal(runs("false", "skipped", "1"), false, "a select job that did not proceed");
+});
+
+// prepare's contents reads go through request-budget.mjs, which records each
+// reading under API_BUDGET_TOKEN; the job ends by logging them.
+test("pr-unblock.yml: adjudicate-feedback logs the API budget its prepare step spends", () => {
+  const block = jobBlock(UNBLOCK, "adjudicate-feedback").join("\n");
+  assert.match(block, /\n {6}- name: Stage the disputed threads\n(?: {8}.*\n)*? {10}API_BUDGET_TOKEN: github-token\n/);
+  assert.match(block, /\n {6}- name: Log the API budget at the end\n {8}if: always\(\)\n {8}continue-on-error: true\n(?: {8}.*\n)*? {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget.*\n {8}with:\n {10}tokens: github-token\n/);
 });
 
 // adjudicate-feedback.mjs stages up to MAX_THREADS slots, and the job has one

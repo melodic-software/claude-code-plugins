@@ -450,7 +450,7 @@ test("an INCORRECT reply the adjudicator rules for the lane is answered, resolve
       "<!-- pr-unblock adjudicate-feedback: finding-answered -->",
       "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**",
       "",
-      `A fresh-context adjudicator read the finding, the evidence below and the code at \`${GATED}\`, without either side's reasoning, and found that the code answers the finding.`,
+      `A fresh-context adjudicator read the review comment, the locations both sides cited and the code at \`${GATED}\`, without the fixing lane's reasoning, and found that the code answers the finding.`,
       "",
       "Evidence: `docs/b.md:1`",
     ].join("\n"),

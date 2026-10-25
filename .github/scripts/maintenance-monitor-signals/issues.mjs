@@ -57,7 +57,13 @@ export const stateFingerprint = (findings) =>
 
 export const titleOf = (signal) => `Monitoring: ${label(signal)}`;
 
-const evidence = (finding) => ["```text", ...finding.facts, "```"].join("\n");
+// Run, job, status-page and URL text is data: inside a fence longer than any
+// backtick run it holds, no mention, link, reference or tag works.
+const fenced = (lines) => {
+  const body = lines.join("\n");
+  const fence = "`".repeat(Math.max(3, ...(body.match(/`+/g) ?? []).map((run) => run.length + 1)));
+  return `${fence}text\n${body}\n${fence}`;
+};
 
 export function renderBody({ signal, findings }, runUrl) {
   const state =
@@ -76,8 +82,8 @@ export function renderBody({ signal, findings }, runUrl) {
       "",
       `**Owning area:** ${f.area}`,
       "",
-      f.summary,
-      ...(f.facts.length > 0 ? ["", evidence(f)] : []),
+      fenced([f.summary]),
+      ...(f.facts.length > 0 ? ["", fenced(f.facts)] : []),
     ]),
   ].join("\n");
 }
@@ -87,8 +93,10 @@ export function renderComment({ findings }, runUrl) {
   return [
     `State changed in [this run](${runUrl}): ${findings.length} current finding${findings.length === 1 ? "" : "s"}.`,
     "",
-    ...findings.map((f) => `- \`${f.key}\`: ${f.summary}`),
-  ].join("\n");
+    ...findings.flatMap((f) => [`\`${f.key}\`:`, "", fenced([f.summary]), ""]),
+  ]
+    .join("\n")
+    .trimEnd();
 }
 
 export function renderSupersede(signal, number) {

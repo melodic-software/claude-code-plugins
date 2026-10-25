@@ -267,6 +267,12 @@ on:
           The SHA-256 of the review-thread replies the scan job uploaded, from
           the bytes it uploaded. Only the scan job sets it.
         value: ${{ jobs.scan.outputs.feedback-sha256 }}
+      feedback-disputed:
+        description: >-
+          `true` when the review-thread replies the scan job uploaded hold an
+          INCORRECT reply or a line that is not JSON, else empty. Only the
+          scan job sets it, from the bytes it uploaded.
+        value: ${{ jobs.scan.outputs.feedback-disputed }}
       dependency-attempt:
         description: >-
           The run attempt in the artifact name
@@ -2210,6 +2216,7 @@ jobs:
       outcome-uploaded: ${{ steps.outcome-upload.outcome == 'success' && 'true' || '' }}
       feedback-attempt: ${{ steps.feedback-upload.outcome == 'success' && github.run_attempt || '' }}
       feedback-sha256: ${{ steps.feedback-upload.outcome == 'success' && steps.leak-scan.outputs.replies-sha256 || '' }}
+      feedback-disputed: ${{ steps.feedback-upload.outcome == 'success' && steps.leak-scan.outputs.replies-disputed || '' }}
       dependency-attempt: ${{ steps.dependency-upload.outcome == 'success' && github.run_attempt || '' }}
       dependency-sha256: ${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}
       dependency-verdict: ${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.dependency-verdict || '' }}
@@ -2567,7 +2574,19 @@ jobs:
               const lane = keep(`${REPLY_DIR}/lane.json`, 'lane.json');
               core.setOutput('dir', out);
               if (patch) core.setOutput('patch-sha256', crypto.createHash('sha256').update(patch).digest('hex'));
-              if (replies) core.setOutput('replies-sha256', crypto.createHash('sha256').update(replies).digest('hex'));
+              if (replies) {
+                core.setOutput('replies-sha256', crypto.createHash('sha256').update(replies).digest('hex'));
+                // adjudicate-feedback's gate: an INCORRECT reply, or a line
+                // that is not JSON, which the adjudicator's own checks refuse.
+                const disputed = replies.toString('utf8').split('\n').filter((line) => line.trim() !== '').some((line) => {
+                  try {
+                    return JSON.parse(line)?.disposition === 'INCORRECT';
+                  } catch {
+                    return true;
+                  }
+                });
+                core.setOutput('replies-disputed', disputed ? 'true' : '');
+              }
               if (verdict) {
                 core.setOutput('verdict-sha256', crypto.createHash('sha256').update(verdict).digest('hex'));
                 // review-dependency.mjs VERDICTS: the field the push job's gate

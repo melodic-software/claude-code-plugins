@@ -2338,6 +2338,26 @@ test("leak scan: a dependency verdict is scanned and hashed, and only a known ve
   assert.match(script, new RegExp(`\\[${VERDICTS.map((v) => `'${v}'`).join(", ")}\\]\\.includes\\(value\\)`));
 });
 
+// address-feedback: whether the scanned replies hold an INCORRECT one, the
+// only reply adjudicate-feedback has work for. A line that is not JSON reads
+// as disputed, so the adjudicator's own checks decide it.
+test("leak scan: replies-disputed is true only for scanned replies holding an INCORRECT reply or an unreadable line", async (t) => {
+  const plantReplies = (text) => ({ temp }) => writeFileSync(join(temp, "skill-reply", "replies.jsonl"), text);
+  const row = (disposition) => JSON.stringify({ thread: "PRRT_a", disposition, evidence: [], fix_sha: "", note: "n" });
+  for (const [text, want] of [
+    [`${row("VALID")}\n${row("INCORRECT")}\n`, "true"],
+    [`${row("VALID")}\n${row("UNCERTAIN")}\n`, ""],
+    [`${row("VALID")}\n{not json\n`, "true"],
+    [`${JSON.stringify({ disposition: "incorrect" })}\n`, ""],
+  ]) {
+    const { outputs } = await scanWith(t, plantReplies(text));
+    assert.equal(outputs["replies-disputed"], want, text);
+    if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+  }
+  const { outputs } = await scanWith(t, () => {});
+  assert.equal(outputs["replies-disputed"], undefined, "no replies, no output");
+});
+
 // Plan Q5: a lockfile fix over the patch cap is refused with the rest of the
 // run's payloads; the scan names the patch so the verdict job escalates
 // dependency-fix-not-landed instead of reading a round with no model turn.
@@ -4002,8 +4022,8 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 const MODEL_CALL_READS = {
   "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
   "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
-  // The scanned replies' attempt and SHA-256, never a run job output.
-  "adjudicate-feedback": ["feedback-attempt", "feedback-sha256"],
+  // The scanned replies' attempt, SHA-256 and INCORRECT flag, never a run job output.
+  "adjudicate-feedback": ["feedback-attempt", "feedback-disputed", "feedback-sha256"],
 };
 
 // One leg answers the round: the fallback call when it ran, else the first.
@@ -4060,7 +4080,12 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   assert.equal(read.jobs.scan.outputs["feedback-sha256"], "${{ steps.feedback-upload.outcome == 'success' && steps.leak-scan.outputs.replies-sha256 || '' }}");
   assert.equal(read.jobs.run.outputs["feedback-sha256"], undefined);
   const scan = read.jobs.scan.steps.find((step) => step.id === "leak-scan").with.script;
-  assert.match(scan, /if \(replies\) core\.setOutput\('replies-sha256', crypto\.createHash\('sha256'\)\.update\(replies\)\.digest\('hex'\)\)/);
+  assert.match(scan, /if \(replies\) \{\n\s*core\.setOutput\('replies-sha256', crypto\.createHash\('sha256'\)\.update\(replies\)\.digest\('hex'\)\);/);
+  // The scan job alone says whether a reply is INCORRECT, from the bytes it uploads.
+  assert.equal(read.on.workflow_call.outputs["feedback-disputed"].value, "${{ jobs.scan.outputs.feedback-disputed }}");
+  assert.equal(read.jobs.scan.outputs["feedback-disputed"], "${{ steps.feedback-upload.outcome == 'success' && steps.leak-scan.outputs.replies-disputed || '' }}");
+  assert.equal(read.jobs.run.outputs["feedback-disputed"], undefined);
+  assert.match(scan, /core\.setOutput\('replies-disputed', /);
   // The write runner hands both to the reply script.
   const write = workflow("pr-run-activity-write.yml");
   const script = write.jobs.run.steps.find((step) => step.id === "act-script");

@@ -825,11 +825,14 @@ jobs:
       patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
       reply-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
-  # The adjudicator, after the model job and before the reply job. For each
-  # INCORRECT reply on a thread no adjudication stood before, up to three
+  # The adjudicator, after the model job and before the reply job, only when
+  # the answering leg's scan job read an INCORRECT reply (feedback-disputed);
+  # skipping it leaves any such reply with no verdict, which escalates
+  # feedback-unadjudicated. For each INCORRECT reply on a non-CRITICAL
+  # code-review thread no adjudication stood before, up to three
   # (adjudicate-feedback.mjs MAX_THREADS), a fresh-context model reads the
-  # finding's claim, the locations the lane cited and those files at the head
-  # the select job read, never the reviewer's rationale or the lane's note, and
+  # whole review comment, the locations the reviewer and the lane cited and
+  # those files at the head the select job read, never the lane's note, and
   # returns lane, reviewer or human as structured output. The job runs only
   # base code, holds a read-only token and no OIDC token, and runs each model
   # call on run-claude-cli under dontAsk with Read alone, confined to its
@@ -842,7 +845,8 @@ jobs:
     needs: [address-feedback-select, address-feedback, address-feedback-subscription]
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
-      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != '' }}
+      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
+      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     permissions:
@@ -892,6 +896,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           HEAD_SHA: ${{ needs.address-feedback-select.outputs.head-sha }}
           THREADS_FILE: ${{ runner.temp }}/adjudicate-input/threads.json
           THREADS_SHA256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
@@ -1150,6 +1155,15 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           overwrite: false
+
+      # The prepare step's contents reads, from their own responses.
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The reply job, a script with no model: it holds pull-requests: write and
   # posts the replies the model job recorded, exactly as written or not at
