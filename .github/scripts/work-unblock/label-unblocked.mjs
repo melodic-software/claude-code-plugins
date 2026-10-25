@@ -51,8 +51,9 @@
 // re-fired and gets no needs-human: admission's refusal reaches a person.
 //
 // On `schedule` it sweeps instead: every issue closed since the last
-// successful scheduled run began (less SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS
-// back; the full window when that run cannot be read) goes through the same rules, so an issue a bot closed (a
+// successful scheduled run that ran its labeling step began (less
+// SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS back; the full window when that
+// cannot be shown) goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
 // swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
@@ -137,7 +138,8 @@
 //   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
 //                          must be a listed human (`issues` only)
 //   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
-//                          work-resolve-issue runs and find the last sweep;
+//                          work-resolve-issue runs and find the last sweep
+//                          and its jobs;
 //                          unset skips the re-fire and uses the full window
 //   GITHUB_RUN_ID          this run, skipped when reading the last sweep
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
@@ -182,6 +184,11 @@ const STALE_STEP = "Stop on stale workflow files";
 const BLOCKER_STEP = "Wait for open blockers";
 // The admit job's step a run stops at for good on untrusted provenance.
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
+// work-unblock.yml's job and its step that runs this script. The kill switch
+// and a lane the config turns off skip the step and leave the run green, so
+// only this step's success shows a sweep ran.
+const SWEEP_JOB = "label-unblocked";
+const SWEEP_STEP = "Label the unblocked issues";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -322,8 +329,9 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
 
 // Where the sweep's window starts and why: SWEEP_MARGIN_MIN before the last
 // successful scheduled run of this workflow (not the current one), no further
-// back than LOOKBACK_HOURS. An unreadable or empty answer gives the full
-// window, so a failed read re-processes and never skips.
+// back than LOOKBACK_HOURS, and only when that run's SWEEP_STEP succeeded.
+// Anything else (an unreadable listing, no steps, a skipped step) gives the
+// full window, so a failed read re-processes and never skips.
 async function sweepSince({ actions, repo, now, runId }) {
   const widest = now - LOOKBACK_HOURS * HOUR_MS;
   if (!actions) {
@@ -340,10 +348,21 @@ async function sweepSince({ actions, repo, now, runId }) {
     if (!Number.isFinite(started) || started > now) {
       return { since: widest, why: "no earlier successful sweep was found" };
     }
+    const at = new Date(started).toISOString();
     const from = started - SWEEP_MARGIN_MIN * 60_000;
-    return from > widest
-      ? { since: from, why: `the last successful sweep started ${new Date(started).toISOString()}` }
-      : { since: widest, why: `the last successful sweep started ${new Date(started).toISOString()}, past the widest window` };
+    if (from <= widest) {
+      return { since: widest, why: `the last successful run started ${at}, past the widest window` };
+    }
+    if (!RUN_ID.test(String(last.id))) {
+      throw new Error("the last successful run has no usable id");
+    }
+    const jobs = await jobLister(actions, repo)(last);
+    const swept = namedJobs(jobs, SWEEP_JOB).some((job) =>
+      (job?.steps ?? []).some((step) => step?.name === SWEEP_STEP && step.conclusion === "success"),
+    );
+    return swept
+      ? { since: from, why: `the last sweep started ${at}` }
+      : { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step` };
   } catch (error) {
     return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})` };
   }
