@@ -2625,6 +2625,18 @@ def test_shape3_hop1_validates_with_sections_in_the_contract_order(tmp_path):
     assert renamed.returncode == 1 and "headings:" in out(renamed), out(renamed)
 
 
+def test_shape3_written_before_suggested_skills_still_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    text = hop1.read_text(encoding="utf-8")
+    start = text.index("## Suggested skills\n")
+    legacy = text[:start] + text[text.index("## This session\n") :]
+    hop1.write_text(legacy, encoding="utf-8", newline="\n")
+    result = strict(hop1)
+    assert result.returncode == 0, out(result) + err(result)
+    assert "WARN" in out(result) and "Suggested skills" in out(result), out(result)
+
+
 def test_shape3_validate_enforces_the_section_order(tmp_path):
     repo = make_repo(tmp_path)
     hop1 = s3_hop(repo, tmp_path)

@@ -81,6 +81,9 @@ Sections, in the one order `validate` checks:
 | 16 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
 | 17 | Resume prompt | the rails block, as in shape 2; always last |
 
+A shape-3 file written before `Suggested skills` joined this list still validates, with a warning;
+the next hop's skeleton adds the section.
+
 What the writer owns, since no script can judge it:
 
 - **Rules are current, not historical.** A changed rule is rewritten in place under its id, its
