@@ -9,6 +9,8 @@ import { apiLimits, classify, createRateLimitLatch, entryOf, poolOf, RateLimitSt
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
 const SCHEMA_PATH = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
 const NOW = VECTORS.vector_now * 1000;
+// Root reads and writes past any file mode, so the permission cases skip.
+const ROOT = process.getuid?.() === 0;
 const READ_FLOOR = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
 
 // Runs fn in a fresh directory, removed once fn (sync or async) is done.
@@ -251,7 +253,7 @@ test("a stop is written to the job's stop file, and a later latch refuses from i
 
 // A stop the job's stop file could not take is reported, and this process's
 // latch still refuses the pool.
-test("a stop the stop file cannot take is reported in the error line, and the latch still holds", async () =>
+test("a stop the stop file cannot take is reported in the error line, and the latch still holds", { skip: ROOT && "root writes past any file mode" }, async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
     mkdirSync(dirname(stopFile));
@@ -291,25 +293,31 @@ for (const vector of VECTORS.stop_files) {
 // A stop file that exists but cannot be read holds every pool, with an error
 // naming it; a missing one holds nothing (rate-guard.vectors.json's
 // stop_file_errors).
-function makeStopFileError(dir, error) {
-  const stop = join(dir, "api-budget", "stop");
-  mkdirSync(join(dir, "api-budget"));
-  if (error === "EACCES") {
+// Each vector's layout; the returned function undoes its permissions.
+function makeStopFileError(dir, layout) {
+  const budget = join(dir, "api-budget");
+  const stop = join(budget, "stop");
+  if (layout === "api-budget-is-file") {
+    writeFileSync(budget, "");
+    return { stop, undo: () => {} };
+  }
+  mkdirSync(budget);
+  if (layout === "stop-unreadable") {
     writeFileSync(stop, "core 1792751600\n");
     chmodSync(stop, 0o000);
-  } else if (error === "EISDIR") {
+  } else if (layout === "stop-is-directory") {
     mkdirSync(stop);
-  } else if (error === "ENOTDIR") {
-    rmSync(join(dir, "api-budget"), { recursive: true });
-    writeFileSync(join(dir, "api-budget"), "");
+  } else if (layout === "api-budget-unsearchable") {
+    writeFileSync(stop, "core 1792751600\n");
+    chmodSync(budget, 0o600);
   }
-  return stop;
+  return { stop, undo: () => chmodSync(budget, 0o755) };
 }
 
 for (const vector of VECTORS.stop_file_errors) {
-  test(`stop file error: ${vector.name}`, { skip: vector.error === "EACCES" && process.getuid?.() === 0 && "root reads any file" }, () =>
+  test(`stop file error: ${vector.name}`, { skip: vector.error === "EACCES" && ROOT && "root reads any file" }, () =>
     withDir((dir) => {
-      const stopFile = makeStopFileError(dir, vector.error);
+      const { stop: stopFile, undo } = makeStopFileError(dir, vector.layout);
       const lines = [];
       const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile });
       assert.deepEqual(Object.fromEntries(Object.entries(POOL_URLS).map(([pool, url]) => [pool, latch.until(url)])), vector.until);
@@ -320,9 +328,7 @@ for (const vector of VECTORS.stop_file_errors) {
         assert.equal(errors.length, 1);
         assert.ok(errors[0].includes(`stop file ${stopFile} cannot be read (${vector.error})`), errors[0]);
       }
-      if (vector.error === "EACCES") {
-        chmodSync(stopFile, 0o644);
-      }
+      undo();
     }));
 }
 

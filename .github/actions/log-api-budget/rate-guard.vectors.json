@@ -308,21 +308,31 @@
     {
       "name": "a missing stop file holds nothing",
       "error": "ENOENT",
+      "layout": "missing",
       "until": { "core": null, "graphql": null, "search": null, "code_search": null }
     },
     {
       "name": "a stop file without read permission holds every pool until the largest 12-digit second",
       "error": "EACCES",
+      "layout": "stop-unreadable",
       "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
     },
     {
       "name": "a directory where the stop file goes holds every pool until the largest 12-digit second",
       "error": "EISDIR",
+      "layout": "stop-is-directory",
       "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
     },
     {
       "name": "a file where the stop file's directory goes holds every pool until the largest 12-digit second",
       "error": "ENOTDIR",
+      "layout": "api-budget-is-file",
+      "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
+    },
+    {
+      "name": "a stop file in a directory without search permission holds every pool until the largest 12-digit second",
+      "error": "EACCES",
+      "layout": "api-budget-unsearchable",
       "until": { "core": 999999999999, "graphql": 999999999999, "search": 999999999999, "code_search": 999999999999 }
     }
   ]

@@ -178,13 +178,14 @@ api_budget_pool() {
 api_budget_stop_until() {
   local file=${RUNNER_TEMP:-/tmp}/api-budget/stop up
   if [[ ! -e $file ]]; then
-    # Missing (ENOENT) unless a path part above it is not a directory (ENOTDIR).
+    # Missing (ENOENT) only when the nearest path part above it that exists
+    # is a directory it can search; else ENOTDIR or EACCES.
     up=$file
     while [[ $up == */* ]]; do
       up=${up%/*}
-      [[ -z $up || -e $up ]] && break
+      [[ -e ${up:-/} ]] && break
     done
-    [[ -z $up || -d $up || ! -e $up ]] && return 0
+    [[ -d ${up:-/} && -x ${up:-/} ]] && return 0
   fi
   if [[ -d $file ]] || ! { : <"$file"; } 2>/dev/null; then
     echo "::error::the rate guard's stop file $file cannot be read, so every GitHub API pool counts as stopped" >&2

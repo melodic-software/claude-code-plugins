@@ -237,19 +237,24 @@ check "a caller's three-attempt loop sends the paginated read once" 0 1 "5 5 5" 
 
 # gh_read holds gh's stderr in a file until gh returns, and a stop the rate
 # guard cannot record ends the step first: the errors still reach its log.
-fresh
-mkdir "$TMP_ROOT/api-budget"
-chmod 555 "$TMP_ROOT/api-budget"
-STUB_SCRIPT="$LIMITED
-ok never" run 'gh_read repos/o/r/pulls/1 >/dev/null || true; echo reached'
-check "a stop the rate guard cannot record ends the step, its errors in the step's log" 143 1 "" \
-  "::error::'gh api repos/o/r/pulls/1' hit GitHub's core API rate limit" "reached"
-if [[ "$out" == *"::error::GitHub's core API stop could not be recorded"* ]]; then
-  ok "the step's log names the stop it could not record"
+# Root writes past a read-only directory, so the case skips there.
+if [[ $(id -u) == 0 ]]; then
+  ok "skipped as root: an unrecorded stop needs a directory root cannot write past"
 else
-  fail "the unrecorded-stop error is missing from the step's log: '$out'"
+  fresh
+  mkdir "$TMP_ROOT/api-budget"
+  chmod 555 "$TMP_ROOT/api-budget"
+  STUB_SCRIPT="$LIMITED
+ok never" run 'gh_read repos/o/r/pulls/1 >/dev/null || true; echo reached'
+  check "a stop the rate guard cannot record ends the step, its errors in the step's log" 143 1 "" \
+    "::error::'gh api repos/o/r/pulls/1' hit GitHub's core API rate limit" "reached"
+  if [[ "$out" == *"::error::GitHub's core API stop could not be recorded"* ]]; then
+    ok "the step's log names the stop it could not record"
+  else
+    fail "the unrecorded-stop error is missing from the step's log: '$out'"
+  fi
+  chmod 755 "$TMP_ROOT/api-budget"
 fi
-chmod 755 "$TMP_ROOT/api-budget"
 
 fresh
 STUB_SCRIPT='fail 502 Bad Gateway' run 'api_budget_stop_until() { echo 12x; }; gh_read repos/o/r/pulls/1 || echo "rc=$?"'

@@ -7,6 +7,8 @@ import { test } from "node:test";
 import { readingLine, recordReading } from "./api-budget.mjs";
 import { apiLimits, createRateLimitLatch, poolOf } from "./rate-guard.mjs";
 
+// Root reads and writes past any file mode, so the permission cases skip.
+const ROOT = process.getuid?.() === 0;
 const LIB = new URL("./api-budget.bash", import.meta.url).pathname;
 const ACTION = readFileSync(new URL("./action.yml", import.meta.url), "utf8");
 const CI = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
@@ -344,7 +346,7 @@ test("gh guard: a stop-file line whose reset is not a number stops nothing", () 
 // stderr once each, also when the caller holds the subshell's stderr in a
 // file it reads only after the call, as gh_read does. Node gives the step a
 // socket for stderr, which /proc/$$/fd/2 cannot open.
-test("gh guard: a stop it cannot record ends the step after one call, naming the pool", () =>
+test("gh guard: a stop it cannot record ends the step after one call, naming the pool", { skip: ROOT && "root writes past any file mode" }, () =>
   withDir((dir) => {
     const main = "gh api repos/o/r >/dev/null || true\ngh api repos/o/r/pulls >/dev/null || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
     const sub = "x=$(gh api repos/o/r) || true\ny=$(gh api repos/o/r/pulls) || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
@@ -431,22 +433,25 @@ test("the stop file reads the same in the shell and in Node: every stop_files ve
 test("the stop file reads the same in the shell and in Node: every stop_file_errors vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   for (const vector of vectors.stop_file_errors) {
-    if (vector.error === "EACCES" && process.getuid?.() === 0) {
+    if (vector.error === "EACCES" && ROOT) {
       continue;
     }
     withDir((dir) => {
       const budget = join(dir, "api-budget");
       const stop = join(budget, "stop");
-      if (vector.error === "ENOTDIR") {
+      if (vector.layout === "api-budget-is-file") {
         writeFileSync(budget, "");
       } else {
         mkdirSync(budget);
       }
-      if (vector.error === "EACCES") {
+      if (vector.layout === "stop-unreadable") {
         writeFileSync(stop, "core 1792751600\n");
         chmodSync(stop, 0o000);
-      } else if (vector.error === "EISDIR") {
+      } else if (vector.layout === "stop-is-directory") {
         mkdirSync(stop);
+      } else if (vector.layout === "api-budget-unsearchable") {
+        writeFileSync(stop, "core 1792751600\n");
+        chmodSync(budget, 0o600);
       }
       const lines = [];
       const latch = createRateLimitLatch({ now: () => vectors.vector_now * 1000, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile: stop });
@@ -470,8 +475,8 @@ test("the stop file reads the same in the shell and in Node: every stop_file_err
         assert.ok(shellErrors.length === 4 && shellErrors.every((line) => line.includes(named)), `shell: ${vector.name}: ${out.stderr}`);
         assert.ok(nodeErrors.length === 1 && nodeErrors[0].includes(named), `node: ${vector.name}: ${lines}`);
       }
-      if (vector.error === "EACCES") {
-        chmodSync(stop, 0o644);
+      if (vector.layout === "api-budget-unsearchable") {
+        chmodSync(budget, 0o755);
       }
     });
   }
@@ -564,7 +569,7 @@ test("pr-feedback-dispatch.yml: each job that calls the API ends by logging its 
 
 // The wrapper keeps a copy of the stderr it is set up under, so a setup line
 // that sends its own stderr to /dev/null would swallow the unrecorded-stop errors.
-test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an unrecorded stop's errors", () =>
+test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an unrecorded stop's errors", { skip: ROOT && "root writes past any file mode" }, () =>
   withDir((dir) => {
     const setups = readFileSync(FEEDBACK, "utf8")
       .split("\n")
