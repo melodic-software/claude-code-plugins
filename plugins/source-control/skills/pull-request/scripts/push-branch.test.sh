@@ -549,7 +549,10 @@ refuse_case "--check main" "$bare" main "'main' is refused $ALWAYS" "$WORKDIR" -
 check "--check, feature branch: exits 0" "$?" "0"
 check "--check, feature branch: nothing pushed" "$(has_ref "$bare" "$BRANCH")" "no"
 
-# --pr whose head is main refuses before the head-repository check.
+# --pr: a head in the base repository on main refuses, before the
+# head-repository check, and names the PR head. A fork head pushes to the
+# contributor's fork, not the base, so its main pushes (lane-push.sh's rule).
+# The stub answers "<head branch> <head repo> <base repo>".
 wc=$(make_clone default-pr)
 git -C "$wc" branch -q -f main
 git -C "$wc" remote set-url origin https://github.com/default-pr/origin.git
@@ -558,12 +561,17 @@ mkdir -p "$STUB"
 cat >"$STUB/gh" <<'STUB'
 #!/usr/bin/env bash
 [[ "$1" == api ]] && echo example-user && exit 0
-[[ "$*" == *" 47 "* ]] && echo "main default-pr/origin" && exit 0
+[[ "$*" == *" 47 "* ]] && echo "main default-pr/origin default-pr/origin" && exit 0
+[[ "$*" == *" 48 "* ]] && echo "main default-pr/origin base-org/app" && exit 0
 exit 1
 STUB
 chmod +x "$STUB/gh"
 export PB_GITHUB_ROOT="$WORKDIR"
-refuse_case "--pr head main" "$WORKDIR/default-pr/origin.git" main "'main' is refused $ALWAYS" "$wc" --pr 47
+refuse_case "--pr head main in the base repository" "$WORKDIR/default-pr/origin.git" main \
+  "PR '47' head 'main' is refused $ALWAYS" "$wc" --pr 47
+(cd "$wc" && PATH="$STUB:$PATH" bash "$PUSH_BRANCH" --pr 48) >/dev/null 2>&1
+check "--pr fork head main: exits 0" "$?" "0"
+check "--pr fork head main: the fork received main" "$(has_ref "$WORKDIR/default-pr/origin.git" main)" "yes"
 STUB=""
 unset PB_GITHUB_ROOT
 

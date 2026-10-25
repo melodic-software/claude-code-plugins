@@ -63,7 +63,8 @@
 #
 # The branch it would push (named, current, or the --pr head) refuses when it is
 # main, master, or the push remote's default branch as `git ls-remote --symref`
-# reports it; a read that fails or names no default refuses too. `--check` runs only that check
+# reports it; a read that fails or names no default refuses too. A --pr head in
+# a fork of the base repository is exempt: that push goes to the fork. `--check` runs only that check
 # (create.md calls it before opening a PR) and pushes nothing.
 #
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
@@ -133,8 +134,9 @@ if [[ -n "$HAS_PR" ]]; then
     echo "push-branch.sh: --pr needs a pull request number, got '$PR'; not pushing" >&2
     exit 1
   fi
-  read -r BRANCH HEAD_REPO < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner \
-    -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name' 2>/dev/null | tr -d '\r')
+  # The PR's URL names its base repository.
+  read -r BRANCH HEAD_REPO PR_BASE_REPO < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner,url \
+    -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name + " " + (.url | split("/")[3:5] | join("/"))' 2>/dev/null | tr -d '\r')
   if [[ "${BRANCH:-}" == -* ]]; then
     echo "push-branch.sh: PR '$PR' head branch '$BRANCH' starts with '-'; not pushing" >&2
     exit 1
@@ -153,7 +155,16 @@ fi
 # stale. A failed read refuses, and so does a read that names no default (an
 # empty remote, a server that does not advertise the symref, a detached HEAD).
 refuse_default() {
-  local out="" default=""
+  local out="" default="" what="'$2'"
+  # A fork head pushes to the contributor's fork, never the base repository, so
+  # its default branch may be pushed (lane-push.sh's is_fork rule). An unread
+  # base repository counts as no fork.
+  if [[ -n "$PR" ]]; then
+    if [[ -n "${PR_BASE_REPO:-}" && "${HEAD_REPO,,}" != "${PR_BASE_REPO,,}" ]]; then
+      return 0
+    fi
+    what="PR '$PR' head '$2'"
+  fi
   if out=$(git ls-remote --symref "$1" HEAD 2>/dev/null); then
     default=$(sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}")
   fi
@@ -162,11 +173,11 @@ refuse_default() {
     exit 1
   fi
   if [[ "$2" == "$default" ]]; then
-    echo "push-branch.sh: '$2' is the default branch of $1; not pushing" >&2
+    echo "push-branch.sh: $what is the default branch of $1; not pushing" >&2
     exit 1
   fi
   if [[ "$2" == main || "$2" == master ]]; then
-    echo "push-branch.sh: '$2' is refused (main and master are always refused); not pushing" >&2
+    echo "push-branch.sh: $what is refused (main and master are always refused); not pushing" >&2
     exit 1
   fi
 }
