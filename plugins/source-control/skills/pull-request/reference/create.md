@@ -228,7 +228,11 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 # `origin`/`upstream`) no longer repoints the fetch remote to the fork, and a
 # branch with any configured tracking no longer has its merge ref overwritten.
 # See the script header for the full rationale.
-bash "<skill-dir>/scripts/push-branch.sh" || exit 1
+# From a worktree, pass --dir with the worktree's absolute path (never one
+# derived from the cwd, which can reset to the main checkout): --dir pushes
+# that checkout's HEAD by refspec and sets no upstream (§2.4.3 names --head).
+# The script refuses the push remote's default branch either way.
+bash "<skill-dir>/scripts/push-branch.sh" [--dir "<worktree>"] || exit 1
 ```
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered source-control config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.

@@ -61,6 +61,10 @@
 # included, to the branch by refspec, never with `-u`; with `--pr` the head
 # branch needs no local ref. A babysit worker's worktree pushes this way.
 #
+# The branch it would push (named, current, or the --pr head) refuses when it is
+# the push remote's default branch (<remote>/HEAD; with that unset, main and
+# master refuse).
+#
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
 # above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
 # block below), and --pr for a fork head needs --dir.
@@ -201,6 +205,21 @@ if [[ "$ACTING" == *"[bot]" ]]; then
 fi
 
 PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
+# Never push the push remote's default branch (a cwd that reset to the main
+# checkout would otherwise push main). The default is <remote>/HEAD; with that
+# unset, main and master refuse.
+if [[ -n "$BRANCH" ]]; then
+  DEFAULT=$(git symbolic-ref -q "refs/remotes/$PUSH_REMOTE/HEAD" 2>/dev/null | tr -d '\r')
+  DEFAULT="${DEFAULT#"refs/remotes/$PUSH_REMOTE/"}"
+  if [[ -n "$DEFAULT" && "$BRANCH" == "$DEFAULT" ]]; then
+    echo "push-branch.sh: '$BRANCH' is the default branch of $PUSH_REMOTE; not pushing" >&2
+    exit 1
+  fi
+  if [[ -z "$DEFAULT" && ("$BRANCH" == main || "$BRANCH" == master) ]]; then
+    echo "push-branch.sh: '$BRANCH' may be the default branch of $PUSH_REMOTE ($PUSH_REMOTE/HEAD is unset, so main and master are refused); not pushing" >&2
+    exit 1
+  fi
+fi
 # A same-named local branch is not the PR's head unless every URL the push
 # writes to is the PR's head repository on github.com (a fork PR's head lives
 # on the fork). The URLs are read after insteadOf rewriting, as git pushes them.

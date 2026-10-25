@@ -463,6 +463,69 @@ check "login read failed: exit 0 on the operator path" "$?" "0"
 check "login read failed: the remote received the branch by plain git" "$(has_branch "$WORKDIR/login-fail/origin")" "yes"
 check "login read failed: no identity preflight" "$([[ -f $LOG/preflight.argv ]] && echo ran || echo none)" "none"
 
+# 10. The push remote's default branch is never pushed: named, current, or a
+#     --pr head. The default is <remote>/HEAD; with it unset, main and master
+#     refuse. Each refusal pushes nothing.
+has_ref() {
+  if git -C "$1" rev-parse --verify --quiet "refs/heads/$2" >/dev/null 2>&1; then echo yes; else echo no; fi
+}
+# refuse_case <desc> <bare remote> <ref> <message> <cwd> [push-branch.sh args...]
+# runs push-branch.sh from <cwd>, with $STUB first on PATH when set.
+refuse_case() {
+  local desc="$1" bare="$2" ref="$3" want_msg="$4" cwd="$5"
+  shift 5
+  local rc=0 err
+  err=$(cd "$cwd" && PATH="${STUB:+$STUB:}$PATH" bash "$PUSH_BRANCH" "$@" 2>&1 >/dev/null) || rc=$?
+  check "$desc: exits non-zero" "$([[ $rc != 0 ]] && echo nonzero || echo zero)" "nonzero"
+  check "$desc: names the default branch" "$([[ $err == *"$want_msg"*"; not pushing"* ]] && echo refused || echo "$err")" "refused"
+  check "$desc: the remote did not receive '$ref'" "$(has_ref "$bare" "$ref")" "no"
+}
+STUB=""
+wc=$(make_clone default-main)
+bare="$WORKDIR/default-main/origin.git"
+git -C "$wc" branch -q -f main
+git -C "$wc" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+refuse_case "default main, named" "$bare" main "'main' is the default branch of origin" "$wc" main
+git -C "$wc" checkout -q main
+refuse_case "default main, current branch" "$bare" main "'main' is the default branch of origin" "$wc"
+refuse_case "default main, --dir on main" "$bare" main "'main' is the default branch of origin" "$WORKDIR" --dir "$wc"
+
+wc=$(make_clone default-trunk)
+bare="$WORKDIR/default-trunk/origin.git"
+git -C "$wc" branch -q trunk
+git -C "$wc" branch -q -f main
+git -C "$wc" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/trunk
+refuse_case "default trunk, named" "$bare" trunk "'trunk' is the default branch of origin" "$wc" trunk
+(cd "$wc" && bash "$PUSH_BRANCH" main) >/dev/null 2>&1
+check "default trunk: main is not the default, so it pushes" "$(has_ref "$bare" main)" "yes"
+
+wc=$(make_clone default-unset)
+git -C "$wc" branch -q -f main
+git -C "$wc" branch -q -f master
+for b in main master; do
+  refuse_case "default unresolved, $b" "$WORKDIR/default-unset/origin.git" "$b" \
+    "'$b' may be the default branch of origin (origin/HEAD is unset, so main and master are refused)" "$wc" "$b"
+done
+
+# --pr whose head is the default branch refuses before the head-repository check.
+wc=$(make_clone default-pr)
+git -C "$wc" branch -q -f main
+git -C "$wc" remote set-url origin https://github.com/default-pr/origin.git
+STUB="$WORKDIR/default-pr/bin"
+mkdir -p "$STUB"
+cat >"$STUB/gh" <<'STUB'
+#!/usr/bin/env bash
+[[ "$1" == api ]] && echo example-user && exit 0
+[[ "$*" == *" 47 "* ]] && echo "main default-pr/origin" && exit 0
+exit 1
+STUB
+chmod +x "$STUB/gh"
+export PB_GITHUB_ROOT="$WORKDIR"
+refuse_case "default unresolved, --pr head main" "$WORKDIR/default-pr/origin.git" main \
+  "'main' may be the default branch of origin" "$wc" --pr 47
+STUB=""
+unset PB_GITHUB_ROOT
+
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ $FAIL -eq 0 ]]
