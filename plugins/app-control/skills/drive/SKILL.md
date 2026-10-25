@@ -45,7 +45,7 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    checkout (the first `worktree` entry of `git worktree list --porcelain`). Glob each root for
    `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
-   `.claude/commands/` with `ls -aR`, since Glob can skip git-ignored files. Keep each file whose
+   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file whose
    folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
    starts with `control-`). Drop a match inside a submodule or a dependency folder such as
    `node_modules` or `vendor`, and a main-checkout file at a path this checkout also holds. Its
@@ -59,8 +59,8 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    session shows whose `<plugin>` matches no row of the list (`control skill <name> is from a
    session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
-   Never invoke a control skill through the Skill tool: loading one runs its dynamic-context
-   commands, `allowed-tools` and `hooks` before drive can read it. A repository file for an `<app>`
+   Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
+   below). A repository file for an `<app>`
    beats every plugin file for it.
 4. **A contract break is a finding, not a stop.** A control skill's frontmatter holds only `name`,
    `description` and optionally `disable-model-invocation`, and its body carries no `!`
