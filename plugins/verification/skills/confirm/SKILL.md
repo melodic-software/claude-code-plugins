@@ -259,8 +259,8 @@ pointer with an as-of date and a recheck trigger, live in
 - Verdict CONFIRMED: /source-control:pull-request.
 - Improvement claimed without data: /verification:measure.
 - Gaps found: fix them, then /verification:confirm.
-- Lessons listed: /app-control:map refresh <feature> (or <control skill path> for every feature),
-  or /corrections:codify "<lesson>" for one not about driving the app.
+- Lessons listed: /app-control:map refresh <feature> "<lesson>" (or <control skill path> for every
+  feature), or /corrections:codify "<lesson>" for one not about driving the app.
 
 ## Gotchas
 
