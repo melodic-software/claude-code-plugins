@@ -125,7 +125,8 @@ only, never from the environment, a project settings file or a session's `--sett
 it applies to; `findings_buffer_adapter_path` is the adapter directory relative to the checkout
 root. It applies when the current checkout's git common directory is that directory, so in the main
 checkout and every worktree of that repository and in no other repository, and then it wins over
-the repository's binding file. The adapter directory must resolve physically inside the current
+the repository's binding file. The checkout root must be one `git worktree list` reports for that
+directory, so a directory whose `.git` file merely names it is refused. The adapter directory must resolve physically inside the current
 checkout, it and the real location of each verb must not lie inside a git repository nested in it
 (a submodule or a clone under the tree), and it passes the same verb and `capabilities.json` checks. Git runs without the caller's `GIT_*`
 variables for these checks. A binding with one option set, a relative repository, an absolute

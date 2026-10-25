@@ -264,6 +264,17 @@ DETAIL="exit $RC; stderr: $ERR"
 check "a binding made for repository A applies in a worktree of A" \
   test "$RC" -eq 0 -a -s "$W/tools/mine/captured.jsonl"
 
+# A plain directory whose .git file names A's git directory is not a checkout A registers.
+H="$TEST_TMPDIR/claims-a"
+mkdir -p "$H"
+printf 'gitdir: %s\n' "$A/.git" >"$H/.git"
+fake_adapter "$H/tools/mine" 0
+run "$H" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $ERR"
+check "a directory whose .git file names A's git directory: refused, append uses local-file and says so" \
+  refused_user "$RC" "$H" "$ERR"
+check "a directory whose .git file names A's git directory: its adapter never runs" test ! -e "$H/tools/mine/captured.jsonl"
+
 # A repository-written value for the user-scope keys is never read: not from the team file, a
 # project settings file or the CLAUDE_PLUGIN_OPTION_* environment.
 rm -f "$CONFIG/settings.json"

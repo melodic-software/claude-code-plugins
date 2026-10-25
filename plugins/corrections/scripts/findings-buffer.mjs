@@ -151,6 +151,9 @@ function userBinding(project, scratch) {
   const bound = physical(repository);
   if (bound !== null && bound === here.top) return { why: "findings_buffer_adapter_repository names the checkout root, not the git common directory" };
   if (bound === null || bound !== here.common) return null;
+  // Git takes a `.git` file's word for the git directory, so any directory can claim this one; the
+  // checkout must be one the repository itself registers.
+  if (!checkouts(here.common).includes(here.top)) return { why: "this directory is not a checkout or registered worktree of that repository" };
   if (isAbsolute(path)) return { why: "findings_buffer_adapter_path is not relative to the repository root" };
   const checked = checkAdapter(here.top, resolvePath(here.top, path), { where: "this checkout", missing: "no such directory in this checkout" });
   if (checked.why) return checked;
@@ -169,6 +172,16 @@ function owner(dir) {
   const top = physical(out[0]);
   const common = physical(resolvePath(dir, out[1]));
   return top === null || common === null ? null : { top, common };
+}
+
+/** The physical paths of the main checkout and every linked worktree git lists for the git common directory `common`. */
+function checkouts(common) {
+  const out = git(common, "worktree", "list", "--porcelain");
+  if (out === null) return [];
+  return lines(out)
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => physical(line.slice("worktree ".length)))
+    .filter((path) => path !== null);
 }
 
 function adapter(project) {
