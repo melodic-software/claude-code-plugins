@@ -194,16 +194,19 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 
 A session PR is one a person on the trusted-actor list (`kind: human`) opened, which the session
 that wrote it may still push to (owner rule, 2026-10-24: after `agent-ready` a person is needed only
-for unclear or changed intent, a high security risk, or induced cost). While the base config sets
-`adoption.feedback-idle-minutes` ([Adoption](#adoption)), `address-feedback` works it as above when
-no body line starts with `Hold:` (read as [Adoption](#adoption) reads it) and either a trusted
-person (a `User` on the list) made the newest `labeled` event of the `lanes-may-fix` label still on
-it, or its head was pushed at least `feedback-idle-minutes` ago. The push time is the creation of the
-earliest completed review run at the head, since a `pull_request` run starts on the push; an
-unreadable time is not idle, and a lane's own push restarts the wait. A label anyone else added
+for unclear or changed intent, a high security risk, or induced cost). `address-feedback` works it
+as above when no body line starts with `Hold:` (read as [Adoption](#adoption) reads it) and a
+trusted person (a `User` on the list) made the newest `labeled` event of the `lanes-may-fix` label
+still on it. The idle path is off until the owner sets `adoption.feedback-idle-minutes`
+([Adoption](#adoption)); this repository leaves it unset, since the lease protects the branch but
+not a session's unpushed local work. Once set, a session PR also goes without the label when its
+head was pushed at least `feedback-idle-minutes` ago. The push time is the creation of the earliest
+completed review run at the head, since a `pull_request` run starts on the push; an unreadable time
+is not idle, and a lane's own push restarts the wait. A label anyone else added
 counts as no label. A trusted App's PR is not a session PR. A review completion on a session PR's
 branch starts no dispatch job (the job takes only `work-resolve-issue/issue-` branches), so the
-half-hourly sweep is its path: each tick it also takes a session PR whose head no
+half-hourly sweep is its path: each tick it also takes a labeled (or, with the idle path on, any)
+session PR whose head no
 `pr-unblock / address-feedback` check run has counted, reading nothing for one a hold label or a
 `Hold:` line holds and only its threads for one with no unresolved thread, and dispatches at most one
 PR per tick in all. The session and the lane never push over each other. The session author's own
@@ -2252,7 +2255,7 @@ hold.
 |---|---|---|
 | `idle-hours` | none | Hours both a person's PR and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
 | `spec-from-body-apps` | `[]` | App ids whose PR bodies a script writes; such a PR closing no issue is judged against its title and body. |
-| `feedback-idle-minutes` | none | Minutes since a session PR's head was pushed before `address-feedback` works it; 1 to 1440. A trusted person's `lanes-may-fix` label skips the wait. Absent: no session PR ([Lanes](#lanes)). |
+| `feedback-idle-minutes` | none | Minutes since a session PR's head was pushed before `address-feedback` works it; 1 to 1440. A trusted person's `lanes-may-fix` label skips the wait. Absent (this repository, pending the owner's choice): only a labeled session PR ([Lanes](#lanes)). |
 
 ## Red main
 

@@ -16,12 +16,12 @@
 //   by exact path, in this repository and on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
 //   current head, and the lanes App opened it, or a trusted person did (a
-//   session PR) while the base config sets adoption.feedback-idle-minutes;
+//   session PR);
 // - it carries no do-not-merge label;
 // - a session PR carries no owner `Hold:` body line, and its head was pushed
-//   at least feedback-idle-minutes ago (the earliest completed review run
-//   at the head), unless a trusted person's labeled event put lanes-may-fix
-//   on it (sessionHold). Its author's reply on a thread, unless a fix
+//   at least adoption.feedback-idle-minutes ago while that is set (the
+//   earliest completed review run at the head), unless a trusted person's
+//   labeled event put lanes-may-fix on it (sessionHold). Its author's reply on a thread, unless a fix
 //   request, still keeps that thread from the lane (threadAuthors), and a
 //   push while the lane works stops the round's push and reply jobs at the
 //   trigger gate, behind which apply-patch.mjs skip-moved-head and its
@@ -197,11 +197,12 @@ async function idleMinutesOf(loadAdoption) {
 // Why a session PR (one a trusted person opened, whose authoring session may
 // still push) is not worked now, or "" when it is: an owner `Hold:` line
 // holds it; a lanes-may-fix label whose newest labeled event a trusted person
-// made lets it through at once; otherwise the head must have been pushed at
-// least `idleMinutes` ago. The push time is the earliest completed review
+// made lets it through at once; otherwise, only while
+// adoption.feedback-idle-minutes is set (read from `loadAdoption` only
+// then), the head must have been pushed at least `idleMinutes` ago. The push time is the earliest completed review
 // run's creation at the head (a pull_request run starts on the push), so a
 // lane's own push restarts the wait too; an unreadable time is not idle.
-async function sessionHold({ api, pull, head, trustedHumans, idleMinutes, now, reviewRuns, settings }) {
+async function sessionHold({ api, pull, head, trustedHumans, loadAdoption, now, reviewRuns, settings }) {
   if (BODY_HOLD.test(String(pull.body ?? ""))) {
     return "carries an owner Hold: line";
   }
@@ -210,6 +211,10 @@ async function sessionHold({ api, pull, head, trustedHumans, idleMinutes, now, r
     if (labeled?.actor?.type === "User" && trustedHumans.has(labeled.actor.id)) {
       return "";
     }
+  }
+  const idleMinutes = await idleMinutesOf(loadAdoption);
+  if (idleMinutes === null) {
+    return `carries no ${MAY_FIX_LABEL} label a trusted person added, and adoption.feedback-idle-minutes is not set`;
   }
   const runs = reviewRuns ?? (await reviewRunsAt({ api, head, settings }));
   const pushed = Math.min(...runs.map((run) => Date.parse(run.created_at ?? "")).map((time) => (Number.isNaN(time) ? Infinity : time)));
@@ -324,11 +329,7 @@ export async function dispatchFeedback({
     return skip(`#${number} is labeled ${held.join(", ")}`);
   }
   if (session) {
-    const idleMinutes = await idleMinutesOf(loadAdoption);
-    if (idleMinutes === null) {
-      return skip(`#${number} is a trusted person's PR and adoption.feedback-idle-minutes is not set`);
-    }
-    const why = await sessionHold({ api, pull, head, trustedHumans, idleMinutes, now, reviewRuns, settings });
+    const why = await sessionHold({ api, pull, head, trustedHumans, loadAdoption, now, reviewRuns, settings });
     if (why !== "") {
       return skip(`#${number}: ${why}`);
     }
@@ -446,8 +447,9 @@ export async function dispatchFeedback({
 
 // The sweep: the first open PR into main that dispatchFeedback dispatches
 // for its head's newest completed review run, among the lanes App's PRs and
-// session PRs (a trusted person's, while adoption.feedback-idle-minutes is
-// set) whose head's newest reply check took a releasing skip, under
+// session PRs (a trusted person's, labeled lanes-may-fix or, while
+// adoption.feedback-idle-minutes is set, any) whose head's newest reply
+// check took a releasing skip, under
 // SWEEP_HEAD_CAP such checks, and the session PRs whose head has no
 // address-feedback check run yet. A review completion on a session PR's
 // branch starts no dispatch job (pr-feedback-dispatch.yml), and right after
@@ -465,8 +467,10 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     !(pull.labels ?? []).some((label) => settings.holdLabels.includes(label.name)) &&
     !BODY_HOLD.test(String(pull.body ?? ""));
   // Read once, and only when a session PR is open.
-  const sessions = open.some(isSession) && (await idleMinutesOf(loadAdoption)) !== null;
-  const pulls = open.filter((pull) => pull.user?.id === appSenderId || (sessions && isSession(pull)));
+  // Without adoption.feedback-idle-minutes only a labeled session PR can go.
+  const labeled = (pull) => (pull.labels ?? []).some((label) => label.name === MAY_FIX_LABEL);
+  const idle = open.some((pull) => isSession(pull) && !labeled(pull)) && (await idleMinutesOf(loadAdoption)) !== null;
+  const pulls = open.filter((pull) => pull.user?.id === appSenderId || (isSession(pull) && (idle || labeled(pull))));
   for (const pull of pulls) {
     const head = pull.head.sha;
     let dispatched = null;

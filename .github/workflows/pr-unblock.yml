@@ -13,8 +13,8 @@ name: pr-unblock
 # address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
 # PR with unresolved reviewer-bot threads, and from its half-hourly sweep for a
-# trusted person's PR once its session is idle (adoption.feedback-idle-minutes)
-# or a trusted person labeled it lanes-may-fix; a base job keeps the threads, a
+# trusted person's PR a trusted person labeled lanes-may-fix, or once its
+# session is idle when adoption.feedback-idle-minutes is set; a base job keeps the threads, a
 # read model job answers them, and script jobs push its patch and post its
 # replies.
 # review-dependency:

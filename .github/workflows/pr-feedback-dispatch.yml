@@ -32,8 +32,9 @@ name: pr-feedback-dispatch
 # (feedback-dispatch.mjs sweepReleased). That round released the head only
 # for a next review or pr-verify completion, which may never come. The same
 # sweep takes a trusted person's PR (a session PR) whose head no round has
-# worked, once its session has not pushed for adoption.feedback-idle-minutes
-# or a trusted person labeled it lanes-may-fix: its review completions start
+# worked, once a trusted person labeled it lanes-may-fix, or its session has
+# not pushed for adoption.feedback-idle-minutes when that is set: its review
+# completions start
 # no dispatch job (the branch filter below), and right after a push its
 # session is not idle anyway. Taking
 # the tick's completion rather than a schedule of this file's own keeps

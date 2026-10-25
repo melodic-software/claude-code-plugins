@@ -80,10 +80,10 @@ activities:
     # runner turns its uncommitted fixes into a patch that
     # apply-feedback-patch pushes, and hands its replies to publish-feedback.
     # pr-feedback-dispatch.yml starts it on pull requests the lanes App
-    # opened, and on a trusted person's (a session PR) once its authoring
-    # session has not pushed for `adoption.feedback-idle-minutes`, or at once
-    # under a trusted person's `lanes-may-fix` label; a trusted person may
-    # also dispatch it by hand.
+    # opened, and on a trusted person's (a session PR) under a trusted
+    # person's `lanes-may-fix` label, or once its authoring session has not
+    # pushed for `adoption.feedback-idle-minutes` when that is set (unset
+    # here); a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/workflows/, and writes replies to a file.
@@ -817,11 +817,11 @@ adoption:
   # the run that wrote the diff would also write its spec. Ids from
   # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
   spec-from-body-apps: [337859524, 300666570]
-  # address-feedback works a trusted person's PR (a session PR) once its head
-  # was pushed this many minutes ago, sooner under a trusted person's
-  # `lanes-may-fix` label, never past do-not-merge or a `Hold:` body line
-  # (owner rule, 2026-10-24). 30 is judgment. Absent: no session PR.
-  feedback-idle-minutes: 30
+  # feedback-idle-minutes: address-feedback works a trusted person's PR (a
+  # session PR) once its head was pushed this many minutes ago. Unset, as
+  # here, the idle path is off pending the owner's choice of N: only a
+  # trusted person's `lanes-may-fix` label lets the lane work a session PR,
+  # never past do-not-merge or a `Hold:` body line (owner rule, 2026-10-24).
 
 # The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
 # branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
