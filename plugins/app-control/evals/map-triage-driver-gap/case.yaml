@@ -11,7 +11,7 @@ execution:
 graders:
   - name: names-driver-gap
     type: regex
-    pattern: 'driver[ -]gap'
+    pattern: '(?:\b(?:class(?:ification|(?: it| this)? as)?|triage(?:d)?(?: class)?|verdict|classe[sd](?: it| this| the failure)?(?: as)?|classif(?:y|ies|ied)(?: it| this)?(?: as)?)\b[\s*_`:#>=|—–-]*(?:(?:is|as)\s+)?(?:(?:an?|the)\s+)?[*_`]*driver[ -]gap|\b(?:this|it|that)(?:''s|’s| is)\s+(?:an?\s+)?[*_`]*driver[ -]gap|(?:^|\n)[ \t#>*_-]*(?:\d+[.)][ \t]*)?[*_`]*driver[ -]gap)'
     flags: i
     arm: both
   - name: fixes-cli-redrives
