@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 5\nlease_seconds = 90\nmax_parallel = 4\n"
+      },
+      "why": "lower poll"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 10  # was 20; p50 target 30 s\nlease_seconds = 90\nmax_parallel = 4\n"
+      },
+      "why": "near miss: trailing comment"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 20\nlease_seconds = 90\nmax_parallel = 8\n"
+      },
+      "why": "more parallel pick-up"
+    }
+  ],
+  "fail": [
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 20\nlease_seconds = 90\nmax_parallel = 4\n"
+      },
+      "why": "unchanged"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 20\nlease_seconds = 30\nmax_parallel = 4\n"
+      },
+      "why": "only the lease"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 25\nlease_seconds = 90\nmax_parallel = 3\n"
+      },
+      "why": "near miss: both knobs moved the wrong way"
+    }
+  ]
+}
