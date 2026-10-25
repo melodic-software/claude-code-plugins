@@ -4,7 +4,7 @@ description: >
   named token, from the rate-limit readings the job's own API responses left
   in $RUNNER_TEMP/api-budget (api-budget.bash): one per refused (403/429)
   response and one for the last, then one for the job's content-creating
-  writes (count and most in one minute). GET /rate_limit is never read: it reports a
+  writes (count and most in any 60 s). GET /rate_limit is never read: it reports a
   different bucket from the one the job spends. Also writes each line and a
   `<name>-cost=N` line to the step summary. A token with no reading gets no
   line. Never fails the job.

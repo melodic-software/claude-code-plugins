@@ -362,6 +362,13 @@ test("api_budget_is_content judges a gh call as rate-guard.mjs's isContentWrite 
     "api --method PATCH /repos/o/r/issues/7 -f state=closed",
     "api repos/o/r/pulls/7/comments/9/replies --input body.json",
     "api graphql -f query=mutation{x}",
+    "api graphql -f 'query=mutation($id:ID!){x}' -F id=5",
+    "api graphql -f 'query=mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' -f id=PR_x",
+    "api -F id=5 graphql -f query=mutation{x}",
+    "api graphql -fquery=mutation{x}",
+    "api -XPATCH repos/o/r/issues/7",
+    "api --method=PATCH repos/o/r/issues/7",
+    "api repos/o/r/issues/7/labels --field=labels[]=x",
     "issue comment 7 --body x",
     "pr edit 7 --add-label x",
   ];
@@ -370,6 +377,8 @@ test("api_budget_is_content judges a gh call as rate-guard.mjs's isContentWrite 
     "api -X DELETE repos/o/r/issues/7/labels/x",
     "api -X POST repos/o/r/statuses/abc -f state=success",
     "api graphql -f query=query{viewer{login}}",
+    "api graphql -f 'query=query($id:ID!){node(id:$id){id}}' -F id=5",
+    "api --method=GET repos/o/r/issues/7/comments -f per_page=1",
     "pr view 7",
   ];
   const judge = (args) => bash(tmpdir(), `api_budget_is_content ${args}`).status === 0;
@@ -386,6 +395,9 @@ test("the gh wrapper counts a content write, and the action emits the count and 
     guarded(dir, ["201 4000 - {}", "200 4000 - {}", "201 4000 - {}"], 'gh api -X POST repos/o/r/issues/7/comments -f body=x >/dev/null; gh api repos/o/r/issues/7 >/dev/null; gh api repos/o/r/issues/7/labels -f labels[]=y >/dev/null');
     assert.equal(readFileSync(join(dir, "api-budget", "content-creation"), "utf8").trim().split("\n").length, 2);
     writeFileSync(join(dir, "api-budget", "content-creation"), "1792748000\n1792748010\n1792748100\n");
+    assert.equal(bash(dir, "api_budget_emit_content").stdout, `${NOTICE}content-creation ${WHERE} count=3 max-per-minute=2\n`);
+    // Two writes a second apart across a clock-minute boundary, appended out of order, are in one 60 s window.
+    writeFileSync(join(dir, "api-budget", "content-creation"), "1792748040\n1792747000\n1792748039\n");
     assert.equal(bash(dir, "api_budget_emit_content").stdout, `${NOTICE}content-creation ${WHERE} count=3 max-per-minute=2\n`);
     rmSync(join(dir, "api-budget", "content-creation"));
     assert.equal(bash(dir, "api_budget_emit_content").stdout, "");
@@ -423,11 +435,14 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "intake-label-needs-triage.yml": { "born-triaged": "github-token" },
     "work-resolve-issue.yml": { admit: "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
     "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token" },
-    "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": "lanes-app" },
+    // label-unblocked's ACTIONS_TOKEN client records under github-token, so
+    // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
+    "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-    for (const [job, token] of Object.entries(tokens)) {
+    for (const [job, names] of Object.entries(tokens)) {
+      const [token, logged = token] = [names].flat();
       const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
       assert.match(block, new RegExp(`\\n {6,10}API_BUDGET_TOKEN: ${token}\\n`), `${file} ${job} names ${token}`);
       // pr-verify keeps "Fail without a verdict" as each job's last step.
@@ -436,7 +451,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       const last = steps.at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
       assert.match(last, /^Log the API budget at the end\n {8}if: always\(\)\n/, `${file} ${job} ends with the log step`);
       assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-      assert.match(last, new RegExp(`\\n {10}tokens: ${token}\\n?\\s*$`), `${file} ${job} logs ${token}`);
+      assert.match(last, new RegExp(`\\n {10}tokens: ${logged}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
     }
   }
 });

@@ -226,7 +226,8 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          # The readings of both tokens' calls are logged under lanes-app.
+          # The App token's readings; the ACTIONS_TOKEN client logs its own
+          # under github-token.
           API_BUDGET_TOKEN: lanes-app
           # The job's own read-only token; the App token has no actions grant.
           ACTIONS_TOKEN: ${{ github.token }}
@@ -262,4 +263,4 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          tokens: lanes-app
+          tokens: lanes-app github-token

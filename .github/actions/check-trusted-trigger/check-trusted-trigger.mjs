@@ -144,10 +144,11 @@ export function retryServerErrors(
     now = () => Date.now(),
     attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
     latch = rateLimitLatch,
+    budgetToken,
   } = {},
 ) {
   // Every attempt, a retry included, goes through the rate guard's latch.
-  fetchImpl = latch.guard(fetchImpl);
+  fetchImpl = latch.guard(fetchImpl, { token: budgetToken });
   let spent = 0;
   return async function send(url, init = {}) {
     const method = init.method ?? "GET";
@@ -194,7 +195,8 @@ export function retryServerErrors(
 // keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
 // judge, instead of raising on any. A GET answered 5xx is sent again
 // (retryServerErrors). A call while the rate guard's latch holds its pool
-// throws RateLimitStop without a request.
+// throws RateLimitStop without a request. budgetToken names the api-budget
+// reading file its responses go to (API_BUDGET_TOKEN when unset).
 export function createGitHub({
   token,
   apiUrl = "https://api.github.com",
@@ -207,8 +209,9 @@ export function createGitHub({
   now,
   attemptTimeoutMs,
   latch,
+  budgetToken,
 }) {
-  const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch });
+  const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch, budgetToken });
   return async function github(method, apiPath, body, headers = {}, { signal } = {}) {
     const response = await send(`${apiUrl}${apiPath}`, {
       method,

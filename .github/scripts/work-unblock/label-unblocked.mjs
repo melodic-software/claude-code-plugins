@@ -1338,7 +1338,9 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission }) : 0;
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
     if (sweep) {
-      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+      actions ??= env.ACTIONS_TOKEN
+        ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, budgetToken: "github-token" })
+        : null;
       failed += await restartLimited({ github, actions, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;

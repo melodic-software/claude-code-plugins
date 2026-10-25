@@ -292,15 +292,16 @@ export function createRateLimitLatch({
     belowFloor: (url) => low.get(poolOf(url)) === true,
     // A fetch that checks the latch before each request, counts a
     // content-creating write, and reads each answer, recording its rate-limit
-    // reading for the job-end api-budget notice.
-    guard: (fetchImpl) =>
+    // reading for the job-end api-budget notice under token (API_BUDGET_TOKEN
+    // when unset), so a second client's readings never mix with the first's.
+    guard: (fetchImpl, { token } = {}) =>
       async function guarded(url, init = {}) {
         check(url, init.method);
         if (isContentWrite(url, init.method, init.body)) {
           recordContentWrite({ at: Math.floor(now() / 1000) });
         }
         const response = await fetchImpl(url, init);
-        recordReading({ status: response.status, headers: response.headers });
+        recordReading({ token, status: response.status, headers: response.headers });
         await observe(url, response, init.method);
         return response;
       },

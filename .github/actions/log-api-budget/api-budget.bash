@@ -45,7 +45,7 @@
 #                               the rise in used since the first earlier reading
 #                               with the same reset and resource, else na
 #   api_budget_emit_content     the notice for the job's content-creating
-#                               writes: count and most in one minute
+#                               writes: count and most in any 60 s
 #
 # pr-require-checks.yml's ci-status job carries this file verbatim in its
 # API_BUDGET_SH env (it has no checkout of this directory);
@@ -250,7 +250,7 @@ api_budget_observe() {
 # issue, pull request, comment, review or label path, a graphql mutation, or
 # a gh issue or pr command that writes.
 api_budget_is_content() {
-  local method='' fields='' path='' arg prev=''
+  local method='' fields='' mutation='' path='' arg prev=''
   case "${1:-} ${2:-}" in
     "issue create" | "issue comment" | "issue edit" | "issue close" | "issue reopen" | \
       "pr create" | "pr comment" | "pr edit" | "pr review" | "pr close" | "pr reopen" | "label create") return 0 ;;
@@ -258,9 +258,18 @@ api_budget_is_content() {
     *) return 1 ;;
   esac
   for arg in "${@:2}"; do
+    # A value joined to its flag (--method=POST, -XPOST, -fquery=...) is read
+    # as the separated form.
+    if [[ -z $prev ]]; then
+      case $arg in
+        --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
+        -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} ;;
+        *) ;;
+      esac
+    fi
     case $prev in
       -X | --method) method=${arg^^} ;;
-      -f | -F | --field | --raw-field) fields=1; [[ $path != graphql || ! $arg =~ ^query=[[:space:]]*mutation ]] || fields=mutation ;;
+      -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
       --input) fields=1 ;;
       *) [[ $arg == -* || -n $path ]] || path=$arg ;;
     esac
@@ -269,7 +278,7 @@ api_budget_is_content() {
   [[ -n $method ]] || { [[ -n $fields ]] && method=POST; } || method=GET
   [[ $method == POST || $method == PATCH || $method == PUT ]] || return 1
   if [[ $path == graphql ]]; then
-    [[ $fields == mutation ]]
+    [[ -n $mutation ]]
     return
   fi
   [[ /${path#/} =~ ^/repos/[^/]+/[^/]+/(issues|pulls)(/[0-9]+(/(comments|labels|reviews|assignees|requested_reviewers))?|/[0-9]+/comments/[0-9]+/replies|/comments/[0-9]+)?/?(\?|$) ]]
@@ -282,7 +291,7 @@ api_budget_count_content() {
 }
 
 # The job's content-creating writes, from the lines rate-guard.mjs and the gh
-# wrapper append: the count and the most in any one minute. Nothing without
+# wrapper append: the count and the most in any sixty seconds. Nothing without
 # a write.
 api_budget_emit_content() {
   local file=${RUNNER_TEMP:-}/api-budget/content-creation where workflow=${GITHUB_WORKFLOW_REF:-}
@@ -290,8 +299,8 @@ api_budget_emit_content() {
   workflow=${workflow%%@*}
   workflow=${workflow#*/*/}
   where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
-  awk -v where="$where" '/^[0-9]+$/ { n++; m = int($1 / 60); c[m]++; if (c[m] > max) max = c[m] }
-    END { if (n) printf "::notice title=api-budget::content-creation %s count=%d max-per-minute=%d\n", where, n, max }' "$file"
+  sort -n "$file" | awk -v where="$where" '/^[0-9]+$/ { t[++n] = $1; while (t[n] - t[j + 1] >= 60) j++; if (n - j > max) max = n - j }
+    END { if (n) printf "::notice title=api-budget::content-creation %s count=%d max-per-minute=%d\n", where, n, max }'
   return 0
 }
 

@@ -326,3 +326,27 @@ test("a guarded content write is counted in the job's content-creation file, a r
       else process.env.RUNNER_TEMP = saved;
     }
   }));
+
+test("a guard given a token records its readings under that name, and one without under API_BUDGET_TOKEN", async () =>
+  withDir(async (dir) => {
+    const saved = { RUNNER_TEMP: process.env.RUNNER_TEMP, API_BUDGET_TOKEN: process.env.API_BUDGET_TOKEN };
+    process.env.RUNNER_TEMP = dir;
+    process.env.API_BUDGET_TOKEN = "lanes-app";
+    try {
+      const gh = fakeGitHub([[200], [200], [200]]);
+      const latch = createRateLimitLatch({ now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+      const app = latch.guard(gh.fetch);
+      const actions = latch.guard(gh.fetch, { token: "github-token" });
+      await app("https://api.github.com/repos/o/r/issues/7");
+      await actions("https://api.github.com/repos/o/r/actions/runs");
+      await actions("https://api.github.com/repos/o/r/actions/runs");
+      const lines = (name) => readFileSync(join(dir, "api-budget", name), "utf8").trim().split("\n").length;
+      assert.equal(lines("lanes-app"), 1);
+      assert.equal(lines("github-token"), 2);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }));
