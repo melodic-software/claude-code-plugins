@@ -469,7 +469,7 @@ using `Function` (lodash's `Function("return this")()`, a `new Function("")` pro
 syntax check, and ajv running the validator code it generates), 3 with a member `.eval(...)` (a CEL
 evaluator, the workflow runtime, a CLI command definition), and 1 with a direct `eval`
 (protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the workflow runtime, the plugin loader, a
-test kit).
+test kit). A load the scan cannot name (below) may load `node:vm`, so it is a sink too.
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
@@ -491,11 +491,16 @@ name alone. Those shapes trust built-ins the sink rule then watches: `require`; 
 the literal does not hold. A promise settled with the namespace reads its `then` export, so the
 file's module must be known and export no `then`. A load the scan cannot name (`import(x)` with a
 specifier that is no literal; `require`, `import.meta.require` or `x.require` aliased, `.call`ed,
-behind a comma, or called with no literal) could load any file whole, so any such module fails
-every export hop; `typeof require`, `require.resolve` and a binding named `require` do not count.
-On 2.1.284 to 2.1.288 the chunk re-exporting the Explore and Plan array as
-`ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14 times, each read by name, but on 2.1.288 3
-modules hold a load the scan cannot name.
+behind a comma, or called with no literal; a computed member or destructured key whose value, read
+as the sink rule reads a computed key, is unknown or may be `require`, as in `module[k]`,
+`x["req"+"uire"]` and `{[k]:r}=globalThis`, other than the target of a plain `o[k]=v`) could
+load any file whole, so any such module fails every export hop; `typeof require`,
+`require.resolve` and a binding named `require` do not count. A computed read whose key is a
+parameter, a `for in` key or a string built with `+` is unknown, so a module holding one counts.
+On 2.1.284 to 2.1.288 the chunk
+re-exporting the Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14
+times, each read by name, but on 2.1.288 3 modules hold a load the scan cannot name without a
+computed key.
 
 Stated assumptions, not checked:
 
@@ -507,7 +512,7 @@ Stated assumptions, not checked:
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
+| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name without a computed key, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 
