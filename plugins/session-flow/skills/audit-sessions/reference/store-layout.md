@@ -95,6 +95,12 @@ D/audit-sessions/
   Each stored path is joined onto its session's `cwd`, so one file edited from different
   directories counts once and same-named files in different directories stay apart; the evidence
   `path` is therefore the full path, and a consumer keeps churn evidence on the machine.
+- Each `data.metrics` row carries `p90`, this store's p90 of the metric under collect.py's
+  `_percentile` rule (null for the machine-wide ratio, a degraded metric, or a metric with no
+  values), the rule's `threshold`, and
+  `baseline_stale`, true when that p90 exceeds `data.stale_p90_factor` times a non-null threshold
+  (the recheck trigger in `sweep-rules.json`). The mark is advisory: it raises no finding and leaves
+  the exit code unchanged.
 - New fields are added within v1, and a consumer treats a missing field as null and ignores one it
   does not know. Removing or renaming a field, or changing what one means, moves the schema to
   `audit-sessions.sweep/v2`.
