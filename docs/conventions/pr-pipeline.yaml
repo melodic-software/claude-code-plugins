@@ -93,7 +93,8 @@ activities:
     # ran, a person gated it or a kept thread is a security or intent
     # finding (a write-access fix
     # request newer than the last round still runs one more round on its
-    # threads; other findings get one fresh fixer round, then wait), and
+    # threads; other findings get one fresh fixer round, then go to a person
+    # as feedback-not-converging), and
     # writes the thread file; the read runner
     # checks that file and gives the skill the review-thread tool.
     prepare: review-threads

@@ -9,6 +9,7 @@
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const RESERVED_NAME = "ci-status";
 const SHA = /^[0-9a-f]{40}$/;
+const ROUND_COUNT = /^round [1-9][0-9]{0,3} of max [1-9][0-9]{0,3}$/;
 const GATES = ["kill-switch", "trigger"];
 const CONFIG = new Set(["valid", "invalid", "not-read"]);
 const OUTCOME = new Set(["success", "failure", "skipped", "not-run"]);
@@ -92,7 +93,13 @@ export function decide(verdict, inputs) {
   // A caller whose activity job never ran (its precondition was not met)
   // names the skip itself; there is no run job and so no verdict.
   if (runResult === "skipped" && notRunReason) {
-    return neutral(notRunReason);
+    const skip = neutral(notRunReason);
+    // The one detail line a caller may add: the round count a PR stopped at.
+    // Any other text is left out of the check.
+    if (skip.report.conclusion === "neutral" && ROUND_COUNT.test(inputs.notRunDetail ?? "")) {
+      skip.report.output.summary += `\n\n${inputs.notRunDetail}`;
+    }
+    return skip;
   }
   if (verdict == null) {
     return failure("The run left no verdict.");
