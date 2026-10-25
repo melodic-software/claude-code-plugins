@@ -27,14 +27,16 @@ const APP_KEY_INPUTS = new Set(["app-private-key", "private-key"]);
 // pr_unblock_claude_code_oauth_token is the pr-unblock role's Claude Code OAuth
 // token, the same kind of credential as claude_code_oauth_token under the
 // role's name; pr-unblock.yml's fix-ci-subscription read job runs on it.
-// claude_api_key and pr_unblock_claude_api_key are the role's Claude Console
-// API key, which fix-ci's first read job runs on.
+// claude_api_key, pr_unblock_claude_api_key and issue_lane_claude_api_key are
+// a role's Claude Console API key, which fix-ci's and resolve-issue's first
+// read jobs run on.
 const ALLOWED_SECRETS = new Set([
   "claude_code_oauth_token",
   "pr_unblock_claude_code_oauth_token",
   "issue_lane_claude_code_oauth_token",
   "claude_api_key",
   "pr_unblock_claude_api_key",
+  "issue_lane_claude_api_key",
   "github_token",
 ]);
 const KEY = "references the App key";

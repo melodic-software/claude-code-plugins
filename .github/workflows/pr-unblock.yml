@@ -519,6 +519,9 @@ jobs:
       escalation-reason: ${{ steps.select.outputs.escalation-reason }}
       skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
       fix-requested: ${{ steps.select.outputs.fix-requested }}
+      # `round <N> of max <M>` when the round cap stopped the PR, for the
+      # neutral checks' summary.
+      not-run-detail: ${{ steps.select.outputs.not-run-detail }}
       threads-sha256: ${{ steps.select.outputs.threads-sha256 }}
       run-sha256: ${{ steps.select.outputs.run-sha256 }}
       # The artifact name's attempt, so a re-run of a later job alone still
@@ -653,6 +656,7 @@ jobs:
           activity: address-feedback
           run-result: skipped
           not-run-reason: ${{ needs.address-feedback-select.outputs.skip-reason || 'awaiting-human' }}
+          not-run-detail: ${{ needs.address-feedback-select.outputs.not-run-detail }}
           head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
           can-commit: "false"
           base-path: .base
@@ -666,6 +670,7 @@ jobs:
           activity: publish-feedback
           run-result: skipped
           not-run-reason: ${{ needs.address-feedback-select.outputs.skip-reason || 'awaiting-human' }}
+          not-run-detail: ${{ needs.address-feedback-select.outputs.not-run-detail }}
           head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
           can-commit: "false"
           base-path: .base
