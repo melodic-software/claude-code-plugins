@@ -108,7 +108,8 @@ app is a user-scope change and needs the user's approval.
 - Declare Claude Code 2.1.287 as the floor in the plugin's README with the version tested against.
 - `scripts/validate-plugins.sh` runs `claude plugin validate --json` on every plugin, then
   `scripts/test-plugin-mods.sh`, which runs `claude plugin test` on every plugin whose `hooks.json`
-  names `modules`. CI runs it with the CLI pinned in `package.json`; a local run on the current
+  names `modules`, and fails a plugin whose `hooks/` holds a `register.*` file while its
+  `hooks.json` names no `modules`. CI runs it with the CLI pinned in `package.json`; a local run on the current
   release catches a release newer than the pin.
 
 - **Pointer**: for the files, see
