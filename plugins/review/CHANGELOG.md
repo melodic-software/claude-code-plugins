@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.6] - 2026-10-25
+
+### Fixed
+
+- `explain-change` says what to do when the view watcher exits 4 after its run of empty waits: re-arm it with the command it prints while the reader is still using the view.
+
 ## [1.3.5] - 2026-10-25
 
 ### Fixed
