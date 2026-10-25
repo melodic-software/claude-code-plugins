@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "entry-reason | features/billing/export/README.md | - `GET /api/invoices.csv`: not driven",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    },
+    {
+      "answer": "entry-reason | features/billing/export/README.md | GET /api/invoices.csv is marked not driven with no reason",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "features/billing/export/README.md: the GET /api/invoices.csv entry point says not driven but gives no reason.",
+      "why": "names the finding in prose, without the line form only the check action defines"
+    },
+    {
+      "answer": "entry-marker | features/billing/export/README.md | - `GET /api/invoices.csv`: not driven",
+      "why": "wrong rule or path"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
