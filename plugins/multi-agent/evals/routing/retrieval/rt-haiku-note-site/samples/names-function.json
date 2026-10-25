@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "File: `plugins/multi-agent/scripts/resolve-roles.sh`\nFunction: `role_json`\n",
+      "why": "names role_json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "File: `plugins/multi-agent/scripts/resolve-roles.sh`\nFunction: `apply_layer`\n",
+      "why": "wrong function"
+    },
+    {
+      "answer": "File: `plugins/multi-agent/scripts/resolve-roles.sh`\nFunction: `variant`\n",
+      "why": "wrong function"
+    }
+  ]
+}
