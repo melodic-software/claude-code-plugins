@@ -65,22 +65,12 @@
 # its scan. Each value goes through parse-concern-value.sh, so the scan keys'
 # grammar never applies, and a scan config that does not resolve, a missing
 # repository or a symlinked layer (skipped with a warning) never stops it.
-# The same mode resolves feature_map_dir, the directory /testing:map-features
-# writes (default .claude/skills/feature-map). It is a repository path, so only
-# the overlay and testing.yaml set it: no --user value, and the user-global
-# file is skipped with a warning. A value that is absolute, contains `..`, is
-# the repository root (. or ./), is .claude/skills itself (the map needs its
-# own directory under it), holds a character outside A-Z a-z 0-9 . _ - /, has
-# an empty or . segment other than one leading ./ and one trailing /, or has a
-# segment starting with run- or ending in verify is refused the same way an
-# unknown value is; the warning names the value as written.
 #
 # WRITE: `resolve-config.sh write` resolves /testing:write's keys the same
 # way and prints the same three columns: tdd_refactor_step (on | off, default
-# on) and first_test (user-flow | unit, default user-flow). Like
-# feature_map_dir they are repository settings: only the overlay and
-# testing.yaml set them, the user-global file is skipped with a warning, and
-# there is no --user value.
+# on) and first_test (user-flow | unit, default user-flow). They are
+# repository settings: only the overlay and testing.yaml set them, the
+# user-global file is skipped with a warning, and there is no --user value.
 #
 # Usage:
 #   resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
@@ -235,46 +225,10 @@ in_list() {
   return 1
 }
 
-# map_dir_refusal <value as written>: print why it cannot be the feature map's
-# own directory and return 0, or print nothing and return 1.
-map_dir_refusal() {
-  local v="$1" seg segs low="${1,,}" body
-  low="${low#./}" low="${low%/}"
-  if [[ "$low" == .claude/skills ]]; then
-    printf 'the skills root, not a directory of its own under .claude/skills/'
-    return 0
-  fi
-  body="${v#./}" body="${body%/}"
-  case "$v" in
-  /* | \\* | '~'* | [A-Za-z]:*) printf 'an absolute path' ;;
-  *..*) printf "it contains '..'" ;;
-  . | ./ | '') printf 'the repository root' ;;
-  *[!A-Za-z0-9._/-]*) printf 'a character outside A-Z a-z 0-9 . _ - /' ;;
-  *)
-    if [[ "/$body/" == *//* || "/$body/" == */./* ]]; then
-      printf "an empty or '.' path segment"
-      return 0
-    fi
-    IFS=/ read -r -a segs <<<"$body"
-    for seg in "${segs[@]}"; do
-      seg="${seg,,}"
-      if [[ "$seg" == run-* ]]; then
-        printf "a run-<name> launch recipe's directory"
-        return 0
-      elif [[ "$seg" == *verify ]]; then
-        printf 'a verify skill directory'
-        return 0
-      fi
-    done
-    return 1
-    ;;
-  esac
-}
-
 # mode_keys <key>...: print each key's value and source (header, E2E and
 # WRITE). Exit 0.
 mode_keys() {
-  local key val shown written q src def f u raw lines allowed why repo_only files=() user_driver="" user_reuse="" user_browser=""
+  local key val src def f u raw lines allowed repo_only files=() user_driver="" user_reuse="" user_browser=""
   local tool_re='^[A-Za-z0-9._-]+$'
   for u in ${users[@]+"${users[@]}"}; do
     val="${u#*=}"
@@ -303,8 +257,7 @@ mode_keys() {
     reuse_running_instance) allowed="auto true false" u="$user_reuse" def=auto repo_only="" ;;
     browser_driver) allowed="" u="$user_browser" def=playwright-cli repo_only="" ;;
     tdd_refactor_step) allowed="on off" u="" def=on repo_only=setting ;;
-    first_test) allowed="user-flow unit" u="" def=user-flow repo_only=setting ;;
-    *) allowed="" u="" def=.claude/skills/feature-map repo_only=path ;;
+    *) allowed="user-flow unit" u="" def=user-flow repo_only=setting ;;
     esac
     val="" src="" raw=""
     for f in ${files[@]+"${files[@]}"}; do
@@ -323,18 +276,8 @@ mode_keys() {
       break
     done
     [[ -n "$src" || -z "$u" ]] || val="$u" src=userConfig
-    shown="$val"
-    [[ "$key" != feature_map_dir ]] || val="${val#./}"
-    # The parser drops one trailing /; the raw text shows whether there was one.
-    written="$shown" q="${raw#[\'\"]}"
-    [[ -z "$shown" || "$q" != "$shown/"* ]] || written="$shown/"
     # shellcheck disable=SC2086 # allowed is a fixed word list
-    if [[ -n "$src" && "$key" == feature_map_dir && -n "$val" ]]; then
-      if why="$(map_dir_refusal "$written")"; then
-        warn "$src: $key: refused value '$written' ($why); using the default, $def"
-        src=""
-      fi
-    elif [[ -n "$src" ]] && {
+    if [[ -n "$src" ]] && {
       if [[ "$key" == browser_driver ]]; then [[ ! "$val" =~ $tool_re ]]; else ! in_list "$val" $allowed; fi
     }; then
       if [[ -n "$val$raw" ]]; then
@@ -350,7 +293,7 @@ mode_keys() {
   done
 }
 if [[ "$MODE" == e2e ]]; then
-  mode_keys e2e_driver reuse_running_instance feature_map_dir browser_driver
+  mode_keys e2e_driver reuse_running_instance browser_driver
   exit 0
 elif [[ "$MODE" == write ]]; then
   mode_keys tdd_refactor_step first_test

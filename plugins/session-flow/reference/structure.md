@@ -66,7 +66,7 @@ Sections, in the one order `validate` checks:
 | 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below |
 | 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state |
 | 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT` |
-| 4 | Resumption brief | where the work stands and the single next action |
+| 4 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>`, which `new --purpose` writes |
 | 5 | Completion criteria | observable goal-states with met/unmet marks |
 | 6 | Remaining actions, in order | every action still to take |
 | 7 | Open questions | each with its options, a recommendation and what it unblocks |
@@ -665,7 +665,9 @@ done
 # 5. Skeleton. Exactly one of --previous / --no-previous (see "Chain continuity").
 #    `new` reads CLAUDE_CODE_SESSION_ID itself and prints the file's absolute
 #    forward-slash path: reuse THAT string for every later step (fill, validate,
-#    emit, the directive); never recompute the path in bash.
+#    emit, the directive); never recompute the path in bash. When the invocation
+#    carried purpose text, add --purpose "$PURPOSE" (save-point.md, "The purpose
+#    argument tailors emphasis only").
 SAVE_POINT="${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py"
 FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_ROOT" --no-previous)
 #   or, continuing a prior handoff's task:

@@ -2,7 +2,9 @@
 
 python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also follow the command)
   add             add a question (from --file JSON or flags)
-  add-round       add several groups, questions and visuals from one JSON file, in one write;
+  add-round       add several groups, questions and visuals from one JSON file, in one write; a round
+                  with questions carries a `restate` ({text: at most 3 sentences, decided: [ids],
+                  open: [ids]}) the page pins above its first question;
                   --sync-ledger F then syncs F's register rows, --check writes nothing
   group           add or update a question group
   group-order     reorder the groups (every group id once, in the new order)
@@ -27,6 +29,10 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
+  ledger-check    compare the page with the ledger it was seeded from (or --ledger F) as
+                  export-ledger --diff does; records meta.ledgerSync for the page header and logs
+                  an Activity line when the rows that disagree change; exit 1 when any does
+                  (session-bridge.conf runs it after each apply, AFTER_APPLY)
   supersede       set an answered register row of --ledger F to superseded-by-plan with --proposes
                   (needs no data dir): the row's resolution becomes `was`, escaped as the exporter does
   resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
@@ -159,6 +165,7 @@ LOGGED_OPS = {
     "finish",
 }
 BASIS_SENTENCES = 3
+RESTATE_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 ASKS_USER = re.compile(
@@ -825,8 +832,61 @@ def op_add(d, doc, a):
     return touched, "; ".join([f"added {a.question['id']}", *notes])
 
 
+def checked_round_restate(restate):
+    """The round's restate, or a refusal: markdown of at most RESTATE_SENTENCES sentences plus the
+    `decided` and `open` question id lists (G7, as R1 does for `commits`)."""
+    if not isinstance(restate, dict):
+        sys.exit(
+            "refused: a round with questions needs a restate: "
+            '{"text": "<=3 sentences: what is decided, which branches are open, what this '
+            'round turns on", "decided": [ids], "open": [ids]} (G7)'
+        )
+    extra = sorted(set(restate) - {"text", "decided", "open"})
+    if extra:
+        sys.exit(f"refused: unknown restate keys {extra} (known: text, decided, open)")
+    text = restate.get("text")
+    if not isinstance(text, str) or not text.strip():
+        sys.exit("refused: restate needs a non-empty text (G7)")
+    text = capped("restate text", text.strip(), TEXT_CAP)
+    n = len([s for s in re.split(r"(?<=[.!?])\s+", text) if s])
+    if n > RESTATE_SENTENCES:
+        sys.exit(
+            f"refused: restate text has {n} sentences; the limit is {RESTATE_SENTENCES} (G7)"
+        )
+    out = {"text": text}
+    for key in ("decided", "open"):
+        ids = restate.get(key)
+        if not isinstance(ids, list) or not all(isinstance(i, str) and i for i in ids):
+            sys.exit(f"refused: restate {key} is a list of question ids (G7)")
+        out[key] = list(dict.fromkeys(ids))
+    return out
+
+
+def store_round_restate(doc, qs, restate):
+    """Record the restate for the round the new questions open, replacing an earlier one for it."""
+    known = {q["id"] for q in doc["questions"]}
+    for key in ("decided", "open"):
+        unknown = [i for i in restate[key] if i not in known]
+        if unknown:
+            sys.exit(f"refused: restate {key} names unknown questions: {', '.join(unknown)}")
+    first = qs[0]
+    entry = {
+        "round": first.get("round", 1),
+        "stage": first.get("stage", "interview"),
+        "at": now(),
+        "restate": restate,
+    }
+    rounds = [
+        r
+        for r in doc.get("rounds") or []
+        if (r.get("round"), r.get("stage")) != (entry["round"], entry["stage"])
+    ]
+    doc["rounds"] = [*rounds, entry]
+
+
 def op_add_round(d, doc, a):
-    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}: meta, groups, then questions in file order."""
+    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...], "restate": {...}}: meta, groups, then questions in file order; a round with questions needs its restate."""
+    restate = checked_round_restate(a.restate) if a.questions else None
     doc.pop("finished", None)
     before = newest_round(doc)
     meta = a.meta
@@ -854,6 +914,9 @@ def op_add_round(d, doc, a):
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
+    if restate:
+        store_round_restate(doc, a.questions, restate)
+        a.needsAnswer = True
     warn_stale_summaries(doc, a.questions or [])
     warn_stage(doc, a.questions or [])
     if meta is not None:
@@ -1662,11 +1725,12 @@ def cmd_add(d, a):
 
 def cmd_add_round(d, a):
     spec = read_input(a.file, "round file", as_json=True)
-    a.meta, a.groups, a.questions, a.visuals = (
+    a.meta, a.groups, a.questions, a.visuals, a.restate = (
         spec.get("meta"),
         spec.get("groups"),
         spec.get("questions"),
         spec.get("visuals"),
+        spec.get("restate"),
     )
     if a.check:
         doc = load(d)
@@ -1745,6 +1809,8 @@ OP_ARGS = {
             "groups": None,
             "questions": None,
             "visuals": None,
+            "restate": None,
+            "needsAnswer": False,
             "repoint": False,
             "replaceTitle": False,
         },
@@ -1884,7 +1950,7 @@ def apply_ops_file(d, name, claimed):
         lines.append(f"{op['op']}: {msg}")
         if op["op"] in LOGGED_OPS:
             logged.append((op["op"], msg, t))
-        asks = asks or (op["op"] == "note-reply" and args.needsAnswer)
+        asks = asks or (op["op"] in ("note-reply", "add-round") and args.needsAnswer)
     summarize(doc, logged, asks)
     lint_questions(doc, added)
     for op in spec["ops"]:
@@ -2242,6 +2308,55 @@ def cmd_export_ledger(d, a):
     print(f"wrote {a.out}")
     if text is not None:
         report_notes(exporters.merged_register(d, text)[2], ("conflict",))
+
+
+def cmd_ledger_check(d, a):
+    """Compare the page with the ledger it was seeded from (or --ledger), as `export-ledger --diff`
+    does, and record the result in meta.ledgerSync for the page header. A change in which rows
+    disagree adds an Activity Log line; exit 1 when any row does."""
+    with sidecar_lock(d):
+        doc = load(d)
+        ledger = a.ledger or (doc["meta"].get("seededFrom") or {}).get("ledger")
+        if not ledger:
+            print("no ledger to check: the page was not seeded from one")
+            return
+        notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
+        drift = [line for kind, line in notes if kind in ("change", "conflict")]
+        # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
+        rows = list(
+            dict.fromkeys(
+                (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
+                for line in drift
+            )
+        )
+        was = doc["meta"].get("ledgerSync") or {}
+        if was.get("rows") != rows or was.get("rev") != doc["rev"]:
+            if rows and was.get("rows") != rows:
+                log_activity(
+                    doc,
+                    capped_text(
+                        f"Ledger out of sync, {len(rows)} "
+                        f"{'row' if len(rows) == 1 else 'rows'}: {drift[0]}",
+                        LINE_CAP,
+                    ),
+                    [],
+                )
+            doc["meta"]["ledgerSync"] = {"rev": doc["rev"] + 1, "rows": rows}
+            save(d, doc)
+    for line in drift:
+        print(line)
+    print(
+        f"{len(rows)} rows out of sync with {ledger}"
+        if rows
+        else f"ledger in sync, rev {doc['rev']}"
+    )
+    if rows:
+        sys.exit(1)
+
+
+def capped_text(text, cap):
+    """`text` cut to `cap` characters, with an ellipsis when it was cut."""
+    return text if len(text) <= cap else text[: cap - 1] + "…"
 
 
 def write_synced_ledger(d, ledger):
@@ -2849,6 +2964,17 @@ def main(argv=None):
         "restate cap",
     )
     s.set_defaults(fn=cmd_export_ledger)
+
+    s = sub.add_parser(
+        "ledger-check",
+        help="compare the page with its ledger as export-ledger --diff does, record the result "
+        "for the page header, and log the rows that disagree; exit 1 when any does",
+    )
+    s.add_argument(
+        "--ledger",
+        help="the ledger to compare with (default: the one import-ledger seeded the page from)",
+    )
+    s.set_defaults(fn=cmd_ledger_check)
 
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")

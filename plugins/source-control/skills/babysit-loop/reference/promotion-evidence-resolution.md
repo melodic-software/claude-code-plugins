@@ -25,12 +25,11 @@ when evidence is unavailable, untrusted, partial, or forgeable
 Promotion evidence MUST be resolved through a **trusted seam**: an agent-unwritable bootstrap
 outside the target repository's blast radius, the same class of surface the autonomy setup skill
 names for security-binding resolution
-([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md) "Agent-unwritable bootstrap for
-security resolution"). Evidence read from repo-local, agent-writable, or otherwise forgeable
+(`/autonomy:setup`, "Agent-unwritable bootstrap for security resolution"). Evidence read from repo-local, agent-writable, or otherwise forgeable
 surfaces does **not** qualify: partial reads, stale snapshots, and operator-supplied JSON without
 provenance are treated as **unavailable** and fail-closed.
 
-[`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)
+The autonomy plugin's `check-security-binding.mjs` (shipped with `/autonomy:setup`) in
 evaluation mode (`--evidence`) owns the canonical resolution algorithm: bound ceiling, epoch-scoped
 contrary events (`gate-failure`, `reverted-merge`, `verification-divergence`), and prerequisite
 propagation. The loop lane invokes that resolution **through the trusted seam
