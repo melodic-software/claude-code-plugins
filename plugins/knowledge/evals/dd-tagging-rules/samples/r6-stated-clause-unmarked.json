@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R6 | cc-applicable | none | prompting.md:5 states it; prompting.md:9 contradicts it for the Nimbus family."
+    },
+    {
+      "answer": "**ROW R6** | `cc-applicable` | `unverified-inference` | Contradicted for Nimbus by prompting.md:9; stated at prompting.md line 5."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R6 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | prompting.md:5 states it, but prompting.md:9 contradicts it.",
+      "why": "marker added although another docs page states the clause"
+    },
+    {
+      "answer": "ROW R6 | cc-applicable | none | Contradicted by prompting.md:9.",
+      "why": "the stating page line is not cited"
+    }
+  ]
+}
