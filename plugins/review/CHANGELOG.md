@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.4] - 2026-10-25
+
+### Changed
+
+- The quality-gate close-out reference cites `/source-control:pull-request`, `/work-items:work` and `/work-items:decompose` by their slash invocations instead of by URLs into those plugins' `skills/` folders, which an install of this plugin alone does not carry.
+
 ## [1.3.3] - 2026-10-25
 
 ### Added
