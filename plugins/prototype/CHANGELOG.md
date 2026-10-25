@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-10-25
+
+### Changed
+
+- **The playground verification record names the upstream skill without a skills-folder path.** The basis for the `playground` skill's claim reads as the upstream `playground` skill's `SKILL.md` at the pinned commit, so the record no longer carries a path shaped like a cite into a plugin's skill folder.
+
 ## [0.14.0] - 2026-10-13
 
 ### Added

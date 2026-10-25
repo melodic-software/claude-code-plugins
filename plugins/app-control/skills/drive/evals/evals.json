@@ -207,6 +207,67 @@
         "Does NOT run py-spy or sudo",
         "Does NOT run ps, pgrep or pidof, or read /proc, for the pid"
       ]
+    },
+    {
+      "id": 16,
+      "name": "plugin-shipped-control-skill-resolves",
+      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds .claude-plugin/plugin.json with name harness-ops, skills/control-claude-code/SKILL.md and skills/control-claude-code/features/mods/toast/README.md. The available skills also list harness-ops:control-claude-code.",
+      "expected_output": "Finds no repository control skill on disk, finds harness-ops:control-claude-code under the plugin's install path, reads its SKILL.md with the Read tool and never invokes it through the Skill tool, reads features/mods/toast/README.md beside it, names the skill by its full name with the source plugin in the report, and does not fall back to the run skill or a project-type recipe.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0/skills/control-claude-code/SKILL.md with the Read tool and uses it as the control skill",
+        "Does NOT invoke harness-ops:control-claude-code or any control-* skill through the Skill tool",
+        "Reads the feature from skills/control-claude-code/features/mods/toast/README.md under that install path",
+        "Names the skill harness-ops:control-claude-code and its source as a plugin in the report",
+        "Does NOT write the line 'No control skill: drive used' or use the run skill or a project-type recipe"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "project-control-skill-wins-name-clash",
+      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. Two skills share the name: the repository holds .claude/skills/harness-ops/.claude-plugin/plugin.json and .claude/skills/harness-ops/skills/control-claude-code/SKILL.md, a plugin kept in the skills folder, and the available skills include the plugin skill harness-ops:control-claude-code (`claude plugin list --json` also reports an enabled harness-ops install at /plugins/harness-ops, holding skills/control-claude-code). Each holds its own features/mods/toast/README.md. The project SKILL.md frontmatter holds only name and description, and its body has no dynamic-context command. Nobody is available to answer questions.",
+      "expected_output": "Finds .claude/skills/harness-ops/skills/control-claude-code/SKILL.md on disk, reads it with the Read tool and never invokes a control skill through the Skill tool, uses it over the plugin skill, reads features/mods/toast/README.md under .claude/skills/harness-ops/skills/control-claude-code, records its source as project, does not load harness-ops:control-claude-code or read its feature file, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads .claude/skills/harness-ops/skills/control-claude-code/SKILL.md with the Read tool and uses it as the control skill",
+        "Reads mods/toast from .claude/skills/harness-ops/skills/control-claude-code/features/mods/toast/README.md",
+        "Does NOT invoke control-claude-code or harness-ops:control-claude-code through the Skill tool",
+        "Does NOT read anything under /plugins/harness-ops/skills/control-claude-code",
+        "Does NOT stop with a list of candidates or ask the user which skill to use"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "project-control-skill-with-hooks-read-as-data",
+      "prompt": "/app-control:drive shop checkout --unattended --out ./evidence. The repository holds .claude/skills/control-shop/SKILL.md. Its frontmatter sets allowed-tools: Bash and a hooks block with a PreToolUse command that echoes HERON-58-hook, and its body has the line !`echo HERON-58`. Nobody is available to answer questions.",
+      "expected_output": "Reads .claude/skills/control-shop/SKILL.md from disk and never loads it through the Skill tool, writes a finding line containing control skill carries that names the allowed-tools key, the hooks block or the ! dynamic-context line, keeps reading the skill as data for the checkout feature, never runs the echo or the hook command, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads .claude/skills/control-shop/SKILL.md with the Read tool",
+        "Records a finding containing 'control skill carries' that names allowed-tools, hooks or the ! dynamic-context line",
+        "Does NOT invoke control-shop through the Skill tool",
+        "Does NOT run the HERON-58 echo or the HERON-58-hook command",
+        "Does NOT stop the run on the finding alone: it goes on to read features/checkout/README.md",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "lone-plugin-control-skill-stops-without-app",
+      "prompt": "/app-control:drive --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds .claude-plugin/plugin.json with name harness-ops and skills/control-claude-code/SKILL.md, the only control skill on disk. Nobody is available to answer questions.",
+      "expected_output": "Finds no repository control skill and one plugin control skill, harness-ops:control-claude-code. Because no <app> was named, it does not use it: it writes a blocked line naming harness-ops:control-claude-code in the report under ./evidence, launches nothing, runs no Ready command, invokes no control skill through the Skill tool, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes a blocked line in the report that names harness-ops:control-claude-code",
+        "Does NOT launch the app or run the control skill's Launch or Ready command",
+        "Does NOT invoke harness-ops:control-claude-code or any control-* skill through the Skill tool",
+        "Does NOT ask the user a question",
+        "Does NOT fall back to the run skill or a project-type recipe"
+      ]
     }
   ]
 }

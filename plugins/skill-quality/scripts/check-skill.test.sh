@@ -5236,8 +5236,8 @@ EOF
 hist_case hist-todo warn "check 29 WARNs on a TODO(#9) in the body" <<'EOF'
 TODO(#9): tighten this step.
 EOF
-# Copied verbatim from plugins/harness-ops/skills/observability/SKILL.md
-# (lines 163-167): a pointer record whose As of and Recheck trigger sit on
+# Copied verbatim from the /harness-ops:observability skill body: a pointer
+# record whose As of and Recheck trigger sit on
 # different bullets of one block, plus a cross-repo citation above it.
 hist_case hist-pointer-block quiet "check 29 stays quiet inside a multi-line pointer-record block" <<'EOF'
 `compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped, since that report does not cover them. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.

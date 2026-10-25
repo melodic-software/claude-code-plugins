@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.103.1] - 2026-10-25
+
+### Fixed
+
+- Harden the session bridge: the watcher exits after 40 consecutive empty waits (exit 4) so an orphaned watcher no longer keeps the server alive, the view bridge gates the wait and lease-release endpoints with a watcher-only token that the page never receives, and U+2028 and U+2029 are escaped in output lines. The README now states the single-user-workstation limit.
+
+## [0.103.0] - 2026-10-25
+
+### Added
+
+- Each interview round opens with a restate ([#9716](https://github.com/melodic-software/claude-code-plugins/issues/9716), gap G7): `add-round` with questions takes `restate` (`text` of at most 3 sentences, plus `decided` and `open` question id lists) and refuses a round without it, as R1 refuses a question without `commits`. It is stored per round in `rounds`, the page pins it as a card above the round's first question, and Activity gets a "Needs you" entry. A data dir without `rounds` still loads, renders and exports (`plugins/planning/surface/round.py`, `index.html`, `schema/`, `skills/interview/context/surface.md`).
+
 ## [0.102.1] - 2026-10-25
 
 ### Fixed
