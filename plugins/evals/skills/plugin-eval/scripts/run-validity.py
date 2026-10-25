@@ -342,10 +342,18 @@ def trace_errored(run):
     )
 
 
+def is_denial(block):
+    """True when a tool_result is the permission settings refusing the call."""
+    return block.get(RESULT_ERROR) is True and DENIAL_TEXT in json.dumps(
+        block.get(CONTENT)
+    )
+
+
 def shell_failure(run):
     """Why the run had no working shell, or None: a failed Bash result reporting the
     sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing,
-    which catches a sandbox failure whatever its wording."""
+    which catches a sandbox failure whatever its wording. A denied call never reached
+    the shell, so it counts toward neither; check_denials judges it."""
     bash_ids, failed_ids = set(), set()
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -356,6 +364,9 @@ def shell_failure(run):
                 and block.get(RESULT_ERROR) is True
                 and block.get(RESULT_USE_ID) in bash_ids
             ):
+                if is_denial(block):
+                    bash_ids.discard(block.get(RESULT_USE_ID))
+                    continue
                 if SANDBOX_FAILURE_TEXT in json.dumps(block.get(CONTENT)):
                     return "the shell sandbox failed to start"
                 failed_ids.add(block.get(RESULT_USE_ID))
@@ -488,11 +499,7 @@ def denials(run):
                     block.get(USE_NAME),
                     as_dict(block.get(USE_INPUT)),
                 )
-            elif (
-                block.get(BLOCK_TYPE) == TOOL_RESULT
-                and block.get(RESULT_ERROR) is True
-                and DENIAL_TEXT in json.dumps(block.get(CONTENT))
-            ):
+            elif block.get(BLOCK_TYPE) == TOOL_RESULT and is_denial(block):
                 found.setdefault(block.get(RESULT_USE_ID), None)
         if line.get(LINE_TYPE) == TRACE_RESULT:
             for denial in as_list(line.get(TRACE_DENIALS)):

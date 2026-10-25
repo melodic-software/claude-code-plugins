@@ -353,6 +353,13 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def test_denied_bash_calls_are_left_to_the_permission_denials_check(self):
+        denied = "Permission to use Bash has been denied by your permission settings."
+        proc, _ = self.bash_trace("denied.jsonl", [(True, denied), (True, denied)])
+        self.assertIn("check session started: PASS", proc.stdout)
+        self.assertIn("check permission denials:", proc.stdout)
+        self.assertNotIn("check permission denials: PASS", proc.stdout)
+
     def test_one_failed_bash_call_or_a_mixed_run_passes(self):
         for name, results in (
             ("one.jsonl", [(True, "Exit code 1")]),
