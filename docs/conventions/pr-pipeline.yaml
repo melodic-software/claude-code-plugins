@@ -658,6 +658,8 @@ models:
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
+    # An issue's code change, on run-claude-cli, which needs a model alias.
+    resolve-issue: code-fix
     # pr-unblock's read-only judge of a finding address-feedback disputed: at
     # least the review lanes' model, so a weaker model never overrules the
     # reviewer.
@@ -688,15 +690,17 @@ models:
           "85127655": knowable
           "85127656": unknown
     sizes:
-      # 75 turns is the cap every lane run had; 50 minutes covers the high
-      # factor at the 20 seconds a turn the old 75-turn, 25-minute run allowed.
+      # 75 turns is the cap every lane run had; a 50-minute leg covers the
+      # high factor at the 20 seconds a turn the old 75-turn, 25-minute run
+      # allowed, and the job holds 15 minutes more, for the steps around the
+      # launcher's leg (pr-run-activity-read.yml's launch step).
       small:
         base-turns: 75
-        timeout-minutes: 50
-      # Twice small's turns and time.
+        timeout-minutes: 65
+      # Twice small's turns and leg time.
       medium:
         base-turns: 150
-        timeout-minutes: 100
+        timeout-minutes: 115
       # Too big for one run: the lane skips it (split-required) before any
       # model turn, and triage sends it to /work-items:decompose.
       large: split
