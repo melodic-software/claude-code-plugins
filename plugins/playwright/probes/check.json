@@ -7,10 +7,6 @@
     "playwright:demo-video",
     "playwright:playwright"
   ],
-  "competitor_dirs": {
-    "playwright:demo-video": "plugins/playwright/skills/demo-video",
-    "playwright:playwright": "plugins/playwright/skills/playwright"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -40,6 +40,8 @@ export const SIGNALS = Object.freeze({
   primaryFallbackSeconds: 3600,
 });
 
+const MAX_RESET = 999_999_999_999;
+
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
 
 const SCHEMA = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
@@ -141,7 +143,9 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   // A secondary limit is not per resource, whatever remaining says.
   const every = retryAfter !== null || secondary || ((message || tooMany) && remaining !== 0);
   const pool = every ? "*" : /^[a-z_]+$/.test(resource) ? resource : poolOf(url);
-  return { latched, low, reset_source: source, reset: at, pool };
+  // Stop-file readers take at most 12 digits, so a later stop is written at
+  // the largest they read.
+  return { latched, low, reset_source: source, reset: Math.min(at, MAX_RESET), pool };
 }
 
 export const resetLabel = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
@@ -175,19 +179,32 @@ function failProcess() {
 
 // The job's stop file, which api-budget.bash's gh wrapper shares: lines
 // `<pool> <reset epoch>`. A latch starts from the stops an earlier step wrote
-// and appends its own, so one stop holds for the whole job.
+// and appends its own, so one stop holds for the whole job. Every port reads
+// only whole lines matching STOP_LINE, each ended by \n (rate-guard.vectors.json's
+// stop_files), so a fragment a short write left spoils only the line it runs
+// into. A file that is missing holds no stop; one that exists but cannot be
+// read holds every pool until MAX_RESET (stop_file_errors), with an error.
+const STOP_LINE = /^([a-z_]+|\*) (\d{1,12})$/;
 const STOP_FILE = process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "api-budget", "stop") : null;
 
-function readStops(path) {
+function readStops(path, log) {
   const stops = new Map();
   let text = "";
   try {
     text = path ? readFileSync(path, "utf8") : "";
-  } catch {
-    text = "";
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      log(`::error::the rate guard's stop file ${path} cannot be read (${error?.code ?? error?.message}), so every GitHub API pool counts as stopped`);
+      stops.set("*", MAX_RESET);
+    }
   }
-  for (const [, pool, reset] of text.matchAll(/^([a-z_]+|\*) (\d{1,12})$/gm)) {
-    stops.set(pool, Math.max(stops.get(pool) ?? 0, Number(reset)));
+  // Split on \n alone: a multiline $ would also end a line at \r. The last
+  // piece has no \n after it, so it is never a line.
+  for (const line of text.split("\n").slice(0, -1)) {
+    const [, pool, reset] = STOP_LINE.exec(line) ?? [];
+    if (pool) {
+      stops.set(pool, Math.max(stops.get(pool) ?? 0, Number(reset)));
+    }
   }
   return stops;
 }
@@ -199,7 +216,7 @@ export function createRateLimitLatch({
   limits = () => apiLimits(),
   stopFile = STOP_FILE,
 } = {}) {
-  const stops = readStops(stopFile);
+  const stops = readStops(stopFile, log);
   const low = new Map();
   const warned = new Set();
   let config;
@@ -241,17 +258,20 @@ export function createRateLimitLatch({
     low.set(pool, verdict.low);
     if (verdict.latched) {
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
+      // The in-process stop holds either way; a later step only sees a
+      // recorded one, so a failed write is named.
+      let unrecorded = "";
       if (stopFile) {
         try {
           mkdirSync(dirname(stopFile), { recursive: true });
           appendFileSync(stopFile, `${verdict.pool} ${verdict.reset}\n`);
-        } catch {
-          // The in-process stop still holds.
+        } catch (error) {
+          unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
         }
       }
       log(
         `::error::${method} ${url} hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status}):` +
-          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); this step fails`,
+          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); this step fails${unrecorded}`,
       );
       fail();
     } else if (verdict.low && !warned.has(pool)) {

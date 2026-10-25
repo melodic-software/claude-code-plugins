@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "# multi-agent\n\nRole defaults live in [reference/defaults.yaml](reference/defaults.yaml). No role routes to Haiku\nuntil it passes the routing eval; the [routing rubric](reference/routing/rubric.md) owns the rule.\n",
+      "why": "repointed"
+    },
+    {
+      "answer": "the [routing rubric](./reference/routing/rubric.md) owns the rule.\n",
+      "why": "explicit ./ prefix"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "the [routing rubric](reference/routing-rubric.md) owns the rule.\n",
+      "why": "still the old path"
+    },
+    {
+      "answer": "the [routing rubric](routing/rubric.md) owns the rule.\n",
+      "why": "path written as if from reference/"
+    }
+  ]
+}
