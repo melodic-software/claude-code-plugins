@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitRecord } from "./admit.mjs";
-import { applySizeSplit, partitionProblem, sizeSplitPending } from "./refine.mjs";
+import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
+import { applySizeSplit, partitionProblem, sizeSplitPending, splitDigest } from "./refine.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
@@ -950,6 +950,66 @@ describe("size split", () => {
     assert.deepEqual(result, { outcome: "split", children: [71, 72] });
     const w = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
     assert.deepEqual(w, ["POST /repos/o/r/issues", "POST /repos/o/r/issues/7/sub_issues", "POST /repos/o/r/issues/72/dependencies/blocked_by", "PATCH /repos/o/r/issues/comments/900"]);
+  });
+
+  // A listed human's issue whose task lines are in intake's refinement only:
+  // admission counts that refinement, so the split copies its task-list lines,
+  // never its prose, and names it, and admission and pr-verify trust the parts
+  // (admit.mjs splitChildBody).
+  const REFINED_AT = "2026-10-22T00:00:00Z";
+  const refinementNode = ({ id = 901, body = `${REFINE_MARKER}\n**Refinement.** Keep the old flag.\n\n- [ ] R1\n- [ ] R2`, lastEditedAt = null } = {}) => ({
+    databaseId: id,
+    createdAt: REFINED_AT,
+    updatedAt: lastEditedAt ?? REFINED_AT,
+    body,
+    lastEditedAt,
+    author: { __typename: "Bot", databaseId: APP },
+    editor: lastEditedAt ? { __typename: "Bot", databaseId: APP } : null,
+  });
+  const refinedSpec = (body, nodes) => ({ ...specOf(body), comments: { totalCount: nodes.length, nodes } });
+
+  test("splits a parked issue whose task lines are only in the refinement admission counts, naming that refinement in each part that copies it", async () => {
+    const body = "The plugin list is out of date.";
+    const spec = refinedSpec(body, [refinementNode()]);
+    const selected = await select(fakeGitHub({ issue: sizeIssue({ body }), comments: [laneComment("none"), parked()], spec }));
+    assert.equal(selected.refine, true);
+    assert.deepEqual(selected.context.size_split.items, [
+      { n: 1, text: "- [ ] R1" },
+      { n: 2, text: "- [ ] R2" },
+    ], "only the refinement's task-list lines, never its prose");
+    const fake = splitFake({ issue: sizeIssue({ body }), spec });
+    const result = await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output: { parts: [[1], [2]], order: [] }, context: { issue: { number: 7, title: "Big work", body }, size_split: selected.context.size_split }, log: () => {} });
+    assert.deepEqual(result, { outcome: "split", children: [71, 72] });
+    const filed = writes(fake.calls).filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues");
+    assert.equal(filed[0].body.body.split("\n")[2], splitSourceLine({ id: 901, updatedAt: REFINED_AT }));
+    assert.deepEqual(filed.map(({ body: { type } }) => type), ["Task", "Task"], "each part takes the issue's Issue Type");
+    const parent = { ...spec, comments: spec.comments.nodes };
+    for (const { body: { body: text } } of filed) {
+      const child = { body: text, lastEditedAt: null, author: { __typename: "Bot", databaseId: APP }, editor: null, splitParent: { number: 7, spec: parent, appId: APP } };
+      assert.equal(splitChildBody(child, humans, rules["task-list"]), text, "admission and pr-verify trust the part");
+    }
+  });
+
+  test("an edited refinement gives the split none of its lines", async () => {
+    const body = "The plugin list is out of date.";
+    const notes = [];
+    const spec = refinedSpec(body, [refinementNode({ lastEditedAt: "2026-10-23T00:00:00Z" })]);
+    const selected = await select(fakeGitHub({ issue: sizeIssue({ body }), comments: [laneComment("none"), parked()], spec }), notes);
+    assert.equal(selected.refine, false);
+    assert.match(notes[0], /holds 0 task-list line/);
+  });
+
+  test("a part of only the listed human's lines names no refinement, and a newer refinement with the same lines is a different split", async () => {
+    const spec = refinedSpec(BODY, [refinementNode()]);
+    const fake = splitFake({ spec });
+    const lines = [...LINES, "- [ ] R1", "- [ ] R2"];
+    const digest = splitDigest({ lines, source: { id: 901, updatedAt: REFINED_AT } });
+    await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output: { parts: [[1, 2, 3], [4, 5]], order: [] }, context: { ...context, size_split: { digest } }, log: () => {} });
+    const filed = writes(fake.calls).filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues").map(({ body: { body: text } }) => text);
+    assert.equal(filed[0], CHILD_1.replace("- [ ] L2", "- [ ] L2\n  - [ ] L3"), "the human-only part keeps the plain header");
+    assert.match(filed[1], /\n<!-- size-split refinement=901 updated_at=2026-10-22T00:00:00Z -->\n/);
+    assert.notEqual(splitDigest({ lines, source: { id: 902, updatedAt: REFINED_AT } }), digest);
+    assert.equal(splitDigest({ lines: LINES, source: null }), linesDigest(LINES), "a human-only split keeps its digest");
   });
 
   test("an issue whose trusted lines changed while the model ran, or already split, gets nothing", async () => {
