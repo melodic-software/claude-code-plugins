@@ -225,8 +225,15 @@ reproduces it from a run directory later. Every section, conditional row, annota
 `Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
 scope from being misstated between the run and the report: the `Marketplace:` line with its
 three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it; `unreadable` for a
-`null`, never rendered as off), whose status reads `source checkout behind <upstream>` instead of
-`current` when a `directory` source's git checkout is behind its upstream; the `source:` row under
+`null`, never rendered as off), whose status reads `needs update` only for refresh, update and
+failure state (a failed refresh or CLI call, or an error; in `audit`, an update, install or enable `sync`
+would make), `source checkout behind <upstream>` when a `directory` source's git checkout is behind
+its upstream, and `current` otherwise, followed by `, N action(s) pending` when work is left to a
+person (an install declined, skipped by policy or held for the `ask` prompt, an unfilled or project-scope enable, an
+install left not enabled, a delisted plugin, a withheld downgrade), so
+`current, 1 action(s) pending` is a fleet with nothing to update and one such action. Each pending
+action is an `Action needed` bullet, except `audit`'s withheld downgrades, counted once as their
+`Would withhold:` row; the `source:` row under
 it for a `directory` source (branch, upstream, ahead/behind as of the checkout's last fetch, modified
 tracked files, or why freshness was not checked; the run never fetches or pulls the checkout); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the

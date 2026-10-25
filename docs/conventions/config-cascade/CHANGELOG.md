@@ -14,6 +14,10 @@ No contract change.
 - **`verification` gains Implementers and root-rule rows.** Its `proof_level` key lives in
   `docs/conventions/verification.yaml` over the plugin's `userConfig`, with a declared deviation:
   the stricter layer wins and the team file is read from the default branch.
+- **`bugs` moves its team layer.** Its keys live in `docs/conventions/bugs.yaml` (schema
+  `plugins/bugs/schemas/bugs.schema.json`) and its team `## Gotchas` in `docs/conventions/bugs.md`;
+  `.claude/bugs.md` is read for one release while the new file is absent. Its later-adoption row
+  goes.
 
 ## [2.0] - 2026-10-18
 

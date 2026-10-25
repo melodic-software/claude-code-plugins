@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../plugins/bugs/schemas/bugs.schema.json
+# Team layer for the bugs plugin's settings; why each value: bugs.md beside this file.
+# Resolution: plugins/bugs/reference/config.md (read by /bugs:scan, written by /bugs:setup apply).
+lanes:
+  - name: entrypoints
+    globs:
+      - 'plugins/*/hooks/*.sh'
+      - 'plugins/*/hooks/*.mjs'
+      - 'plugins/*/hooks/*.py'
+      - 'plugins/*/hooks/*.ps1'
+      - '.claude/hooks/*.sh'
+  - name: core-logic
+    globs:
+      - 'lib/*.sh'
+      - 'plugins/*/lib/**/*.sh'
+      - 'plugins/*/lib/**/*.py'
+      - 'plugins/*/skills/*/scripts/**/*.sh'
+      - 'plugins/*/skills/*/scripts/**/*.py'
+      - 'plugins/*/skills/*/scripts/**/*.mjs'
+  - name: data-access
+    globs:
+      - 'plugins/work-items/tools/work-item-tracker/*.sh'
+      - 'plugins/work-items/tools/work-item-tracker/lib/**'
+      - 'plugins/harness-ops/skills/observability/otel/**'
+      - 'plugins/knowledge/skills/*/extraction/lib/**/*.js'
+      - 'plugins/code-metrics/scripts/parsers/**'
+      - 'plugins/code-metrics/scripts/collectors/**'
+  - name: integration
+    globs:
+      - 'plugins/work-items/tools/work-item-tracker/adapters/**'
+      - 'plugins/miro/server/src/**/*.ts'
+      - 'plugins/knowledge/skills/*/extraction/adapters/**'
+      - 'plugins/knowledge/skills/*/extraction/acquisition/**'
+      - 'plugins/source-control/skills/babysit-prs/scripts/*.sh'
+      - 'plugins/source-control/skills/pull-request/scripts/*.sh'
+      - 'plugins/source-control/scripts/*.sh'
+  - name: config-and-startup
+    globs:
+      - '.claude/cloud-bootstrap.sh'
+      - 'scripts/*.sh'
+      - 'scripts/*.py'
+      - 'scripts/*.mjs'
+      - 'scripts/lib/*.sh'
+      - 'plugins/*/skills/setup/scripts/**'
+      - 'plugins/*/lib/*config*'
+      - 'plugins/context-guard/scripts/*.sh'
+filing_posture: allowed

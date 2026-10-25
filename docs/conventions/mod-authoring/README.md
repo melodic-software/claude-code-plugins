@@ -21,6 +21,9 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
   under [hook-budget](../hook-budget/README.md#mods-a-third-enforcement-form). Each records where a
   mod differs: the guard mods' lines and telemetry are a recorded exception in hook-observability,
   and a mod's budget is enforced by `claude plugin test` counts rather than strace.
+- **Terms**: this doc uses the mods pages' words, "hook" for a mod's function and "settings
+  hook" for the kind a settings file or `hooks.json` runs; see the note under the title of the
+  [overview](https://code.claude.com/docs/en/plugins/mods/overview).
 - **Record shape** for each pointer below: [upstream-drift](../upstream-drift/README.md).
 
 ## Before writing or changing a mod
@@ -71,6 +74,24 @@ terms are recorded in [docs/upstream/claude-code-mods/sources.md](../../upstream
 - **Recheck trigger**: a pinned directory is renamed or removed upstream, or either repository
   changes its license.
 
+Before loading a mod this repository did not write, a sample mod included, run
+`claude plugin validate` on its directory and read what its `hooks:` and `calls:` lines let it do.
+For mods already installed, `/harness-ops:audit-mod-posture` lists what each one on the machine
+hooks and calls, and whether the built-in guard is seated. After installing or updating a mod from the shell while a session is open, follow the reload
+step upstream gives for that case.
+
+- **Pointer**: for what a loaded mod can reach, see
+  [overview: what a mod can reach](https://code.claude.com/docs/en/plugins/mods/overview#what-a-mod-can-reach);
+  for listing hooks and calls before loading, see
+  [overview: list what a mod does before you install one](https://code.claude.com/docs/en/plugins/mods/overview#list-what-a-mod-does-before-you-install-one);
+  for what each `calls:` entry means, see
+  [admin: review what a mod can do](https://code.claude.com/docs/en/plugins/mods/admin#review-what-a-mod-can-do);
+  for the reload after a shell-side install or update, see
+  [overview: install or update a mod](https://code.claude.com/docs/en/plugins/mods/overview#install-or-update-a-mod).
+- **As of**: 2026-10-25, Claude Code 2.1.310
+- **Recheck trigger**: a linked section moves, or `/harness-ops:audit-mod-posture` stops reading
+  the `hooks:` and `calls:` lines.
+
 ## Mod, settings hook, or skill
 
 Apply ADR 0052's rule for choosing a mod, which starts from upstream's comparison table.
@@ -100,6 +121,23 @@ app is a user-scope change and needs the user's approval.
 - **As of**: 2026-10-03, Claude Code 2.1.288. `--bg` sessions and the Desktop app were not probed.
 - **Recheck trigger**: the where-mods-run table changes a row, the minimum version changes, or the
   settings-hooks section changes where plugin `PreToolUse` hooks run.
+
+The switches that stop installed mods differ from those that stop built-in mods. When a mod passes
+`claude plugin test` and does nothing on a machine with managed settings or a Team or Enterprise
+login, check the organization's mod policy and the built-in guard's messages before debugging the
+mod.
+
+- **Pointer**: for built-in mods and how each is switched off, see
+  [overview: mods built into Claude Code](https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code);
+  for the policy `claude plugin test` does not report, see
+  [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+  and
+  [admin: allow only your organization's mods](https://code.claude.com/docs/en/plugins/mods/admin#allow-only-your-organization%E2%80%99s-mods);
+  for the guard's messages, see
+  [troubleshoot: messages from the built-in guard](https://code.claude.com/docs/en/plugins/mods/troubleshoot#messages-from-the-built-in-guard).
+- **As of**: 2026-10-25, Claude Code 2.1.310
+- **Recheck trigger**: a linked section moves, or `claude plugin test` starts reporting the
+  organization's mod policy.
 
 ## Packaging in this repository
 
@@ -150,3 +188,29 @@ the engine skips the hook's answer and logs `hook failed closed`. The evidence f
 - **As of**: 2026-10-03, Claude Code 2.1.288 (the public types file's first line names 2.1.277)
 - **Recheck trigger**: re-run E9 on a pin bump whose types change that comment, or when a docs page
   states the consequence.
+
+## When a mod does nothing or misbehaves
+
+Look up a log, toast or refusal line by its text on the troubleshoot page, whose headings are those
+texts. A mod writes its own diagnostics to the debug log, not the transcript. A mod that registers
+an agent does so from its `session.start` hook. Work a mod starts on its own after the user stops a
+turn follows the API's interrupt rules. A load problem that is not specific to mods goes to the
+plugin troubleshooting page.
+
+- **Pointer**: for the debug log, see
+  [troubleshoot: read the debug log](https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log)
+  and, for writing to it,
+  [api: show something without starting a turn](https://code.claude.com/docs/en/plugins/mods/api#show-something-without-starting-a-turn);
+  for agent registration, see
+  [troubleshoot: `$.agent.register refused`](https://code.claude.com/docs/en/plugins/mods/troubleshoot#$-agent-register-refused-the-hooks-module-that-made-the-call-is-no-longer-loaded);
+  for work after an interrupt, see
+  [api: calls and background work after the user interrupts a turn](https://code.claude.com/docs/en/plugins/mods/api#calls-and-background-work-after-the-user-interrupts-a-turn)
+  and
+  [troubleshoot: a toast appears after a turn is stopped](https://code.claude.com/docs/en/plugins/mods/troubleshoot#a-toast-appears-after-a-turn-is-stopped);
+  for the line a failing hook leaves, see
+  [events: handle a hook that fails](https://code.claude.com/docs/en/plugins/mods/events#handle-a-hook-that-fails);
+  for plugin load problems, see
+  [troubleshoot plugins](https://code.claude.com/docs/en/plugins/troubleshooting).
+- **As of**: 2026-10-25, Claude Code 2.1.310
+- **Recheck trigger**: a linked section moves, or the troubleshoot page stops titling its sections
+  with the line texts.
