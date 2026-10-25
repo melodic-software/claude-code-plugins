@@ -92,7 +92,9 @@ const said = (login, body, at, association = "OWNER", typename = "User") => ({
   createdAt: at,
   authorAssociation: association,
 });
-const PASSED = { refusal: null, head: HEAD, ineligible: null, reviews: null };
+// `evidence --lane-queue`: a head the merge queue has not removed for failed checks.
+const UNEJECTED = { failedEjections: 0, limit: 2, refusal: null, comment: null };
+const PASSED = { refusal: null, head: HEAD, ineligible: null, reviews: null, queue: UNEJECTED };
 const COST_LINK = `https://github.com/${REPO}/issues/1040#issuecomment-7`;
 const COST_COMMENT = {
   issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
@@ -220,7 +222,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (found?.verdict instanceof Error) {
       throw found.verdict;
     }
-    return found?.verdict ?? { refusal: null, head, ineligible: null, reviews: null };
+    return found?.verdict ?? { refusal: null, head, ineligible: null, reviews: null, queue: UNEJECTED };
   };
   const writes = () =>
     calls
@@ -1348,6 +1350,79 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /risk score could not be read/);
 });
 
+// The gate's cap on a head the merge queue keeps removing for failed checks
+// (babysit_merge.unattended_enqueue, merge.max-queue-ejections, default 2):
+// the count, the limit and the gate's own comment come from `evidence
+// --lane-queue`, and a push resets the count, so the lanes clear it. #8051 and
+// #7897 were each re-armed after an ejection and ejected again.
+const EJECTION_COMMENT = [
+  "<!-- babysit-merge-queue-ejections -->",
+  `Unattended merge: the merge queue removed head \`${HEAD}\` 2 times for failed checks, so the pr-merge lane will not enqueue it again. A push resets the count.`,
+  "",
+  "Failing merge_group runs:",
+  `- https://github.com/${REPO}/actions/runs/9`,
+].join("\n");
+const EJECTED_REFUSAL = `queue-ejected:2 failed-check removals from the merge queue at head ${HEAD}; a push resets the count`;
+const EJECTED = { ...PASSED, queue: { failedEjections: 2, limit: 2, refusal: EJECTED_REFUSAL, comment: EJECTION_COMMENT } };
+
+test("a head at the queue-ejection cap is not armed and gets the gate's ejection comment, with no label", async () => {
+  const { code, writes, notes, lines } = await run([pull(1, { verdict: EJECTED }), pull(2)]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: EJECTION_COMMENT } }]);
+  assert.ok(lines.includes(`enable-auto-merge: #1 left: pr-merge's gate would not enqueue it again (${EJECTED_REFUSAL})`), lines.join("\n"));
+});
+
+test("the ejection comment edits the lanes App's earlier one, is not posted again unchanged, and leaves a risk comment alone", async () => {
+  const older = EJECTION_COMMENT.replace("runs/9", "runs/8");
+  const edited = await run([pull(1, { verdict: EJECTED, discussion: { comments: [lanesSaid(older)] } })]);
+  assert.deepEqual(edited.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: EJECTION_COMMENT } }]);
+  const unchanged = await run([pull(1, { verdict: EJECTED, discussion: { comments: [lanesSaid(EJECTION_COMMENT)] } })]);
+  assert.deepEqual(unchanged.notes, []);
+  const risk = await run([pull(1, { verdict: EJECTED, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } })]);
+  assert.deepEqual(risk.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: EJECTION_COMMENT } }]);
+});
+
+test("an ejection count that cannot be read arms nothing and writes no note", async () => {
+  const unreadable = { failedEjections: null, limit: 2, refusal: "the merge queue's removals of this head are unreadable", comment: null };
+  const { code, writes, notes, lines } = await run([
+    pull(1, { verdict: { ...PASSED, queue: unreadable } }),
+    pull(2, { verdict: { ...PASSED, queue: undefined } }),
+    pull(3, { verdict: { ...PASSED, queue: { refusal: 5 } } }),
+  ]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, []);
+  assert.ok(lines.includes("enable-auto-merge: #1 left: pr-merge's gate would not enqueue it again (the merge queue's removals of this head are unreadable)"), lines.join("\n"));
+  for (const n of [2, 3]) {
+    assert.ok(lines.includes(`enable-auto-merge: #${n} left: its merge-queue ejections could not be read`), lines.join("\n"));
+  }
+});
+
+// A GraphQL read that keeps failing holds every clean lane pull request, so
+// the run names why on each one.
+test("an unreadable ejection count is warned with the read's error", async () => {
+  const unreadable = { failedEjections: null, limit: 2, refusal: "the merge queue's removals of this head are unreadable", comment: null, readError: "could not read the merge queue: gh: HTTP 502" };
+  const { writes, lines } = await run([pull(1, { verdict: { ...PASSED, queue: unreadable } }), pull(2)]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 its merge-queue ejections could not be read: could not read the merge queue: gh: HTTP 502"), lines.join("\n"));
+  assert.equal(lines.filter((line) => line.startsWith("::warning")).length, 1, lines.join("\n"));
+});
+
+test("report-only writes no ejection comment", async () => {
+  const { notes, lines } = await run([pull(1, { verdict: EJECTED })], { REPORT_ONLY: "true" });
+  assert.deepEqual(notes, []);
+  assert.ok(lines.includes("enable-auto-merge: #1 would note its refusal (report-only)"), lines.join("\n"));
+});
+
+// GitHub drops the arm on an ejection, so an armed head over the cap is one a
+// person armed again: the cap refuses the lane's arm and leaves that one alone.
+test("an armed pull request over the ejection cap is not disarmed", async () => {
+  const { writes, notes } = await run([pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" }, verdict: EJECTED })]);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, []);
+});
+
 // The merge queue's check (merge-holds.mjs verdictHold): a pass counts only
 // from pr-verify.yml's completed, successful workflow_run run on main here.
 test("verdictHold counts a pass only from a successful pr-verify run on main", () => {
@@ -1431,7 +1506,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     garbage: "print('not json')\n",
     other: `import json\nprint(json.dumps({"refusal": None, "head": "${"c".repeat(40)}"}))\n`,
     unlinked: `import json, sys\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
-    passes: `import json, sys\nassert sys.argv[2:4] == ["--lane-link", "--lane-reviews"] and sys.argv[-6:-2] == ["--base-sha", "${"d".repeat(40)}", "--rung", "C2"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None}))\n`,
+    passes: `import json, sys\nassert sys.argv[2:5] == ["--lane-link", "--lane-reviews", "--lane-queue"] and sys.argv[-6:-2] == ["--base-sha", "${"d".repeat(40)}", "--rung", "C2"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None, "queue": {"failedEjections": 0, "limit": 2, "refusal": None, "comment": None}}))\n`,
   };
   for (const [name, body] of Object.entries(scripts)) {
     writeFileSync(join(dir, `${name}.py`), body);
@@ -1472,6 +1547,7 @@ test("the gate's link rule arms a Closes or one plain Refs pull request, not two
     `import json, os, subprocess, sys
 sys.path.insert(0, os.environ["SCRIPTS"])
 from unittest import mock
+import babysit_merge
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
 import babysit_verify_evidence as ve
@@ -1503,7 +1579,7 @@ def passes(self, number, head, pr=None):
 
 argv = sys.argv[1:]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(argv))
 `,
   );
@@ -1616,7 +1692,7 @@ test("a room that cannot be read arms nothing and disarms every armed lane pull 
     await main({
       env: ENV,
       github,
-      verify: async ({ headRefOid: head }) => ({ refusal: null, head, ineligible: null, reviews: null }),
+      verify: async ({ headRefOid: head }) => ({ ...PASSED, head }),
       room: async () => {
         throw new Error("lane-room exited 1");
       },
@@ -1900,7 +1976,8 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
     mock.patch.object(policy, "with_contents", lambda repo, p, f: f), \\
     mock.patch.object(policy, "pulumi_dirs_at", lambda repo, p: ()), \\
     mock.patch.object(policy, "permission_reader", lambda repo: (lambda login: None)), \\
-    mock.patch.object(babysit_merge, "_lane_evidence", lambda *args: (lanes, [])):
+    mock.patch.object(babysit_merge, "_lane_evidence", lambda *args: (lanes, [])), \\
+    mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, n: {"readError": None, "failedEjections": 0}):
     sys.exit(ve.main(sys.argv[1:]))
 `,
   );
@@ -1923,4 +2000,55 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
   ]);
   assert.ok(lines.some((line) => /#2 left: pr-merge's gate holds it on its risk score \(.*docs\/link/.test(line)), lines.join("\n"));
   assert.ok(lines.some((line) => /#3 disarmed: pr-merge's gate holds it on its risk score \(.*vendor\/lib/.test(line)), lines.join("\n"));
+});
+
+// The cap through the gate's own CLI: the count from the queue's timeline
+// (babysit_merge._failed_ejections, stubbed at read_merge_queue) and the limit
+// from the config (merge.max-queue-ejections, default 2), so only Python
+// holds either. One removal arms; two, or an unread count, do not.
+test("the gate's CLI holds a head the merge queue removed merge.max-queue-ejections times, and an unread count", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-queue-"));
+  const wrapper = join(dir, "queue.py");
+  writeFileSync(
+    wrapper,
+    `import json, os, sys
+sys.path.insert(0, os.environ["SCRIPTS"])
+from unittest import mock
+import babysit_merge
+import babysit_merge_policy as policy
+import babysit_verify_evidence as ve
+
+COUNTS = json.loads(os.environ["COUNTS"])
+number = int(sys.argv[-2])
+pr = {"number": number, "head": {"sha": sys.argv[-1]}}
+config = policy.PipelineConfig("c" * 40, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")
+with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
+    mock.patch.object(ve.Reader, "evidence", lambda self, n, h, pr=None: ve.Evidence(None, h, (), 0)), \\
+    mock.patch.object(policy, "read_config_at", lambda repo, sha: config), \\
+    mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), \\
+    mock.patch.object(policy, "pull_request", lambda repo, n: pr), \\
+    mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), \\
+    mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, n: {"readError": None, "failedEjections": COUNTS[str(n)]}), \\
+    mock.patch.object(babysit_merge, "_failed_merge_group_runs", lambda repo, branch, n: []):
+    sys.exit(ve.main(sys.argv[1:]))
+`,
+  );
+  const { github, writes, notes } = world([pull(1), pull(2), pull(3)]);
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, COUNTS: JSON.stringify({ 1: 1, 2: 2, 3: null }), VERIFY_EVIDENCE_SCRIPT: wrapper };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    assert.equal(await main({ env, github, room: room() }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.ok(lines.includes(`enable-auto-merge: #2 left: pr-merge's gate would not enqueue it again (${EJECTED_REFUSAL})`), lines.join("\n"));
+  assert.ok(lines.includes("enable-auto-merge: #3 left: pr-merge's gate would not enqueue it again (the merge queue's removals of this head are unreadable)"), lines.join("\n"));
+  assert.deepEqual(
+    notes.map(({ path, body }) => [path, body.body.split("\n", 1)[0]]),
+    [[`${ISSUES}/2/comments`, "<!-- babysit-merge-queue-ejections -->"]],
+  );
 });

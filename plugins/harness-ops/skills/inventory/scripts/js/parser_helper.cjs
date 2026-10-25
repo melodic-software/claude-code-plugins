@@ -58,6 +58,9 @@
 //   {"id":10,"op":"namespace","module":"<key>","source":"...","file":"chunk-a.js","name":"pY"}
 //     Whether each whole load of the file reads only other exports by
 //     name; `namespace` below documents the reply.
+//   {"id":11,"op":"imports","module":"<key>","source":"..."}
+//     -> {"id":11,"ok":true,"names":[["pY","/a.js"]]}  names it imports or
+//        re-exports by name, each with the path it names
 //   anything else
 //     -> {"id":...,"ok":false,"error":"..."}
 //
@@ -429,6 +432,12 @@ class Unresolved extends Error {
 const propertyName = (member) =>
   !member.computed ? member.property.name : typeof member.property.value === "string" ? member.property.value : null;
 
+// The two values `Flow.values` lists that are no function.
+const uncallable = (value) => value === "undefined" || value === "uncallable";
+// Whether one of `values` may be undefined: an imported binding may be,
+// since the module exporting it is not read here.
+const mayBeUndefined = (values) => values.some((v) => v === "undefined" || v.imported !== undefined);
+
 // Follows one array value through a module: every place it can reach, until
 // each is known not to change it, leaves the module (an export, an
 // imported callee), or is a place the walk cannot follow, which throws
@@ -599,8 +608,8 @@ class Flow {
   // `fn` is called with the array as parameter `index`.
   callback(fn, index) {
     if (fn.type === "SpreadElement") throw new Unresolved("a spread callback", fn.start);
-    for (const value of this.values(fn, new Set())) {
-      if (value === "uncallable") continue;
+    for (const value of this.values(fn, new Map())) {
+      if (uncallable(value)) continue;
       if (value.imported !== undefined) this.exit("param", value.imported, index, value.source);
       else this.parameter(value, index);
     }
@@ -664,21 +673,22 @@ class Flow {
     return v && v.defs.length === 1 && v.references.every((r) => !r.isWrite() || r.identifier === holder.id) ? v : null;
   }
 
-  // Every value `node` can evaluate to: "uncallable" (a value that is no
-  // function, so calling it throws), a function node, or {imported} for a
-  // function another module exports. Throws Unresolved when any value is
-  // unknown.
+  // Every value `node` can evaluate to: "undefined", "uncallable" (any
+  // other value that is no function, so calling it throws), a function
+  // node, or {imported} for a function another module exports. Throws
+  // Unresolved when any value is unknown.
   values(node, seen) {
     if (++this.steps > FLOW_STEPS) throw new Unresolved("the flow is too long to follow", null);
     switch (node.type) {
       case "Literal":
       case "TemplateLiteral":
-      case "UnaryExpression":
       case "BinaryExpression":
       case "UpdateExpression":
       case "ObjectExpression":
       case "ArrayExpression":
         return ["uncallable"];
+      case "UnaryExpression":
+        return [node.operator === "void" ? "undefined" : "uncallable"];
       case "ArrowFunctionExpression":
       case "FunctionExpression":
         return [node];
@@ -690,7 +700,7 @@ class Flow {
         return this.values(node.expressions.at(-1), seen);
       case "Identifier": {
         const ref = this.entry.refs.get(node.start);
-        if (ref && !ref.resolved && node.name === "undefined") return ["uncallable"];
+        if (ref && !ref.resolved && node.name === "undefined") return ["undefined"];
         const v = ref?.resolved ?? this.entry.decls.get(node.start);
         if (!v) throw new Unresolved(`\`${node.name}\` is not declared`, node.start);
         return this.variableValues(v, seen);
@@ -699,9 +709,19 @@ class Flow {
     throw new Unresolved(`a value from a ${node.type}`, node.start);
   }
 
+  // `seen` maps each variable met to whether it may be undefined, null
+  // while it is still being read. One met again adds no value, but whether
+  // it may be undefined still decides a destructured key's default
+  // (`parameterValues`), and one still being read may be.
   variableValues(v, seen) {
-    if (seen.has(v)) return [];
-    seen.add(v);
+    if (seen.has(v)) return seen.get(v) === false ? [] : ["undefined"];
+    seen.set(v, null);
+    const values = this.declaredValues(v, seen);
+    seen.set(v, mayBeUndefined(values));
+    return values;
+  }
+
+  declaredValues(v, seen) {
     if (v.defs.length !== 1) throw new Unresolved(`\`${v.name}\` has ${v.defs.length} declarations`, null);
     const def = v.defs[0];
     const at = def.name.start;
@@ -713,7 +733,9 @@ class Flow {
       case "Variable": {
         const loop = this.parents.get(def.parent);
         if (otherWrites || def.node.id !== def.name || (isLoop(loop) && loop.left === def.parent)) break;
-        return def.node.init ? this.values(def.node.init, seen) : ["uncallable"];
+        const values = def.node.init ? this.values(def.node.init, seen) : [];
+        // A `var` read before its initializer runs is undefined, like one with none.
+        return def.parent.kind === "var" || !def.node.init ? ["undefined", ...values] : values;
       }
       case "ImportBinding": {
         const spec = def.node;
@@ -746,7 +768,7 @@ class Flow {
         param.type === "ObjectPattern" &&
         param.properties.find((p) => p.type === "Property" && (p.value === id || p.value.left === id));
       if (!prop || prop.computed) throw new Unresolved("a nested destructured parameter", id.start);
-      key = prop.key.name ?? prop.key.value;
+      key = String(prop.key.name ?? prop.key.value);
       keyDefault = prop.value.type === "AssignmentPattern" ? prop.value.right : null;
     }
     const v = this.binding(fn);
@@ -758,12 +780,26 @@ class Flow {
       if (arg.properties.some((p) => p.type !== "Property" || p.computed)) {
         throw new Unresolved("an object literal with a spread or computed key", arg.start);
       }
+      // `__proto__:` sets the literal's prototype, where a key it lacks is read.
+      if (arg.properties.some((p) => !p.shorthand && keyName(p.key, false) === "__proto__")) {
+        throw new Unresolved("an object literal setting its prototype", arg.start);
+      }
       const matching = arg.properties.filter((p) => String(p.key.name ?? p.key.value) === key);
       // A getter or setter's value is the accessor function, not what reading the key gives.
       if (matching.some((p) => p.kind !== "init")) throw new Unresolved(`an accessor for \`${key}\``, arg.start);
       const prop = matching.at(-1);
-      if (prop) return out.push(...this.values(prop.value, seen));
-      if (!keyDefault) throw new Unresolved(`an argument without \`${key}\``, arg.start);
+      if (prop) {
+        // An undefined value takes the key's default instead.
+        const values = this.values(prop.value, seen);
+        out.push(...values.filter((value) => value !== "undefined"));
+        if (!mayBeUndefined(values)) return;
+        if (!keyDefault) return out.push("undefined");
+      } else if (!keyDefault) {
+        throw new Unresolved(`an argument without \`${key}\``, arg.start);
+      } else {
+        // A key the literal lacks is read from Object.prototype.
+        this.trusted.add(key);
+      }
       out.push(...this.values(keyDefault, seen));
     };
     for (const r of v.references) {
@@ -780,7 +816,7 @@ class Flow {
       if (fallback) read(fallback);
       else if (!arg) {
         if (key !== null) throw new Unresolved("a destructured parameter without its argument", call.start);
-        out.push("uncallable");
+        out.push("undefined");
       }
     }
     return out;
@@ -816,8 +852,8 @@ function flow(req) {
     } else if (Number.isInteger(start.param)) {
       const v = entry.top?.set.get(start.name);
       if (!v) throw new Unresolved(`\`${start.name}\` is not declared at module scope`, null);
-      for (const value of walk.variableValues(v, new Set())) {
-        if (value === "uncallable") continue;
+      for (const value of walk.variableValues(v, new Map())) {
+        if (uncallable(value)) continue;
         if (value.imported !== undefined) walk.exit("param", value.imported, start.param, value.source);
         else walk.parameter(value, start.param);
       }
@@ -1343,12 +1379,19 @@ function definerOf(n) {
 //   - code run from a string through node:vm: any load of the vm module
 //     except an import naming only `isContext`, and a vm runner's name
 //     (`runInThisContext`, `runInNewContext`, ...) read from any object;
-//   - a load the scan cannot name (`unknownLoad`), which may load node:vm.
+//   - a load the scan cannot name (`unknownLoad`), which may load node:vm;
+//   - the global `Function` used other than for `typeof`, `instanceof` or
+//     a `.prototype` read that stays clear of `constructor` (`prototypeOnly`),
+//     except a build whose result is discarded and a
+//     direct call whose every argument folds to a constant string and
+//     whose code, scanned the same way, hits nothing (`unrunOrClean`).
 //   A target is cleared only when it is provably a fresh object: a
 //   literal, a function, `this` in a class
 //   constructor, a variable only ever holding one of those, or the
 //   `prototype` of a function or class declared in the module that is
-//   never replaced.
+//   never replaced. `Function` counts as one of the names, since the
+//   folded calls trust it: a write of it anywhere is a sink of its own
+//   (as an argument, only to a definer).
 //   -> {"hits":[[kind, name|null, offset], ...]} (at most SINK_LIMIT); a
 //      module that does not parse or calls `eval` directly is one hit.
 function sinks(req) {
@@ -1357,9 +1400,17 @@ function sinks(req) {
   }
   const entry = moduleFor(req);
   if (entry === null) return { ok: true, need_source: true };
-  if (entry.error) return { ok: true, hits: [["unparsed", null, 0]] };
-  if (entry.evals) return { ok: true, hits: [["eval", null, 0]] };
-  const names = new Set(req.names);
+  return { ok: true, hits: sinkHits(entry, new Set([...req.names, "Function"]), 0) };
+}
+
+// How deep a folded `Function` body that builds another is followed.
+const FOLD_DEPTH = 4;
+
+// The `sinks` hits for an analyzed module (`analyze`), or for code a
+// `Function` call folded to, `depth` folds down.
+function sinkHits(entry, names, depth) {
+  if (entry.error) return [["unparsed", null, 0]];
+  if (entry.evals) return [["eval", null, 0]];
   const parents = parentsOf(entry);
   const hits = [];
   const hit = (kind, name, node) => hits.length < SINK_LIMIT && hits.push([kind, name, node.start]);
@@ -1449,6 +1500,63 @@ function sinks(req) {
       if (k !== null) return names.has(k) ? [k] : [];
       return keyNames(p.key) ?? [null];
     });
+  // Whether the global `Function` read as `node` is `Function.prototype`
+  // going on only to members other than `constructor`, which is Function
+  // again: each further key, after any call on the way (whose result may
+  // be any object), names another member (a computed key must be known
+  // not to spell it), and the chain ends discarded, tested, compared or
+  // written, never held or handed to code that could take its
+  // `constructor` (`instanceof` hands it to `Symbol.hasInstance`).
+  const prototypeOnly = (node) => {
+    let top = parents.get(node);
+    if (memberName(top) !== "prototype" || top.object !== node || isTarget(parents, top)) return false;
+    for (;;) {
+      const up = parents.get(top);
+      if (up?.type === "MemberExpression" && up.object === top) {
+        const key = keyName(up.property, up.computed);
+        const keys = key === null ? keyValues(up.property) : new Set([key]);
+        if (keys === null || keys.has("constructor")) return false;
+      } else if (up?.type !== "ChainExpression" && !isCallee(up, top)) {
+        break;
+      }
+      top = up;
+    }
+    const end = parents.get(top);
+    if (end?.type === "BinaryExpression") return end.operator !== "instanceof";
+    return (
+      isTarget(parents, top) ||
+      ["UnaryExpression", "UpdateExpression", "ExpressionStatement"].includes(end?.type) ||
+      (["IfStatement", "WhileStatement", "DoWhileStatement", "ForStatement", "ConditionalExpression"].includes(end?.type) && end.test === top)
+    );
+  };
+  // Whether the value of `n` is thrown away: an expression statement, or a
+  // sequence operand other than the last (`try{return new Function(""),!0}`).
+  const discarded = (n) => {
+    const p = parents.get(n);
+    if (p?.type === "ExpressionStatement") return true;
+    if (p?.type === "SequenceExpression") return p.expressions.at(-1) !== n || discarded(p);
+    return p?.type === "ChainExpression" && discarded(p);
+  };
+  // `Function(...)` and `new Function(...)` build a function from strings
+  // and run none of its body; only a call runs it. So the global
+  // `Function` as the callee of `built` runs no unknown code when the
+  // result is discarded, or when `built` is called directly
+  // (`Function("return this")()`) with every argument a constant string
+  // and the code those spell, parsed as a function, hits nothing here.
+  // The wrapper has no name, since the built function binds none in its
+  // body. It is parsed as a module, which rejects what only sloppy code
+  // allows (`with`) and parses the rest the same, except an HTML-like
+  // comment (`<!--`, `-->`), so text holding one is not folded.
+  const unrunOrClean = (callee, built) => {
+    if ((built?.type !== "CallExpression" && built?.type !== "NewExpression") || built.callee !== callee) return false;
+    if (discarded(built)) return true;
+    const run = parents.get(built);
+    if (run?.type !== "CallExpression" || run.callee !== built || depth >= FOLD_DEPTH) return false;
+    const parts = built.arguments.map(literalString);
+    if (parts.some((s) => s === null || s.includes("<!--") || s.includes("-->"))) return false;
+    const body = parts.pop() ?? "";
+    return sinkHits(analyze(`(function(${parts.join(",")}\n) {\n${body}\n})`), names, depth + 1).length === 0;
+  };
   const stack = [entry.ast];
   while (stack.length && hits.length < SINK_LIMIT) {
     const node = stack.pop();
@@ -1479,7 +1587,10 @@ function sinks(req) {
       const freshTarget = definer !== null && freshArg(target) && (receiver === undefined || freshArg(receiver));
       for (const arg of node.arguments) {
         const key = keyName(arg, true);
-        if (key !== null && names.has(key) && !freshTarget) hit("argument", key, arg);
+        // `Function` counts only given to a definer: any other callee that
+        // could write it by its parameter is a computed write of its own,
+        // and a type test like underscore's `tagTester("Function")` is no write.
+        if (key !== null && names.has(key) && !freshTarget && (key !== "Function" || definer !== null)) hit("argument", key, arg);
       }
       if (definer !== null && !freshTarget) {
         if (definer.name === "setPrototypeOf") hit("proto-swap", null, node);
@@ -1506,7 +1617,10 @@ function sinks(req) {
     // Code built from a string runs unseen: global `eval` other than a
     // direct call (a direct one already makes the module a sink), and the
     // global `Function` used other than for `typeof`, `instanceof` or a
-    // `.prototype` read (`Function.call(0,"code")` builds code too).
+    // `.prototype` read that stays clear of `constructor`
+    // (`Function.call(0,"code")` and `Function.prototype.constructor("code")`
+    // build code too), or to build code that never runs or folds to code
+    // that hits nothing.
     if (node.type === "Identifier" && (node.name === "eval" || node.name === "Function")) {
       const ref = entry.refs.get(node.start);
       if (ref && !ref.resolved && ref.identifier === node) {
@@ -1517,11 +1631,8 @@ function sinks(req) {
         const inert =
           typeOf ||
           (holder?.type === "BinaryExpression" && holder.operator === "instanceof" && holder.right === node) ||
-          (holder?.type === "MemberExpression" &&
-            holder.object === node &&
-            memberName(holder) === "prototype" &&
-            !isTarget(parents, holder));
-        if (node.name === "Function" && !inert) hit("function-constructor", null, node);
+          prototypeOnly(node);
+        if (node.name === "Function" && !inert && !unrunOrClean(node, holder)) hit("function-constructor", null, node);
       }
     }
     // The same built-ins reached as a member of any object
@@ -1565,7 +1676,7 @@ function sinks(req) {
       }
     }
   }
-  return { ok: true, hits };
+  return hits;
 }
 
 // {"op":"exports","module":key,"source"?:...}
@@ -1607,7 +1718,8 @@ function exportsOf(req) {
 // reads it from: a member name (`x.k`, `x["k"]`, `` x[`k`] ``) and a
 // destructured key (`{k}=x`, `{k:y}=x`, `{"k":y}=x`). A computed read
 // with any other key reads no name here. Kept per module key for
-// `keys_used`, beside the files it loads whole (`loadedFile`) for `loads`.
+// `keys_used`, beside the files it loads whole (`loadedFile`) for `loads`
+// and the names it imports or re-exports by name for `imports`.
 const scans = new Map();
 // The name a member reads or writes, as `keyName` spells it; null for a
 // computed key that names nothing.
@@ -1688,6 +1800,14 @@ function unknownLoad(node, parent, keyValues) {
 function scanOf(ast) {
   const keys = new Set();
   const loads = new Set();
+  const imports = [];
+  for (const node of ast.body) {
+    if (node.type !== "ImportDeclaration" && !(node.type === "ExportNamedDeclaration" && node.source)) continue;
+    for (const spec of node.specifiers) {
+      const name = spec.type === "ImportSpecifier" ? spec.imported : spec.type === "ExportSpecifier" ? spec.local : null;
+      if (name) imports.push([name.name ?? name.value, node.source.value]);
+    }
+  }
   let computed = false;
   const deferred = () => {
     computed = true;
@@ -1718,7 +1838,7 @@ function scanOf(ast) {
       }
     }
   }
-  return { keys, loads, computed };
+  return { keys, loads, imports, computed };
 }
 
 // Whether a computed key in the module may load a module the scan cannot
@@ -1770,6 +1890,17 @@ function loads(req) {
   return { ok: true, files: [...scan.loads].sort() };
 }
 
+// {"op":"imports","module":key,"source"?:...}
+//   -> {"names":[[name, from], ...]}: each name an import or re-export
+//      declaration takes by name (`import{x}from f`, `export{x}from f`),
+//      with the path `f`, or {"names":null} for a module that does not parse.
+function importsOf(req) {
+  if (typeof req.module !== "string") return { ok: false, error: "imports needs a string `module`" };
+  const scan = scanFor(req);
+  if (scan === undefined) return { ok: true, need_source: true };
+  return { ok: true, names: scan === null ? null : scan.imports };
+}
+
 function handle(req) {
   switch (req.op) {
     case "ping":
@@ -1807,6 +1938,8 @@ function handle(req) {
       return sinks(req);
     case "exports":
       return exportsOf(req);
+    case "imports":
+      return importsOf(req);
     default:
       return { ok: false, error: `unknown op: ${JSON.stringify(req.op)}` };
   }

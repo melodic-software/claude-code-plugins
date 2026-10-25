@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "File: `plugins/multi-agent/scripts/resolve-roles.sh`\nFunction: `role_json`\n",
+      "why": "full path"
+    },
+    {
+      "answer": "scripts/resolve-roles.sh, in role_json()\n",
+      "why": "path from the plugin root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "File: `plugins/multi-agent/skills/route/scripts/route.sh`\nFunction: none, it execs the resolver\n",
+      "why": "names the wrapper"
+    },
+    {
+      "answer": "File: `plugins/multi-agent/scripts/resolve-roles.test.sh`\nFunction: `role_json`\n",
+      "why": "names the test file"
+    }
+  ]
+}

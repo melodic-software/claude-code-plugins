@@ -2283,6 +2283,19 @@ class EachRefusalMakesNoMergeCall(Unattended):
             )
         )
 
+    def test_a_failed_runs_read_still_refuses_and_records_its_error(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        with mock.patch.object(
+            merge, "_failed_merge_group_runs", side_effect=RuntimeError("boom")
+        ):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "error: boom")
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
+        )
+
     def test_one_ejection_still_enqueues(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=1)
         code, out = self.run_main()
