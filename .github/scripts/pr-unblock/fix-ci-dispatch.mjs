@@ -363,7 +363,9 @@ export async function dispatchCiFixes({
     for (const node of pullRequests.nodes) {
       // A recorded head reached the per-head cap and was warned about once.
       if (isHandled(record, checkName, node.headRefOid)) {
-        log(`skip fix-ci #${node.number}: head ${node.headRefOid} reached the per-head cap (recorded)`);
+        if (failedState(lanesStatus(node)?.state)) {
+          log(`skip fix-ci #${node.number}: head ${node.headRefOid} reached the per-head cap (recorded)`);
+        }
         continue;
       }
       const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });

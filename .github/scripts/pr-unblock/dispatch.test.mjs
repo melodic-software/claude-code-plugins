@@ -1105,12 +1105,15 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
 test("a head at the resolve-conflicts cap is warned about once, as it is recorded; a head done for another reason is not", async () => {
   const capped = pr(61);
   const done = pr(62);
+  // Three failures then a success: done, not capped.
+  const resolved = pr(63);
   const failed = failedRun("2026-10-17T10:00:00Z", null);
   const state = () => ({
-    pages: [[capped, done]],
+    pages: [[capped, done, resolved]],
     checked: new Map([
       [capped.headRefOid, [failed, HELD_SKIP, failed]],
       [done.headRefOid, [SUCCESS_RUN]],
+      [resolved.headRefOid, [failed, failed, failed, SUCCESS_RUN]],
     ]),
   });
   const warning = `::warning::#61: head ${capped.headRefOid}'s ${CHECK_NAME} failed or was skipped while held 3 time(s), the most one head gets; no resolve-conflicts until a new push`;
@@ -1118,7 +1121,7 @@ test("a head at the resolve-conflicts cap is warned about once, as it is recorde
   const first = harness(state(), { record });
   await first.run();
   assert.deepEqual(first.lines.filter((line) => line.startsWith("::warning::")), [warning]);
-  assert.deepEqual([...record.handled.get(CHECK_NAME)].sort(), [capped.headRefOid, done.headRefOid]);
+  assert.deepEqual([...record.handled.get(CHECK_NAME)].sort(), [capped.headRefOid, done.headRefOid, resolved.headRefOid]);
 
   const second = harness(state(), { record: parseRecord(serializeRecord(record)) });
   await second.run();
