@@ -440,6 +440,28 @@ describe("applyRefinement", () => {
       assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
     });
 
+    // Issue #9016: a listed human filed it with no task list, and the
+    // refinement this run posts is the spec admission reads (owner Q78).
+    test(`an exact refinement of ${branch} re-triages when a listed human filed it and only this refinement will hold the task list`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: specOf() });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+      const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
+      const lifted = setup.events.length > 0 ? ["DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision"] : [];
+      assert.deepEqual(done, ["POST /repos/o/r/issues/7/labels", ...lifted, "POST /repos/o/r/issues/7/comments"]);
+      assert.deepEqual(writes(fake.calls)[0].body, { labels: ["needs-triage"] });
+      assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
+    });
+
+    test(`an exact refinement of ${branch} the lanes App filed with no task list keeps the labels: its refinement is no one's spec`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: { ...specOf(), author: actor(APP) } });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+      );
+      assert.match(writes(fake.calls)[0].body.body, /post them as your own comment/);
+    });
+
     test(`an exact refinement of ${branch} reads the spec before its first label write and re-triages on a listed human's task list`, async () => {
       const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: specOf("The README is wrong.\n\n- [ ] The README count matches the plugin count") });
       const result = await apply(fake, EXACT);

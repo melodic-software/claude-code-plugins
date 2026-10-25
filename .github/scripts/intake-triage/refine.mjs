@@ -27,8 +27,9 @@
 // criteria as a task list. On an issue a listed human filed, admit.mjs and
 // pr-verify count the newest refinement as spec while it is unedited (owner
 // decision Q78); on any other issue its criteria count only once a listed
-// human posts them as their own. Only when that text already holds a task list
-// (admit.mjs hasTrustedCriteria) does it ask for one more triage, which runs
+// human posts them as their own. Only when that text, with this refinement
+// counted as posted, holds a task list (admit.mjs hasTrustedCriteria) does it
+// ask for one more triage, which runs
 // admission again: it takes the lanes App's `status: needs-decision` off, or,
 // for a `status: ready` issue admission has not taken, keeps the labels, adds
 // `needs-triage`, and sets the job's `redispatch` output. Otherwise the labels
@@ -603,8 +604,8 @@ export function splitBody(body, taskList, moved) {
 // edit leaves the held items in place for the next triage to hold and split
 // again, reusing that comment.
 // `humans` and `rules` decide whether an exact refinement asks for a
-// re-triage (admit.mjs hasTrustedCriteria); a failed read of the spec throws
-// before any label write.
+// re-triage (admit.mjs hasTrustedCriteria, over the spec with this refinement
+// posted); a failed read of the spec throws before any label write.
 export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -648,14 +649,19 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "split", redispatch: true };
   }
   const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });
-  // Admission reads criteria only from a listed human's text, so a re-triage
-  // without them would refuse again: one read, before any label write.
+  // Admission reads criteria only from a listed human's text and, on an issue
+  // a listed human filed, the newest unedited refinement, so a re-triage
+  // without them would refuse again. It judges the spec as it will read once
+  // this refinement is posted, as the newest comment: one read, before any
+  // label write.
   const untrusted = async () => {
-    if (hasTrustedCriteria(await specOf(github, repository, number), humans, rules["task-list"], appId)) {
+    const spec = await specOf(github, repository, number);
+    const refinement = { body: render(output, { body: issue.body, retriage: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
+    if (hasTrustedCriteria({ ...spec, comments: [...spec.comments, refinement] }, humans, rules["task-list"], appId)) {
       return false;
     }
     await post();
-    log(`refine: #${number} is exact; no listed human's text holds a task list yet, so the labels stay and no triage is asked`);
+    log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
   if (!output.exact) {
