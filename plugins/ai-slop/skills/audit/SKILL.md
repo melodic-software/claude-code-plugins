@@ -165,8 +165,9 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   the root is skipped; the script names each on stderr. Pass a skipped link's target as an
   explicit path.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
-- The detector's user config layer is the JSON file named for the plugin under `$HOME/.claude`
-  even when `CLAUDE_CONFIG_DIR` is set, and its project layers come from the session's project
+- The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
+  `CLAUDE_CONFIG_DIR` is set; the move to YAML covers the team and personal layers only, so this
+  user-global file keeps its JSON name. Its project layers come from the session's project
   directory.
 - A path target such as `~/.claude` covers every `*.md` beneath it.
 
