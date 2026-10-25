@@ -381,6 +381,10 @@ def block($d):
     (if $d.mode == "audit" then "Run: audit scratch directory, removed on exit"
      else "Run journal: \($d.run_dir)" end),
     "Timing: \($d.timings.total | secs) run total"
+    # A re-entry digest times both passes; the marketplace rows above time the
+    # re-entry alone.
+    + (if ($d.timings.passes // null) == null then ""
+       else " over both passes (first pass \($d.timings.passes[0].total | secs), --only-install re-entry \($d.timings.passes[1].total | secs); the wait between them is not counted)" end)
     + (if $d.timings.outside_marketplaces == null then ""
        else "; \($d.timings.outside_marketplaces)s outside the marketplace blocks" end)
     + "; clock resolution: \($d.timings.resolution)",
