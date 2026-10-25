@@ -3,6 +3,48 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.2] - 2026-10-25
+
+### Fixed
+
+- `/source-control:babysit-prs`'s merge gate posts an escalation to a person (its risk, verifier, held-major and shared-copy escalations, written with the human-gated label) as a new comment instead of editing its earlier one. An edit sent no notification and kept the comment's old date, so the label stood with no visible reason. A reasons comment that is not escalated is still edited in place, and an unchanged escalation is not posted again; a body that differs only in line endings or trailing whitespace counts as unchanged. Changed reasons on a comment already escalated at the same head post the new escalation instead of rewriting it without its escalation line while the label stays on.
+- The merge gate's automatic re-run of a failed AI review check also fires when the lane's review post hit GitHub's API rate limit, on exactly the annotations the review evidence accepts a second attempt after, so the re-run's attempt binds. It was re-run only after `class=rate-limit`, which left such a check failed until a person re-ran it.
+
+## [3.3.1] - 2026-10-25
+
+### Fixed
+
+- `/source-control:babysit-prs`: `babysit_verify_evidence.py evidence --lane-queue` (with `--lane-reviews` and `--base-sha`) adds a `queue` field to a line whose risk read holds nothing: the head's failed-check merge-queue removals since it last changed, the `merge.max-queue-ejections` limit, and at or over it the gate's refusal and its `<!-- babysit-merge-queue-ejections -->` comment body. A read that fails refuses as the gate's unreadable hold and names why in `readError`; a failed read of the failing runs keeps the refusal, with no comment and its error in `commentError`. The gate's unattended enqueue and this field share one function for the refusal and the comment body, `babysit_merge.queue_ejection_hold`.
+
+## [3.3.0] - 2026-10-25
+
+### Added
+
+- `lib/convention-key.sh`, the team-layer reader for the convention keys: `layer ROOT KEY` prints `yaml`, `legacy-md` or `none`, and `value` and `list` print the YAML value.
+
+### Changed
+
+- The commit and PR convention keys (`subject_pattern`, `type_list`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`, `pr_body_required_sections`, `branch_issue_pattern`) now take their team value from `docs/conventions/source-control.yaml`, validated by `schemas/source-control.schema.json`. `.claude/source-control.md` is read only for a key the YAML lacks, for one release, and a YAML the shared reader rejects stops the lookup instead of falling back. `/source-control:setup apply layer=team` writes the YAML and moves the convention keys out of the legacy file.
+- `parse-branch-issue.sh` reads `branch_issue_pattern` from the team YAML before the legacy markdown, and `--explain` prints the layer that supplied the pattern on stderr. Like `/source-control:commit`, it reads either team file only when git tracks it and notes an untracked one it skipped. The deprecation note for the `branch_issue_pattern` userConfig now points at the YAML.
+
+### Fixed
+
+- `/source-control:babysit-prs` binds a review lane's second attempt when the first failed because posting the review hit GitHub's API rate limit: an annotation that opens with that lane's `failure-class=publish-failed` line whose detail opens with `API rate limit exceeded` or `You have exceeded a secondary rate limit`. Such a re-run was refused as `rerun-not-allowed`, which left later incremental reviews unbound (`incremental-gap`). Any other publish failure still refuses the re-run.
+
+## [3.2.2] - 2026-10-25
+
+### Fixed
+
+- `babysit_verify_evidence.py evidence --lane-link` now applies the trust hold to the linked issue, so a label naming untrusted work that lands on it after admission, while the lane builds, stops the arm. The issue's labels come with the link's GraphQL read, and its timeline costs one more REST read. A label holding `untrusted` in any case refuses as `untrusted-provenance`, one removed by a non-human or through an App as `untrusted-provenance-removed-by-non-human`, and labels that cannot be read whole as `issue-labels-unreadable`; a failed timeline read refuses as `unreadable:`. Each one is reported as `ineligible`. The checks live in one function, `babysit_merge_policy.trust_refusal`, which `eligibility` now calls too.
+
+- `lane_eligibility`, the pr-merge lane's gate when it merges lane pull requests itself (not `merge.lane-prs: native`), now applies the trust hold (`trust_refusal`) to the linked issue, as `eligibility` does. A label naming untrusted work, in any spelling, refuses as `untrusted-provenance`; the match on `untrusted` is ASCII-case-insensitive only, as the merge queue's check matches it, so a letter that folds to an ASCII one (`ſ`, `ﬆ`) no longer matches in one and not the other. One removed by a non-human or through an App refuses as `untrusted-provenance-removed-by-non-human`. Unreadable labels refuse as `issue-labels-unreadable`, and a failed timeline read as `unreadable:`. This adds one REST read of the issue timeline per lane pull request with a linked issue. report-outcome already writes a `Hold:` line when the issue carries the exact label at PR open, so this covers a label added after open, or any other spelling.
+
+## [3.2.1] - 2026-10-25
+
+### Changed
+
+- The babysit-loop promotion-evidence references and `publish-promotion-evidence.mjs`, and `babysit_review_evidence.py` in babysit-prs, cite the autonomy plugin's setup skill and checker through `/autonomy:setup` and the security review through `/review:security-review`, instead of by paths or URLs into those plugins' `skills/` folders.
+
 ## [3.2.0] - 2026-10-25
 
 ### Added

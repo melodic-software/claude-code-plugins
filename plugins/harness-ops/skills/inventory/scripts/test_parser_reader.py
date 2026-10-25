@@ -731,7 +731,8 @@ class TestFlowQuery(unittest.TestCase):
             ("var A=Array;A.prototype.includes=f;", ["write"]),
             ("(0,Array).prototype.includes=f;", ["write"]),
             ("globalThis.Array.prototype.includes=f;", ["write"]),
-            ('Array["proto"+"type"].includes=f;', ["write"]),
+            # A computed read whose key may be `require` may load node:vm.
+            ('Array["proto"+"type"].includes=f;', ["write", "unknown-load"]),
             ('Reflect.get(Array,"prototype").includes=f;', ["write"]),
             (
                 "var e={hasOwnProperty(o){o.includes=f}};e.hasOwnProperty.call(null,[].__proto__);",
@@ -760,8 +761,26 @@ class TestFlowQuery(unittest.TestCase):
             ("(0,eval)(s);", ["indirect-eval"]),
             ("var e=eval;", ["indirect-eval"]),
             ("Function(s)();", ["function-constructor"]),
-            ("new Function(s);", ["function-constructor"]),
+            ("var F=new Function(s);F();", ["function-constructor"]),
             ("Function.call(0,s)();", ["function-constructor"]),
+            # #5901 slice 6: a build that runs, or folds to code that hits.
+            ('Function("Array.prototype.includes=f")();', ["function-constructor"]),
+            ('new Function("o","o.includes=f")(P);', ["function-constructor"]),
+            ('Function(`eval("")`)();', ["function-constructor"]),
+            ('Function("with(o){}")();', ["function-constructor"]),
+            ('Function("return this").call(0);', ["function-constructor"]),
+            # The built function binds no `anonymous`; that is a global here.
+            ('Function("anonymous.includes=f")();', ["function-constructor"]),
+            # A body's `-->` line is a comment, so the patch below it runs.
+            (
+                'Function("var y=0;y\\n-->`\\nArray.prototype.includes=f\\n//`")();',
+                ["function-constructor"],
+            ),
+            # A write of the global `Function` the folded calls trust.
+            ("Function=g;", ["global-write", "function-constructor"]),
+            ("globalThis.Function=g;", ["write"]),
+            ('Reflect.set(globalThis,"Function",g);', ["argument"]),
+            ('var isFunction=tagTester("Function");', []),
             ("globalThis.eval(s);", ["indirect-eval"]),
             ("window.Function(s)();", ["function-constructor"]),
             ("o.eval=f;", []),
@@ -769,9 +788,22 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],
             ),
+            ("Function.prototype.constructor(s)();", ["function-constructor"]),
+            # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
+            ("Function.prototype[k](s)();", ["unknown-load", "function-constructor"]),
+            ("var P=Function.prototype;", ["function-constructor"]),
+            ("Function.prototype.valueOf().constructor(s)();", ["function-constructor"]),
+            ("Function.prototype instanceof H;", ["function-constructor"]),
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
+            # #5901 slice 6: a `Function` build that runs no unknown code.
+            ('Function("return this")();', []),
+            ('function t(){try{return new Function(""),!0}catch(e){return!1}}', []),
+            ("function c(e){Function(`async function _check() {'use strict';\\n${e}\\n}`)}", []),
+            ("new Function(s);", []),
+            ('Function("a","b","return a+b")(1,2);', []),
+            ('Function("return Function(`return 1`)()")();', []),
             ("class C{constructor(k){this[k]=1}}", []),
             (
                 "class D extends B{constructor(k){super();this[k]=1}}",
@@ -823,6 +855,17 @@ class TestFlowQuery(unittest.TestCase):
         self.assertIsNone(self.reader.exports("var =;", 0, 6))
         star = 'export*from"/b.js";export var a=1;'
         self.assertIsNone(self.reader.exports(star, 0, len(star)))
+
+    def test_imports_lists_every_name_taken_by_name(self) -> None:
+        src = (
+            'import{a,b as c}/*x*/from"/a.js";import d from"/b.js";'
+            'import*as e from"/c.js";export{f as g}from/*y*/"/d.js";export*from"/e.js";'
+        )
+        self.assertEqual(
+            self.reader.imports(src, 0, len(src)),
+            [("a", "/a.js"), ("b", "/a.js"), ("f", "/d.js")],
+        )
+        self.assertIsNone(self.reader.imports("var =;", 0, 6))
 
 
 class TestModuleTable(unittest.TestCase):

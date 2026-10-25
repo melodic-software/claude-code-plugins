@@ -28,6 +28,8 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 
 ## Plan
 
+Citations checked at: <the full commit SHA check-plan-citations.sh printed as `commit=` at Step 4.7; every `path:line` in this file resolves at it>
+
 ### Goal
 <which Brief Problem it serves, What / Why / Done when, and the Brief's three Goal lines quoted verbatim>
 

@@ -95,8 +95,19 @@ RECORD_RE = re.compile(
 )
 SHA_RE = re.compile(rf"^{_SHA}$")
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-# The wrapper re-runs a review only after a usage-limit failure, once.
+# The reconciler re-runs any failed lane run once; attempt 2 binds only when
+# attempt 1 failed on a usage limit.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# Or when the review's own post hit GitHub's API rate limit: the message opens
+# with this lane's publish-review failure line (ci-workflows publish.cjs `fail`)
+# whose detail, the request error's message, opens with GitHub's primary or
+# secondary rate-limit text
+# (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+# Any other publish failure stays refused, so a re-run cannot hide one.
+PUBLISH_RATE_LIMIT_RE = re.compile(
+    r"(?P<lane>[\w-]+): failure-class=publish-failed: [^(\n]*"
+    r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
+)
 MARKER_AUTHOR = "github-actions[bot]"
 MARKER_RE = re.compile(
     rf"^<!-- claude-lane-reviewed-head lane=([\w-]+) sha=({_SHA}) -->$"
@@ -127,7 +138,7 @@ def _lane_comment(lane: str, login: object, body: str) -> bool:
 
 
 # The lane whose findings hold the merge only at its top tier, CRITICAL
-# (plugins/review/skills/security-review/SKILL.md, "Reporting"): each inline
+# (/review:security-review, "Reporting"): each inline
 # comment carries one `severity:` line, and the summary one
 # `critical-findings:` line counting its CRITICAL findings with no inline
 # comment. A comment or summary without exactly one readable line counts every
@@ -365,8 +376,8 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if first.get("conclusion") != "failure" or not _rate_limited(
-            _lane_job(lane, newest["id"], first)
+        if first.get("conclusion") != "failure" or not rate_limited(
+            lane, _lane_job(lane, newest["id"], first)
         ):
             raise Unbound("rerun-not-allowed")
     job = _lane_job(lane, newest["id"], latest)
@@ -421,11 +432,17 @@ def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str
     return job
 
 
-def _rate_limited(job: Mapping[str, Any]) -> bool:
+def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
+    def limited(message: str) -> bool:
+        publish = PUBLISH_RATE_LIMIT_RE.match(message)
+        return bool(RATE_LIMIT_CLASS_RE.search(message)) or (
+            publish is not None and publish["lane"] == lane
+        )
+
     return any(
         isinstance(a, Mapping)
         and a.get("annotation_level") == "failure"
-        and RATE_LIMIT_CLASS_RE.search(str(a.get("message") or ""))
+        and limited(str(a.get("message") or ""))
         for a in job["annotations"]
     )
 

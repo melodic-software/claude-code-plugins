@@ -87,7 +87,7 @@
 //   undo it.
 // - A cell's window runs from its first counted merge to its last.
 //
-// Event shape and vocabulary: plugins/autonomy/skills/setup/scripts/check-security-binding.mjs,
+// Event shape and vocabulary: the autonomy plugin's check-security-binding.mjs (/autonomy:setup),
 // CONTRARY_EVIDENCE_EVENTS and resolveEffectivePromotion; restated here, not imported, because
 // no plugin reads another plugin's files. Predicate terms and suggested default thresholds:
 // plugins/autonomy/reference/guardrails/work-classes.md "Suggested default predicates".

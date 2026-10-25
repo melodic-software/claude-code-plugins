@@ -12,15 +12,6 @@
     "songwriting:suno",
     "songwriting:metaphor"
   ],
-  "competitor_dirs": {
-    "songwriting:co-write": "plugins/songwriting/skills/co-write",
-    "songwriting:diagnose": "plugins/songwriting/skills/diagnose",
-    "songwriting:practice": "plugins/songwriting/skills/practice",
-    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
-    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
-    "songwriting:suno": "plugins/songwriting/skills/suno",
-    "songwriting:metaphor": "plugins/songwriting/skills/metaphor"
-  },
   "queries": [
     {
       "id": "pos-train-01",

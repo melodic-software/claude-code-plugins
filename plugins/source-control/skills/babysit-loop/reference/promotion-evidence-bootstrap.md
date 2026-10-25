@@ -24,8 +24,7 @@ on launch lines; lifting it is the owner's call after Phase 3 of the plan.
 The surfaces come only from the class the autonomy setup skill names for security resolution:
 org-level platform configuration outside repo blast radius, or the executor's trusted deployment
 config
-([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md)
-"Agent-unwritable bootstrap for security resolution", not restated here). The lane receives their
+(`/autonomy:setup`, "Agent-unwritable bootstrap for security resolution", not restated here). The lane receives their
 locations through the plugin options below. Claude Code reads plugin options from user
 settings, the `--settings` flag, and managed settings only, and ignores a project's
 `.claude/settings.json` for them
@@ -101,8 +100,8 @@ file states the requirement and does not certify a deployment.
 | `promotion_evidence_checker` | (the program it runs) | file: the `check-security-binding.mjs` that decides promoted |
 | `promotion_evidence_credential_roots` (optional) | `--credential-roots <path,path,...>`, only when set | the probe host's trusted credential locations |
 
-The checker's `Usage:` comment, and its `usage:` error message, list its arguments
-([`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)).
+The checker's `Usage:` comment, and its `usage:` error message, list its arguments (the autonomy
+plugin's `check-security-binding.mjs`, shipped with `/autonomy:setup`).
 
 ### `promotion_evidence_binding`
 
@@ -345,7 +344,7 @@ section states the behavior.
   `--settings`, and managed settings, a repository's `env` block can populate the
   `CLAUDE_PLUGIN_OPTION_*` variable of an unset option, and a skill body's option placeholders
   substitute into model-visible content, non-sensitive values only.
-- **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
+- **Basis:** the autonomy plugin's `check-security-binding.mjs` (`/autonomy:setup`; `Usage:` comment,
   `verifyProbeTranscript`, `resolveEffectivePromotion`, evaluation-mode header comment);
   `docs/conventions/hook-config-delivery/README.md` facts 4, 5, and 7; the
   [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
@@ -361,7 +360,7 @@ section states the behavior.
   `--evidence`, and `--probe-evidence-root`, plus `--credential-roots` when
   `promotion_evidence_credential_roots` is set and every entry passes its lexical checks; a bad
   entry, or a checker exit of 1, fails the helper closed.
-- **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
+- **Basis:** the autonomy plugin's `check-security-binding.mjs` (`/autonomy:setup`; `Usage:` comment,
   the `credentialRoots === null` branch of the credential-probe check, `verifyProbeTranscript`);
   `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs`
   (`credentialRootsArgs`, the `spawnSync` argv and the non-zero-exit branch), checked 2026-10-13.
@@ -375,7 +374,7 @@ section states the behavior.
   inside the checkout or a worktree root, or containing one, with or without symlinks resolved,
   and a probe evidence root that is an ancestor of either. This plugin does not discover another
   plugin's install directory, so the bootstrap names the checker.
-- **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (the
+- **Basis:** the autonomy plugin's `check-security-binding.mjs` (`/autonomy:setup`; the
   `Effective promotion state (evaluation mode):` print);
   `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs`
   (`resolveInput`, the `spawnSync` call);

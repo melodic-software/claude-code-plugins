@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "It holds for every feature, so it goes once in the hub's ## Gotchas in .claude/skills/control-clockwork/SKILL.md. Doc drift; the outcome is changed and it ships on control-skill-upkeep/control-clockwork.",
+      "why": "names the hub's Gotchas"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I would add the dismiss-the-banner step to the Drive of each of the four feature READMEs.",
+      "why": "copies it into every feature file"
+    },
+    {
+      "answer": "Add the dismiss-the-banner note to each of the four feature READMEs' Gotchas and open a PR on GitHub.",
+      "why": "copies it into every feature; GitHub must not read as the hub"
+    }
+  ]
+}

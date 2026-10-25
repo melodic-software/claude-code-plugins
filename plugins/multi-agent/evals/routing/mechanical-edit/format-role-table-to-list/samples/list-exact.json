@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "# Roles\n\nEach role's bundled default. A consumer layer overrides per key.\n\n## Role defaults\n\n- `orchestrator`: inherit @ high\n- `worker`: inherit @ medium\n- `verifier`: inherit @ high\n- `retrieval`: sonnet @ medium\n\n## Workloads\n\n| Workload | Declared |\n|---|---|\n| code | true |\n| research | true |\n| mechanical | true |\n",
+      "why": "the converted file"
+    },
+    {
+      "answer": "## Role defaults\n- `orchestrator`: inherit @ high\n- `worker`: inherit @ medium\n- `verifier`: inherit @ high\n- `retrieval`: sonnet @ medium\n## Workloads\n",
+      "why": "no blank lines around the list"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "## Role defaults\n\n| Role | Model | Effort |\n|---|---|---|\n| orchestrator | inherit | high |\n| worker | inherit | medium |\n| verifier | inherit | high |\n| retrieval | sonnet | medium |\n\n## Workloads\n",
+      "why": "still a table"
+    },
+    {
+      "answer": "## Role defaults\n\n- `worker`: inherit @ medium\n- `orchestrator`: inherit @ high\n- `verifier`: inherit @ high\n- `retrieval`: sonnet @ medium\n\n## Workloads\n",
+      "why": "row order changed"
+    },
+    {
+      "answer": "## Role defaults\n\n- orchestrator: inherit @ high\n- worker: inherit @ medium\n- verifier: inherit @ high\n- retrieval: sonnet @ medium\n\n## Workloads\n",
+      "why": "role not in backticks"
+    },
+    {
+      "answer": "## Role defaults\n\n- `orchestrator`: inherit, high\n- `worker`: inherit, medium\n- `verifier`: inherit, high\n- `retrieval`: sonnet, medium\n\n## Workloads\n",
+      "why": "wrong separator"
+    }
+  ]
+}

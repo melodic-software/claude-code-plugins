@@ -1,4 +1,5 @@
 {
+  "restate": {"text": "Earlier rounds settled the base. One branch is open in the later step. This round turns on whether the later step runs.", "decided": [], "open": ["D2"]},
   "questions": [
     {"id": "D2", "group": "base", "stage": "interview", "short": "Later interview", "title": "Should the later step run?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]}
   ]

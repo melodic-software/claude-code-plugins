@@ -8,8 +8,9 @@ has a before-and-after score.
 
 `plugins/<plugin>/probes/<skill>.json`, inside the plugin being rewritten. The schema is the one
 in [`reference/invocation-probes.md`](../reference/invocation-probes.md#probe-shape): `skill`,
-`plugin`, `skill_dir`, `competitors[]`, `competitor_dirs`, and `queries[]` of `id`, `split`,
-`expect_trigger`, `request`.
+`plugin`, `skill_dir`, `competitors[]`, and `queries[]` of `id`, `split`, `expect_trigger`,
+`request`. Each competitor's directory is derived from its `plugin:skill` id, so the file holds no
+path into another plugin; add a `competitor_dirs` entry only for a rival outside `plugins/`.
 
 ## Rules
 

@@ -12,7 +12,9 @@
 // group, so a pending run can be one whose job already ran and that waits on
 // another group. A pending run counts only after a read of its jobs shows this
 // job waiting (queued, pending, waiting or requested); a job a condition
-// skipped is completed.
+// skipped is completed. Both jobs need post-merge-dispatch and are created
+// only once it ends, so a run still in that job has no waiting job and is not
+// counted: this job then does its work.
 //
 // A pending run's job does the work when the run is scheduled, or when its
 // actor id and its triggering actor's login are both a listed human's (the

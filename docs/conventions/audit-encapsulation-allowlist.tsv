@@ -2,3 +2,29 @@
 # A path is a file or a directory prefix ending in `/`. List only fixtures, evals and tests that
 # exist to exercise a detector; fix a real cite instead.
 plugins/docs-hygiene/skills/audit-encapsulation/scripts/detect.test.sh	regression fixtures embed literal cross-plugin, scripts/ and marketplace-id cites to exercise the detector
+plugins/attribution/skills/audit/evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/expected.json	golden case for the attribution audit's eval; its adjudication records the third-party repository URL its planted copy came from, a plugin skill path the detector cannot tell from this marketplace's
+plugins/attribution/skills/audit/scripts/list-corpus.test.sh	builds a scratch marketplace with plugins/demo/skills/ vendor and eval fixtures to exercise list-corpus.sh's corpus exclusions
+plugins/code-metrics/skills/audit-duplication/scripts/test_registry_filter.py	feeds synthetic plugins/<p>/skills/<s>/scripts/ instance paths to exercise the duplication registry filter's glob members
+plugins/guardrails/hooks/run-guards.test.sh	builds a scratch plugins/alpha/skills/setup tree to exercise run-guards.sh's post-tool dispatch
+plugins/guardrails/hooks/skill-reference-verify.test.sh	builds scratch plugin skill trees to exercise skill-reference-verify.sh's skill resolution
+plugins/harness-config/skills/audit-instructions/scripts/emit-findings.test.sh	uses a synthetic plugins/demo/skills/tool path to exercise emit-findings.sh's lane and surface findings
+plugins/harness-config/skills/audit-permission-grants/evals/evals.json	eval prompt names a hypothetical plugins/deploy/skills/ship/SKILL.md to exercise the permission-grant audit's inert-grant verdict
+plugins/harness-config/skills/audit-permission-grants/scripts/permission-rule-check.test.sh	builds scratch plugin skill trees to exercise permission-rule-check.sh's skill scope and remedies
+plugins/harness-config/skills/audit/scripts/check-effort-pins.test.sh	builds a scratch tree with plugin skill and lane-config files to exercise check-effort-pins.sh's pin kinds
+plugins/harness-config/skills/unhobble/evals/evals.json	eval prompt names a hypothetical plugins/formatter/skills/format/SKILL.md to exercise unhobble's strip plan
+plugins/harness-ops/evals/an-apply-defer-row-refused/	scaffold and graded samples edit a scaffolded plugins/demo skill to exercise the protected-path refusal grader
+plugins/harness-ops/evals/av-young-store-withholds/	graded samples touch hypothetical plugin skill paths to exercise the young-store withhold grader
+plugins/harness-ops/skills/audit-native-overlap/scripts/test_overlap.py	builds scratch marketplace plugin skills to exercise overlap.py
+plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh	builds a scratch plugins/alpha/skills/one tree to exercise the skill-visibility audit
+plugins/harness-ops/skills/changelog/evals/fixtures/owner-surfaces.md	fixture owner-surface table names a hypothetical plugin skill to exercise the changelog skill's owner routing
+plugins/harness-ops/skills/changelog/scripts/discover-surfaces.test.sh	builds a scratch marketplace with plugin skills to exercise discover-surfaces.sh
+plugins/instruction-placement/scripts/render-index.test.sh	builds a scratch plugins/demo/skills/ fixture directory to exercise render-index.sh's fixture exclusion
+plugins/multi-agent/skills/audit-defaults/scripts/list-scripts.test.sh	builds scratch plugin skill files to exercise list-scripts.sh's per-plugin grouping
+plugins/plugin-quality/skills/audit/scripts/collect-categories.test.sh	sample finding names a hypothetical plugin skill component to exercise collect-categories.sh
+plugins/skill-quality/scripts/check-skill.test.sh	builds scratch plugins/p1/skills/ trees to exercise check-skill.sh's walk and evals-warrant exemptions
+plugins/source-control/evals/babysit-loop-forged-checkout-settings-not-trusted/samples/forged-surfaces-never-used.json	graded sample tool calls name the promotion helper and binding checker paths to exercise the forged-settings grader
+plugins/source-control/evals/babysit-loop-missing-bootstrap-names-option/samples/no-resolver-run.json	graded sample tool calls name the promotion helper and binding checker paths to exercise the no-resolver-run grader
+plugins/source-control/skills/babysit-prs/scripts/tests/	feed plugin skill paths as changed files, CODEOWNERS rows and job logs to exercise the babysit risk, merge, review-evidence and post-merge engines
+plugins/source-control/skills/pull-request/scripts/feedback-thread.test.sh	feeds plugin skill paths to exercise feedback-thread.sh's path classification
+plugins/testing/skills/audit/evals/judge-calibration/cases/	calibration cases are copies of repository tests, with the skill paths they cite, to exercise the test-audit judge
+plugins/testing/skills/audit/evals/judge-calibration/labels.tsv	labels record each case's source path and code under test to exercise the test-audit judge's calibration

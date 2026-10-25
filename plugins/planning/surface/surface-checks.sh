@@ -56,12 +56,14 @@ if [[ "$part" == main || "$part" == all ]]; then
     p=${p%/}
     names="${names:+$names|}${p##*/}"
   done
-  # One exemption: exporters.py's ARBITER_PLAN line writes the Brief contract's arbiter token
-  # (the Deferred questions tag in the interview skill's Brief template), which names the resolver
-  # of a deferred question, never a visual's producer. A CSS declaration after `{` or `;`
-  # (`{animation:pulse ...}`) is a property, not a token.
+  # Two exemptions, each naming /planning:plan as the actor on a decision, never a visual's
+  # producer: exporters.py's ARBITER_PLAN line writes the Brief contract's arbiter token (the
+  # Deferred questions tag in the interview skill's Brief template), and the superseded-by-plan
+  # banner in index.html, with its ui_c.js assertion, says the plan changed the user's answer.
+  # A CSS declaration after `{` or `;` (`{animation:pulse ...}`) is a property, not a token.
   hits=$(grep -nE "(^|[^a-z0-9{;-])($names):[a-z-]+" "${files[@]}" |
-    grep -vE '^exporters\.py:[0-9]+:ARBITER_PLAN = "\*\*arbiter: /planning:plan\*\*"$')
+    grep -vE '^exporters\.py:[0-9]+:ARBITER_PLAN = "\*\*arbiter: /planning:plan\*\*"$' |
+    grep -vE '^(index\.html|tests/ui_c\.js):[0-9]+:.*planning:plan changed your answer')
   if [[ -z "$hits" ]]; then ok "AC35: no skill token in ${#files[@]} files"; else bad "AC35: skill tokens: $hits"; fi
 
   # AC34: no user name, home path, or port other than the documented default 0 (a free port).

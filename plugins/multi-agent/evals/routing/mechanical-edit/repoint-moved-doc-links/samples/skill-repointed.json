@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "# Route\n\nA role that resolves to haiku gets a note; the rule is in\n[the routing rubric](../../reference/routing/rubric.md#the-rule).\n",
+      "why": "repointed with the anchor kept"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "[the routing rubric](../../reference/routing-rubric.md#the-rule).\n",
+      "why": "still the old path"
+    },
+    {
+      "answer": "[the routing rubric](../../reference/routing/rubric.md).\n",
+      "why": "anchor dropped"
+    },
+    {
+      "answer": "[the routing rubric](reference/routing/rubric.md#the-rule).\n",
+      "why": "path written as if from the plugin root"
+    }
+  ]
+}

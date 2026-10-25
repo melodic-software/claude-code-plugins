@@ -243,6 +243,7 @@ NEEDS_HUMAN = (
 )
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
+    "labels(first:100){totalCount nodes{name}} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
@@ -1337,7 +1338,11 @@ class Reader:
         takes from a pull request the lane opened, or None when it is: the
         gate's own rule (`merge_policy._linked_issue`, as `lane_eligibility`
         reads it), so one closing issue in this repository, or, with none,
-        the one issue its plain `Refs:` lines name. A failed read refuses."""
+        the one issue its plain `Refs:` lines name. Then the trust hold on that
+        issue as `eligibility` reads it (`merge_policy.trust_refusal`), so a
+        label naming untrusted work added after admission, or one a non-human
+        removed, refuses at arm time; its labels come with the link's read,
+        its timeline in one more. A failed read refuses."""
         try:
             pull = json_object(
                 self._graphql(CLOSING_QUERY, number, "closing issues").get(
@@ -1345,6 +1350,23 @@ class Reader:
                 )
             )
             issue, refusal = merge_policy._linked_issue(pull, self.repo)
+            if refusal is None:
+                owner, _, name = self.repo.partition("/")
+                permission = merge_policy.permission_reader(self.repo)
+                # No agent identity: the lanes App is a Bot, which is never
+                # human (`merge_policy.is_human`).
+                refusal = merge_policy.trust_refusal(
+                    owner,
+                    name,
+                    issue,
+                    lambda actor: merge_policy.is_human(
+                        actor,
+                        repo=self.repo,
+                        agent_identity=None,
+                        permission=permission,
+                    ),
+                    {},
+                )
         except (_Unreadable, merge_policy.PolicyReadError) as exc:
             return f"unreadable: {exc}"
         if refusal is None:
@@ -1904,6 +1926,40 @@ def lane_risk_refusal(
     return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
 
 
+def lane_queue(
+    repo: str, branch: str, number: int, head: str, limit: int
+) -> dict[str, Any]:
+    """The merge queue's failed-check removals of `head` and whether pr-merge's
+    gate would enqueue it again under `merge.max-queue-ejections` `limit`
+    (`babysit_merge.queue_ejection_hold`), with the gate's marked comment when
+    the cap refuses. A read that fails refuses as the gate's unreadable hold,
+    with no comment, and names why in `readError`; a failed runs read keeps
+    the refusal, with no comment and its error in `commentError`."""
+    # Imported here: babysit_merge imports this module.
+    import babysit_merge  # noqa: PLC0415
+
+    try:
+        queue = babysit_merge.read_merge_queue(repo, number)
+    except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
+        queue = {"readError": f"{type(exc).__name__}: {exc}"}
+    read_error = queue.get("readError") or None
+    count = None if read_error else queue.get("failedEjections")
+    count = count if isinstance(count, int) else None
+    if count is None and read_error is None:
+        read_error = "the merge queue's timeline items could not be counted"
+    refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
+        repo, branch, number, head, count, limit
+    )
+    return {
+        "failedEjections": count,
+        "limit": limit,
+        "refusal": refusal,
+        "comment": comment,
+        "readError": str(read_error) if read_error else None,
+        "commentError": comment_error,
+    }
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -1919,12 +1975,17 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again on a listing of its own, as the gate does before it allows.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
-    pull request's issue link is one the pr-merge lane takes
-    (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
+    pull request's issue link is one the pr-merge lane takes and its issue
+    clears the trust hold (`Reader.link_refusal`), else why not, with refusal
+    `verify:ineligible`
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
-    the pull request on its risk score (`lane_risk_refusal`), else why.
+    the pull request on its risk score (`lane_risk_refusal`), else why. With
+    `--lane-queue` too, a line whose `reviews` is null also carries `queue`
+    (`lane_queue`): the head's failed-check merge-queue removals, the
+    `merge.max-queue-ejections` limit, and the gate's refusal and comment at
+    or over it.
 
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now
@@ -1944,6 +2005,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--base-sha", default=None)
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("--lane-reviews", action="store_true")
+    cmd.add_argument("--lane-queue", action="store_true")
     cmd.add_argument("--rung", default=None)
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
@@ -1978,6 +2040,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         parser.error(
             "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
         )
+    if args.lane_queue and not (args.lane_reviews and args.base_sha):
+        # The reviews read checks the head the count is for and reads the limit.
+        parser.error("--lane-queue needs --lane-reviews and --base-sha")
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
     link: dict[str, Any] = {}
     config: merge_policy.PipelineConfig | None = None
@@ -2035,6 +2100,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                     config,
                     reader.linked_issue.get(args.number),
                 )
+            )
+        if args.lane_queue and link["reviews"] is None and config is not None:
+            link["queue"] = lane_queue(
+                args.repo,
+                args.branch,
+                args.number,
+                args.head,
+                config.max_queue_ejections,
             )
     print(json.dumps(evidence.report() | link))
     return 0
