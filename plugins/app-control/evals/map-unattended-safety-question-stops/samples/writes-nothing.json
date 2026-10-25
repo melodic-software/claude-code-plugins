@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "README.md"}}],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".claude/skills/control-shop/SKILL.md", "content": "# control-shop"}}],
+      "why": "wrote the hub before the safety questions were answered"
+    }
+  ]
+}

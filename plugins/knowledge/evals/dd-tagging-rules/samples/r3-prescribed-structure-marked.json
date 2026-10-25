@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R3 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch), unverified-inference | No page prescribes a three-tier structure; near-miss delegates.md:3."
+    },
+    {
+      "answer": "- **ROW R3** | `cc-applicable` | `vendor-claimed (blog, 2026-10-20 fetch)` | blog-only method."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R3 | cc-applicable | unverified-inference | A directive, not an assertion of fact; subagents are documented at delegates.md:3.",
+      "why": "directive treated as exempt from the marker"
+    },
+    {
+      "answer": "ROW R3 | cc-applicable | none | delegates.md:3.",
+      "why": "topical page treated as basis, marker absent"
+    }
+  ]
+}

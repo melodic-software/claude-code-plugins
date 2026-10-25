@@ -2,8 +2,9 @@
 # handoff-evidence.sh: what a lane's read-runner calls left behind, read from
 # this run's jobs through the Actions API, never from a call's outputs (its run
 # job runs head code and can forge them). Run by every job that decides on a
-# handoff: pr-unblock.yml's handoff jobs and fix-ci-unreported, and
-# pr-refine.yml's fix-docs-handoff.
+# handoff: pr-unblock.yml's handoff jobs and fix-ci-unreported,
+# pr-refine.yml's fix-docs-handoff, and work-resolve-issue.yml's
+# resolve-issue-handoff.
 #
 # Facts, each over the calls in CALLS (true when any call holds it):
 #   allowed  the call's broker-allowed job succeeded: pr-run-activity-read.yml
@@ -14,6 +15,9 @@
 #            that ran answers through its "Post the check run" step, and one
 #            whose steps are listed without it (it ended before that step)
 #            is false.
+#   handed-off  the call handed off: allowed, its run job succeeded, and its
+#            scan job, which the read runner skips only on a handoff, is
+#            skipped or absent. All three are job conclusions.
 #
 # GitHub's jobs listing can return a job's steps empty, or a step's conclusion
 # null, for minutes after the job ends. Job-level fields come at once, so they
@@ -23,19 +27,20 @@
 # job is absent or neither succeeded nor skipped answers through its broker
 # step the same way.
 #
-# Usage: handoff-evidence.sh FACT... (allowed, posted)
+# Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
-# Outputs: one FACT=true|false line per requested fact. Exit 1, with one
+# Outputs: one FACT=true|false line per requested fact, and one log line
+# naming them with the read count. Exit 1, with one
 # ::error line naming what stayed missing and no output, when a fact is still
 # unsettled after the last read; callers read an empty output as a failed read.
 set -euo pipefail
 
 [[ $# -gt 0 ]] || {
-  echo "::error::usage: handoff-evidence.sh FACT... (allowed, posted)"
+  echo "::error::usage: handoff-evidence.sh FACT... (allowed, posted, handed-off)"
   exit 2
 }
 for fact in "$@"; do
-  case $fact in allowed | posted) ;; *)
+  case $fact in allowed | posted | handed-off) ;; *)
     echo "::error::unknown handoff fact: $fact"
     exit 2
     ;;
@@ -68,13 +73,21 @@ settle='
     | if $r == null or $r.conclusion == "skipped" then "false"
       elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
       else by_step($r; "Post the check run") end;
+  def handed_off($c): allowed($c) as $a | job("\($c) / run") as $r | job("\($c) / scan") as $s
+    | if $a != "true" then $a
+      elif $r == null then "false"
+      elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
+      elif $r.conclusion != "success" then "false"
+      elif $s == null or $s.conclusion == "skipped" then "true"
+      elif ($s.conclusion // "") == "" then "missing: \($s.name) has no conclusion"
+      else "false" end;
   def any_of($vals): if any($vals[]; . == "true") then "true"
     elif any($vals[]; startswith("missing")) then ([$vals[] | select(startswith("missing"))] | join("; "))
     else "false" end;
   ($calls | split(" ") | map(select(. != ""))) as $cs
   | $facts | split(" ")[]
   | . as $f
-  | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) else posted(.) end]))"'
+  | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) else handed_off(.) end]))"'
 
 reads=0
 for delay in "${delays[@]}" ""; do
@@ -92,6 +105,7 @@ for delay in "${delays[@]}" ""; do
   fi
   if [[ -z $missing ]]; then
     printf '%s\n' "${answers//$'\t'/=}" >>"${GITHUB_OUTPUT}"
+    echo "handoff evidence: $(paste -sd ' ' - <<<"${answers//$'\t'/=}") ($reads read$([[ $reads -eq 1 ]] || echo s))"
     exit 0
   fi
   [[ -n $delay ]] || break

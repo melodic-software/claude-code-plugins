@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "\"Run the lane-ops queue end to end without me: green PRs merge, docs and releases refresh on schedule, and every lane reports what it did.\" Vision: \"I set intent; the lanes land the work and tell me what changed.\"",
+      "why": "verbatim"
+    },
+    {
+      "answer": "Run lane-ops end to end without him: merges, docs and release refreshes, lane reports. He sets intent; the lanes land work and say what changed.",
+      "why": "close restatement of both"
+    },
+    {
+      "answer": "The goal: green PRs merge, docs and releases refresh, every lane reports, without the owner. The vision: he sets intent, the lanes land it and report.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "To merge #4388 and #4390.",
+      "why": "the next step, not the goal"
+    },
+    {
+      "answer": "Run the queue without the owner.",
+      "why": "goal only, no vision"
+    },
+    {
+      "answer": "Make the lanes faster.",
+      "why": "invented"
+    }
+  ]
+}

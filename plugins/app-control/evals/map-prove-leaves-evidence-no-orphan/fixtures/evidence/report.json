@@ -1,0 +1,15 @@
+{
+  "app": "shop",
+  "control_skill": ".claude/skills/control-shop",
+  "fallback": null,
+  "mode": "interactive",
+  "launch": {"pid": 52140, "uid": 1000, "start_time": 734521, "command_line": "python3 server.py", "command_line_sha256": "9c4e2b7a1d0f3e6a5b8c7d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c"},
+  "ready": {"surfaces": ["http://localhost:8080"], "build": "4f2c9e1", "data": "local", "telemetry": []},
+  "steps": [
+    {"action": "open /cart", "entry_point": "header Cart link", "observed": "Cart (2 items), total 18.40", "artifacts": ["cart-header-01-screenshot.png"]},
+    {"action": "capture trace", "entry_point": "header Cart link", "observed": "trace written", "artifacts": ["cart-header-02-trace.zip"]}
+  ],
+  "capability_gaps": [],
+  "blocked": [],
+  "cleanup": {"stopped": [52140], "evidence": []}
+}

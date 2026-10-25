@@ -1,0 +1,56 @@
+schema_version: "1.1"
+name: dd-tagging-rules
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: r1-splits-documented-clause
+    type: regex
+    pattern: '(?=[\s\S]*?\bROW[ \t*_`]*R1[ab]\b[ \t*_`]*\|(?:[^|\n]*\|)?[^|\n]*vendor-claimed)(?=[\s\S]*?\bROW[ \t*_`]*R1[ab]\b[ \t*_`]*\|(?![^|\n]*vendor-claimed)[^|\n]*\|(?![^|\n]*vendor-claimed)[^\n]*skill-folders\.md\W{1,3}(?:line\s*|L)?5\b)'
+    flags: 'i'
+    target: last_message
+  - name: r2-near-miss-keeps-marker
+    type: regex
+    pattern: '\bROW[ \t*_`]*R2[a-z]?\b[ \t*_`]*\|(?:[^|\n]*\|)?[^|\n]*vendor-claimed'
+    flags: 'i'
+    target: last_message
+  - name: r3-prescribed-structure-marked
+    type: regex
+    pattern: '\bROW[ \t*_`]*R3[a-z]?\b[ \t*_`]*\|(?:[^|\n]*\|)?[^|\n]*vendor-claimed'
+    flags: 'i'
+    target: last_message
+  - name: r4-applied-method-inference-only
+    type: regex
+    pattern: '(?<![\s\S])(?=[\s\S]*?\bROW[ \t*_`]*R4[a-z]?\b[ \t*_`]*\|(?:[^|\n]*\|)?[^|\n]*unverified-inference)(?![\s\S]*?\bROW[ \t*_`]*R4[a-z]?\b[ \t*_`]*\|(?:[^|\n]*\|)?[^|\n]*vendor-claimed)'
+    flags: 'i'
+    target: last_message
+  - name: r5-contradicted-keeps-marker
+    type: regex
+    pattern: '\bROW[ \t*_`]*R5[a-z]?\b[ \t*_`]*\|(?=(?:[^|\n]*\|)?[^|\n]*vendor-claimed)(?=[^\n]*(?:contradict|conflict|negat|disagree|opposite))(?=[^\n]*delegates\.md\W{1,3}(?:line\s*|L)?5\b)'
+    flags: 'i'
+    target: last_message
+  - name: r6-stated-clause-unmarked
+    type: regex
+    pattern: '(?<![\s\S])(?=[\s\S]*?\bROW[ \t*_`]*R6\b[ \t*_`]*\|(?![^|\n]*vendor-claimed)[^|\n]*\|(?![^|\n]*vendor-claimed)[^\n]*prompting\.md\W{1,3}(?:line\s*|L)?5\b)(?![\s\S]*?\bROW[ \t*_`]*R6[a-z]?\b[ \t*_`]*\|(?:[^|\n]*\|)?[^|\n]*vendor-claimed)'
+    flags: 'i'
+    target: last_message
+  - name: r7-lever-word-cc-applicable
+    type: regex
+    pattern: '\bROW[ \t*_`]*R7\b[ \t*_`]*\|[ \t*_`]*cc-applicable[ \t*_`]*\|'
+    flags: 'i'
+    target: last_message
+  - name: r8-control-cc-applicable
+    type: regex
+    pattern: '\bROW[ \t*_`]*R8\b[ \t*_`]*\|[ \t*_`]*cc-applicable[ \t*_`]*\|(?![^|\n]*vendor-claimed)[^|\n]*\|[^\n]*event-hooks\.md'
+    flags: 'i'
+    target: last_message
+  - name: absence-names-unread-pages
+    type: regex
+    pattern: '(?<![\s\S])(?=[\s\S]*?(?:^|\n)[ \t*_>`|-]*ABSENCE\b[^\n]*\b[Ww]orkspaces\b)(?=[\s\S]*?(?:^|\n)[ \t*_>`|-]*ABSENCE\b[^\n]*\b[Cc]itations\b)(?![\s\S]*?(?:^|\n)[ \t*_>`|-]*ABSENCE\b(?![^\n]*\b(?:[Ww]orkspaces|[Cc]itations)\b))'
+    flags: ''
+    target: last_message
+  - name: read-profile
+    type: tool_used
+    tool: Read
+    input_match: 'anthropic-docs-profile'
+    min: 1
+    arm: with-only

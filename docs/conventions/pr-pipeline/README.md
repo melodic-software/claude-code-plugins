@@ -1692,8 +1692,11 @@ them on every `pull_request` run, contract-only runs included:
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
-  the cause named. A lane the kill switch stopped passes (no merge freeze), but a kill-switch job
-  that failed does not. A review skips a fork and a bot outside the caller's
+  the cause named. A lane a kill switch stopped (the switch was on when the review run started)
+  fails too: the kill switch pauses review and never waives it. Once it is off, a person on the
+  trusted-actor list re-runs all jobs of that review run, and its completion re-runs ci-status;
+  the admin bypass stays the break-glass. Only runs from this repository's head count, never a
+  fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) matches
@@ -1806,12 +1809,16 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
   as data. It returns at most three findings, each citing at least one `path`, `line` and exact
   `quote` from main.
-- **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
-  line in the run's main commit, then fingerprints it: a hash of the slice, workflow, job and the
-  error signature with numbers, SHAs and times removed. A finding whose fingerprint matches an
-  issue an earlier sweep filed and a person closed as not planned or duplicate is skipped, as is
-  one whose `covered_by` names an open item; one matching such an issue still open is listed as
-  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
+- **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
+  unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
+  lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
+  of the slice, workflow, job and the error signature with numbers, SHAs and times removed. A unit
+  whose data lists no jobs (a C unit, a D unit with no green run, an A unit whose runs list no failed
+  job) leaves the job unbound. The signature is free text in every slice, so binding does not stop a
+  steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
+  per unit. A finding whose fingerprint matches an issue an earlier sweep filed and a person closed
+  as not planned or duplicate is skipped, as is one whose `covered_by` names an open item; one
+  matching such an issue still open is listed as  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
   found by its first line `<!-- lane-sweep-digest -->`; each entry opens with
   `<!-- lane-sweep-entry fp=<fingerprint>[ tracked=<issue>] -->`, and the last line,
   `<!-- lane-sweep:fp=<fingerprint> -->`, holds the fingerprint of the entry set and each entry's
@@ -1955,7 +1962,7 @@ timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-d
 work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
 then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
 its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
-timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
+timeout is 40 minutes. The launcher's leg gets the timeout less 15 minutes, for the steps around it. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
@@ -1992,7 +1999,10 @@ leg hands off (`run-claude-cli`'s `handoff` output: a credit stop, or class `aut
 401 or 402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent`
 runs on the key, and `check-intent-subscription` runs on the token, on a new runner, only after
 `check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
-`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. The read runner's callers
+do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
+and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). Each lane's workflow names
 its role as a literal, and the runner policy admits it. A lane on pr-run-activity-write.yml passes
 its role as the `role` input, and the lane record names that role's token as the run's credential.
 
@@ -2005,8 +2015,13 @@ write-access trusted person's fix request on a thread after the newest round run
 on the requested threads only. With no such request, a security lane finding, a pr-verify note (an
 intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold
 hands the PR to a person; any other
-finding goes to one fresh fixer round, a new session like every round, and after it the PR skips
-`cost-gated` with no label until the next fix request. The default is 2; this
+finding goes to one fresh fixer round, a new session like every round. That is the last automatic
+round: once it has run, no sweep, schedule or dispatch starts another, and the next select hands
+the PR to a person as `feedback-not-converging`, a comment that names the open threads (a review
+that does not converge is an intent question). Removing the label alone does not resume it, since
+the rounds already run still count: a person resolves the open threads, or a write-access fix
+request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
+<M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 2; this
 repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
@@ -2033,6 +2048,7 @@ with defaults.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the limit the pool's `x-ratelimit-limit` header reports: `plan`, `writer-pause`, `breaker` and `read-floor`, plus `per-minute` and `per-hour` for `content-creation`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`). The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) reads only `read-floor`, to warn once while calls continue; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -2143,7 +2159,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
 | `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
-| `queued_issues`, `queued_total` | Queued issues with no open lane PR, and those plus the held lane PRs; null when a read failed. |
+| `queued_issues`, `queued_total` | Queued issues with no open lane PR and no blocker that still blocks (at most 30 blocker reads; an unread issue counts), and those plus the held lane PRs; null when a read failed. |
 | `queued_truncated` | `true` when the search counted more queued issues than it lists; admissions then pause. |
 | `queued_cap`, `admission_factor`, `admission_min_per_hour` | The queued cap and its inputs. |
 | `wip_over`, `held_over`, `admission_over`, `queued_over`, `held_alarm` | Which limit is crossed. |

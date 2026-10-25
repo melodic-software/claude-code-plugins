@@ -43,8 +43,10 @@ jobs:
   # Skips intake for an issue /work-items:decompose published already
   # triaged; see .github/actions/check-born-triaged. A failed gate leaves
   # skip empty, so intake falls through to the reusable, which turns away
-  # every person when human-ids is empty too. The job also resolves the lane's
-  # model, turns and effort from the triage-issue route of the default
+  # every person when human-ids is empty too. A rate limit on the gate's read
+  # sets rate-limited, which stops intake and its GitHub calls. The job also
+  # resolves the lane's model, turns and effort from the triage-issue route of
+  # the default
   # branch's models block; when that fails, claude-args is empty and intake
   # does not run, so it never falls back to the CLI's own model and an
   # unbounded turn budget. A dispatch runs only from main, so the trusted-actor
@@ -58,6 +60,7 @@ jobs:
       issues: read # read the issue's current body, type and labels
     outputs:
       skip: ${{ steps.check.outputs.skip }}
+      rate-limited: ${{ steps.check.outputs.rate-limited }}
       # When this run started: apply-verdict acts only on a lane comment
       # written at or after it.
       started-at: ${{ steps.started.outputs.at }}
@@ -81,6 +84,7 @@ jobs:
             /.github/actions/check-born-triaged/
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
+            /.github/actions/log-api-budget/
             /.github/actions/resolve-config/
             /.github/CODEOWNERS
             /.github/standards/github-actions-conventions/vocabulary.json
@@ -188,6 +192,7 @@ jobs:
     if: >-
       ${{ !cancelled()
       && needs.kill-switch.outputs.proceed == 'true'
+      && needs.born-triaged.outputs.rate-limited != 'true'
       && (github.event_name == 'workflow_dispatch' || needs.born-triaged.outputs.skip != 'true')
       && needs.born-triaged.outputs.claude-args != '' }}
     permissions:
@@ -248,15 +253,18 @@ jobs:
         a none class on its own: triage the lane-checkable items as usual, with their work class
         and fields. Admission holds the issue and posts the split itself.
 
-        VERDICT LINES. Begin your comment with these four lines, each at the start of its own line,
+        VERDICT LINES. Begin your comment with these five lines, each at the start of its own line,
         exactly in this form, one value each (the Flags line lists every flag that applies, comma
         separated, or none), before any quote or other text:
         Size: Small|Medium|Large
         Complexity: Low|Medium|High
         Uncertainty: Known|Knowable|Unknown
         Flags: none|intent|security|cost
-        A step with no model reads only those four lines and the proposed class, and sets the
-        issue's class label, fields and status from them.
+        Blocked by: none|#N[, #M]
+        The Blocked by line lists, as `#` and the number, each open issue in this repository that
+        must be done before this one, or none.
+        A step with no model reads only those five lines and the proposed class, and sets the
+        issue's class label, fields, status and blocked-by edges from them.
 
         COST. When the work an issue asks for would add or raise a charge that no diff shows (a new
         paid service or subscription, a plan upgrade, or an account, organization or repository
