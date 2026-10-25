@@ -418,6 +418,21 @@ class ParserReader:
         assert cached is not None
         return cached["files"]
 
+    def imports(self, src: str, lo: int, hi: int) -> list[tuple[str, str]] | None:
+        """Each name the module `src[lo:hi]` imports or re-exports by name
+        (`import{x}from f`, `export{x}from f`) with the path `f`, read from
+        its declarations, or None when it does not parse."""
+        key = ("imports", id(src), lo)
+        if key not in self._answers:
+            res = self._send("imports", src, lo, hi)
+            names = None if res.get("unreadable") else res["names"]
+            self._answers[key] = {
+                "names": None if names is None else [(n, f) for n, f in names]
+            }
+        cached = self._answers[key]
+        assert cached is not None
+        return cached["names"]
+
     def namespace(
         self, src: str, lo: int, hi: int, file: str, name: str
     ) -> dict[str, Any]:

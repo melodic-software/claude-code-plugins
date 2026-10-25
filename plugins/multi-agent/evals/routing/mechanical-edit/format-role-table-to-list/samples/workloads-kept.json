@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "- `retrieval`: sonnet @ medium\n\n## Workloads\n\n| Workload | Declared |\n|---|---|\n| code | true |\n| research | true |\n| mechanical | true |\n",
+      "why": "workload table unchanged"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "## Workloads\n\n- `code`: true\n- `research`: true\n- `mechanical`: true\n",
+      "why": "workload table converted too"
+    },
+    {
+      "answer": "## Workloads\n\n| Workload | Declared |\n| --- | --- |\n| code | true |\n| research | true |\n| mechanical | true |\n",
+      "why": "separator row reformatted"
+    }
+  ]
+}

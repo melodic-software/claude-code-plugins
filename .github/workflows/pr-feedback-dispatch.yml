@@ -123,7 +123,7 @@ jobs:
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
-          { . .base/.github/actions/log-api-budget/api-budget.bash && api_budget_wrap_gh github-token; } 2>/dev/null || true
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           # Every FAIL-shaped name, then the ones the readers take (the
           # grammar babysit_verify_evidence.NAME_RE holds, at most 194
           # characters, issues ascending and once each). A FAIL-shaped name

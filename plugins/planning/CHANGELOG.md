@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.105.0] - 2026-10-25
+
+### Added
+
+- `round.sh export-brief --into <PLAN.md>`, in place of `--out`, replaces only PLAN.md's `## Brief` section, from its heading to the next `#` or `##` heading outside a fenced block, and keeps every other byte of the file, its line endings included ([#9912](https://github.com/melodic-software/claude-code-plugins/issues/9912)). Text between `## Brief` and its first subheading, such as a start-fresh scope-change note, stays as written, and fenced blocks are read as `check-open-questions.sh` reads them. A PLAN.md that does not exist yet gets the whole export; one with no `## Brief` heading, more than one, or a fenced block that never closes is refused unchanged. The interview's wrap-up (`context/surface.md` step 2) uses it in place of merging the export by hand.
+
+### Fixed
+
+- `interview` (SKILL.md Steps 3 and 4, `context/loop.md`, `context/surface.md`) no longer implies the `--brief` gate catches a Brief edited after a Confirm: the gate reads only the `Restatement:` stamp, so the docs now say it cannot see such an edit and that the edit still needs a new `restate`, a fresh Confirm and another export.
+
+## [0.104.0] - 2026-10-25
+
+### Added
+
+- `scripts/check-plan-citations.sh` fails a PLAN.md whose `path:line` citation (a path from the repository root, then a line, a `start-end` range or a comma list of them) names a file, or a line, that does not exist at a named commit (default `HEAD`). It prints one `citation=` line per failure with its reason (`missing-path`, `not-a-file`, `line-zero`, `reversed` or `past-end`) and the full commit it checked at ([#10037](https://github.com/melodic-software/claude-code-plugins/issues/10037)). Citations inside code fences and on a line marked `<!-- citation-example -->` are skipped, and a fence left open exits 2. `/planning:plan`'s Step 4.7 outcome gate runs it, and the PLAN.md template carries a `Citations checked at:` line for the commit it printed.
+
+### Fixed
+
+- The shared interview lane says what to do when the watcher exits 4 after its run of empty waits: re-arm it with the command it prints while the session is still open.
+
+## [0.103.1] - 2026-10-25
+
+### Fixed
+
+- Harden the session bridge: the watcher exits after 40 consecutive empty waits (exit 4) so an orphaned watcher no longer keeps the server alive, the view bridge gates the wait and lease-release endpoints with a watcher-only token that the page never receives, and U+2028 and U+2029 are escaped in output lines. The README now states the single-user-workstation limit.
+
 ## [0.103.0] - 2026-10-25
 
 ### Added
