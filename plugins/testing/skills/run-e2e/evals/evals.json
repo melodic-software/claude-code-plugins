@@ -343,32 +343,32 @@
     },
     {
       "id": "feature-map-01",
-      "name": "map-doctor-before-first-drive",
-      "prompt": "/testing:run-e2e the timer page. .claude/skills/feature-map/SKILL.md exists; its index names the doctor `curl -fsS http://127.0.0.1:5180/healthz` and the driver playwright.",
-      "expected_output": "Before the first drive, the drive subagent runs the map's doctor command. Only when it passes does driving start; a failing doctor is reported as an environment failure with its output, and nothing is driven.",
+      "name": "control-skill-ready-before-first-drive",
+      "prompt": "/testing:run-e2e the timer page. .claude/skills/control-timer/SKILL.md exists; its ## Ready section is `curl -fsS http://127.0.0.1:5180/healthz` and its driving tool is playwright. That Ready exits 7 with `Failed to connect to 127.0.0.1 port 5180`.",
+      "expected_output": "Before the first drive, the drive subagent runs the control skill's Ready command. Only when it passes does driving start; a failing Ready is reported as an environment failure with its output, and nothing is driven.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Runs the map's doctor command before the first drive step",
-        "Drives nothing when the doctor fails, reporting an environment failure with its output"
+        "Runs the control skill's Ready command before the first drive step",
+        "Reports an environment failure carrying Ready's exit 7 output and drives no step"
       ]
     },
     {
       "id": "feature-map-02",
-      "name": "map-doctor-after-failed-drive",
-      "prompt": "/testing:run-e2e the timer page. A feature map exists with a doctor command. Mid-run, choosing the `Start` button times out.",
-      "expected_output": "The timeout is not yet a product failure. The run re-runs the health check and the map's doctor; if either fails it reports an environment failure with their output, and only a failure against a healthy app is reported as a product failure.",
+      "name": "control-skill-ready-after-failed-drive",
+      "prompt": "/testing:run-e2e the timer page. A control skill exists for the app, with a Ready command. Mid-run, choosing the `Start` button times out; afterwards the health check and Ready both pass.",
+      "expected_output": "The timeout is not yet a product failure. The run re-runs the health check and the control skill's Ready; if either fails it reports an environment failure with their output, and only a failure against a healthy app is reported as a product failure.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Re-runs the map's doctor after the failed step",
-        "Reports a product failure only when the doctor and health check pass"
+        "Re-runs the control skill's Ready after the failed step",
+        "Reports the Start timeout as a product failure, with the health output beside it"
       ]
     },
     {
       "id": "feature-map-03",
       "name": "every-entry-point-of-touched-feature",
-      "prompt": "/testing:run-e2e the dashboard start button. This branch changes src/timers/start.ts. The feature map's start-a-timer.md lists three entry points: the dashboard `Start` button, pressing `t` on the dashboard, and `POST /api/timers` from the browser extension.",
+      "prompt": "/testing:run-e2e the dashboard start button. This branch changes src/timers/start.ts. The control skill's features/start-a-timer/README.md lists three entry points: the dashboard `Start` button, pressing `t` on the dashboard, and `POST /api/timers` from the browser extension.",
       "expected_output": "The changed file maps to the Start a timer feature, so all three listed entry points are driven, not only the button the scenario names. The report has one line per entry point, each passed, failed, or not driven with a reason.",
       "files": [],
       "narration": true,
@@ -380,25 +380,25 @@
     {
       "id": "feature-map-04",
       "name": "map-driver-precedence",
-      "prompt": "/testing:run-e2e the export page. docs/conventions/testing.yaml sets `e2e_driver: harness`; the feature map's index records the driver playwright.",
-      "expected_output": "With no session instruction naming a driver, the map's recorded driver wins over e2e_driver, so playwright drives. Had the prompt said which driver to use, that instruction would win over the map.",
+      "prompt": "/testing:run-e2e the export page. docs/conventions/testing.yaml sets `e2e_driver: harness`; the control skill's hub names the driving tool playwright.",
+      "expected_output": "With no session instruction naming a driver, the hub's driving tool wins over e2e_driver, so playwright drives. Had the prompt said which driver to use, that instruction would win over the hub.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Drives with playwright, the map's recorded driver, not harness from e2e_driver",
-        "Reports the map's index as the source of the driver"
+        "Drives with playwright, the hub's driving tool, not harness from e2e_driver",
+        "Reports the control skill's hub as the source of the driver"
       ]
     },
     {
       "id": "feature-map-05",
-      "name": "refused-map-dir-falls-back",
-      "prompt": "/testing:run-e2e the export page. docs/conventions/testing.yaml sets `feature_map_dir: /srv/shared/maps`; a map exists at .claude/skills/feature-map/.",
-      "expected_output": "The absolute feature_map_dir is refused: the resolver names docs/conventions/testing.yaml, feature_map_dir and the value, the run does not stop, and the key takes the default .claude/skills/feature-map, where the map is read from.",
+      "name": "legacy-map-warns-and-names-refresh",
+      "prompt": "/testing:run-e2e the export page. docs/conventions/testing.yaml sets `feature_map_dir: docs/maps/web`, and docs/maps/web/SKILL.md is a legacy testing-format feature map whose index has Application, Launch, Driver, Doctor and Features fields. No .claude/skills/control-*/ directory exists.",
+      "expected_output": "The legacy map is not read as a feature map. The run warns that it is present and names /app-control:map refresh docs/maps/web to convert it, does not run its Doctor, does not stop, and drives what the scenario names.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Names docs/conventions/testing.yaml, feature_map_dir and /srv/shared/maps as refused",
-        "Reads the map from .claude/skills/feature-map without stopping the run"
+        "Warns that a legacy feature map is present at docs/maps/web and names /app-control:map refresh docs/maps/web without running it",
+        "Continues the run, driving the export page the scenario names, without running the legacy map's Doctor"
       ]
     },
     {
