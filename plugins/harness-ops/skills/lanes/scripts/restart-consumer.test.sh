@@ -414,6 +414,12 @@ assert_contains "print-schedule states that registering is the operator's" "$OUT
 OUT="$(CLAUDE_STUB_VERSION=2.1.259 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
 assert_eq "every scheduled claude -p passes explicit auto and no prompts" "4" \
   "$(grep -c -- 'run.\{0,2\} --permission-mode auto --permission-prompts none --output-format text' <<<"$OUT")"
+for v in 2.2.0 10.0.0; do
+  OUT="$(CLAUDE_STUB_VERSION=$v bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+  assert_contains "CLI $v gets --permission-prompts none" "$OUT" "--permission-prompts none"
+done
+OUT="$(CLAUDE_STUB_VERSION=2.0.999 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_not_contains "CLI 2.0.999 never gets --permission-prompts" "$OUT" "--permission-prompts"
 OUT="$(CLAUDE_STUB_VERSION=2.1.258 bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
 assert_contains "a CLI below the floor still gets explicit auto" "$OUT" 'run" --permission-mode auto --output-format text'
 assert_not_contains "a CLI below the floor never gets --permission-prompts" "$OUT" "--permission-prompts"

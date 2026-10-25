@@ -1602,7 +1602,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "d02b8697e092705153f0996549b05f95a446bb52",
 ]);
 
-test("every workflow's run-claude-cli pin is a launcher checked to pass --permission-prompts none", () => {
+test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
   const files = new Set();
   for (const file of workflowFiles()) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
