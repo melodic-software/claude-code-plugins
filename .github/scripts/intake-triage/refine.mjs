@@ -712,20 +712,22 @@ async function filedChildren(github, repository, base, appId) {
 }
 
 // Adds a native edge: `issue` is blocked by `blocker`, both issue objects
-// with REST `number` and `id`, unless the edge is there. A refused edge (422)
-// is logged, not thrown.
+// with REST `number` and `id`, unless the edge is there. Whether the edge
+// stands: a refused edge (422) is logged and returns false, not thrown.
 async function blockOn({ github, repository, issue, blocker, log }) {
   const path = `/repos/${repository}/issues/${issue.number}/dependencies/blocked_by`;
   if ((await paginate(github, path)).some((item) => item?.id === blocker.id)) {
-    return;
+    return true;
   }
   try {
     await github("POST", path, { issue_id: blocker.id });
+    return true;
   } catch (error) {
     if (!(error instanceof GitHubError && error.status === 422)) {
       throw error;
     }
     log(`::warning title=refine::GitHub refused the edge #${issue.number} blocked by #${blocker.number}`);
+    return false;
   }
 }
 
@@ -733,8 +735,11 @@ async function blockOn({ github, repository, issue, blocker, log }) {
 // The split record goes on the issue first, from the model's partition; a
 // retry finishes that record and ignores a new partition. Each step checks
 // before it writes, so a retry files, links and edges nothing twice: a part
-// whose body the App already filed under the issue is reused. The record's
-// `filed` list goes last, and is the guard that stops a later split.
+// whose body the App already filed under the issue is reused. Each part takes
+// the issue's Issue Type, which admission requires. An edge GitHub refuses
+// leaves the split unfinished: what the issue blocks keeps its edge to the
+// issue, and the record stays unfiled so the next triage retries. The
+// record's `filed` list goes last, and is the guard that stops a later split.
 export async function applySizeSplit({ github, repository, number, appId, humans, rules, output, context, log = console.log, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -748,6 +753,10 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   }
   if (labelNames(issue).includes(NEEDS_HUMAN)) {
     return skip(`is held by ${NEEDS_HUMAN}`);
+  }
+  const type = issue.type?.name;
+  if (![...rules.types, ...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(type)) {
+    return skip(`its Issue Type ${type ?? "none"} is not one admission takes, so its parts would take none`);
   }
   if (String(issue.title ?? "") !== context?.issue?.title || String(issue.body ?? "") !== context?.issue?.body || String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
     return skip("changed while the model ran");
@@ -788,9 +797,13 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     const body = `${splitChildHeader(number, index + 1, record.parts.length)}\n${items.map((n) => lines[n - 1]).join("\n")}`;
     let child = filed.find((item) => item.body === body);
     if (child === undefined) {
-      child = await github("POST", `/repos/${repository}/issues`, { title: `${line(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body });
+      child = await github("POST", `/repos/${repository}/issues`, { title: `${line(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });
       if (!Number.isInteger(child?.number) || !Number.isInteger(child?.id)) {
         throw new Error("a sub-issue came back with no number or id");
+      }
+      // GitHub drops a type the token may not set without an error.
+      if (child.type?.name !== type) {
+        log(`::warning title=refine::#${child.number} came back without Issue Type ${type}; admission refuses it until one is set`);
       }
       log(`refine: #${number} filed #${child.number} for part ${index + 1}`);
     }
@@ -799,8 +812,14 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     }
     children.push(child);
   }
+  let lost = 0;
+  const edge = async (args) => {
+    const stands = await blockOn({ github, repository, log, ...args });
+    lost += stands ? 0 : 1;
+    return stands;
+  };
   for (const [a, b] of record.order) {
-    await blockOn({ github, repository, issue: children[b - 1], blocker: children[a - 1], log });
+    await edge({ issue: children[b - 1], blocker: children[a - 1] });
   }
   // The issue's open blockers hold the parts nothing precedes; what waits on
   // the issue waits on the parts nothing follows instead.
@@ -808,7 +827,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const last = children.filter((_, index) => !record.order.some(([a]) => a === index + 1));
   for (const blocker of (await paginate(github, `${base}/dependencies/blocked_by`)).filter((item) => item?.state === "open" && Number.isInteger(item.id))) {
     for (const child of first) {
-      await blockOn({ github, repository, issue: child, blocker, log });
+      await edge({ issue: child, blocker });
     }
   }
   for (const dependent of await paginate(github, `${base}/dependencies/blocking`)) {
@@ -816,8 +835,13 @@ export async function applySizeSplit({ github, repository, number, appId, humans
       log(`refine: #${number} leaves a blocked item outside this repository's issues as is`);
       continue;
     }
+    let moved = true;
     for (const child of last) {
-      await blockOn({ github, repository, issue: dependent, blocker: child, log });
+      moved = (await edge({ issue: dependent, blocker: child })) && moved;
+    }
+    // The issue's own edge goes only once every replacement stands.
+    if (!moved) {
+      continue;
     }
     try {
       await github("DELETE", `/repos/${repository}/issues/${dependent.number}/dependencies/blocked_by/${issue.id}`);
@@ -826,6 +850,12 @@ export async function applySizeSplit({ github, repository, number, appId, humans
         throw error;
       }
     }
+  }
+  if (lost > 0) {
+    const why = `GitHub refused ${lost} blocked-by edge(s), so the split is left unfinished for the next triage to retry`;
+    log(`refine: #${number} ${why}`);
+    note(`#${number} stays parked for its size split: ${why}`);
+    return { outcome: "incomplete", children: [] };
   }
   record.filed = children.map((child) => child.number);
   await github("PATCH", `/repos/${repository}/issues/comments/${commentId}`, { body: renderSplit(record) });

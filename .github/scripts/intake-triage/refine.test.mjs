@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitRecord } from "./admit.mjs";
 import { applySizeSplit, partitionProblem, sizeSplitPending } from "./refine.mjs";
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { MARKER } from "./apply-verdict.mjs";
@@ -735,7 +736,7 @@ describe("size split", () => {
   const LINES = ["- [ ] L1", "- [ ] L2", "  - [ ] L3"];
   const BODY = ["## Done when", "", ...LINES].join("\n");
   const parked = (reasons = PENDING) => appComment(`${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${reasons}.`);
-  const sizeIssue = (overrides = {}) => issueOf({ id: 700, title: "Big work", body: BODY, labels: [{ name: "status: ready" }], ...overrides });
+  const sizeIssue = (overrides = {}) => issueOf({ id: 700, title: "Big work", body: BODY, type: { name: "Task" }, labels: [{ name: "status: ready" }], ...overrides });
   const record = (filed = []) => ({ ...appComment(`${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: linesDigest(LINES), parts: [[1, 2], [3]], order: [[1, 2]], filed })}`), id: 900 });
 
   test("sizeSplitPending reads only the lanes App's wait naming the pending split", () => {
@@ -803,7 +804,7 @@ describe("size split", () => {
 
   // GitHub as the split writes to it: each new issue gets the next number and
   // its REST id is 100 times that; `issues` and edge lists by number.
-  function splitFake({ issue = sizeIssue(), comments = [], spec = specOf(BODY), subIssues = [], blockedBy = {}, blocking = {}, next = 71 } = {}) {
+  function splitFake({ issue = sizeIssue(), comments = [], spec = specOf(BODY), subIssues = [], blockedBy = {}, blocking = {}, next = 71, refuse = () => false } = {}) {
     const calls = [];
     const github = async (method, path, body) => {
       calls.push({ method, path, body });
@@ -814,7 +815,10 @@ describe("size split", () => {
       }
       if (method === "POST" && route === "/repos/o/r/issues") {
         const number = next++;
-        return { number, id: number * 100 };
+        return { number, id: number * 100, type: body.type ? { name: body.type } : null };
+      }
+      if (refuse(method, route)) {
+        throw new GitHubError(422, `${method} ${route}`);
       }
       if (method === "POST" && route === "/repos/o/r/issues/7/comments") {
         return { id: 900 };
@@ -845,8 +849,9 @@ describe("size split", () => {
     return { github, calls };
   }
   const context = { issue: { number: 7, title: "Big work", body: BODY }, size_split: { digest: linesDigest(LINES) } };
+  const splitRules = { ...rules, types: ["Bug", "Task"], "types-under-parent": [], "types-parent-if-present": ["Feature"] };
   const run = (fake, output, notes = []) =>
-    applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules, output, context, log: () => {}, note: (text) => notes.push(text) });
+    applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output, context, log: () => {}, note: (text) => notes.push(text) });
   const CHILD_1 = [
     "<!-- intake-triage size-split child -->",
     "Part 1 of 2 of #7, split at intake (owner Q93). The done-when below is copied from #7 as written.",
@@ -883,6 +888,8 @@ describe("size split", () => {
       ],
     );
     assert.deepEqual([w[1].body.body, w[3].body.body], [CHILD_1, CHILD_2]);
+    // Admission refuses an issue with no Issue Type, so each part takes the issue's.
+    assert.deepEqual([w[1].body.type, w[3].body.type], ["Task", "Task"]);
     assert.ok(w.every(({ body }) => !body?.labels), "no label on any sub-issue");
     assert.deepEqual(w[2].body, { sub_issue_id: 7100 });
     assert.deepEqual(w[5].body, { issue_id: 7100 }, "part 2 waits on part 1");
@@ -891,6 +898,38 @@ describe("size split", () => {
     assert.deepEqual(splitRecord(w[0].body.body), { items: linesDigest(LINES), parts: [[1, 2], [3]], order: [[1, 2]], filed: [] });
     assert.deepEqual(splitRecord(w[9].body.body).filed, [71, 72]);
     assert.ok(!w.some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/7"));
+  });
+
+  test("each part takes a Feature issue's type, and an issue with no admissible type files nothing", async () => {
+    const feature = splitFake({ issue: sizeIssue({ type: { name: "Feature" } }) });
+    await run(feature, { parts: [[1, 2], [3]], order: [] });
+    assert.deepEqual(writes(feature.calls).filter(({ path }) => path === "/repos/o/r/issues").map(({ body }) => body.type), ["Feature", "Feature"]);
+    for (const type of [null, { name: "Epic" }]) {
+      const fake = splitFake({ issue: sizeIssue({ type }) });
+      const notes = [];
+      assert.deepEqual(await run(fake, { parts: [[1, 2], [3]], order: [] }, notes), { outcome: "skipped", children: [] });
+      assert.deepEqual(writes(fake.calls), [], JSON.stringify(type));
+      assert.match(notes[0], /Issue Type/);
+    }
+  });
+
+  // A refused replacement must not cost the dependent its edge to the issue,
+  // and the split stays unfiled so the next triage retries.
+  test("a refused replacement edge keeps the dependent's edge to the issue and leaves the split unfinished", async () => {
+    const fake = splitFake({ blocking: { 7: [{ number: 50, id: 5000, repository_url: repoUrl }] }, refuse: (method, route) => method === "POST" && route === "/repos/o/r/issues/50/dependencies/blocked_by" });
+    const notes = [];
+    const result = await run(fake, { parts: [[1, 2], [3]], order: [[1, 2]] }, notes);
+    assert.deepEqual(result, { outcome: "incomplete", children: [] });
+    const w = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
+    assert.ok(!w.includes("DELETE /repos/o/r/issues/50/dependencies/blocked_by/700"), "the original edge stays");
+    assert.ok(!w.includes("PATCH /repos/o/r/issues/comments/900"), "the record stays unfiled");
+    assert.match(notes[0], /refused 1 blocked-by edge/);
+  });
+
+  test("a refused order edge between parts leaves the split unfinished", async () => {
+    const fake = splitFake({ refuse: (method, route) => method === "POST" && route === "/repos/o/r/issues/72/dependencies/blocked_by" });
+    assert.deepEqual(await run(fake, { parts: [[1, 2], [3]], order: [[1, 2]] }), { outcome: "incomplete", children: [] });
+    assert.ok(!writes(fake.calls).some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/900"));
   });
 
   test("a model output that is no partition writes nothing and leaves the issue parked", async () => {
