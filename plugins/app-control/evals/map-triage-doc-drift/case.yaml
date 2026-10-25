@@ -11,7 +11,7 @@ execution:
 graders:
   - name: names-doc-drift
     type: regex
-    pattern: '(?:\b(?:class(?:ification|(?: it| this)? as)?|triage(?:d)?(?: class)?|verdict|classe[sd](?: it| this| the failure)?(?: as)?|classif(?:y|ies|ied)(?: it| this)?(?: as)?)\b[\s*_`:#>=|—–-]*(?:(?:is|as)\s+)?(?:(?:an?|the)\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:this|it|that)(?:''s|’s| is)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:is|as)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|(?:^|\n)[ \t#>*_-]*(?:\d+[.)][ \t]*)?[*_`]*doc(?:umentation)?[ -]drift)'
+    pattern: '(?:\b(?:class(?:ification|(?: it| this)? as)?|triage(?:d)?(?: class)?|verdict|class(?:es|ed)(?: it| this| the failure)?(?: as)?|classif(?:y|ies|ied)(?: it| this)?(?: as)?)\b[\s*_`:#>=|—–-]*(?:(?:is|as)\s+)?(?:(?:an?|the)\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:this|it|that)(?:''s|’s| is)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|\b(?:is|as)\s+(?:an?\s+)?[*_`]*doc(?:umentation)?[ -]drift|(?:^|\n)[ \t#>*_-]*(?:\d+[.)][ \t]*)?[*_`]*doc(?:umentation)?[ -]drift)'
     flags: i
     arm: both
   - name: corrects-in-pull-request
