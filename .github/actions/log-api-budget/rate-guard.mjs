@@ -10,8 +10,9 @@
 // to that pool before its reset for the rest of the process, logs an error
 // naming the reset, and the process exits red. The stop also goes in the
 // job's stop file, so later steps, the gh wrapper's included, keep it. A response under the pool's
-// read-floor share left logs a warning once; belowFloor lets a caller skip a
-// read it can do without.
+// read-floor share of its planned budget left (planOf) logs a warning once;
+// belowFloor lets a caller skip a read it can do without. The stop reads only
+// the header's remaining and GitHub's refusals, never the plan.
 //
 // The margins are limits.api in pr-pipeline.yaml, read from resolve-config's
 // output (RESOLVED_CONFIG), over the defaults in pr-pipeline.schema.json,
@@ -53,10 +54,13 @@ const defaultsOf = (properties) =>
       .map(([key, property]) => [key, property.default]),
   );
 
-// limits.api with every unset field filled from the schema's defaults. Throws
-// when the schema cannot be read.
+// limits.api with every unset field filled from the schema's defaults: the
+// pool's $defs entry, then the entry's own default (github-token's
+// limit-cap). Throws when the schema cannot be read.
 export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, schemaPath = SCHEMA } = {}) {
-  const defs = JSON.parse(readFileSync(schemaPath, "utf8")).$defs;
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+  const defs = schema.$defs;
+  const entries = schema.properties.limits.properties.api.properties;
   const pool = defaultsOf(defs["api-pool"].properties);
   const content = { ...pool, ...defaultsOf(defs["api-content-pool"].properties) };
   let set = {};
@@ -68,7 +72,7 @@ export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, schemaPa
     }
   }
   return Object.fromEntries(
-    API_POOLS.map((name) => [name, { ...(name === "content-creation" ? content : pool), ...(set[name] ?? {}) }]),
+    API_POOLS.map((name) => [name, { ...(name === "content-creation" ? content : pool), ...entries[name]?.default, ...(set[name] ?? {}) }]),
   );
 }
 
@@ -94,12 +98,23 @@ const intHeader = (get, name) => {
   return /^\d{1,12}$/.test(value) ? Number(value) : null;
 };
 
+// The budget a pool plans to: the header's limit, at most limitCap (null for
+// none). used is what the header says this window spent, and left what the
+// plan has after it, below zero once used passes the plan.
+export function planOf({ limit, remaining }, limitCap = null) {
+  const planned = limitCap === null ? limit : Math.min(limit, limitCap);
+  const used = limit - remaining;
+  return { planned, used, left: planned - used };
+}
+
 // One response's decision: latched (exhausted), the reset in epoch seconds
 // and where it came from, the pool to stop ("*" for every pool: a secondary
-// limit is not per resource), and low (under readFloor of the limit left).
+// limit is not per resource), and low (under readFloor of the planned budget
+// left, planOf with limitCap). Only the header's remaining and GitHub's
+// refusals latch.
 // headers is a Headers or a plain object of lower-case names; body is the
 // parsed body, or its text.
-export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null } = {}) {
+export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null } = {}) {
   const get = typeof headers?.get === "function" ? (name) => headers.get(name) : (name) => headers?.[name];
   let parsed = body;
   if (typeof body === "string") {
@@ -124,7 +139,8 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
   const tooMany = status === 429;
   const latched = remaining === 0 || retryAfter !== null || message || graphql || tooMany;
-  const low = readFloor !== null && limit > 0 && remaining !== null && remaining < readFloor * limit;
+  const plan = limit > 0 && remaining !== null ? planOf({ limit, remaining }, limitCap) : null;
+  const low = readFloor !== null && plan !== null && plan.left < readFloor * plan.planned;
   if (!latched) {
     return { latched, low, reset_source: null, reset: null, pool: null };
   }
@@ -220,7 +236,7 @@ export function createRateLimitLatch({
   const low = new Map();
   const warned = new Set();
   let config;
-  function readFloor(pool) {
+  function margin(pool, key) {
     if (config === undefined) {
       try {
         config = limits();
@@ -229,7 +245,7 @@ export function createRateLimitLatch({
         log("::warning::rate guard: limits.api and its schema defaults could not be read; the read floor is not checked");
       }
     }
-    const value = config?.[entryOf(pool)]?.["read-floor"];
+    const value = config?.[entryOf(pool)]?.[key];
     return typeof value === "number" ? value : null;
   }
 
@@ -254,7 +270,8 @@ export function createRateLimitLatch({
     const pool = poolOf(url);
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
-    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: readFloor(pool) });
+    const limitCap = margin(pool, "limit-cap");
+    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor"), limitCap });
     low.set(pool, verdict.low);
     if (verdict.latched) {
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
@@ -276,7 +293,12 @@ export function createRateLimitLatch({
       fail();
     } else if (verdict.low && !warned.has(pool)) {
       warned.add(pool);
-      log(`::warning::GitHub's ${pool} API has under its read floor left (remaining ${response.headers?.get?.("x-ratelimit-remaining")} of ${response.headers?.get?.("x-ratelimit-limit")}); reads continue`);
+      const headers = response.headers;
+      const [limit, remaining] = ["limit", "remaining"].map((name) =>
+        Number(typeof headers?.get === "function" ? headers.get(`x-ratelimit-${name}`) : headers?.[`x-ratelimit-${name}`]),
+      );
+      const { planned, left } = planOf({ limit, remaining }, limitCap);
+      log(`::warning::GitHub's ${pool} API has under its read floor left (${left} of the planned ${planned}; header remaining ${remaining} of ${limit}); reads continue`);
     }
     return verdict;
   }
