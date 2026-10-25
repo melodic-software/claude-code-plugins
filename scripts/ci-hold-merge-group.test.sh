@@ -79,8 +79,8 @@ fi
 mkdir -p "$TMP_ROOT/bin"
 # The link read answers STUB_LINK (default: a person's pull request), or
 # fails with STUB_LINK_FAIL; a timeline read prints STUB_TIMELINE, one
-# unlabeled event per line, or fails with STUB_TIMELINE_FAIL; issue 18's
-# labels read prints STUB_ISSUE_LABELS.
+# unlabeled event per line, or fails with STUB_TIMELINE_FAIL; the Refs
+# issue's labels read prints STUB_ISSUE_LABELS.
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
