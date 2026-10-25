@@ -15,5 +15,17 @@
     "proof",
     "worktree",
     "recurring-findings"
-  ]
+  ],
+  "userConfig": {
+    "findings_buffer_adapter_repository": {
+      "type": "directory",
+      "title": "Findings-buffer adapter repository",
+      "description": "Git common directory (git rev-parse --path-format=absolute --git-common-dir) of the one repository whose own findings-buffer adapter you trust. Applies in that repository's checkout and worktrees only. Unset: only adapters the plugin ships run."
+    },
+    "findings_buffer_adapter_path": {
+      "type": "string",
+      "title": "Findings-buffer adapter path",
+      "description": "That repository's adapter directory, relative to the checkout root, holding executable append.sh and read.sh and a capabilities.json with schema_version 1.x. Set both options or neither. A path out of the checkout or into a nested repository is refused."
+    }
+  }
 }

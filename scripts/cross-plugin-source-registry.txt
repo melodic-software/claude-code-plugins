@@ -103,6 +103,11 @@ lib/yaml-subset.awk
 # lib/yaml-subset.awk.
 scripts/yaml-subset.awk
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for
+# the duplication audit: the channel-F settings reader, carried at a different
+# path in each plugin, so no path-within-plugin line applies.
+lib/plugin-options.mjs -> plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/setup-apply.mjs.
 lib/setup-apply.mjs
