@@ -726,7 +726,9 @@ def _guard_response(
 ) -> None:
     """Record the response's headroom and trip the latch when it shows its
     pool exhausted. A rate-limited failure raises now; a success that spent
-    the pool returns its answer, and the next call to the pool raises.
+    the pool returns its answer, and the next call to the pool raises. Either
+    way the process exits `RATE_LIMIT_EXIT` (`_exit_red_if_tripped`): pr-merge.yml's
+    shell steps after it read no stop file, only that exit code.
 
     A non-`api` subcommand prints no headers, only gh's message: one naming a
     rate limit reads as a 403 carrying it, which latches every pool."""

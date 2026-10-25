@@ -417,12 +417,12 @@ test("every post-merge check reads the lane records, and only the merge job uplo
 
 // Runs the early job's check against a fake python3 that prints a report and
 // exits `code`.
-const runEarlyCheck = (code) => {
+const runEarlyCheck = (code, needsDispatch = false) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-"));
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
-    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\necho '{"needsDispatch": false}'\nexit ${code}\n`);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\necho '{"needsDispatch": ${needsDispatch}}'\nexit ${code}\n`);
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
     const output = join(dir, "output");
@@ -432,11 +432,29 @@ const runEarlyCheck = (code) => {
       encoding: "utf8",
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
     });
-    return { status: result.status, stdout: result.stdout, output: readFileSync(output, "utf8") };
+    const keptCode = join(dir, "post-merge-report", "post-merge-code");
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      output: readFileSync(output, "utf8"),
+      keptCode: existsSync(keptCode) ? readFileSync(keptCode, "utf8").trim() : null,
+    };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 };
+
+// The owner's rule: a rate-limit stop (babysit_gh.py exits 75) turns the job
+// red, and nothing after it calls the stopped pool. The outputs and the kept
+// report are written first, so the dispatch reads needs-dispatch=false.
+test("the early check fails red on a rate-limit stop, after its outputs and report", () => {
+  const run = runEarlyCheck(75, true);
+  assert.notEqual(run.status, 0, run.stdout);
+  assert.match(run.stdout, /^::error::the post-merge check stopped on a GitHub rate limit/m);
+  assert.match(run.output, /^needs-dispatch=false$/m);
+  assert.match(run.output, /^code=75$/m);
+  assert.equal(run.keptCode, "75");
+});
 
 test("the early check warns when it cannot judge, and stays quiet on a verdict", () => {
   for (const code of [2, 3, 4]) {
@@ -1079,12 +1097,12 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
 // (pr-merge.yml): reuse a report whose check judged (exit 0, 1 or 5) main at
 // this job's commit under REUSE_MINUTES ago; otherwise run the check.
 const MAIN = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-const runMergeCheck = ({ kept, code = "0", records } = {}) => {
+const runMergeCheck = ({ kept, code = "0", records, exit = 3, report = { ran: true } } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-reuse-"));
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\ntouch "${dir}/ran"\necho '{"ran": true}'\nexit 3\n`);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`);
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
     writeFileSync(join(dir, "lane-records.json"), "read in");
@@ -1148,6 +1166,17 @@ test("the merge job runs the check itself for no report, another main, an old re
     assert.deepEqual(run.report, { ran: true }, why);
     assert.equal(run.records, "read in", why);
   }
+});
+
+// The gate and every later step would call GitHub again while limited, so
+// the merge job's own check fails red on a rate-limit stop too.
+test("the merge job's check fails red on a rate-limit stop, after its outputs", () => {
+  const run = runMergeCheck({ exit: 75, report: { ran: true, needsDispatch: true } });
+  assert.equal(run.ran, true);
+  assert.notEqual(run.status, 0, run.stdout);
+  assert.match(run.stdout, /^::error::the post-merge check stopped on a GitHub rate limit/m);
+  assert.match(run.output, /^needs-dispatch=false$/m);
+  assert.match(run.output, /^code=75$/m);
 });
 
 test("the merge job reads this run's report only when post-merge-dispatch keeps one", () => {

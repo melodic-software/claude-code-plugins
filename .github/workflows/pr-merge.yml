@@ -222,6 +222,8 @@ jobs:
           cp "$RUNNER_TEMP/post-merge.json" "$kept/post-merge.json"
           echo "$code" >"$kept/post-merge-code"
           [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
+          # A rate-limit stop fails the job red once the outputs are written.
+          [ "$code" != 75 ] || exit 1
 
       # The check's report for this run's enable-auto-merge job, which reads
       # the lane's room from it, and its merge job, which reuses it while it
@@ -876,8 +878,14 @@ jobs:
           cat "$RUNNER_TEMP/post-merge.json"
           echo "::endgroup::"
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
+          if [ "$code" = 75 ]; then
+            echo "::error::the post-merge check stopped on a GitHub rate limit; no remediation or gate runs"
+            needs=false
+          fi
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
           echo "code=$code" >>"$GITHUB_OUTPUT"
+          # A rate-limit stop fails the job red once the outputs are written.
+          [ "$code" != 75 ] || exit 1
 
       # A failed lane merge (the check above exited 1) holds the gate until a
       # human closes every open demotion record, and the gate reads only records the
