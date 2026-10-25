@@ -4258,13 +4258,20 @@ def unattended_enqueue(
     eligible_dependabot = getattr(eligible, "dependabot", None)
     if eligible_dependabot is not None:
         # The Dependabot class is read again whole: a human blocking comment
-        # or a `ci-status` rerun since the first read refuses.
+        # or a `ci-status` rerun since the first read refuses. Its default
+        # branch head inputs are read at the head now, never a shared read.
+        try:
+            _, main_sha = merge_policy._default_branch_head(repo, branch)
+        except merge_policy.PolicyReadError as exc:
+            step["optIn"] = f"unreadable: {exc}"
+            return hold(f"ineligible:{step['optIn']}")
         opt_in = merge_policy.dependabot_eligibility(
             repo,
             number,
             pr=inputs["pr"],
             agent_identity=identity,
             hold_majors=inputs["config"].dependabot_majors == "hold",
+            main_sha=main_sha,
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_issue(

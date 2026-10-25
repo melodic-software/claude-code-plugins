@@ -1762,6 +1762,12 @@ class DependabotLane(Unattended):
                 self.assertEqual(
                     [k["hold_majors"] for k in self.dependabot_kwargs], [hold, hold]
                 )
+                # The gate reads main's Dependabot inputs at the head its
+                # merge config came from; the recheck at the head read now.
+                self.assertEqual(self.dependabot_kwargs[0]["branch"], "main")
+                self.assertEqual(
+                    self.dependabot_kwargs[1]["main_sha"], self.main_head
+                )
 
     def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
         self.pr_user = {"login": IDENTITY, "type": "Bot"}

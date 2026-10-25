@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -2721,6 +2721,25 @@ def _dependabot_pushes(
     )
 
 
+def _dependabot_config(
+    owner: str, name: str, base_sha: str, main_sha: str
+) -> list[tuple[str, str]] | None:
+    """The (ecosystem, directory) pairs `.github/dependabot.yml` names at both
+    the base and the default branch head (`main_sha`), in the base's order:
+    coverage only admits, so a pair one side lacks is not covered and neither
+    side can widen it. None when either side holds no entry. Raises
+    `PolicyReadError` on a read failure."""
+    base = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
+    )
+    if base is None or main_sha == base_sha:
+        return base
+    main = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, main_sha) or ""
+    )
+    return None if main is None else [p for p in base if p in main]
+
+
 def _dependabot_content(
     owner: str,
     name: str,
@@ -2728,11 +2747,13 @@ def _dependabot_content(
     pr: Mapping[str, Any],
     commits: list[dict[str, Any]],
     files: Callable[[str], list[str] | None],
+    main_sha: str,
 ) -> tuple[str | None, str | None, list[str] | None]:
     """(content reason, refusal, changed paths). The content reason,
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
-    lock files and `uses:` repins (`content_refusal`, per
-    `.github/dependabot.yml` at the base); it sends the pull request to tier
+    lock files and `uses:` repins (`content_refusal`, per the pairs
+    `.github/dependabot.yml` names at both the base and the default branch
+    head, `_dependabot_config`); it sends the pull request to tier
     `review`. The paths a version-bump commit touched count as checked once
     it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
     else `dependabot-bump-content:<why>`); any other commit that is not
@@ -2742,9 +2763,7 @@ def _dependabot_content(
     paths (either side of a rename) are None when the files listing was not
     read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
-    config = dependabot.parse_config(
-        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
-    )
+    config = _dependabot_config(owner, name, base_sha, main_sha)
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
@@ -2858,15 +2877,48 @@ def _fix_commit_refusal(
         return f"fix-unreadable:{str(exc)[:120]}"
 
 
-def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:
-    """The base's standards Dependabot policy as parsed JSON, or None when it
+def _dependabot_policy(owner: str, name: str, sha: str) -> Any:
+    """The standards Dependabot policy at `sha` as parsed JSON, or None when it
     is absent or not JSON (`review_only` then reports it unreadable). Raises
     `PolicyReadError` on a read failure."""
-    text = _file_at(owner, name, dependabot.POLICY_PATH, base_sha)
+    text = _file_at(owner, name, dependabot.POLICY_PATH, sha)
     try:
         return json.loads(text) if text is not None else None
     except ValueError:
         return None
+
+
+def _review_only(
+    owner: str,
+    name: str,
+    pr: Mapping[str, Any],
+    updates: Sequence[dependabot.Update],
+    paths: list[str] | None,
+    main_sha: str,
+) -> tuple[str, ...]:
+    """`review_only`'s reasons under the policy at the base and under the one
+    at the default branch head (`main_sha`), base first, each once: an entry
+    either side lists sends the pull request to review, and either side
+    unreadable reports it. Raises `PolicyReadError` on a read failure."""
+    repo = f"{owner}/{name}"
+    head_ref = str(json_object(pr.get("head")).get("ref") or "")
+    base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    return tuple(
+        dict.fromkeys(
+            reason
+            for sha in dict.fromkeys((base_sha, main_sha))
+            for reason in dependabot.review_only(
+                _dependabot_policy(owner, name, sha), repo, head_ref, updates, paths
+            )
+        )
+    )
+
+
+def _dependabot_main_sha(repo: str, branch: str | None) -> str:
+    """The default branch head whose Dependabot inputs bind beside the base's:
+    the one `_default_branch_config` reads, saved once per cache window and
+    never a failed read. Raises `PolicyReadError` when it cannot be read."""
+    return _default_branch_config(repo, branch).base_sha
 
 
 def _registry_json(url: str, accept: str) -> Any:
@@ -2938,6 +2990,8 @@ def dependabot_eligibility(
     pr: Mapping[str, Any],
     agent_identity: str | None,
     hold_majors: bool = True,
+    main_sha: str | None = None,
+    branch: str | None = None,
 ) -> Eligibility:
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
@@ -2951,10 +3005,13 @@ def dependabot_eligibility(
     the head; and no human blocking comment. A running `ci-status` waits. The
     rung and its cap still bind it. No closing issue and no denied-path rule: `ci-status` is the gate. The
     hold labels and a body hold are the gate's, as for every pull
-    request."""
+    request. `.github/dependabot.yml` and the Dependabot policy bind at the
+    base and at the default branch head `main_sha` (`_dependabot_main_sha`
+    of `branch` when None), each by the rule that only tightens."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
     try:
+        main_sha = main_sha or _dependabot_main_sha(repo, branch)
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not node:
@@ -3004,21 +3061,13 @@ def dependabot_eligibility(
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         content, refusal, paths = _dependabot_content(
-            owner, name, number, pr, commits, files
+            owner, name, number, pr, commits, files, main_sha
         )
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         # A dependency the standards policy lists as review-only goes to review
         # whatever its version change; an unreadable policy sends every one.
-        listed = dependabot.review_only(
-            _dependabot_policy(
-                owner, name, str(json_object(pr.get("base")).get("sha") or "")
-            ),
-            repo,
-            str(json_object(pr.get("head")).get("ref") or ""),
-            tier.updates,
-            paths,
-        )
+        listed = _review_only(owner, name, pr, tier.updates, paths, main_sha)
         added = tuple(r for r in (content, *listed) if r)
         # A release whose registry provenance changed goes to review; only a
         # pull request still tier `auto` spends the registry reads.
@@ -4765,6 +4814,7 @@ def assess(
                 pr=pr,
                 agent_identity=identity,
                 hold_majors=config.dependabot_majors == "hold",
+                branch=default,
             )
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")

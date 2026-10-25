@@ -6662,6 +6662,8 @@ class DependabotEligibility(unittest.TestCase):
             "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
+        # By default the default branch head is the base.
+        options.setdefault("main_sha", SHA)
         return policy.dependabot_eligibility(
             REPO, 7, pr=pr, agent_identity=IDENTITY, **options
         )
@@ -7218,6 +7220,122 @@ class DependabotEligibility(unittest.TestCase):
                     "dependabot-review:dependabot-policy-unreadable;"
                     "review-verdict-missing",
                 )
+
+    def moved_main(
+        self, main_config: Any = None, main_policy: Any = None, **options: Any
+    ) -> GhFake:
+        """The base's fake, with main moved to MAIN_SHA, whose dependabot.yml
+        and policy answer `main_config` and `main_policy` (the base's when
+        None; text, a payload or an HTTP status)."""
+        gh = self.fake(**options)
+        base = f"repos/{REPO}/contents/{{}}?ref={SHA}"
+        main = f"repos/{REPO}/contents/{{}}?ref={MAIN_SHA}"
+        for path, answer in (
+            (".github/dependabot.yml", main_config),
+            (POLICY, main_policy),
+        ):
+            if answer is None:
+                answer = gh.rest[base.format(path)]
+            elif isinstance(answer, str):
+                answer = file_payload(answer)
+            gh.rest[main.format(path)] = answer
+        gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
+        return gh
+
+    def test_main_dropping_a_dependabot_directory_sends_its_files_to_review(
+        self,
+    ) -> None:
+        # Coverage only admits: a pair main no longer names is not covered.
+        self.moved_main(
+            main_config="updates:\n  - package-ecosystem: npm\n    directory: /x\n"
+        )
+        result = self.eligibility(main_sha=MAIN_SHA)
+        self.assertEqual(result.dependabot.tier, "review")
+        self.assertEqual(
+            result.reason,
+            "dependabot-review:dependabot-content:package-lock.json;"
+            "review-verdict-missing",
+        )
+
+    def test_main_adding_a_dependabot_directory_does_not_widen_the_base(
+        self,
+    ) -> None:
+        files = [{"filename": "plugins/x/package-lock.json"}]
+        wider = (
+            "updates:\n  - package-ecosystem: npm\n    directories:\n"
+            "      - /\n      - /plugins/x\n"
+        )
+        self.moved_main(main_config=wider, files=files)
+        result = self.eligibility(main_sha=MAIN_SHA)
+        self.assertEqual(
+            result.reason,
+            "dependabot-review:dependabot-content:plugins/x/package-lock.json;"
+            "review-verdict-missing",
+        )
+
+    def test_a_main_dependabot_yml_with_no_entry_is_unreadable(self) -> None:
+        for answer in (404, "version: 2\n"):
+            with self.subTest(answer=answer):
+                self.moved_main(main_config=answer)
+                self.assertEqual(
+                    self.eligibility(main_sha=MAIN_SHA).reason,
+                    "dependabot-review:dependabot-config-unreadable;"
+                    "review-verdict-missing",
+                )
+
+    def test_a_review_only_entry_on_either_side_sends_the_update_to_review(
+        self,
+    ) -> None:
+        for base, main in (([self.entry()], []), ([], [self.entry()])):
+            with self.subTest(base=base, main=main):
+                self.moved_main(
+                    main_policy=json.dumps({"autoMerge": {"reviewOnly": main}}),
+                    review_only=base,
+                )
+                self.assertEqual(
+                    self.eligibility(main_sha=MAIN_SHA).reason,
+                    "dependabot-review:review-only:x;review-verdict-missing",
+                )
+
+    def test_a_main_policy_unreadable_sends_every_update_to_review(self) -> None:
+        for answer in (404, "{not json", "{}"):
+            with self.subTest(answer=answer):
+                self.moved_main(main_policy=answer)
+                self.assertEqual(
+                    self.eligibility(main_sha=MAIN_SHA).reason,
+                    "dependabot-review:dependabot-policy-unreadable;"
+                    "review-verdict-missing",
+                )
+
+    def test_a_failed_read_at_main_refuses(self) -> None:
+        for path in (".github/dependabot.yml", POLICY):
+            with self.subTest(path=path):
+                gh = self.moved_main()
+                gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = 502
+                reason = self.eligibility(main_sha=MAIN_SHA).reason
+                self.assertTrue(reason.startswith(f"unreadable: {path} at"), reason)
+
+    def test_main_unchanged_from_the_base_is_auto(self) -> None:
+        self.moved_main()
+        result = self.eligibility(main_sha=MAIN_SHA)
+        self.assertTrue(result.eligible, result.reason)
+
+    def test_with_no_head_given_the_merge_configs_head_is_read(self) -> None:
+        self.moved_main(main_policy="{}")
+        head = mock.Mock(base_sha=MAIN_SHA)
+        with mock.patch.object(
+            policy, "_default_branch_config", return_value=head
+        ) as read:
+            reason = self.eligibility(main_sha=None, branch="trunk").reason
+        read.assert_called_once_with(REPO, "trunk")
+        self.assertIn("dependabot-policy-unreadable", reason)
+        with mock.patch.object(
+            policy,
+            "_default_branch_config",
+            side_effect=policy.PolicyReadError("head unreadable"),
+        ):
+            reason = self.eligibility(main_sha=None).reason
+        self.assertEqual(reason, "unreadable: head unreadable")
 
     def test_a_0x_minor_is_review_and_a_1x_minor_is_auto(self) -> None:
         zero = dependabot_commit(

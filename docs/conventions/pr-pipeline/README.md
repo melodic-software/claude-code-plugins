@@ -728,6 +728,11 @@ cap applies at once. So a tightening on the default branch reaches pull requests
 a loosening waits until a pull request's base includes it, and a pull request still cannot drop its
 base's declaration. A different authority, or an identity set on one side only, stops the lane
 and its queued entries leave; two different identities, or an unreadable head config, refuse.
+The pr-merge gate reads a Dependabot pull request's `.github/dependabot.yml` and Dependabot policy
+at the default branch head too (read once per run-cache window, and again before an enqueue), by
+the rules that only tighten in
+[Dependabot pull requests](#dependabot-pull-requests) and
+[Review-only dependencies](#review-only-dependencies).
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
@@ -1281,7 +1286,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
     newest push is the head.
   - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
-    ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
+    ecosystem and directory `.github/dependabot.yml` lists at both the base and the default branch
+    head, matched literally (a pair only one side lists covers nothing, so neither side widens the
+    other) (npm `package.json`,
     `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
     and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
     `uses:` lines (`/` covers `.github/workflows/` and the action files under `.github/actions/`).
@@ -1289,8 +1296,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
     every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
     commit touched counts as checked; a fix commit may touch only npm or pip manifest and lock files
-    outside `.github/` in a listed directory (the pr-unblock lane enforces this before the fix
-    lands), and one whose file
+    outside `.github/` in a listed directory (the pr-unblock lane enforces this at the base before
+    the fix lands; the gate checks it against the pairs both sides list, and a fix outside them
+    refuses), and one whose file
     list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
     directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
     so the AI review judges it; it is never left for a person. A failed push check, by contrast,
@@ -1355,7 +1363,9 @@ A non-major release of a hijacked package passes tier `auto` on a green `ci-stat
 that runs inside a job holding a secret or a write token is therefore listed in the standards
 Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
 `components/dependabot-policy/policy.json`), which the sync places at
-`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base:
+`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base, and the
+pr-merge gate reads it at the default branch head too, where an entry either side lists matches
+and either side unreadable makes it unreadable:
 
 - **Match.** An entry matches an update when its `repository` is this repository (any case), its
   `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling
