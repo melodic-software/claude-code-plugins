@@ -1150,3 +1150,112 @@ describe("untrustedHold", () => {
     assert.equal(untrustedHold({ labels: [{ name: "agent-ready" }], events: [event("labeled", 5, "agent-ready")], humans, isApp }), false);
   });
 });
+
+// A parent's status: needs-decision blocks its Features only while a decision
+// is open: a person set the label, or the newest refinement on the parent asks
+// questions no later Decision recorded comment answers.
+describe("a Feature under a parent at status: needs-decision", () => {
+  const PARENT = 9;
+  const feature = issueOf({ type: { name: "Feature" } });
+  const parentIssue = (labels = [NEEDS_DECISION]) => ({
+    number: PARENT,
+    state: "open",
+    repository_url: "https://api.github.com/repos/o/r",
+    user: { id: HUMAN },
+    labels: labels.map((name) => ({ name })),
+  });
+  const setBy = (id) => [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id } }];
+  const output = (exact) => ({
+    exact,
+    outcome: "Ship the epic's parts.",
+    criteria: exact ? ["Line 3 says nineteen."] : [],
+    dependencies: [],
+    related: [],
+    questions: exact ? [] : [{ question: "Which part ships first?", recommended: "Part A.", basis: "judgment" }],
+    sources: [],
+    split: [],
+  });
+  const refinement = (exact) => ({
+    id: 40,
+    node_id: "IC_40",
+    user: { id: APP },
+    performed_via_github_app: null,
+    created_at: "2026-10-21T00:00:00Z",
+    body: render(validateOutput(output(exact), new Set())),
+  });
+  const decision = {
+    id: 41,
+    node_id: "IC_41",
+    user: { id: HUMAN },
+    performed_via_github_app: null,
+    created_at: "2026-10-22T00:00:00Z",
+    body: "**Decision recorded.** Part A first.",
+  };
+  // fakeGitHub answers issue 7; this answers the parent's events, comments and
+  // the comment editor read select-trusted-text sends.
+  const withParent = ({ labels, events = setBy(APP), comments = [], failOn } = {}) => {
+    const fake = fakeGitHub({ issue: feature, parent: parentIssue(labels), failOn });
+    const github = async (method, path, body) => {
+      if (failOn?.(method, path, body)) {
+        fake.calls.push({ method, path, body });
+        throw new Error(`${method} ${path} failed with status 500`);
+      }
+      if (method === "GET" && path.startsWith(`/repos/o/r/issues/${PARENT}/events`)) {
+        fake.calls.push({ method, path, body });
+        return events;
+      }
+      if (method === "GET" && path.startsWith(`/repos/o/r/issues/${PARENT}/comments`)) {
+        fake.calls.push({ method, path, body });
+        return comments;
+      }
+      if (method === "POST" && path === "/graphql" && body.query.includes("nodes(ids")) {
+        fake.calls.push({ method, path, body });
+        return { data: { nodes: body.variables.ids.map((id) => ({ id, lastEditedAt: null, editor: null })) } };
+      }
+      return fake.github(method, path, body);
+    };
+    return { github, calls: fake.calls };
+  };
+  const read = (fake, what) => fake.calls.some((call) => call.method === "GET" && call.path.startsWith(`/repos/o/r/issues/${PARENT}/${what}`));
+  const refusedForParent = (result) => result.outcome === "refused" && result.reasons.some((reason) => /parent/.test(reason));
+
+  test("is admitted when the lanes App set the label and no refinement asks anything", async () => {
+    const fake = withParent();
+    assert.equal((await go(fake)).outcome, "admitted");
+    assert.ok(read(fake, "events"), "the parent's events were read");
+  });
+
+  test("is refused when a person set the label", async () => {
+    const fake = withParent({ events: setBy(HUMAN) });
+    assert.ok(refusedForParent(await go(fake)));
+    assert.ok(read(fake, "events"), "the parent's events were read");
+  });
+
+  test("is refused when the parent's newest refinement is not exact and no decision followed it", async () => {
+    const fake = withParent({ comments: [refinement(false)] });
+    assert.ok(refusedForParent(await go(fake)));
+    assert.ok(read(fake, "comments"), "the parent's comments were read");
+  });
+
+  test("is admitted once a listed human's Decision recorded comment follows that refinement", async () => {
+    const fake = withParent({ comments: [refinement(false), decision] });
+    assert.equal((await go(fake)).outcome, "admitted");
+  });
+
+  test("is refused when the only decision predates the newest not-exact refinement, and admitted under an exact one", async () => {
+    const earlier = { ...decision, created_at: "2026-10-20T00:00:00Z" };
+    assert.ok(refusedForParent(await go(withParent({ comments: [earlier, refinement(false)] }))));
+    assert.equal((await go(withParent({ comments: [refinement(true)] }))).outcome, "admitted");
+  });
+
+  test("is refused when the parent also carries needs-human", async () => {
+    const fake = withParent({ labels: [NEEDS_DECISION, "needs-human"] });
+    assert.ok(refusedForParent(await go(fake)));
+  });
+
+  test("is refused when the parent's events cannot be read", async () => {
+    const fake = withParent({ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/o/r/issues/${PARENT}/events`) });
+    assert.ok(refusedForParent(await go(fake)));
+    assert.ok(read(fake, "events"), "the parent's events read was tried");
+  });
+});

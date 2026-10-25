@@ -83,7 +83,7 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { earlierFlags, LANES_APP_LOGIN, MARKER, ownVerdict } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
@@ -527,11 +527,7 @@ export function render(output, { body, from, checks = [], retriage = false } = {
   );
   section("Sources read", output.sources.map((item) => `- ${line(item)}`));
   parts.push(
-    !output.exact
-      ? "<sub>Automated refinement by the lanes App. Answer with a comment whose first line is `**Decision recorded.**`.</sub>"
-      : retriage
-        ? "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>"
-        : "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
+    !output.exact ? REFINE_FOOTERS.questions : retriage ? REFINE_FOOTERS.retriage : REFINE_FOOTERS.confirm,
   );
   return parts.join("\n");
 }
