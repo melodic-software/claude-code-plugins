@@ -1,6 +1,6 @@
 {
   "name": "powershell-format",
-  "version": "0.12.5",
+  "version": "0.12.6",
   "description": "Format and lint PowerShell at git pre-commit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo; optionally check uncommitted changes when a turn ends.",
   "author": {
     "name": "Melodic Software",
