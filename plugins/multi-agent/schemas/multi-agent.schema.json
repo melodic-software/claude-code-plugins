@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/multi-agent/schemas/multi-agent.schema.json",
+  "title": "Multi-agent team config",
+  "description": "Schema for a repository's docs/conventions/multi-agent.yaml: the team layer of the multi-agent plugin's role map. A value here overrides the bundled default and the user-global file, and a personal .claude/multi-agent.local.yaml overrides it. Keys and resolution: plugins/multi-agent/reference/config.md. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema"],
+  "properties": {
+    "schema": {
+      "description": "The layer format version. The resolver skips a layer that declares any other value.",
+      "const": 1
+    },
+    "workloads": {
+      "description": "Workload declarations: true declares workload <w>, false withdraws it.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]*$" },
+      "additionalProperties": { "type": "boolean" }
+    },
+    "roles": {
+      "description": "Per-role model and effort. A role is orchestrator, worker, verifier or retrieval.",
+      "type": "object",
+      "propertyNames": { "enum": ["orchestrator", "worker", "verifier", "retrieval"] },
+      "additionalProperties": { "$ref": "#/$defs/role" }
+    },
+    "frontier": {
+      "description": "Comma-separated model aliases treated as frontier.",
+      "type": "string",
+      "pattern": "^(opus|sonnet|haiku|fable)(,(opus|sonnet|haiku|fable))*$",
+      "default": "fable"
+    },
+    "fanout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frontier_guard": {
+          "description": "When true, a fan-out stage that would run on a frontier model runs on fanout.model.",
+          "type": "boolean",
+          "default": true
+        },
+        "model": {
+          "description": "The model alias a guarded fan-out stage uses.",
+          "$ref": "#/$defs/alias",
+          "default": "opus"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "alias": { "enum": ["opus", "sonnet", "haiku", "fable"] },
+    "model": { "enum": ["inherit", "opus", "sonnet", "haiku", "fable"] },
+    "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": { "$ref": "#/$defs/model" },
+        "effort": { "$ref": "#/$defs/effort" },
+        "workloads": {
+          "description": "Per-workload overrides, keyed by a declared workload name.",
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]*$" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "model": { "$ref": "#/$defs/model" },
+              "effort": { "$ref": "#/$defs/effort" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

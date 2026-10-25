@@ -51,12 +51,17 @@
 # skipped Step 5b, and this re-entry runs that check after the installs land.
 # When the first pass already ran Step 5b, the re-entry reuses that report. The
 # cache checker therefore runs exactly ONCE per marketplace across both
-# invocations, on the pass that follows the installs.
+# invocations, on the pass that follows the installs. The re-entry also keeps the
+# run's `allow_downgrade`, `install_new` and `install_new_invalid` from
+# `flags.json`, and adds the first pass's run timings from `first-pass-run.json`.
 #
 # Output (stdout): one compact JSON object, also written to `<run_dir>/digest.json`,
 # followed under `--render` by a blank line and the rendered report.
 #   {run_dir, cwd, mode, allow_downgrade, install_new, install_new_invalid,
-#    timings:{total,outside_marketplaces,resolution}, marketplaces:[…], errors:[…]}
+#    timings:{total,outside_marketplaces,resolution[,passes]}, marketplaces:[…], errors:[…]}
+#   On a re-entry, `timings.passes` is `[{pass: "first", …}, {pass: "only_install", …}]`,
+#   each `{total, outside_marketplaces, resolution}`, and the top-level `total` and
+#   `outside_marketplaces` sum the two; the wait between the passes is in neither.
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
 #    source_checkout, auto_update, refresh:{rc,output,predicted}, project_root,
 #    in_repo:{updated,failed,would_update,live_read},
@@ -2175,16 +2180,52 @@ pending_path
 # flag is written once by the pass that starts the run and read back by the
 # re-entry, before anything branches on it; a run directory from an older version
 # carries no file and keeps the previous behavior.
+# The `install_new` policy and the invalid value it replaced belong to the run the
+# same way. The re-entry takes no `--install-new`, so without the saved pair its
+# digest, which supersedes the first one, would drop the invalid-value warning.
 SAVED_ALLOW_DOWNGRADE=""
+SAVED_INSTALL_NEW=""
+SAVED_INSTALL_NEW_INVALID=""
 if ((ONLY_INSTALL_MODE == 1)); then
   if [[ -f "$RUN_DIR/flags.json" ]]; then
     jq_to SAVED_ALLOW_DOWNGRADE -r '.allow_downgrade // false' "$RUN_DIR/flags.json" 2>/dev/null
     [[ "$SAVED_ALLOW_DOWNGRADE" != "true" ]] || ALLOW_DOWNGRADE=1
+    jq_to SAVED_INSTALL_NEW -r '.install_new // ""' "$RUN_DIR/flags.json" 2>/dev/null
+    jq_to SAVED_INSTALL_NEW_INVALID -r '.install_new_invalid // ""' "$RUN_DIR/flags.json" 2>/dev/null
+    # The pair is restored together, so the digest never names a policy beside
+    # an invalid value from a different invocation.
+    case "$SAVED_INSTALL_NEW" in
+    all | none | ask)
+      INSTALL_NEW="$SAVED_INSTALL_NEW"
+      INSTALL_NEW_INVALID="$SAVED_INSTALL_NEW_INVALID"
+      ;;
+    *) ;;
+    esac
   fi
 else
   FLAG_AD="false"
   ((ALLOW_DOWNGRADE == 0)) || FLAG_AD="true"
-  printf '{"allow_downgrade":%s}\n' "$FLAG_AD" >"$RUN_DIR/flags.json"
+  FLAG_IN=""
+  json_string_to FLAG_IN "$INSTALL_NEW"
+  FLAG_INV="null"
+  [[ -z "$INSTALL_NEW_INVALID" ]] || json_string_to FLAG_INV "$INSTALL_NEW_INVALID"
+  printf '{"allow_downgrade":%s,"install_new":%s,"install_new_invalid":%s}\n' \
+    "$FLAG_AD" "$FLAG_IN" "$FLAG_INV" >"$RUN_DIR/flags.json"
+fi
+
+# The first pass's run-level timings, written by that pass once its clock stops
+# and read back by a re-entry, so the superseding digest times both passes. Only
+# the first pass writes it: a second re-entry reports the first pass plus itself.
+# A run directory from an older version carries no file, and the re-entry then
+# times itself alone, as before.
+FIRST_PASS_RUN="$RUN_DIR/first-pass-run.json"
+FIRST_PASS_TIMINGS="null"
+if ((ONLY_INSTALL_MODE == 1)) && [[ -f "$FIRST_PASS_RUN" ]]; then
+  jq_to FIRST_PASS_TIMINGS -c '.timings | select((.total | type) == "number")
+    | {total, resolution,
+       outside_marketplaces: (if (.outside_marketplaces | type) == "number" then .outside_marketplaces else null end)}' \
+    "$FIRST_PASS_RUN" 2>/dev/null || FIRST_PASS_TIMINGS="null"
+  [[ -n "$FIRST_PASS_TIMINGS" ]] || FIRST_PASS_TIMINGS="null"
 fi
 
 : >"$RUN_DIR/.blocks.jsonl"
@@ -2297,22 +2338,47 @@ jq_to DIGEST -c -n \
   --argjson marketplaces "$BLOCKS" \
   --arg t_run_s "$T_RUN_S" --arg t_run_e "$T_RUN_E" \
   --arg resolution "$CLOCK_RESOLUTION" \
+  --argjson first "$FIRST_PASS_TIMINGS" \
   --argjson errors "$RUN_ERRS" '
-  {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
-   install_new: $install_new,
-   install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
-   timings: (([0, (((($t_run_e | tonumber) - ($t_run_s | tonumber)) * 1000 | ceil) / 1000)] | max) as $total
-             | {total: $total,
-                # Run setup and the per-block assembly: the part of the total no
-                # block window covers. The clock stops before this jq runs, since a digest
-                # cannot time its own assembly without a second jq process.
-                outside_marketplaces: ([0, ((($total * 1000)
-                                             - ([$marketplaces[].timings.total | numbers] | add // 0) * 1000)
-                                            | round) / 1000] | max),
-                resolution: $resolution}),
-   marketplaces: $marketplaces, errors: $errors}'
+  def ms_sum($a; $b): ((($a * 1000) + ($b * 1000)) | round) / 1000;
+  # The combined total is only as fine as the coarser clock that timed it. The
+  # rungs run fine to coarse here, not in the ladder'"'"'s try order.
+  def coarser($a; $b):
+    ["nanoseconds", "microseconds", "seconds"] as $rungs
+    | if ($rungs | index($a)) == null then $b
+      elif ($rungs | index($b)) == null then $a
+      elif ($rungs | index($a)) > ($rungs | index($b)) then $a
+      else $b end;
+  (([0, (((($t_run_e | tonumber) - ($t_run_s | tonumber)) * 1000 | ceil) / 1000)] | max) as $total
+   | {total: $total,
+      # Run setup and the per-block assembly: the part of the total no
+      # block window covers. The clock stops before this jq runs, since a digest
+      # cannot time its own assembly without a second jq process.
+      outside_marketplaces: ([0, ((($total * 1000)
+                                   - ([$marketplaces[].timings.total | numbers] | add // 0) * 1000)
+                                  | round) / 1000] | max),
+      resolution: $resolution}) as $this
+  # A re-entry adds the first pass it continues. The blocks time only this pass,
+  # so `outside_marketplaces` sums each pass'"'"'s own remainder, and the wait
+  # between the passes (the caller'"'"'s prompt) is in neither.
+  | (if $first == null then $this
+     else {total: ms_sum($first.total; $this.total),
+           outside_marketplaces: (if $first.outside_marketplaces == null then $this.outside_marketplaces
+                                  else ms_sum($first.outside_marketplaces; $this.outside_marketplaces) end),
+           resolution: coarser($first.resolution; $this.resolution),
+           passes: [{pass: "first"} + $first, {pass: "only_install"} + $this]}
+     end) as $timings
+  | {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
+     install_new: $install_new,
+     install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
+     timings: $timings,
+     marketplaces: $marketplaces, errors: $errors}'
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"
+if [[ "$MODE" == "sync" ]] && ((ONLY_INSTALL_MODE == 0)); then
+  FIRST_PASS_OUT=""
+  jq_to FIRST_PASS_OUT -c '{timings}' <<<"$DIGEST" && printf '%s\n' "$FIRST_PASS_OUT" >"$FIRST_PASS_RUN"
+fi
 
 # --- Step 6 — the report, rendered from the digest --------------------------------
 # A render failure is a defect in the renderer, never in the run: the digest is

@@ -1432,6 +1432,43 @@ report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
 assert_exit "render re-entry: exit 0" 0 "$REPORT_RC"
 assert_golden "render re-entry: the superseding report matches the golden" ask-reentry-installed.txt "$REPORT_TEXT"
 
+# --- a re-entry keeps the first pass's invalid install_new and its timings -----
+# The re-entry takes no --install-new, so the superseding report would otherwise
+# drop the warning, and its run total would cover only the re-entry.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.3.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new bogus --journal-root "$case_dir/journal")
+assert_exit "invalid policy re-entry: the first pass exits 0" 0 $?
+assert_eq "invalid policy re-entry: the first pass falls back to ask and stops" "ask true" \
+  "$(jq -r '"\(.install_new) \(.marketplaces[0].stopped_before_install)"' <<<"$out")"
+assert_eq "invalid policy re-entry: a first pass times itself alone" "null" \
+  "$(jq -c '.timings.passes' <<<"$out")"
+run_dir=$(jq -r '.run_dir' <<<"$out")
+first_total=$(jq -r '.timings.total' <<<"$out")
+out2=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir" --render)
+assert_exit "invalid policy re-entry: exit 0" 0 $?
+digest2=$(printf '%s\n' "$out2" | head -n 1)
+assert_eq "invalid policy re-entry: the superseding digest keeps the invalid value" "bogus" \
+  "$(jq -r '.install_new_invalid' <<<"$digest2")"
+assert_eq "invalid policy re-entry: and the policy the run used" "ask" "$(jq -r '.install_new' <<<"$digest2")"
+assert_contains "invalid policy re-entry: the superseding report still carries the warning" "$out2" \
+  'install_new value "bogus" is not all, none, or ask; this run used ask'
+assert_eq "invalid policy re-entry: the run timings name both passes" "first only_install" \
+  "$(jq -r '.timings.passes | map(.pass) | join(" ")' <<<"$digest2")"
+assert_eq "invalid policy re-entry: the first pass row is the first digest's total" "$first_total" \
+  "$(jq -r '.timings.passes[0].total' <<<"$digest2")"
+assert_eq "invalid policy re-entry: the run total is at least the first pass's total" "true" \
+  "$(jq -r --argjson first "$first_total" '.timings.total >= $first' <<<"$digest2")"
+assert_eq "invalid policy re-entry: the run total is the two passes summed" "true" \
+  "$(jq -r '.timings | .total - (.passes[0].total + .passes[1].total) | . < 0.0015 and . > -0.0015' <<<"$digest2")"
+assert_contains "invalid policy re-entry: the run Timing row names both passes" \
+  "$(printf '%s\n' "$out2" | grep -E '^Timing: [0-9.]+s run total over both passes \(first pass [0-9.]+s, --only-install re-entry [0-9.]+s; the wait between them is not counted\); [0-9.]+s outside the marketplace blocks; clock resolution: (microseconds|nanoseconds|seconds)$')" \
+  "over both passes"
+
 # --- an ask-policy re-entry where the human picked none of the offered plugins
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
