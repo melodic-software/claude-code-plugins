@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "# Roles\n\nEach role's bundled default. A consumer layer overrides per key.\n\n## Role defaults\n\n- `orchestrator`: inherit @ high\n",
+      "why": "title, intro and heading unchanged"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "# Roles\n\nEach role's bundled default.\n\n## Role defaults\n",
+      "why": "intro line trimmed"
+    },
+    {
+      "answer": "# Roles\n\nEach role's bundled default. A consumer layer overrides per key.\n\n## Role defaults (list)\n",
+      "why": "heading renamed"
+    }
+  ]
+}
