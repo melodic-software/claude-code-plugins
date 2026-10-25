@@ -219,9 +219,9 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
   feature, `Reset` takes the starting data `Drive` named (a flat control-skill file's `## States`
   goes there too), and each entry point ends `driven` or `not driven: <reason>` from the live pass.
 - **Config.** Write `config/defaults.json` with every floor at its safe value and `config/.gitignore`
-  holding `local.json`, unless they exist. A feature step that sends, signs in or writes, with no
-  `cli/` to do it, is a driver gap: that entry point is `not driven: needs a cli/ command`, and the
-  report says so.
+  holding `local.json`, unless they exist. A feature step the contract says needs `cli/` (it sends,
+  signs in, or writes to an environment or external system), with no `cli/` to do it, is a driver
+  gap: that entry point is `not driven: needs a cli/ command`, and the report says so.
 - **Move.** Move every legacy file with `git mv` (plain move for an untracked map) in the same
   commit, so no copy stays behind at the old path. The pointer in the instruction file and any
   `feature_map_dir` setting still name the old path: report both for a person to change.
