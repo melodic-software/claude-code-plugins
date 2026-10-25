@@ -71,8 +71,8 @@ test("drops the PR number, run list or free text a reason ends with", () => {
 
 test("keeps a reason that names no PR as it is", () => {
   assert.equal(
-    normalizeReason("ineligible:class-missing"),
-    "ineligible:class-missing",
+    normalizeReason("ineligible:untrusted-provenance"),
+    "ineligible:untrusted-provenance",
   );
   assert.equal(
     normalizeReason("prefilter:do-not-merge"),

@@ -987,6 +987,8 @@ def eligibility_fake(
     linked = {
         "number": ISSUE,
         "lastEditedAt": None,
+        # A write-access human wrote it, so it is vouched for (`_vouch_refusal`).
+        "author": user(OPERATOR),
         "repository": {"nameWithOwner": REPO},
         "labels": {"totalCount": 1, "nodes": [{"name": "work-class: mechanical"}]},
     } | (issue or {})
@@ -1032,38 +1034,395 @@ def lease_comment(
     }
 
 
-def eligibility() -> Any:
-    return policy.eligibility(REPO, 7, agent_identity=IDENTITY, permission=HUMANS)
+def eligibility(admission: str = "agent-ready") -> Any:
+    return policy.eligibility(
+        REPO, 7, agent_identity=IDENTITY, permission=HUMANS, admission=lambda: admission
+    )
+
+
+OUTSIDER = "outsider"
+
+
+class IssueVouch(unittest.TestCase):
+    """The local gate merges only work a human vouched for: a write-access
+    human wrote the linked issue, or one applied the admission label in
+    person with no body edit after it."""
+
+    TIMELINE = f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"
+
+    def outside_issue(
+        self, labels: list[str], labeler: dict[str, str], edited: str | None = None
+    ) -> GhFake:
+        gh = eligibility_fake(
+            self,
+            issue={
+                "author": user(OUTSIDER),
+                "lastEditedAt": edited,
+                "labels": {
+                    "totalCount": len(labels),
+                    "nodes": [{"name": n} for n in labels],
+                },
+            },
+        )
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "labeled",
+                "label": {"name": n},
+                "actor": labeler,
+                "created_at": "2026-10-11T09:00:00Z",
+            }
+            for n in labels
+        ]
+        return gh
+
+    def test_a_human_authored_issue_passes(self) -> None:
+        eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
+        self.assertTrue(eligibility().eligible)
+
+    def test_an_untriaged_outside_issue_is_refused(self) -> None:
+        self.outside_issue([], {"login": OPERATOR, "type": "User"})
+        self.assertEqual(
+            eligibility().reason,
+            "issue-not-vouched:no-human-author-or-admission-label",
+        )
+
+    def test_an_outside_issue_labeled_by_the_lane_identity_is_refused(self) -> None:
+        self.outside_issue(["agent-ready"], {"login": IDENTITY, "type": "Bot"})
+        self.assertEqual(eligibility().reason, "issue-not-vouched:labeler-not-human")
+
+    def test_an_outside_issue_a_human_labeled_agent_ready_passes(self) -> None:
+        self.outside_issue(["Agent-Ready"], {"login": OPERATOR, "type": "User"})
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+
+    def test_a_body_edit_after_the_label_is_refused(self) -> None:
+        self.outside_issue(
+            ["agent-ready"],
+            {"login": OPERATOR, "type": "User"},
+            edited="2026-10-11T10:00:00Z",
+        )
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:body-edited-after-label"
+        )
+
+    def test_the_admission_label_is_the_resolved_one(self) -> None:
+        # A tracker that maps the role elsewhere: the default name no longer
+        # vouches, the mapped one does.
+        self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        self.assertEqual(
+            eligibility("ready-for-agent").reason,
+            "issue-not-vouched:no-human-author-or-admission-label",
+        )
+        self.outside_issue(["ready-for-agent"], {"login": OPERATOR, "type": "User"})
+        self.assertTrue(eligibility("ready-for-agent").eligible)
+
+    def test_the_admission_label_reads_the_tracker_config(self) -> None:
+        gh = GhFake().install(self)
+        path = f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"
+        mapped = {"config": {"role_labels": {"autonomous-eligible": "go"}}}
+        gh.rest[path] = {
+            "type": "file",
+            "encoding": "base64",
+            "content": base64.b64encode(json.dumps(mapped).encode()).decode(),
+        }
+        self.assertEqual(policy.admission_label("owner", "repo", "main"), "go")
+        gh.rest[path] = 404
+        gh.rest[f"repos/{REPO}/contents?ref=main"] = []
+        self.assertEqual(policy.admission_label("owner", "repo", "main"), "agent-ready")
+
+    def test_an_admission_label_applied_through_an_app_is_refused(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE][0]["performed_via_github_app"] = {"slug": "agent"}
+        self.assertEqual(eligibility().reason, "issue-not-vouched:labeler-via-app")
+
+    def test_an_admission_label_from_a_read_only_person_is_refused(self) -> None:
+        self.outside_issue(["agent-ready"], {"login": "reader", "type": "User"})
+        self.assertEqual(eligibility().reason, "issue-not-vouched:labeler-not-human")
+
+    def test_a_failed_timeline_read_refuses(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE] = 502
+        result = eligibility()
+        self.assertFalse(result.eligible)
+        self.assertTrue(result.reason.startswith("unreadable:"), result.reason)
+
+    def test_a_title_rename_after_the_label_is_refused(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE].append(
+            {
+                "event": "renamed",
+                "actor": {"login": OUTSIDER, "type": "User"},
+                "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+                "created_at": "2026-10-11T10:00:00Z",
+            }
+        )
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-after-label"
+        )
+        # A rename before the label is what the labeler read: it vouches.
+        gh.rest[self.TIMELINE][-1]["created_at"] = "2026-10-11T08:00:00Z"
+        self.assertTrue(eligibility().eligible)
+
+    def test_a_retitle_with_no_recorded_actor_is_refused(self) -> None:
+        # A title edit leaves `lastEditedAt` empty, and a `renamed` event
+        # with no actor is not shown to be a person's.
+        gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "renamed",
+                "actor": None,
+                "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+                "created_at": "2026-10-11T10:00:00Z",
+            }
+        ]
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+
+    def test_a_human_relabel_after_a_non_human_retitle_vouches(self) -> None:
+        gh = eligibility_fake(
+            self,
+            issue={"labels": {"totalCount": 1, "nodes": [{"name": "agent-ready"}]}},
+        )
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "renamed",
+                "actor": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+                "created_at": "2026-10-11T10:00:00Z",
+            },
+            {
+                "event": "labeled",
+                "label": {"name": "agent-ready"},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T11:00:00Z",
+            },
+        ]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        # A label applied before the retitle did not see it.
+        gh.rest[self.TIMELINE][1]["created_at"] = "2026-10-11T09:00:00Z"
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+
+    def test_an_admission_label_with_no_labeled_event_is_refused(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE] = []
+        self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
+        # Past a provenance read that passes, an empty timeline still refuses
+        # rather than raising out of the rename check.
+        with mock.patch.object(policy, "_label_provenance", return_value=None):
+            self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
+
+    def tracker(self, gh: GhFake, text: str) -> None:
+        gh.rest[f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"] = {
+            "type": "file",
+            "encoding": "base64",
+            "content": base64.b64encode(text.encode()).decode(),
+        }
+
+    def test_the_production_default_reads_the_tracker_at_the_base(self) -> None:
+        # No `admission=` override: the label comes from the base branch's
+        # tracker config, here mapped away from the default name.
+        gh = eligibility_fake(
+            self,
+            pr={"baseRefName": "main"},
+            issue={
+                "author": user(OUTSIDER),
+                "labels": {"totalCount": 1, "nodes": [{"name": "ready-for-agent"}]},
+            },
+        )
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "labeled",
+                "label": {"name": "ready-for-agent"},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T09:00:00Z",
+            }
+        ]
+        mapped = {"config": {"role_labels": {"autonomous-eligible": "ready-for-agent"}}}
+        self.tracker(gh, json.dumps(mapped))
+        production = policy.eligibility(
+            REPO, 7, agent_identity=IDENTITY, permission=HUMANS
+        )
+        self.assertTrue(production.eligible, production.reason)
+
+    def test_a_non_json_tracker_config_refuses_unreadable(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.graphql["PolicyEligibility"]["repository"]["pullRequest"]["baseRefName"] = (
+            "main"
+        )
+        self.tracker(gh, "{ not json")
+        result = policy.eligibility(REPO, 7, agent_identity=IDENTITY, permission=HUMANS)
+        self.assertFalse(result.eligible)
+        self.assertTrue(result.reason.startswith("unreadable:"), result.reason)
+
+    def edited_issue(self, editor: dict[str, str]) -> GhFake:
+        created = "2026-10-10T09:00:00Z"
+        gh = eligibility_fake(self, issue={"lastEditedAt": "2026-10-11T10:00:00Z"})
+        gh.graphql["PolicyDemotionRecord"] = {
+            "repository": {
+                "issue": {
+                    "number": ISSUE,
+                    "createdAt": created,
+                    "author": user(OPERATOR),
+                    "userContentEdits": {
+                        "totalCount": 2,
+                        "nodes": [
+                            {
+                                "editedAt": "2026-10-11T10:00:00Z",
+                                "deletedAt": None,
+                                "editor": editor,
+                                "diff": "rewritten",
+                            },
+                            {
+                                "editedAt": created,
+                                "deletedAt": None,
+                                "editor": user(OPERATOR),
+                                "diff": "original",
+                            },
+                        ],
+                    },
+                }
+            }
+        }
+        return gh
+
+    def test_a_human_issue_rewritten_by_the_lane_app_is_refused(self) -> None:
+        self.edited_issue(bot("agent-lanes"))
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
+        )
+
+    def test_a_human_issue_retitled_by_a_non_human_is_refused(self) -> None:
+        # A title edit leaves the body history alone, so the author path reads
+        # the `renamed` events too: only a human in person may retitle.
+        gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
+        rename = {
+            "event": "renamed",
+            "actor": {"login": IDENTITY, "type": "Bot"},
+            "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+            "created_at": "2026-10-11T10:00:00Z",
+        }
+        gh.rest[self.TIMELINE] = [rename]
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        rename["actor"] = {"login": OPERATOR, "type": "User"}
+        rename["performed_via_github_app"] = {"slug": "agent"}
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        del rename["performed_via_github_app"]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+
+    def test_a_human_relabel_after_a_lane_rewrite_vouches(self) -> None:
+        # Either vouch suffices: a human who re-applies the admission label in
+        # person after the lane's edit vouches for the edited body.
+        gh = self.edited_issue(bot("agent-lanes"))
+        issue = gh.graphql["PolicyEligibility"]["repository"]["pullRequest"][
+            "closingIssuesReferences"
+        ]["nodes"][0]
+        issue["labels"] = {"totalCount": 1, "nodes": [{"name": "agent-ready"}]}
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "labeled",
+                "label": {"name": "agent-ready"},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T11:00:00Z",
+            }
+        ]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        # A label applied before the rewrite did not see it: the author
+        # path's reason stands.
+        gh.rest[self.TIMELINE][0]["created_at"] = "2026-10-11T09:00:00Z"
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
+        )
+
+    def test_a_human_issue_edited_only_by_its_author_passes(self) -> None:
+        self.edited_issue(user(OPERATOR))
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+
+    def test_an_incomplete_edit_history_refuses(self) -> None:
+        gh = self.edited_issue(user(OPERATOR))
+        record = gh.graphql["PolicyDemotionRecord"]["repository"]["issue"]
+        record["userContentEdits"]["totalCount"] = 101
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:edit-history-incomplete"
+        )
 
 
 class Eligibility(unittest.TestCase):
-    def test_a_lane_authored_pr_with_one_classed_issue_and_an_earlier_claim(
+    def test_a_lane_authored_pr_with_one_issue_and_an_earlier_claim(
         self,
     ) -> None:
         eligibility_fake(self)
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        self.assertEqual((result.work_class, result.issue), ("C2", ISSUE))
+        self.assertEqual(result.issue, ISSUE)
 
-    def test_a_structural_issue_scores_as_scoped_and_provenance_stays_c5(
-        self,
-    ) -> None:
-        # Structural risk shows in the diff the review lanes read.
-        for label, work_class in (
-            ("work-class: structural", "C3"),
-            ("work-class: untrusted-provenance", "C5"),
+    def test_a_structural_unknown_or_class_less_issue_is_eligible(self) -> None:
+        # Owner decision (option a): no work class gates the merge, so the
+        # former class-missing and class-unknown refusals are gone.
+        for name, labels in (
+            ("structural", ["work-class: structural"]),
+            ("class-less", []),
+            ("unknown class", ["work-class: bespoke"]),
         ):
-            with self.subTest(label):
-                gh = eligibility_fake(
+            with self.subTest(name):
+                eligibility_fake(
                     self,
-                    issue={"labels": {"totalCount": 1, "nodes": [{"name": label}]}},
+                    issue={
+                        "labels": {
+                            "totalCount": len(labels),
+                            "nodes": [{"name": n} for n in labels],
+                        }
+                    },
                 )
-                gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"][0][
-                    "label"
-                ]["name"] = label
                 result = eligibility()
                 self.assertTrue(result.eligible, result.reason)
-                self.assertEqual(result.work_class, work_class)
+                self.assertEqual(result.issue, ISSUE)
+
+    def test_an_untrusted_provenance_issue_is_held(self) -> None:
+        # The trust hold stays (owner decision, option a), in any case or
+        # whitespace, beside any other label.
+        for label in (
+            "work-class: untrusted-provenance",
+            "Work-Class: Untrusted-Provenance",
+            " work-class: untrusted-provenance ",
+            "work-class:untrusted-provenance",
+            "work-class: untrusted_provenance",
+            "work-class: untrusted–provenance",
+            "untrusted-provenance",
+        ):
+            with self.subTest(label):
+                eligibility_fake(
+                    self,
+                    issue={
+                        "labels": {
+                            "totalCount": 2,
+                            "nodes": [
+                                {"name": "work-class: mechanical"},
+                                {"name": label},
+                            ],
+                        }
+                    },
+                )
+                result = eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "untrusted-provenance")
+
+    def test_unreadable_issue_labels_hold(self) -> None:
+        # The trust hold cannot be ruled out, so it fails closed.
+        eligibility_fake(
+            self, issue={"labels": {"totalCount": 101, "nodes": [{"name": "a"}]}}
+        )
+        self.assertEqual(eligibility().reason, "issue-labels-unreadable")
 
     def test_fork_and_dependency_prs_are_ineligible(self) -> None:
         for name, pr, reason in (
@@ -1159,25 +1518,23 @@ class Eligibility(unittest.TestCase):
         eligibility_fake(self, issue={"repository": {"nameWithOwner": "other/repo"}})
         self.assertEqual(eligibility().reason, "linked-issue-other-repository")
 
-    def test_the_class_must_be_provenance_valid(self) -> None:
-        eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
-        self.assertEqual(eligibility().reason, "class-missing")
-
+    def test_a_class_label_s_provenance_no_longer_refuses(self) -> None:
+        # Owner decision (option a): the former class-provenance refusals,
+        # an agent's class label and a body edit after it, are gone.
         gh = eligibility_fake(self)
         gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
             {
                 "event": "labeled",
-                "label": {"name": "work-class: mechanical"},
+                "label": {"name": "work-class: structural"},
                 "actor": {"login": "agent-lanes[bot]", "type": "Bot"},
                 "created_at": "2026-10-11T09:00:00Z",
             },
         ]
-        self.assertEqual(eligibility().reason, "class-provenance:labeler-not-human")
+        self.assertIsNone(eligibility().reason)
 
-        eligibility_fake(self, issue={"lastEditedAt": "2026-10-11T10:00:00Z"})
-        self.assertEqual(
-            eligibility().reason, "class-provenance:body-edited-after-label"
-        )
+        # A body edit after the class label, by the human author.
+        IssueVouch.edited_issue(self, user(OPERATOR))
+        self.assertIsNone(eligibility().reason)
 
     def test_the_lane_claim_must_predate_the_pr(self) -> None:
         gh = eligibility_fake(self)
@@ -1213,17 +1570,29 @@ class Eligibility(unittest.TestCase):
 
 
 class EligibilityAgentSignals(unittest.TestCase):
-    """Carried from #7324: an App acting on a human's token is not the human,
-    and a class label removed by a non-human leaves a lower class untrusted."""
+    """An App acting on a human's token is not the human, so only a human in
+    person may lift the untrusted-provenance hold. No other class label's
+    history is read."""
 
     TIMELINE = f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"
 
-    def test_a_class_label_applied_through_an_app_is_not_human(self) -> None:
+    def unlabeled(
+        self, label: str, actor: dict[str, str], via: Any = None
+    ) -> dict[str, Any]:
+        return {
+            "event": "unlabeled",
+            "label": {"name": label},
+            "actor": actor,
+            "performed_via_github_app": via,
+            "created_at": "2026-10-11T10:00:00Z",
+        }
+
+    def test_a_class_label_applied_through_an_app_stays_eligible(self) -> None:
         gh = eligibility_fake(self)
         gh.rest[self.TIMELINE][0]["performed_via_github_app"] = {"slug": "agent"}
-        self.assertEqual(eligibility().reason, "class-provenance:labeler-via-app")
+        self.assertTrue(eligibility().eligible)
 
-    def test_a_class_label_removed_by_a_non_human_is_ineligible(self) -> None:
+    def test_the_trust_label_removed_by_a_non_human_is_held(self) -> None:
         for actor, via in (
             ({"login": IDENTITY, "type": "Bot"}, None),
             ({"login": OPERATOR, "type": "User"}, {"slug": "agent"}),
@@ -1231,33 +1600,35 @@ class EligibilityAgentSignals(unittest.TestCase):
             with self.subTest(actor=actor, via=via):
                 gh = eligibility_fake(self)
                 gh.rest[self.TIMELINE].append(
-                    {
-                        "event": "unlabeled",
-                        "label": {"name": "work-class: scoped"},
-                        "actor": actor,
-                        "performed_via_github_app": via,
-                        "created_at": "2026-10-11T10:00:00Z",
-                    }
+                    self.unlabeled("Work-Class: Untrusted-Provenance", actor, via)
                 )
                 self.assertEqual(
-                    eligibility().reason, "class-label-removed-by-non-human"
+                    eligibility().reason, "untrusted-provenance-removed-by-non-human"
                 )
 
-    def test_a_human_removing_a_class_label_stays_eligible(self) -> None:
+    def test_another_class_label_removed_by_a_non_human_stays_eligible(self) -> None:
+        # The former class-label-removed-by-non-human refusal, for a
+        # structural label and a scoped one.
+        for label in ("work-class: structural", "work-class: scoped"):
+            with self.subTest(label):
+                gh = eligibility_fake(self)
+                gh.rest[self.TIMELINE].append(
+                    self.unlabeled(label, {"login": IDENTITY, "type": "Bot"})
+                )
+                self.assertTrue(eligibility().eligible)
+
+    def test_a_human_removing_the_trust_label_lifts_the_hold(self) -> None:
         gh = eligibility_fake(self)
         gh.rest[self.TIMELINE].append(
-            {
-                "event": "unlabeled",
-                "label": {"name": "work-class: scoped"},
-                "actor": {"login": OPERATOR, "type": "User"},
-                "created_at": "2026-10-11T10:00:00Z",
-            }
+            self.unlabeled(
+                "work-class: untrusted-provenance", {"login": OPERATOR, "type": "User"}
+            )
         )
         self.assertTrue(eligibility().eligible)
 
-    def test_a_label_event_without_an_offset_is_ineligible(self) -> None:
+    def test_an_unreadable_timeline_is_ineligible(self) -> None:
         gh = eligibility_fake(self)
-        gh.rest[self.TIMELINE][0]["created_at"] = "2026-10-11T09:00:00"
+        gh.rest[self.TIMELINE] = 502
         result = eligibility()
         self.assertFalse(result.eligible)
         self.assertTrue(result.reason.startswith("unreadable"), result.reason)
@@ -1654,11 +2025,32 @@ class ReadPromotion(unittest.TestCase):
         self.assertEqual(result.reason, "option-unreported:promotion_evidence_binding")
         self.assertFalse(result.promoted("C2"))
 
-    def test_c4_and_c5_are_never_promoted(self) -> None:
+    def test_only_an_on_rung_is_promoted(self) -> None:
+        # Keyed by the rung: `off`, a missing rung and any class name have no
+        # cells, so nothing outside RUNG_CELLS is ever promoted.
         result, _ = self.run_resolver()
         self.assertTrue(result.promoted("C2"))
-        for work_class in ("C4", "C5", None):
-            self.assertFalse(result.promoted(work_class))
+        self.assertTrue(result.promoted("C3"))
+        for other in ("off", None, "C1", "C4", "C5"):
+            self.assertFalse(result.promoted(other))
+
+    def test_each_rung_needs_its_own_cells(self) -> None:
+        # promotion-evidence-resolution.md "Promotable cells and rung
+        # mapping": C2 needs C2-auto-merge; C3 also needs C3-auto-merge and
+        # its prerequisite C3-ai-review-blocking.
+        cells = self.CELLS | {"C3-ai-review-blocking": {"effective": "unpromoted"}}
+        options = {
+            o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
+            for o in policy.PROMOTION_OPTIONS
+        }
+        payload = {"failClosedReason": None, "options": options, "cells": cells}
+        result, _ = self.run_resolver(payload)
+        self.assertTrue(result.promoted("C2"))
+        self.assertFalse(result.promoted("C3"))
+        payload["cells"] = self.CELLS | {"C2-auto-merge": {"effective": "unpromoted"}}
+        result, _ = self.run_resolver(payload)
+        self.assertFalse(result.promoted("C2"))
+        self.assertFalse(result.promoted("C3"))
 
     def test_a_fail_closed_resolver_promotes_nothing(self) -> None:
         payload = {"failClosedReason": "checker exited 1", "cells": {}}
@@ -2246,6 +2638,22 @@ class Assess(unittest.TestCase):
         self.assertIs(result.enabled, True)
         self.assertIs(result.promoted, True)
         self.assertEqual(result.report()["credentials"], "identity-only")
+        self.assertNotIn("configNotes", result.report())
+
+    def test_the_config_notes_reach_the_report(self) -> None:
+        # A retired key's note (read_config_at) is what tells the operator
+        # the setting does nothing.
+        self.readable()
+        self.all_clear()
+        note = "merge.diff-check.c2-contradictions is retired and has no effect"
+        tighten = policy.with_default_branch
+        with mock.patch.object(
+            policy,
+            "with_default_branch",
+            lambda *a, **k: dataclasses.replace(tighten(*a, **k), notes=(note,)),
+        ):
+            result = self.assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(result.report()["configNotes"], [note])
 
     def test_a_merged_pull_request_stops_before_the_post_merge_reads(self) -> None:
         gh = self.readable()
@@ -2483,15 +2891,107 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.reason, "credentials:other-account-listed")
         self.assertFalse(any("variables" in " ".join(c) for c in gh.calls))
 
-    def test_a_work_class_above_the_rung_refuses(self) -> None:
+    def test_no_work_class_is_a_ceiling_on_the_rung(self) -> None:
+        # Owner decision (option a): the former class-above-rung refusal is
+        # gone, and promotion is keyed by the rung (Q21 option b). An eligible
+        # pull request reporting no class, or a class above the C2 rung,
+        # merges at a promoted C2.
         self.readable()
-        for work_class in ("C3", "C4", "C5"):
+        for work_class in (None, "C3", "C5"):
             with self.subTest(work_class=work_class), self.all_clear(work_class):
                 result = self.assess(
                     post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
                 )
-                self.assertEqual(result.reason, f"class-above-rung:{work_class}>C2")
-                self.assertIs(result.enabled, True)
+                self.assertIsNone(result.reason)
+                self.assertIs(result.promoted, True)
+
+    def at_rung(self, rung: str) -> Any:
+        at = policy.EffectiveRung(rung, {"merge.rung": rung}, None)
+        return mock.patch.object(policy, "effective_rung", return_value=at)
+
+    def test_the_rung_names_the_promotion_cells_it_needs(self) -> None:
+        # Q21 option b: rung C2 needs C2-auto-merge; rung C3 needs every C3
+        # cell. The pull request's class does not change the answer.
+        only_c2 = policy.Promotion(
+            {
+                "C2-auto-merge": "promoted",
+                "C3-auto-merge": "unpromoted",
+                "C3-ai-review-blocking": "unpromoted",
+            },
+            None,
+        )
+        none = policy.Promotion(
+            dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
+        )
+        self.readable()
+        for rung, promo, reason in (
+            ("C2", PROMOTED, None),
+            ("C2", only_c2, None),
+            ("C2", none, "promotion-unqualified:C2"),
+            ("C3", PROMOTED, None),
+            ("C3", only_c2, "promotion-unqualified:C3"),
+        ):
+            for work_class in (None, "C2", "C5"):
+                with (
+                    self.subTest(rung=rung, work_class=work_class, reason=reason),
+                    self.all_clear(work_class),
+                    self.at_rung(rung),
+                ):
+                    result = self.assess(
+                        post_merge=lambda floor, who: gate(),
+                        promotion=lambda s, p=promo: p,
+                    )
+                    self.assertEqual(result.reason, reason)
+                    self.assertIs(result.promoted, reason is None)
+                    # The pull request's own refusal, so a queued entry leaves.
+                    self.assertEqual(result.inputs["own_refusal"], reason)
+
+    def test_an_unreadable_resolver_refuses(self) -> None:
+        self.readable()
+        self.all_clear(None)
+        failed = policy.Promotion(None, "resolver-failed")
+        result = self.assess(
+            post_merge=lambda floor, who: gate(), promotion=lambda s: failed
+        )
+        self.assertEqual(result.reason, "promotion-unqualified:resolver-failed")
+        self.assertIs(result.enabled, True)
+
+    def test_the_real_eligibility_holds_an_untrusted_provenance_issue(self) -> None:
+        # The trust hold through `eligibility()` itself, not a stubbed answer.
+        gh = self.readable()
+        issue = {
+            "number": ISSUE,
+            "lastEditedAt": None,
+            "author": user(OPERATOR),
+            "repository": {"nameWithOwner": REPO},
+            "labels": {
+                "totalCount": 1,
+                "nodes": [{"name": "work-class: untrusted-provenance"}],
+            },
+        }
+        gh.graphql["PolicyEligibility"] = {
+            "repository": {
+                "pullRequest": {
+                    "number": 1,
+                    "createdAt": PR_CREATED,
+                    "lastEditedAt": None,
+                    "isCrossRepository": False,
+                    "baseRefName": "trunk",
+                    "author": bot("agent-lanes"),
+                    "headRepositoryOwner": {"login": "owner"},
+                    "labels": {"totalCount": 0, "nodes": []},
+                    "closingIssuesReferences": {"totalCount": 1, "nodes": [issue]},
+                }
+            }
+        }
+        with mock.patch.object(
+            policy, "in_flight", return_value=policy.InFlight(True, None)
+        ):
+            result = self.assess(
+                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+            )
+        self.assertEqual(result.reason, "ineligible:untrusted-provenance")
+        self.assertIs(result.enabled, True)
 
     def test_unread_promotion_refuses_but_the_path_stays_enabled(self) -> None:
         self.readable()
@@ -2515,7 +3015,78 @@ class Assess(unittest.TestCase):
                 post_merge=lambda floor, who: gate(),
                 promotion=lambda start: seen.append(start) or PROMOTED,
             )
+            # The restarted window holds the rung's cells unpromoted until a
+            # human re-ratifies them after the demotion: the merge refuses.
+            restarted = policy.Promotion(
+                dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
+            )
+            held = self.assess(
+                post_merge=lambda floor, who: gate(),
+                promotion=lambda start: restarted if start == created else PROMOTED,
+            )
         self.assertEqual(seen, [created])
+        self.assertEqual(held.reason, "promotion-unqualified:C2")
+
+    def test_after_a_demotion_the_rung_waits_for_re_ratified_evidence(self) -> None:
+        # The resolver, given --window-start, adds a gate-failure per cell at
+        # the demotion (resolve-promotion-evidence.test.mjs "--window-start
+        # hands the checker a copy with one gate-failure per cell"), so its
+        # cells read unpromoted until a promotion newer than that exists. Here
+        # the resolver's answer is canned on each side of that ratification;
+        # the gate must pass the window start through read_promotion's argv
+        # and refuse until the cells read promoted.
+        self.readable()
+        self.all_clear()
+        created = policy.datetime.fromisoformat("2026-10-11T07:00:00Z")
+        options = {
+            o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
+            for o in policy.PROMOTION_OPTIONS
+        }
+        argvs: list[list[str]] = []
+        real = policy.run_command
+
+        def resolver(effective: str) -> Any:
+            answer = {
+                "failClosedReason": None,
+                "options": options,
+                "cells": {c: {"effective": effective} for c in policy.PROMOTABLE_CELLS},
+            }
+
+            def run(argv: list[str], **kwargs: Any) -> Any:
+                if str(policy.PROMOTION_RESOLVER) not in argv:
+                    return real(argv, **kwargs)
+                argvs.append(argv)
+                return subprocess.CompletedProcess(argv, 0, json.dumps(answer), "")
+
+            return run
+
+        def promotion(start: Any) -> policy.Promotion:
+            return policy.read_promotion(
+                checkout=pathlib.Path("/w/main"),
+                window_start=start,
+                worktrees=lambda c: [],
+                writable=lambda p: False,
+            )
+
+        demotion = policy.Demotion(False, None, (9,), created, created)
+        with mock.patch.object(policy, "read_demotion", return_value=demotion):
+            for effective, reason in (
+                ("unpromoted", "promotion-unqualified:C2"),
+                ("promoted", None),
+            ):
+                with (
+                    self.subTest(effective=effective),
+                    mock.patch.object(policy, "run_command", resolver(effective)),
+                ):
+                    result = self.assess(
+                        post_merge=lambda floor, who: gate(), promotion=promotion
+                    )
+                    self.assertEqual(result.reason, reason)
+        for argv in argvs:
+            self.assertEqual(
+                argv[argv.index("--window-start") + 1], "2026-10-11T07:00:00Z"
+            )
+        self.assertEqual(len(argvs), 2)
 
     def test_no_merge_block_is_authority_unconfigured_with_no_identity(self) -> None:
         self.fake(None)
@@ -2979,25 +3550,22 @@ class LaneConfig(unittest.TestCase):
         return policy.read_config_at(REPO, SHA)
 
     def test_the_lane_switches_default_to_off(self) -> None:
-        # Owner decision Q624: absent, the floor, the C2 contradictions and
-        # both size caps are off.
+        # Owner decision Q624: absent, the floor and both size caps are off.
         config = self.diff_check([])
         self.assertEqual(
             (
                 config.high_path_floor,
-                config.c2_contradictions,
                 config.max_changed_files,
                 config.max_changed_lines,
                 config.rung,
             ),
-            (False, False, None, None, "C2"),
+            (False, None, None, "C2"),
         )
 
     def test_the_lane_switches_are_read(self) -> None:
         config = self.diff_check(
             [
                 "high-path-floor: true",
-                "c2-contradictions: true",
                 "max-changed-files: 8",
                 "max-changed-lines: 400",
             ]
@@ -3005,19 +3573,31 @@ class LaneConfig(unittest.TestCase):
         self.assertEqual(
             (
                 config.high_path_floor,
-                config.c2_contradictions,
                 config.max_changed_files,
                 config.max_changed_lines,
             ),
-            (True, True, 8, 400),
+            (True, 8, 400),
         )
 
-    def test_an_unreadable_switch_is_on_and_a_bad_cap_is_off(self) -> None:
-        config = self.diff_check(["high-path-floor: maybe", "c2-contradictions: 1"])
+    def test_the_retired_c2_contradictions_key_only_leaves_a_note(self) -> None:
+        # Kept valid in the schema for existing configs; it has no effect, and
+        # an operator who set it is told so.
+        config = self.diff_check(["c2-contradictions: true"])
+        self.assertEqual(config.rung, "C2")
         self.assertEqual(
-            (config.high_path_floor, config.c2_contradictions), (True, True)
+            config.notes,
+            (
+                "merge.diff-check.c2-contradictions is retired and has no effect:"
+                " no work class is read",
+            ),
         )
-        self.assertEqual(len(config.notes), 2)
+        self.assertFalse(hasattr(config, "c2_contradictions"))
+        self.assertEqual(self.diff_check(["c2-contradictions: false"]).notes, ())
+
+    def test_an_unreadable_switch_is_on_and_a_bad_cap_is_off(self) -> None:
+        config = self.diff_check(["high-path-floor: maybe"])
+        self.assertIs(config.high_path_floor, True)
+        self.assertEqual(len(config.notes), 1)
         config = self.diff_check(["max-changed-files: lots"])
         self.assertEqual((config.rung, config.max_changed_files), ("off", None))
 
@@ -3432,23 +4012,34 @@ class RefsIssueEligibility(unittest.TestCase):
             policy.recheck_lane_issue(REPO, 7, issue=41), "linked-issues:0"
         )
 
-    def test_the_worker_tier_reads_class_and_claim_from_the_refs_issue(self) -> None:
-        refs_issue = {
-            "number": ISSUE,
-            "lastEditedAt": None,
-            "repository": {"nameWithOwner": REPO},
-            "labels": {"totalCount": 1, "nodes": [{"name": "work-class: structural"}]},
-        }
+    def test_the_worker_tier_reads_the_trust_hold_and_claim_from_the_refs_issue(
+        self,
+    ) -> None:
+        def refs_issue(label: str) -> dict[str, Any]:
+            return {
+                "number": ISSUE,
+                "lastEditedAt": None,
+                "author": user(OPERATOR),
+                "repository": {"nameWithOwner": REPO},
+                "labels": {"totalCount": 1, "nodes": [{"name": label}]},
+            }
+
         gh = eligibility_fake(self, issues=[], pr={"body": f"Refs: #{ISSUE}"})
-        gh.graphql["PolicyRefsIssue"] = refs_answer(refs_issue)
+        # A structural class an agent applied no longer refuses: no class is
+        # read (owner decision, option a).
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            refs_issue("work-class: structural")
+        )
         timeline = gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"]
         timeline[0]["label"]["name"] = "work-class: structural"
+        timeline[0]["actor"] = {"login": "agent-lanes[bot]", "type": "Bot"}
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        self.assertEqual((result.work_class, result.issue), ("C3", ISSUE))
-        # An agent's label on the Refs issue is not a human's class.
-        timeline[0]["actor"] = {"login": "agent-lanes[bot]", "type": "Bot"}
-        self.assertEqual(eligibility().reason, "class-provenance:labeler-not-human")
+        self.assertEqual(result.issue, ISSUE)
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            refs_issue("work-class: untrusted-provenance")
+        )
+        self.assertEqual(eligibility().reason, "untrusted-provenance")
 
     def test_an_unclaimed_refs_issue_is_refused_claim_missing(self) -> None:
         gh = eligibility_fake(self, issues=[], pr={"body": f"Refs: #{ISSUE}"})
@@ -3456,6 +4047,7 @@ class RefsIssueEligibility(unittest.TestCase):
             {
                 "number": ISSUE,
                 "lastEditedAt": None,
+                "author": user(OPERATOR),
                 "repository": {"nameWithOwner": REPO},
                 "labels": {
                     "totalCount": 1,
@@ -4598,7 +5190,6 @@ merge:
   diff-check:
     denied-paths: [".github/**"]
     high-path-floor: false
-    c2-contradictions: false
     max-changed-lines: 500
 """
 STRICT_PIPELINE = """\
@@ -4618,7 +5209,6 @@ merge:
   diff-check:
     denied-paths: [".github/**", "docs/**"]
     high-path-floor: true
-    c2-contradictions: true
     max-changed-lines: 100
     max-changed-files: 0
 """
@@ -4682,7 +5272,6 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "report_only": True,
             "require_verifier_verdict": True,
             "high_path_floor": True,
-            "c2_contradictions": True,
             "max_changed_lines": 100,
             "max_changed_files": 0,
             "dependabot_mode": "report",
