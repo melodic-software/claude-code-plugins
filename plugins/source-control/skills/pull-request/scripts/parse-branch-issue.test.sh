@@ -75,9 +75,14 @@ run_no_default() {
 run_no_default "--no-default with no consumer pattern exits 3, prints nothing" "" "" 3
 run_no_default "--no-default still applies a consumer pattern" '^[^/]+/([0-9]+)-' "42" 0
 
-# Layered `.claude/source-control.md` cascade. Each case gets its own fixture
-# HOME and repo root. `layer <file> <value>` writes one `## branch_issue_pattern`
-# section; the value is wrapped in backticks, as setup writes it.
+# Markdown layer cascade. Each case gets its own fixture HOME and repo root.
+# `${CASE_HOME}/.claude/source-control.md` is the user-global layer. No case
+# before the YAML cases below writes docs/conventions/source-control.yaml, so
+# `${CASE_REPO}/.claude/source-control.md` is read as the legacy team layer:
+# these are compatibility-read cases, and they exercise the markdown section
+# reader the overlay and user-global layers still use. `layer <file> <value>`
+# writes one `## branch_issue_pattern` section; the value is wrapped in
+# backticks, as setup writes it.
 layer() {
   mkdir -p "$(dirname "$1")"
   # shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
