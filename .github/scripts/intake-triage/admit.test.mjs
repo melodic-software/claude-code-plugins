@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
-import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
+import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 
+const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -554,19 +557,19 @@ const open = {
   admission_room: 3,
   admission_reason: null,
 };
-const go = (fake, { status = open } = {}) =>
-  admit({
-    github: fake.github,
-    repository: "o/r",
-    number: 7,
-    verdict: VERDICT,
-    rules: RULES,
-    humans,
-    appId: APP,
-    webHosts: HOSTS,
-    status: async () => status,
-    log: () => {},
-  });
+const goArgs = (fake, { status = open } = {}) => ({
+  github: fake.github,
+  repository: "o/r",
+  number: 7,
+  verdict: VERDICT,
+  rules: RULES,
+  humans,
+  appId: APP,
+  webHosts: HOSTS,
+  status: async () => status,
+  log: () => {},
+});
+const go = (fake, options) => admit(goArgs(fake, options));
 // The GraphQL reads are POSTs but write nothing.
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 
@@ -576,6 +579,16 @@ describe("admit", () => {
     const result = await go(fake);
     assert.equal(result.outcome, "admitted");
     assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+  });
+
+  // refine.mjs starts the size split only from this exact wait comment.
+  test("the Size Large wait comment admit() posts is the one refine.mjs splits on", async () => {
+    const fake = fakeGitHub();
+    const result = await admit({ ...goArgs(fake), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } });
+    assert.equal(result.outcome, "waiting");
+    const posted = fake.calls.filter((call) => call.method !== "GET" && /\/comments(\/\d+)?$/.test(call.path)).map((call) => call.body.body);
+    assert.equal(posted.length, 1);
+    assert.equal(sizeSplitPending([{ user: { id: APP }, body: posted[0] }], APP), true);
   });
 
   const feature = issueOf({ type: { name: "Feature" } });
@@ -705,12 +718,19 @@ describe("admit", () => {
   });
 
   test("an open pull request that closes it adds admission-deferred, so the sweep revisits it", async () => {
-    const fake = fakeGitHub({ closing: [{ number: 12, repository: { nameWithOwner: "o/r" } }] });
+    const fake = fakeGitHub({ closing: [{ number: 12, state: "OPEN", repository: { nameWithOwner: "o/r" } }] });
     const result = await go(fake);
     assert.equal(result.outcome, "waiting");
     const done = writes(fake.calls);
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`);
     assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*open pull request #12/);
+  });
+
+  test("a merged or closed pull request GitHub still lists as closing it does not hold it", async () => {
+    for (const state of ["MERGED", "CLOSED"]) {
+      const result = await go(fakeGitHub({ closing: [{ number: 12, state, repository: { nameWithOwner: "o/r" } }] }));
+      assert.equal(result.outcome, "admitted", state);
+    }
   });
 
   test("an open pull request that only mentions it does not defer it", async () => {
@@ -968,6 +988,145 @@ describe("noteUnrunnable", () => {
     const changed = fakeGitHub({ issue: HELD, comments: own(`${ADMIT_MARKER}\nold`) });
     await note(changed);
     assert.match(writes(changed.calls)[0], /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
+  });
+});
+
+// Owner Q93 with the coordinator's Q9 extension: a sub-issue a size split
+// filed is the lanes App's verbatim copy of its listed-human parent's lines,
+// so its body counts as that human's text; anything else stays untrusted.
+describe("size split sub-issues", () => {
+  const PARENT = 5;
+  const PARENT_BODY = ["## Done when", "", "- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty.", "- [ ] Line 5 says twenty-one."].join("\n");
+  const parentSpec = (author = USER(HUMAN)) => ({ ...written(author, { body: PARENT_BODY }), comments: [] });
+  const childBody = (lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."], parent = PARENT) =>
+    `${splitChildHeader(parent, 1, 2)}\n${lines.join("\n")}`;
+  const childSpec = ({ body = childBody(), author = APP_ACTOR, editor = null, parent = parentSpec(), appId = APP } = {}) => ({
+    ...written(author, { body, editor }),
+    comments: [],
+    splitParent: { number: PARENT, spec: parent, appId },
+  });
+  const childIssue = (body = childBody()) => issueOf({ user: { id: APP }, body });
+  const NO_SPEC =
+    "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
+
+  // The shared cases (split-child.vectors.json), as specOf and admissionFacts
+  // shape them: a trusted child is admitted at its Size, Large included; an
+  // untrusted one is refused at Small and at Large.
+  const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
+  // admissionFacts sets splitParent only for a native parent in this
+  // repository, with the lanes App id it was given (none when null).
+  const vectorSpec = ({ child, parent, ...rest }) => {
+    const appId = ("app_id" in rest ? rest.app_id : VECTORS.app_id) ?? undefined;
+    const here = child.parent !== null && (child.parent.repo ?? "o/r") === "o/r";
+    return {
+      body: child.body,
+      lastEditedAt: child.last_edited_at,
+      author: actorOf(child.author),
+      editor: actorOf(child.editor),
+      comments: [],
+      ...(here
+        ? { splitParent: { number: child.parent.number, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments }, appId } }
+        : {}),
+    };
+  };
+  for (const vector of VECTORS.cases) {
+    test(`split-child vector: ${vector.name}`, () => {
+      assert.deepEqual([VECTORS.app_id, VECTORS.humans], [APP, [...humans]]);
+      const spec = vectorSpec(vector);
+      const issue = issueOf({ user: { id: vector.child.author.id }, body: vector.child.body });
+      const at = (size) => decide(facts({ issue, spec, verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size } } }));
+      if (vector.expect.trusted) {
+        assert.deepEqual(at(vector.size), { verdict: "admit", reasons: [] }, vector.expect.reason);
+      } else {
+        assert.equal(at("small").verdict, "refuse", vector.expect.reason);
+        assert.ok(at("small").reasons.includes(NO_SPEC), vector.expect.reason);
+        assert.equal(at("large").verdict, "refuse", vector.expect.reason);
+        assert.ok(at("large").reasons.some((reason) => /^Size large/.test(reason)), vector.expect.reason);
+      }
+    });
+  }
+
+  test("splitChildBody counts nothing without a task-list marker", () => {
+    const spec = vectorSpec(VECTORS.cases.find((item) => item.name === "the trusted child"));
+    assert.notEqual(splitChildBody(spec, humans, RULES["task-list"]), null);
+    for (const taskList of [undefined, ""]) {
+      assert.equal(splitChildBody(spec, humans, taskList), null, JSON.stringify(taskList));
+    }
+  });
+
+  test("splitChildBody's edited path takes only exact lines when the marker has no box to tick", () => {
+    const edited = vectorSpec(VECTORS.cases.find((item) => item.name === "edited by a listed human"));
+    const header = edited.body.slice(0, edited.body.indexOf("- [x]"));
+    const spec = (lines) => ({ ...edited, body: header + lines.join("\n"), splitParent: { ...edited.splitParent, spec: { ...edited.splitParent.spec, body: "## Done when\n\n* Line 3.\n  * Line 4." } } });
+    assert.notEqual(splitChildBody(spec(["* Line 3.", "  * Line 4."]), humans, "* "), null);
+    assert.equal(splitChildBody(spec(["* Line 3.", "* Line 4."]), humans, "* "), null, "the indent is part of the line");
+    assert.equal(splitChildBody(spec(["* [x] Line 3."]), humans, "* "), null, "no ticked form to derive");
+  });
+
+  test("an issue waits while a sub-issue is open, and not for a closed one", () => {
+    const subIssues = [
+      { number: 8, state: "open" },
+      { number: 9, state: "closed" },
+    ];
+    assert.deepEqual(decide(facts({ subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+    assert.deepEqual(decide(facts({ subIssues: [subIssues[1]] })), { verdict: "admit", reasons: [] });
+  });
+
+  // fakeGitHub answers one issue's text; these reads add the parent's text,
+  // sub-issue lists and other issues by number.
+  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {} }) => {
+    const github = async (method, path, body) => {
+      if (method === "POST" && path === "/graphql" && specs[body.variables?.number] && !body.query.includes("closedByPullRequestsReferences")) {
+        fake.calls.push({ method, path, body });
+        const spec = specs[body.variables.number];
+        return { data: { repository: { issue: { ...spec, comments: { totalCount: spec.comments.length, nodes: spec.comments } } } } };
+      }
+      const sub = /^\/repos\/o\/r\/issues\/(\d+)\/sub_issues/.exec(path);
+      if (method === "GET" && sub) {
+        fake.calls.push({ method, path, body });
+        return subIssues[sub[1]] ?? [];
+      }
+      const read = /^\/repos\/o\/r\/issues\/(\d+)(\/comments)?(\?|$)/.exec(path);
+      if (method === "GET" && read && read[1] !== "7") {
+        fake.calls.push({ method, path, body });
+        return read[2] ? (comments[read[1]] ?? []) : issues[read[1]];
+      }
+      return fake.github(method, path, body);
+    };
+    return { github, calls: fake.calls };
+  };
+
+  test("admit() reads the native parent's text and admits the sub-issue", async () => {
+    const child = childIssue();
+    const parent = { number: PARENT, repository_url: "https://api.github.com/repos/o/r", user: { id: HUMAN } };
+    const spec = { ...written(APP_ACTOR, { body: child.body }), comments: [] };
+    const fake = withIssues(fakeGitHub({ issue: child, parent, spec }), { specs: { [PARENT]: parentSpec() } });
+    assert.equal((await go(fake)).outcome, "admitted");
+    const orphan = fakeGitHub({ issue: child, spec });
+    assert.deepEqual((await go(orphan)).reasons, [NO_SPEC]);
+  });
+
+  test("admit() waits on an open sub-issue the issue read counts", async () => {
+    const issue = issueOf({ sub_issues_summary: { total: 1, completed: 0, percent_completed: 0 } });
+    const fake = withIssues(fakeGitHub({ issue }), { subIssues: { 7: [{ number: 8, state: "open" }] } });
+    assert.deepEqual(await go(fake), { outcome: "waiting", reasons: ["sub-issue #8 is open"] });
+  });
+
+  test("a blocker the lanes App closed counts only as a split parent whose sub-issues a listed human closed", async () => {
+    const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
+    const blocker = { number: PARENT, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
+    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN } });
+    for (const [comments, expected] of [
+      [[record], "admitted"],
+      [[], "waiting"],
+    ]) {
+      const fake = withIssues(fakeGitHub({ blockers: [blocker] }), {
+        issues: { [PARENT]: blocker, 31: closedChild(31), 32: closedChild(32) },
+        comments: { [PARENT]: comments },
+        subIssues: { [PARENT]: [closedChild(31), closedChild(32)] },
+      });
+      assert.equal((await go(fake)).outcome, expected);
+    }
   });
 });
 

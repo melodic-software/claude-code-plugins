@@ -19,7 +19,7 @@
       "name": "apply-previews-then-writes-on-yes",
       "prompt": "/multi-agent:setup apply. I want the verifier role at xhigh effort for everyone on this repo.",
       "narration": true,
-      "expected_output": "Runs check first and shows the before map. Recommends the team layer for a whole-team setting, runs setup.sh apply --layer team roles.verifier.effort=xhigh without --write, shows the target path (docs/conventions/multi-agent.md) and the diff, and asks for an explicit yes before running the same command with --write. Then runs check again and names roles.verifier.effort as changed, now supplied by the team layer. Offers git add and a commit without running them unasked.",
+      "expected_output": "Runs check first and shows the before map. Recommends the team layer for a whole-team setting, runs setup.sh apply --layer team roles.verifier.effort=xhigh without --write, shows the target path (docs/conventions/multi-agent.yaml) and the diff, and asks for an explicit yes before running the same command with --write. Then runs check again and names roles.verifier.effort as changed, now supplied by the team layer. Offers git add and a commit without running them unasked.",
       "expectations": [
         "check runs before any apply, and the before map is shown",
         "The first apply call carries no --write, and its diff is shown",

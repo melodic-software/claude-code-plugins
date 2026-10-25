@@ -1,4 +1,4 @@
-Marketplace: market1: needs update (autoUpdate: off; enable it so the catalog refreshes automatically)
+Marketplace: market1: current, 1 action(s) pending (autoUpdate: off; enable it so the catalog refreshes automatically)
 In-repo: 0: <case> has no project/local installs
 Divergences: 0 actionable
 Timing: <elided>

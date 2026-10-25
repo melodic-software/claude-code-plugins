@@ -3,8 +3,9 @@
 # whose "modules" array is non-empty (ADR 0052 adopts mods). Exits 0 with a
 # skip line when no plugin ships a mod, when
 # `claude` is not on PATH, or when the CLI predates `claude plugin test` (mods
-# need 2.1.287). Exits 1 when any mod's tests fail, and 2 when node, which
-# reads hooks.json, is not on PATH.
+# need 2.1.287). Exits 1 when any mod's tests fail or a plugin ships a
+# hooks/register.* file that its hooks.json names no modules for, and 2 when
+# node, which reads hooks.json, is not on PATH.
 # Basis: https://code.claude.com/docs/en/plugins/mods/test.md
 set -uo pipefail
 
@@ -31,13 +32,23 @@ version_at_least() {
 }
 
 mods=()
-for hooks in plugins/*/hooks/hooks.json; do
-  [[ -f "$hooks" ]] || continue
-  if node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).modules;
+unloaded=0
+for dir in plugins/*/hooks; do
+  hooks="$dir/hooks.json"
+  if [[ -f "$hooks" ]] && node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).modules;
 process.exit(Array.isArray(m) && m.length > 0 ? 0 : 1)' "$hooks" 2>/dev/null; then
-    mods+=("${hooks%/hooks/hooks.json}")
+    mods+=("${dir%/hooks}")
+    continue
   fi
+  for register in "$dir"/register.*; do
+    [[ -f "$register" ]] || continue
+    echo "error: ${dir%/hooks} ships hooks/${register##*/} but hooks/hooks.json names no modules, so Claude Code never loads it" >&2
+    unloaded=1
+  done
 done
+if [[ $unloaded -ne 0 ]]; then
+  exit 1
+fi
 
 if [[ ${#mods[@]} -eq 0 ]]; then
   echo "claude plugin test: skipped, no plugin ships a mod"

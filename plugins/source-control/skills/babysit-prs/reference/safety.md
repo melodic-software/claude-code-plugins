@@ -1022,7 +1022,10 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), the
    promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
    options from the operator's managed and user settings, never from arguments or the
-   environment), and eligibility. A settings file, or a binding, probe root, evidence source or
+   environment), and eligibility. The cells are the effective rung's, never the pull request's
+   work class: rung C2 needs `C2-auto-merge`, rung C3 every C3 cell
+   (`promotion-unqualified:<rung>` otherwise); an unreadable or untrusted resolver refuses as
+   `promotion-unqualified:<reason>`. A settings file, or a binding, probe root, evidence source or
    checker it names, that the lane user can write, or replace through any directory above it,
    refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a
    surface in a sibling worktree refuses too. After a demotion record the resolver's
@@ -1031,8 +1034,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    Past an on rung, an in-flight refusal of a pull request that has no merge-queue entry of its
    own and is not a Dependabot pull request stops the reads there: the promotion evidence,
    eligibility, and step 4 are not read, `unattended.promoted` is `null` (`true` in the pr-merge
-   lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be after
-   the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
+   lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be
+   after the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
    is still read in full.
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
    an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
@@ -1049,8 +1052,19 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   A LOW score merges, and so does a MED one whose every reason is a class, size or reported
-   review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
+   No work class is read: the only class-named check is the trust hold, which refuses an issue
+   carrying `work-class: untrusted-provenance`, or one a non-human removed it from. Eligibility
+   also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a
+   write-access human wrote it and no non-human, or anyone through an App, retitled it
+   (`title-edited-by-non-human`) or edited its body since (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
+   or one applied the tracker's admission label (`agent-ready` unless `.work-item-tracker.json`
+   maps the `autonomous-eligible` role, read at the base branch) in person with no body edit or
+   title change after (`title-edited-after-label`). Either suffices, so a human's issue a
+   non-human edited or renamed is vouched for again once a person re-applies the label after the
+   edit. An issue the lanes App both filed and
+   admitted refuses as `issue-not-vouched:labeler-not-human` until a person re-adds the label;
+   this fails closed, and the pr-merge lane is unaffected. A LOW score merges, and so does a MED one whose
+   every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
    or SUGGESTION security finding are reported and do not hold; an unbound or missing review
    lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
    CRITICAL finding, and a change adding or widening a trusted-actors entry scores HIGH as
@@ -1060,9 +1074,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
    raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); which changes count is in that docstring. A C3 pull request also needs a
-   LOW blast-radius rating, which nothing supplies
-   yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
+   (`cost_decision`); which changes count is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
@@ -1070,8 +1082,8 @@ refusal dequeues every entry the identity enqueued; a queued identity entry that
 (`do-not-merge` or the human-gated label, `needs-human` by default, a body hold, a blocking
 comment from an owner, member or collaborator, the opt-in label removed, or put back after the
 enqueue by anyone but a human in person) leaves the queue, as
-does the assessed pull request's own entry when this run finds it ineligible, above the rung,
-unpromoted for its class, on a base that is not the default branch, or scored MED or HIGH
+does the assessed pull request's own entry when this run finds it ineligible, unpromoted for its
+rung (`promotion-unqualified:<rung>`, an unreadable resolver included), on a base that is not the default branch, or scored MED or HIGH
 (`risk:<score>`); one failed dequeue does not stop the others. An eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. When the identity's comment read before this run already says the same (score,
@@ -1139,8 +1151,10 @@ Named residuals:
 - Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
   counts as at or before it, and that gate merge reads as native and skips its read-back. So does
   an arm between the gate's disarm check and its enqueue.
-- The pull request's author can apply the opt-in and `work-class:` labels: label provenance asks
-  only that a human with write permission applied them in person, within write-access trust.
+- The pull request's author can apply the opt-in and admission labels, and remove the
+  untrusted-provenance label:
+  provenance asks only that a human with write permission did so in person, within write-access
+  trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`
   token.
 - The post-enqueue room check reuses the unverified count the gate read. An identity entry that

@@ -1113,7 +1113,7 @@ const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       closedByPullRequestsReferences(first: 100, after: $after, includeClosedPrs: false) {
-        nodes { number author { __typename login ... on User { databaseId } } repository { nameWithOwner } }
+        nodes { number state author { __typename login ... on User { databaseId } } repository { nameWithOwner } }
         pageInfo { hasNextPage endCursor }
       }
     }
@@ -1121,7 +1121,8 @@ const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
 }`;
 
 // Every open PR that closes the issue, across pages, so no number of other
-// PRs can push a trusted one out of reach.
+// PRs can push a trusted one out of reach. `includeClosedPrs: false` still
+// lists a merged PR, so each node's state decides.
 export async function closingPulls(github, { owner, name, number }, maxPages = 50) {
   const nodes = [];
   let after = null;
@@ -1131,7 +1132,10 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
     if (answer?.errors?.length || !Array.isArray(refs?.nodes)) {
       throw new Error("the issue's closing pull requests could not be read");
     }
-    nodes.push(...refs.nodes);
+    if (!refs.nodes.every((node) => typeof node?.state === "string")) {
+      throw new Error("the issue's closing pull requests answered one with no state");
+    }
+    nodes.push(...refs.nodes.filter((node) => node.state === "OPEN"));
     if (typeof refs.pageInfo?.hasNextPage !== "boolean") {
       throw new Error("the issue's closing pull requests answered no page information");
     }

@@ -13,6 +13,7 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  closingPulls,
   countTurnCapRestarts,
   decide,
   findPrior,
@@ -1557,8 +1558,9 @@ const branchFact = (name, { aheadBy = 2, behindBy = 0, tip = LANE_TIP, tipAt = D
   pulls,
 });
 const pullBy = (login, state = "open") => ({ state, user: { login } });
-const closer = (typename, login, databaseId, repo = "o/r") => ({
+const closer = (typename, login, databaseId, repo = "o/r", state = "OPEN") => ({
   number: 501,
+  state,
   author: { __typename: typename, login, ...(databaseId ? { databaseId } : {}) },
   repository: { nameWithOwner: repo },
 });
@@ -1953,6 +1955,24 @@ test("--find-prior goes ahead on an outsider's closing PR", async () => {
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
+test("--find-prior goes ahead past a listed human's merged or closed closing PR, which GitHub lists despite includeClosedPrs: false", async () => {
+  for (const state of ["MERGED", "CLOSED"]) {
+    const { output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID, "o/r", state)] });
+    assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n", state);
+  }
+});
+
+test("closingPulls keeps only the open closing PRs and asks GitHub for each one's state", async () => {
+  const calls = [];
+  const github = async (method, path, body) => {
+    calls.push(body);
+    return graphql(["OPEN", "MERGED", "CLOSED"].map((state, i) => ({ ...closer("User", "stranger", 42, "o/r", state), number: 600 + i })));
+  };
+  const nodes = await closingPulls(github, { owner: "o", name: "r", number: 77 });
+  assert.deepEqual(nodes.map((node) => node.number), [600]);
+  assert.match(calls[0].query, /nodes \{ number state /);
+});
+
 test("--find-prior names an unreported lane branch ahead of main as the reuse branch", async () => {
   const { code, calls, output } = await runPrior({ refs: [refOf(lane(400))] });
   assert.equal(code, 0);
@@ -2016,6 +2036,12 @@ const failsClosed = async (label, facts) => {
 test("--find-prior fails past the 50-page cap of closing PRs", async () => {
   const pages = Array.from({ length: 51 }, (_, i) => [{ ...closer("User", `stranger${i}`, 1000 + i), number: 600 + i }]);
   await failsClosed("51 pages", { graphqlPages: pages });
+});
+
+test("--find-prior fails on a closing PR with no state", async () => {
+  for (const state of [undefined, null, 1]) {
+    await failsClosed(String(state), { nodes: [{ ...closer("User", "stranger", 42), state }] });
+  }
 });
 
 test("--find-prior fails on a closing-PR page with no page information", async () => {

@@ -105,7 +105,7 @@ Contract enforced here (encoded as code, not convention):
   while one is configured. `--authority pr-merge` runs it as the CI pr-merge
   lane: `merge.authority` must read pr-merge, a pull request the identity
   opened with one closing issue, on a diff off `merge.diff-check.denied-paths`,
-  is class C2 with no `work-class:` label read, `merge.require-verifier-verdict`
+  is eligible with no work class read, `merge.require-verifier-verdict`
   must be true (`verifier-verdict-not-required` otherwise), no
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
@@ -3139,7 +3139,10 @@ def score_unattended(
         and config.require_verifier_verdict
     ):
         reader = verify_evidence.Reader(
-            repo, str(inputs["branch"]), max_fails=config.max_verify_fails
+            repo,
+            str(inputs["branch"]),
+            max_fails=config.max_verify_fails,
+            agent_identity=config.agent_identity,
         )
         verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
@@ -3191,11 +3194,10 @@ def score_unattended(
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps HIGH_FLOOR, both caps and the C2 contradictions.
+    # keeps HIGH_FLOOR and both caps.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
-            "c2_contradictions": config.c2_contradictions,
             "max_changed_files": config.max_changed_files,
             "lines_optional": True,
         }
@@ -3204,14 +3206,11 @@ def score_unattended(
     )
     private = json_object(json_object(pr.get("base")).get("repo")).get("private")
     risk_input = babysit_risk.RiskInput(
-        work_class=eligible.work_class,
-        rung=babysit_risk.Rung[inputs["rung"].upper()],
         files=files,
         files_complete=complete,
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
         lanes=lanes,
-        blast_radius=None,
         floor_exempt=own,
         public=True if private is False else None,
         pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
@@ -3834,7 +3833,12 @@ def unattended_writes(
             # passing verifier verdict at its head now.
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
-                verify_evidence.Reader(repo, branch, max_fails=config.max_verify_fails)
+                verify_evidence.Reader(
+                    repo,
+                    branch,
+                    max_fails=config.max_verify_fails,
+                    agent_identity=config.agent_identity,
+                )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
                 and config.require_verifier_verdict
@@ -3869,9 +3873,8 @@ def unattended_writes(
                 and (hold := judge(n))
             }
             # This run's own read of a queued entry also counts: the pull
-            # request it just found ineligible, above the rung, unpromoted
-            # for its class, on another base or held by its score leaves the
-            # queue.
+            # request it just found ineligible, unpromoted for its rung, on
+            # another base or held by its score leaves the queue.
             own = inputs.get("own_refusal") or (
                 f"risk:{risk.score.name}"
                 if risk is not None and babysit_risk.holds(risk)

@@ -6,6 +6,15 @@ independently by [config cascade](../config-cascade/README.md). Adding or removi
 changing what an existing key means, is a major bump; adding an optional key or relaxing a rule
 additively is a minor bump.
 
+## [Unreleased]
+
+No contract change: where the record lives is the config cascade's axis, and the keys, entry shape
+and merge form are unchanged.
+
+- **Where the record lives** names the first adopter's team layer as the `suppressions` mapping of
+  `<home>/harness-config.yaml`, with `.claude/audit-pass.md` read only while that file is absent, and
+  allows a consuming plugin's YAML concern file as the team layer.
+
 ## [1.0] - 2026-07-24
 
 Initial published contract, landing with its first adopter (`claude-config`'s `audit-pass` skill).

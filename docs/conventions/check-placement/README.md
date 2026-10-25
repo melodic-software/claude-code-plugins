@@ -140,6 +140,7 @@ config (`"assets": ["config/default-typos.toml"]`).
 
 | Item | Rule |
 |---|---|
+| Shell | `#!/bin/sh`, and POSIX sh until the script sources the check lib, its first step. The lib puts it under bash: under bash already, in POSIX mode when it started as sh, it turns POSIX mode off; under another sh it reruns the script under the first `bash` on `PATH` outside System32, Sysnative and WindowsApps, and with none, bash is a missing tool (below). A bash script the check runs itself starts through `checks_bash_run`. No hook file, dispatcher or run line names `bash` as a command: on Windows that can resolve to System32's WSL launcher. A script that needs no bash, such as guardrails' `commit-msg-convention`, stays POSIX sh throughout, so it needs no bash beside git's sh |
 | Args | none from git; optional `--worktree` for the end-of-turn mode |
 | Inputs | pre-commit: `git diff --cached --name-only --diff-filter=ACMR -z` plus `-U0` hunks; pre-push: refs on stdin, range `<remote-sha>..<local-sha>`, merge-base with `<remote>/HEAD` for a new branch, deletions skipped |
 | Scope of findings | changed lines only |
@@ -215,9 +216,9 @@ reports status `blocked`. The setup agent decides what to do with the other tool
 **`unsafe-path`.** A cloned repository's contents are untrusted. When any file `copy` would write
 for an entry, or a directory on the way to it below the work tree's top level (or below the local
 hooks directory), is a symlink, `plan` returns `{kind: "unsafe-path", entry, file}` and `copy`
-writes nothing for that entry, reports status `unsafe-path`, and exits 1. Only the exact dispatcher
-counts as the plugin's own; a hook that carries its sentinel line but differs is a `modified`
-decision, overwritten only by `copy --force`. The installer reads repository files only when they
+writes nothing for that entry, reports status `unsafe-path`, and exits 1. Only the exact dispatcher,
+or one an earlier release wrote (which `copy` replaces), counts as the plugin's own; a hook that
+carries its sentinel line but differs is a `modified` decision, overwritten only by `copy --force`. The installer reads repository files only when they
 are regular files of at most 1 MiB, never through a final symlink; anything else reads as absent.
 
 **`stage-failed`.** A shared install stages what it writes; when `git add` fails (an ignored path,
@@ -235,7 +236,10 @@ and the check lib into the repository instead of pointing at the plugin cache.
 | husky | none: setup offers shared only and says why | committed `.githooks/<plugin>/` plus `.husky/<event>` |
 | plain | a dispatcher per event in `$(git rev-parse --git-path hooks)`, running every entry in `<event>.d/` | committed `.githooks/` with the dispatcher, activated per clone (below) |
 
-Plain hooks: the dispatcher keeps a pre-existing hook as `<event>.pre-checks` and runs it first.
+Plain hooks: the dispatcher keeps a pre-existing hook as `<event>.pre-checks` and runs it first,
+then each entry whose first line is `#!/bin/sh` with `sh`, as the lefthook and husky run lines
+`plan` renders do. An entry an earlier release installed runs by its own first line until `copy`
+refreshes it.
 
 **Plain shared hooks need a per-clone step.** No committed file can set `core.hooksPath`, so each
 clone runs `git config core.hooksPath .githooks` once; setup does it as a D1 decision. Local

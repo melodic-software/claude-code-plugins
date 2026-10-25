@@ -1083,7 +1083,10 @@ jobs:
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
               --postmerge-result "$RUNNER_TEMP/post-merge.json" "${cap[@]}" \
-              --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
+              --expected-head "$head" "$REPO#$number" </dev/null >"$out" 2> >(tee "$out.err" >&2) || code=$?
+            wait $! || true
+            # Its gh invocations, from the babysit-gh-calls lines it printed.
+            calls=$(sed -n 's/^babysit-gh-calls //p' "$out.err" | jq -s 'map(.total) | add') || calls=null
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
             echo "::endgroup::"
@@ -1093,8 +1096,8 @@ jobs:
             # Keep only the verdict fields; a gate that printed no JSON object
             # is recorded as an error with its exit code.
             jq -e 'type == "object"' "$out" >/dev/null 2>&1 || echo '{"error": "gate printed no JSON"}' >"$out"
-            jq -c --argjson n "$number" --arg head "$head" --arg updated "$updated" --argjson code "$code" '
-              {pr: $n, head: $head, updatedAt: $updated, exit: $code,
+            jq -c --argjson n "$number" --arg head "$head" --arg updated "$updated" --argjson code "$code" --argjson calls "${calls:-null}" '
+              {pr: $n, head: $head, updatedAt: $updated, exit: $code, calls: $calls,
                ready: (.ready == true), enqueued: (.enqueued == true), merged: (.merged == true),
                reportOnly: .unattended.reportOnly, reason: (.unattended.reason // .error),
                dispatched: .unattended.dispatched, blockers: (.blockers // [])}

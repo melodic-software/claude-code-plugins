@@ -1,6 +1,6 @@
 ---
-description: "Clean up low-value tests in one folder: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. Nothing is committed until the user approves the batch. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
-argument-hint: "<folder> [--max <n>] [--flaky <test> ...] [--cannot-fail-only]"
+description: "Clean up low-value tests in one folder, or plan a repo as per-project batches: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. Nothing is committed until the user approves the batch. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'clean up the whole repo's tests', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
+argument-hint: "<folder|repo root> [--max <n>] [--flaky <test> ...] [--cannot-fail-only]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -19,10 +19,12 @@ Collect these with **individual** Bash calls, one command per call:
 
 ## Arguments
 
-`$ARGUMENTS`: `<folder>` (required, one folder per batch), `--max <n>` (the recording run's mutant
+`$ARGUMENTS`: `<folder>` (required, one folder per batch; the repository root runs the
+[Repository plan](#repository-plan) instead of the steps), `--max <n>` (the recording run's mutant
 cap, default 100), `--flaky <test>` (repeatable; tests the user names as flaky, also accepted from
 the conversation), `--cannot-fail-only` (run [Cannot-fail-only mode](#cannot-fail-only-mode)
-instead of steps 1 to 6). No folder: ask for one.
+instead of steps 1 to 6). No folder: run the plan when the user asked for the whole repository,
+otherwise ask for one.
 
 ## Working files
 
@@ -40,6 +42,37 @@ Read the working files from that path at every step, never from conversation mem
 compacted or resumed session continues where the files say it stopped. Before the first write,
 confirm `.work/` is ignored (`git check-ignore -q .work/x`); when it is not, create `.work/.gitignore`
 holding `*`, and say so.
+
+## Repository plan
+
+For the repository root (`git rev-parse --show-toplevel`), plan one batch per test project, then
+run each batch through the single-folder steps below. The plan edits no test and runs none. Its
+files live in `.work/testing-cleanup-plan/`, read at every batch boundary, never from conversation
+memory.
+
+1. **Findings.** Run the step 1 scanner command once with `CANT_FAIL_SCAN_ROOT` set to the
+   repository root, and save its table as `findings.md` there.
+2. **Batches.** Group the rows by folder: a row whose `project:` names a `.csproj` belongs to that
+   file's directory; any other row to its own file's directory. A folder inside another listed
+   folder of the same language (the adapters' `language`, as step 0 reads it) joins that folder's
+   batch, since a batch scans its whole folder; one holding a folder of another language is marked
+   `skip: mixed languages`, which step 0 would refuse. The repository root is never a batch: list
+   its own rows as `not planned`. A project with no finding gets no batch. Mark a batch
+   `skip: kind <kind>` when any of its rows has kind `live` or `operational`.
+3. **Show.** Write `plan.md` there, one row per batch ordered by finding count, most first:
+   folder, findings, kind, ci, state (`pending`, `skip: <reason>`, then the outcome). Show it,
+   ask whether any `unknown`-kind batch's tests reach live or shared environments (outside C#,
+   every kind is `unknown`), mark each one the user names `skip: kind live`, and ask which
+   batches to run; the default is every `pending` row in order. A `skip: kind` batch runs only
+   when the user names its folder, and then only in
+   [Cannot-fail-only mode](#cannot-fail-only-mode): never run a live or operational project's
+   tests, a baseline included.
+4. **Run.** Run steps 0 to 7 on each chosen folder in turn, unchanged, with the invocation's
+   `--max` and `--cannot-fail-only` and the `--flaky` tests under that folder: each batch has its
+   own `<work>`, diff and approval. The next batch starts only after the user approves and
+   commits this one, since step 0 refuses a dirty tree. Record each outcome in `plan.md`; a batch that stops records why, and the
+   plan goes on only on the user's yes. Unattended, run only the first `pending` batch whose kind
+   is not `unknown`.
 
 ## Steps
 
@@ -266,7 +299,8 @@ unused-code check, so ask the user to build and lint the test project before app
   yes on that item.
 - Detect flaky tests, sweep quarantines outside the named folder, file a tracking issue, or bisect
   a lost kill.
-- Clean more than one folder per batch, or turn the `test-weaken` hook off.
+- Clean more than one folder in one batch (a repository plan runs each folder as its own batch),
+  or turn the `test-weaken` hook off.
 
 ## Next
 
