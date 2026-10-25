@@ -67,6 +67,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
+import { recordReading } from "../../actions/log-api-budget/api-budget.mjs";
 import { BODY_HOLD } from "../pr-unblock/gate-source.mjs";
 import { PREDICATES } from "./predicates.mjs";
 
@@ -239,11 +240,13 @@ export const TARGETS = {
     // On a PR the lanes App did not open (an adopted or session PR), an
     // owner's `Hold:` body line set while the model worked holds it too; the
     // lanes App's own `Hold: a human merges this` holds the merge, not this.
-    async held(api, number, { holds, repository, appId }) {
+    // `state.swap` records whether write() swaps the ref (below).
+    async held(api, number, { holds, repository, appId, state = {} }) {
       const [pull, labels] = [await api.getPull(number), await api.listLabels(number)];
       if (pull.head?.repo?.full_name !== repository) {
         throw new Error(`the PR head is ${pull.head?.repo?.full_name ?? "unreadable"}, not ${repository}; the patch is not pushed`);
       }
+      state.swap = pull.user?.id !== appId;
       return (
         pull.draft !== false ||
         labels.some((label) => holds.has(label.name)) ||
@@ -256,9 +259,14 @@ export const TARGETS = {
         throw new Error(`the PR branch moved from ${head} to ${tip}; the patch is not pushed`);
       }
     },
-    // A compare-and-swap from the gated head: a branch moved since ready()
-    // read it, even force-pushed back to an ancestor, refuses the write.
-    write: (api, ref, commit, head) => api.updateRef(`heads/${ref}`, commit, false, head),
+    // On a PR the lanes App did not open, whose author's session may still
+    // push, a compare-and-swap from the gated head (GraphQL updateRefs
+    // beforeOid): a branch moved since ready() read it, even force-pushed
+    // back to an ancestor, refuses the write. A lanes App PR keeps the REST
+    // fast-forward-only update (force: false) until a live probe shows the
+    // lanes token may run updateRefs, so a refusal there cannot stall every
+    // lane.
+    write: (api, ref, commit, head, { swap = false } = {}) => api.updateRef(`heads/${ref}`, commit, false, swap ? head : undefined),
   },
   issue: {
     row: () => "issue",
@@ -703,7 +711,8 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (uploads.length > row["max-blobs"]) {
       return escalate("invalid", `the merge needs ${uploads.length} new blobs; the row allows ${row["max-blobs"]}`);
     }
-    if (await target.held(api, number, { holds: new Set(holdLabels), required: [], repository, appId })) {
+    const state = {};
+    if (await target.held(api, number, { holds: new Set(holdLabels), required: [], repository, appId, state })) {
       log(`the ${row.target} is held; the merge is dropped`);
       return { outcome: "held" };
     }
@@ -720,7 +729,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       throw new Error(`GitHub built tree ${built}, not the merge tree ${tree}; nothing is committed`);
     }
     const commit = await api.createCommit(message, tree, [headSha, merge.baseSha]);
-    await target.write(api, headRef, commit, headSha);
+    await target.write(api, headRef, commit, headSha, state);
     const after = await api.readBranch(headRef);
     if (after !== commit) {
       throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
@@ -888,7 +897,8 @@ export async function push({
     }
   }
   // A hold set while the model worked stops the commit.
-  if (await target.held(api, number, { holds: new Set(holdLabels), required: requiredLabels, repository, appId })) {
+  const state = {};
+  if (await target.held(api, number, { holds: new Set(holdLabels), required: requiredLabels, repository, appId, state })) {
     log(`the ${row.target} is held; the patch is dropped`);
     return { outcome: "held" };
   }
@@ -907,7 +917,7 @@ export async function push({
     throw new Error(`GitHub built tree ${built}, not the applied tree ${tree}; nothing is committed`);
   }
   const commit = await api.createCommit(message, tree, [headSha]);
-  await target.write(api, headRef, commit, headSha);
+  await target.write(api, headRef, commit, headSha, state);
   const after = await api.readBranch(headRef);
   if (after !== commit) {
     throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
@@ -919,6 +929,8 @@ export async function push({
 // The REST calls apply-patch makes. GitHub signs a commit made with no author
 // or committer as the App.
 export function createGitHubApi({ token, repository, apiUrl, graphqlUrl = `${apiUrl}/graphql`, fetch = globalThis.fetch }) {
+  // The repository's node id, read once per process for updateRefs.
+  let repositoryId = null;
   const repo = `${apiUrl}/repos/${repository}`;
   const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" };
   async function request(path, method = "GET", body) {
@@ -957,16 +969,19 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl = `${api
       const [owner, name] = repository.split("/");
       const graphql = async (query, variables) => {
         const response = await fetch(graphqlUrl, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }) });
+        // Recorded under the resource the response names (graphql) for the
+        // job-end API budget notice.
+        recordReading({ status: response.status, headers: response.headers });
         const result = response.ok ? await response.json() : null;
         if (!result || result.errors?.length) {
           throw new Error(`GraphQL ${response.status}: ${result?.errors?.map((error) => error.message).join("; ") ?? "no body"}`);
         }
         return result.data;
       };
-      const { repository: repo } = await graphql("query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { id } }", { owner, name });
+      repositoryId ??= (await graphql("query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { id } }", { owner, name })).repository.id;
       await graphql(
         "mutation($repositoryId: ID!, $refUpdates: [RefUpdate!]!) { updateRefs(input: { repositoryId: $repositoryId, refUpdates: $refUpdates }) { clientMutationId } }",
-        { repositoryId: repo.id, refUpdates: [{ name: `refs/${ref}`, afterOid: sha, beforeOid: before, force }] },
+        { repositoryId, refUpdates: [{ name: `refs/${ref}`, afterOid: sha, beforeOid: before, force }] },
       );
     },
     // GitHub answers 422 when the ref already exists.

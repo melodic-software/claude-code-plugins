@@ -636,7 +636,7 @@ test("a pushed patch commits the row's message and trailer on the gated head and
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.equal(createCommit.message, "Fix failing CI checks on feat/x\n\nLane-Activity: some-lane/some-activity\n");
   assert.deepEqual(createCommit.parents, [fix.head]);
-  assert.deepEqual(api.calls.at(-2), { updateRef: { ref: "heads/feat/x", sha: "c".repeat(40), force: false, before: fix.head } });
+  assert.deepEqual(api.calls.at(-2), { updateRef: { ref: "heads/feat/x", sha: "c".repeat(40), force: false, before: undefined } });
 });
 
 // The kept threads as keptThreadsFrom reads them from a threads.json.
@@ -926,16 +926,17 @@ test("under the review-threads row a head that moved since the model job skips s
 test("under the review-threads row a session push after the select job skips superseded-sha, and one before the write is not overwritten", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
   const kept = { keptThreads: keptOf([{ path: "README.md" }]) };
+  const sessionPull = { pull: { draft: false, user: { id: 5 }, head: { repo: { full_name: "o/r" } } } };
   writeFileSync(join(fix.repo, "notes.md"), "the session's own work\n");
   const session = commitAll(fix.repo, "session push");
-  const before = fakeApi(fix.repo, session);
+  const before = fakeApi(fix.repo, session, sessionPull);
   assert.deepEqual(await pushWith(fix, before, { row: row("review-threads"), headSha: session, patchHeadSha: fix.head, context: kept }), { outcome: "superseded" });
   assert.deepEqual(writes(before), []);
-  const during = fakeApi(fix.repo, fix.head, { branch: session });
+  const during = fakeApi(fix.repo, fix.head, { ...sessionPull, branch: session });
   await assert.rejects(pushWith(fix, during, { row: row("review-threads"), context: kept }), /moved/);
   assert.equal(during.calls.some((call) => call.updateRef || call.createCommit), false);
-  const quiet = fakeApi(fix.repo, fix.head);
-  assert.equal((await pushWith(fix, quiet, { row: row("review-threads"), context: kept })).outcome, "pushed");
+  const quiet = fakeApi(fix.repo, fix.head, sessionPull);
+  assert.equal((await pushWith(fix, quiet, { row: row("review-threads"), context: kept, appId: 77 })).outcome, "pushed");
   assert.deepEqual(quiet.calls.find((call) => call.updateRef).updateRef, { ref: "heads/feat/x", sha: "c".repeat(40), force: false, before: fix.head }, "the write swaps only from the gated head");
 });
 
@@ -963,11 +964,34 @@ test("the API client swaps a PR branch only from the expected head through Graph
   const { createGitHubApi } = await import("./apply-patch.mjs");
   const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
   await api.updateRef("heads/feat/x", "c".repeat(40), false, "a".repeat(40));
-  assert.equal(requests.length, 2);
+  await api.updateRef("heads/feat/y", "d".repeat(40), false, "b".repeat(40));
+  assert.equal(requests.length, 3, "the repository id is read once per process");
   assert.ok(requests.every((request) => request.url === "https://api.example/graphql"));
   assert.deepEqual(requests[1].body.variables, { repositoryId: "R_1", refUpdates: [{ name: "refs/heads/feat/x", afterOid: "c".repeat(40), beforeOid: "a".repeat(40), force: false }] });
   const refused = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", fetch: async (url, init) => new Response(JSON.stringify(JSON.parse(init.body).query.startsWith("query") ? { data: { repository: { id: "R_1" } } } : { errors: [{ message: "ref was not at beforeOid" }] })) });
   await assert.rejects(refused.updateRef("heads/feat/x", "c".repeat(40), false, "a".repeat(40)), /beforeOid/);
+});
+
+test("a lanes App PR keeps the REST fast-forward-only write; a PR it did not open swaps from the gated head", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
+  const kept = { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "README.md" }]) }, appId: 77 };
+  const lane = fakeApi(fix.repo, fix.head, { pull: { draft: false, user: { id: 77 }, head: { repo: { full_name: "o/r" } } } });
+  assert.equal((await pushWith(fix, lane, kept)).outcome, "pushed");
+  assert.deepEqual(lane.calls.find((call) => call.updateRef).updateRef, { ref: "heads/feat/x", sha: "c".repeat(40), force: false, before: undefined });
+  const session = fakeApi(fix.repo, fix.head, { pull: { draft: false, user: { id: 5 }, head: { repo: { full_name: "o/r" } } } });
+  assert.equal((await pushWith(fix, session, kept)).outcome, "pushed");
+  assert.deepEqual(session.calls.find((call) => call.updateRef).updateRef, { ref: "heads/feat/x", sha: "c".repeat(40), force: false, before: fix.head });
+});
+
+test("the API client writes a lanes App PR's ref through REST PATCH with force false and no GraphQL call", async () => {
+  const requests = [];
+  const fetch = async (url, init) => {
+    requests.push({ url, method: init.method, body: JSON.parse(init.body) });
+    return new Response("{}");
+  };
+  const { createGitHubApi } = await import("./apply-patch.mjs");
+  await createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", fetch }).updateRef("heads/feat/x", "c".repeat(40), false, undefined);
+  assert.deepEqual(requests, [{ url: "https://api.example/repos/o/r/git/refs/heads/feat/x", method: "PATCH", body: { sha: "c".repeat(40), force: false } }]);
 });
 
 // --- fix-ci's refusals, one test each ---

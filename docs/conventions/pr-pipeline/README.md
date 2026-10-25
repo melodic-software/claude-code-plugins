@@ -227,10 +227,14 @@ The session and the lane never push over each other:
 - Behind the gate, `apply-patch.mjs` skips `superseded-sha` under the `review-threads` row's
   `skip-moved-head`, and holds the patch when a `Hold:` line or a hold label appeared while the model
   worked.
-- Its ref update is a compare-and-swap from the gated head: GraphQL `updateRefs` with `beforeOid`
-  ([Git mutations](https://docs.github.com/en/graphql/reference/git), "RefUpdate.beforeOid specifies
-  that the given reference needs to point to the given value before performing any updates").
-  A branch moved after the read, even force-pushed back to an ancestor, refuses the write.
+- On a PR the lanes App did not open, its ref update is a compare-and-swap from the gated head:
+  GraphQL `updateRefs` with `beforeOid` ([Git mutations](https://docs.github.com/en/graphql/reference/git),
+  "RefUpdate.beforeOid specifies that the given reference needs to point to the given value before
+  performing any updates"). A branch moved after the read, even force-pushed back to an ancestor,
+  refuses the write. The page states no required permission for `updateRefs`, nothing about App
+  installation tokens, and no error shape for a mismatch. So a lanes App PR keeps the REST update
+  with `force: false`, and a live probe on a sandbox branch comes before widening the swap to it. A
+  refused swap throws: the patch does not land and nothing is overwritten.
 
 Such a round spends one model call and posts no round marker, so it does not count toward
 `loop.review-rounds`.
