@@ -225,6 +225,21 @@ test("one round under the cap proceeds", async () => {
   assert.equal(result.rounds, 2);
 });
 
+// apply-patch pushes a fix with no escalation and leaves the new head to its
+// own CI; this is the bound on that: a red head that is the lane's own fix
+// commit counts its round, and the cap's run hands the PR to a person.
+test("a red head the lane's fix commit made counts that round, and escalates once the rounds are spent", async () => {
+  const own = { sha: HEAD, author: { id: APP }, commit: { message: `Fix failing CI checks on work/x\n\n${TRAILER}\n` } };
+  const api = () => fakeApi({ commits: [{ sha: "b".repeat(40), author: { id: APP }, commit: { message: "Address review feedback" } }, own] });
+  const spent = await selectWith(api(), 1);
+  assert.equal(spent.decision, "escalate");
+  assert.equal(spent.escalationReason, "ci-fix-round-cap");
+  assert.equal(spent.rounds, 1);
+  const left = await selectWith(api(), 3);
+  assert.equal(left.decision, "proceed");
+  assert.equal(left.rounds, 1);
+});
+
 test("only the lanes App's commits carrying the fix-ci trailer count as rounds", () => {
   assert.equal(
     countFixRounds(
