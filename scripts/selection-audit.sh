@@ -209,7 +209,7 @@ cmd_trace() {
   AUDIT_UNMAPPED_FLAG="$(unmapped_flag)"
   # Resolved once, before any trace, so a venv build is neither traced nor raced.
   AUDIT_PYTHON=python3
-  if printf '%s\n' "${suites[@]}" | grep -q '\.py$'; then
+  if grep -q '\.py$' < <(printf '%s\n' "${suites[@]}"); then
     AUDIT_PYTHON="$(pytest_python::resolve)"
   fi
   export AUDIT_DEADLINE=0 AUDIT_SELECT_GRACE=$((budget * 2 / 5)) AUDIT_UNMAPPED_FLAG AUDIT_PYTHON
