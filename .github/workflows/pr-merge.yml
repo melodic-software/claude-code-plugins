@@ -401,9 +401,10 @@ jobs:
 
   merge:
     # On the schedule and a hand-started run it waits for post-merge-dispatch
-    # and reuses its report (the post-merge check below); on every other event
-    # that job is skipped, and !cancelled() runs this one anyway, as it does
-    # when that job fails. The job joins its concurrency group only once
+    # and reuses its report (the post-merge check below). Where that job is
+    # skipped or fails, !cancelled() keeps this one subject to its own
+    # condition below, which still skips push, workflow_run, forks and other
+    # branches. The job joins its concurrency group only once
     # post-merge-dispatch ends.
     needs: [post-merge-dispatch]
     # A run started on any other branch would use that branch's copy of this

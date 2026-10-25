@@ -1153,8 +1153,7 @@ test("the merge job reads this run's report only when post-merge-dispatch keeps 
   assert.equal(names.indexOf("Read this run's post-merge report") + 1, names.indexOf("Check earlier lane merges"));
 });
 
-// Without the wait the read raced post-merge-dispatch's upload: 20 of 43
-// scheduled runs read before the report was kept and ran the check again.
+// The merge job reads the report only after post-merge-dispatch has kept it.
 // !cancelled() keeps the job on pull_request_target, where that job is
 // skipped, and when it fails.
 test("the merge job waits for post-merge-dispatch and still runs when it is skipped or fails", () => {
