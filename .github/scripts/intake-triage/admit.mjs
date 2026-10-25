@@ -11,7 +11,13 @@
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
-//   `types-parent-if-present` needs that parent only when it has one (Q83);
+//   `types-parent-if-present` needs that parent only when it has one (Q83).
+//   A parent awaits a decision while it carries needs-human or
+//   needs-owner-decision, or `status: needs-decision` with a decision open
+//   (parentDecisionOpen): the lanes App may not lift that label (a person
+//   set it, or its verdict holds for a flag other than intent), or the
+//   parent's newest refinement asks questions no later `**Decision
+//   recorded.**` answers;
 // - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
 //   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
 //   work; no other work class gates admission (owner Q85, #9668);
@@ -59,6 +65,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
@@ -66,6 +73,24 @@ export const DEFERRED = "admission-deferred";
 export const ADMIT_MARKER = "<!-- intake-triage admission -->";
 // Opens the lanes App's refinement comment (refine.mjs).
 export const REFINE_MARKER = "<!-- intake-triage refinement -->";
+// The last line of each refinement refine.mjs renders: `questions` closes one
+// that is not exact, `retriage` and `confirm` an exact one.
+export const REFINE_FOOTERS = {
+  questions: "<sub>Automated refinement by the lanes App. Answer with a comment whose first line is `**Decision recorded.**`.</sub>",
+  retriage: "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>",
+  confirm:
+    "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
+};
+// Opens the lanes App's comment saying why apply-verdict's verdict holds the
+// issue.
+export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
+// The flags a triage verdict may list.
+export const VERDICT_FLAGS = new Set(["intent", "security", "cost"]);
+// Marks a flag carried over from an earlier verdict.
+export const EARLIER = "(an earlier verdict)";
+// The reason a hold stays when no App verdict comment says whether an earlier
+// verdict flagged; the comment carries it, so a later run reads it the same.
+export const UNRECORDED = "no lanes App verdict comment shows whether an earlier verdict was flagged";
 // The wait reason a Size Large issue gets until refine.mjs splits it into
 // sub-issues (owner Q93).
 export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at intake is pending (owner Q93)";
@@ -79,7 +104,7 @@ export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // The one work class that holds an issue for a person (owner Q85, #9668).
 export const UNTRUSTED = "work-class: untrusted-provenance";
-const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
+const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
 const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
@@ -376,8 +401,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!underParent && !rules.types.includes(type) && !rules["types-parent-if-present"].includes(type)) {
     refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"], ...rules["types-parent-if-present"]].join(", ")}`);
   } else if (underParent || (rules["types-parent-if-present"].includes(type) && parent !== null)) {
-    const parentOk =
-      parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.labels).some((label) => PARENT_HOLDS.has(label));
+    // An App-set needs-decision with no open decision does not hold
+    // (parentDecisionOpen); a parent read without that fact holds.
+    const held = (label) => PARENT_HOLDS.has(label) || (label === NEEDS_DECISION && parent.decisionOpen !== false);
+    const parentOk = parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.labels).some(held);
     if (!parentOk) {
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
@@ -477,6 +504,97 @@ async function parentOf(github, base) {
       return null;
     }
     throw error;
+  }
+}
+
+// Whether an account id (a REST number, a GraphQL databaseId, or a string
+// either way) is the lanes App's; never for an unknown id or App.
+export const isAppId = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
+
+// The lanes App's own earlier verdict comment, if any.
+export const ownVerdict = (comments, appId) =>
+  comments.find((c) => isAppId(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
+
+// The flags the lanes App's earlier verdict comment listed: only known flags
+// from a `- flagged: ` reason line. null when no App verdict comment exists
+// or it carries UNRECORDED: whether an earlier verdict flagged is unknown.
+export function earlierFlags(comments, appId) {
+  const own = ownVerdict(comments, appId);
+  const lines = String(own?.body ?? "").split("\n");
+  if (!own || lines.includes(`- ${UNRECORDED}`)) {
+    return null;
+  }
+  return [
+    ...new Set(
+      lines
+        .filter((line) => line.startsWith("- flagged: "))
+        .flatMap((line) => line.slice("- flagged: ".length).replace(` ${EARLIER}`, "").split(","))
+        .map((flag) => flag.trim())
+        .filter((flag) => VERDICT_FLAGS.has(flag)),
+    ),
+  ];
+}
+
+// Why the lanes App may not lift `status: needs-decision` on the issue at
+// `base`, or null: someone else set it, or the App's verdict comment lists a
+// flag other than the intent a refinement resolves, or records that an
+// earlier flag is unknown (earlierFlags null). Once lifted, a re-triage sees
+// no hold and so carries no earlier flag. No such comment lifts: refine's own
+// question hold writes none.
+export async function decisionStays(github, base, comments, appId) {
+  const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
+  if (setter !== appId) {
+    return `a person set its ${NEEDS_DECISION}`;
+  }
+  if (!ownVerdict(comments, appId)) {
+    return null;
+  }
+  const flags = earlierFlags(comments, appId);
+  if (flags === null) {
+    return `its ${NEEDS_DECISION} stands: whether an earlier verdict flagged is unknown`;
+  }
+  const stops = flags.filter((flag) => flag !== "intent");
+  return stops.length > 0 ? `its ${NEEDS_DECISION} stands for flagged: ${stops.join(", ")}` : null;
+}
+
+// Whether a refinement comment's body is exact: it ends in an exact footer.
+// Any other ending, the questions footer included, is not exact. Pure.
+export const refinementExact = (body) => {
+  const last = String(body ?? "").trimEnd().split("\n").at(-1);
+  return last === REFINE_FOOTERS.retriage || last === REFINE_FOOTERS.confirm;
+};
+
+// Whether `parent` (an issue at `status: needs-decision`, as just read) still
+// awaits a decision: the lanes App (`appId`) may not lift the label
+// (decisionStays), or the App's newest refinement on it is not exact
+// (refinementExact), or it has no refinement but an App verdict flagging
+// intent, and no
+// decision comment of a listed human's (select-trusted-text's
+// isDecisionComment) is newer. A parent in another
+// repository, or any failed read, counts as open.
+export async function parentDecisionOpen({ github, repository, parent, humans, appId }) {
+  if (appId === undefined || !here(parent?.repository_url, repository) || !Number.isInteger(parent?.number)) {
+    return true;
+  }
+  const base = `/repos/${repository}/issues/${parent.number}`;
+  try {
+    const comments = await paginate(github, `${base}/comments`);
+    if ((await decisionStays(github, base, comments, appId)) !== null) {
+      return true;
+    }
+    const refinement = comments.findLast(
+      (comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER),
+    );
+    // With no refinement yet, an App verdict that flags intent is what still asks.
+    const asking = refinement ?? (earlierFlags(comments, appId)?.includes("intent") ? ownVerdict(comments, appId) : undefined);
+    if (asking === undefined || (refinement !== undefined && refinementExact(refinement.body))) {
+      return false;
+    }
+    const since = Date.parse(asking.created_at);
+    const { kept } = await selectTrustedIssueComments({ github, repository, issueNumber: parent.number, ids: humans });
+    return !kept.some((item) => Date.parse(item.comment.created_at) > since && isDecisionComment(item, humans));
+  } catch {
+    return true;
   }
 }
 
@@ -805,12 +923,14 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   if (child && parent !== null && here(parent.repository_url, repository) && Number.isInteger(parent.number)) {
     spec.splitParent = { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
   }
+  const decisionOpen =
+    typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
   return {
     issue,
     // Read for the admission comment's own earlier copy (sayWhy).
     comments: await paginate(github, `${base}/comments`),
     spec,
-    parent: typed ? parent : null,
+    parent: typed && parent !== null ? { ...parent, decisionOpen } : null,
     blockers,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
