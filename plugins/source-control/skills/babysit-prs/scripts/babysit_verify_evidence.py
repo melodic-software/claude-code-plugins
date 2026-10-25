@@ -1844,7 +1844,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
 
     With `--base-sha`, the FAIL cap is the gate's: `merge.max-verify-fails`
     of the config at that base commit and at the default branch head, the
-    lower one (`with_default_branch`); a config that cannot be read refuses
+    lower one (`with_default_branch`), each read once per run by commit
+    (`merge_policy.config_at`); a config that cannot be read refuses
     `verify:unreadable`. A pass judged on the run's saved listing is judged
     again on a listing of its own, as the gate does before it allows.
 
@@ -1919,7 +1920,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             return 0
     if args.base_sha is not None:
         try:
-            base = merge_policy.read_config_at(args.repo, args.base_sha)
+            base = merge_policy.config_at(args.repo, args.base_sha)
             if base.error:
                 raise merge_policy.PolicyReadError(base.error)
             config = merge_policy.with_default_branch(args.repo, base)

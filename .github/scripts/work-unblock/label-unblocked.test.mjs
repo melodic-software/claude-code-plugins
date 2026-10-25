@@ -576,6 +576,92 @@ test("the sweep labels an issue whose last blocker a bot closed", async () => {
   );
 });
 
+// The window starts 15 minutes before the last successful scheduled run of
+// work-unblock.yml whose label-unblocked job ran its sweep step, at most 3
+// hours back; anything else, or any failed read, gives the 3 hours.
+const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
+const sweptJobs = (conclusion = "success", extraSteps = []) => ({
+  jobs: [
+    { name: "save-wip-state", conclusion: "success", steps: [{ name: "Save the WIP cap's last known state", conclusion: "success" }] },
+    {
+      name: "label-unblocked",
+      conclusion: "success",
+      steps: [{ name: "Check the kill switch", conclusion: "success" }, ...extraSteps, { name: "Label the unblocked issues", conclusion }],
+    },
+  ],
+});
+async function windowOf(answer, extra = {}, jobs = sweptJobs()) {
+  const { github, calls } = sweptDependent();
+  const actionCalls = [];
+  const actions = async (method, path) => {
+    actionCalls.push(`${method} ${path}`);
+    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) {
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer;
+    }
+    if (/^\/repos\/[^/]+\/[^/]+\/actions\/runs\/5\/jobs\b/.test(path)) {
+      if (jobs instanceof Error) {
+        throw jobs;
+      }
+      return jobs;
+    }
+    return { workflow_runs: [], jobs: [] };
+  };
+  assert.equal(await sweep({ github, actions }, extra), 0);
+  const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+  const since = Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]));
+  return { minutes: (NOW - since) / 60_000, actionCalls };
+}
+
+test("the sweep reads back to 15 minutes before the last sweep that ran its labeling step", async () => {
+  const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(60) }] });
+  assert.equal(minutes, 75);
+  const windowCalls = actionCalls.filter((call) => call.includes("/work-unblock.yml/") || call.includes("/actions/runs/5/"));
+  assert.deepEqual(windowCalls, [`GET ${SWEEP_RUNS}`, `GET /repos/${REPO}/actions/runs/5/jobs?filter=latest&per_page=100`]);
+});
+
+test("a last sweep older than the 3-hour window is capped at 3 hours without reading its jobs", async () => {
+  const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(300) }] });
+  assert.equal(minutes, 180);
+  assert.ok(!actionCalls.some((call) => call.includes("/actions/runs/5/jobs")));
+});
+
+test("a failed or empty read of the last sweep falls back to 3 hours", async () => {
+  for (const answer of [new Error("GET failed with status 403"), { workflow_runs: [] }, { nope: true }, { workflow_runs: [{ id: "x", run_started_at: ago(60) }] }]) {
+    assert.equal((await windowOf(answer)).minutes, 180);
+  }
+});
+
+// A green run proves nothing by itself: the kill switch and a lane the config
+// turns off each skip the labeling step and still end the job green.
+test("a last successful run that did not sweep falls back to 3 hours", async () => {
+  const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
+  const killed = sweptJobs("skipped", [{ name: "Report the kill switch", conclusion: "success" }]);
+  const offByConfig = sweptJobs("skipped", [
+    { name: "Resolve the config", conclusion: "success" },
+    { name: "Report a lane the config turns off", conclusion: "success" },
+  ]);
+  const noSteps = { jobs: [{ name: "label-unblocked", conclusion: "success", steps: [] }] };
+  const noJob = { jobs: [{ name: "save-wip-state", conclusion: "success", steps: [] }] };
+  for (const jobs of [killed, offByConfig, noSteps, noJob, { jobs: [] }, { nope: true }, new Error("GET failed with status 502")]) {
+    assert.equal((await windowOf(runs, {}, jobs)).minutes, 180);
+  }
+});
+
+test("the current run is skipped when finding the last sweep", async () => {
+  const runs = { workflow_runs: [{ id: 77, run_started_at: ago(5) }, { id: 5, run_started_at: ago(60) }] };
+  assert.equal((await windowOf(runs, { GITHUB_RUN_ID: "77" })).minutes, 75);
+});
+
+test("a sweep with no Actions client reads the full 3 hours", async () => {
+  const { github, calls } = sweptDependent();
+  assert.equal(await sweep({ github }), 0);
+  assert.ok(calls.some((call) => call.includes(`since=${encodeURIComponent(SINCE)}`)));
+});
+
 test("the sweep skips an issue with an open sibling blocker", async () => {
   const { github, calls } = sweptDependent({ sibling: "open" });
   assert.equal(await sweep({ github }), 0);
@@ -1856,6 +1942,10 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
     return Object.fromEntries(ids.map((id, i) => [id, body.split(/^ {2}[a-z][a-z-]*:$/m)[i + 1]]));
   };
   const steps = (block) => [...block.matchAll(/^ {6}- name: (.+)$/gm)].map((m) => m[1]);
+  const unblock = jobs(workflow("work-unblock.yml"));
+  assert.ok(unblock["label-unblocked"] !== undefined);
+  assert.doesNotMatch(unblock["label-unblocked"], /^ {4}name:/m, "label-unblocked keeps its id as its name");
+  assert.ok(steps(unblock["label-unblocked"]).includes("Label the unblocked issues"));
   const caller = jobs(workflow("work-resolve-issue.yml"));
   for (const id of ["admit", "pick-slot", "resolve-issue"]) {
     assert.ok(caller[id] !== undefined, id);
