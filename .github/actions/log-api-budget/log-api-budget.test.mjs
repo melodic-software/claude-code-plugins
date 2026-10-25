@@ -492,6 +492,34 @@ test("pr-feedback-dispatch.yml: each job that calls the API ends by logging its 
   }
 });
 
+// The wrapper keeps a copy of the stderr it is set up under, so a setup line
+// that sends its own stderr to /dev/null would swallow the unrecorded-stop errors.
+test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an unrecorded stop's errors", () =>
+  withDir((dir) => {
+    const setups = readFileSync(FEEDBACK, "utf8")
+      .split("\n")
+      .filter((line) => line.includes("api_budget_wrap_gh github-token"))
+      .map((line) => line.trim());
+    assert.ok(setups.length > 0);
+    mkdirSync(join(dir, ".base/.github/actions/log-api-budget"), { recursive: true });
+    copyFileSync(LIB, join(dir, ".base/.github/actions/log-api-budget/api-budget.bash"));
+    stubGh(dir);
+    for (const setup of new Set(setups)) {
+      writeFileSync(join(dir, "answers"), '403 0 - {"message":"API rate limit exceeded"}\n200 4000 - {}\n');
+      writeFileSync(join(dir, "calls"), "");
+      rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+      writeFileSync(join(dir, "api-budget"), "");
+      const result = spawnSync("bash", ["-c", `${setup}\nx=$(gh api repos/o/r) || true\ngh api repos/o/r >/dev/null || true\necho reached`], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir },
+      });
+      assert.equal(readFileSync(join(dir, "calls"), "utf8").split("\n").filter(Boolean).length, 1, setup);
+      assert.doesNotMatch(result.stdout, /reached/, setup);
+      assert.match(result.stderr, /::error::'gh api repos\/o\/r' hit GitHub's core API rate limit[^\n]*\n(?:.*\n)*::error::GitHub's core API stop could not be recorded/, setup);
+    }
+  }));
+
 test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artifact listing and decides as before", () =>
   withDir((dir) => {
     const step = jobText("post-verify-notes").split("\n      - name: ").find((text) => text.startsWith("Download the fail verdict"));
