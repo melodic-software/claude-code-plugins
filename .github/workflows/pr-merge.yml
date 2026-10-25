@@ -97,8 +97,10 @@ on:
     branches: [main]
 
   # The issue lane finished, and may have opened a pull request: only the
-  # enable-auto-merge job runs on it, so the new pull request is armed at
-  # once rather than at the next scheduled run. The run is the main copy of
+  # enable-auto-merge job runs on it, and as on any event run it only disarms
+  # on a hold. Only a scheduled or hand-started run reads the verdict and
+  # arms (enable-auto-merge.mjs READER_EVENTS), so a new pull request waits
+  # up to one scheduled interval to be armed. The run is the main copy of
   # this file and checks out no code from the issue run.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [work-resolve-issue]
@@ -398,6 +400,12 @@ jobs:
           if-no-files-found: error
 
   merge:
+    # On the schedule and a hand-started run it waits for post-merge-dispatch
+    # and reuses its report (the post-merge check below); on every other event
+    # that job is skipped, and !cancelled() runs this one anyway, as it does
+    # when that job fails. The job joins its concurrency group only once
+    # post-merge-dispatch ends.
+    needs: [post-merge-dispatch]
     # A run started on any other branch would use that branch's copy of this
     # file, so it does nothing. pull_request_target runs carry the PR's base
     # branch here, so PRs that do not target main are skipped too. Events from
@@ -405,7 +413,8 @@ jobs:
     # outsider editing a fork PR over and over cannot keep pushing real runs
     # out of the queue.
     if: >-
-      github.ref == 'refs/heads/main' && github.event_name != 'push'
+      !cancelled()
+      && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && github.event_name != 'workflow_run'
       && (github.event_name != 'pull_request_target'
       || github.event.pull_request.head.repo.full_name == github.repository)
@@ -787,14 +796,14 @@ jobs:
       # The same check of this run's post-merge-dispatch job, with the same
       # inputs, is reused instead when it judged (exit 0, 1 or 5) main at this
       # job's commit under REUSE_MINUTES ago: its report, exit code and lane
-      # records. That job starts at once and this one waits on its group, so
-      # its report is usually kept by the time this step starts; with none,
-      # or any other, this job runs the check. A pattern, not a name: a
-      # pattern that matches nothing downloads nothing and does not fail.
+      # records. This job needs that one, so the report is kept before this
+      # step starts, unless that job failed or kept none; with none, or any
+      # other, this job runs the check. A pattern, not a name: a pattern that
+      # matches nothing downloads nothing and does not fail.
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
-          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && needs.post-merge-dispatch.result != 'skipped'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1562,8 +1571,8 @@ jobs:
       # the room is unreadable, which holds as the gate's refusal does:
       # nothing is armed and every armed lane pull request is disarmed.
       # Read whenever post-merge-dispatch ran: its later steps (a full run
-      # started or re-run) can fail after the report was kept, and the gate,
-      # which runs its own check, does not refuse on them.
+      # started or re-run) can fail after the report was kept, and the merge
+      # job, which reads the same report, does not refuse on them.
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != ''
