@@ -564,6 +564,8 @@ const sweep = (args, extra = {}) =>
       TRIGGERING_ACTOR: LANES_BOT.login,
       ...extra,
     }),
+    // A job's log goes through the same fake as every other read.
+    jobLog: args.actions ? (repo, id, options) => args.actions("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options) : undefined,
     ...args,
   });
 

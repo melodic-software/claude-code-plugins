@@ -175,6 +175,7 @@ import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "..
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { splitParentClosed, splitRecord } from "../intake-triage/admit.mjs";
+import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -789,15 +790,16 @@ async function didNoWork(jobsOf, refusalOf, runs) {
 // The reason the broker refused `job`, from its log: the failed step's last
 // line before the runner's first `Process completed`, in `mode` (check or
 // token). Null when that line is no such refusal or the log cannot be read
-// within LOG_CAP_BYTES; the log is data, and no other line of it is read.
-function refusalReader(actions, repo) {
+// within LOG_CAP_BYTES, or no log reader was given; the log is data, and no
+// other line of it is read.
+function refusalReader(jobLog, repo) {
   return async (job, mode) => {
-    if (!RUN_ID.test(String(job?.id))) {
+    if (!jobLog || !RUN_ID.test(String(job?.id))) {
       return null;
     }
     let log;
     try {
-      log = await actions("GET", `/repos/${repo}/actions/jobs/${job.id}/logs`, undefined, {}, { maxBytes: LOG_CAP_BYTES });
+      log = await jobLog(repo, job.id, { maxBytes: LOG_CAP_BYTES });
     } catch (error) {
       console.log(`::warning title=label-unblocked::job ${job.id}'s log was not read: ${escapeCommand(error?.message ?? error)}`);
       return null;
@@ -1035,7 +1037,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
+async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -1131,7 +1133,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
   }
-  const stalled = await didNoWork(jobsOf, refusalReader(actions, repo), runs);
+  const stalled = await didNoWork(jobsOf, refusalReader(jobLog, repo), runs);
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
@@ -1179,7 +1181,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read from the API this sweep; `read` lists the issue's
 // comments or events once, shared with the recurrence check.
-async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read }) {
+async function restartRefusal({ github, actions, jobLog, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read }) {
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
   const holds = labels.map((label) => String(label).toLowerCase()).filter((label) => HOLDS.has(label));
   // needs-human alone may be report-outcome's hold on a Refs PR, which the
@@ -1209,6 +1211,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
     return refireRefusal({
       github,
       actions,
+      jobLog,
       repo,
       number: issue.number,
       lastAdd,
@@ -1272,7 +1275,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"] }) {
+async function restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"] }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -1313,6 +1316,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
         (await restartRefusal({
           github,
           actions,
+          jobLog,
           repo,
           issue,
           bot,
@@ -1500,7 +1504,7 @@ const baseAdmission = (env) => {
     })());
 };
 
-export async function main({ env = process.env, github, actions, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
+export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -1531,6 +1535,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
     if (sweep) {
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
     }
     const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];
@@ -1550,7 +1555,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
-      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits, status });
+      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
