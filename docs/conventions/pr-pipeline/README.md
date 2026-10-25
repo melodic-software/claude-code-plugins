@@ -1155,17 +1155,15 @@ hold paths, so one added after arming stops the merge without waiting for this j
 `Fail a lanes App pull request its body or a member holds` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
-`merge.diff-check.denied-paths` plus the paths resolve-config always adds and the merge gate's
-HIGH floor (`babysit_risk.HIGH_FLOOR`), and holds a plugin manifest or marketplace manifest
-change the gate's manifest review holds, both sides read and compared key by key as the gate
-compares them (`manifestChanges`), on each pull request
-event and in the merge queue, where a red group removes the pull request. A push that adds a hold
-path or such a manifest change fails `ci-status` on its own head. A person on the trusted-actor list
+`merge.diff-check.denied-paths`, with no path added, and holds a trusted-actor list change that
+adds or widens an entry, both sides read at `BASE_SHA` and the head (`actorsHold`), on each pull
+request event and in the merge queue, where a red group removes the pull request. A push that
+adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
 (as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
 body hold or veto, and arming still skips the pull request, so that person merges it.
 Both also hold a pull request that changes one of the merge gate's cost paths
-(`babysit_risk.COST_PATHS`: the multi-agent role map, Pulumi, Terraform and Bicep files). An
+(`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
 line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
@@ -1664,11 +1662,22 @@ and any change holds. An attended gate run reads both fresh. Without the variabl
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
 `hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
 status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
-comment when the review returns a hold, or when a changed file (or a renamed file's old path)
-matches a hold path, which holds as `trust-gate` whatever the review says:
+comment when the review returns a `cost` or `critical-security` hold. A hold path holds nothing by
+itself: the prompt lists them as trusted paths for extra security scrutiny, and the security
+lane rates a change that widens one of these controls CRITICAL (`/review:security-review`, its
+"Trust controls" criteria):
 
 - `.github/standards/trusted-actors/**`
 - `.github/actions/check-trusted-trigger/**`
+- `.github/actions/resolve-config/**`
+- `.github/actions/request-lane-token/**`
+- `.github/actions/check-kill-switch/**`
+- `.github/actions/log-api-budget/rate-guard.mjs`
+- `.github/scripts/pr-merge/merge-holds.mjs`
+- `.github/scripts/pr-merge/enable-auto-merge.mjs`
+- `.github/workflows/pr-require-checks.yml`
+- `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`
+- `docs/conventions/pr-pipeline.yaml`
 - `**/CODEOWNERS`
 - `**/.gitmodules`
 

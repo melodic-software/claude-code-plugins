@@ -208,6 +208,7 @@ jobs:
         .github/scripts/pr-merge/enable-auto-merge.mjs
         .github/workflows/pr-require-checks.yml
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
+        docs/conventions/pr-pipeline.yaml
         **/CODEOWNERS
         **/.gitmodules
     # The reviews role's key runs first; its subscription token only after the

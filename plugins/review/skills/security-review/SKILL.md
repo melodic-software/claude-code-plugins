@@ -154,12 +154,15 @@ and the finding says which control and what now gets through:
   `.github/actions/check-kill-switch/`);
 - it changes code or rules the token broker loads into its signer process, unless the diff shows
   the change narrows what that process grants (in this repository resolve-config's `resolve.mjs`,
-  the sibling modules it imports, and `effect-grants.json`, `lane-rules.json` and
-  `activity-rules.json`; its tests, fixtures and docs are not this control);
+  the sibling modules it imports, `effect-grants.json`, `lane-rules.json` and
+  `activity-rules.json`, and `docs/conventions/pr-pipeline.yaml`, whose lane slots and activity
+  effects decide what the broker mints; resolve-config's tests, fixtures and docs are not this
+  control);
 - it weakens, narrows or removes a merge hold (in this repository
   `.github/scripts/pr-merge/merge-holds.mjs`, `.github/scripts/pr-merge/enable-auto-merge.mjs`,
-  the ci-status hold steps in `.github/workflows/pr-require-checks.yml`, and
-  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`);
+  the ci-status hold steps in `.github/workflows/pr-require-checks.yml`,
+  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`, and the `merge` settings
+  in `docs/conventions/pr-pipeline.yaml`);
 - it widens what any other action under `.github/actions/` lets through: who is trusted
   (`check-trusted-base`, `check-signed-commits`), what untrusted text reaches a lane
   (`select-trusted-text`, `seal-lane-output`, `open-lane-output`), or how pull request code is
@@ -214,8 +217,9 @@ For each item the diff hits, the summary carries one line, `manifest <field>: pa
 `manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
 `flag` line is a finding and counts in the review's findings total. A flag on a key that installs
 or runs code, a `plugin.json` `hooks`, `mcpServers`, `lspServers`, `monitors`,
-`experimental.monitors` or `dependencies`, or a marketplace entry's `source`, is CRITICAL: it
-runs new code for installed users. Every other flag is IMPORTANT unless its exploit path makes it
+`experimental.monitors` or `dependencies`, or in `marketplace.json` a plugin entry added, removed
+or renamed, an entry's `source`, or the marketplace `name`, is CRITICAL: it changes what installs
+or runs for installed users. Every other flag is IMPORTANT unless its exploit path makes it
 CRITICAL.
 
 The pointers below are reading material for naming what a flagged field runs, never the test
