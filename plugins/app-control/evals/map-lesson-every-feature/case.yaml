@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: map-lesson-every-feature
+description: Refresh places a lesson that holds for every feature in the hub's Gotchas once, not in each feature file
+tags: [map, refresh, lessons, invented]
+expected_outcome: "The reply puts the cookie-banner lesson once in a `## Gotchas` section of the hub, .claude/skills/control-clockwork/SKILL.md, rather than copying it into each of the four feature files, treats it as doc drift so the outcome is changed, ships it on control-skill-upkeep/control-clockwork in one pull request, does not hand it to /corrections:codify, and writes nothing."
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-clockwork. Do not read the repository, drive the app or write any file. Treat the source wave and the live pass as already run. A /verification:confirm report handed in one lesson: on the first page load of a new browser session the app shows a cookie banner across the bottom of the page, and a click on anything under it lands on the banner, so a drive has to dismiss it first. The live pass saw it at the start of all four features (weekly-timesheet-export, start-a-timer, invoice-email, team-report) and each drive worked once the banner was dismissed. Ready passed and nothing else differs. Name the file and section the lesson goes to, the outcome, and how it ships, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: names-hub-gotchas
+    type: regex
+    pattern: 'SKILL\.md[\s\S]{0,120}Gotchas|Gotchas[\s\S]{0,120}SKILL\.md|\bhub''?s?\s+`?(## )?Gotchas'
+    flags: i
+    arm: both
+  - name: hub-gotchas-once
+    type: llm
+    criteria: "PASS only if the reply (1) puts the lesson in a `## Gotchas` section of the hub, .claude/skills/control-clockwork/SKILL.md, (2) does not copy it into the Gotchas of each feature file, (3) says it ships as a commit on control-skill-upkeep/control-clockwork through one pull request, with the outcome changed, and (4) does not route it to /corrections:codify or any instruction file outside the control skill. FAIL if it writes the lesson into each of the four feature files, writes it outside .claude/skills/control-clockwork/, calls the outcome clean, or hands it off instead of placing it."

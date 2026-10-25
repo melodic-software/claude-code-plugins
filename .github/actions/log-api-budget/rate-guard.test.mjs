@@ -336,9 +336,9 @@ for (const vector of VECTORS.stop_file_errors) {
 // for its stated reason. A new raw fetch fails here until it is guarded or
 // listed.
 const UNGUARDED = {
-  // Package registries and the GitHub status page, not the API.
+  // Package registries and status pages, not the API.
   ".github/scripts/pr-unblock/dependency-classify.mjs": "package registries",
-  ".github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs": "the status page; its API calls go through createGitHub",
+  ".github/scripts/maintenance-reconcile-lost-runs/component-status.mjs": "the status pages, not the API",
   // Their fetch is budgetedFetch's, which the guard wraps.
   ".github/scripts/pr-unblock/dispatch.mjs": "fetch injected from budgetedFetch",
   ".github/scripts/pr-unblock/feedback-dispatch.mjs": "fetch injected from budgetedFetch",
