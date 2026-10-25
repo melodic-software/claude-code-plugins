@@ -1722,9 +1722,19 @@ assert_eq "divergences real: a record carries its scope, version and projectPath
     | "\(.scope) \(.version) \(.projectPath == $p)"' <<<"$REPORT_DIGEST")"
 assert_eq "divergences real: a pin already at the highest version is not a diverging record" "true" \
   "$(jq --arg p "$p_gone" '[.marketplaces[0].divergences.records[] | select(.id == "zeta@market1") | .projectPath] == [$p]' <<<"$REPORT_DIGEST")"
-assert_eq "divergences real: by_path leads with the path holding the most records" "true" \
-  "$(jq --arg p "$p_gone" '.marketplaces[0].divergences.by_path[0]
-    | .path == $p and .count == 3 and .ids == ["alpha@market1","gamma@market1","zeta@market1"] and .more == 0' <<<"$REPORT_DIGEST")"
+# The busiest path is not present, so it sorts after every path converge can act on.
+assert_eq "divergences real: by_path puts converge-actionable paths first, then worktrees, then absent paths" \
+  '["actionable","actionable","actionable","worktree","blocked"]' \
+  "$(jq -c '[.marketplaces[0].divergences.by_path[].class]' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: a by_path entry counts its records and names its ids" "true" \
+  "$(jq --arg p "$p_gone" '.marketplaces[0].divergences.by_path[] | select(.path == $p)
+    | .class == "blocked" and .count == 3 and .ids == ["alpha@market1","gamma@market1","zeta@market1"] and .more == 0' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: records[] does not carry the by_path class" "false" \
+  "$(jq '[.marketplaces[0].divergences.records[] | has("class")] | any' <<<"$REPORT_DIGEST")"
+assert_contains "divergences real: an absent path's sub-line says it is not present" "$REPORT_TEXT" \
+  "  - $p_gone (not present): 3 diverging record(s): alpha@market1, gamma@market1, zeta@market1"
+assert_contains "divergences real: a worktree path's sub-line says it is a linked worktree" "$REPORT_TEXT" \
+  "  - $p_wt (linked worktree): 2 diverging record(s): alpha@market1, beta@market1"
 assert_eq "divergences real: one by_path entry per project path" "5" \
   "$(jq '.marketplaces[0].divergences.by_path | length' <<<"$REPORT_DIGEST")"
 
