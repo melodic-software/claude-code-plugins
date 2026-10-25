@@ -604,7 +604,7 @@ conformance.
 | `docs-cache` | flag, then `DOCS_CACHE_*`, then the machine file | per-key |
 | `user-interface` | later layer; `routing` team only | per-key (`*.disable` lists union); prose concatenates |
 | `domain-driven-design` | later layer | per-key |
-| `corrections` (`findings-buffer`) | later layer | per-key |
+| `corrections` (`findings-buffer`) | the user-scope binding, when it applies, over the later layer | per-key |
 | `corrections` (`corrections`) | later layer | per-key |
 
 <!-- END GENERATED: config-cascade semantics -->
