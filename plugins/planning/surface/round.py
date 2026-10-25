@@ -1313,6 +1313,42 @@ def op_set_status(d, doc, a):
     return [], "status set"
 
 
+TERM_CAP = 60
+GLOSSARY_MAX = 100
+
+
+def op_glossary(d, doc, a):
+    """Define a coined session term (or redefine it), or remove one with clear. The page lists the
+    terms in its Terms panel and shows the definition when the term appears in question text."""
+    term = capped("glossary term", (a.term or "").strip(), TERM_CAP)
+    if not term:
+        sys.exit("refused: glossary needs a term")
+    definition = capped("glossary definition", (a.definition or "").strip(), LINE_CAP)
+    if bool(definition) == bool(a.clear):
+        sys.exit("refused: glossary takes a non-empty definition or clear, not both")
+    terms = doc.get("glossary") or []
+    if a.clear:
+        kept = [t for t in terms if t["term"] != term]
+        if len(kept) == len(terms):
+            sys.exit(f"refused: glossary has no term {term!r} to clear")
+        if kept:
+            doc["glossary"] = kept
+        else:
+            doc.pop("glossary", None)
+        return [], f"term {term!r} removed"
+    entry = {"term": term, "definition": definition, "at": now()}
+    for i, t in enumerate(terms):
+        if t["term"] == term:
+            terms[i] = entry
+            break
+    else:
+        if len(terms) >= GLOSSARY_MAX:
+            sys.exit(f"refused: glossary holds at most {GLOSSARY_MAX} terms")
+        terms.append(entry)
+    doc["glossary"] = terms
+    return [], f"term {term!r} defined"
+
+
 def op_revising_by_claude(d, doc, a):
     """Declare that Claude is revising questions `ids`, with a reason, or clear the mark (on `ids`,
     else on every question). A `revise` or `reply` of a question clears its own mark. Not the
@@ -1729,6 +1765,7 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
+    "glossary": (op_glossary, {"term": None, "definition": None, "clear": False}),
     "revising-by-claude": (
         op_revising_by_claude,
         {"ids": None, "why": None, "clear": False},
