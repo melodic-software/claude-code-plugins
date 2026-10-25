@@ -693,6 +693,48 @@ class TestOpenFindings(unittest.TestCase):
             parser=PARTIAL,
         )
 
+    # #5901 slice 6: `Function(...)` builds a function from strings and runs
+    # none of its body; only a call runs it. The shapes are 2.1.310's.
+    LODASH_ROOT = 'var root=Function("return this")();'
+
+    def test_a_constant_function_body_that_patches_nothing_clears(self) -> None:
+        """lodash's global probe calls a constant body that only reads
+        `this`, which the scan reads as code and finds no sink in."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        self.assert_across_modules(False, named, self.LODASH_ROOT)
+
+    def test_a_function_built_and_never_called_clears(self) -> None:
+        """A build whose result is discarded runs nothing: an empty-body
+        probe in a `try`, and a syntax check of a body that is no constant."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            'function t(){try{return new Function(""),!0}catch(e){return!1}}',
+            "function fr(e){Function(`async function _check() {'use strict';\\n${e}\\n}`)}",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, named, module)
+
+    def test_a_constant_function_body_that_patches_stays_partial(self) -> None:
+        """A constant body that patches `includes` is a sink when it is
+        called, directly or through a variable."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        body = "\"Array.prototype.includes=function(){this.push('B')}\""
+        for module in (f"Function({body})();", f"var F=Function({body});F();"):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
+    def test_a_non_constant_function_body_stays_partial(self) -> None:
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        self.assert_across_modules(True, named, "Function(s)();")
+
+    def test_a_replaced_function_global_stays_partial(self) -> None:
+        """A folded call trusts the global `Function`, so a module that
+        replaces it, by name or as a member, leaves the call unsafe."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in ("Function=g;", "globalThis.Function=g;"):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, self.LODASH_ROOT, module)
+
     def test_a_load_the_parser_cannot_name_stays_partial(self) -> None:
         """#5970 verifier probes: a load whose file the AST does not name
         (an aliased or `.call`ed require, a comma callee, a specifier that
