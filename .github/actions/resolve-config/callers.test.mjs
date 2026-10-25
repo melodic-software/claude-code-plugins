@@ -1026,10 +1026,21 @@ function needsOf(jobs, id, seen = new Set()) {
 test("work-resolve-issue.yml: every job that gets the issue lane's credential or runs the read runner needs the admission gate's proceed", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
   const admit = jobs.admit;
-  assert.deepEqual(admit.permissions, { contents: "read" }, "the gate holds a read-only token");
+  assert.deepEqual(admit.permissions, { contents: "read", issues: "read" }, "the gate holds a read-only token");
   assert.equal(admit.secrets, undefined);
   assert.doesNotMatch(JSON.stringify(admit), /secrets\./, "the gate names no secret");
-  assert.equal(admit.outputs.proceed, "${{ steps.gate.outputs.proceed }}");
+  // The trusted trigger, then the blocker gate (check-blockers.mjs), which
+  // runs only after the trigger passed, from the default branch tip.
+  assert.equal(admit.outputs.proceed, "${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}");
+  const blockers = admit.steps.find((s) => s.id === "blockers");
+  assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true'");
+  assert.equal(blockers.run, "node .base/.github/scripts/work-resolve-issue/check-blockers.mjs");
+  // Trusted closes and provenance are judged against the default branch's list, never the head's.
+  assert.equal(blockers.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
+  assert.equal(blockers.env.LANES_APP_ID, "${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}");
+  // work-unblock never re-fires a run that reached this step.
+  const final = admit.steps.find((s) => s.name === "Stop on untrusted provenance");
+  assert.equal(final.if, "steps.blockers.outputs.untrusted == 'true'");
   const checkout = admit.steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
   assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
   assert.equal(checkout.with["persist-credentials"], false);
@@ -1309,7 +1320,10 @@ function jobGates(doc, job) {
     const [, need, output] = term.match(/^needs\.([\w-]+)\.outputs\.([\w-]+) == 'true'$/) ?? [];
     if (!needs.includes(need)) continue;
     const gateJob = doc.jobs?.[need] ?? {};
-    const [, stepId] = String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.proceed\s*\}\}$/) ?? [];
+    // The gate's proceed alone, or the gate's proceed joined by && to more checks
+    // (no `||`, which could stand in for it).
+    const [, stepId] =
+      String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.proceed\s*(?:== 'true' && [^|]+)?\}\}$/) ?? [];
     if (stepId && (gateJob.steps ?? []).some((step) => step.id === stepId && step.uses === TRUSTED_TRIGGER)) gates.add("author");
     const [, selectId] = String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.refine\s*\}\}$/) ?? [];
     if (selectId && (gateJob.steps ?? []).some((step) => step.id === selectId && String(step.run ?? "").split("\n").some((line) => line.trim() === REFINE_SELECT))) gates.add("author");
@@ -1472,6 +1486,8 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
     "check-trusted-trigger in a needed job": [{ issues: {} }, { admit: admit(), run: { needs: ["admit"], if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": ["author"] }],
     "a gate job outside needs": [{ issues: {} }, { admit: admit(), run: { if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
     "another action's proceed": [{ issues: {} }, { admit: admit({ id: "gate", uses: "./.base/.github/actions/check-kill-switch" }), run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
+    "the gate's proceed && another check": [{ issues: {} }, { admit: { ...admit(), outputs: { proceed: "${{ steps.gate.outputs.proceed == 'true' && steps.more.outputs.proceed == 'true' }}" } }, run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": ["author"] }],
+    "the gate's proceed || another check": [{ issues: {} }, { admit: { ...admit(), outputs: { proceed: "${{ steps.gate.outputs.proceed == 'true' || steps.more.outputs.proceed == 'true' }}" } }, run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
     "a gate output compared to false": [{ issues: {} }, { admit: admit(), run: { needs: "admit", if: "needs.admit.outputs.proceed != 'true'", steps: [launcher] } }, { "f.yml run": [] }],
     "the pinned intake reusable with author ids": [{ issues: {} }, { triage: intake(PINNED, "${{ needs.x.outputs.human-ids }}") }, { "f.yml triage": ["author"] }],
     "the intake reusable with no author ids": [{ issues: {} }, { triage: intake(PINNED, "") }, { "f.yml triage": [] }],

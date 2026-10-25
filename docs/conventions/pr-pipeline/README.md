@@ -2159,7 +2159,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
 | `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
-| `queued_issues`, `queued_total` | Queued issues with no open lane PR, and those plus the held lane PRs; null when a read failed. |
+| `queued_issues`, `queued_total` | Queued issues with no open lane PR and no blocker that still blocks (at most 30 blocker reads; an unread issue counts), and those plus the held lane PRs; null when a read failed. |
 | `queued_truncated` | `true` when the search counted more queued issues than it lists; admissions then pause. |
 | `queued_cap`, `admission_factor`, `admission_min_per_hour` | The queued cap and its inputs. |
 | `wip_over`, `held_over`, `admission_over`, `queued_over`, `held_alarm` | Which limit is crossed. |
