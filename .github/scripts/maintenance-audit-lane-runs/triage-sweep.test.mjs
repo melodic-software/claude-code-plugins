@@ -146,7 +146,7 @@ test("the hand-off comment names every dispatched run and asks a maintainer to t
 });
 
 // A fake GitHub holding issues, comments and runs, recording every write.
-function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false, filedIssues = [], handedIssues = [] }) {
+function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false, filedIssues = [], handedIssues = [], graphqlError = false }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
@@ -164,9 +164,12 @@ function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false,
     // The hand-off search: GitHub matches the phrase in any comment, so each
     // hit comes with its comments as GraphQL answers them.
     if (method === "POST" && path === "/graphql") {
+      if (graphqlError) return { errors: [{ message: "Something went wrong" }] };
       assert.equal(body.variables.q, 'repo:o/r is:issue is:open commenter:app/github-actions in:comments "so the sweep no longer dispatches it"');
       const start = body.variables.after === null ? 0 : Number(body.variables.after);
-      const author = (user) => (user?.login === BOT.login ? { __typename: "Bot", login: "github-actions" } : { __typename: "User", login: user?.login });
+      // GraphQL names an App's account `Bot` and drops the `[bot]` suffix.
+      const author = (user) =>
+        /\[bot\]$/.test(user?.login ?? "") ? { __typename: "Bot", login: user.login.replace(/\[bot\]$/, "") } : { __typename: "User", login: user?.login };
       const nodes = handedIssues.slice(start, start + 50).map(({ number }) => ({
         number,
         comments: {
@@ -533,6 +536,40 @@ test("a search hit whose hand-off text is not the bot's own hand-off is read and
   assert.equal(result.candidates, 0);
   assert.equal(reads.filter((p) => p.includes("/comments")).length, 0);
   assert.deepEqual(own.writes, []);
+});
+
+// Review on #9814: work-unblock adds no needs-triage, so one left from an
+// earlier hand-off can still be on an issue it hands back. The bot's own
+// filed=handed state with a newer lanes App hand-back is read, and its new
+// cycle dispatches.
+test("a needs-triage search hit with the bot's hand-off and a newer lanes App hand-back is read and dispatched", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1, { labels: [{ name: "needs-triage" }] })],
+    comments: { 1: [stateAt([11, 22], HANDED, "2026-10-17T06:00:00Z"), handBack(LANES, "2026-10-18T08:00:00Z")] },
+    runs: triaged,
+    handedIssues: [{ number: 1 }],
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [1]);
+});
+
+test("a hand-off search that answers with GraphQL errors skips nothing: the hit is read", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1, { labels: [{ name: "needs-triage" }] })],
+    comments: { 1: [stateAt([11, 22], HANDED, "2026-10-17T06:00:00Z")] },
+    runs: triaged,
+    handedIssues: [{ number: 1 }],
+    graphqlError: true,
+  });
+  const reads = [];
+  const call = (method, path, body) => {
+    if (method === "GET") reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.equal(result.candidates, 1);
+  assert.equal(reads.filter((p) => p.includes("/comments")).length, 1);
+  assert.deepEqual(gh.writes, []);
 });
 
 test("an issue past the comment pages that already carries needs-triage is not handed off again", async () => {
