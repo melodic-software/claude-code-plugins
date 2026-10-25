@@ -84,7 +84,7 @@ A row the engine marks `skip` or `not-inspectable` is exactly that in the report
 | start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. A pre-v2.1.211 Claude Code wrote the file to the start directory and the current one still reads what it left; the repository-root copy wins on a shared key, but **permission rules from both files stay in effect**. The dated record for that boundary is `audit-permission-state/reference/criteria.md` §Scopes |
 | `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing; managed policy is the administrator's, never edited by `--fix` |
 | managed policy outside the filesystem | not read | The Windows `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys and the macOS `com.anthropic.claudecode` managed-preferences domain. `check-structure.sh` names them so an absent `managed-settings.json` is never read as "no managed policy deployed", but it does not read them |
-| `.claude/audit-pass.md` (three cascade layers) | the engine | The consumer's suppression record, keyed by `finding_id`. A finding it carries is reported as suppressed with its reason; only the team layer suppresses, a personal-only entry is reported as not applied, and a malformed entry is reported and never suppresses |
+| `docs/conventions/harness-config.yaml` (`suppressions`, the team layer of three cascade layers) | the engine | The consumer's suppression record, keyed by `finding_id`, in the convention home the repository binds (default `docs/conventions`). A finding it carries is reported as suppressed with its reason and the layer and file that supplied it; only the team layer suppresses, a personal-only entry is reported as not applied, and a malformed entry is reported and never suppresses. `suppressions.layers` in the engine's output names each file read |
 
 ### Reading settings.local.json safely
 
@@ -343,8 +343,12 @@ Then three short sections the engine's document already carries:
   `audit-engine.sh finding-id`) and append the row in the same shape with `"tier": "judged"`.
 
 For any finding the operator decides to keep, print its `suppress:` line as a stanza they can paste
-into `.claude/audit-pass.md` (team layer): `check`, `claim`, `sites` with `surface` and
-`anchor/v1`, a non-empty `reason`, and today's `date`, keyed by the `finding_id` the engine printed.
+under `suppressions:` in `docs/conventions/harness-config.yaml` (team layer; the convention home the
+repository binds, when it binds another): `check`, `claim`, `sites` with `surface` and a quoted
+`"anchor/v1":` key, a non-empty `reason`, and today's `date`, keyed by the `finding_id` the engine
+printed. When the engine's `suppressions.layers` reports the team layer as a compatibility read, point
+the operator at `/harness-config:setup apply` first: once the YAML exists the engine ignores the older
+team file, so a YAML holding only the new stanza would un-suppress every earlier entry.
 That is the declared route for session posture; the skill never infers posture from the
 environment.
 
@@ -389,17 +393,18 @@ After all fixes:
 
 ### Refusals in auto mode
 
-Two operations are refused in auto mode. Writing the team-layer suppression record
-`.claude/audit-pass.md` is refused as `[Instruction Poisoning]`. Re-running `scripts/audit-engine.sh`
-for the after-fix summary is refused as `[Self-Modification]`. Never retry around a refusal. Hand the
-operator the fallback: they apply the `.claude/audit-pass.md` edit themselves, or run the engine
-re-run and paste its output back. Report the before/after comparison from what they return.
+Two operations are refused in auto mode. Writing the team-layer suppression record is refused as
+`[Instruction Poisoning]`. Re-running `scripts/audit-engine.sh` for the after-fix summary is refused
+as `[Self-Modification]`. Never retry around a refusal. Hand the operator the fallback: they apply
+the suppression edit themselves, or run the engine re-run and paste its output back. Report the
+before/after comparison from what they return.
 
 Claim: auto mode refuses those two operations under those two category names. Basis: an empirical
 `harness-config:audit@0.48.2` `--fix` run in auto mode on Claude Code 2.1.283, recorded in
-[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153). As of
-2026-09-27. Recheck when a Claude Code release changes auto-mode classifier categories, or a run
-where either refusal no longer fires.
+[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153), when the
+team record lived under `.claude/`. As of 2026-09-27. Recheck when a Claude Code release changes
+auto-mode classifier categories, a run where either refusal no longer fires, or the first auto-mode
+run that writes `harness-config.yaml`.
 
 ### Fixes the skill can apply
 

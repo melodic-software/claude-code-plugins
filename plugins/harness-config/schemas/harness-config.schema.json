@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/harness-config/schemas/harness-config.schema.json",
+  "title": "harness-config team config",
+  "description": "Schema for a repository's docs/conventions/harness-config.yaml, the team layer of the harness-config plugin's settings. The suppressions mapping is read by plugins/harness-config/skills/audit/scripts/audit-engine.sh and by /harness-config:audit-pass; only this layer enacts a suppression. Entry keys follow the finding-suppression convention: docs/conventions/finding-suppression/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" },
+    "site": {
+      "type": "object",
+      "description": "One site the finding is about: its surface and its anchor under each algorithm version. Quote the anchor/v1 key; the plugin's YAML reader takes a plain key only of letters, digits, _ and -.",
+      "required": ["surface"],
+      "minProperties": 2,
+      "additionalProperties": false,
+      "properties": {
+        "surface": { "$ref": "#/$defs/text", "description": "The surface, as the audit names it (a repo-relative path, or a scope label such as user:settings.json)." }
+      },
+      "patternProperties": {
+        "^anchor/v[1-9][0-9]*$": { "$ref": "#/$defs/text", "description": "The site's anchor under that algorithm version." }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "description": "A deliberately kept finding. The constituents are authoritative: an entry whose check, claim and sites do not hash to its key is reported malformed and does not suppress.",
+      "required": ["check", "claim", "sites", "reason", "date"],
+      "additionalProperties": false,
+      "properties": {
+        "check": { "$ref": "#/$defs/text", "description": "The plugin-qualified check that raised the finding." },
+        "claim": { "$ref": "#/$defs/text", "description": "The canonical claim id plus bound parameters." },
+        "sites": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/site" }, "description": "Every site the finding is about." },
+        "reason": { "$ref": "#/$defs/text", "description": "Why the finding is accepted." },
+        "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "When it was accepted, as YYYY-MM-DD." }
+      }
+    }
+  },
+  "properties": {
+    "suppressions": {
+      "type": "object",
+      "description": "Deliberately kept findings of /harness-config:audit and /harness-config:audit-pass, keyed by finding_id.",
+      "propertyNames": { "pattern": "^[0-9a-f]{16}$" },
+      "additionalProperties": { "$ref": "#/$defs/entry" }
+    }
+  }
+}

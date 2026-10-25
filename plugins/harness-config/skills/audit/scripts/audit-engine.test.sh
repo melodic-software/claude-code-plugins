@@ -539,6 +539,50 @@ assert_contains "case 5: stale key named" "$(jq -r '.suppressions.malformed | jo
 assert_contains "case 5: missing keys named" "$(jq -r '.suppressions.malformed | join("\n")' <<<"$out")" "1111111111111111 missing a required key"
 assert_eq "case 5: local-only entry is personal-only, not applied" "1" "$(jq '.suppressions.personal_only | length' <<<"$out")"
 assert_eq "case 5: the personal-only finding still stands" "1" "$(jq '[.findings[] | select(.identity.claim=="missing-allow:git commit")] | length' <<<"$out")"
+assert_eq "case 5: with the YAML absent the old team file supplies the entry" "team .claude/audit-pass.md" "$(jq -r '.suppressions.applied[0].suppressed | "\(.layer) \(.source)"' <<<"$out")"
+assert_eq "case 5: the team layer names the compatibility read" "read: docs/conventions/harness-config.yaml is absent (compatibility read)" "$(jq -r '.suppressions.layers[] | select(.layer=="team") | .state' <<<"$out")"
+assert_eq "case 5: every layer is listed" "team user-global local" "$(jq -r '[.suppressions.layers[].layer] | join(" ")' <<<"$out")"
+
+# --- Case 5a: the team YAML wins over the old team file ------------------------
+mkdir -p "$m/project/docs/conventions"
+cat >"$m/project/docs/conventions/harness-config.yaml" <<EOF
+# yaml-language-server: \$schema=../../plugins/harness-config/schemas/harness-config.schema.json
+suppressions:
+  $good_id:
+    check: harness-config/audit/B/baseline-ask-rules
+    claim: "missing-pattern:Bash(git push *)"
+    sites:
+      - surface: .claude/settings.json
+        "anchor/v1": "$anchor"
+    reason: "Recorded in the team YAML."
+    date: "2026-09-08"
+  2222222222222222:
+    check: harness-config/audit/A/schema-present
+    reason: "no claim or sites"
+    date: "2026-09-08"
+EOF
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 5a: the ask finding is suppressed from the YAML" "suppressed" "$(jq -r '.rows[] | select(.claim=="missing-pattern:Bash(git push *)") | .status' <<<"$out")"
+assert_eq "case 5a: the YAML's reason wins" "Recorded in the team YAML." "$(jq -r '.suppressions.applied[0].suppressed.reason' <<<"$out")"
+assert_eq "case 5a: the entry names its layer and file" "team docs/conventions/harness-config.yaml" "$(jq -r '.suppressions.applied[0].suppressed | "\(.layer) \(.source)"' <<<"$out")"
+assert_eq "case 5a: the old team file is reported ignored" "ignored: docs/conventions/harness-config.yaml is present" "$(jq -r '.suppressions.layers[] | select(.source==".claude/audit-pass.md") | .state' <<<"$out")"
+assert_eq "case 5a: only the YAML's malformed entry is reported" "team:2222222222222222 missing a required key (check, claim, sites, reason, date)" "$(jq -r '.suppressions.malformed | join("\n")' <<<"$out")"
+rm "$m/project/.claude/audit-pass.md"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 5a: the YAML alone suppresses" "suppressed" "$(jq -r '.rows[] | select(.claim=="missing-pattern:Bash(git push *)") | .status' <<<"$out")"
+assert_eq "case 5a: with the old file gone the team layer lists only the YAML" "docs/conventions/harness-config.yaml read" "$(jq -r '.suppressions.layers[] | select(.layer=="team") | "\(.source) \(.state)"' <<<"$out")"
+
+# --- Case 5b: a team YAML that does not parse drops the team layer --------------
+cp "$m/project/docs/conventions/harness-config.yaml" "$TEST_TMPDIR/harness-config.yaml"
+sed 's/"anchor\/v1":/anchor\/v1:/' "$TEST_TMPDIR/harness-config.yaml" >"$m/project/docs/conventions/harness-config.yaml"
+printf '# audit-pass suppressions\n\n```yaml\nsuppressions:\n  %s:\n    check: harness-config/audit/B/baseline-ask-rules\n    claim: "missing-pattern:Bash(git push *)"\n    sites:\n      - surface: .claude/settings.json\n        anchor/v1: "%s"\n    reason: "old file"\n    date: 2026-09-08\n```\n' "$good_id" "$anchor" >"$m/project/.claude/audit-pass.md"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 5b: the finding stands, the old file is not read instead" "1" "$(jq '[.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)")] | length' <<<"$out")"
+assert_contains "case 5b: the parse failure names the file" "$(jq -r '.suppressions.malformed | join("\n")' <<<"$out")" "team:docs/conventions/harness-config.yaml does not parse (line "
+assert_contains "case 5b: the team layer is reported dropped" "$(jq -r '.suppressions.layers[] | select(.source=="docs/conventions/harness-config.yaml") | .state' <<<"$out")" "dropped: does not parse"
 
 # --- Case 6: structure rows (schema, misplaced keys, local deny) ---------------
 m="$(make_machine structure)"
