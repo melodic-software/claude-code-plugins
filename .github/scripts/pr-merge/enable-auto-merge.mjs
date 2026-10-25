@@ -473,9 +473,41 @@ export function liftedByPerson(timeline, label, since) {
   );
 }
 
+// The `babysit-gh-calls` line a babysit script prints on stderr at exit
+// (babysit_gh.py gh_call_summary): its gh invocations in all, those under
+// the Actions token (`override`, the job's GITHUB_TOKEN), and those paginated,
+// each of which made one request per page. Null when there is no such line.
+export const GH_CALLS_PREFIX = "babysit-gh-calls ";
+export function ghCalls(stderr) {
+  const line = String(stderr ?? "")
+    .split("\n")
+    .map((text) => text.replace(/\r$/, ""))
+    .findLast((text) => text.startsWith(GH_CALLS_PREFIX));
+  if (line === undefined) {
+    return null;
+  }
+  let payload;
+  try {
+    payload = JSON.parse(line.slice(GH_CALLS_PREFIX.length));
+  } catch {
+    return null;
+  }
+  const calls = payload?.calls;
+  if (!Number.isSafeInteger(payload?.total) || calls === null || typeof calls !== "object") {
+    return null;
+  }
+  const sum = (match) => Object.entries(calls).reduce((n, [kind, count]) => n + (match(kind) && Number.isSafeInteger(count) ? count : 0), 0);
+  return { total: payload.total, githubToken: sum((kind) => kind.startsWith("override ")), paginated: sum((kind) => kind.endsWith("+paginate")) };
+}
+
+// One pull request's reader cost, as logged and summarized.
+export const costLine = ({ number, calls, ms }) =>
+  `#${number} ${calls === null ? "calls=unknown" : `calls=${calls.total} github-token=${calls.githubToken} paginated=${calls.paginated}`} ms=${ms}`;
+
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
-export function pythonVerify(env) {
+// Each read's cost goes to the log and to `verify.costs`.
+export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
   // `rung`: the lane room's effective rung, which the gate scores at.
   const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
     if (!SHA.test(String(base))) {
@@ -486,12 +518,22 @@ export function pythonVerify(env) {
     if (typeof rung === "string") {
       args.push("--rung", rung);
     }
-    const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    const started = clock();
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    const cost = { number, calls: ghCalls(done.stderr), ms: clock() - started };
+    verify.costs.push(cost);
+    console.log(`enable-auto-merge: ${costLine(cost)}`);
     if (done.status !== 0) {
-      throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+      const said = String(done.stderr ?? "")
+        .trim()
+        .split("\n")
+        .filter((text) => !text.startsWith(GH_CALLS_PREFIX))
+        .at(-1);
+      throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${said ?? ""}`);
     }
     return JSON.parse(String(done.stdout).trim().split("\n").at(-1));
   };
+  verify.costs = [];
   return verify;
 }
 
@@ -617,7 +659,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, now = () => Date.now() } = {}) {
+export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, now = () => Date.now(), latch } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -639,7 +681,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const onResponse = (response) => {
       answer = { limited: response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"), text: response.clone().text().catch(() => "") };
     };
-    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse }), { sleep, random });
+    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse, latch }), { sleep, random });
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
@@ -883,9 +925,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     for (const [level, text] of lines) {
       console.log(`::${level} title=enable-auto-merge::${text}`);
     }
-    if (lines.length > 0 && env.GITHUB_STEP_SUMMARY) {
+    // Each verifier read's cost too, so a run's spend reads per pull request.
+    const summary = [...lines.map(([, text]) => text), ...(verify.costs ?? []).map(costLine)];
+    if (summary.length > 0 && env.GITHUB_STEP_SUMMARY) {
       try {
-        appendFileSync(env.GITHUB_STEP_SUMMARY, lines.map(([, text]) => `enable-auto-merge: ${text}\n`).join(""));
+        appendFileSync(env.GITHUB_STEP_SUMMARY, summary.map((text) => `enable-auto-merge: ${text}\n`).join(""));
       } catch (error) {
         console.log(`enable-auto-merge: the step summary was not written: ${describe(error)}`);
       }

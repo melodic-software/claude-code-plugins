@@ -156,25 +156,17 @@ artifact (a topic contract, an issue, a PR body) and reference it from there. Th
 itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
 user-controlled removal. Nothing expires, sweeps, or ages these files out silently.
 
-**Trim a long cumulative section by promoting its resolved entries.** Cumulative sections
-(Constraints, Decisions, Findings, and the other two the structure doc names) are copied forward
-every hop, so a long chain's handoff grows with history it no longer acts on. When one section
-passes about 25 entries (a judgment figure, not a sourced one), move each RESOLVED entry, one that
-is settled and no longer shapes the next action, into the repo's docs or the program's ADR. Then
-replace the entry with a one-line pointer that keeps its tag and quotes its opening words:
-`- [h3] Promoted to docs/adr/0007-migrations.md: Migrations run forward-only;`. The substance then
-lives only in the committed artifact, as the do-not-duplicate rule above requires, and `validate`
-accepts the pointer in place of the dropped entry (structure doc, "Cumulative sections and
-provenance tags"). Commit the artifact before writing the pointer. An open entry stays in full.
+**Keep the hot file current; history lives in the hop files.** A shape-3 hot file carries only
+what the next session acts on: rules rewritten in place under their ids, preferences until their
+instruction file holds them, one direction-change line per change (structure doc, "Shape 3").
+What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
+history. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
+state the rules still in force under Current rules from there, never from memory.
 
-Do not append a new entry whose text already sits in the section, whatever its tag or `UNVERIFIED`
-prefix: keep the oldest tagged entry (re-tag it when this session re-verified it), and `validate`
-warns on the second copy.
+Carrying a rule forward re-checks any refusal or owner reservation it records against the
+structure doc's evidence and retry rule ("Constraints that must hold").
 
-Carrying a Constraints entry forward re-checks any refusal or owner reservation it records against
-the structure doc's evidence and retry rule ("Constraints that must hold").
-
-The constraints re-scan attestation is not a cumulative entry. It goes on the `Re-scan:` line of
+The constraints re-scan attestation is not a rule. It goes on the `Re-scan:` line of
 `## This session`, which is rewritten every hop, so it never accumulates.
 
 ## Settle in-flight work before writing
@@ -251,7 +243,8 @@ in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps.
 
-On the full path the file is shape 2 and a script owns every deterministic field
+On the full path the file is shape 3, a hot file plus its hop file, and a script owns every
+deterministic field
 (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
 run the guards, run `save_point.py new` through the interpreter ladder with `-X utf8`, write one JSON object
 holding the values for the `<!-- FILL: … -->` slots that skeleton carries, apply them all with
@@ -262,7 +255,7 @@ section are the same bytes by construction. Two refusals route elsewhere and are
 worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fallback
 (`validator unavailable`, file hand-written per the structure doc, `validate: SKIPPED`); no
 session UUID (`CLAUDE_CODE_SESSION_ID` unset or not a UUID) takes the prompt-only path with the
-reason stated. Never a hand-written shape-2 file when the script could have run.
+reason stated. Never a hand-written handoff file when the script could have run.
 
 ## Delivery: `/clear`-then-paste
 
@@ -299,36 +292,34 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   (each running item waited for, independent, or recorded in flight, OR none running), the
   root-equivalence refusal and the self-ignore guard run, and
   `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
-  `--previous <file>` or `--no-previous`. The path `new` printed is the ONE path used for every
+  `--previous <file>` or `--no-previous`, plus `--purpose "<purpose text>"` when the invocation
+  carried any. The path `new` printed is the ONE path used for every
   later step (`fill`, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
   for a missing or non-UUID session id → prompt-only path, reason stated; no interpreter →
-  `validator unavailable: no python3/python on PATH` said in one line, the shape-2 file written
-  by hand per the structure doc, and the `validate` box below reads `SKIPPED (no interpreter)`
+  `validator unavailable: no python3/python on PATH` said in one line, the file written by
+  hand per the structure doc, and the `validate` box below reads `SKIPPED (no interpreter)`
 - [ ] Slot values written as ONE JSON object beside the handoff (`<same stem>.slots.json`, left in
   place afterwards) and applied in a single
   `save_point.py fill "$FILE" --slots "$SLOTS"` call, its slot names read off the skeleton `new`
   just wrote rather than a remembered template (the set is branch-dependent, and an unknown key
   is refused); `fill` exited 0, so no `FILL` text remains and every deterministic field is still
-  as `new` wrote it (frontmatter, `chain:`, the carried `[hN]` sections, the `## Prior sessions`
-  table, the rails block minus `Next:`). An optional slot (`goal-first`, `goal-after`,
-  `below-rail`, `<section>-new`) that does not apply is left OUT of the object, which is how `fill`
+  as `new` wrote it (frontmatter, the carried goal, rules, preferences and trail, the
+  `## Prior sessions` table, the rails block minus `Next:`, the hop file). An optional slot
+  (`goal-first`, `goal-after`, `below-rail`, `goal-new`, `<section>-new`) that does not apply is left OUT of the object, which is how `fill`
   deletes its line; a goal region goes in `goal-first` or `goal-after` as one multi-line value,
   whichever the ordering rule calls for, and the other is left out; a refusal names the slot or key and leaves the file byte-identical, so the fix is the JSON
   and a re-run, never a hand-edit around it
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
-  (`--no-previous`), including when the directory holds only unrelated-task handoffs. The
-  `chain:` list `new` writes holds every hop the `previous_handoff` pointers reach, oldest first
-  and ending with this file, so a consumer reads the whole chain without walking files; a legacy
-  predecessor with no `chain:` of its own has its pointers walked for it. When
-  present, `new` opened that file from disk THIS turn and copied its `Original goal` quote,
-  amendments, cumulative sections, and `Prior sessions` rows over unchanged, never rebuilt from
-  the conversation; new cumulative entries carry this hop's `[hN]` tag and nothing carried was
-  deleted (superseded entries moved under `Superseded:`, promoted ones replaced by their
-  `Promoted to` pointer)
+  (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
+  present, `new` opened that file from disk THIS turn: it copied the `Original goal` over
+  unchanged and moved the predecessor's other sections into this hop's file, so nothing was
+  rebuilt from the conversation; a changed rule was rewritten in place under its id, a new one
+  took the next id, and a new owner amendment went below the copied goal
 - [ ] `Original goal` carries the user's goal in their own words, quoted with its date, not a
-  paraphrase and not the process serving it, and the drift-check sentence tying the next action
-  back to it is answered (structure doc, "Original goal")
+  paraphrase and not the process serving it, with the owner's intent and vision verbatim; a
+  remaining action that serves no recorded goal or detour is flagged `DRIFT` under Direction
+  changes (structure doc, "Shape 3")
 - [ ] Completion criteria read as goal-states, each keeping the command or diff that settles it;
   process milestones sit under the subordinate sub-heading, never as criteria
 - [ ] Every body section the structure doc defines is present. Walked from that doc this turn, not

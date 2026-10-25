@@ -27,6 +27,10 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
+  ledger-check    compare the page with the ledger it was seeded from (or --ledger F) as
+                  export-ledger --diff does; records meta.ledgerSync for the page header and logs
+                  an Activity line when the rows that disagree change; exit 1 when any does
+                  (session-bridge.conf runs it after each apply, AFTER_APPLY)
   supersede       set an answered register row of --ledger F to superseded-by-plan with --proposes
                   (needs no data dir): the row's resolution becomes `was`, escaped as the exporter does
   resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
@@ -55,6 +59,9 @@ lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
 New questions need a `commits` key (an explicit empty list is allowed; `--commit none` on the
 flags) and at least two alternatives (exactly one for a yes/no question flagged `"binary": true`,
 whose alternative may not repeat or contain the recommendation).
+add and add-round warn when a new question omits `dependsOn` (an explicit empty list declares it
+independent; `--depends none` on the flags) or names a question still open in its own round; with
+the requireDepends setting on, both refuse.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
@@ -104,6 +111,7 @@ from server import (  # noqa: E402
     check_alt,
     is_handled,
     load_json,
+    open_prereqs,
     rebuild_responses,
     release_user_holds,
     repo_root,
@@ -151,6 +159,7 @@ LOGGED_OPS = {
     "wait",
     "confirm-commitments",
     "restate",
+    "constraint",
     "finish",
 }
 BASIS_SENTENCES = 3
@@ -493,6 +502,49 @@ def add_question(doc, q, repoint=False, latest=None):
     return touched, notes
 
 
+def require_depends(d):
+    """The resolved requireDepends: the repo file, the user file the server recorded, then the
+    data dir's settings.json."""
+    try:
+        s = json.loads((d / bridge.session_files(NAME)[0]).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        s = {}
+    user = s.get("userSettings") if isinstance(s, dict) else None
+    settings, _ = Settings(repo_root(d)).resolve(d, user if isinstance(user, str) else None)
+    return settings["requireDepends"]["value"]
+
+
+def check_depends(d, doc, qs):
+    """Warn, or refuse under requireDepends, when a new question omits dependsOn (`[]` declares
+    it independent) or names a question still open in its own round. Run after the adds, so a
+    prerequisite added in the same write counts as open."""
+    strict = require_depends(d)
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    view = json.loads(json.dumps(doc))  # release_user_holds edits the copy it is given
+    release_user_holds(view, r)
+    rounds = {x.get("id"): x.get("round") for x in view["questions"]}
+    for q in qs:
+        if "dependsOn" not in q:
+            why = (
+                f"{q['id']} declares no dependsOn; name its prerequisites, or declare it "
+                'independent with "dependsOn": [] (--depends none)'
+            )
+        else:
+            same = [
+                p for p in open_prereqs(view, r, q) if rounds.get(p) == q.get("round")
+            ]
+            if not same:
+                continue
+            why = (
+                f"{q['id']} depends on {', '.join(same)}, open in the same round "
+                f"({q.get('round')}); ask it in a later round, after "
+                f"{'they are' if len(same) > 1 else 'it is'} answered (R-A)"
+            )
+        if strict:
+            sys.exit(f"refused: {why} (requireDepends)")
+        warn(why)
+
+
 def repoint_dependents(doc, new, old, repoint):
     """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
     supersedes. With `repoint` each moves to `new`; one that `new` itself depends on, directly or
@@ -769,6 +821,7 @@ def op_add(d, doc, a):
     doc.pop("finished", None)
     before = newest_round(doc)
     touched, notes = add_question(doc, a.question, a.repoint)
+    check_depends(d, doc, [a.question])
     warn_stage(doc, [a.question])
     warn_stale_meta(doc, before)
     warn_stale_summaries(doc, [a.question])
@@ -801,6 +854,7 @@ def op_add_round(d, doc, a):
         t, n = add_question(doc, q, a.repoint, before)
         touched += t
         notes += n
+    check_depends(d, doc, a.questions or [])
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
@@ -1263,6 +1317,42 @@ def op_set_status(d, doc, a):
     return [], "status set"
 
 
+TERM_CAP = 60
+GLOSSARY_MAX = 100
+
+
+def op_glossary(d, doc, a):
+    """Define a coined session term (or redefine it), or remove one with clear. The page lists the
+    terms in its Terms panel and shows the definition when the term appears in question text."""
+    term = capped("glossary term", (a.term or "").strip(), TERM_CAP)
+    if not term:
+        sys.exit("refused: glossary needs a term")
+    definition = capped("glossary definition", (a.definition or "").strip(), LINE_CAP)
+    if bool(definition) == bool(a.clear):
+        sys.exit("refused: glossary takes a non-empty definition or clear, not both")
+    terms = doc.get("glossary") or []
+    if a.clear:
+        kept = [t for t in terms if t["term"] != term]
+        if len(kept) == len(terms):
+            sys.exit(f"refused: glossary has no term {term!r} to clear")
+        if kept:
+            doc["glossary"] = kept
+        else:
+            doc.pop("glossary", None)
+        return [], f"term {term!r} removed"
+    entry = {"term": term, "definition": definition, "at": now()}
+    for i, t in enumerate(terms):
+        if t["term"] == term:
+            terms[i] = entry
+            break
+    else:
+        if len(terms) >= GLOSSARY_MAX:
+            sys.exit(f"refused: glossary holds at most {GLOSSARY_MAX} terms")
+        terms.append(entry)
+    doc["glossary"] = terms
+    return [], f"term {term!r} defined"
+
+
 def op_revising_by_claude(d, doc, a):
     """Declare that Claude is revising questions `ids`, with a reason, or clear the mark (on `ids`,
     else on every question). A `revise` or `reply` of a question clears its own mark. Not the
@@ -1440,6 +1530,26 @@ def op_restate(d, doc, a):
     return [], "restated the shared understanding"
 
 
+def op_constraint(d, doc, a):
+    """Record one constraint on the page's ledger: a new `C<N>`, or the text of an existing `id`."""
+    text = capped("constraint text", (a.text or "").strip(), LINE_CAP)
+    if not text or "\n" in text:
+        sys.exit("refused: constraint needs one line of text")
+    kept = doc.get("constraints") or []
+    cid = a.id
+    if cid is None:
+        nums = [int(c["id"][1:]) for c in kept if re.fullmatch(r"C[0-9]+", c["id"])]
+        cid = f"C{max(nums, default=0) + 1}"
+    elif not re.fullmatch(r"C[0-9]+", str(cid)):
+        sys.exit(f"refused: constraint id {cid!r} is not C<N>")
+    entry = {"id": cid, "text": text, "at": now()}
+    if any(c["id"] == cid for c in kept):
+        doc["constraints"] = [entry if c["id"] == cid else c for c in kept]
+        return [], f"revised constraint {cid}"
+    doc["constraints"] = [*kept, entry]
+    return [], f"recorded constraint {cid}"
+
+
 def op_activity(d, doc, a):
     text = capped("activity text", (a.text or "").strip(), LINE_CAP)
     if not text:
@@ -1547,7 +1657,7 @@ def cmd_add(d, a):
     if a.alt:
         q["alternatives"] = [split_alt(s) for s in a.alt]
     if a.depends:
-        q["dependsOn"] = a.depends
+        q["dependsOn"] = [] if a.depends == ["none"] else a.depends
     if a.waiting:
         q["waiting"] = True
     a.question = q
@@ -1659,6 +1769,7 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
+    "glossary": (op_glossary, {"term": None, "definition": None, "clear": False}),
     "revising-by-claude": (
         op_revising_by_claude,
         {"ids": None, "why": None, "clear": False},
@@ -1675,6 +1786,7 @@ OP_ARGS = {
         {"id": None, "indices": None, "reason": None},
     ),
     "restate": (op_restate, {"sections": None}),
+    "constraint": (op_constraint, {"id": None, "text": None}),
 }
 
 
@@ -2136,6 +2248,55 @@ def cmd_export_ledger(d, a):
         report_notes(exporters.merged_register(d, text)[2], ("conflict",))
 
 
+def cmd_ledger_check(d, a):
+    """Compare the page with the ledger it was seeded from (or --ledger), as `export-ledger --diff`
+    does, and record the result in meta.ledgerSync for the page header. A change in which rows
+    disagree adds an Activity Log line; exit 1 when any row does."""
+    with sidecar_lock(d):
+        doc = load(d)
+        ledger = a.ledger or (doc["meta"].get("seededFrom") or {}).get("ledger")
+        if not ledger:
+            print("no ledger to check: the page was not seeded from one")
+            return
+        notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
+        drift = [line for kind, line in notes if kind in ("change", "conflict")]
+        # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
+        rows = list(
+            dict.fromkeys(
+                (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
+                for line in drift
+            )
+        )
+        was = doc["meta"].get("ledgerSync") or {}
+        if was.get("rows") != rows or was.get("rev") != doc["rev"]:
+            if rows and was.get("rows") != rows:
+                log_activity(
+                    doc,
+                    capped_text(
+                        f"Ledger out of sync, {len(rows)} "
+                        f"{'row' if len(rows) == 1 else 'rows'}: {drift[0]}",
+                        LINE_CAP,
+                    ),
+                    [],
+                )
+            doc["meta"]["ledgerSync"] = {"rev": doc["rev"] + 1, "rows": rows}
+            save(d, doc)
+    for line in drift:
+        print(line)
+    print(
+        f"{len(rows)} rows out of sync with {ledger}"
+        if rows
+        else f"ledger in sync, rev {doc['rev']}"
+    )
+    if rows:
+        sys.exit(1)
+
+
+def capped_text(text, cap):
+    """`text` cut to `cap` characters, with an ellipsis when it was cut."""
+    return text if len(text) <= cap else text[: cap - 1] + "…"
+
+
 def write_synced_ledger(d, ledger):
     """Rewrite only the register rows of ledger from page state; return the merge notes."""
     path = Path(ledger)
@@ -2506,7 +2667,11 @@ def main(argv=None):
         help="repeatable; `--commit none` alone: commits nothing",
     )
     s.add_argument("--alt", action="append", help="key:text, repeatable")
-    s.add_argument("--depends", action="append", help="question id, repeatable")
+    s.add_argument(
+        "--depends",
+        action="append",
+        help="question id, repeatable; `--depends none` alone: depends on nothing",
+    )
     s.add_argument("--follow-up-of", dest="followUpOf")
     s.add_argument("--supersedes")
     s.add_argument(
@@ -2737,6 +2902,17 @@ def main(argv=None):
         "restate cap",
     )
     s.set_defaults(fn=cmd_export_ledger)
+
+    s = sub.add_parser(
+        "ledger-check",
+        help="compare the page with its ledger as export-ledger --diff does, record the result "
+        "for the page header, and log the rows that disagree; exit 1 when any does",
+    )
+    s.add_argument(
+        "--ledger",
+        help="the ledger to compare with (default: the one import-ledger seeded the page from)",
+    )
+    s.set_defaults(fn=cmd_ledger_check)
 
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")

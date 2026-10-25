@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: map-reports-legacy-upkeep-branch
+description: Refresh lists the testing-era feature-map-upkeep branches, reports each by name, and commits only on its own control-skill-upkeep branch
+tags: [map, refresh, branch, migration, invented]
+expected_outcome: "The reply classes the moved route as doc drift, plans the correction on control-skill-upkeep/control-clockwork, and reports the existing feature-map-upkeep/claude-skills-feature-map branch by name without checking it out, merging it or committing to it. Nothing is switched, written or committed in this session."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-clockwork. Read the control skill and the repository's git state (there is no shell; the files under .git hold its branches), but do not drive the app, switch branches, write or commit anything in this session. Treat the decide step as printing `run` and both passes as already run: the export works at `/timesheets/export` (src/routes.ts:12) and `/reports/timesheet` now returns 404. Nothing else differs. Name the triage class, the branch you would commit on, anything the report must say about branches already in the repository, and the outcome, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 400
+graders:
+  - name: names-legacy-branch
+    type: regex
+    pattern: 'feature-map-upkeep/claude-skills-feature-map(?![\w-])'
+    arm: both
+  - name: reports-not-adopts
+    type: llm
+    criteria: "PASS only if the reply (1) names the existing branch feature-map-upkeep/claude-skills-feature-map and says it is reported, not used, (2) plans the commit on control-skill-upkeep/control-clockwork, and (3) plans no checkout of, merge of, merge from, rebase onto or commit to feature-map-upkeep/claude-skills-feature-map. FAIL if the reply checks out, merges or commits to that branch, adopts it as the upkeep branch, opens the pull request from it, or never mentions it."

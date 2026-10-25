@@ -506,6 +506,66 @@ class TestBriefIds(SessionCase):
         self.assertIn("- Q2 Short Q2: alt a:", constraints)
         self.assertNotIn("Q3 Short Q2", constraints)
 
+    def constraint_ledger(self):
+        ledger = self.tmp / "constraint-ledger.md"
+        ledger.write_text(
+            "## Constraint ledger\n\n"
+            "- C1 | confirmed | internal tool only | user, round 1\n"
+            "- C2 | inherited | floor scanners run a browser | PRD Assumptions\n"
+            "```\n- C9 | confirmed | fenced, not a row\n```\n\n"
+            "## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? | \n",
+            encoding="utf-8",
+        )
+        return ledger
+
+    def test_the_ledger_constraint_section_fills_constraints_without_a_restatement(self):
+        self.session([question("Q1")], [])
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn(
+            "- C1 (confirmed): internal tool only (user, round 1)", constraints
+        )
+        self.assertIn(
+            "- C2 (inherited): floor scanners run a browser (PRD Assumptions)",
+            constraints,
+        )
+        self.assertNotIn("C9", constraints)
+        self.assertNotIn("none recorded", constraints)
+
+    def test_a_confirmed_restatement_outranks_the_ledger_constraint_section(self):
+        rev = {
+            "rev": 1,
+            "at": AT,
+            "sections": {"constraints": "- stdlib only"},
+        }
+        self.session(
+            [question("Q1")],
+            [
+                {
+                    **event(1, None, "confirm-understanding", "confirm"),
+                    "contentRev": 1,
+                }
+            ],
+            restatements=[rev],
+        )
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- stdlib only", constraints)
+        self.assertNotIn("C1", constraints)
+
+    def test_the_page_constraints_lead_and_the_ledger_adds_only_other_ids(self):
+        self.session([question("Q1")], [])
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["constraints"] = [{"id": "C1", "text": "Page wording.", "at": AT}]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- C1: Page wording.", constraints)
+        self.assertNotIn("internal tool only", constraints)
+        self.assertIn("- C2 (inherited):", constraints)
+
     def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
         self.session(
             [question("Q1"), question("Q3"), question("Q4")],
@@ -527,7 +587,7 @@ class TestBriefIds(SessionCase):
 
 
 class TestBriefRestatements(SessionCase):
-    """Goal, Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed rev."""
+    """Every restated section comes from the newest confirmed rev."""
 
     def rev(self, n, **sections):
         return {"rev": n, "at": f"2026-09-24T10:0{n}:00Z", "sections": sections}
@@ -548,7 +608,8 @@ class TestBriefRestatements(SessionCase):
         return self.export("brief").read_text(encoding="utf-8")
 
     def section(self, text, name):
-        return text.split(f"### {name}")[1].split("###")[0].strip().splitlines()
+        section = text.split(f"### {name}")[1].split("###")[0].split("\n## ")[0]
+        return section.strip().splitlines()
 
     def test_a_confirmed_rev_one_survives_an_unconfirmed_rev_three(self):
         text = self.brief(
@@ -632,6 +693,66 @@ class TestBriefRestatements(SessionCase):
         )
         self.assertEqual(self.section(text, "Work size"), ["- Size: Small"])
 
+    def test_restated_deferred_planning_owned_and_decisions_reach_the_brief(self):
+        deferred = ["Q3: moderation model, defer until after V1", "offline mode"]
+        owned = ["cache key layout", "Q4: retry budget"]
+        decisions = ["Q2 answered: Question Q2? (accepted)", "Withdrawn (1): Q1"]
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    goal="Ship it.",
+                    deferred="\n".join(f"- {x}" for x in deferred),
+                    planningOwned="\n".join(f"- {x}" for x in owned),
+                    decisions="\n".join(decisions),
+                )
+            ],
+            [self.confirm(2, 1)],
+        )
+        self.assertEqual(
+            self.section(text, "Deferred questions"),
+            [f"- {x}; **arbiter: /planning:plan**" for x in deferred + owned],
+        )
+        self.assertEqual(
+            self.section(text, "Decisions"), [f"- {x}" for x in decisions]
+        )
+        self.assertNotIn("- none", self.section(text, "Deferred questions"))
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_a_restated_deferral_of_a_user_reserved_row_keeps_its_arbiter(self):
+        self.session(
+            [question("Q1")],
+            [event(1, "Q1", "accept"), self.confirm(2, 1)],
+            restatements=[
+                self.rev(
+                    1,
+                    deferred="- q2: which cap\n- the launch date, USER-RESERVED",
+                    planningOwned="- Q1 follow-up wording",
+                )
+            ],
+        )
+        ledger = self.tmp / "reserved-ledger.md"
+        ledger.write_text(
+            LEDGER_HEAD + "- Q1 | answered | round 1 | Question Q1? | accepted\n"
+            "- Q2 | deferred | round 1 | Which cap? | USER-RESERVED until the pilot\n",
+            encoding="utf-8",
+        )
+        out = self.tmp / "reserved-brief.md"
+        rc, msg = self.rp("export-brief", "--out", str(out), "--ledger", str(ledger))
+        self.assertEqual(rc, 0, msg)
+        lines = self.section(out.read_text(encoding="utf-8"), "Deferred questions")
+        self.assertEqual(
+            lines[1:],
+            [
+                "- q2: which cap; **arbiter: USER-RESERVED**",
+                "- the launch date, USER-RESERVED; **arbiter: USER-RESERVED**",
+                "- Q1 follow-up wording; **arbiter: /planning:plan**",
+            ],
+        )
+
     def test_no_restatement_writes_no_stamp(self):
         self.session([question("Q1")], [event(1, "Q1", "accept")])
         self.assertNotIn(
@@ -673,6 +794,131 @@ class TestBriefRestatements(SessionCase):
         )
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
+
+
+class TestBriefDecisionsOnce(SessionCase):
+    """Each decision reaches the Brief once, in its current form: a superseded row stays in the
+    ledger, and an answered row the confirmed restatement carries adds no raw Constraints line."""
+
+    OLD = ("Cache builds in S3?", "S3 cache", "Use the shared S3 bucket.")
+
+    def section(self, text, name):
+        return text.split(f"### {name}")[1].split("###")[0].split("\n## ")[0]
+
+    def confirmed(self, qs, events, **sections):
+        """Rewrite the session with a confirmed rev 1 of sections; events may differ from the
+        ones the recap was taken over."""
+        confirm = {
+            **event(len(events) + 1, None, "confirm-understanding", "confirm"),
+            "contentRev": 1,
+        }
+        rev = {"rev": 1, "at": AT, "sections": sections}
+        self.session(qs, [*events, confirm], restatements=[rev])
+        return self.export("brief").read_text(encoding="utf-8")
+
+    def gated(self, name, text):
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        return name, text
+
+    def briefs(self, constraints=""):
+        """(name, Brief) without a restatement, then with a confirmed one whose decisions are
+        the register recap, each gated as it is exported: Q1..Q28 all accepted, Q13 then
+        superseded by Q28, Q13 with a confirmed commitment."""
+        qs = [question(f"Q{i}") for i in range(1, 29)]
+        title, short, rec = self.OLD
+        qs[12].update(
+            title=title,
+            short=short,
+            recommendation=rec,
+            commits=["Bucket is shared"],
+            supersededBy="Q28",
+        )
+        qs[27].update(
+            title="Cache builds on local disk?",
+            short="Local cache",
+            recommendation="Use the runner's local disk.",
+            supersedes="Q13",
+        )
+        events = [event(i, f"Q{i}", "accept") for i in range(1, 29)]
+        events.append(event(29, "Q13", "confirm", alt="0"))
+        self.session(qs, events)
+        out = [self.gated("no restatement", self.export("brief").read_text(encoding="utf-8"))]
+        recap, fits = exporters.confirmation_recap(self.dir, 20000)
+        self.assertTrue(fits)
+        sections = {"decisions": recap}
+        if constraints:
+            sections["constraints"] = constraints
+        out.append(self.gated("restated", self.confirmed(qs, events, **sections)))
+        return out
+
+    def test_a_superseded_row_leaves_the_brief_and_its_replacement_appears_once(self):
+        for name, text in self.briefs():
+            with self.subTest(name):
+                for where in ("Constraints", "Captured assumptions", "Out-of-scope"):
+                    part = self.section(text, where)
+                    for said in (*self.OLD, "Bucket is shared"):
+                        self.assertNotIn(said, part, where)
+                    self.assertNotRegex(part, r"\bQ13\b", where)
+                q28 = [x for x in text.splitlines() if re.search(r"\bQ28\b", x)]
+                self.assertEqual(len(q28), 1, q28)
+                if name == "restated":
+                    # The recap carries every answered row, Q28 marked as Q13's replacement
+                    # in Decisions.
+                    self.assertEqual(
+                        self.section(text, "Constraints").strip(), "- none recorded"
+                    )
+                    self.assertTrue(q28[0].startswith("- Q28 answered: "), q28)
+                    self.assertTrue(q28[0].endswith("; replaces Q13"), q28)
+                    self.assertIn(q28[0], self.section(text, "Decisions"))
+
+    def test_no_decision_line_appears_twice(self):
+        for name, text in self.briefs(constraints="- stdlib only (Q2)"):
+            with self.subTest(name):
+                # A decision line is a bullet naming a Q<N>; `- none` repeats by design.
+                lines = [
+                    x
+                    for x in text.splitlines()
+                    if x.startswith("- ") and re.search(r"\bQ[0-9]+\b", x)
+                ]
+                self.assertEqual(
+                    sorted(x for x in set(lines) if lines.count(x) > 1), []
+                )
+                leads = [
+                    x.split()[1] for x in lines if re.match(r"^- Q[0-9]+\b", x)
+                ]
+                twice = sorted({q for q in leads if leads.count(q) > 1})
+                self.assertEqual(twice, [])
+                answered = {f"Q{i}" for i in range(1, 29)} - {"Q13"}
+                if name == "restated":
+                    # The recap carries Q2; the constraint citing it stays as written.
+                    self.assertNotIn("- Q2 Short Q2:", text)
+                    self.assertIn("- stdlib only (Q2)", self.section(text, "Constraints"))
+                self.assertEqual(set(leads), answered)
+
+    def test_a_cut_stale_or_uncopied_restatement_line_keeps_the_row_line(self):
+        long = " ".join(["Keep the build cache on the runner's local disk."] * 8)
+        qs = [question("Q1", recommendation=long), *(question(f"Q{i}") for i in (2, 3, 4))]
+        events = [event(i, f"Q{i}", "accept") for i in range(1, 5)]
+        self.session(qs, events)
+        recap, _ = exporters.confirmation_recap(self.dir, 20000)
+        cut = [x for x in recap.splitlines() if x.startswith(("Q1 ", "Q2 "))]
+        self.assertTrue(cut[0].endswith("…)"), cut)
+        own = "Q3 Short Q3: accepted: Recommended answer for Q3."
+        text = self.confirmed(
+            qs,
+            # Q2's answer changes after the recap was taken.
+            [*events, event(5, "Q2", "alt", alt="a")],
+            decisions="\n".join(cut),
+            constraints=f"- launch before Q4 2026\n- {own}",
+        )
+        constraints = self.section(text, "Constraints")
+        self.assertIn(f"- Q1 Short Q1: accepted: {long}\n", constraints)
+        self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
+        self.assertEqual(text.splitlines().count(f"- {own}"), 1)
+        self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
 
 
 class TestSupersededCommitments(SessionCase):

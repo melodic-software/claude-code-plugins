@@ -374,3 +374,11 @@ test("listFiled reads past 500 newer bot issues to an older muted one", async ()
   assert.equal(filed.length, 501);
   assert.ok(filed.some((i) => i.number === 1));
 });
+
+// Only the lane's own issues can be adopted, rewritten, reopened or closed:
+// the listing names github-actions[bot] as creator.
+test("listFiled lists only github-actions[bot]'s issues", async () => {
+  const api = fakeApi([[/\/issues\?/, []]]);
+  await listFiled({ get: api.get, repo });
+  assert.deepEqual(api.calls.map((path) => new URL(path, "https://x").searchParams.get("creator")), ["github-actions[bot]"]);
+});

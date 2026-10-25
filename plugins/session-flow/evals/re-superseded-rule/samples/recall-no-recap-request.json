@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Merged #4231 and moved on to #4236.",
+      "why": "acts, asks nothing"
+    },
+    {
+      "answer": "Done. Want a recap of what landed? Here it is: ...",
+      "why": "offers a recap, does not ask for one"
+    },
+    {
+      "answer": "#4231 is merged and #4236 is rebased and green. What would you like me to do next?",
+      "why": "near miss: asks what is next after the work is done"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Can you remind me what we were working on with #4231?",
+      "why": "asks the owner to recap"
+    },
+    {
+      "answer": "Before I start, could you recap the merge rule for me?",
+      "why": "recap request"
+    },
+    {
+      "answer": "What would you like me to work on first?",
+      "why": "hands the choice back before acting"
+    }
+  ]
+}

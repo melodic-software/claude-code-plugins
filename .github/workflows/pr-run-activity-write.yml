@@ -580,7 +580,7 @@ jobs:
           fi
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
-            feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
+            feedback-protected-path | feedback-round-cap | feedback-not-converging | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
             feedback-question-security) ;;
@@ -870,8 +870,8 @@ jobs:
       # and the script takes it with --3way otherwise; an empty or invalid patch escalates
       # with nothing minted, unless at patch-model-rung 0 every check it
       # escalated is unfixed or not-reproducible, which skips rung-up for one
-      # retry a rung up; an escalated check in the report escalates after
-      # the push. An issue patch's head is its start commit.
+      # retry a rung up; a written patch escalates nothing, so the pushed
+      # head's own CI decides. An issue patch's head is its start commit.
       - name: Select the patch
         id: patch-select
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'

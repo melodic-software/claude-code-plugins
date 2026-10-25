@@ -224,16 +224,16 @@ setup skills are class (ii) by contract; the 141
 
 | Skill | Class | Verdict |
 |---|---|---|
-| `harness-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` |
-| `harness-ops:plugins` | (i) mutating fleet sync | KEEP `true` |
+| `harness-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, `start` and `restart` pull, update the marketplace, stop sessions and launch `--permission-mode auto` lanes with no stop, `stop`, `run-once` and `consume-restarts run` stop or launch sessions with none either, and `--dry-run` is an opt-in the model can leave off; evidence in [the re-grade below](#re-grade-harness-opslanes-under-the-2026-10-18-decision-9710)) |
+| `harness-ops:plugins` | (i) mutating fleet sync | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, `sync` updates, installs and enables with no stop, and its `--allow-downgrade`, `--install-new` and `--only-install` are model-passable; evidence in [the re-grade below](#re-grade-harness-opsplugins-under-the-2026-10-18-decision-9708)) |
 | `discipline:wait-what` | (i) trigger is human-internal | KEEP `true` |
-| `disk-hygiene:clean` | (i) destructive-capable, manual-only by design | KEEP `true` |
+| `disk-hygiene:clean` | (i) destructive-capable, manual-only by design | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, the Windows/macOS manual deletion step and the opt-in elevated script do not stop for a person unattended; evidence in [the re-grade below](#re-grade-disk-hygieneclean-under-the-2026-10-18-decision-9706)) |
 | `dometrain:sync` | (iii) maintainer-only | KEEP `true` |
 | `education:teach` | (i) deliberate mode-entry, persistent coaching state | KEEP `true` |
 | `firecrawl:update` | (iii) maintainer-only | KEEP `true` |
 | `planning:questionnaire` | none: no side effects, not setup, not maintainer-only | **FLIPPED → `false`** ([#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969); the re-check for a latent rationale found none, as recorded below) |
 | `playbooks:update` | (iii) maintainer-only | KEEP `true` |
-| `repo-fleet-hygiene:apply` | (i) mutating fleet apply incl. branch deletion | KEEP `true` |
+| `repo-fleet-hygiene:apply` | (i) mutating fleet apply incl. branch deletion | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, the local deletion gate is satisfied by a model-passable `--yes`; evidence in [the re-grade below](#re-grade-repo-fleet-hygieneapply-under-the-2026-10-18-decision-9707)) |
 | `session-flow:show-options` | none: a human-facing catalog surface with no side effect whose timing must be human-chosen, an *uttered* trigger rather than a human-internal one, not setup, not maintainer-only | **FLIPPED → `false`** ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); graded after the fact, and the re-check against ADR 0016's latent rationale did not hold it, as recorded below) |
 
 The 17 missing-key skills were normalized to explicit `false` (all sat in the default class), and
@@ -354,12 +354,133 @@ must be a deliberate human choice" either. This item records grades only; it cha
 | `playbooks:repo-sweep` | none | Each mutating step already asks for approval: `plan` "open[s] the selection page" before it creates the branch and draft PR; `next` runs "audit, review findings with the user, fix, one commit, tick"; `review` will "audit and file each problem after approval". The sweep opens a draft PR, never merges, and its triggers ("sweep this repo", "next sweep step") are utterances. Not setup, not maintainer-only. | **FLIP → `false`** (approval-gated mutation) |
 | `repo-fleet-hygiene:sync` | none | The mutation is approval-gated twice over: "Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation." (description); "`--yes` skips the script's prompt, not the user. Pass it only after you have shown the user the dry-run plan ... and the user has explicitly said to go ahead." Dirty work is parked, not deleted, and "The script does not reset a branch." Not setup, not maintainer-only. The 2026-08-17 KEEP of `repo-fleet-hygiene:apply` is an owner-decision sibling and is not revisited here. | **FLIP → `false`** (approval-gated mutation) |
 | `session-flow:tidy-work` | none | Removal and moves are approval-gated: "Does not delete or move anything without `--apply` and a confirmation naming the paths."; "Ask one confirmation covering exactly the listed paths. A refusal, or silence, ends the run with nothing changed."; the `--apply` call "is not pre-approved, so it goes through the normal permission flow." The "Nothing runs unless the user invokes this skill" line says it is opt-in, which is not a class. Not setup, not maintainer-only. | **FLIP → `false`** (approval-gated mutation) |
-| `testing:map-features` | none | "This skill writes files into the repository and commits nothing. It writes a new map; it never overwrites one." Where a `SKILL.md` already exists it "stop[s] and write[s] nothing." Additive and uncommitted, and it proves the map by invoking `/testing:run-e2e`, which is `false`, so the invariant does not block that call; a flipped `map-features` could itself be chained to, though `refresh-feature-map` and `run-e2e` only name it for the human to type. Its description's "User-invoked only." states the current flag, not a class. Not setup, not maintainer-only, and its triggers ("map the features of this app", "write a feature map") are utterances. | **FLIP → `false`** |
+| `testing:map-features` | none | "This skill writes files into the repository and commits nothing. It writes a new map; it never overwrites one." Where a `SKILL.md` already exists it "stop[s] and write[s] nothing." Additive and uncommitted, and it proves the map by invoking `/testing:run-e2e`, which is `false`, so the invariant does not block that call; a flipped `map-features` could itself be chained to, though `refresh-feature-map` and `run-e2e` only name it for the human to type. Its description's "User-invoked only." states the current flag, not a class. Not setup, not maintainer-only, and its triggers ("map the features of this app", "write a feature map") are utterances. | **FLIP → `false`**; retired, replaced by `/app-control:map` |
 
 Result: one KEEP (`discipline:be-ambitious`, class (i)) and five FLIPs. Fleet-wide, the non-setup
 `true` population after the 2026-08-21 grade (9) plus these six is 15 skills, of which this section
 grades the six that had no recorded class; the five flips take effect when the sibling item edits
 their frontmatter, and until then they remain `true`.
+
+## Re-grade: `disk-hygiene:clean` under the 2026-10-18 decision (#9706)
+
+Rule, from the owner's 2026-10-18 decision on
+[#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458) (D3, option b): a
+destructive-capable skill becomes model-invocable only if every destructive step provably stops for a
+person even when it runs unattended. A stop that is a model-passable flag or a prose instruction does
+not hold. Read: `plugins/disk-hygiene/skills/clean/SKILL.md`, `reference/safety-model.md`,
+`reference/unsupported-platform-handoff.md`, and the guard's dispatch in
+`scripts/destructive_guard.py` (`_decide`, `_MUTATING_ENGINE_SUBCOMMANDS`).
+
+| Destructive step | The line that stops it | Holds unattended? |
+|---|---|---|
+| `hygiene.py apply --execute` (Linux engine lane, SKILL.md §6) | Guard: `command_kind in _MUTATING_ENGINE_SUBCOMMANDS and enabled` returns hook `ask`. Safety model: "in each mode its `ask` reaches a person or is denied", probed headless default (denied), `--bg` (parked at the prompt), headless `bypassPermissions` and auto (call listed in `permission_denials`, target intact), interactive bypass (prompt shown) | Yes. Not the `--execute`, `--confirm-tier` or `--approval-token` arguments: the model can read the preview's token and pass all three, and SKILL.md's "A tick is a policy-file default, not a user message" and "Take the user's own answer" are prose |
+| `hygiene.py handoff-apply` (Linux standalone-checkout deletion, SKILL.md §Arguments) | Same guard branch (`_MUTATING_ENGINE_SUBCOMMANDS`, `_HANDOFF_APPLY_ASK_REASON`) | By the same code path, but the probe above names only `apply`; `handoff-apply` is unprobed, so it is not proven |
+| Manual deletion on Windows/macOS (SKILL.md §6, `unsupported-platform-handoff.md`) | "The PowerShell guard lane turns deletion spellings into a hook-issued `ask`"; but "The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an unflagged mutation spelling passes it" (SKILL.md Gotchas), and the probe record says "Not probed: the Windows PowerShell tool", with upstream [anthropics/claude-code#79356](https://github.com/anthropics/claude-code/issues/79356) (hook `ask` not enforced on the PowerShell tool in default mode) | **No.** An unflagged spelling runs with no prompt; the approval gate is prose only |
+| Opt-in elevated script, `Start-Process -Verb RunAs -Wait` (SKILL.md "Arguments and boundaries") | "show its full contents, launch it with `Start-Process -Verb RunAs -Wait`"; the safety model says the engine's authority holds "except inside the opt-in elevated script, which no guard sees" | **No.** No hook sees it; the stop is the UAC prompt and prose |
+| Confirmation gate (large-scan, root-children, removal approval) | "Take the user's own answer, given in this interactive session. Never supply, infer, or fabricate it"; "Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop." | No. Instructions to the model, not a mechanism; only the `apply` hook `ask` above backs them |
+
+Verdict: **KEEP `true`.** The Linux `apply` lane holds, but the skill is graded as a whole and two
+destructive steps (the Windows/macOS manual deletion lane and the opt-in elevated script) have no
+deterministic stop that survives an unattended run. `handoff-apply` is unproven for want of a probe.
+`disable-model-invocation: true` stays in `SKILL.md`, so `git show HEAD:plugins/disk-hygiene/skills/clean/SKILL.md | grep -c '^disable-model-invocation: true'`
+prints 1. What would flip it: a probed fail-closed stop on the PowerShell deletion lane (or removing
+that lane and the elevated script), plus a `handoff-apply` probe row. No `SKILL.md` or changelog
+change follows from a KEEP.
+
+## Re-grade: `repo-fleet-hygiene:apply` under the 2026-10-18 decision (#9707)
+
+Rule, from the owner's 2026-10-18 decision on
+[#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458) (D3, option b): a
+destructive-capable skill becomes model-invocable only if every destructive step provably stops for a
+person even when it runs unattended. A stop that is a model-passable flag or a prose instruction does
+not hold. Read: `plugins/repo-fleet-hygiene/skills/apply/SKILL.md` and
+`skills/apply/scripts/apply-plan.sh`. The plugin ships no `hooks/` directory and no guard, so no
+hook `ask` backs any step.
+
+| Destructive step | The line that stops it | Holds unattended? |
+|---|---|---|
+| Local `branch -D` (`delete-merged-local-branches`) | Script: `elif [[ "$YES" -eq 0 ]]; then if ! is_tty_stdin; then ... mutate nothing` and `else printf 'Confirmation: --yes supplied; proceeding ...'`. SKILL.md table: "Non-interactive \| `--apply --yes` \| Apply" | **No.** The model passes `--apply --yes` and the script proceeds with no person. SKILL.md's own Workflow says "`--apply --yes` (headless)" |
+| Local `git worktree remove` + branch delete (`cleanup-worktrees`) | Same batch gate | **No.** Same `--yes` bypass |
+| Local `git worktree prune` | Same batch gate; the script notes "prune is metadata-only" | **No.** Same `--yes` bypass (low impact, but the gate is the same flag) |
+| Remote `git push --delete` (`--remote-branches`) | Script: `if [[ "$remote_mutable" -gt 0 ]] && ! is_tty_stdin; then ... mutate nothing ... exit 3`, and a per-branch `IFS= read -r confirm` where "`--yes` is not consulted; anything but an explicit yes skips the branch" | Yes, in practice: it needs a terminal on stdin and a typed `y`, and a headless Bash call has no terminal. Not proven by a probe in this repo, so it is a script property, not a recorded harness result |
+| Confirmation gate prose ("Never treat plan tips as authorization", "`--yes` never answers this flag's prompts") | SKILL.md Non-negotiable boundary and Arguments (`--remote-branches`) | No for the local rows: instructions to the model, with no mechanism behind them. It holds only for the remote prompt, as above |
+
+Verdict: **KEEP `true`.** The skill is graded as a whole, and its three local destructive steps stop
+only on the absence of `--yes`, a flag the model can pass. The remote lane would hold, but that does
+not carry the local ones. `disable-model-invocation: true` stays in `SKILL.md`, so
+`git show HEAD:plugins/repo-fleet-hygiene/skills/apply/SKILL.md | grep -c '^disable-model-invocation: true'`
+prints 1. What would flip it: a hook `ask` on `apply-plan.sh --apply` that reaches a person in every
+mode (probed, as `disk-hygiene` did for its `apply` lane), or removing `--yes` for the local rows so
+the batch prompt needs a terminal. No `SKILL.md` or changelog change follows from a KEEP.
+
+## Re-grade: `harness-ops:plugins` under the 2026-10-18 decision (#9708)
+
+Rule, from the owner's 2026-10-18 decision on
+[#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458) (D3, option b): a
+destructive-capable skill becomes model-invocable only if every destructive step provably stops for a
+person even when it runs unattended. A stop that is a model-passable flag or a prose instruction does
+not hold. Read: `plugins/harness-ops/skills/plugins/SKILL.md`, `context/sync.md`,
+`context/sync-install-enable.md`, `context/converge.md`, and the mutating calls in
+`scripts/sync-run.sh` (`run_cli`, `install_one`, `enable_one`). The plugin's `hooks/hooks.json`
+registers no `PreToolUse` hook, so no hook `ask` backs any step.
+
+| Mutating step | The line that stops it | Holds unattended? |
+|---|---|---|
+| `claude plugin marketplace update` (`sync` Step 1) | None. On a first pass (not an `--only-install` re-entry) `sync-run.sh` calls `run_cli "claude plugin marketplace update $mp"` whenever the mode is not `audit` | **No.** No stop at all |
+| `claude plugin update <id> -s <scope>` (Steps 2 and 3) | None. sync.md Step 2: "run `claude plugin update <id> -s <that record's scope>` for **every one of them the downgrade guard does not withhold**"; Step 3: "Update the catalog plugins installed at `user` scope with `claude plugin update <id> -s user`." | **No.** No stop at all |
+| Downgrade rollback (Step 3 with `--allow-downgrade`) | sync.md: "**The opt-in is explicit: the `--allow-downgrade` argument to `sync`.**" | **No.** A flag the model can pass |
+| `claude plugin install <id> -s user` under `install_new: all` (Step 4) | sync-install-enable.md: "**`all`**: `claude plugin install <id> -s user` for every entry, no prompt"; SKILL.md's "do not proceed unattended" against an `all` target is prose | **No.** No stop, and the one guard is an instruction to the model |
+| `claude plugin install` (and `enable -s user` for a pick installed disabled) under `ask` (Step 4 re-entry) | `sync-run.sh` stops before install and reports `stopped_before_install`; the model then runs `AskUserQuestion` and re-enters with `--only-install "<ids>"` | **No.** The script installs whatever ids `--only-install` names (`for id in $wanted; do ... install_one "$id"`) and checks no answer, so the model can pass them without asking. The model also types the policy word itself (SKILL.md: "`<policy>` is the word from the **Configured value** line"), and the script trusts `--install-new all` and never stops, so the `ask` stop is skippable on the first pass too |
+| Pending-enable recovery (`recover_pending`, before the Step 4 gate) | None. It runs `enable_one "$id" user` for each id a cut-off earlier run journaled, even on a pass that stops before install | **No.** No stop at all |
+| `claude plugin enable <id> -s user\|local` (Step 5) and the user-scope key reorder | sync-install-enable.md: "**`user` and `local`: enable automatically.**" | **No.** No stop at all (by design: neither file is team-shared) |
+| `converge` uninstall/update, which can rewrite a committed `.claude/settings.json` | converge.md: "**abort immediately** when the session is autonomous, meaning `CLAUDE_CODE_REMOTE` set, or the invocation arrived via `/loop` or `/schedule`", then an `AskUserQuestion` per row; `converge-plan.sh` is read-only and runs no `claude plugin` command | **No.** The abort and the per-row confirm are instructions to the model; the confirmed commands run as plain Bash calls with no hook behind them |
+
+Verdict: **KEEP `true`.** The skill is graded as a whole, and no mutating step has a deterministic
+stop: `sync` mutates the fleet with no prompt by design ("`sync` is the on-demand and headless
+maintenance action with no such abort", sync-install-enable.md), its opt-ins (`--allow-downgrade`,
+`--install-new`, `--only-install`) are model-passable arguments, and `converge`'s gates are prose. `disable-model-invocation: true` stays in `SKILL.md`, so
+`git show HEAD:plugins/harness-ops/skills/plugins/SKILL.md | grep -c '^disable-model-invocation: true'`
+prints 1. What would flip it: a hook `ask` on the `claude plugin` mutating verbs this skill issues
+that reaches a person in every mode (probed, as `disk-hygiene` did for its `apply` lane), or a split
+that leaves the model-invocable half read-only (`audit`). No `SKILL.md` or changelog change follows
+from a KEEP.
+
+## Re-grade: `harness-ops:lanes` under the 2026-10-18 decision (#9710)
+
+Rule, from the owner's 2026-10-18 decision on
+[#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458) (D3, option b): a
+destructive-capable skill becomes model-invocable only if every destructive step provably stops for a
+person even when it runs unattended. A stop that is a model-passable flag or a prose instruction does
+not hold. Read: `plugins/harness-ops/skills/lanes/SKILL.md`, `context/config.md`,
+`context/refresh.md`, `context/restart-consumer.md`, and the mutating calls in
+`scripts/lane-launcher.sh` (`refresh_repo_and_plugins`, `launch_lane`, `stop_lane_if_running`,
+`launch_cloud_lane`, `ensure_lane_worktree`, `_run_once_one`) and `scripts/restart-consumer.sh`.
+Neither script reads a confirmation from stdin, and the plugin's `hooks/hooks.json` registers no
+`PreToolUse` hook, so no hook `ask` backs any step.
+
+| Mutating step | The line that stops it | Holds unattended? |
+|---|---|---|
+| `git pull --ff-only` and `claude plugin marketplace update` (`start`, `restart`) | None. `refresh_repo_and_plugins` runs `run git -C "$REPO" pull --ff-only` and `run claude plugin marketplace update` unless `--no-pull`/`--no-update` is passed | **No.** No stop at all |
+| Launch a lane: `claude --bg -n <name> --permission-mode auto [--permission-prompts none]` (`start`, `restart`) | None. `launch_lane` runs the command with the prompt file's contents; SKILL.md: "`--permission-mode auto` is what makes an unattended lane run past its first permission prompt" | **No.** No stop, and the session it starts is itself built to run with no person |
+| `claude stop <sessionId>` (`stop`, and the stop half of `restart`) | `stop_lane_if_running` acts only on a name in the resolved config ("never touches a session whose name is not a configured lane"); `restart` "always stops-and-relaunches (discarding the running lane's in-flight conversation)" | **No.** The name check limits what is stopped, not whether a person agrees; and config.md says "The lanes file is lane-writable" |
+| `claude --cloud` launch and linked-worktree `git worktree add` / `checkout --detach` (`cloud-session`, `local-background` targets) | Only an untrusted stage is refused outright (`launch_cloud_lane`). A missing GitHub App, a dirty worktree, unreadable telemetry or a lane-stop gate request goes through `refuse_cloud`, which launches the lane as `local-worktree` instead; `local-background` uses a dirty worktree "as it stands" (`ensure_lane_worktree`) | **No.** Those checks reroute the launch more often than they stop it, and none asks a person |
+| `run-once <lane>`: one `claude -p --permission-mode auto` pass | A per-lane `mkdir` lock that keeps two passes apart (config.md "Scheduled runs") | **No.** The lock serializes runs; it is not a stop |
+| `consume-restarts run`: relaunch through `lane-launcher.sh restart` | SKILL.md: "meant to run unattended on an **OS-owned schedule**"; the circuit breaker (by default 3 attempts per lane per 24 h; `--max-restarts` and `--window-hours` are passable, and "0 disables the breaker") and the liveness recheck | **No.** Unattended by design; the breaker bounds retries and asks no one |
+| `consume-restarts run`: create or edit its own telemetry comment on GitHub (`upsert_own_telemetry` through `telemetry-upsert.sh`) | None; only `--dry-run`, `--no-telemetry` or no resolvable issue skips it | **No.** An external write with no stop |
+| `git fetch origin +refs/heads/<branch>:refs/remotes/origin/<branch>` to read the execution target (`start`, `restart`, `run-once`), and the `git fetch origin -q` in the refresh.md staleness probe | None. refresh.md calls its own fetch "neither bounded nor pure-read" | **No.** It updates remote-tracking refs only, so the impact is low, but nothing stops it |
+| `print-schedule --write-script` (writes the per-lane script and config snapshot) | None beyond the flag; config.md: "Registering an entry is the operator's step." | **No.** A flag the model can pass. The write replaces any earlier script and snapshot (`mv -f`), and the snapshot is what keeps a lane's edits to the lane-writable `lanes.json` from reaching a registered schedule, so a model-passed `--write-script` re-approves whatever config the checkout holds |
+| Preview advice ("Preview any mutating run first with `--dry-run`") | SKILL.md "Run it" | No. A prose instruction; `--dry-run` is an opt-in the model can leave off |
+
+Verdict: **KEEP `true`.** The skill is graded as a whole, and no mutating step has a deterministic
+stop: `start` and `restart` pull, refresh the marketplace, stop sessions and launch
+`--permission-mode auto` lanes with no prompt, and `consume-restarts run` and `run-once` exist to run
+with no person present. The config-name scope guard and the run locks limit what runs; they do not
+ask anyone. `disable-model-invocation: true` stays in `SKILL.md`, so
+`git show HEAD:plugins/harness-ops/skills/lanes/SKILL.md | grep -c '^disable-model-invocation: true'`
+prints 1. What would flip it: a hook `ask` on `lane-launcher.sh` and `restart-consumer.sh` mutating
+actions that reaches a person in every mode (probed, as `disk-hygiene` did for its `apply` lane), or a
+split that leaves the model-invocable half read-only (`status`, `print-schedule` without
+`--write-script`, `consume-restarts check`). No `SKILL.md` or changelog change follows from a KEEP.
 
 ## Cross-references
 

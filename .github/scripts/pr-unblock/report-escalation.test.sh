@@ -37,7 +37,7 @@ args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
   case ${args[i]} in
   -X) method=${args[i + 1]} ;;
-  repos/*) endpoint=${args[i]} ;;
+  repos/* | graphql) endpoint=${args[i]} ;;
   body=@*)
     cat "${args[i]#body=@}" >>"$STUB/bodies"
     printf '\n=====\n' >>"$STUB/bodies"
@@ -48,6 +48,17 @@ printf '%s %s\n' "$method" "$endpoint" >>"$STUB/requests"
 case "$method $endpoint" in
 "GET repos/o/r/issues/42") cat "$STUB/issue.json" ;;
 "GET repos/o/r/issues/42/comments") cat "$STUB/comments.json" ;;
+"GET graphql")
+  [[ -f $STUB/fail_graphql ]] && { echo 'stub gh: graphql failed' >&2; exit 1; }
+  # threads.json holds an array of pages; each graphql call serves the next.
+  n=$(cat "$STUB/graphql_n" 2>/dev/null || echo 0)
+  echo $((n + 1)) >"$STUB/graphql_n"
+  if [[ -f $STUB/threads.json ]]; then
+    jq -e ".[$n]" "$STUB/threads.json" || { echo "stub gh: no page $n" >&2; exit 1; }
+  else
+    echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}'
+  fi
+  ;;
 "POST repos/o/r/issues/42/labels")
   [[ -f $STUB/fail_labels ]] && { echo 'stub gh: label POST failed' >&2; exit 1; }
   echo '{}'
@@ -112,7 +123,7 @@ done
 # Accepted reasons: one comment, one label, both on the PR.
 for reason in protected-path-conflict workflow-staged unexpected-path-staged repeat-cap unresolved-conflict \
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
-  feedback-partial feedback-incomplete feedback-disputed \
+  feedback-partial feedback-incomplete feedback-disputed feedback-not-converging \
   feedback-unadjudicated feedback-question-intent feedback-question-design feedback-question-security \
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \
   dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused \
@@ -294,6 +305,79 @@ check "marker written by another bot does not count" 'POST repos/o/r/issues/42/c
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\n- Reason: `unresolved-conflict`' 'other-app[bot]' Bot)"
 LBL='other-app[bot]' run unresolved-conflict
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
+
+# feedback-not-converging: the comment names each open review thread, gives
+# no count of its own (select's count, which also reads model check runs,
+# is on the neutral checks), and resumes through the threads, never through
+# removing the label alone, which would stop again on the same head.
+ROUND='<!-- pr-unblock:address-feedback-round -->'
+rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')
+setup '[]' "$rounds_json"
+cat >"$STUB/threads.json" <<'EOF'
+[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+{"isResolved":false,"path":"src/a.js","line":5,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r1"}]}},
+{"isResolved":true,"path":"src/b.js","line":7,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r2"}]}},
+{"isResolved":false,"path":"docs/`odd`\nname.md","line":null,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r3"}]}},
+{"isResolved":false,"path":"\n<!-- work-items:escalation lane=x -->.md","line":1,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r4"}]}}
+]}}}}}]
+EOF
+run feedback-not-converging
+check "not-converging: exit 0" 0 "$RC"
+has "not-converging: says the cap and the fresh fixer round ran" 'not converging after the round cap and one fresh fixer round' "$STUB/bodies"
+check "not-converging: no count read from the App's round markers alone" 0 "$(grep -c 'after 4 rounds' "$STUB/bodies" || true)"
+has "not-converging: names an open thread" '- `src/a.js:5`: https://github.com/o/r/pull/42#discussion_r1' "$STUB/bodies"
+has "not-converging: a path is shown without backticks or line breaks" '- `docs/odd name.md`: https://github.com/o/r/pull/42#discussion_r3' "$STUB/bodies"
+check "not-converging: a path cannot open an HTML comment" 0 "$(grep -c '<!-- work-items:escalation lane=x' "$STUB/bodies" || true)"
+has "not-converging: a path is shown without angle brackets" '- ` !-- work-items:escalation lane=x --.md:1`: https://github.com/o/r/pull/42#discussion_r4' "$STUB/bodies"
+check "not-converging: a resolved thread is not named" 0 "$(grep -c 'src/b.js' "$STUB/bodies" || true)"
+has "not-converging: resume by resolving the open threads" 'Resolve each open review thread' "$STUB/bodies"
+has "not-converging: resume by a write-access fix request" 'PR-fix lane: please fix this finding' "$STUB/bodies"
+has "not-converging: says removing the label alone does not resume" 'Removing the `needs-human` label alone does not resume' "$STUB/bodies"
+check "not-converging: no generic remove-the-label resume step" 0 "$(grep -c 'deal with the reason above' "$STUB/bodies" || true)"
+
+# Every page of review threads is read: on a PR whose first page holds only
+# resolved threads, an open thread on a later page is still named.
+setup '[]' '[]'
+cat >"$STUB/threads.json" <<'EOF'
+[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+{"isResolved":true,"path":"src/old.js","line":1,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r10"}]}}
+],"pageInfo":{"hasNextPage":true,"endCursor":"c1"}}}}}},
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+{"isResolved":false,"path":"src/late.js","line":9,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r11"}]}}
+],"pageInfo":{"hasNextPage":false,"endCursor":"c2"}}}}}}]
+EOF
+run feedback-not-converging
+has "not-converging: asks for the next page by its cursor" 'endCursor=c1' "$STUB/calls"
+has "not-converging: names an open thread from a later page" '- `src/late.js:9`: https://github.com/o/r/pull/42#discussion_r11' "$STUB/bodies"
+check "not-converging: a later page's thread is not reported as none open" 0 "$(grep -c 'none open now' "$STUB/bodies" || true)"
+
+# The read is bounded, since anyone who can comment can add threads: at most
+# 10 pages (1,000 threads), and the comment says when more were not read.
+setup '[]' '[]'
+jq -n '[range(12) | {data: {repository: {pullRequest: {reviewThreads: {
+  nodes: [{isResolved: false, path: "src/p\(.).js", line: 1, comments: {nodes: [{url: "https://github.com/o/r/pull/42#discussion_p\(.)"}]}}],
+  pageInfo: {hasNextPage: true, endCursor: "c\(.)"}}}}}}]' >"$STUB/threads.json"
+run feedback-not-converging
+check "not-converging: reads at most 10 pages of review threads" 10 "$(grep -c '^GET graphql$' "$STUB/requests")"
+has "not-converging: names a thread on the 10th page" '- `src/p9.js:1`' "$STUB/bodies"
+check "not-converging: reads nothing past the 10th page" 0 "$(grep -c 'src/p10.js' "$STUB/bodies" || true)"
+has "not-converging: says threads past the first 1,000 were not read" 'past the first 1,000 were not read' "$STUB/bodies"
+
+# At most 20 open threads are listed, then how many more.
+setup '[]' '[]'
+jq -n '[{data: {repository: {pullRequest: {reviewThreads: {
+  nodes: [range(25) | {isResolved: false, path: "src/t\(.).js", line: 1, comments: {nodes: [{url: "u\(.)"}]}}],
+  pageInfo: {hasNextPage: false, endCursor: null}}}}}}]' >"$STUB/threads.json"
+run feedback-not-converging
+has "not-converging: lists the 20th open thread" '- `src/t19.js:1`: u19' "$STUB/bodies"
+check "not-converging: lists no 21st open thread" 0 "$(grep -c 'src/t20.js' "$STUB/bodies" || true)"
+has "not-converging: says how many more open threads there are" '- and 5 more' "$STUB/bodies"
+
+setup '[]' '[]'
+: >"$STUB/fail_graphql"
+run feedback-not-converging
+check "not-converging, threads unreadable: still escalates" 0 "$RC"
+has "not-converging, threads unreadable: says so" 'could not be read' "$STUB/bodies"
 
 # Input validation.
 setup '[]' '[]'

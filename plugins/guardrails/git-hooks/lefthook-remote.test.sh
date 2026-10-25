@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for the guardrails lefthook remote (git-hooks/lefthook-remote.yml): every job
 # names a script under the repository root's .lefthook/<event>/, where lefthook looks up a
-# remote's scripts, and that script runs an entry script that exists; no job takes a shared-copy
+# remote's scripts, runs it with sh, and that script runs an entry script that exists; no job takes a shared-copy
 # job name (guardrails-<entry>), which lefthook would merge into one broken job; entries.json's
 # remote names this file. With lefthook on PATH, a consumer whose lefthook.yml carries the
 # snippet `install.mjs plan --scope remote` returns, fetched from a local stand-in for this
@@ -17,6 +17,8 @@ PLUGIN="$(cd "$HERE/.." && pwd)"
 TOP="$(cd "$PLUGIN/../.." && pwd)"
 CONFIG="$HERE/lefthook-remote.yml"
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
+# dash where installed: it rejects the bashisms a bash-backed sh lets through.
+SH="$(command -v dash)" || SH="sh"
 
 PASS=0
 FAIL=0
@@ -44,24 +46,27 @@ while read -r event name script; do
   wrapper="$TOP/.lefthook/$event/$script"
   expect "$name: its script is under .lefthook/$event/" yes "$([[ -f "$wrapper" ]] && echo yes)"
   # shellcheck disable=SC2016 # matches the wrapper's literal text
-  target="$(sed -n 's#^exec bash "${src%/\*}/\(.*\)" "\$@"$#\1#p' "$wrapper" 2>/dev/null)"
+  target="$(sed -n 's#^exec sh "${src%/\*}/\(.*\)" "\$@"$#\1#p' "$wrapper" 2>/dev/null)"
   expect "$name: its script runs an entry script that exists" yes \
     "$([[ -n "$target" && -f "$TOP/.lefthook/$event/$target" ]] && echo yes)"
+  expect "$name: the job's runner is sh" yes \
+    "$(awk -v s="$script" '$1 == "script:" { hit = ($2 == s) } hit && $1 == "runner:" { print ($2 == "sh" ? "yes" : "no"); exit }' "$CONFIG")"
   # The wrapper beside a stub entry script that reports a run: once in a work tree, once under a
-  # fetched remote, with a Windows-style backslash path.
+  # fetched remote, with a Windows-style backslash path. Run with sh (dash where installed), as
+  # the remote config's runner does.
   for root in "$GUARD/wt" "$GUARD/git/info/lefthook-remotes/r"; do
     mkdir -p "$root/.lefthook/$event" "$(dirname "$root/.lefthook/$event/$target")"
     cp "$wrapper" "$root/.lefthook/$event/$script"
-    printf '#!/usr/bin/env bash\necho ran\n' >"$root/.lefthook/$event/$target"
+    printf '#!/bin/sh\necho ran\n' >"$root/.lefthook/$event/$target"
   done
-  out="$(bash "$GUARD/wt/.lefthook/$event/$script" </dev/null 2>&1)"
+  out="$("$SH" "$GUARD/wt/.lefthook/$event/$script" </dev/null 2>&1)"
   expect "$name: the work-tree copy exits 0 without running the entry script" "0:" "$?:$out"
-  out="$(bash "$GUARD/git/info/lefthook-remotes/r/.lefthook/$event/$script" </dev/null 2>&1)"
+  out="$("$SH" "$GUARD/git/info/lefthook-remotes/r/.lefthook/$event/$script" </dev/null 2>&1)"
   expect "$name: the fetched copy runs the entry script" "ran" "$out"
   # A file whose name holds the backslashes stands in for the Windows path of the fetched copy.
   win="$GUARD/git\\info\\lefthook-remotes\\r\\.lefthook\\$event\\$script"
   cp "$wrapper" "$win"
-  out="$(bash "$win" </dev/null 2>&1)"
+  out="$("$SH" "$win" </dev/null 2>&1)"
   expect "$name: the fetched copy runs from a backslash path" "ran" "$out"
   entry="${script#guardrails-}"
   expect "$name: not a shared-copy job name" yes "$([[ "$name" != "guardrails-${entry%.sh}" ]] && echo yes)"

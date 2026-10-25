@@ -9,7 +9,15 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
                  restatement rev (without one, each Problem field reads `unknown` and each Work
-                 size field `not assessed`), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
+                 size field `not assessed`; with no confirmed Constraints it lists the page's
+                 recorded constraints and the ledger's `## Constraint ledger` rows), as do a
+                 Decisions section from its decisions recap and the Deferred questions entries
+                 from its deferred and planningOwned bullets, and the TLDR's `Restatement:` line
+                 stamps it confirmed or UNCONFIRMED. An answered row's own Constraints line is
+                 left out when a restated constraints or decisions line names its Q<N> and
+                 holds its whole current answer; a row a newer question in the register
+                 superseded stays in the ledger, out of Out-of-scope and Captured assumptions,
+                 and the decisions line its replacement leads ends `; replaces Q<N>`
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
@@ -879,6 +887,103 @@ def bullets(text):
     ]
 
 
+LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
+
+
+def restated_deferred(sections, rows):
+    """The restated `deferred`, then `planningOwned`, bullets as Deferred questions entries, each
+    as written (the restatement leads one with its source Q<N> where it has one) and tagged
+    ARBITER_PLAN, or ARBITER_USER when its lead Q<N> is a user-reserved row or it says
+    USER-RESERVED itself."""
+    reserved = {r["n"] for r in rows if r["reserved"]}
+    out = []
+    for b in bullets(sections.get("deferred")) + bullets(sections.get("planningOwned")):
+        lead = LEAD_QN.match(b[2:])
+        user = (lead and f"Q{lead.group(1)}" in reserved) or "USER-RESERVED" in b
+        out.append(f"{b}; {ARBITER_USER if user else ARBITER_PLAN}")
+    return out
+
+
+QN_REF = re.compile(r"(?<![A-Za-z0-9])[Qq]([1-9][0-9]*)\b")
+SUPERSEDED = re.compile(r"^superseded by ([^\s;]+)")
+
+
+def carried_rows(sections, rows):
+    """The Q<N> of each row a restated constraints or decisions line names and holds the whole
+    current answer of; its own Constraints line would say it twice. A recap line cut short, or
+    written before the answer changed, carries nothing."""
+    lines = bullets(sections.get("constraints")) + bullets(sections.get("decisions"))
+    named = [(b, {f"Q{m.group(1)}" for m in QN_REF.finditer(b)}) for b in lines]
+    return {
+        r["n"]
+        for r in rows
+        if r["readable"] and any(r["n"] in ns and r["readable"] in b for b, ns in named)
+    }
+
+
+def replacements(rows):
+    """{Q<N>: the Q<N> that replaced it} for each row whose question a newer one in the register
+    superseded (its supersededBy, or a ledger-only row's `superseded by <id>` answer). Such a row
+    stays in the ledger and out of the Brief."""
+    by_id = {r["q"]["id"]: r["n"] for r in rows}
+    out = {}
+    for r in rows:
+        new = r["q"].get("supersededBy")
+        if not new and r["status"] == "withdrawn":
+            m = SUPERSEDED.match(r["readable"])
+            new = m.group(1) if m else None
+        if new in by_id:
+            out[r["n"]] = by_id[new]
+    return out
+
+
+def marked_decisions(sections, replaced):
+    """The restated decisions recap, each line a replacing row leads ending `; replaces Q<N>`
+    with the rows it superseded, unless the line already says so."""
+    olds_of = {}
+    for old, new in replaced.items():
+        olds_of.setdefault(new, []).append(old)
+    out = []
+    for b in bullets(sections.get("decisions")):
+        lead = LEAD_QN.match(b[2:])
+        said = re.search(r"\breplaces\b(.*)$", b, re.IGNORECASE)
+        olds = [
+            n
+            for n in olds_of.get(f"Q{lead.group(1)}" if lead else "", [])
+            if not (said and re.search(rf"\b{n}\b", said.group(1), re.IGNORECASE))
+        ]
+        out.append(f"{b}; replaces {', '.join(olds)}" if olds else b)
+    return out
+
+
+CONSTRAINT_ROW = re.compile(r"^\s*[-*+]\s+(C[0-9]+)\s*\|(.*)$")
+
+
+def ledger_constraints(text):
+    """(id, bullet) for each `- C<N> | status | constraint | source` row under a ledger's
+    `## Constraint ledger` heading, outside fenced blocks; none when the section is absent."""
+    out, fenced, inside = [], False, False
+    for line in (text or "").splitlines():
+        if FENCE.match(line):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        if re.match(r"^#+\s", line):
+            inside = "constraint ledger" in line.lower()
+            continue
+        m = CONSTRAINT_ROW.match(line) if inside else None
+        if not m:
+            continue
+        cells = [c.strip() for c in m.group(2).split("|")]
+        status, rest = cells[0], [c for c in cells[1:] if c]
+        body = rest[0] if rest else status
+        source = f" ({'; '.join(rest[1:])})" if len(rest) > 1 else ""
+        label = f" ({status})" if rest and status else ""
+        out.append((m.group(1), f"- {m.group(1)}{label}: {para(body + source)}"))
+    return out
+
+
 def ledger_row(n, qid, status, title, res):
     """A brief row for a question only the ledger has, in the shape register() gives a page one."""
     lead = LEAD.match(res)
@@ -936,7 +1041,8 @@ def export_brief(d, text=None):
         for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)
     }
     answered = [r for r in rows if r["status"] == "answered"]
-    confirmed = [(r, c) for r in rows for c in r["confirmed"]]
+    replaced = replacements(rows)
+    confirmed = [(r, c) for r in rows if r["n"] not in replaced for c in r["confirmed"]]
     risks = named_risks(rows)
     gated = [brief_label(r) for r in rows if held_open(r)]
     superseded = count["superseded-by-plan"]
@@ -978,13 +1084,28 @@ def export_brief(d, text=None):
         ),
     ]
     out += ["", "### Constraints", ""]
+    recorded = []
+    if not bullets(sections.get("constraints")):
+        # No confirmed restatement supplies constraints: the page's own ledger, then the
+        # ledger file's rows under a C<N> the page has not recorded.
+        page = doc.get("constraints") or []
+        recorded = [f"- {c['id']}: {para(c['text'])}" for c in page]
+        seen = {c["id"] for c in page}
+        recorded += [b for i, b in ledger_constraints(text) if i not in seen]
+    # An answered row the restatement already carries is said there, once.
+    carried = carried_rows(sections, answered)
     out += [
         *bullets(sections.get("constraints")),
+        *recorded,
         *(
             f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
             for r in answered
+            if r["n"] not in carried
         ),
     ] or ["- none recorded"]
+    decisions = marked_decisions(sections, replaced)
+    if decisions:
+        out += ["", "### Decisions", "", *decisions]
     criteria = bullets(sections.get("acceptance"))
     out += ["", "### Acceptance criteria", ""]
     out += (
@@ -1002,7 +1123,8 @@ def export_brief(d, text=None):
     ]
     out += lines or ["- none"]
     out += ["", "### Out-of-scope", ""]
-    archived = [r for r in rows if r["status"] == "withdrawn"]
+    # A superseded row was replaced, not excluded: Out-of-scope reads as approved scope.
+    archived = [r for r in rows if r["status"] == "withdrawn" and r["n"] not in replaced]
     out += [
         *bullets(sections.get("outOfScope")),
         *(
@@ -1018,7 +1140,9 @@ def export_brief(d, text=None):
         out.append(
             f"- {brief_label(r)}: {clean(r['q'].get('title'))}, defer until {until}; {arbiter}"
         )
-    if not retired:
+    restated_rows = restated_deferred(sections, rows)
+    out += restated_rows
+    if not retired and not restated_rows:
         out.append("- none")
     out += ["", "## Plan", ""]
     return "\n".join(out)

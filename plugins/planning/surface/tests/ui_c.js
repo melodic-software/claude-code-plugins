@@ -36,19 +36,26 @@ async page => {
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
+    // The pill's history is recorded on a second tab, closed after: an init script runs in every frame, and Chrome logs each run it blocks in this page's sandboxed visual frames as a console error (AC37).
+    const fresh = await page.context().newPage();
+    await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); })); // every text the pill shows from load on
+    await fresh.goto(base); await fresh.waitForSelector(".qbtn", {state: "attached"});
 
-    // AC26: no watcher has ever polled and every event is handled, so the calm Idle shows 30 s after load
-    const rung5 = await page.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 40000}).then(() => true).catch(() => false);
-    ok("AC26: with no watcher and nothing pending the pill reads Idle", rung5 && await page.$eval("#pill", el => el.className === "pill rest"), await page.textContent("#pill"));
+    // AC26: no watcher has ever polled and every event is handled, so the calm Idle shows at once and the pill never reads Live (phase 6 covers a waiting event)
+    const rung5 = await page.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("AC26: with no watcher and nothing pending the pill reads Idle within 5 s of load", rung5 && await page.$eval("#pill", el => el.className === "pill rest"), await page.textContent("#pill"));
+    await fresh.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
+    ok("a fresh load with no watcher never reads Live", await fresh.evaluate(() => Array.isArray(window.__pills) && window.__pills.length > 0 && !window.__pills.includes("Live")), await fresh.evaluate(() => String(window.__pills)));
+    await fresh.close();
 
     // AC17: number order within a group, whatever the insertion order
     const order = await page.$$eval('.sec[data-key="g:base"] .qbtn', els => els.map(e => e.dataset.q));
     ok("AC17: Q1 renders before Q3 though Q3 was inserted first", order.indexOf("Q1") >= 0 && order.indexOf("Q1") < order.indexOf("Q3"), order.join(","));
 
     const chipOf = async id => (await page.textContent('.qbtn[data-q="' + id + '"] .qmeta')).replace(/\s+/g, " ").trim();
-    ok("a question whose prerequisite is unanswered wears Blocked, not Open", /Blocked/.test(await chipOf("P2")) && !/Open/.test(await chipOf("P2")) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
+    ok("#9709: a question whose prerequisite is unanswered wears the padlock Locked chip (frontierLock confirm), not Blocked or Open", /Locked/.test(await chipOf("P2")) && !/Blocked|Open/.test(await chipOf("P2")) && !!(await page.$('.qbtn[data-q="P2"] .qmeta .lockchip svg.padlock')) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
 
-    ok("a question whose only prerequisite is archived is Open, not Blocked, and names it", /Open/.test(await chipOf("X2")) && !/Blocked/.test(await chipOf("X2")) && /needs X1 \(archived\)/.test(await page.textContent('.qbtn[data-q="X2"]')), await page.textContent('.qbtn[data-q="X2"]'));
+    ok("a question whose only prerequisite is archived is Open, not Locked, and names it", /Open/.test(await chipOf("X2")) && !/Blocked|Locked/.test(await chipOf("X2")) && /needs X1 \(archived\)/.test(await page.textContent('.qbtn[data-q="X2"]')), await page.textContent('.qbtn[data-q="X2"]'));
 
     // R-J: emoji anchors on
     await pick("Q1");
@@ -534,8 +541,9 @@ async page => {
     await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
     const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("workLine").textContent}; });
     ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", /type next$/.test(pill.text) && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
+    ok("an event waiting with no watcher shows its id in the header", /^Not listening for D1: /.test(pill.text), pill.text);
     // No watcher has polled this server, as on a first wake held by a permission prompt: the pill names the prompt too.
-    ok("with no watcher ever polled, the pill says to approve any prompt in the terminal, or type next", pill.text === "Not listening: approve any prompt in the terminal, or type next" && /permission prompt/.test(await page.getAttribute("#pill", "title")), pill.text);
+    ok("with no watcher ever polled, the pill says to approve any prompt in the terminal, or type next", pill.text === "Not listening for D1: approve any prompt in the terminal, or type next" && /permission prompt/.test(await page.getAttribute("#pill", "title")), pill.text);
     // The ping-silence fallback: with nothing changing, this server sends only its 15 s ping, so a
     // page told to call a stream dead after 1 s drops it, polls, and opens a new one.
     await page.addInitScript(() => {
@@ -569,6 +577,9 @@ async page => {
     const chip = async () => page.textContent('.qbtn[data-q="D1"]');
     await page.waitForFunction(() => /Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 5000}).catch(() => {});
     ok("a fresh answer, with no watcher silent for 30 s yet, reads Sent to Claude", /Sent to Claude/.test(await chip()), await chip());
+    // The header does not wait out the chips' 30 s grace: with no waiter and no lease it names D1 at once.
+    const named = await page.waitForFunction(() => /^Not listening for D1: /.test(document.getElementById("pill").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("no waiter and no lease: the header names the waiting D1 within 5 s while the chip keeps its grace", named && /Sent to Claude/.test(await chip()), (await page.textContent("#pill")) + " | " + await chip());
     const quiet = await page.waitForFunction(() => /No session is listening; type next in the terminal/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 45000}).then(() => true).catch(() => false);
     ok("with no watcher holding the lease, an unhandled answer reads as not delivered", quiet && !/Sent to Claude/.test(await chip()), await chip());
     const line = await page.waitForFunction(() => /No session is listening/.test(document.getElementById("workLine").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
@@ -606,7 +617,7 @@ async page => {
     await tab.goto(base);
     await tab.waitForFunction(() => /not handled/.test(document.getElementById("workLine").textContent), null, {timeout: 8000}).catch(() => {});
     const sh = await tab.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent, line: document.getElementById("workLine").textContent}));
-    ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
+    ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening for D1: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening for D1: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
     await tab.close();
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));

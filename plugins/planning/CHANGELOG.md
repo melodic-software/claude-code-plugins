@@ -3,6 +3,72 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.102.1] - 2026-10-25
+
+### Fixed
+
+- `round.sh export-brief` no longer writes a decision twice or exports a replaced one ([#9901](https://github.com/melodic-software/claude-code-plugins/issues/9901)). An answered row gets no Constraints line of its own when a line of the confirmed restatement's constraints or decisions recap names its `Q<N>` and holds its whole current answer; a recap line cut short, or taken before the answer changed, keeps the row's own line. A row a newer question superseded stays in the ledger and is no longer exported to Out-of-scope, which `/planning:plan` treats as approved, nor its commitments to Captured assumptions. The decisions line the replacing row leads ends `; replaces Q<N>`.
+
+## [0.102.0] - 2026-10-25
+
+### Added
+
+- The interview page shows drift between the ledger and the page while the interview runs ([#9719](https://github.com/melodic-software/claude-code-plugins/issues/9719)). `round.sh ledger-check [--ledger L]` compares the page with the ledger `import-ledger` seeded it from, as `export-ledger --diff` does, writes `meta.ledgerSync` (`{rev, rows}`) and adds an Activity Log line naming the first difference when the rows that disagree change; `wake.sh` runs it after each `apply` (`AFTER_APPLY=ledger-check` in `surface/session-bridge.conf`). The header reads `Ledger: N rows out of sync` or `Ledger in sync, rev N` and shows nothing for a data dir without the field. An accepted row with unticked commitments reads `Accepted, N to confirm` on the rail and the question's chip, and the meter's to-confirm count names each such row. `context/surface.md` and `surface/README.md` document the command, the field and the conf key.
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+### Fixed
+
+- The `/planning:interview` page header no longer reads `Idle` for up to 30 seconds while an event waits and no watcher is waiting or holding the lease. It now names the waiting question or event at once, as in `Not listening for Q3: type next` (or `Not listening for Q3: approve any prompt in the terminal, or type next` while no watcher has ever polled). A delivery left unhandled for ten minutes is named the same way. The question chips and the receipt line keep their 30-second grace ([#8170](https://github.com/melodic-software/claude-code-plugins/issues/8170)).
+
+- The session bridge now reports why its page server failed to start: `ensure-running` keeps the server's stderr in `.<name>-server.log` in the data dir, prints its last lines and exits non-zero.
+- `stop` ends the watcher whose command line names the full data-dir path, not one that shares the data dir's last path component, so it no longer stops another topic's watcher.
+
+## [0.101.1] - 2026-10-25
+
+### Fixed
+
+- **`interview` surface:** `export-brief` no longer drops three sections of a confirmed restatement. Its `decisions` recap becomes a `### Decisions` section, and its `deferred` and `planningOwned` bullets join `### Deferred questions` after the register's retired rows, tagged **arbiter: /planning:plan**, or **arbiter: USER-RESERVED** when a bullet leads with a user-reserved row's `Q<N>` or says USER-RESERVED, so `/planning:plan` sees them ([#9895](https://github.com/melodic-software/claude-code-plugins/issues/9895)).
+
+## [0.101.0] - 2026-10-25
+
+### Added
+
+- The interview page shows the session shorthand glossary. A `glossary` op records a coined term and its definition (`clear` removes one), a Terms panel lists them, and each defined term in question text shows its definition on hover. A data dir without `glossary` loads, renders and exports as before.
+
+## [0.100.0] - 2026-10-24
+
+### Added
+
+- **`interview` surface:** a `constraint` op records a constraint on the page's own ledger, and the page header lists them under "Constraints (N)". `export-brief` takes Constraints from a confirmed restatement; with none it lists the page's constraints and the `--ledger` file's `## Constraint ledger` rows, instead of printing "none recorded".
+
+- **The interview page gates a decision ahead of an open prerequisite (`frontierLock`).** Under the default, `confirm`, saving a decision on a question whose `dependsOn` names a question still open asks first ("Q100 depends on Q22, which is still open.", with Go to Q22 and Answer anyway). Answer anyway stores `outOfOrder` on the event, and the prerequisite's first decision marks the question stale for review. The rail shows a padlock `Locked` chip in place of `Blocked`. `hard` disables Save and the server refuses such a decision with 409 `blocked`, naming the open ids in `waitsOn`; `off` keeps the earlier behavior. Ask, Rephrase and Research this stay enabled in every mode ([#9709](https://github.com/melodic-software/claude-code-plugins/issues/9709)).
+- **`round.sh add` and `add-round` expect declared dependencies.** A question that omits `dependsOn` (`[]`, or `add --depends none`, declares it independent), or names a question still open in its own round, gets a warning naming it; the `requireDepends` setting turns both into refusals. The page protocol now requires every posted question to declare `dependsOn`, so the lock has prerequisites to act on.
+
+### Fixed
+
+- Escape on the interview page's "Accept current recommendation anyway?" and "Wrap up with N items outstanding?" dialogs cancels; before, it confirmed whenever the page's previous dialog had been confirmed.
+- The server's accept-all check (`accept-audit`) leaves out a question whose prerequisite is held or has only a decision a user hold set aside, as the page already did; before, a hand-built request could accept it.
+
+## [0.99.1] - 2026-10-24
+
+### Fixed
+
+- `round.sh status` counts the live questions the page meter counts. Each group line now reads `N of M live answered; K archived` instead of counting archived questions as closed, and an accepted row with an unticked commitment gets its own `accepted, to confirm:` line. `status --json` gains `live`, `answered` and `toConfirm` per group; `closed` is unchanged.
+
+## [0.99.0] - 2026-10-24
+
+### Added
+
+- **The interview page shows a chip for a question's basis outcome.** A `basis` that leads or ends with `Verified` or `Judgment` now renders a differently styled chip beside the recommendation, so a judgment call no longer reads like a verified one.
+- **`round.py` warns on a basis with no outcome label and on a bare local-file reference.** `add`, `add-round` and `--check` warn, never refuse, when `basis` carries no `Verified`/`Judgment` label (a `Withheld:` recommendation is exempt), and when `facts`, `basis` or a recommendation names a local file or says "see X" with no quote, list or link in the same field.
+
+### Changed
+
+- **The interview Source rule covers any referenced scope.** Lists, item numbers and file sections a decision rests on go in full into the question box, and an external source gets a clickable link.
+
 ## [0.98.0] - 2026-10-24
 
 ### Added

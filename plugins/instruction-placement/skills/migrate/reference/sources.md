@@ -103,7 +103,11 @@ Each row was re-derived on 2026-09-28 by resolving the tag to its commit and rea
 
 The check maps each pin to the CLI version that `base-action/action.yml` assigns to
 `CLAUDE_CODE_VERSION` at the pinned commit, in the shell step that installs Claude Code (line 150
-at all five commits), and reads the table above as that mapping.
+at all five commits). The table above is the offline cache of that mapping, not the only source: a
+pin the table lacks is resolved live by reading that file at the pinned ref
+(`cutover-check.sh --action-fetch` overrides how), so Dependabot moving the pins does not need a
+hand-edited row first. A failed fetch, or a file with no `CLAUDE_CODE_VERSION` assignment, leaves
+the pin unresolved.
 
 - **Pointer**: our derivation, `gh api repos/anthropics/claude-code-action/commits/<tag>` for the
   commit, then `gh api repos/anthropics/claude-code-action/contents/base-action/action.yml?ref=<tag>`,
@@ -370,7 +374,7 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `~/.claude/plugins`"; [plugins/loading](https://code.claude.com/docs/en/plugins/loading)
   (fetched 2026-10-01, 37,348 bytes) says the same root "is `~/.claude/plugins` unless you set
   `CLAUDE_CODE_PLUGIN_CACHE_DIR`". The resolution expression is the one
-  `plugins/performance/skills/verify/SKILL.md` uses. The memory page names the exempt user file
+  `/performance:verify` uses. The memory page names the exempt user file
   only as "your `~/.claude/CLAUDE.md`" and does not say how `CLAUDE_CONFIG_DIR` changes that, so
   the walk exempts it only at the default root. The removal procedure for an `@AGENTS.md`
   shim: "Remove

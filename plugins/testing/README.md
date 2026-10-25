@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. Plan
 what needs testing, author tests at the right level, verify the running app
-end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Twelve
+end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Ten
 skills cover it.
 
 | Skill | What it does |
@@ -10,15 +10,15 @@ skills cover it.
 | `/testing:plan` | Coverage-gap analysis. Classify changed files by required test type, identify gaps, prioritize by regression risk. |
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
-| `/testing:map-features` | Writes a feature map for one app: a project skill (default `.claude/skills/feature-map/`) whose index names the launch recipe, the recorded driver and a doctor command, with a file for each feature listing its parts, entry points, drive steps and traps. Refuses a location inside a `run-<name>` or `verify` skill. Reports done only after one mapped feature passes through `/testing:run-e2e`. Format: `reference/feature-map.md`. |
-| `/testing:refresh-feature-map` | Model-invocable. Keeps an existing feature map accurate: read-only source checks per feature, then one live pass through `/testing:run-e2e`. Edits stay in the map directory; a behavior the app lost goes to `/bugs:write` or the report, never into the map. A clean pass records its commit under the plugin data directory and the next pass skips until HEAD moves. Map corrections go to one fixed branch per map, `feature-map-upkeep/<map slug>`, and one pull request, updated rather than duplicated, opened only when unattended or after you confirm. An unattended pass refuses a `chrome` map. |
 | `/testing:check-visual-parity` | Model-invocable; implement's refactor mode calls it for a plan phase with a `**Parity contract:**` line. `baseline` captures PNG screenshots of the listed states before the first edit and records their sha256, OS, browser, viewport and scale in a manifest; `compare` captures them again at each green checkpoint and counts differing pixels per image with pixelmatch against `pixel_tolerance`. It captures only through a driver that writes PNG files, launches through `/testing:run-e2e`'s launch path, runs the repository's own visual suite first, and never edits or re-captures a baseline. pixelmatch and pngjs install on first use from the committed lockfile (`npm` required). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
-| `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, its judge pass's FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`; without one, `--cannot-fail-only` deletes only tests that cannot fail, each cleared by a fresh-context skeptic and your yes. |
+| `/testing:cleanup` | Clean up low-value tests in one folder. Given the repository root, it plans one batch per test project, ordered by finding count, skips live and operational projects unless you name one, and runs each batch on its own. Reads `/testing:audit` findings, its judge pass's FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`; without one, `--cannot-fail-only` deletes only tests that cannot fail, each cleared by a fresh-context skeptic and your yes. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and the test globs the shipped `test-weaken` hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
 | `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `/testing:audit` judge pass: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
+
+The feature map `/testing:run-e2e` drives entry point by entry point is the app's control skill, which `/app-control:map` writes and keeps current.
 
 | Workflow | Launched by | What it does |
 |---|---|---|
@@ -104,10 +104,7 @@ Workspace environment entry, `reuse_running_instance: false`, and `auto` on an u
 start the run's own instance through the entry's `up` and `info` and never drive the answering app;
 with no entry, unattended `auto` reuses the app with labeled evidence and `false` stops, as
 before. Under `auto` a run now drives through the repository's own
-harness when a spec covers the changed flow, and otherwise through the path it used before. A fifth
-key, `feature_map_dir` (default `.claude/skills/feature-map`), says where `/testing:map-features`
-writes the feature map and where run-e2e reads it; it is a repository path, set only in
-`docs/conventions/testing.yaml` or `.claude/testing.local.yaml`, with no `userConfig` option. Keys,
+harness when a spec covers the changed flow, and otherwise through the path it used before. Keys,
 defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
 
 `browser_driver` (default `playwright-cli`) names the one browser tool a `playwright` drive uses. It

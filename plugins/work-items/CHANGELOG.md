@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.3] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+- `view-bridge/wake.sh` is regenerated from `lib/session-bridge/wake.sh`, which now runs an optional `AFTER_APPLY` subcommand named in `session-bridge.conf` between `apply` and the watcher ([#9719](https://github.com/melodic-software/claude-code-plugins/issues/9719)). This plugin's conf names none, so its wake behaves as before.
+
+### Fixed
+
+- The session bridge now reports why its page server failed to start: `ensure-running` keeps the server's stderr in `.<name>-server.log` in the data dir, prints its last lines and exits non-zero.
+- `stop` ends the watcher whose command line names the full data-dir path, not one that shares the data dir's last path component, so it no longer stops another topic's watcher.
+
+## [3.4.2] - 2026-10-25
+
+### Fixed
+
+- `rule-admit.sh` no longer refuses an issue for naming Claude spend: a spend word (cost, spend, spending, pricing, quota) is exempt only inside a phrase such as "Claude eval cost" or "Claude API key spend", and only when the issue names none of a closed list of other charge sources (GitHub, Azure, AWS, Google, OpenAI, Vercel, Stripe, storage, hosting, and the generic provider, vendor, service and plan). Any other spend-word occurrence, including "paid", refuses, so an unlisted provider's charge still waits. Charge terms (billing, a spending limit, a subscription, a seat, Codespaces, a paid plan, a top-up, auto-renew, auto-reload, extra usage, retention, a larger or hosted runner, macOS minutes) refuse every issue (owner decision 2026-10-24, #9904).
+
 ## [3.4.1] - 2026-10-24
 
 ### Changed

@@ -3,6 +3,26 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+## [0.13.0] - 2026-10-25
+
+### Changed
+
+- **The team layer is `docs/conventions/multi-agent.yaml`**, under the convention home the repository binds (`docs/conventions` when it binds none), validated by the new `schemas/multi-agent.schema.json`. `resolve-roles.sh` reads the old team locations, the `yaml config` block in `docs/conventions/multi-agent.md` and then `.claude/multi-agent.yaml`, only when the YAML is absent, for one release; when several exist it uses the first and names each one it ignored in `notes`. The `layers` rows and each role's `source` name the layer that supplied a value, as before.
+- `/multi-agent:setup apply --layer team` writes the YAML. While the YAML is absent, the old team file the resolver still reads seeds its keys, and that file is left as it was. The skill no longer writes a `yaml config` block.
+- The plugin ships `lib/resolve-convention-home.sh`, a generated copy of the shared helper.
+
+## [0.12.1] - 2026-10-24
+
+### Changed
+
+- `/multi-agent:assess` points at the Claude Code subagent page's comparison of subagents and the main conversation for a close `subagent` or `single` call, with an as-of date and recheck trigger.
+
 ## [0.12.0] - 2026-10-22
 
 ### Changed

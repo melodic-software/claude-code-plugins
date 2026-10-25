@@ -330,7 +330,6 @@ class LaneSourceTests(Base):
         for path in (
             ".github/workflows/pr-review-hosted.yml",
             ".github/workflows/pr-review-security-hosted.yml",
-            "plugins/review/skills/security-review/SKILL.md",
             ".claude/settings.json",
             "plugins/foo/.claude/rules/x.md",
             ".mcp.json",
@@ -358,6 +357,35 @@ class LaneSourceTests(Base):
         ):
             with self.subTest(path):
                 result = self.bound(path)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_review_plugin_change_binds_both_lanes(self) -> None:
+        # The reusable stages the review plugin from the default branch's
+        # tip, never the head (scripts/ci-review-plugin-source.test.sh pins
+        # the callers to that), so a pull request's copy feeds no review.
+        for path in (
+            "plugins/review/skills/security-review/SKILL.md",
+            "plugins/review/skills/code-review/SKILL.md",
+            "plugins/review/agents/lane-verifier.md",
+            "plugins/review/.claude-plugin/plugin.json",
+            "plugins/review",
+        ):
+            with self.subTest(path):
+                result = self.bound("app.py", path)
+                for lane in LANES:
+                    self.assertTrue(result[lane].bound, lane)
+
+    def test_a_review_plugin_change_beside_lane_source_still_unbinds(self) -> None:
+        for other in (
+            ".github/workflows/pr-review-hosted.yml",
+            "docs/standards/README.md",
+            ".claude-lane/pr-context.md",
+            "plugins/review/CLAUDE.md",
+            "plugins/review/.claude/settings.json",
+        ):
+            with self.subTest(other):
+                result = self.bound("plugins/review/skills/code-review/SKILL.md", other)
                 for lane in LANES:
                     self.assertUnbound(result[lane], "lane-source-changed")
 
@@ -1734,8 +1762,6 @@ class SeverityTests(Base):
                 )
                 result = risk.score(
                     risk.RiskInput(
-                        work_class="C2",
-                        rung=risk.Rung.C2,
                         files=(
                             risk.ChangedFile(
                                 "plugins/foo/a.md", None, "added", 1, 0, True, "100644"
@@ -1745,7 +1771,6 @@ class SeverityTests(Base):
                         max_changed_lines=200,
                         high_paths=(),
                         lanes=lanes,
-                        blast_radius=None,
                     )
                 )
                 codes = [r.code for r in result.reasons]

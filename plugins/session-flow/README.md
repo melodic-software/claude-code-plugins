@@ -93,18 +93,22 @@ skill always STOPS after emitting the save-point. Continuing would defeat the pu
 save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
 the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
 
-The handoff file is **shape 2** (`handoff_shape: 2`): one self-contained file per hop that carries
-the whole chain (`chain:` frontmatter plus a `## Prior sessions` table), the session's transcript
-path, the user's verbatim goal and opening ask, the cumulative sections (constraints, side effects,
-decisions, abandoned approaches, findings) copied forward with `[hN]` provenance tags, a one-line
-`## This session` record, and, as its final section, the resume prompt itself. A stdlib-only
-Python script, `scripts/save_point.py`, writes every deterministic field (`new`), replaces the
-reasoning slots from one JSON object in a single write (`fill`), validates the finished file
-before the rails are shown (`validate`, exit 0 gates the prompt), and prints the stored prompt
-(`emit`) so the on-screen rails and the file are the same bytes. The model supplies only the
-reasoning slot values. The resume prompt tells the next session to invoke this skill for its
-own save-point rather than writing a handoff file free-hand. Older shape-1 files are read as
-before and never rewritten.
+The handoff is **shape 3** (`handoff_shape: 3`): a small hot file per hop that a resume reads,
+plus one archive file per hop under `.work/handoffs/<archive>` holding, verbatim, what that hop
+moved out of the hot file. The hot file carries the user's verbatim goal, intent and vision, the
+current rules with stable `[R<n>]` ids, a one-line-per-change direction trail, the remaining
+work, the last Prior-sessions rows, and, as its final section, the resume prompt itself; its
+frontmatter names the chain root, the hop and the archive directory. A stdlib-only Python
+script, `scripts/save_point.py`, writes every deterministic field and the archive file (`new`),
+replaces the reasoning slots from one JSON object in a single write (`fill`), validates the
+finished file, its size cap and its carry from the predecessor before the rails are shown
+(`validate`, exit 0 gates the prompt), and prints the stored prompt (`emit`) so the on-screen
+rails and the file are the same bytes. The model supplies only the reasoning slot values. The
+resume prompt tells the next session to invoke this skill for its own save-point rather than
+writing a handoff file free-hand. Shape-2 files (one self-contained file per hop carrying the
+whole chain) and older shape-1 files are read as before and never rewritten; a shape-2 chain's
+next hop writes shape 3. Update session-flow before resuming a shape-3 chain: an older
+`save_point.py` refuses to validate or build on one.
 
 The response opens with a **"You are here" position panel** for the operator, a vertical rail with
 one line per unit of whatever the work is divided into (workflow stages, plan phases, a sub-issue
@@ -234,7 +238,8 @@ numbers from 0.46.0 on are lower than earlier retros' for the same kind of sessi
 
 Cross-session audit: a stdlib collector reads every transcript under `~/.claude/projects` into a
 durable local store (one redacted record per session, incremental, retention-bounded), and a sweep
-reports per-session metrics against this machine's own thresholds, flags transcript-format drift
+reports per-session metrics against a shipped reference baseline, shows this store's p90 beside
+each threshold and marks a stale baseline, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
 applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
 preferences two or more sessions show, and hands each one you confirm to `retro codify` for a

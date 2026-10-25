@@ -273,7 +273,10 @@ class TestRefusals(DirCase):
 
     def test_short_recommendation_does_not_warn(self):
         q = question(
-            "Q4", stage="interview", basis="The code already does this. Judgment"
+            "Q4",
+            stage="interview",
+            dependsOn=[],
+            basis="The code already does this. Judgment",
         )
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
@@ -1075,6 +1078,99 @@ class TestReviseDepends(DirCase):
         q = self.q("Q3")
         self.assertEqual(q["contentRev"], 1)
         self.assertEqual([h["kind"] for h in q["history"][-2:]], ["revise", "depends"])
+
+
+class TestDeclaredDepends(DirCase):
+    """add and add-round warn when a question omits dependsOn or names a question still open in
+    its own round; requireDepends (here the data dir's settings.json) refuses both."""
+
+    def strict(self):
+        (self.dir / "settings.json").write_text(
+            json.dumps({"requireDepends": True}), encoding="utf-8"
+        )
+
+    def add(self, q):
+        return self.rp("add", "--file", self.file("q.json", q))
+
+    def test_add_without_depends_exits_0_with_a_warning_naming_the_id(self):
+        rc, out, err = self.add(question("Q4", round=1))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q4 declares no dependsOn", err)
+        self.assertIn('"dependsOn": []', err)
+        self.assertNotIn("dependsOn", self.q("Q4"))
+
+    def test_an_empty_list_or_depends_none_declares_it_independent(self):
+        rc, out, err = self.add(question("Q4", round=1, dependsOn=[]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("dependsOn", err)
+        self.assertEqual(self.q("Q4")["dependsOn"], [])
+        flags = ["--id", "Q5", "--short", "S", "--title", "T?", "--rec", "Yes."]
+        flags += ["--commit", "none", "--alt", "a:No", "--alt", "b:Later"]
+        rc, out, err = self.rp("add", *flags, "--depends", "none")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("dependsOn", err)
+        self.assertEqual(self.q("Q5")["dependsOn"], [])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_add_naming_an_open_question_of_its_own_round_warns(self):
+        rc, out, err = self.add(question("Q4", round=1, dependsOn=["Q3"]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q4 depends on Q3, open in the same round (1)", err)
+        self.assertEqual(self.q("Q4")["dependsOn"], ["Q3"])
+
+    def test_a_decided_or_earlier_round_prerequisite_does_not_warn(self):
+        at = "2026-10-01T00:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": "Q3", "kind": "accept", "alt": None, "text": "", "at": at}]
+        )
+        rc, out, err = self.add(question("Q4", round=1, dependsOn=["Q3"]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("depends on", err)
+        rc, out, err = self.add(question("Q5", round=2, dependsOn=["Q1"]))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("depends on", err)
+
+    def test_add_round_warns_on_each_omission_and_a_prerequisite_in_the_same_file(self):
+        spec = {
+            "questions": [
+                question("Q4", dependsOn=[]),
+                question("Q5", dependsOn=["Q4"]),
+                question("Q6"),
+            ]
+        }
+        rc, out, err = self.rp(
+            "add-round", "--file", self.file("r.json", spec), "--round", "2"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q5 depends on Q4, open in the same round (2)", err)
+        self.assertIn("warning: Q6 declares no dependsOn", err)
+        self.assertNotIn("Q4 declares", err)
+        later = self.file("r3.json", {"questions": [question("Q7")]})
+        rc, out, err = self.rp("add-round", "--file", later, "--round", "3", "--check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("warning: Q7 declares no dependsOn", err)
+
+    def test_require_depends_refuses_both_and_writes_nothing(self):
+        self.strict()
+        out = self.assert_refused("add", "--file", self.file("q.json", question("Q4")))
+        self.assertIn("refused: Q4 declares no dependsOn", out)
+        self.assertIn("(requireDepends)", out)
+        q = question("Q4", round=1, dependsOn=["Q3"])
+        out = self.assert_refused("add", "--file", self.file("q.json", q))
+        self.assertIn("refused: Q4 depends on Q3, open in the same round (1)", out)
+        pair = [question("Q4", dependsOn=[]), question("Q5", dependsOn=["Q4"])]
+        spec = {"questions": pair}
+        out = self.assert_refused(
+            "add-round", "--file", self.file("r.json", spec), "--round", "2"
+        )
+        self.assertIn("refused: Q5 depends on Q4", out)
+        spec = {"questions": [question("Q4")]}
+        self.assert_refused("add-round", "--file", self.file("r.json", spec))
+        ops = {"ops": [{"op": "add", "question": question("Q4")}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+        rc, out, err = self.add(question("Q4", dependsOn=[]))
+        self.assertEqual(rc, 0, out + err)
 
 
 class TestRecChangeStampsPageSeq(DirCase):
@@ -1882,6 +1978,38 @@ class TestClaudeActivity(DirCase):
             with self.subTest(extra=extra):
                 self.refused({"op": "context", **extra})
 
+    def test_glossary_defines_redefines_and_clears_a_term(self):
+        self.assertNotIn("glossary", self.doc())
+        self.apply({"op": "glossary", "term": "the lane", "definition": "One CI job."})
+        (entry,) = self.doc()["glossary"]
+        self.assertEqual((entry["term"], entry["definition"]), ("the lane", "One CI job."))
+        self.assertTrue(entry["at"])
+        self.apply(
+            {"op": "glossary", "term": "the lane", "definition": "One CI job and its checks."},
+            {"op": "glossary", "term": "G12", "definition": "The shorthand gap."},
+        )
+        self.assertEqual(
+            [(t["term"], t["definition"]) for t in self.doc()["glossary"]],
+            [("the lane", "One CI job and its checks."), ("G12", "The shorthand gap.")],
+        )
+        self.apply({"op": "glossary", "term": "the lane", "clear": True})
+        self.assertEqual([t["term"] for t in self.doc()["glossary"]], ["G12"])
+        self.apply({"op": "glossary", "term": "G12", "clear": True})
+        self.assertNotIn("glossary", self.doc())
+
+    def test_glossary_refuses_bad_shapes(self):
+        for extra in (
+            {"term": "x"},
+            {"term": "  ", "definition": "d"},
+            {"term": "x" * 61, "definition": "d"},
+            {"term": "x", "definition": "d" * 501},
+            {"term": "x", "definition": "d", "clear": True},
+            {"term": "never defined", "clear": True},
+        ):
+            with self.subTest(extra=extra):
+                self.refused({"op": "glossary", **extra})
+        self.assertNotIn("glossary", self.doc())
+
     def test_wait_then_clear(self):
         self.apply({"op": "wait", "id": "Q3", "waitsOn": "research on ghq"})
         q = self.q("Q3")
@@ -2293,6 +2421,43 @@ class TestClaudeActivity(DirCase):
                 if sections is not None:
                     op["sections"] = sections
                 self.refused(op)
+
+    def test_constraint_records_each_constraint_in_the_page_state(self):
+        self.apply(
+            {"op": "constraint", "text": "Builds stop at ten minutes."},
+            {"op": "constraint", "text": "Stdlib only."},
+        )
+        found = self.doc()["constraints"]
+        self.assertEqual(
+            [(c["id"], c["text"]) for c in found],
+            [("C1", "Builds stop at ten minutes."), ("C2", "Stdlib only.")],
+        )
+        self.assertTrue(all(c["at"] for c in found))
+        self.assertEqual(
+            self.entries()[-1]["text"],
+            "Recorded constraint C1; recorded constraint C2",
+        )
+
+    def test_constraint_with_a_recorded_id_replaces_its_text(self):
+        self.apply({"op": "constraint", "text": "One."})
+        self.apply({"op": "constraint", "id": "C1", "text": "One, revised."})
+        self.apply({"op": "constraint", "id": "C7", "text": "Seven."})
+        self.apply({"op": "constraint", "text": "Next."})
+        self.assertEqual(
+            [(c["id"], c["text"]) for c in self.doc()["constraints"]],
+            [("C1", "One, revised."), ("C7", "Seven."), ("C8", "Next.")],
+        )
+
+    def test_constraint_refusals(self):
+        for op in (
+            {"text": "  "},
+            {"text": "two\nlines"},
+            {"text": "x", "id": "Q1"},
+            {"text": "x" * 501},
+            {},
+        ):
+            with self.subTest(op=op):
+                self.refused({"op": "constraint", **op})
 
     def test_activity_refusals(self):
         self.refused({"op": "activity", "text": "x", "ids": ["Q9"]})
@@ -3804,6 +3969,107 @@ class TestSupersedeResolve(DirCase):
             self.assertIn("refused", err)
         self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
         self.assertEqual(list(self.tmp.glob("*.bak")), [])
+
+
+class TestLedgerCheck(DirCase):
+    """ledger-check, and wake.sh running it after apply, show ledger drift while the interview runs."""
+
+    def setUp(self):
+        super().setUp()
+        self.ledger = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        doc["meta"]["seededFrom"] = {
+            "ledger": str(self.ledger),
+            "at": "2026-01-01T00:00:00Z",
+            "rows": {},
+        }
+        self.write_doc(doc)
+
+    def drift_one_row(self):
+        text = self.ledger.read_text(encoding="utf-8")
+        row = next(x for x in text.splitlines() if x.startswith("- Q2 |"))
+        # Keep the status, round and title cells; the resolution cell is the last.
+        edited = "|".join(row.split("|")[:4]) + "| edited in the ledger"
+        self.ledger.write_text(text.replace(row, edited), encoding="utf-8")
+
+    def wake(self, *, ops=None):
+        """wake.sh copied beside a control script that runs round.py and a watch.sh that exits."""
+        scripts = self.tmp / "scripts"
+        scripts.mkdir(exist_ok=True)
+        shutil.copy(HERE / "wake.sh", scripts / "wake.sh")
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        (scripts / "session-bridge.conf").write_text(
+            conf.replace("CONTROL=round.sh", "CONTROL=ctl.sh"), encoding="utf-8"
+        )
+        (scripts / "ctl.sh").write_text(
+            f'exec "{sys.executable}" "{ROUND}" "$@"\n', encoding="utf-8"
+        )
+        (scripts / "watch.sh").write_text("exit 0\n", encoding="utf-8")
+        if ops:
+            (self.dir / "ops.json").write_text(json.dumps(ops), encoding="utf-8")
+        return subprocess.run(
+            ["bash", str(scripts / "wake.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def activity(self):
+        return [e["text"] for e in self.doc().get("activity", [])]
+
+    def test_the_conf_names_the_check(self):
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        self.assertIn("\nAFTER_APPLY=ledger-check\n", conf)
+
+    def test_matching_ledger_records_in_sync_and_logs_nothing(self):
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+        sync = self.doc()["meta"]["ledgerSync"]
+        self.assertEqual(sync, {"rev": self.doc()["rev"], "rows": []})
+        self.assertEqual(self.activity(), [])
+
+    def test_an_unchanged_result_writes_nothing(self):
+        self.rp("ledger-check")
+        before = self.raw()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.raw(), before)
+
+    def test_a_disagreeing_row_is_recorded_and_logged_once(self):
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
+        self.assertEqual(len(self.activity()), 1)
+        self.assertRegex(self.activity()[0], r"^Ledger out of sync, 1 row: Q2 ")
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(len(self.activity()), 1)
+
+    def test_a_page_without_a_ledger_is_not_checked(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_wake_logs_the_disagreeing_row_after_apply(self):
+        self.drift_one_row()
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        log = self.activity()
+        self.assertEqual(log[0], "Applied one op")
+        self.assertTrue(any(x.startswith("Ledger out of sync") and "Q2" in x for x in log), log)
+
+    def test_wake_with_a_matching_ledger_logs_no_drift(self):
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.activity(), ["Applied one op"])
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
 
 
 class TestConfirmationRecap(DirCase):

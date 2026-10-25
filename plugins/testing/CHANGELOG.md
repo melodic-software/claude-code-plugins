@@ -3,6 +3,49 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-10-25
+
+### Changed
+
+- `/testing:run-e2e` reads the app's control skill (`.claude/skills/control-<app>/`) as its feature map: the hub's Ready replaces the doctor, before the first drive and after a failed step; the hub's driving tool replaces the recorded driver; `Attended runs only.` stops an unattended run. The per-entry-point report line is unchanged. A legacy testing-format map is not read: the run warns and names `/app-control:map refresh <path>`.
+
+**Migration.** Run `/app-control:map refresh <path>` on each legacy map, at `.claude/skills/feature-map/` or wherever `feature_map_dir` pointed; it converts the map in its upkeep pull request. Then delete any `feature_map_dir` line. The scheduled `feature-map-upkeep` routine is now `control-skill-upkeep`, running `/app-control:map refresh`; its pull requests use `control-skill-upkeep/control-<slug>` branches, and open `feature-map-upkeep/*` branches are superseded (refresh lists them and adopts none). The first app-control refresh re-does every map, since no clean pass is recorded for a control skill yet.
+
+### Removed
+
+- `/testing:map-features`, `/testing:refresh-feature-map` and the plugin's `reference/feature-map.md`. An app's feature map is now its control skill, which `/app-control:map` writes (`create`), checks (`check`) and keeps current (`refresh`).
+- The `feature_map_dir` key. `/testing:run-e2e` no longer resolves it, `/testing:setup apply` drops the line when it rewrites `docs/conventions/testing.yaml` and names the dropped value with the conversion command, and the schema no longer lists it. A leftover line still never stops a test scan.
+
+## [0.33.1] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+## [0.33.0] - 2026-10-25
+
+### Added
+
+- `/testing:cleanup <repository root>` prints a plan instead of refusing: one batch per test project (a C# project's folder, else each test file's folder), ordered by finding count from one audit run. Each chosen batch then runs through the unchanged single-folder steps with its own diff and approval, the next one starting only after the previous is committed. A project of kind `live` or `operational` is marked and skipped; it runs only when you name it, and then only in cannot-fail-only mode, which runs no test. Outside C# every kind is `unknown`, so the plan asks which projects reach live or shared environments, and an unattended run starts no `unknown`-kind batch ([#6043](https://github.com/melodic-software/claude-code-plugins/issues/6043)).
+
+## [0.32.0] - 2026-10-24
+
+### Added
+
+- `/testing:write` reads two repository settings from `docs/conventions/testing.yaml` or
+  `.claude/testing.local.yaml`, resolved by `scripts/resolve-config.sh write` and named with the
+  layer that set each: `tdd_refactor_step` (`on | off`, default `on`) and `first_test`
+  (`user-flow | unit`, default `user-flow`). The user-global file is not read for them and there is
+  no `userConfig` option.
+- With `tdd_refactor_step: on`, the skill closes each green with a line beginning
+  `Refactor checkpoint:` that names what it tidied or why nothing needed it, and repeats those lines
+  in its final summary, so a skipped Refactor step shows. The user-flow-first rule now follows
+  `first_test`; with `unit` the user-flow test is still written before the task is done.
+- Five eval cases cover each setting value and the default checkpoint report. `/testing:setup apply`
+  keeps both keys, and the test scan skips them.
+- A testing release without these keys stops its test scan on them in `testing.yaml`; add them once
+  every member runs this release.
+
 ## [0.31.1] - 2026-10-22
 
 ### Fixed

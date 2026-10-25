@@ -101,9 +101,26 @@ export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry =
 // Without an opt-in, limit stops never handle the head for good, however many:
 // anyHandles holds it at the cap, and a head recorded at one cap would stay
 // recorded under a higher one.
-export function permanentlyHandles(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
+export function permanentlyHandles(runs, options = {}) {
+  const { done, retryable } = completedRuns(runs, options);
+  // cappedAt needs every finished run retryable, so the two cases are disjoint.
+  return done.some((run) => !retryable(run)) || cappedAt(runs, options) > 0;
+}
+
+function completedRuns(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false }) {
   const done = runs.filter((run) => run.status === "completed" && !untrustedSkip(run));
   const retryable = (run) => released(run, heldSkipsRelease) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run, limits) !== null);
-  const capped = (failuresRetry || heldSkipsRelease) && done.length > 0 && done.filter(retryable).length >= limits["limit-stops-per-head"];
-  return done.some((run) => !retryable(run)) || capped;
+  return { done, retryable };
+}
+
+// With an opt-in, the number of finished runs when every one is retryable and
+// they reach `limit-stops-per-head`, the head's hard end, else 0: the part of
+// permanentlyHandles a dispatcher reports as a stop. A head with any other
+// finished run (a success, an escalation) is done, not capped.
+export function cappedAt(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
+  if (!failuresRetry && !heldSkipsRelease) {
+    return 0;
+  }
+  const { done, retryable } = completedRuns(runs, { limits, failuresRetry, heldSkipsRelease });
+  return done.length >= limits["limit-stops-per-head"] && done.length > 0 && done.every(retryable) ? done.length : 0;
 }

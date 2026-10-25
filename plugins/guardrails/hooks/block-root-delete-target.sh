@@ -54,7 +54,7 @@
 # tokenizer and is allowed there on its command word. The path question is
 # asked only once a recursive `rm` is already established.
 #
-# THREE MORE TARGET CLASSES, each refused with its own message:
+# FOUR MORE TARGET CLASSES, each refused with its own message:
 #   * An EMPTY operand (`rm -rf ""`, `rm -rf "" build`): a path that failed to
 #     build. `rm -rf` with no operand has nothing to judge and stays allowed.
 #   * A BARE VARIABLE operand: after normalization the word is made of
@@ -64,6 +64,37 @@
 #     value too, so an operand of that form alone, such as `"${X:?}/"`, stays
 #     allowed. A nested `${...}` is one unit judged by its outermost operator:
 #     `${X:-${Y:-/}}` is refused and `${X:?${Y}}` is allowed.
+#   * A PROTECTED TREE, judged with the outside-tree arm below (so only when
+#     the payload carries an absolute `cwd`) and ahead of every root that arm
+#     allows, so it is refused under the git toplevel, a temp root, the
+#     scratchpad or a listed root alike. Protected: a `.git` (named last, or
+#     globbed straight inside), a directory holding a `.git`, the git toplevel
+#     of the payload cwd, every worktree root git has registered for that
+#     repository (read from the common git directory's worktrees/*/gitdir
+#     files with builtins, at most MAX_WORKTREES), anything under ~/.claude,
+#     Claude Code's temp tree, and anything under an entry of the userConfig
+#     key block_root_delete_target_protected_trees. That key is read from the
+#     hook's own environment like the allowed roots: comma-separated absolute
+#     directories, and an entry that is relative, empty, holds a glob
+#     character, a line break or a `..` component, or resolves to a
+#     filesystem root protects nothing. The temp tree is
+#     <temp root>/claude-<uid> (<temp root>/claude on Windows), or the base the
+#     payload scratchpad sits in when it reads
+#     <base>/<project>/<session>/scratchpad with a base named claude or
+#     claude-<suffix>; the base, a project or session directory and another
+#     session's scratchpad are refused there, and this session's own
+#     scratchpad is judged as before. Inside a temp root that lies in the tree
+#     (TMPDIR pointed into it) only another session's scratchpad is refused.
+#     A directory holding a protected tree, or a glob whose matches do, is
+#     refused too; a glob is read as bash reads it with dotglob off, unless the
+#     command names dotglob, GLOBIGNORE or globdots, and on the PowerShell
+#     tool, whose `*` matches dot names. A `.git` is matched in any case, and
+#     on Windows with a trailing dot or space, which Win32 trims. A path named
+#     under a `.git`, the toplevel or a worktree root is not refused
+#     (`rm -rf .git/rebase-merge`), and neither is the bash glob of a toplevel
+#     or worktree root (`rm -rf *`), which leaves its `.git` in place. By
+#     design this also refuses a throwaway clone under temp, and every delete
+#     in a working tree under ~/.claude.
 #   * A target OUTSIDE THE SESSION'S ALLOWED ROOTS, judged only when the
 #     payload carries an absolute `cwd`. A target must resolve under the git
 #     toplevel of the payload cwd, or strictly under a temp root or the payload
@@ -235,12 +266,22 @@
 #     after it refused instead. `builtin cd` is not seen at all, because
 #     `builtin` is not in the launcher table. A literal directory is collapsed
 #     lexically, so `cd link/..` is read as `cd .`.
-#   * Differences from the user-level destructive-removal engine, on purpose:
-#     the git toplevel itself, `.git`, another worktree's root and another
-#     session's `<temp>/claude` directory are allowed here when they sit
-#     inside an allowed root, and an unresolvable expansion is left alone
-#     rather than refused. Like the engine, every target is judged against the
-#     payload cwd's tree, so an absolute path into another worktree is refused.
+#   * A difference from the user-level destructive-removal engine, on purpose:
+#     an unresolvable expansion is left alone rather than refused. Like the
+#     engine, the git toplevel itself, `.git`, another worktree's root and
+#     another session's scratchpad are refused even inside an allowed root,
+#     and every target is judged against the payload cwd's tree, so an
+#     absolute path into another worktree is refused.
+#   * Protected trees this guard does not see: a repository nested below a
+#     target, other than the toplevel and the registered worktrees (only a
+#     `.git` directly inside the target, or matched by its glob, is tested);
+#     a directory holding a `.git` that a glob in the last component matches
+#     (`rm -rf clones/*`); a worktree registered past MAX_WORKTREES, which is
+#     protected only by the `.git` file in its own root; a CLAUDE_CONFIG_DIR
+#     outside ~/.claude; a Claude Code temp tree under CLAUDE_CODE_TMPDIR
+#     that no payload scratchpad under a temp root names; and a glob shell
+#     option (dotglob, globdots) set before the command, such as by a shell
+#     snapshot, rather than named in it.
 #   * A glob is expanded against the filesystem as it is when the hook runs;
 #     a directory the command creates before the delete is not seen.
 #   * Where `realpath -m` is absent (BSD, macOS), a target's parent is
@@ -279,9 +320,10 @@
 #     mistake #92593 records, not one deliberately obfuscating a command word.
 #
 # BLOCKING: on a recursive delete of a root, of an empty or
-# bare-variable operand, or of a target outside the allowed roots, asks the
-# user when the session is attended and exits 2 otherwise (hook::refuse,
-# refuse.sh). A command it cannot finish reading is denied either way.
+# bare-variable operand, of a protected tree, or of a target outside the
+# allowed roots, asks the user when the session is attended and exits 2
+# otherwise (hook::refuse, refuse.sh). A command it cannot finish reading is
+# denied either way.
 
 set -uo pipefail
 
@@ -497,6 +539,12 @@ rdt_block() {
       'Fix: delete only strictly under one of those (put scratch work in the session scratchpad), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
       'Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).'
     ;;
+  protected-tree)
+    printf -v msg '%s\n' \
+      "BLOCKED: recursive delete of $target. A protected tree is refused even under the working tree, a temp root or an allowed root." \
+      'Fix: name only the paths inside it you mean to remove, and do not retry the delete with another tool (find -delete, rmtree, git clean); remove a worktree with git worktree remove.' \
+      'Otherwise the user runs it, or drops it from block_root_delete_target_protected_trees when it is listed there (only the user can).'
+    ;;
   too-many-origins)
     printf -v msg '%s\n' \
       "BLOCKED: too many directory changes to judge every place this delete may run from (more than $MAX_ORIGINS)." \
@@ -565,7 +613,7 @@ rdt_block() {
   case "$form" in
   # The guard read the delete and names what it would remove: the user can
   # judge that, so an attended session asks (refuse.sh).
-  no-preserve-root | empty-operand | pipeline-target | bare-variable | outside-tree | unplaceable | brace | root-operand)
+  no-preserve-root | empty-operand | pipeline-target | bare-variable | outside-tree | protected-tree | unplaceable | brace | root-operand)
     # Attended, the reason is recorded and the reading goes on (refuse.sh).
     hook::refuse "${msg%$'\n'}"
     return 0
@@ -1185,9 +1233,12 @@ rdt_bare_var() {
 # heavy load an everyday `rm -rf ./build` took 4 to 8 s end to end on Windows
 # Git Bash, and a 12 s bound refused ordinary deletes; 50 s leaves 10 s of the
 # shared 60 s timeout, with this guard last in the dispatcher chain.
+# MAX_WORKTREES bounds the registered worktrees read for the protected trees;
+# one past it is protected only by the .git file in its own root.
 MAX_ORIGINS=32
 MAX_TARGETS=512
 MAX_GLOB=256
+MAX_WORKTREES=256
 RDT_DEADLINE=25
 RDT_DEADLINE_ABS=50
 RDT_T0=-1
@@ -1210,6 +1261,7 @@ case "${OSTYPE:-}" in
 msys* | cygwin* | win32) RDT_WIN=1 ;;
 *) ;;
 esac
+RDT_DOTS=0
 RDT_HOME="${HOME:-}"
 RDT_HOME="${RDT_HOME//\\//}"
 
@@ -1852,6 +1904,205 @@ rdt_allowed() {
   return 1
 }
 
+# rdt_within <path> <directory>: true when <path> is <directory> or lies under
+# it. Both canonical; a root keeps its trailing slash.
+rdt_within() {
+  [[ "$1" == "$2" ]] && return 0
+  if [[ "$2" == */ ]]; then [[ "$1" == "$2"?* ]]; else [[ "$1" == "$2"/* ]]; fi
+}
+
+# rdt_pat_hits <name> <pattern>: true when globbing <pattern> in a directory
+# would match the entry <name>. A leading `.` is matched only by a pattern that
+# starts with one, as bash and zsh glob by default, unless RDT_DOTS is 1 (the
+# PowerShell tool, whose `*` matches dot names, or a command that names
+# dotglob, GLOBIGNORE or zsh's globdots). On Windows both are folded to lower
+# case, so a pattern bash would match case-sensitively can match more here,
+# never less.
+rdt_pat_hits() {
+  local n="$1" p="$2"
+  if ((RDT_WIN)); then
+    n="${n,,}"
+    p="${p,,}"
+  fi
+  ((RDT_DOTS == 0)) && [[ "$n" == .* && "$p" != .* ]] && return 1
+  # shellcheck disable=SC2053  # the pattern is meant to glob
+  [[ "$n" == $p ]]
+}
+
+# rdt_reaches <target> <path> <deep> <glob>: true when <path> lies strictly
+# under the canonical target and the delete removes it. A target with a <glob>
+# removes the children the glob matches, so <path> is reached when its first
+# component below the target matches. A <deep> target is the directory in front
+# of a glob that matched nothing, so it reaches nothing that exists.
+rdt_reaches() {
+  local c="$1" p="$2" first
+  ((${3:-0})) && return 1
+  [[ "$p" != "$c" ]] || return 1
+  rdt_within "$p" "$c" || return 1
+  [[ -n "$4" ]] || return 0
+  first="${p:${#c}}"
+  first="${first#/}"
+  rdt_pat_hits "${first%%/*}" "$4"
+}
+
+# rdt_read_line_to <var> <file>: the first line of a small file, read with a
+# builtin, at most 4096 bytes, its CR dropped and backslashes read as slashes.
+# Returns 1 when the file is missing, unreadable or empty.
+rdt_read_line_to() {
+  local __rd_l=""
+  [[ -f "$2" && -r "$2" ]] || return 1
+  IFS= read -r -n 4096 __rd_l 2>/dev/null <"$2" || [[ -n "$__rd_l" ]] || return 1
+  __rd_l="${__rd_l%$'\r'}"
+  __rd_l="${__rd_l//\\//}"
+  [[ -n "$__rd_l" ]] || return 1
+  printf -v "$1" '%s' "$__rd_l"
+}
+
+# rdt_worktrees <toplevel>: the worktree roots git keeps for the repository of
+# <toplevel>, unresolved, into RDT_WT. The main worktree root, when the common
+# git directory is named .git, and each linked worktree's root, read from
+# <common>/worktrees/<name>/gitdir, which names that worktree's .git file. A
+# path such a file holds relative to itself (git's worktree.useRelativePaths)
+# is joined to it. Read from the files git writes, with builtins, so no process
+# starts; at most MAX_WORKTREES linked worktrees are read.
+rdt_worktrees() {
+  local top="$1" line gd com f
+  local -a regs=()
+  RDT_WT=()
+  [[ -n "$top" ]] || return 0
+  if [[ -d "$top/.git" ]]; then
+    com="$top/.git"
+  elif rdt_read_line_to line "$top/.git" && [[ "$line" == "gitdir: "?* ]]; then
+    gd="${line#gitdir: }"
+    rdt_is_abs "$gd" || gd="$top/$gd"
+    com="$gd"
+    if rdt_read_line_to line "$gd/commondir"; then
+      if rdt_is_abs "$line"; then com="$line"; else com="$gd/$line"; fi
+    fi
+  else
+    return 0
+  fi
+  rdt_lex_to com "$com"
+  [[ "$com" == ?*/.git ]] && RDT_WT+=("${com%/*}")
+  # Names first, dot names too: a worktree's name is its directory's.
+  rdt_glob_on
+  regs=("$com"/worktrees/* "$com"/worktrees/.[!.]* "$com"/worktrees/..?*)
+  rdt_glob_off
+  for f in ${regs[@]+"${regs[@]:0:MAX_WORKTREES}"}; do
+    rdt_deadline
+    rdt_read_line_to line "$f/gitdir" || continue
+    rdt_is_abs "$line" || line="$f/$line"
+    rdt_lex_to line "$line"
+    [[ "$line" == ?*/.git ]] && RDT_WT+=("${line%/*}")
+  done
+  return 0
+}
+
+# rdt_protected <target> <real target> <deep> <glob> <link>: true when the
+# delete removes a protected tree, with what it is in RDT_PROT. Judged ahead of
+# every allowed root, the working tree included. <target> is canonical, <real
+# target> the resolved path tested on disk, and <deep> and <glob> say what the
+# delete reaches (rdt_reaches); any other target goes whole. Protected:
+#   * a `.git`, named last or globbed straight inside, and a directory holding
+#     a `.git`, unless the target is a symlink (<link> 1) that rm unlinks;
+#   * the payload cwd's git toplevel and every registered worktree root
+#     (RDT_PROT_B), and a directory holding one;
+#   * ~/.claude and each block_root_delete_target_protected_trees entry
+#     (RDT_PROT_A): the tree, anything under it, and a directory holding it;
+#   * Claude Code's temp tree (RDT_CLAUDEC), laid out
+#     <base>/<project>/<session>/scratchpad: the base, a project or session
+#     directory, another session's scratchpad and anything under it, and a
+#     directory holding the base. This session's own scratchpad is left to
+#     rdt_allowed, which refuses it and its glob and allows what is under it.
+#     Inside a temp root that lies in the base (TMPDIR pointed into the tree),
+#     where the caller's own files sit at any level, only another session's
+#     scratchpad is refused.
+# Each list is screened with one string test before any call, so a delete of
+# many targets in a repository of many worktrees stays inside the deadline.
+rdt_protected() {
+  local c="$1" real="$2" deep="$3" pat="$4" link="$5" p rest i t intmp
+  RDT_PROT=""
+  # Win32 trims a trailing dot or space from a name: `.git.` names `.git`.
+  if ((RDT_WIN)); then
+    while [[ "$c" == */*[.\ ] && "${c##*/}" != . && "${c##*/}" != .. ]]; do c="${c%?}"; done
+    while [[ "$real" == */*[.\ ] && "${real##*/}" != . && "${real##*/}" != .. ]]; do real="${real%?}"; done
+  fi
+  # Folded to lower case: a case-insensitive filesystem (the macOS default)
+  # removes `.git` through `.GIT`.
+  p="${c##*/}"
+  if [[ "${p,,}" == .git ]]; then
+    RDT_PROT="a .git"
+    return 0
+  fi
+  if ((deep == 0 && link == 0)) && [[ -e "$real/.git" || -L "$real/.git" ]]; then
+    if [[ -z "$pat" ]]; then
+      RDT_PROT="a directory holding a .git"
+      return 0
+    fi
+    if rdt_pat_hits .git "$pat"; then
+      RDT_PROT="the .git inside it"
+      return 0
+    fi
+  fi
+  for ((i = 0; i < ${#RDT_PROT_B[@]}; i++)); do
+    p="${RDT_PROT_B[i]}"
+    [[ "$p" == "$c"* ]] || continue
+    if [[ "$p" == "$c" ]]; then
+      if [[ -z "$pat" ]] && ((deep == 0)); then
+        RDT_PROT="${RDT_PROT_BW[i]}"
+        return 0
+      fi
+      continue
+    fi
+    if rdt_reaches "$c" "$p" "$deep" "$pat"; then
+      RDT_PROT="a directory holding ${RDT_PROT_BW[i]}"
+      return 0
+    fi
+  done
+  for ((i = 0; i < ${#RDT_PROT_A[@]}; i++)); do
+    p="${RDT_PROT_A[i]}"
+    if [[ "$c" == "$p" || "$c" == "$p"/* ]]; then
+      RDT_PROT="${RDT_PROT_AW[i]}"
+      return 0
+    fi
+    if [[ "$p" == "$c"* ]] && rdt_reaches "$c" "$p" "$deep" "$pat"; then
+      RDT_PROT="a directory holding ${RDT_PROT_AW[i]}"
+      return 0
+    fi
+  done
+  for p in ${RDT_CLAUDEC[@]+"${RDT_CLAUDEC[@]}"}; do
+    if [[ "$p" == "$c"* ]] && rdt_reaches "$c" "$p" "$deep" "$pat"; then
+      RDT_PROT="a directory holding Claude Code's temp tree, where other sessions keep their scratchpads"
+      return 0
+    fi
+    [[ "$c" == "$p" || "$c" == "$p"/* ]] || continue
+    [[ -n "$RDT_SPC" ]] && rdt_within "$c" "$RDT_SPC" && continue
+    intmp=0
+    for t in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
+      if rdt_within "$t" "$p" && rdt_within "$c" "$t"; then
+        intmp=1
+        break
+      fi
+    done
+    # <project>/<session>/<third>/... below the base.
+    rest="${c:${#p}}"
+    rest="${rest#/}"
+    if ((intmp == 0)) && { [[ "$rest" != */* ]] ||
+      { [[ "$rest" != */*/* ]] && { [[ -z "$pat" ]] || rdt_pat_hits scratchpad "$pat"; }; }; }; then
+      RDT_PROT="Claude Code's temp tree, where sessions keep their scratchpads"
+      return 0
+    fi
+    [[ "$rest" == */*/* ]] || continue
+    rest="${rest#*/}"
+    rest="${rest#*/}"
+    if [[ "${rest%%/*}" == scratchpad ]]; then
+      RDT_PROT="another session's scratchpad"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # rdt_enum_links <directory> <pattern>: the matches of `<pattern>/` in
 # <directory> that are symlinks, into RDT_LINKS. `rm -rf */` follows a symlink
 # to a directory, so each such match is judged by where it points. Reads the
@@ -1927,9 +2178,11 @@ rdt_glob_dirs() {
   return 0
 }
 
-# rdt_add_pair <path> <mode> <enum> <operand>: one target for the judgment,
-# appended to rdt_judge_pending's arrays (tp tn td te tw, deduplicated through
-# tseen), which this reads through bash's dynamic scope.
+# rdt_add_pair <path> <mode> <enum> <operand> [glob]: one target for the
+# judgment, appended to rdt_judge_pending's arrays (tp tn td te tw tg,
+# deduplicated through tseen), which this reads through bash's dynamic scope.
+# [glob] is the last-component pattern of a whole target named by the
+# directory in front of it, whose matches are what the delete removes.
 # shellcheck disable=SC2034  # the arrays belong to the caller
 rdt_add_pair() {
   local p="$1" mode="$2" last="" key
@@ -1940,7 +2193,7 @@ rdt_add_pair() {
     [[ -z "$p" ]] && p=/
     [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
   fi
-  key="$mode|$p|$last|$3"
+  key="$mode|$p|$last|$3|${5:-}"
   [[ -n "${tseen[$key]+x}" ]] && return 0
   tseen[$key]=1
   tp+=("$p")
@@ -1948,6 +2201,7 @@ rdt_add_pair() {
   if [[ "$mode" == deep ]]; then td+=(1); else td+=(0); fi
   te+=("$3")
   tw+=("$4")
+  tg+=("${5:-}")
   ((${#tp[@]} > MAX_TARGETS)) && rdt_block "too-many-targets"
   return 0
 }
@@ -1967,8 +2221,8 @@ rdt_judge_pending() {
   local np=${#RDT_P_TEXT[@]}
   ((np)) || return 0
   ((RDT_ORIGIN_OVERFLOW)) && rdt_block "too-many-origins"
-  local k m no unk cdp t p sp c rc mode enum full slash abs glob base g t2 word lastc e
-  local -a tp=() tn=() td=() te=() tw=() gl=()
+  local k m no unk cdp t p sp c rc mode enum full slash abs glob base g t2 word lastc e gp
+  local -a tp=() tn=() td=() te=() tw=() tg=() gl=()
   local -A tseen=()
   # Every target from every directory it may run from, each distinct one
   # once. In leaf mode the parent is resolved and the name appended as is;
@@ -2009,7 +2263,9 @@ rdt_judge_pending() {
         rdt_add_literal "$t2" "$word"
       fi
       if [[ "$mode" != deep ]]; then
-        rdt_add_pair "$p" "$mode" "$enum" "$word"
+        gp=""
+        ((glob)) && gp="${full##*/}"
+        rdt_add_pair "$p" "$mode" "$enum" "$word" "$gp"
         continue
       fi
       # A glob before the last component: its directory part is expanded
@@ -2032,7 +2288,7 @@ rdt_judge_pending() {
           # with a trailing slash the links among them are read.
           e=""
           ((slash)) && e="$lastc"
-          rdt_add_pair "$g" whole "$e" "$word"
+          rdt_add_pair "$g" whole "$e" "$word" "$lastc"
         else
           t2="$g/$lastc"
           ((slash)) && t2+=/
@@ -2101,13 +2357,41 @@ rdt_judge_pending() {
       allow+=("$c")
     fi
   done
+  local hcl=""
+  if rdt_is_abs "$home" && ! rdt_is_unc "$home"; then hcl="${home%/}/.claude"; fi
   ((${#allow[@]} + ${#pdir[@]})) || home=""
 
+  # The protected trees, judged ahead of every allowed root (rdt_protected):
+  # the worktrees git keeps for the cwd's repository, ~/.claude, and the
+  # user's block_root_delete_target_protected_trees, read like the allowed
+  # roots, from this hook's own environment and never from the command text.
+  # An entry that is empty, relative, a drive path on a host without drives,
+  # over the operand bounds, or holds a glob character, a line break or a `..`
+  # component protects nothing.
+  rdt_worktrees "$tree"
+  local -a wts=(${RDT_WT[@]+"${RDT_WT[@]}"}) prot=()
+  local trees="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES:-}"
+  while [[ -n "$trees" ]]; do
+    c="${trees%%,*}"
+    if [[ "$c" == "$trees" ]]; then trees=""; else trees="${trees#*,}"; fi
+    [[ "$c" != *[$'\n\r']* ]] || continue
+    c="${c#"${c%%[![:space:]]*}"}"
+    c="${c%"${c##*[![:space:]]}"}"
+    c="${c//\\//}"
+    x="${c//[^\/]/}"
+    [[ -n "$c" && "$c" != *[*?[]* && "/$c/" != */../* ]] || continue
+    ((${#c} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
+    rdt_is_abs "$c" || continue
+    ((RDT_WIN)) || [[ ! "$c" =~ ^[A-Za-z]: ]] || continue
+    prot+=("$c")
+  done
+
   # One realpath over the parents, the tree, the temp roots, the scratchpad,
-  # the allowed roots and HOME. A `*/` operand then has its symlink matches
-  # added, each resolved whole, and on Windows one cygpath maps every full
-  # target and root onto one spelling.
-  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home"
+  # the allowed roots, HOME and the protected trees. A `*/` operand then has
+  # its symlink matches added, each resolved whole, and on Windows one cygpath
+  # maps every full target and root onto one spelling.
+  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home" \
+    ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}
   local n0=${#tp[@]} l
   for ((k = 0; k < n0; k++)); do
     [[ -n "${te[k]}" ]] || continue
@@ -2118,6 +2402,7 @@ rdt_judge_pending() {
       tn+=("")
       td+=(0)
       tw+=("${tw[k]}")
+      tg+=("")
       ((${#tp[@]} > MAX_TARGETS)) && rdt_block "too-many-targets"
     done
   done
@@ -2129,7 +2414,8 @@ rdt_judge_pending() {
     targets[k]="$p"
   done
   local -a others=()
-  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home"; do
+  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home" \
+    ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}; do
     [[ -n "$c" ]] && others+=("${RDT_RES[$c]}")
   done
   rdt_winmap_all ${targets[@]+"${targets[@]}"} ${others[@]+"${others[@]}"}
@@ -2172,6 +2458,57 @@ rdt_judge_pending() {
       RDT_PNAME+=("${pname[k]}")
     done
   fi
+  # The protected trees in the compared spelling. A toplevel or worktree root
+  # that is a filesystem root is dropped, as the tree arm drops it.
+  RDT_PROT_B=()
+  RDT_PROT_BW=()
+  if [[ -n "$RDT_TREEC" ]]; then
+    RDT_PROT_B+=("$RDT_TREEC")
+    RDT_PROT_BW+=("the git toplevel of the working directory")
+  fi
+  for c in ${wts[@]+"${wts[@]}"}; do
+    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_root_like "$t" && continue
+    RDT_PROT_B+=("$t")
+    RDT_PROT_BW+=("a worktree root git has registered")
+  done
+  RDT_PROT_A=()
+  RDT_PROT_AW=()
+  if [[ -n "$hcl" ]]; then
+    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$hcl]}]}"
+    RDT_PROT_A+=("$t")
+    # shellcheck disable=SC2088  # the label names the directory, nothing expands it
+    RDT_PROT_AW+=("~/.claude")
+  fi
+  # A listed tree that is a filesystem root is dropped, as an allowed root is.
+  for c in ${prot[@]+"${prot[@]}"}; do
+    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    { rdt_root_like "$t" || rdt_is_root "${t,,}"; } && continue
+    RDT_PROT_A+=("$t")
+    RDT_PROT_AW+=("a tree in block_root_delete_target_protected_trees")
+  done
+  # A glob matches dot names on the PowerShell tool, and in bash or zsh once
+  # the command turns on dotglob, GLOBIGNORE or globdots.
+  RDT_DOTS=0
+  [[ "$TOOL_NAME" == PowerShell ]] && RDT_DOTS=1
+  case "${COMMAND,,}" in
+  *dotglob* | *globignore* | *globdots* | *glob_dots*) RDT_DOTS=1 ;;
+  *) ;;
+  esac
+  # Claude Code's temp tree: the base the payload scratchpad sits in, when the
+  # scratchpad has the documented <base>/<project>/<session>/scratchpad shape
+  # and the base is named claude or claude-<suffix>, and, under every temp
+  # root, claude-<uid> (POSIX) or claude (Windows).
+  RDT_CLAUDEC=()
+  if [[ "$RDT_SPC" == */scratchpad ]]; then
+    t="${RDT_SPC%/*}"
+    t="${t%/*}"
+    t="${t%/*}"
+    [[ "${t##*/}" == claude || "${t##*/}" == claude-?* ]] && RDT_CLAUDEC+=("$t")
+  fi
+  for t in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
+    if ((RDT_WIN)); then RDT_CLAUDEC+=("${t%/}/claude"); else RDT_CLAUDEC+=("${t%/}/claude-$UID"); fi
+  done
   for ((k = 0; k < ${#tp[@]}; k++)); do
     rdt_deadline
     p="${RDT_WMAP[${targets[k]}]}"
@@ -2182,6 +2519,10 @@ rdt_judge_pending() {
     l=0
     [[ -L "${targets[k]}" ]] && l=1
     [[ ! -e "${targets[k]}" && "${tw[k]}" =~ [/\\]\.?$ ]] && l=1
+    if rdt_protected "$c" "${targets[k]}" "${td[k]}" "${tg[k]}" "$l"; then
+      rdt_block "protected-tree" "'$p' (the operand '${tw[k]}'), $RDT_PROT"
+      continue
+    fi
     rdt_allowed "$c" "${td[k]}" "$l" || rdt_block "outside-tree" "'$p' (the operand '${tw[k]}')"
   done
   return 0
@@ -2977,9 +3318,10 @@ rdt_brace_rec() {
 # `<<-'EOF'`) gets no expansion from the shell that reads the command, but it
 # is still the stdin of the command it feeds, and `bash <<'EOF'`, `cat <<'EOF' |
 # sh` or `bash -c "$(cat <<'EOF' …)"` run it. So it is skipped (#6625) only
-# where it is plainly data: the whole command is one `cat` or
-# `gh pr|issue|api|release` line with no pipe, list operator, redirection,
-# substitution or grouping (rdt_hd_plain, rdt_hd_reader), its opener at top
+# where it is plainly data: the whole command is one `cat`,
+# `gh pr|issue|api|release` or `git commit|tag -F -` line with no pipe, list
+# operator, redirection, substitution or grouping (rdt_hd_plain,
+# rdt_hd_reader), its opener at top
 # level with a plain word in quotes, and nothing but the body after it. Every
 # other body is scanned on its own, with bodies taken in
 # the order their openers appear, as bash reads them. An opener is recognized
@@ -3035,17 +3377,36 @@ rdt_hd_plain() {
 }
 
 # rdt_hd_reader <prefix>: true when the command ahead of a heredoc opener only
-# reads its stdin as data: `cat`, or a `gh` command that takes a body. A
-# shell, an interpreter, `git` (an alias can be `!sh`), `tee` (it writes a
-# file) and every launcher stay out.
+# reads its stdin as data: `cat`, a `gh` command that takes a body, or
+# `git commit` or `git tag` with `-F -`. A shell, an interpreter, any other
+# `git` word (an alias can be `!sh`), a git global option ahead of the
+# subcommand, `tee` (it writes a file) and every launcher stay out. `commit`
+# and `tag` are exempt because git ignores an alias that hides a built-in
+# command (git-config(1), `alias.*`).
 rdt_hd_reader() {
   local -a hr_words
+  local -i j
   read -r -a hr_words <<<"$1"
   case "${hr_words[0]:-}" in
   cat) return 0 ;;
   gh)
     case "${hr_words[1]:-}" in
     pr | issue | api | release) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  git)
+    # The words are split on blanks alone, so a quote or backslash could join
+    # `-F -` into one argument; past `--` both are paths.
+    [[ "$1" == *[\'\"\\]* ]] && return 1
+    case "${hr_words[1]:-}" in
+    commit | tag)
+      for ((j = 2; j + 1 < ${#hr_words[@]}; j++)); do
+        [[ "${hr_words[j]}" == -- ]] && return 1
+        [[ "${hr_words[j]}" == -F && "${hr_words[j + 1]}" == - ]] && return 0
+      done
+      return 1
+      ;;
     *) return 1 ;;
     esac
     ;;

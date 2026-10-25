@@ -26,6 +26,21 @@
       "additionalProperties": false,
       "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
     },
+    "glossary": {
+      "description": "Coined session terms, set by the glossary op: the page lists them in its Terms panel and shows each definition on hover in question text.",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["term", "definition", "at"],
+        "additionalProperties": false,
+        "properties": {
+          "term": {"type": "string", "maxLength": 60},
+          "definition": {"type": "string"},
+          "at": {"type": "string"}
+        }
+      }
+    },
     "context": {
       "description": "How full the session's context is, set and cleared by the context op.",
       "type": "object",
@@ -88,6 +103,20 @@
       "description": "Every restatement the restate op wrote, oldest first; the last is mirrored as `restatement`. A file written before this list existed has only `restatement`.",
       "type": "array",
       "items": {"$ref": "#/$defs/restatement"}
+    },
+    "constraints": {
+      "description": "The constraints the constraint op recorded, oldest first; the page header lists them and `export-brief --ledger` falls back to them. A file written before this list existed has none.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "at"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "text": {"type": "string"},
+          "at": {"type": "string"}
+        }
+      }
     }
   },
   "$defs": {
@@ -130,7 +159,18 @@
         "pluginVersion": {"description": "The planning plugin version that first wrote this file; `round.sh doctor` compares it with the running version.", "type": "string"},
         "emojiMarkers": {"type": "boolean"},
         "displayName": {"type": "string"},
-        "seededFrom": {"$ref": "#/$defs/seededFrom"}
+        "seededFrom": {"$ref": "#/$defs/seededFrom"},
+        "ledgerSync": {"$ref": "#/$defs/ledgerSync"}
+      }
+    },
+    "ledgerSync": {
+      "description": "What `ledger-check` last found when it compared the page with the ledger the data dir was seeded from; the page header reads it. A file without it shows no ledger line.",
+      "type": "object",
+      "required": ["rev", "rows"],
+      "additionalProperties": false,
+      "properties": {
+        "rev": {"description": "The questions.json rev the check was written at.", "type": "integer"},
+        "rows": {"description": "The register rows (`Q<N>`, or `order` when only the register's row order differs) the ledger and the page disagree on; empty when they match.", "type": "array", "items": {"type": "string"}}
       }
     },
     "seededFrom": {

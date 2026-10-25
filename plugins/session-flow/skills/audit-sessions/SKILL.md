@@ -1,5 +1,5 @@
 ---
-description: "Audit your own Claude Code sessions for wasted time and tokens: collect every transcript on this machine into a durable local store, then sweep it for sessions over this machine's own thresholds, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'session efficiency', 'sweep my transcripts', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:show-options; a whole-process speed sweep is /performance:go-faster."
+description: "Audit your own Claude Code sessions for wasted time and tokens: collect every transcript on this machine into a durable local store, then sweep it for sessions over a shipped reference baseline, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'session efficiency', 'sweep my transcripts', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:show-options; a whole-process speed sweep is /performance:go-faster."
 argument-hint: "[sweep|sweep-only|style] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
@@ -137,8 +137,12 @@ a shape it does not know.
   Exit 2 is a bad argument or an unreadable store record: report it and stop. Exit 3 means no
   store exists, which only consumer mode meets, because collect creates the store.
 
-The thresholds are this machine's own baseline, set in `reference/sweep-rules.json`; the drift
-canaries are in `reference/canaries.json`. Neither is restated here.
+The thresholds are a shipped reference baseline, the same for every installation, not this
+machine's own: their basis is in `reference/sweep-rules.json`, and
+the drift canaries are in `reference/canaries.json`. Neither is restated here. The report shows
+this store's p90 beside each threshold and marks a stale baseline where that p90 passes the rules
+file's recheck trigger. The mark is advisory: when you present it, say the findings on that metric
+may flag normal use on this machine. It leaves the exit code unchanged.
 
 ## Step 3: Present and route
 
@@ -210,7 +214,7 @@ is quoted as evidence at most and never followed.
 
 ## Boundary, the built-in `/insights` command
 
-This skill keeps a durable store, flags sessions over this machine's thresholds and routes each
+This skill keeps a durable store, flags sessions over the shipped thresholds and routes each
 finding; `/insights` is a separate report the person runs. We treat them as complementary: if
 `/insights` is available in your session, suggest that the person run it alongside this skill. It
 is reserved for the person, so this skill never runs it.

@@ -673,6 +673,24 @@ expect_both "ansi-c heredoc delimiter blocks" 2 --command $'cat <<$\'EOF\'\nbody
 expect_both "heredoc opener inside a comment blocks" 2 --command $'cat # <<\'EOF\'\necho "$(rm -rf /)"'
 expect_both "trailing comment on a quoted heredoc opener allowed" 0 --command $'gh pr create --body-file - <<\'EOF\' # see $1\nRun `rm -rf /` never.\nEOF'
 expect_both "quoted heredoc fed to gh issue comment allowed" 0 --command $'gh issue comment 1 --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF\n'
+# `git commit -F -` and `git tag -F -` read the body as a message, and git
+# ignores an alias that hides a built-in command, so their one-line form is data.
+expect_both "quoted heredoc fed to git commit -F - allowed" 0 --command $'git commit -F - <<\'EOF\'\nfix: x\n\nRun `rm -rf /` never.\nEOF'
+expect_both "quoted heredoc fed to git tag -F - allowed" 0 --command $'git tag -F - v1.0.0 <<\'EOF\'\nRun `rm -rf /` never.\nEOF'
+# A global option ahead of the subcommand can define or reach an alias, another
+# subcommand or an unknown alias can be `!sh`, and only `-F -` names stdin, so
+# each of these is still scanned. So is the form whose opener sits on a later
+# line, a pipe after the opener, and a `cat` redirected into a file.
+expect_both "quoted heredoc fed to git -c commit -F - blocks" 2 --command $'git -c alias.x=y commit -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git -C commit -F - blocks" 2 --command $'git -C /tmp commit -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to an unknown git alias with -F - blocks" 2 --command $'git ci -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git notes add -F - blocks" 2 --command $'git notes add -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit with -F - after -- blocks" 2 --command $'git commit -- -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit with -F - inside quotes blocks" 2 --command $'git commit "a -F - b" <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit --file=- blocks" 2 --command $'git commit --file=- <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc opener on a later line of git commit -F - blocks" 2 --command $'git commit -F - --trailer "Refs: #1" \\\n<<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to git commit -F - piped into sh blocks" 2 --command $'git commit -F - <<\'EOF\' | sh\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc written by a redirected cat blocks" 2 --command $'cat > /tmp/x.sh <<\'EOF\'\necho `rm -rf /`\nEOF'
 # An unquoted delimiter's body IS expanded, so its substitutions still run.
 expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
 expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'
@@ -1708,6 +1726,189 @@ rdt_arp 'Remove-Item on a .. escape blocks' 2 "Remove-Item -Recurse -Force '$RDT
 rdt_arp 'Remove-Item on a drive root blocks' 2 'Remove-Item -Recurse -Force C:\' "$RDT_AR"
 rdt_arp 'Remove-Item on $env:USERPROFILE blocks' 2 'Remove-Item -Recurse -Force $env:USERPROFILE' "$RDT_AR"
 rdt_arp 'a $env: assignment in the command grants nothing' 2 "\$env:$RDT_KEY = '$RDT_AR'; Remove-Item -Recurse '$RDT_AR/child'"
+
+# --- 2e. Protected trees (#9751) ----------------------------------------------
+# Judged ahead of every root the outside-tree arm allows: the working tree, a
+# temp root, the scratchpad and a listed root alike. Every fixture outside the
+# checkout sits under the suite's temp directory, where the same delete passes
+# without the arm, and each refusal is paired with an allow beside it.
+expect_both 'protected: rm -rf .git blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .git'
+expect_both 'protected: rm -rf ./.git/ blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ./.git/'
+expect_both 'protected: the glob straight inside .git blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .git/*'
+expect_both 'protected: a dot glob that matches .git blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .*'
+expect_both 'protected: the toplevel itself blocks' 2 "${RDT_CWD[@]}" --command "rm -rf '$RDT_TOP'"
+expect_both 'protected: the toplevel as . blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .'
+expect_both 'protected: the toplevel as .. from a subdirectory blocks' 2 --cwd "$RDT_TOP/plugins" --command 'rm -rf ..'
+expect_both 'protected: PS Remove-Item on .git blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse -Force .git'
+expect_both 'protected: a subdirectory of the toplevel allowed' 0 "${RDT_CWD[@]}" \
+  --command 'rm -rf plugins/rdt-nonexistent/build'
+expect_both 'protected: a path named under .git allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf .git/rdt-nonexistent-x'
+expect_both 'protected: the toplevel glob leaves .git, allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf *'
+# A glob matches dot names on PowerShell, and in bash once dotglob is on.
+expect_both 'protected: PS Remove-Item * from the toplevel blocks (its * matches .git)' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse -Force *'
+expect_both 'protected: dotglob then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'shopt -s dotglob; rm -rf *'
+expect_both 'protected: GLOBIGNORE then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'GLOBIGNORE=x; rm -rf *'
+# A case-insensitive filesystem removes .git through .GIT.
+expect_both 'protected: rm -rf .GIT blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .GIT'
+# Win32 trims a trailing dot or space, so `.git.` names `.git` there.
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32)
+  expect_both 'protected: PS Remove-Item on .git. blocks' 2 \
+    --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force '.git.'"
+  ;;
+*) rdt_skip "a trailing-dot name is trimmed only on Windows (1 case)" ;;
+esac
+
+# A directory holding a .git is refused under temp too; a path inside it is
+# not, and a symlink to it is unlinked, not followed.
+mkdir -p "$TEST_TMPDIR/rdt-clone/.git" "$TEST_TMPDIR/rdt-clone/build"
+expect_both 'protected: a throwaway clone under temp blocks' 2 "${RDT_CWD[@]}" \
+  --command "rm -rf '$TEST_TMPDIR/rdt-clone'"
+expect_both 'protected: a path inside that clone allowed' 0 "${RDT_CWD[@]}" \
+  --command "rm -rf '$TEST_TMPDIR/rdt-clone/build'"
+if MSYS=winsymlinks:lnk ln -s "$TEST_TMPDIR/rdt-clone" "$TEST_TMPDIR/rdt-clone-link" 2>/dev/null &&
+  [[ -L "$TEST_TMPDIR/rdt-clone-link" ]]; then
+  expect_both 'protected: a link to the clone is unlinked, allowed' 0 "${RDT_CWD[@]}" \
+    --command "rm -rf '$TEST_TMPDIR/rdt-clone-link'"
+  expect_both 'protected: link/ to the clone blocks' 2 "${RDT_CWD[@]}" \
+    --command "rm -rf '$TEST_TMPDIR/rdt-clone-link/'"
+else
+  rdt_skip "ln -s makes no real symlink on this host (2 cases)"
+fi
+
+# Registered worktrees, from a registry built by hand the way git writes it,
+# with a stub git that answers the given worktree as the toplevel. The guard
+# reads <common dir>/worktrees/*/gitdir itself, so a root whose .git file is
+# gone, one recorded by a relative path, a dot-named one and a directory
+# holding one are refused, not only a root that holds its .git file.
+RDT_WF="$TEST_TMPDIR/rdt-wt"
+RDT_WR="$RDT_WF/main/.git/worktrees"
+mkdir -p "$RDT_WR/wt1" "$RDT_WR/nogit" "$RDT_WR/wt2" "$RDT_WR/.tmp-7" "$RDT_WR/wt3" \
+  "$RDT_WF/wt1/build" "$RDT_WF/wt-nogit" "$RDT_WF/rel/wt2" "$RDT_WF/.tmp-7" "$RDT_WF/holder/wt3" "$RDT_WF/other"
+printf '%s\n' "$RDT_WF/wt1/.git" >"$RDT_WR/wt1/gitdir"
+printf '../..\n' >"$RDT_WR/wt1/commondir"
+printf 'gitdir: %s\n' "$RDT_WR/wt1" >"$RDT_WF/wt1/.git"
+printf '%s\n' "$RDT_WF/wt-nogit/.git" >"$RDT_WR/nogit/gitdir"
+printf '../../../../rel/wt2/.git\n' >"$RDT_WR/wt2/gitdir"
+printf '%s\n' "$RDT_WF/.tmp-7/.git" >"$RDT_WR/.tmp-7/gitdir"
+printf '%s\n' "$RDT_WF/holder/wt3/.git" >"$RDT_WR/wt3/gitdir"
+mkdir -p "$TEST_TMPDIR/bin-git-top"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$RDT_STUB_TOP"\n' >"$TEST_TMPDIR/bin-git-top/git"
+chmod +x "$TEST_TMPDIR/bin-git-top/git"
+rdt_wt() { # <label> <want> <command> [toplevel]: run from that worktree, which the stub answers
+  local top="${4:-$RDT_WF/main}"
+  expect_both "protected: worktrees: $1" "$2" --cwd "$top" --command "$3" \
+    -- "PATH=$TEST_TMPDIR/bin-git-top:$PATH" "RDT_STUB_TOP=$top"
+}
+rdt_wt 'a linked worktree root blocks' 2 "rm -rf '$RDT_WF/wt1'"
+rdt_wt 'a registered root with no .git file blocks' 2 "rm -rf '$RDT_WF/wt-nogit'"
+rdt_wt 'a root recorded by a relative path blocks' 2 "rm -rf '$RDT_WF/rel/wt2'"
+rdt_wt 'a dot-named worktree blocks' 2 "rm -rf '$RDT_WF/.tmp-7'"
+rdt_wt 'a directory holding a worktree root blocks' 2 "rm -rf '$RDT_WF/holder'"
+rdt_wt 'a glob whose matches hold worktree roots blocks' 2 "rm -rf '$RDT_WF'/*"
+rdt_wt 'the main worktree, the toplevel, blocks' 2 "rm -rf '$RDT_WF/main'"
+rdt_wt 'a path under a worktree allowed' 0 "rm -rf '$RDT_WF/wt1/build'"
+rdt_wt 'an unregistered sibling under temp allowed' 0 "rm -rf '$RDT_WF/other'"
+rdt_wt 'from a linked worktree: the main root blocks' 2 "rm -rf '$RDT_WF/main'" "$RDT_WF/wt1"
+rdt_wt 'from a linked worktree: a root with no .git file blocks' 2 "rm -rf '$RDT_WF/wt-nogit'" "$RDT_WF/wt1"
+rdt_wt 'from a linked worktree: its own build allowed' 0 'rm -rf build' "$RDT_WF/wt1"
+
+# Claude Code's temp tree, <base>/<project>/<session>/scratchpad. The payload
+# scratchpad names the base: another session's scratchpad and every level that
+# holds one are refused, and this session's scratchpad keeps its rules.
+RDT_CB="$TEST_TMPDIR/claude-rdt"
+RDT_OWN="$RDT_CB/-proj/sess-a/scratchpad"
+RDT_OTH="$RDT_CB/-proj/sess-b/scratchpad"
+mkdir -p "$RDT_OWN/x" "$RDT_OTH/x" "$RDT_CB/-proj/sess-b/tasks"
+rdt_sp() { # <label> <want> <command>: from the checkout, with this session's scratchpad
+  expect_both "protected: scratchpads: $1" "$2" --payload "$(rdt_pl "$3" "$RDT_TOP" "$RDT_OWN")"
+}
+rdt_sp "another session's scratchpad blocks" 2 "rm -rf '$RDT_OTH'"
+rdt_sp "a path in another session's scratchpad blocks" 2 "rm -rf '$RDT_OTH/x'"
+rdt_sp "another session's directory blocks" 2 "rm -rf '$RDT_CB/-proj/sess-b'"
+rdt_sp "this session's directory blocks" 2 "rm -rf '$RDT_CB/-proj/sess-a'"
+rdt_sp 'a project directory blocks' 2 "rm -rf '$RDT_CB/-proj'"
+rdt_sp 'the base blocks' 2 "rm -rf '$RDT_CB'"
+rdt_sp 'a glob over the sessions blocks' 2 "rm -rf '$RDT_CB/-proj/'*"
+rdt_sp "a path in this session's scratchpad allowed" 0 "rm -rf '$RDT_OWN/x'"
+rdt_sp "this session's scratchpad itself still blocks" 2 "rm -rf '$RDT_OWN'"
+rdt_sp "another session's directory that is not its scratchpad allowed" 0 "rm -rf '$RDT_CB/-proj/sess-b/tasks'"
+expect_both 'protected: scratchpads: with no payload scratchpad, that base is a plain temp path' 0 "${RDT_CWD[@]}" \
+  --command "rm -rf '$RDT_OTH'"
+# TMPDIR pointed at the base: the caller's own temp files there pass, and
+# another session's scratchpad is still refused.
+expect_both 'protected: scratchpads: TMPDIR at the base, a temp file there allowed' 0 \
+  --payload "$(rdt_pl "rm -rf '$RDT_CB/rdt-own-tmp'" "$RDT_TOP" "$RDT_OWN")" -- "TMPDIR=$RDT_CB"
+expect_both "protected: scratchpads: TMPDIR at the base, another session's scratchpad blocks" 2 \
+  --payload "$(rdt_pl "rm -rf '$RDT_OTH'" "$RDT_TOP" "$RDT_OWN")" -- "TMPDIR=$RDT_CB"
+# Without a payload scratchpad the base is <temp root>/claude-<uid>
+# (<temp root>/claude on Windows); TMPDIR names a fixture temp root here.
+RDT_TR="$TEST_TMPDIR/rdt-tmproot"
+rdt_cn="claude-$UID"
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) rdt_cn=claude ;;
+*) ;;
+esac
+mkdir -p "$RDT_TR/$rdt_cn/-p/s/scratchpad" "$RDT_TR/other"
+expect_both "protected: scratchpads: one under <temp root>/$rdt_cn blocks" 2 "${RDT_CWD[@]}" \
+  --command "rm -rf '$RDT_TR/$rdt_cn/-p/s/scratchpad'" -- "TMPDIR=$RDT_TR"
+expect_both 'protected: scratchpads: a sibling under that temp root allowed' 0 "${RDT_CWD[@]}" \
+  --command "rm -rf '$RDT_TR/other'" -- "TMPDIR=$RDT_TR"
+
+# ~/.claude, from HOME, here a fake one under temp.
+RDT_HF="$TEST_TMPDIR/rdt-home"
+mkdir -p "$RDT_HF/.claude/projects" "$RDT_HF/other"
+rdt_hc() { # <label> <want> <command>
+  expect_both "protected: ~/.claude: $1" "$2" "${RDT_CWD[@]}" --command "$3" -- "HOME=$RDT_HF"
+}
+rdt_hc 'the directory blocks' 2 "rm -rf '$RDT_HF/.claude'"
+rdt_hc 'a path under it blocks' 2 "rm -rf '$RDT_HF/.claude/projects'"
+rdt_hc 'the ~ spelling blocks' 2 'rm -rf ~/.claude/projects'
+rdt_hc 'a dot glob over HOME blocks' 2 "rm -rf '$RDT_HF/'.*"
+rdt_hc 'a sibling under HOME allowed' 0 "rm -rf '$RDT_HF/other'"
+rdt_hc 'a plain glob over HOME skips the dot name, allowed' 0 "rm -rf '$RDT_HF/'*"
+
+# block_root_delete_target_protected_trees, read from the hook's environment.
+RDT_PK=CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES
+RDT_KP="$TEST_TMPDIR/rdt-keep"
+mkdir -p "$RDT_KP/data/x" "$RDT_KP/scratch"
+rdt_pt() { # <label> <want> <command> [trees]
+  local -a env=()
+  [[ -z "${4:-}" ]] || env+=("$RDT_PK=$4")
+  expect_both "protected: listed trees: $1" "$2" "${RDT_CWD[@]}" --command "$3" -- ${env[@]+"${env[@]}"}
+}
+rdt_pt 'unset key: the tree under temp allowed' 0 "rm -rf '$RDT_KP/data'"
+rdt_pt 'a listed tree blocks' 2 "rm -rf '$RDT_KP/data'" "$RDT_KP/data"
+rdt_pt 'a path under a listed tree blocks' 2 "rm -rf '$RDT_KP/data/x'" "$RDT_KP/data"
+rdt_pt 'a directory holding a listed tree blocks' 2 "rm -rf '$RDT_KP'" "$RDT_KP/data"
+rdt_pt 'a glob whose matches reach a listed tree blocks' 2 "rm -rf '$RDT_KP/'*" "$RDT_KP/data"
+rdt_pt 'a sibling of a listed tree allowed' 0 "rm -rf '$RDT_KP/scratch'" "$RDT_KP/data"
+rdt_pt 'the second of two trimmed entries blocks' 2 "rm -rf '$RDT_KP/scratch'" " $RDT_KP/data , $RDT_KP/scratch "
+rdt_pt 'a listed tree inside the working tree blocks' 2 'rm -rf .work/rdt-keep-x/y' "$RDT_TOP/.work/rdt-keep-x"
+rdt_pt 'a relative entry protects nothing' 0 "rm -rf '$RDT_KP/data'" 'rel/data'
+rdt_pt 'a .. entry protects nothing' 0 "rm -rf '$RDT_KP/data'" "$RDT_KP/scratch/../data"
+rdt_pt 'a glob entry protects nothing' 0 "rm -rf '$RDT_KP/data'" "$RDT_KP/da*"
+rdt_pt 'a bad entry beside a good one is skipped' 2 "rm -rf '$RDT_KP/data'" "rel/x,$RDT_KP/data"
+rdt_pt "the root '/' protects nothing" 0 'rm -rf build' /
+rdt_pt 'emptying the key in the command lifts nothing' 2 "$RDT_PK= rm -rf '$RDT_KP/data'" "$RDT_KP/data"
+# Under an allowed root too: the same delete passes in section 2d.
+expect_both 'protected: listed trees: a listed tree under an allowed root blocks' 2 --cwd / \
+  --command "rm -rf '$RDT_AR/child'" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_AR" "$RDT_PK=$RDT_AR/child"
+
+# The refusal says what the tree is, carries a Fix line, and asks when attended.
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf .git'
+assert_exit 'protected: a .git delete exits 2' 2 "$GUARD_RC"
+assert_contains 'protected: the message names what it removes' "$GUARD_ERR" 'a .git.'
+assert_contains 'protected: the message names the class' "$GUARD_ERR" 'A protected tree is refused'
+assert_contains 'protected: the message carries a Fix line' "$GUARD_ERR" 'Fix:'
+guard_invoke "${RDT_CWD[@]}" --command "rm -rf '$RDT_KP/data'" -- "$RDT_PK=$RDT_KP/data"
+assert_contains 'protected: a listed tree names the key' "$GUARD_ERR" 'a tree in block_root_delete_target_protected_trees'
+expect 'protected: attended, a .git delete asks' 0 "${RDT_CWD[@]}" --command 'rm -rf .git' \
+  -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq 'protected: attended, the decision is ask' ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'

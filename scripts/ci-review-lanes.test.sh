@@ -6,7 +6,7 @@
 # On a ready pull request, ci-status passes only when the newest pull_request
 # run of each review caller on the head has a successful status job whose
 # `Apply the hold` step ran. Pending, failed, skipped or missing reviews fail
-# with the cause named; a lane the kill switch stopped passes; Dependabot, the
+# with the cause named, a lane the kill switch stopped among them; Dependabot, the
 # release App and the standards-sync App are exempt by numeric author id. It
 # fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml
@@ -76,10 +76,10 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@4f79cc9244498ae856504cf74aeeb05dcc9c6b43 # v0\.65\.8$' "$caller"; then
-    ok "$file calls pr-review-cli v0.65.8 as job ${job%:} with publish: comments and hold-label: needs-human"
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@4fbceb4b75ffd568dfa5db31de0d0e753c0c64e6 # v0\.65\.9$' "$caller"; then
+    ok "$file calls pr-review-cli v0.65.9 as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or v0.65.8 pin"
+    fail "$file lost its job id, publish: comments, hold-label or v0.65.9 pin"
   fi
   # pr-review-cli's check-key-credit job requests actions: read; a caller that
   # does not grant it fails at startup.
@@ -90,21 +90,21 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
   if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then
-    ok "$file holds on the four trust-gate paths"
+    ok "$file sends the four trust-gate paths to extra security scrutiny"
   else
     fail "$file hold-paths are '$paths'"
   fi
 done
 
-# The exempt-author patterns are the callers' hold-paths in bash form: `**/X`
-# is X or */X, a trailing `**` is `*`.
-want_patterns="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$ROOT/.github/workflows/pr-review-hosted.yml" |
-  sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
+# An exempt author's pull request, which no review lane reads, still fails on
+# the four trust-gate paths in bash form: `**/X` is X or */X, a trailing `**`
+# is `*`.
+want_patterns="$(printf '%s\n' '.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' CODEOWNERS '*/CODEOWNERS' .gitmodules '*/.gitmodules' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
-  ok "the exempt-author hold patterns are the callers' hold-paths"
+  ok "the exempt-author hold patterns are the four trust-gate paths"
 else
-  fail "exempt-author hold patterns '$got_patterns' are not the callers' hold-paths '$want_patterns'"
+  fail "exempt-author hold patterns '$got_patterns' are not the four trust-gate paths '$want_patterns'"
 fi
 
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
@@ -155,9 +155,10 @@ CODE=pr-review-hosted.yml
 SEC=pr-review-security-hosted.yml
 CODE_CHECK='pr-review / claude-review-status'
 SEC_CHECK='pr-review-security / security-review'
-# run <id> <file> [status] [sha] [event]
-run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" \
-  '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, html_url: ("https://github.com/o/r/actions/runs/\($id)")}'; }
+# run <id> <file> [status] [sha] [event] [head repository]
+run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" --arg hr "${6:-o/r}" \
+  '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
+    html_url: ("https://github.com/o/r/actions/runs/\($id)")}'; }
 runs() { local IFS=,; printf '{"workflow_runs":[%s]}' "$*"; }
 # status <name> <status> <conclusion> [hold-step-conclusion]
 status() { jq -cn --arg n "$1" --arg st "$2" --arg c "$3" --arg h "${4:-success}" \
@@ -175,7 +176,7 @@ expect() {
   rm -f "$TMP_ROOT/pr-files.json"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
-    AUTHOR_ID="${AUTHOR_ID-153232337}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -208,6 +209,19 @@ RUNS_CODE="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")" JOBS_11="$(j
 expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_CHECK' has not finished"
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 11 $CODE completed "${HEAD//0/f}")" "$(run 12 pr-review-shadow.yml)" "$(run 13 $CODE completed "$HEAD" push)")"
 expect "runs on another head, of another file or event do not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
+# A fork's run on the same commit is newest; only this repository's head counts.
+RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")"
+expect "a newer run from a fork's head with the same commit does not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
+RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)")"
+expect "a fork's run alone leaves the lane missing" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
+RUNS_CODE="$(runs "$(run 10 $CODE)")"
+# A fork pull request is named as a fork before any run is read, never as missing.
+RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)")"
+HEAD_REPO=fork/r expect "a fork pull request fails as a fork, not as missing" 1 \
+  "::error::'$SEC_CHECK' did not run on $HEAD (head repository: fork/r): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review" "is missing"
+if grep -q '/actions/' "$TMP_ROOT/log"; then fail "a fork pull request's run read the review runs"; else ok "a fork pull request's run reads no review run"; fi
+RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 RUNS_CODE="$(runs)"
 expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
@@ -284,9 +298,9 @@ export NOTES_41
 KILL_UNLISTED='{"id":41,"name":"kill-switch","status":"completed","conclusion":"success","steps":[]}'
 JOBS_10="$(jobs "$KILL_UNLISTED")"
 NOTES_41="$(notes "$(note notice '' 'a kill switch stops this review (lanes: disabled, CLAUDE_REVIEW_DISABLED: unset)')")"
-expect "a kill-switch job listed with no steps counts as a stop on its report notice" 0 "::notice::a kill switch stopped '$CODE_CHECK' on $HEAD" "::error::"
+expect "a kill-switch job listed with no steps counts as a stop on its report notice, and a stop fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started." "::notice::"
 NOTES_41="$(notes "$(note notice '' 'a kill switch stops this security review (lanes: disabled)')")"
-expect "the security lane's kill-switch notice counts too" 0 "::notice::a kill switch stopped '$CODE_CHECK' on $HEAD" "::error::"
+expect "the security lane's kill-switch notice counts too" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started." "::notice::"
 NOTES_41="$(notes "$(note notice api-budget 'token=github-token')")"
 expect "a kill-switch job listed with no steps and no report notice fails" 1 "did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 NOTES_41="$(notes "$(note warning '' 'a kill switch stops this review (lanes: disabled)')")"
@@ -299,9 +313,13 @@ RUNS_CODE="$(runs "$(run 10 $CODE)")"
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed skipped skipped)")"
 expect "a skipped review (fork or unlisted bot) fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 JOBS_10="$(jobs "$(kill_job success success)")"
-expect "a lane the kill switch stopped passes" 0 "::notice::a kill switch stopped '$CODE_CHECK' on $HEAD" "::error::"
+expect "a lane the kill switch stopped fails: the kill switch never waives review" 1 \
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started. Once it is off, re-run all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)" "$(status "$CODE_CHECK" completed skipped skipped)")"
-expect "a kill-switch stop with the review listed as skipped passes" 0 "a kill switch stopped" "::error::"
+expect "a kill-switch stop with the review listed as skipped fails" 1 "a kill switch was on when it started" "::notice::"
+JOBS_10="$(jobs "$(kill_job success success)")" JOBS_20="$(jobs "$(kill_job success success)")"
+expect "both lanes stopped by the kill switch fail, each named" 1 "'$SEC_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/20): a kill switch was on when it started"
+JOBS_20="$PASS_SEC"
 JOBS_10="$(jobs "$(kill_job failure skipped)")"
 expect "a failed kill-switch job fails" 1 "kill-switch job: failure"
 JOBS_10="$(jobs "$(kill_job success skipped)")"

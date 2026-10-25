@@ -3144,6 +3144,9 @@ jobs:
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
       # gh-read.sh, so each step that sources that file reads through it.
+      # Its read floor is pr-pipeline.schema.json's read-floor default
+      # (log-api-budget.test.mjs checks), as this job has no schema checkout.
+      API_BUDGET_READ_FLOOR: "0.1"
       API_BUDGET_SH: |
         # shellcheck shell=bash
         # Rate-limit readings from a job's own API responses. GET /rate_limit reports
@@ -3161,7 +3164,31 @@ jobs:
         #   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
         #                               api_budget_read, keeping stdout, stderr and the
         #                               exit status as they were (not --paginate, whose
-        #                               per-page header blocks are left out)
+        #                               per-page header blocks are left out), behind
+        #                               the rate guard below
+        #
+        # The rate guard, rate-guard.mjs's shell port: once a response shows a pool
+        # exhausted, no gh call goes to that pool before its reset for the rest of the
+        # job; each refusal returns 1 with an error naming the reset, and so does a
+        # call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
+        # gh's status, so no caller resends a write GitHub accepted. Its stops are
+        # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
+        # it) goes in $RUNNER_TEMP/api-budget/guessed too.
+        #   api_budget_classify         jq filter: rate-guard.mjs's classify over
+        #                               {status, headers, body, now (ms), pool, floor}
+        #   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
+        #                               code_search or core, `any` for a non-api call
+        #   api_budget_stop_until <pool>
+        #                               the epoch second <pool> is stopped until, if
+        #                               it is
+        #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
+        #   api_budget_observe <file> <pool> <what>
+        #                               reads gh api -i output and stops its pool when
+        #                               it is exhausted, returning 1 unless the
+        #                               answer is a 2xx; under
+        #                               API_BUDGET_READ_FLOOR of the limit left, warns
+        #                               once (unset: no floor; ci-status sets it to
+        #                               the schema's read-floor default)
         #   api_budget_emit <token>...  the hub collector's notice for each refused
         #                               (403/429) reading and for the last reading of
         #                               each resource, core last; cost is
@@ -3211,26 +3238,157 @@ jobs:
           API_BUDGET_GH_TOKEN=$1
           # shellcheck disable=SC2329 # called by the script that sources this file
           gh() {
-            local arg out rc=0
+            local arg out pool rc=0
+            pool=$(api_budget_pool "$@")
+            api_budget_refuse "$pool" "gh $*" || return 1
             if [[ ${1:-} != api ]]; then
-              command gh "$@"
+              api_budget_pass "$@"
               return
             fi
             for arg; do
               case $arg in
                 # --paginate prints a header block per page, which could not be told
                 # from body text that looks like one: left as it is.
-                -i | --include | --silent | --slurp | --paginate) command gh "$@"; return ;;
+                --silent | --slurp | --paginate) api_budget_pass "$@"; return ;;
+                # The caller reads the headers itself: the guard reads them too, and
+                # the output goes on unchanged.
+                -i | --include)
+                  out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
+                  command gh "$@" >"$out" || rc=$?
+                  api_budget_observe "$out" "$pool" "gh $*" || rc=1
+                  cat "$out"
+                  rm -f "$out"
+                  return "$rc"
+                  ;;
                 *) ;;
               esac
             done
-            out=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
+            out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
             # gh-read-exempt: the wrapper under every call, gh_read included: the same call with -i.
             command gh api -i "${@:2}" >"$out" || rc=$?
+            api_budget_observe "$out" "$pool" "gh $*" || rc=1
             api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
             rm -f "$out"
             return "$rc"
           }
+        }
+
+        # A call whose headers the wrapper cannot read: a failure whose text names a
+        # rate limit, or a 429, stops every pool, for the documented minute on a
+        # secondary limit and otherwise for an hour, past any primary reset
+        # (rate-guard.mjs's SIGNALS).
+        api_budget_pass() {
+          local err rc=0 seconds=3600
+          err=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
+          command gh "$@" 2>"$err" || rc=$?
+          cat "$err" >&2
+          if ((rc != 0)) && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|\(HTTP 429\)' "$err"; then
+            ! grep -qiE 'secondary rate limit|abuse detection' "$err" || seconds=60
+            api_budget_stop '*' $(($(date +%s) + seconds)) fallback "gh $*" || :
+          fi
+          rm -f "$err"
+          return "$rc"
+        }
+
+        api_budget_pool() {
+          local arg
+          [[ ${1:-} == api ]] || { echo any; return; }
+          for arg in "${@:2}"; do
+            case $arg in
+              graphql) echo graphql; return ;;
+              search/code* | /search/code*) echo code_search; return ;;
+              search/* | /search/*) echo search; return ;;
+              *) ;;
+            esac
+          done
+          echo core
+        }
+
+        api_budget_stop_until() {
+          local file=${RUNNER_TEMP:-/tmp}/api-budget/stop
+          [[ -s $file ]] || return 0
+          awk -v pool="$1" -v now="$(date +%s)" '($1 == pool || $1 == "*" || pool == "any") && $2 ~ /^[0-9]+$/ && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
+            END { if (max) print max }' "$file"
+        }
+
+        api_budget_guessed() {
+          local file=${RUNNER_TEMP:-/tmp}/api-budget/guessed
+          [[ -s $file ]] && awk -v t="$1" '$2 == t { found = 1 } END { exit !found }' "$file"
+        }
+
+        api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
+        api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
+
+        api_budget_refuse() {
+          local until
+          until=$(api_budget_stop_until "$1")
+          [[ -z $until ]] && return 0
+          echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
+          return 1
+        }
+
+        api_budget_stop() {
+          local dir=${RUNNER_TEMP:-/tmp}/api-budget
+          if mkdir -p "$dir" 2>/dev/null; then
+            echo "$1 $2" >>"$dir/stop"
+            [[ $3 != fallback ]] || echo "$1 $2" >>"$dir/guessed"
+          fi
+          echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}" >&2
+          return 1
+        }
+
+        # shellcheck disable=SC2016 # a jq program
+        API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then tonumber else null end;
+          . as $in | ($in.headers // {}) as $h
+          | ($h["x-ratelimit-remaining"] | num) as $rem | ($h["x-ratelimit-limit"] | num) as $lim
+          | ($h["x-ratelimit-reset"] | num) as $reset | ($h["retry-after"] | num) as $ra
+          | (if ($in.body | type) == "string" then ($in.body | try fromjson catch null) else $in.body end) as $b
+          | ($in.pool == "graphql") as $gq
+          | ((if ($b | type) == "object" then [$b.message] + (if $gq and (($b.errors // null) | type) == "array" then [$b.errors[] | if type == "object" then .message else null end] else [] end) else [] end)
+              | map(. // "" | tostring)) as $texts
+          | ($in.status == 403 or $in.status == 429 or $gq) as $flagged
+          | ($flagged and any($texts[]; test("rate limit|abuse detection"; "i"))) as $msg
+          | ($flagged and any($texts[]; test("secondary rate limit|abuse detection"; "i"))) as $secondary
+          | ($in.status == 429) as $many
+          | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
+              | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql
+          | ($rem == 0 or $ra != null or $msg or $gql or $many) as $latched
+          | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $rem < $in.floor * $lim) as $low
+          | if ($latched | not) then {latched: false, low: $low, reset_source: null, reset: null, pool: null}
+            else (($in.now / 1000) | floor) as $n
+            | [(if $ra != null then [$n + $ra, "retry-after"] else empty end),
+               (if $rem == 0 and $reset != null then [$reset, "x-ratelimit-reset"] else empty end)] as $c
+            | (if ($c | length) > 0 then ($c | reduce .[1:][] as $x (.[0]; if $x[0] > .[0] then $x else . end)) else null end) as $best
+            | (if $best != null and $best[0] > $n then $best
+               else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end) as $at
+            | (($h["x-ratelimit-resource"] // "") | tostring) as $res
+            | {latched: true, low: $low, reset_source: $at[1], reset: $at[0],
+               pool: (if $ra != null or $secondary or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
+            end'
+
+        api_budget_observe() {
+          local file=$1 pool=$2 what=$3 start verdict latched low source reset stop status dir=${RUNNER_TEMP:-/tmp}/api-budget
+          start=$(awk 'NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { exit } { sub(/\r$/, "") } NR > 1 && $0 == "" { print NR; exit }' "$file")
+          [[ -n $start ]] || return 0
+          verdict=$(jq -rn --rawfile raw "$file" --argjson start "$start" --arg pool "$pool" --argjson now "$(($(date +%s) * 1000))" \
+            --arg floor "${API_BUDGET_READ_FLOOR:-}" '($raw | split("\n")) as $l
+            | ($l[0] | split(" ")[1] | tonumber) as $status
+            | ([$l[1:$start - 1][] | sub("\r$"; "") | capture("^(?<k>[^:]+):[ \t]*(?<v>.*)$") | {(.k | ascii_downcase): .v}] | add // {}) as $headers
+            | {status: $status, headers: $headers, body: ($l[$start:] | join("\n")), now: $now, pool: $pool,
+               floor: ($floor | tonumber? // null)}
+            | '"$API_BUDGET_CLASSIFY"' | "\(.latched) \(.low) \(.reset_source) \(.reset) \(.pool)"' 2>/dev/null) || return 0
+          read -r latched low source reset stop <<<"$verdict"
+          if [[ $latched == true ]]; then
+            read -r _ status _ <"$file"
+            if [[ $status == 2[0-9][0-9] ]]; then
+              api_budget_stop "$stop" "$reset" "$source" "$what" "its answer stands, and later calls to it are refused" || :
+              return 0
+            fi
+            api_budget_stop "$stop" "$reset" "$source" "$what" || return 1
+          elif [[ $low == true ]] && mkdir -p "$dir" 2>/dev/null && [[ ! -e $dir/low-$pool ]]; then
+            : >"$dir/low-$pool"
+            echo "::warning::GitHub's $pool API has under its read floor left; reads continue" >&2
+          fi
         }
 
         api_budget_emit() {
@@ -3280,22 +3438,21 @@ jobs:
     steps:
       # A RATE-LIMITED READ WAITS FOR THE RESET. The fail-closed steps below
       # read through gh_read, which runs `gh api` and, when that fails on a
-      # rate limit, waits once and reads again. Without -i, gh drops the failed
-      # response's headers, and GET /rate_limit does not report the
-      # GITHUB_TOKEN's installation limit (it read core 'remaining > 0' while
-      # every read failed on it), so the wait comes from the x-ratelimit-* and
-      # retry-after headers of one probe request to the same resource (core,
-      # or graphql for a graphql call): retry-after seconds when sent, else
-      # five seconds past x-ratelimit-reset while remaining is 0, one second
-      # when the probe shows the limit has cleared, else 60 s. It is a rate
-      # limit when gh's error names one, or is an HTTP 403 or 429 while the
-      # probe reads remaining 0 or retry-after. The job's timeout is not raised
+      # rate limit, waits once and reads again. The rate limit and its reset
+      # come from the api-budget gh wrapper's rate guard (API_BUDGET_SH): it
+      # reads each response's headers and records a stop for the pool until
+      # the reset (retry-after, else x-ratelimit-reset while remaining is 0,
+      # else a guess: the documented minute for a secondary limit, an hour for
+      # any other, as for a paginated read whose headers it cannot see), and
+      # refuses every gh call to that pool before it, so nothing is sent while
+      # limited, a probe included. gh_read waits one second past a reset a
+      # header gave; a guessed stop fails the read at once. The job's timeout is not raised
       # for it: a wait is taken only when it ends inside the budget the job
       # env sets, so the steps after it still fit. A wait past that fails the
       # read at once, red and never neutral (a neutral required check counts
       # as passing), with an error naming the reset and asking for a re-run
-      # after it; later reads of that resource before the reset fail without
-      # a call. Nothing here re-runs the job: the next review lane's
+      # after it; later reads of that pool before the reset fail without a
+      # call. Nothing here re-runs the job: the next review lane's
       # rerun-ci-status, or a person, re-runs it after the reset. Any other
       # failure, or a second rate limit after the wait, returns gh's status at
       # once, so each caller's own retries and fail-closed exit stay as they
@@ -3307,12 +3464,9 @@ jobs:
       - name: Write the rate-limit-aware read helper
         run: |
           gh_read() {
-            local resource=core until=0 deadline arg err out now limit remaining reset after wait at waited=
-            for arg; do [ "$arg" != graphql ] || resource=graphql; done
-            local blocked="$RUNNER_TEMP/gh-read.until-$resource"
+            local pool=core deadline err out now until wait at waited=
+            ! declare -F api_budget_pool >/dev/null || pool=$(api_budget_pool api "$@")
             deadline=$(cat "$RUNNER_TEMP/gh-read.deadline")
-            [ ! -s "$blocked" ] || until=$(cat "$blocked")
-            [ "$until" -le "$(date +%s)" ] || return 1
             err=$(mktemp)
             while :; do
               if out=$(gh api "$@" 2>"$err"); then
@@ -3322,40 +3476,24 @@ jobs:
                 return 0
               fi
               cat "$err" >&2
-              wait=
-              if [ -z "$waited" ] && grep -qiE 'rate limit|HTTP (403|429)' "$err"; then
-                now=$(date +%s)
-                if [ "$resource" = graphql ]; then
-                  limit=$(gh api -i graphql -f query='{rateLimit{remaining}}' 2>/dev/null) || true
-                else
-                  limit=$(gh api -i "repos/$GITHUB_REPOSITORY" 2>/dev/null) || true
-                fi
-                limit=$(tr -d '\r' <<<"$limit" | sed '/^$/q' | awk -F': *' '{ h[tolower($1)] = $2 }
-                  END { print h["x-ratelimit-remaining"] " " h["x-ratelimit-reset"] " " h["retry-after"] }')
-                read -r remaining reset after <<<"$limit"
-                if [[ $after =~ ^[0-9]{1,5}$ ]]; then
-                  wait=$((10#$after)) reset=$((now + 10#$after))
-                elif [ "$remaining" = 0 ] && [[ $reset =~ ^[0-9]{1,10}$ ]]; then
-                  wait=$((reset - now + 5))
-                  [ "$wait" -ge 5 ] || wait=5
-                elif grep -qi 'secondary rate limit' "$err" || { grep -qi 'rate limit' "$err" && [[ ! $remaining =~ ^[0-9]+$ ]]; }; then
-                  wait=60 reset=$((now + 60))
-                elif grep -qi 'rate limit' "$err"; then
-                  wait=1 reset=$((now + 1))
-                fi
+              until=
+              if [ -z "$waited" ] && declare -F api_budget_stop_until >/dev/null; then
+                until=$(api_budget_stop_until "$pool")
               fi
-              if [ -z "$wait" ]; then
+              # A guessed stop (no header gave its time) gets no wait.
+              if ! [[ $until =~ ^[0-9]+$ ]] || api_budget_guessed "$until"; then
                 rm -f "$err"
                 return 1
               fi
+              now=$(date +%s)
+              wait=$((until - now + 1))
               if [ $((now + wait)) -gt "$deadline" ]; then
-                at=$(jq -rn --argjson t "$reset" '$t | todate')
-                echo "::error::GitHub's $resource API rate limit blocks 'gh api $*' until $at, past the $(jq -rn --argjson t "$deadline" '$t | todate') ci-status can wait to inside its timeout; a re-run after $at is needed." >&9
-                echo "$reset" >"$blocked"
+                at=$(jq -rn --argjson t "$until" '$t | todate')
+                echo "::error::GitHub's $pool API rate limit blocks 'gh api $*' until $at, past the $(jq -rn --argjson t "$deadline" '$t | todate') ci-status can wait to inside its timeout; a re-run after $at is needed." >&9
                 rm -f "$err"
                 return 1
               fi
-              echo "::notice::'gh api $*' is rate limited ($resource); waiting ${wait}s for the reset, then reading again." >&9
+              echo "::notice::'gh api $*' is rate limited ($pool); waiting ${wait}s for the reset, then reading again." >&9
               sleep "$wait"
               waited=1
             done
@@ -3553,8 +3691,10 @@ jobs:
       #   run whose head changes either review-lane workflow from the base (or
       #   whose comparison lists 300 files, the API's cap) could forge that
       #   notice, and keeps the hold.
-      # - No lanes App comment was written and no comment was deleted in it: a
-      #   lanes App escalation adds no label event to a label already on.
+      # - No lanes App escalation comment (a `<!-- work-items:escalation`
+      #   marker) was written or edited and no comment was deleted in it: a
+      #   lanes App escalation adds no label event to a label already on. Its
+      #   other comments (review replies, fix notes) keep nothing.
       # - The pull request body, outside HTML comments, links a decision comment
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
@@ -3789,7 +3929,8 @@ jobs:
             | if ($holds | length) == 0 then "no review lane recorded a hold since a trusted person last removed the label"
               elif any($holds[]; .criteria != "cost") then "a review-lane hold since then is not cost-only"
               elif any($added[]; (.created_at | t) as $at | any($holds[]; .at >= $at and .at - $at <= 600) | not) then "a label was added with no held review after it"
-              elif any($comments[][]; .user.id == $app and ([.created_at, .updated_at] | map(t) | max) > $since) then "the lanes App commented since then"
+              elif any($comments[][]; .user.id == $app and (.body // "" | contains("<!-- work-items:escalation"))
+                and ([.created_at, .updated_at] | map(t) | max) > $since) then "the lanes App escalated since then"
               elif ($gone | type) != "object" or $gone.filteredCount > ($gone.nodes | length)
                 or any($gone.nodes[]; (.createdAt | t) > $since) then "a comment was deleted since then"
               else "cost" end' 2>/dev/null) || keep "the events, holds or comments do not parse"
@@ -3977,19 +4118,25 @@ jobs:
       # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
       # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
       # each lane it takes the newest pull_request run of the lane's caller
-      # workflow on the head and that run's latest jobs, which are the GitHub
+      # workflow on the head, from this repository's head (a fork's run on the
+      # same commit never counts), and that run's latest jobs, which are the GitHub
       # Actions check runs. The lane passes when its status job succeeded and
       # its `Apply the hold` step succeeded, so a summary-mode run or one
       # without a hold label never counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
-      # kill switch stopped passes: its kill-switch job succeeded and ran its
-      # `Report the kill switch` step. A kill-switch job that failed stopped
-      # the review too, and fails. Dependabot, the release App and the
+      # kill switch stopped (its kill-switch job succeeded and ran its
+      # `Report the kill switch` step, so a switch was on when the run
+      # started) fails too: the kill switch pauses review, it never waives it.
+      # Once it is off, a trusted person re-runs the review run, whose
+      # completion re-runs ci-status (pr-feedback-dispatch.yml rerun-ci-status);
+      # the admin bypass stays the break-glass. A
+      # kill-switch job that failed stopped the review too, and fails.
+      # Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
-      # (or a renamed file's old path) matches the callers' hold-paths, since
-      # no lane is there to hold it as trust-gate; a person merges it. A draft is exempt
+      # (or a renamed file's old path) is a trust-gate path, since no security
+      # lane reads it; a person merges it. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
@@ -4012,6 +4159,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
@@ -4036,7 +4184,7 @@ jobs:
             done
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
-            # The callers' hold-paths, as bash patterns (`*` crosses `/`).
+            # The trust-gate paths, as bash patterns (`*` crosses `/`).
             hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
@@ -4074,12 +4222,21 @@ jobs:
             echo "The author ($AUTHOR_ID) is one no review lane reviews, and no trust-gate path changed; the review lanes are not required."
             exit 0
           fi
+          # A fork's head gets no review run here, and the lookup below reads
+          # only runs from this repository's head, so name the fork up front.
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            while read -r _ _ check; do
+              echo "::error::'$check' did not run on $HEAD_SHA (head repository: ${HEAD_REPO:-unknown}): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
+            done <<<"$lanes"
+            exit 1
+          fi
           failed=0
           while read -r file lane check; do
             runs=$(read_api "the $file runs on $HEAD_SHA" \
               "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
-            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" \
-              '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request")] | max_by(.id) // empty' <<<"$runs")
+            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" --arg repo "$GITHUB_REPOSITORY" \
+              '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request"
+                and .head_repository.full_name == $repo)] | max_by(.id) // empty' <<<"$runs")
             if [ -z "$run" ]; then
               echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
               failed=1
@@ -4121,7 +4278,10 @@ jobs:
               echo "::error::'$check' passed in $url, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for $lane on $HEAD_SHA, so it is not a review that counts. Re-run this run."
               failed=1
               ;;
-            stopped) echo "::notice::a kill switch stopped '$check' on $HEAD_SHA ($url); the lane is not required." ;;
+            stopped)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, re-run all jobs of $url; ci-status re-runs when it finishes."
+              failed=1
+              ;;
             pending)
               echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
               failed=1

@@ -3,6 +3,18 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+## [0.12.1] - 2026-10-25
+
+### Fixed
+
+- **`go-faster` names the audit-sessions thresholds correctly:** the how-you-work area's candidate source and no-data reason say "the shipped threshold" instead of "this machine's threshold", since audit-sessions ships one reference baseline for every installation ([#6077](https://github.com/melodic-software/claude-code-plugins/issues/6077)).
+
 ## [0.12.0] - 2026-10-24
 
 ### Added

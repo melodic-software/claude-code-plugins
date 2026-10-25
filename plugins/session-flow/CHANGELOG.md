@@ -1,5 +1,60 @@
 # Changelog: session-flow plugin
 
+## [1.4.3] - 2026-10-25
+
+### Changed
+
+- The `hooks.stop_ms` basis now says the metric reads every `hookInfos` entry and cannot tell a background (`async` or `asyncRewake`) Stop hook from a blocking one, so where such a hook has an entry the wait overstates the blocking cost.
+
+### Fixed
+
+- `/session-flow:audit-sessions` no longer marks `tokens.main` and `tokens.sub` lost when one message's streamed records differ on input or cache usage. The API's `message_delta` usage is cumulative, so later records of a message can carry higher input and cache counts, and the dedup that keeps each message's last record is still right. The `invariant:usage_split` canary, which counted any such difference, is replaced by `invariant:usage_regress`, which counts a message whose last record falls below an earlier one on input or cache usage, the case where keeping the last record would undercount. Collecting re-ingests every session, since the collector changed.
+
+## [1.4.2] - 2026-10-25
+
+### Fixed
+
+- **A handoff purpose leads the Resumption brief again.** On shape 3 the brief slot told the writer to open with the write time and branch, and the purpose framing landed in Review before you continue, so the purpose argument no longer reliably led the brief or steered Suggested skills. `save_point.py new --purpose <text>` now writes the purpose as the brief's first line, `Purpose: <text>`, and points the brief and Suggested skills slots at it; sections, their order and the resume prompt are unchanged. The handoff skill and the structure doc's write procedure pass it when the invocation carried a purpose.
+
+## [1.4.1] - 2026-10-25
+
+### Changed
+
+- Handoff skill-eval case 9 (`purpose-argument-tailors-emphasis-only`) now ships the prior session state it assumes, as two synthetic fixtures under `evals/fixtures/` (the api-refactor work record and its draft endpoint design), and its prompt says that earlier work exists and names a working-directory memory dir when the run is outside a git work tree. Before, an empty eval sandbox left nothing to hand off, so runs refused or had their write denied instead of exercising the purpose argument. The expectations are unchanged.
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+## [1.4.0] - 2026-10-25
+
+### Added
+
+- **`audit-sessions` checks its own baseline:** each metric in the sweep report now shows this store's p90 beside the shipped threshold, and a row is marked `baseline_stale` when that p90 exceeds 1.5 times the threshold. The recheck trigger in `sweep-rules.json` is now one-sided and computed (`stale_p90_factor`), and the mark is advisory, leaving the exit code unchanged ([#6077](https://github.com/melodic-software/claude-code-plugins/issues/6077)).
+
+### Fixed
+
+- **`audit-sessions` describes its thresholds correctly:** the skill and README call them a shipped reference baseline, not this machine's own. Unchecked reasons that quote a rule's basis now say those numbers were measured on the reference machine, and the canaries basis names its own population ([#6077](https://github.com/melodic-software/claude-code-plugins/issues/6077)).
+
+## [1.3.1] - 2026-10-25
+
+### Fixed
+
+- A shape-3 handoff hot file keeps its Suggested skills section again, so the handoff purpose argument still tailors the skills the next session is pointed at.
+- A shape-3 handoff written before that section returned still validates, with a warning, so continuing its chain keeps the predecessor checks strict.
+
+## [1.3.0] - 2026-10-25
+
+### Added
+
+- A resume-accuracy eval harness, `scripts/harness/resume_eval.py`, with seven synthetic `resume-eval` cases under `evals/re-*/`. It seeds a session, writes a handoff, a free-hand summary or a native `/compact`, then resumes it in a fresh Claude Code or Codex reader. It grades recall, artifact, continuation and decision probes and reports tokens on both sides in plugin eval's result schema, so `noise-report.py --baseline` compares any two arms. Directory-wide plugin-eval runs skip these cases.
+- Handoff shape 3: `save_point.py new` writes a small hot file plus one immutable archive file per hop, `handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, holding every predecessor section the hot file does not carry, verbatim. The hot file has one fixed section order (`Original goal` first, `## Resume prompt` last), current rules with stable `[R<n>]` ids, a direction-change trail and the last three Prior-sessions rows. `validate` fails a hot file over its byte cap (provisional: 10,000 tokens' worth; a file whose core alone is over it passes UNVALIDATED up to the Read page cap, 25,000 tokens' worth), a goal section that does not start with the predecessor's, a dropped, duplicated or unarchived changed rule, and a missing hop file on the chain path; it warns on a GitHub state claim. A shape-2 chain's next hop writes shape 3; shape-1 and shape-2 files validate and read unchanged, and `new --shape 2` still writes shape 2.
+
+### Changed
+
+- Readers follow shape 3: `tidy-work` treats each `handoffs/archive/<chain>/` directory as an `archive` item kept while a handoff of its chain is kept and removed with the last one; `find-handoff` rung 1 accepts or rejects a shape-3 candidate by its `repo:` before any transcript scan; `reanchor` checks a shape-3 chain's goal with `validate` instead of opening every link; `continue-in-background` counts the hop files as save-point files in its dirty-tree gate.
+
+- Update session-flow before resuming a shape-3 chain: an older `save_point.py` refuses to validate (exit 3) or build on a shape-3 file.
+- `hop_chain.py --budget` is calibrated to the audited growth of 6.4 KB per hop, projects a shape-3 chain beside the shape-2 one, and fails when a projected hot file passes the cap by hop 56, the longest audited chain.
+
 ## [1.2.0] - 2026-10-23
 
 ### Added

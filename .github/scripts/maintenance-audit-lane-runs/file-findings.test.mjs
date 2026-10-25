@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { droppedLine, prepareItems, writeDigest } from "./file-findings.mjs";
+import { createBudget } from "./collect.mjs";
+import { droppedLine, listSweepIssues, prepareItems, writeDigest } from "./file-findings.mjs";
 import { planDigest } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 
@@ -51,6 +52,8 @@ test("a finding with any failed claim is dropped before planning", (t) => {
     rmSync(base, { recursive: true, force: true });
     rmSync(dir, { recursive: true, force: true });
   });
+  const units = writeUnits([dUnit()]);
+  t.after(() => rmSync(units, { recursive: true, force: true }));
   mkdirSync(join(dir, "findings-d1"));
   writeFileSync(
     join(dir, "findings-d1", "findings.json"),
@@ -67,10 +70,104 @@ test("a finding with any failed claim is dropped before planning", (t) => {
       ],
     }),
   );
-  const { items, dropped } = prepareItems({ findingsDir: dir, baseDir: base });
+  const { items, dropped } = prepareItems({ findingsDir: dir, unitsDir: units, baseDir: base });
   assert.equal(items.length, 1);
   assert.match(items[0].fingerprint, /^[0-9a-f]{16}$/);
   assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "a.yml:1 quote-not-on-line" }]);
+});
+
+const dUnit = () => ({
+  id: "d1",
+  slice: "D",
+  workflow: ".github/workflows/pr-feedback-dispatch.yml",
+  sampled_success_runs: [{ id: 5, jobs: [{ name: "dispatch" }, { name: "label" }] }],
+});
+const aUnit = () => ({
+  id: "a1",
+  slice: "A",
+  workflow: ".github/workflows/pr-ci.yml",
+  runs: [{ id: 9, failed_jobs: [{ name: "lint" }] }],
+});
+
+function writeUnits(units) {
+  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-units-"));
+  for (const unit of units) writeFileSync(join(dir, `${unit.id}.json`), JSON.stringify(unit));
+  return dir;
+}
+
+// One finding per unit through prepareItems; returns what survived and what was dropped.
+function prepareOne(t, unitData, over) {
+  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  writeFileSync(join(base, "a.yml"), "if: true\n");
+  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const units = writeUnits([unitData]);
+  t.after(() => {
+    for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
+  });
+  mkdirSync(join(dir, `findings-${unitData.id}`));
+  writeFileSync(
+    join(dir, `findings-${unitData.id}`, "findings.json"),
+    JSON.stringify({ unit: unitData.id, findings: [finding(over)] }),
+  );
+  return prepareItems({ findingsDir: dir, unitsDir: units, baseDir: base });
+}
+
+test("a finding naming another workflow than its unit's is dropped", (t) => {
+  const { items, dropped } = prepareOne(t, dUnit(), { workflow: ".github/workflows/pr-other.yml" });
+  assert.equal(items.length, 0);
+  assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "workflow-not-unit" }]);
+});
+
+test("a finding naming a job absent from its unit is dropped", (t) => {
+  const { items, dropped } = prepareOne(t, dUnit(), { job: "deploy" });
+  assert.equal(items.length, 0);
+  assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "job-not-in-unit" }]);
+});
+
+test("a finding naming a slice other than its unit's is dropped", (t) => {
+  const { items, dropped } = prepareOne(t, aUnit(), { slice: "C", workflow: ".github/workflows/pr-ci.yml", job: "lint" });
+  assert.equal(items.length, 0);
+  assert.deepEqual(dropped, [{ unit: "a1", title: finding().title, reason: "slice-not-unit" }]);
+});
+
+test("a finding that matches its unit's workflow and job passes", (t) => {
+  const d = prepareOne(t, dUnit(), { job: "label" });
+  assert.equal(d.items.length, 1);
+  assert.deepEqual(d.dropped, []);
+  const a = prepareOne(t, aUnit(), { slice: "A", workflow: ".github/workflows/pr-ci.yml", job: "lint" });
+  assert.equal(a.items.length, 1);
+  assert.deepEqual(a.dropped, []);
+});
+
+test("a unit whose data lists no jobs binds the workflow but not the job", (t) => {
+  const noGreen = { ...dUnit(), sampled_success_runs: [] };
+  const d = prepareOne(t, noGreen, { job: "anything" });
+  assert.equal(d.items.length, 1);
+  assert.deepEqual(d.dropped, []);
+  const other = prepareOne(t, noGreen, { workflow: ".github/workflows/pr-other.yml" });
+  assert.deepEqual(other.dropped, [{ unit: "d1", title: finding().title, reason: "workflow-not-unit" }]);
+  const a = prepareOne(t, { ...aUnit(), runs: [{ id: 9, failed_jobs: [] }] }, {
+    slice: "A",
+    workflow: ".github/workflows/pr-ci.yml",
+    job: "build",
+  });
+  assert.equal(a.items.length, 1);
+  assert.deepEqual(a.dropped, []);
+});
+
+test("a finding whose unit file is missing is dropped", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  writeFileSync(join(base, "a.yml"), "if: true\n");
+  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const units = writeUnits([]);
+  t.after(() => {
+    for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
+  });
+  mkdirSync(join(dir, "findings-d1"));
+  writeFileSync(join(dir, "findings-d1", "findings.json"), JSON.stringify({ unit: "d1", findings: [finding()] }));
+  const { items, dropped } = prepareItems({ findingsDir: dir, unitsDir: units, baseDir: base });
+  assert.equal(items.length, 0);
+  assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "unit-unreadable" }]);
 });
 
 test("a dropped line renders the title and reason inert on one line", () => {
@@ -228,4 +325,34 @@ test("a failed filing is recorded", async () => {
   const plan = planDigest({ items: [{ fingerprint: FP, finding: finding() }], existing: [], openNumbers: new Set() });
   const result = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
   assert.deepEqual(result, { ...nothing, failed: [{ target: "digest", error: "POST /repos/o/r/issues: HTTP 422" }] });
+});
+
+// Only the sweep's own issues can be adopted as the digest or rewritten: the
+// listing names github-actions[bot] as creator, and a body the sweep did not
+// write is dropped.
+test("listSweepIssues lists only github-actions[bot]'s digest and finding issues, at most ten pages", async () => {
+  const paths = [];
+  const digest = { number: 1, body: "<!-- lane-sweep-digest -->\nx" };
+  const call = async (method, path) => {
+    paths.push(path);
+    return [digest, { number: 2, body: "unrelated" }, { number: 3, pull_request: {}, body: digest.body }, ...Array.from({ length: 97 }, (_, i) => ({ number: 10 + i, body: "y" }))];
+  };
+  assert.deepEqual((await listSweepIssues({ call, repo: "o/r" })).map((i) => i.number), Array(10).fill(1));
+  assert.equal(paths.length, 10);
+  for (const path of paths) assert.equal(new URL(path, "https://x").searchParams.get("creator"), "github-actions[bot]");
+});
+
+// The 50-call budget is a hard stop: spend() throws before the request, and
+// the throw ends the write before the PATCH that carries the new state.
+test("a budget spent mid-rewrite stops before the PATCH and reports the failure", async () => {
+  const s = store([{ number: 100, state: "open", state_reason: null, labels: [], body: "" }]);
+  const budget = createBudget(1);
+  const call = async (...args) => {
+    budget.spend();
+    return s.call(...args);
+  };
+  const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
+  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", wait: async () => {} });
+  assert.deepEqual(done.failed, [{ target: "#100", error: "call budget of 1 reached" }]);
+  assert.deepEqual(s.calls.map(([m]) => m), ["POST"], "no DELETE, no PATCH");
 });
