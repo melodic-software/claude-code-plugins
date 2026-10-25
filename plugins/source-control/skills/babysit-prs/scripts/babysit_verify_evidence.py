@@ -1129,11 +1129,16 @@ class Reader:
         return app_id if type(app_id) is int else None
 
     def _task_list(self) -> str | None:
-        """Admission's `task-list` at the branch, as resolve-pr.mjs reads it
-        from main's checkout, shared by the run's gate processes; None when
-        the rules hold no string there. A failed read raises `_Unreadable`."""
-        key = f"{self.repo}@{self.branch}"
+        """Admission's `task-list` at the repository's default branch, as
+        resolve-pr.mjs reads it from main's checkout whatever the pull
+        request's base, shared by the run's gate processes; None when the
+        rules hold no string there. A failed read raises `_Unreadable`."""
         if not self._task_list_read:
+            try:
+                default = merge_policy._default_branch(self.repo, shared=True)
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+            key = f"{self.repo}@{default}"
             shared = run_cache.get_dated("task-list", key, run_cache.MAX_AGE)
             if shared is not None:
                 self._task_list_value, at = shared
@@ -1145,7 +1150,7 @@ class Reader:
                             "api",
                             "-H",
                             "Accept: application/vnd.github.raw",
-                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={self.branch}",
+                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={default}",
                         ],
                         "admission rules",
                     )

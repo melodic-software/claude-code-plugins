@@ -196,8 +196,8 @@ jobs:
       # cost or a CRITICAL security finding; hold-paths names the files the
       # prompt sends to extra security scrutiny and never holds by itself.
       # Keep both lists equal in the two callers. ci-status's exempt-author
-      # hold_patterns mirror them, except the security review's own files,
-      # which are scrutiny only.
+      # hold_patterns name the same paths less the security review's own
+      # files, which are scrutiny only.
       hold-label: needs-human
       hold-paths: |
         .github/standards/trusted-actors/**

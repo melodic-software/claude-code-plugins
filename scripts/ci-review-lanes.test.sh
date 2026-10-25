@@ -96,16 +96,19 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   fi
 done
 
-# The exempt-author patterns are the callers' hold-paths in bash form: `**/X`
-# is X or */X, a trailing `**` is `*`. The security review's own files are
-# scrutiny only: an exempt author changing them still passes.
-want_patterns="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$ROOT/.github/workflows/pr-review-hosted.yml" |
-  grep -v '^plugins/review/' | sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
+# An exempt author's pull request, which no review lane reads, still fails on
+# the trust-gate paths in bash form: `**/X` is X or */X, a trailing `**` is
+# `*`. The security review's own files in hold-paths are scrutiny only.
+want_patterns="$(printf '%s\n' '.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' \
+  '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' \
+  '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/workflows/pr-require-checks.yml' \
+  'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'docs/conventions/pr-pipeline.yaml' \
+  CODEOWNERS '*/CODEOWNERS' .gitmodules '*/.gitmodules' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
-  ok "the exempt-author hold patterns are the callers' hold-paths"
+  ok "the exempt-author hold patterns are the trust-gate paths"
 else
-  fail "exempt-author hold patterns '$got_patterns' are not the callers' hold-paths '$want_patterns'"
+  fail "exempt-author hold patterns '$got_patterns' are not the trust-gate paths '$want_patterns'"
 fi
 
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
