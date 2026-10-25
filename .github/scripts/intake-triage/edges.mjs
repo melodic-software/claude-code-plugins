@@ -8,7 +8,8 @@
 // Each named issue gets an edge on the triaged issue only when it is an open
 // issue in this repository, not a pull request and not the issue itself, and
 // the edge is not there yet. The POST body's `issue_id` is the blocker's REST
-// `id`, read from the blocker itself.
+// `id`, read from the blocker itself. GitHub answering 403, 429 or 5xx on a
+// read or write for an edge leaves that edge missed, not the run stopped.
 import { GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const BLOCKED_BY = "Blocked by";
@@ -36,13 +37,21 @@ export function parseBlockedBy(lines) {
 }
 
 const here = (url, repository) => String(url ?? "").endsWith(`/repos/${repository}`);
+// A refusal (a missing permission or a rate limit) or a server error.
+const unwritable = (error) => error instanceof GitHubError && (error.status === 403 || error.status === 429 || error.status >= 500);
 
-// Writes the edges; returns {written, skipped: [{number, why}]}. An API error
-// other than a missing blocker or a refused edge stops it.
+// Writes the edges; returns {written, skipped: [{number, why}], missed:
+// [{number, status}]}. Any other API error stops it.
 export async function writeEdges({ github, repository, number, blockers }) {
   const base = `/repos/${repository}/issues/${number}`;
-  const result = { written: [], skipped: [] };
+  const result = { written: [], skipped: [], missed: [] };
   const skip = (blocker, why) => result.skipped.push({ number: blocker, why });
+  const miss = (blocker, error) => {
+    if (!unwritable(error)) {
+      throw error;
+    }
+    result.missed.push({ number: blocker, status: error.status });
+  };
   const wanted = blockers.filter((blocker) => blocker !== number);
   if (wanted.length < blockers.length) {
     skip(number, "the issue itself");
@@ -50,7 +59,19 @@ export async function writeEdges({ github, repository, number, blockers }) {
   if (wanted.length === 0) {
     return result;
   }
-  const existing = new Set((await paginate(github, `${base}/dependencies/blocked_by`)).map((issue) => issue?.number));
+  let existing;
+  try {
+    existing = new Set((await paginate(github, `${base}/dependencies/blocked_by`)).map((issue) => issue?.number));
+  } catch (error) {
+    for (const [index, blocker] of wanted.entries()) {
+      if (index < MAX_EDGES) {
+        miss(blocker, error);
+      } else {
+        skip(blocker, `past the first ${MAX_EDGES}`);
+      }
+    }
+    return result;
+  }
   for (const [index, blocker] of wanted.entries()) {
     if (index >= MAX_EDGES) {
       skip(blocker, `past the first ${MAX_EDGES}`);
@@ -66,9 +87,10 @@ export async function writeEdges({ github, repository, number, blockers }) {
     } catch (error) {
       if (error instanceof GitHubError && (error.status === 404 || error.status === 410)) {
         skip(blocker, "no such issue");
-        continue;
+      } else {
+        miss(blocker, error);
       }
-      throw error;
+      continue;
     }
     if (issue?.pull_request) {
       skip(blocker, "a pull request");
@@ -85,9 +107,9 @@ export async function writeEdges({ github, repository, number, blockers }) {
       } catch (error) {
         if (error instanceof GitHubError && error.status === 422) {
           skip(blocker, "GitHub refused the edge");
-          continue;
+        } else {
+          miss(blocker, error);
         }
-        throw error;
       }
     }
   }

@@ -40,7 +40,9 @@
 // that is not one of the repository's work-class labels is not applied. When
 // it applied a class it rewrites the comment's "a maintainer confirms" lines.
 // It writes a native blocked-by edge for each open issue of this repository
-// the verdict names, then on `status: ready` hands the verdict to admit.mjs,
+// the verdict names; an edge GitHub answers 403, 429 or 5xx for is missed,
+// named in the summary and an annotation, and holds nothing (a 403 also fails
+// the job after every write). Then on `status: ready` it hands the verdict to admit.mjs,
 // which adds `agent-ready` when the admission rules, the blockers and the caps
 // allow. Otherwise, when a done-when item is one the lane cannot perform,
 // admit.mjs's noteUnrunnable posts the split it recommends. An option GitHub
@@ -456,8 +458,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       );
     }
   }
-  // Before any label: a failed edge write leaves the labels as they were,
-  // never `status: ready` without admission. A re-run skips edges written.
+  // Before any label, so admission reads them. A missed edge holds nothing:
+  // it is named in the summary, and a re-run skips the edges written.
   const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
   // A held verdict's reasons comment goes before its labels, so a hold never
   // lands without the record of whether it was flagged (earlierFlags): when
@@ -532,7 +534,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     ...(reasonsError ? [`- Reasons comment: not written (${reasonsError})`] : []),
   ].join("\n");
   log(summary);
-  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, summary };
+  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, missed: edges?.missed ?? [], summary };
 }
 
 async function removeLabels(github, base, names) {
@@ -551,8 +553,26 @@ const edgeSummary = (edges, problem) =>
   [
     ...(edges?.written.length ? [`${edges.written.map((n) => `#${n}`).join(", ")} written`] : []),
     ...(edges?.skipped ?? []).map(({ number, why }) => `#${number} skipped (${why})`),
+    ...missedEdges(edges?.missed ?? []),
     ...(problem ? [problem] : []),
   ].join("; ");
+
+const missedEdges = (missed) => missed.map(({ number, status }) => `#${number} not written (GitHub answered ${status})`);
+
+// The annotation for missed edges, or null. A 403 is a missing permission,
+// which no re-run fixes, or a rate limit: it fails the job, after every write.
+export function missedAnnotation(missed = []) {
+  if (missed.length === 0) {
+    return null;
+  }
+  const edges = missedEdges(missed).join("; ");
+  return missed.some(({ status }) => status === 403)
+    ? {
+        fail: true,
+        line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; the lanes App may lack the issues dependencies permission, or a rate limit answered. The verdict's labels are written`,
+      }
+    : { fail: false, line: `::warning title=apply-verdict::blocked-by edges not written: ${edges}; a re-run writes them` };
+}
 
 // Where a ready verdict leaves the issue after admission, when admission
 // moved it off `status: ready` or did not finish; null when it stays ready.
@@ -659,6 +679,13 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       });
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
+      }
+      const missed = missedAnnotation(result.missed);
+      if (missed) {
+        console.log(missed.line);
+        if (missed.fail) {
+          process.exitCode = 1;
+        }
       }
       if (result.admission?.outcome === "error") {
         console.log(`::error title=apply-verdict::admission failed: ${result.admission.reasons[0].replaceAll(/[\r\n%]/g, " ")}`);

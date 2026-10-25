@@ -7,6 +7,7 @@ import {
   checkActors,
   earlierFlags,
   MARKER,
+  missedAnnotation,
   NEEDS_DECISION,
   NEW_BASIS,
   NEW_FOOTER,
@@ -1290,21 +1291,52 @@ describe("run", () => {
     assert.ok(result.summary.includes("- Blocked by: #12 written; #13 skipped (not open)"), result.summary);
   });
 
-  test("an edge write that fails leaves the issue's labels as they were", async () => {
-    const fake = fakeGitHub({
-      comments: [
-        laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12"] })),
-      ],
-      blockers: { 12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" } },
+  for (const status of [403, 429, 500]) {
+    test(`a ${status} on an edge write misses the edge; the labels and admission still follow`, async () => {
+      const fake = fakeGitHub({
+        comments: [
+          laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12"] })),
+        ],
+        blockers: { 12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" } },
+      });
+      const github = async (method, path, body) => {
+        if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
+          throw new GitHubError(status, "POST");
+        }
+        return fake.github(method, path, body);
+      };
+      let admitted = false;
+      const result = await run({
+        env: ENV,
+        github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          admitted = true;
+          return { outcome: "waiting", reasons: [] };
+        },
+        log: () => {},
+      });
+      assert.deepEqual(result.missed, [{ number: 12, status }]);
+      assert.ok(fake.calls.some(({ method, path, body }) => method === "POST" && path.endsWith("/labels") && body.labels.includes(READY)));
+      assert.ok(admitted);
+      assert.ok(result.summary.includes(`- Blocked by: #12 not written (GitHub answered ${status})`), result.summary);
     });
-    const github = async (method, path, body) => {
-      if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
-        throw new GitHubError(500, "POST");
-      }
-      return fake.github(method, path, body);
-    };
-    await assert.rejects(run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} }));
-    assert.ok(!fake.calls.some(({ method, path }) => method !== "GET" && path.includes("/labels")));
+  }
+
+  test("a missed edge is an error that fails the job on a 403, else a warning", () => {
+    assert.equal(missedAnnotation([]), null);
+    assert.equal(missedAnnotation(undefined), null, "a skipped or stopped run carries no missed list");
+    assert.deepEqual(missedAnnotation([{ number: 12, status: 502 }]), {
+      fail: false,
+      line: "::warning title=apply-verdict::blocked-by edges not written: #12 not written (GitHub answered 502); a re-run writes them",
+    });
+    const forbidden = missedAnnotation([
+      { number: 12, status: 502 },
+      { number: 13, status: 403 },
+    ]);
+    assert.equal(forbidden.fail, true);
+    assert.match(forbidden.line, /^::error title=apply-verdict::blocked-by edges not written: #12 not written \(GitHub answered 502\); #13 not written \(GitHub answered 403\);/);
   });
 
   test("an escalated verdict writes no edge", async () => {
