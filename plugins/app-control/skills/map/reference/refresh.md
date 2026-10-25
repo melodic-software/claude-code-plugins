@@ -192,8 +192,9 @@ A conversion is doc work and rides the same upkeep pull request as the pass's ot
 - **Target.** A legacy testing-format map converts into `.claude/skills/control-<app slug>/`, the
   slug from its `Application` name (only the part before any `, built from` clause) through the
   slug rule in [naming.md](naming.md#slug-rule). When that directory already holds a `SKILL.md`,
-  the outcome is **blocked**: refresh never merges two maps; the report names both. A flat `features/<id>.md` converts in place to
-  `features/<id>/README.md`.
+  the outcome is **blocked**: refresh never merges two maps; the report names both. A flat
+  `features/<id>.md` converts in place to `features/<id>/README.md`, with its hub index line
+  updated to the new path.
 - **Hub.** `Application` becomes the App line, `Driver` the driving tool (with `Attended runs
   only.` when it was there), `Launch` the `## Launch` pointer, `Doctor` the `## Ready` command
   (keeping `build: not exposed`), and `Features` the index in the contract's line form, with the

@@ -180,7 +180,9 @@ conversion moves out of.
 5. **Live pass** of every feature through `/app-control:drive`: Ready before the first drive and
    after any failed one, cleanup after each drive, and every evidence path checked after cleanup.
 6. **Triage** each difference as doc drift, driver gap or product regression. Regressions go to the
-   report or `/bugs:write`, never into the pull request. Nothing to ship: clean, recorded with
+   report or `/bugs:write`, never into the pull request. A driver gap's `cli/` fix ships only after a
+   live re-drive passes, and attended only; unattended, the fix goes in the report unwritten and
+   nothing is driven again. Nothing to ship: clean, recorded with
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" record --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    Otherwise commit on `control-skill-upkeep/control-<slug>`, named for the control skill's
    directory, from the default branch, merged into and never rebased; open or update one pull
