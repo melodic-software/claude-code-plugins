@@ -325,9 +325,8 @@ out of scope until such a signal exists.
   checkout ignores, not the destination repo). The path ALLOWLIST is the same
   list, asked of the repo-relative path: an `.env.example` or a test fixture
   tree is the same false positive whichever route writes it.
-  `hardcoded-path-check` still resolves its scan root, which is the most
-  valuable half of the lane: it catches this machine's own checkout path
-  appearing verbatim in content being pushed.
+  `hardcoded-path-check` still resolves its scan root, so it catches this
+  machine's own checkout path appearing verbatim in content being pushed.
 - **`flag-commit-pr-skill-bypass` is a nudge, not a gate.** Detection is a
   literal-stripped top-level regex match, not a full argv-grammar parser. It
   does not evaluate shell variable / command substitution, and a determined
