@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.5] - 2026-10-25
+
+### Fixed
+
+- `triage`'s board steps say what to do when the board watcher exits 4 after its run of empty waits: re-arm it with the command it prints while triage is still going.
+
 ## [3.4.4] - 2026-10-25
 
 ### Fixed

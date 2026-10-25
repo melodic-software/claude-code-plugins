@@ -24,27 +24,6 @@
     "toolchain:check",
     "session-flow:check"
   ],
-  "competitor_dirs": {
-    "harness-ops:audit-install-state": "plugins/harness-ops/skills/audit-install-state",
-    "harness-ops:audit-native-overlap": "plugins/harness-ops/skills/audit-native-overlap",
-    "harness-ops:audit-performance": "plugins/harness-ops/skills/audit-performance",
-    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
-    "harness-ops:behavior-probes": "plugins/harness-ops/skills/behavior-probes",
-    "harness-ops:changelog": "plugins/harness-ops/skills/changelog",
-    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
-    "harness-ops:known-issues": "plugins/harness-ops/skills/known-issues",
-    "harness-ops:lanes": "plugins/harness-ops/skills/lanes",
-    "harness-ops:machine-profile": "plugins/harness-ops/skills/machine-profile",
-    "harness-ops:morning-brief": "plugins/harness-ops/skills/morning-brief",
-    "harness-ops:observability": "plugins/harness-ops/skills/observability",
-    "harness-ops:plugins": "plugins/harness-ops/skills/plugins",
-    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites",
-    "harness-ops:setup": "plugins/harness-ops/skills/setup",
-    "disk-hygiene:clean": "plugins/disk-hygiene/skills/clean",
-    "harness-config:audit": "plugins/harness-config/skills/audit",
-    "toolchain:check": "plugins/toolchain/skills/check",
-    "session-flow:check": "plugins/session-flow/skills/check"
-  },
   "queries": [
     {
       "id": "pos-train-01",

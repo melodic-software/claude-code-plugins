@@ -7,10 +7,6 @@
     "education:explain",
     "education:illustrate"
   ],
-  "competitor_dirs": {
-    "education:explain": "plugins/education/skills/explain",
-    "education:illustrate": "plugins/education/skills/illustrate"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -9,12 +9,6 @@
     "multi-agent:audit-defaults",
     "harness-config:audit"
   ],
-  "competitor_dirs": {
-    "multi-agent:setup": "plugins/multi-agent/skills/setup",
-    "multi-agent:assess": "plugins/multi-agent/skills/assess",
-    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults",
-    "harness-config:audit": "plugins/harness-config/skills/audit"
-  },
   "queries": [
     {
       "id": "pos-train-01",

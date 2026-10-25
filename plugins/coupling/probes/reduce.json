@@ -4,7 +4,6 @@
   "skill_dir": "plugins/coupling/skills/reduce",
   "ranking_note": "Authored blind from the before description at commit fab13854328f, frozen before any description rewrite; protocol per /playbooks:skill-authoring ## Measurement. reduce is the plugin's only skill, so there is no same-plugin competitor; the near-miss negatives test quietness against the Skip-when routes.",
   "competitors": [],
-  "competitor_dirs": {},
   "queries": [
     {
       "id": "pos-train-01",

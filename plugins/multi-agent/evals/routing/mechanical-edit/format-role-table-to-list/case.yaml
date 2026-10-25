@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: format-role-table-to-list
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'list-exact'
+    type: 'regex'
+    pattern: '^## Role defaults\n+- `orchestrator`: inherit @ high\n- `worker`: inherit @ medium\n- `verifier`: inherit @ high\n- `retrieval`: sonnet @ medium\n+## Workloads$'
+    flags: 'm'
+    target: { source: file, path: plugins/multi-agent/reference/roles.md }
+  - name: 'role-table-gone'
+    type: 'regex'
+    pattern: '^\|[ \t]*(?:Role|orchestrator|worker|verifier|retrieval)[ \t]*\|'
+    flags: 'm'
+    match: 'not_contains'
+    target: { source: file, path: plugins/multi-agent/reference/roles.md }
+  - name: 'intro-kept'
+    type: 'regex'
+    pattern: '^# Roles\n\nEach role''s bundled default\. A consumer layer overrides per key\.\n\n## Role defaults$'
+    flags: 'm'
+    target: { source: file, path: plugins/multi-agent/reference/roles.md }
+  - name: 'workloads-kept'
+    type: 'regex'
+    pattern: '^## Workloads\n\n\| Workload \| Declared \|\n\|---\|---\|\n\| code \| true \|\n\| research \| true \|\n\| mechanical \| true \|$'
+    flags: 'm'
+    target: { source: file, path: plugins/multi-agent/reference/roles.md }

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "[the routing rubric](../../reference/routing/rubric.md#the-rule).\n",
+      "why": "only the new path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "[the routing rubric](../../reference/routing-rubric.md#the-rule).\n",
+      "why": "old link left"
+    }
+  ]
+}

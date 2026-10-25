@@ -10,13 +10,6 @@
     "harness-ops:check",
     "harness-ops:prerequisites"
   ],
-  "competitor_dirs": {
-    "session-flow:running-retro": "plugins/session-flow/skills/running-retro",
-    "session-flow:orient": "plugins/session-flow/skills/orient",
-    "autonomy:check": "plugins/autonomy/skills/check",
-    "harness-ops:check": "plugins/harness-ops/skills/check",
-    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites"
-  },
   "queries": [
     {
       "id": "pos-train-01",
