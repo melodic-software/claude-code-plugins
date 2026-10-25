@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [1.4.4] - 2026-10-25
+
+### Changed
+
+- The handoff skill's phase-boundary owner record cites `/implementation:implement-dispatch` by its slash invocation instead of by a path into the implementation plugin's `skills/` folder.
+
 ## [1.4.3] - 2026-10-25
 
 ### Changed
