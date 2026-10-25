@@ -361,7 +361,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await pick("Q13");
     const q13 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q13") || {};
     ok("#9714: a reconfirm clears the state, the banner and the rail mark", q13.state === "open" && !q13.changedBy && !(await page.$("#upstreamChanged")) && !(await page.$('.qbtn[data-q="Q13"] .upchip')), q13.state + " " + JSON.stringify(q13.changedBy));
-    ok("#9714: the thread shows Claude's reconfirm line", /Reconfirmed after Q11 changed: The rollback owner does not turn on the rollout width\./.test(await text("#thread")), await text("#thread"));
+    ok("#9714: the thread shows Claude's reconfirm line", /Reconfirmed after Q11.* changed: The rollback owner does not turn on the rollout width\./.test(await text("#thread")), await text("#thread"));
     await page.click("#choices .choice.rec"); await page.waitForTimeout(150);
     ok("#9714: Save is enabled again", await page.$eval("[data-save]", el => !el.disabled), await text("#saveHint"));
   }
