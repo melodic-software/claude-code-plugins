@@ -256,6 +256,31 @@ test("a GET that keeps answering 503 returns the fourth 503", async () => {
   assert.equal(gh.sent.length, 4);
 });
 
+test("a GraphQL query answered 502 is sent again; a GraphQL mutation answered 502 is returned at once", async () => {
+  const graphql = "https://api.example/graphql";
+  const query = github([{ status: 502 }, { status: 200, body: '{"data":{}}', headers: rate(4000, "graphql") }]);
+  const time = clock(RESET - 3000);
+  const reads = budgeted({ fetch: query.fetch, log: () => {}, random: () => 0, ...time });
+  const body = JSON.stringify({ query: "query($n: Int!) { viewer { login } }", variables: { n: 1 } });
+  assert.equal((await reads.fetch(graphql, { method: "POST", headers: {}, body })).status, 200);
+  assert.equal(query.sent.length, 2);
+  assert.deepEqual(time.slept, [1000]);
+
+  const mutation = github([{ status: 502 }, { status: 200 }]);
+  const writes = budgeted({ fetch: mutation.fetch, log: () => {}, random: () => 0, ...clock(RESET - 3000) });
+  const write = JSON.stringify({ query: "  mutation { addComment(input: {}) { clientMutationId } }" });
+  assert.equal((await writes.fetch(graphql, { method: "POST", headers: {}, body: write })).status, 502);
+  assert.equal(mutation.sent.length, 1);
+
+  // A mutation behind a comment or a fragment definition is sent once too.
+  for (const document of ["# arm it\nmutation { a }", "fragment F on PullRequest { id }\nmutation { a { ...F } }"]) {
+    const gh = github([{ status: 502 }, { status: 200 }]);
+    const budget = budgeted({ fetch: gh.fetch, log: () => {}, random: () => 0, ...clock(RESET - 3000) });
+    assert.equal((await budget.fetch(graphql, { method: "POST", headers: {}, body: JSON.stringify({ query: document }) })).status, 502);
+    assert.equal(gh.sent.length, 1, document);
+  }
+});
+
 test("a POST answered 500 is returned at once", async () => {
   const gh = github([{ status: 500 }]);
   const time = clock(RESET - 3000);

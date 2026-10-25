@@ -310,10 +310,21 @@ test("an awaiting-human skip left while the PR was held does not hold it once th
 test("a hold that cannot be read counts as a failed dispatch", async () => {
   const api = fakeApi({ pages: [[pr(1, humanGated)]] });
   api.listTimeline = async () => {
-    throw new Error("GET timeline returned 502");
+    throw Object.assign(new Error("GET timeline returned 404"), { status: 404 });
   };
   const result = await dispatchCiFixes({ api, runId: "1", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
   assert.deepEqual(result, { dispatched: [], failed: 1 });
+});
+
+test("a hold read GitHub still answers 5xx after its retries skips that PR with a warning and fails nothing", async () => {
+  const api = fakeApi({ pages: [[pr(1, humanGated), pr(2)]] });
+  api.listTimeline = async () => {
+    throw Object.assign(new Error("GET timeline returned 502"), { status: 502 });
+  };
+  const lines = [];
+  const result = await dispatchCiFixes({ api, runId: "1", log: (line) => lines.push(line), appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 2, workflowRunId: "7002" }], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#1:") && line.includes("502")));
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {

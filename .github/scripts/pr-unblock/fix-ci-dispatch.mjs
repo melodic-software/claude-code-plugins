@@ -32,6 +32,7 @@
 import { AGGREGATE_JOBS, FAILED, infraCause, infraOnly, RERUN_DUE_MINUTES, reconcilerOwns, reconcilerRetries, stepsKnown, stepsUnread } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { prHold } from "./gate-source.mjs";
+import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -397,6 +398,10 @@ export async function dispatchCiFixes({
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
       continue;

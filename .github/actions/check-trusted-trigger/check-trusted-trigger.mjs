@@ -89,7 +89,7 @@ export class GitHubError extends Error {
   }
 }
 
-// Wraps a fetch so a GET attempt is aborted after attemptTimeoutMs, and a GET
+// Wraps a fetch so a GET attempt is aborted after attemptTimeoutMs, and a read
 // that GitHub answers 5xx, answers 200 with an empty body or with JSON that
 // does not parse, or that fails on the network (a timeout, "fetch failed", an
 // error with a cause code) is sent again after 2 s, 4 s and 8 s, each with
@@ -98,7 +98,9 @@ export class GitHubError extends Error {
 // wait past the cap is not taken. With 20 s attempts, retrying adds at most
 // about 80 s to a client, inside the shortest step that runs one (3 minutes,
 // pr-merge.yml's gate-check and clear-escalations). The last answer is
-// returned, or the last error thrown. Only GETs are idempotent; a 4xx is the
+// returned, or the last error thrown. Only a GET and a GraphQL query (a POST
+// to /graphql whose document starts with `query` or `{`; anything else, a
+// mutation among it, is sent once) are idempotent; a 4xx is the
 // caller's to handle, a rate limit is the rate guard's (rate-guard.mjs), whose
 // latch refuses any attempt while its pool is stopped, and any other
 // thrown error is raised at once. A retry line names an error's name and cause
@@ -107,6 +109,17 @@ export class GitHubError extends Error {
 const SERVER_RETRY_DELAYS_MS = [2000, 4000, 8000];
 const SERVER_RETRY_BUDGET_MS = 60_000;
 const ATTEMPT_TIMEOUT_MS = 20_000;
+const graphqlQuery = (url, init) => {
+  if (!String(url).endsWith("/graphql") || typeof init.body !== "string") {
+    return false;
+  }
+  try {
+    const query = JSON.parse(init.body)?.query;
+    return typeof query === "string" && /^\s*(query\b|\{)/.test(query);
+  } catch {
+    return false;
+  }
+};
 const networkFailure = (error) =>
   error?.name === "TimeoutError" ||
   error?.name === "AbortError" ||
@@ -151,6 +164,7 @@ export function retryServerErrors(
   let spent = 0;
   return async function send(url, init = {}) {
     const method = init.method ?? "GET";
+    const idempotent = method === "GET" || (method === "POST" && graphqlQuery(url, init));
     for (let attempt = 0; ; attempt += 1) {
       // Only a GET is timed out: a write GitHub accepted slowly must not look
       // failed, so writes keep only the caller's signal.
@@ -170,7 +184,7 @@ export function retryServerErrors(
       spent += failed ? now() - started : 0;
       const delay = SERVER_RETRY_DELAYS_MS[attempt];
       const wait = delay === undefined ? 0 : Math.round(delay / 2 + (random() * delay) / 2);
-      if (!failed || method !== "GET" || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
+      if (!failed || !idempotent || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
         if (error !== undefined) {
           throw error;
         }
@@ -183,7 +197,7 @@ export function retryServerErrors(
           : broken
             ? `answered ${response.status} with an empty or unparsable body`
             : `answered ${response.status}`;
-      log(`::warning::GET ${url} ${what}; sending it again in ${wait} ms (retry ${attempt + 1} of ${SERVER_RETRY_DELAYS_MS.length})`);
+      log(`::warning::${method} ${url} ${what}; sending it again in ${wait} ms (retry ${attempt + 1} of ${SERVER_RETRY_DELAYS_MS.length})`);
       spent += wait;
       await sleep(wait);
     }
@@ -192,7 +206,7 @@ export function retryServerErrors(
 
 // One function every API read and write goes through; tests replace it.
 // keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
-// judge, instead of raising on any. A GET answered 5xx is sent again
+// judge, instead of raising on any. A read answered 5xx is sent again
 // (retryServerErrors). A call while the rate guard's latch holds its pool
 // throws RateLimitStop without a request.
 export function createGitHub({
