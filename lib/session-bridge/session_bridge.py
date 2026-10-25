@@ -714,8 +714,11 @@ def interpreter():
     return sys.executable
 
 
-def spawn(cmd):
+def spawn(cmd, stderr=None):
     """Start cmd apart from this process: no inherited stdio, own session or process group.
+
+    `stderr` is an open binary file the child writes its stderr to (default: discarded). The
+    caller keeps its own handle.
 
     On Windows the child gets a console with no window (CREATE_NO_WINDOW), never
     DETACHED_PROCESS: a detached launcher's console child would allocate a new, visible one.
@@ -723,7 +726,7 @@ def spawn(cmd):
     kw = {
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL if stderr is None else stderr,
         "close_fds": True,
     }
     if os.name != "nt":
@@ -735,6 +738,29 @@ def spawn(cmd):
         )
     except OSError:  # the job this process runs in forbids breakaway
         return subprocess.Popen(cmd, creationflags=flags, **kw)
+
+
+def server_log(d, name):
+    """The file a spawned server's stderr goes to, in the data dir."""
+    return d / f".{name}-server.log"
+
+
+def open_server_log(d, name):
+    """The server log, emptied and open for the child's stderr (created 0600 on POSIX)."""
+    fd = os.open(server_log(d, name), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    return os.fdopen(fd, "wb")
+
+
+def log_tail(path, lines=20, limit=4096):
+    """The last `lines` lines (at most `limit` bytes) of a log file, or "" when unreadable."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - limit))
+            data = f.read()
+    except OSError:
+        return ""
+    return "\n".join(data.decode("utf-8", "replace").splitlines()[-lines:])
 
 
 def wait_started(d, name, nonce, proc, seconds):
@@ -789,7 +815,7 @@ def end_watcher(d, pid):
     if not isinstance(pid, int) or pid <= 1 or os.name != "posix":
         return
     try:
-        cmd = (Path("/proc") / str(pid) / "cmdline").read_bytes().replace(b"\0", b" ")
+        cmd = (Path("/proc") / str(pid) / "cmdline").read_bytes()
         text = cmd.decode("utf-8", "replace")
     except OSError:
         try:
@@ -798,7 +824,16 @@ def end_watcher(d, pid):
             ).stdout
         except OSError:
             return
-    if "watch.sh" in text and d.name in text:
+    # Whole arguments, so one topic's path never matches another's that it prefixes.
+    dirs = {str(d), str(Path(d).resolve())}
+    if "\0" in text:
+        args = [a for a in text.split("\0") if a]
+        named = bool(dirs.intersection(args))
+    else:  # ps joins the arguments with spaces: match the path as a delimited run
+        args = text.split()
+        flat = f" {' '.join(args)} "
+        named = any(f" {x} " in flat for x in dirs)
+    if any(a.endswith("watch.sh") for a in args) and named:
         try:
             os.kill(pid, signal.SIGTERM)
         except OSError:

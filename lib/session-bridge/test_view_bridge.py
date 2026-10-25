@@ -350,6 +350,26 @@ class TestLoop(unittest.TestCase):
         self.assertFalse(canary.exists())
         self.assertFalse(sb.ping(session["port"]))
 
+    def test_a_failed_server_start_prints_the_stderr_tail_and_exits_non_zero(self):
+        server = self.bin / "view_bridge.py"
+        text = server.read_text(encoding="utf-8")
+        marker = "def cmd_serve(d, a):\n"
+        self.assertIn(marker, text)
+        server.write_text(
+            text.replace(
+                marker,
+                marker
+                + '    sys.stderr.write("boom: cannot bind the page server\\n")\n'
+                + "    sys.exit(3)\n",
+            ),
+            encoding="utf-8",
+        )
+        r = self.control("ensure-running")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("exited with status 3", r.stderr)
+        self.assertIn("boom: cannot bind the page server", r.stderr)
+        self.assertEqual(r.stdout, "")
+
     def test_the_token_dies_once_no_watcher_listens(self):
         idle = 3
         r = self.control("ensure-running", "--idle-seconds", str(idle))

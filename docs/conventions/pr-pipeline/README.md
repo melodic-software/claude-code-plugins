@@ -1468,7 +1468,8 @@ opened the pull request: a spec written by a trusted human counts, so an adopted
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
-parent's task-list lines (below), so a lane pull request never supplies its own spec.
+parent's task-list lines or those of intake's refinement on it (below), so a lane pull request
+never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -1568,7 +1569,13 @@ head:
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
   admission's `task-list`, "- [ ] " with its trailing space, from
   `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
-  listed human last edited it. On that edited path a line may also be a trusted line with its box
+  listed human last edited it. A header whose third line is
+  `<!-- size-split refinement=<id> updated_at=<time> -->` also allows that refinement comment's
+  task-list lines, never its prose, heading or marker lines, and counts only while that comment is
+  still the lanes App's newest refinement on the parent, never edited, with `updated_at` equal to
+  its `created_at` or to the recorded time, on a parent body a listed human wrote, and last edited
+  if ever; a deleted, edited or superseded refinement leaves it untrusted, whoever edited the
+  sub-issue since. On the edited path a line may also be a trusted line with its box
   ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
   `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
   so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than

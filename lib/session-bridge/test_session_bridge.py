@@ -12,6 +12,7 @@ import json
 import os
 import queue
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -405,6 +406,28 @@ class TestClient(BridgeCase):
             sb.end_watcher(self.dir, None)
         kill.assert_not_called()
 
+    @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "needs POSIX bash")
+    def test_end_watcher_stops_only_the_watcher_of_the_full_data_dir_path(self):
+        # Same last path component in every topic, and one path a prefix of another.
+        topics = [self.tmp / n / "interview-surface" for n in ("a", "b")]
+        topics.append(self.tmp / "a" / "interview-surface-2")
+        procs = []
+        for t in topics:
+            t.mkdir(parents=True)
+            p = subprocess.Popen(
+                ["bash", "-c", "sleep 30; :", str(t.parent / "watch.sh"), str(t)]
+            )
+            self.addCleanup(p.kill)
+            procs.append(p)
+        time.sleep(0.2)
+        sb.end_watcher(topics[0], procs[0].pid)
+        self.assertEqual(procs[0].wait(timeout=5), -signal.SIGTERM)
+        sb.end_watcher(topics[0], procs[1].pid)
+        sb.end_watcher(topics[0], procs[2].pid)
+        time.sleep(0.3)
+        self.assertIsNone(procs[1].poll())
+        self.assertIsNone(procs[2].poll())
+
 
 @unittest.skipUnless(
     shutil.which("curl") and shutil.which("bash"), "needs bash and curl"
@@ -490,6 +513,42 @@ class TestWatcherScripts(BridgeCase):
         r = self.run_script("wake.sh", str(self.dir), env={"TOY_RC": "1"})
         self.assertEqual(r.returncode, 1)
         self.assertEqual(r.stdout, "")
+
+    def after_apply_toy(self):
+        """A conf naming AFTER_APPLY=check and a toy that logs each call, failing `check` on $TOY_AFTER_RC."""
+        (self.bin / "session-bridge.conf").write_text(
+            "NAME=toy\nCONTROL=toy.sh\nAFTER_APPLY=check\n", encoding="utf-8"
+        )
+        (self.bin / "toy.sh").write_text(
+            '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >>"$2/calls"\n'
+            '[[ "$3" == check ]] && exit "${TOY_AFTER_RC:-0}"\nexit "${TOY_RC:-0}"\n',
+            encoding="utf-8",
+        )
+        return [
+            f"--dir {self.dir} apply --file {self.dir}/ops.json",
+            f"--dir {self.dir} check",
+        ]
+
+    def test_wake_runs_the_after_apply_subcommand_then_rearms(self):
+        calls = self.after_apply_toy()
+        self.hub.append("next")
+        r = self.run_script("wake.sh", str(self.dir))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.dir / "calls").read_text().splitlines(), calls)
+        self.assertEqual(json.loads(r.stdout)["events"][0]["text"], "next")
+
+    def test_a_failing_after_apply_subcommand_still_rearms(self):
+        self.after_apply_toy()
+        self.hub.append("next")
+        r = self.run_script("wake.sh", str(self.dir), env={"TOY_AFTER_RC": "1"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["events"][0]["text"], "next")
+
+    def test_a_failed_apply_skips_the_after_apply_subcommand(self):
+        calls = self.after_apply_toy()
+        r = self.run_script("wake.sh", str(self.dir), env={"TOY_RC": "1"})
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual((self.dir / "calls").read_text().splitlines(), calls[:1])
 
     def recording_curl(self):
         """A curl stand-in that logs its argv, then runs the real curl."""
