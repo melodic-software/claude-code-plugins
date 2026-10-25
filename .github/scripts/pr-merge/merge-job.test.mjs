@@ -462,18 +462,44 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
 
 // The stop the check recorded in the job's stop file (babysit_gh.py
 // _record_stop) goes to the next jobs as the rate-limited output, naming the
-// pool and its reset; 1792868400 is 2026-10-24T19:00:00Z.
+// pool and its reset, every line folded by the readers' rule:
+// 4102444800 is 2100-01-01T00:00:00Z, 4102448400 an hour later.
 test("the early check names the stopped pool and its reset in its rate-limited output", () => {
-  const core = runEarlyCheck(75, false, "graphql 1792860000\ncore 1792868400\n");
-  assert.match(core.output, /^rate-limited=the core pool until 2026-10-24T19:00:00Z$/m);
-  assert.match(runEarlyCheck(75, false, "* 1792868400\n").output, /^rate-limited=every pool until 2026-10-24T19:00:00Z$/m);
+  // The later of two pools' stops, whatever the line order.
+  const core = runEarlyCheck(75, false, "core 4102448400\ngraphql 4102444800\ncore 4102444800\n");
+  assert.match(core.output, /^rate-limited=the core pool until 2100-01-01T01:00:00Z$/m);
+  // A * stop wins the name, and the time is the latest stop's.
+  assert.match(runEarlyCheck(75, false, "core 4102448400\n* 4102444800\n").output, /^rate-limited=every pool until 2100-01-01T01:00:00Z$/m);
+  // A CRLF line, a torn last line and a past stop count for nothing.
+  const torn = runEarlyCheck(75, false, "graphql 4102448400\r\ncore 1\nsearch 4102444800\ncore 41024");
+  assert.match(torn.output, /^rate-limited=the search pool until 2100-01-01T00:00:00Z$/m);
   // No readable stop still stops the next jobs.
   assert.match(runEarlyCheck(75).output, /^rate-limited=an unrecorded pool until its reset$/m);
   for (const code of [0, 1, 3]) {
-    assert.doesNotMatch(runEarlyCheck(code, false, "core 1792868400\n").output, /rate-limited=/);
+    assert.doesNotMatch(runEarlyCheck(code, false, "core 4102444800\n").output, /rate-limited=/);
   }
-  const header = `${jobBlock("post-merge-dispatch").split("\n    steps:\n")[0]}\n`;
-  assert.match(header, /\n {4}outputs:\n(?: {6}#.*\n)* {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.dispatch\.outputs\.stop \}\}\n/);
+});
+
+// The label's time is the latest stop api-budget.bash reads for any pool,
+// pinned to every stop_files vector the shell and Node readers share.
+test("the rate-stop label's time is the latest stop of every stop_files vector", () => {
+  const vectors = JSON.parse(readFileSync(join(root, ".github/actions/log-api-budget/rate-guard.vectors.json"), "utf8"));
+  for (const vector of vectors.stop_files) {
+    const dir = mkdtempSync(join(tmpdir(), "pr-merge-stop-label-"));
+    try {
+      mkdirSync(join(dir, "api-budget"));
+      writeFileSync(join(dir, "api-budget", "stop"), vector.text);
+      const script =
+        `. ${join(root, ".github/actions/log-api-budget/api-budget.bash")}\n. ${join(root, ".github/scripts/pr-merge/rate-stop.bash")}\n` +
+        `date() { echo ${vectors.vector_now}; }\nrate_stop_label\n`;
+      const result = spawnSync("bash", ["-c", script], { encoding: "utf8", env: { ...process.env, RUNNER_TEMP: dir } });
+      const times = Object.values(vector.until).filter((t) => t !== null);
+      const want = times.length ? new Date(Math.max(...times) * 1000).toISOString().replace(".000Z", "Z") : "";
+      assert.equal(result.stdout.trim().replace(/^.* until /, ""), want, vector.name);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 // Owner rule: stop calling a pool once rate-limited until reset. The merge
@@ -493,14 +519,122 @@ for (const id of ["merge", "enable-auto-merge"]) {
     });
     assert.equal(result.status, 1);
     assert.match(result.stdout, /^::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit \(the core pool until 2026-10-24T19:00:00Z\); this job sends nothing to GitHub$/m);
-    // Every later step that runs after a failure waits on a step the stop skipped.
-    for (const { name, block } of list.slice(1)) {
-      const condition = /\n {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(block);
-      const text = condition ? (condition[1] ?? condition[2]) : "";
-      if (/always\(\)|!cancelled\(\)|failure\(\)/.test(text)) assert.match(text, /steps\./, name);
+    // With the stop step failed, every later step is skipped: each one's
+    // `if:` is evaluated with the earlier steps skipped and their outputs
+    // empty, for every event the job runs on.
+    for (const event of ["schedule", "workflow_dispatch", "pull_request_target", "workflow_run", "issues"]) {
+      const context = (path) => {
+        if (path === "github.event_name") return event;
+        if (path === "github.ref") return "refs/heads/main";
+        if (path === "needs.post-merge-dispatch.result") return "failure";
+        if (path === "needs.post-merge-dispatch.outputs.rate-limited") return "the core pool until 2100-01-01T00:00:00Z";
+        if (/^steps\.[^.]+\.(outcome|conclusion)$/.test(path)) return "skipped";
+        return "";
+      };
+      assert.equal(stepRuns(first.block, context, "success"), true, `${id} ${event}: the stop step runs`);
+      for (const { name, block } of list.slice(1)) {
+        assert.equal(stepRuns(block, context, "failure"), false, `${id} ${event}: ${name} runs after the stop`);
+      }
     }
   });
 }
+
+// Whether a step runs: its `if:` (no status function means `success() &&`)
+// over GitHub's expression grammar as these jobs use it, with the job's
+// status so far. Context paths resolve through `context`.
+// https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
+function stepRuns(block, context, status) {
+  const match = /\n {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(block);
+  const text = match ? (match[1] ?? match[2]).replace(/\s+/g, " ").trim().replace(/^\$\{\{(.*)\}\}$/, "$1") : "";
+  const value = text ? evaluate(text, context, status) : true;
+  return /\b(always|success|failure|cancelled)\(\)/.test(text) ? truthy(value) : status === "success" && truthy(value);
+}
+const truthy = (v) => v !== false && v !== "" && v !== null && v !== 0 && v !== undefined;
+function evaluate(text, context, status) {
+  const tokens = text.match(/'(?:[^']|'')*'|==|!=|&&|\|\||[!(),]|[A-Za-z_][\w.-]*|\d+/g);
+  let at = 0;
+  const peek = () => tokens[at];
+  const take = (t) => {
+    if (t !== undefined && tokens[at] !== t) throw new Error(`expected ${t} at ${tokens[at]} in ${text}`);
+    return tokens[at++];
+  };
+  const eq = (a, b) => (typeof a === "string" && typeof b === "string" ? a.toLowerCase() === b.toLowerCase() : a === b || String(a ?? "") === String(b ?? ""));
+  const fns = {
+    always: () => true,
+    success: () => status === "success",
+    failure: () => status === "failure",
+    cancelled: () => false,
+    contains: (a, b) => (Array.isArray(a) ? a.some((x) => eq(x, b)) : String(a).toLowerCase().includes(String(b).toLowerCase())),
+    fromJSON: (s) => JSON.parse(s),
+    format: (f, ...args) => f.replace(/\{(\d+)\}/g, (_, i) => String(args[i] ?? "")),
+    startsWith: (a, b) => String(a).toLowerCase().startsWith(String(b).toLowerCase()),
+  };
+  const primary = () => {
+    const t = take();
+    if (t === "!") return !truthy(primary());
+    if (t === "(") {
+      const v = or();
+      take(")");
+      return v;
+    }
+    if (t.startsWith("'")) return t.slice(1, -1).replace(/''/g, "'");
+    if (/^\d+$/.test(t)) return Number(t);
+    if (t === "true" || t === "false") return t === "true";
+    if (peek() === "(") {
+      take("(");
+      const args = [];
+      while (peek() !== ")") {
+        args.push(or());
+        if (peek() === ",") take(",");
+      }
+      take(")");
+      assert.ok(fns[t], `function ${t}`);
+      return fns[t](...args);
+    }
+    return context(t);
+  };
+  const compare = () => {
+    let v = primary();
+    while (peek() === "==" || peek() === "!=") {
+      const op = take();
+      const r = primary();
+      v = op === "==" ? eq(v, r) : !eq(v, r);
+    }
+    return v;
+  };
+  const and = () => {
+    let v = compare();
+    while (peek() === "&&") {
+      take();
+      const r = compare();
+      v = truthy(v) ? r : v;
+    }
+    return v;
+  };
+  const or = () => {
+    let v = and();
+    while (peek() === "||") {
+      take();
+      const r = and();
+      v = truthy(v) ? v : r;
+    }
+    return v;
+  };
+  const v = or();
+  assert.equal(at, tokens.length, `parsed all of ${text}`);
+  return v;
+}
+
+test("the step-condition evaluator fails a later step that runs on empty outputs", () => {
+  const context = (path) => (/\.(outcome|conclusion)$/.test(path) ? "skipped" : "");
+  // The shape the old check let through: always() with a step reference that
+  // is true when that step was skipped.
+  assert.equal(stepRuns("\n        if: always() && steps.x.outputs.y == ''\n", context, "failure"), true);
+  assert.equal(stepRuns("\n        if: always() && steps.gate.outcome != 'skipped'\n", context, "failure"), false);
+  assert.equal(stepRuns("\n        if: steps.kill.outputs.proceed == 'true'\n", context, "failure"), false);
+  assert.equal(stepRuns("\n        name: x\n", context, "failure"), false);
+  assert.equal(stepRuns("\n        if: >-\n          !cancelled()\n          && steps.dispatch.outputs.rate-limited != 'true'\n", context, "failure"), true);
+});
 
 test("the early check warns when it cannot judge, and stays quiet on a verdict", () => {
   for (const code of [2, 3, 4]) {
@@ -994,25 +1128,37 @@ test("the early check names only a lane-dispatched run awaiting its re-run", () 
 });
 
 // Runs the re-run step against a fake gh that answers `attempts` in turn for
-// the run read, failing a read whose entry is "x", and fails the re-run POST
-// when `refuse`.
-const runRerun = (attempts, { refuse = false, runId = "11" } = {}) => {
+// the run read, failing a read whose entry is "x" (a 502) and rate-limiting
+// one whose entry is "limited" (a 403 with the core pool spent until
+// 2100-01-01). `post` answers the re-run POST: "ok", "refuse" (a 403 that is
+// no rate limit) or "limited" (a 429 with a retry-after). Like gh, with -i it
+// prints the status and headers before the body, the guard's shape.
+const LIMITED_403 = 'HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
+const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", runId = "11" } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-rerun-"));
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
     writeFileSync(
       join(bin, "gh"),
-      `#!/usr/bin/env bash\necho "$*" >>"${dir}/calls"\n` +
-        `if [ "$3" = POST ]; then ${refuse ? 'echo "HTTP 403" >&2; exit 1' : "exit 0"}; fi\n` +
+      `#!/usr/bin/env bash\ninc=; if [ "$2" = -i ]; then inc=1; set -- "$1" "\${@:3}"; fi\n` +
+        `echo "$*" >>"${dir}/calls"\n` +
+        `say() { if [ -n "$inc" ]; then printf "$1"; else printf "$1" | sed '1,/^\\r\\?$/d'; fi; }\n` +
+        `if [ "$3" = POST ]; then case ${post} in\n` +
+        `  ok) say 'HTTP/2.0 204 No Content\\r\\n\\r\\n'; exit 0 ;;\n` +
+        `  refuse) say 'HTTP/2.0 403 Forbidden\\r\\n\\r\\n{"message": "Resource not accessible by integration"}\\n'; echo "HTTP 403" >&2; exit 1 ;;\n` +
+        `  limited) say 'HTTP/2.0 429 Too Many Requests\\r\\nRetry-After: 60\\r\\n\\r\\n{"message": "Too many requests"}\\n'; echo "HTTP 429" >&2; exit 1 ;;\n` +
+        `esac; fi\n` +
         `n=$(($(cat "${dir}/reads" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/reads"\n` +
         `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
-        `if [ "$v" = x ]; then echo "HTTP 502" >&2; exit 1; fi\n` +
-        `if [ "$v" = limited ]; then echo "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" >&2; exit 1; fi\necho "$v"\n`,
+        `if [ "$v" = x ]; then say 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "HTTP 502" >&2; exit 1; fi\n` +
+        `if [ "$v" = limited ]; then say '${LIMITED_403}'; echo "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" >&2; exit 1; fi\n` +
+        `say "HTTP/2.0 200 OK\\r\\n\\r\\n$v\\n"\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
     const output = join(dir, "output");
     const result = spawnSync("bash", ["-c", runScript("Re-run a red lane-dispatched full run", earlySteps())], {
       cwd: dir,
@@ -1114,6 +1260,36 @@ test("a rate-limited read-back stops the re-run step red after one read", () => 
   assert.equal(run.record, "");
   assert.match(run.stdout, /::error title=GitHub rate limit::the read-back of run 11's re-run was rate limited/);
   assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 2);
+  assert.match(run.output, /^rate-limited=true$/m);
+  assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
+});
+
+// Owner rule: a rate limit is never sent again, the step ends red, and the
+// stop goes to the merge and enable-auto-merge jobs (post-merge-dispatch's
+// rate-limited output). The re-run's 429 and the first read's 403 are caught
+// by the shared rate guard (api-budget.bash), as every gh call is.
+test("a rate-limited re-run POST stops the step red, sends it once, and names the stop", () => {
+  const run = runRerun([1], { post: "limited" });
+  assert.equal(run.status, 1, run.stdout);
+  assert.deepEqual(run.calls.filter((c) => c.includes("POST")), [POST]);
+  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 1);
+  assert.equal(run.record, "");
+  assert.match(run.stdout, /::error title=GitHub rate limit::the re-run of run 11 was rate limited \(every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\)/);
+  assert.match(run.output, /^rate-limited=true$/m);
+  assert.match(run.output, /^stop=every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/m);
+});
+
+test("a rate-limited first read stops the step red before the re-run, naming the stop", () => {
+  const run = runRerun(["limited"]);
+  assert.equal(run.status, 1, run.stdout);
+  assert.deepEqual(run.calls.filter((c) => c.includes("POST")), []);
+  assert.match(run.stdout, /::error title=GitHub rate limit::the read of run 11 was rate limited \(the core pool until 2100-01-01T00:00:00Z\)/);
+  assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
+});
+
+test("post-merge-dispatch's rate-limited output also carries the re-run step's stop", () => {
+  const header = `${jobBlock("post-merge-dispatch").split("\n    steps:\n")[0]}\n`;
+  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \}\}\n/);
 });
 
 test("the re-run step refuses a run id that is not a number", () => {

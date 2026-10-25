@@ -137,7 +137,7 @@ jobs:
     outputs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
-      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.dispatch.outputs.stop }}
+      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.dispatch.outputs.stop || steps.rerun.outputs.stop }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -214,11 +214,10 @@ jobs:
               echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run" && needs=false
               # The stop it recorded in the job's stop file (babysit_gh.py), for
               # the merge and enable-auto-merge jobs, which read on this token too.
-              pool='' until=''
-              read -r pool until < <(tail -n 1 "$RUNNER_TEMP/api-budget/stop" 2>/dev/null) || true
-              case $pool in '*') pool="every pool" ;; [a-z_]*) pool="the $pool pool" ;; *) pool="an unrecorded pool" ;; esac
-              when=$(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) && [[ $until =~ ^[0-9]+$ ]] || when="its reset"
-              echo "rate-limited=$pool until $when" >>"$GITHUB_OUTPUT"
+              . .base/.github/actions/log-api-budget/api-budget.bash
+              . .base/.github/scripts/pr-merge/rate-stop.bash
+              stop=$(rate_stop_label)
+              echo "rate-limited=${stop:-an unrecorded pool until its reset}" >>"$GITHUB_OUTPUT"
               ;;
           esac
           if [[ $(jq -r '.hold // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true) == recovery-unrecorded ]]; then
@@ -384,12 +383,33 @@ jobs:
             echo "::error::the post-merge check named no run id to re-run: $RUN_ID"
             exit 1
           fi
-          attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt)
+          # Every gh call goes through the shared rate guard, which records a
+          # 403 or 429 rate limit in the job's stop file and refuses the pool
+          # after it. A call it stopped ends the step red, with the stop as
+          # this job's rate-limited output.
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          api_budget_wrap_gh github-token
+          stopped() {
+            local stop
+            stop=$(rate_stop_label)
+            [ -n "$stop" ] || return 0
+            echo "::error title=GitHub rate limit::$1 was rate limited ($stop); nothing more is sent and nothing recorded"
+            echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+            echo "stop=$stop" >>"$GITHUB_OUTPUT"
+            exit 1
+          }
+          if ! attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt); then
+            stopped "the read of run $RUN_ID"
+            echo "::error::the read of run $RUN_ID failed; no re-run started or recorded"
+            exit 1
+          fi
           if [ "$attempt" != 1 ]; then
             echo "::notice::run $RUN_ID is at attempt $attempt; no re-run started or recorded"
             exit 0
           fi
           if ! gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+            stopped "the re-run of run $RUN_ID"
             echo "::warning::the re-run of run $RUN_ID was refused; the next run tries again"
             exit 0
           fi
@@ -403,10 +423,7 @@ jobs:
               [ "$attempt" = 1 ] || break
             else
               cat "$RUNNER_TEMP/rerun-stderr" >&2
-              if grep -qi 'rate limit' "$RUNNER_TEMP/rerun-stderr"; then
-                echo "::error title=GitHub rate limit::the read-back of run $RUN_ID's re-run was rate limited; nothing more is sent and nothing recorded"
-                exit 1
-              fi
+              stopped "the read-back of run $RUN_ID's re-run"
               attempt=
             fi
           done
