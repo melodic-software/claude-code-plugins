@@ -51,7 +51,7 @@ most 64 globs of at most 256 characters. Report each value that fails, quoting t
 Do not read it back through `digest-policy.mjs`: that script reads the team file only from a pull
 request's base commit, never the working tree, so it ignores an uncommitted file and warns that it
 is not on the base commit. Tell the operator the setting takes effect once the file is merged into
-the base branch. The old `json config` block and `.claude/review-digest.json` are never written.
+the base branch.
 
 ## Repository settings
 

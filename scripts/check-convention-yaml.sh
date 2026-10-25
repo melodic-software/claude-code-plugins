@@ -186,7 +186,7 @@ for path in ${files+"${files[@]}"}; do
   elif [[ -n "$owned_schema" ]]; then
     schema="$owned_schema"
   else
-    printf '%s: no schema at %s or %s\n' "$path" "$plugin_schema" "$convention_schema" >&2
+    printf '%s: no schema at %s, %s or plugins/*/schemas/%s.schema.json\n' "$path" "$plugin_schema" "$convention_schema" "$stem" >&2
     findings=$((findings + 1))
     continue
   fi
