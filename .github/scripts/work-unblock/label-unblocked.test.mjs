@@ -559,6 +559,57 @@ test("the sweep labels an issue whose last blocker a bot closed", async () => {
   );
 });
 
+// The window starts 15 minutes before the last successful scheduled run of
+// work-unblock.yml, at most 3 hours back; any failed read gives the 3 hours.
+const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
+async function windowOf(answer, extra = {}) {
+  const { github, calls } = sweptDependent();
+  const actionCalls = [];
+  const actions = async (method, path) => {
+    actionCalls.push(`${method} ${path}`);
+    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) {
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer;
+    }
+    return { workflow_runs: [], jobs: [] };
+  };
+  assert.equal(await sweep({ github, actions }, extra), 0);
+  const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+  const since = Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]));
+  return { minutes: (NOW - since) / 60_000, actionCalls };
+}
+
+test("the sweep reads back to 15 minutes before the last successful sweep started", async () => {
+  const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(60) }] });
+  assert.equal(minutes, 75);
+  assert.ok(actionCalls.includes(`GET ${SWEEP_RUNS}`));
+});
+
+test("a last sweep older than the 3-hour window is capped at 3 hours", async () => {
+  const { minutes } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(300) }] });
+  assert.equal(minutes, 180);
+});
+
+test("a failed or empty read of the last sweep falls back to 3 hours", async () => {
+  for (const answer of [new Error("GET failed with status 403"), { workflow_runs: [] }, { nope: true }]) {
+    assert.equal((await windowOf(answer)).minutes, 180);
+  }
+});
+
+test("the current run is skipped when finding the last sweep", async () => {
+  const runs = { workflow_runs: [{ id: 77, run_started_at: ago(5) }, { id: 5, run_started_at: ago(60) }] };
+  assert.equal((await windowOf(runs, { GITHUB_RUN_ID: "77" })).minutes, 75);
+});
+
+test("a sweep with no Actions client reads the full 3 hours", async () => {
+  const { github, calls } = sweptDependent();
+  assert.equal(await sweep({ github }), 0);
+  assert.ok(calls.some((call) => call.includes(`since=${encodeURIComponent(SINCE)}`)));
+});
+
 test("the sweep skips an issue with an open sibling blocker", async () => {
   const { github, calls } = sweptDependent({ sibling: "open" });
   assert.equal(await sweep({ github }), 0);

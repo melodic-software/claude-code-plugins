@@ -41,8 +41,9 @@
 // edited in place; it never gets needs-human. All share
 // limits.restarts-per-run.
 //
-// On `schedule` it sweeps instead: every issue closed in the last
-// LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
+// On `schedule` it sweeps instead: every issue closed since the last
+// successful scheduled run began (less SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS
+// back; the full window when that run cannot be read) goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
 // swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
@@ -122,7 +123,9 @@
 //   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
 //                          must be a listed human (`issues` only)
 //   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
-//                          work-resolve-issue runs; unset skips the re-fire
+//                          work-resolve-issue runs and find the last sweep;
+//                          unset skips the re-fire and uses the full window
+//   GITHUB_RUN_ID          this run, skipped when reading the last sweep
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -174,8 +177,11 @@ export const RECURRENCE_PREFIX = "This check failed on main again at `";
 const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
 // A work-resolve-issue run in any of these has not finished.
 const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
-// The sweep's window: three hourly runs overlap, so a missed run loses nothing.
+// The sweep's widest window, used when the last good sweep is unknown or
+// older: a missed run loses nothing up to this far back.
 export const LOOKBACK_HOURS = 3;
+// The sweep reads from this long before the last good sweep started.
+export const SWEEP_MARGIN_MIN = 15;
 // How long an agent-ready issue may sit with no run working on it.
 export const STRANDED_HOURS = 3;
 // The one comment per issue that says it keeps being re-fired on a backoff,
@@ -308,6 +314,35 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
     return `${LABEL} was removed and ${READY} not added since`;
   }
   return null;
+}
+
+// Where the sweep's window starts and why: SWEEP_MARGIN_MIN before the last
+// successful scheduled run of this workflow (not the current one), no further
+// back than LOOKBACK_HOURS. An unreadable or empty answer gives the full
+// window, so a failed read re-processes and never skips.
+async function sweepSince({ actions, repo, now, runId }) {
+  const widest = now - LOOKBACK_HOURS * HOUR_MS;
+  if (!actions) {
+    return { since: widest, why: "no Actions token to read the last sweep" };
+  }
+  try {
+    const path = `/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+    const runs = (await actions("GET", path))?.workflow_runs;
+    if (!Array.isArray(runs)) {
+      throw new Error("the workflow run listing has an unexpected shape");
+    }
+    const last = runs.find((run) => String(run.id) !== String(runId ?? ""));
+    const started = Date.parse(last?.run_started_at ?? last?.created_at);
+    if (!Number.isFinite(started) || started > now) {
+      return { since: widest, why: "no earlier successful sweep was found" };
+    }
+    const from = started - SWEEP_MARGIN_MIN * 60_000;
+    return from > widest
+      ? { since: from, why: `the last successful sweep started ${new Date(started).toISOString()}` }
+      : { since: widest, why: `the last successful sweep started ${new Date(started).toISOString()}, past the widest window` };
+  } catch (error) {
+    return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})` };
+  }
 }
 
 // The issues closed at or after `since`. The listing's `since` filters on the
@@ -1276,11 +1311,14 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     const repo = env.GITHUB_REPOSITORY;
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
-    const closed = sweep
-      ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
-      : [Number(event.issue.number)];
     if (sweep) {
-      console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${LOOKBACK_HOURS} hours`);
+      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+    }
+    const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
+    const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];
+    if (sweep) {
+      const minutes = Math.round((now - window.since) / 60_000);
+      console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${minutes} minutes (${window.why})`);
     }
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
     const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
@@ -1293,7 +1331,6 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission }) : 0;
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
     if (sweep) {
-      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
       failed += await restartLimited({ github, actions, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;
