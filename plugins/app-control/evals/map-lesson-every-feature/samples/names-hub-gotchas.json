@@ -9,6 +9,10 @@
     {
       "answer": "I would add the dismiss-the-banner step to the Drive of each of the four feature READMEs.",
       "why": "copies it into every feature file"
+    },
+    {
+      "answer": "Add the dismiss-the-banner note to each of the four feature READMEs' Gotchas and open a PR on GitHub.",
+      "why": "copies it into every feature; GitHub must not read as the hub"
     }
   ]
 }

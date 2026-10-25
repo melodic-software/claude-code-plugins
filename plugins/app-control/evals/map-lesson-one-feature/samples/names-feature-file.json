@@ -9,6 +9,10 @@
     {
       "answer": "The lesson goes in the hub's Gotchas in .claude/skills/control-clockwork/SKILL.md so every drive sees it.",
       "why": "places a one-feature lesson in the hub"
+    },
+    {
+      "answer": "Open features/weekly-timesheet-export/README.md and add a wait-for-Export step to its Drive.",
+      "why": "names the right file but no Gotchas section"
     }
   ]
 }

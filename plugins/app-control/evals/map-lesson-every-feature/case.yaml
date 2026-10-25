@@ -11,7 +11,7 @@ execution:
 graders:
   - name: names-hub-gotchas
     type: regex
-    pattern: '(hub|SKILL\.md)[^\n]{0,120}Gotchas|Gotchas[^\n]{0,120}(hub|SKILL\.md)'
+    pattern: 'SKILL\.md[\s\S]{0,120}Gotchas|Gotchas[\s\S]{0,120}SKILL\.md|\bhub''?s?\s+`?(## )?Gotchas'
     flags: i
     arm: both
   - name: hub-gotchas-once

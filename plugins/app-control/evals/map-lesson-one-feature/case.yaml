@@ -11,7 +11,7 @@ execution:
 graders:
   - name: names-feature-file
     type: regex
-    pattern: 'features/weekly-timesheet-export/README\.md'
+    pattern: 'features/weekly-timesheet-export/README\.md[\s\S]{0,120}Gotchas|Gotchas[\s\S]{0,120}features/weekly-timesheet-export/README\.md'
     arm: both
   - name: feature-gotchas-in-pull-request
     type: llm
