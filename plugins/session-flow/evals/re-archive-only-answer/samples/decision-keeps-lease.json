@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 5\nlease_seconds = 90\nmax_parallel = 4\n"
+      },
+      "why": "lease kept"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 5\nlease_seconds = 120  # cold starts\nmax_parallel = 4\n"
+      },
+      "why": "near miss: raised, with a comment"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 5\nlease_seconds = 900\nmax_parallel = 4\n"
+      },
+      "why": "near miss: three digits"
+    }
+  ],
+  "fail": [
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 5\nlease_seconds = 30\nmax_parallel = 4\n"
+      },
+      "why": "lowered"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\npoll_interval_seconds = 5\nlease_seconds = 45  # faster re-queue\nmax_parallel = 4\n"
+      },
+      "why": "lowered, with a trailing comment"
+    },
+    {
+      "files": {
+        "config/drain.toml": "[drain]\nlease_seconds = 89\n"
+      },
+      "why": "near miss: one below the floor"
+    }
+  ]
+}
