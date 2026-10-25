@@ -78,3 +78,5 @@ seed admin "Admin console" users 'the `/admin/people` page'
 seed shop Shop cart 'the `Add to basket` button'
 git add -A
 git commit -q -m "Admin console and shop with their control skills"
+# Name the starting branch main whatever branch an existing repository started on.
+git branch -M main

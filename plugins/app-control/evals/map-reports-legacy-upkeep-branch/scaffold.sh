@@ -70,6 +70,8 @@ MD
 : >src/routes.ts
 git add -A
 git commit -q -m "Clockwork web with its control skill"
+# Name the starting branch main whatever branch an existing repository started on.
+git branch -M main
 # The testing-era upkeep branch, with its own commit, local and as a remote-tracking ref.
 git switch -q -c feature-map-upkeep/claude-skills-feature-map
 : >src/.feature-map-upkeep
