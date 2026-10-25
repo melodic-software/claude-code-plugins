@@ -20,6 +20,11 @@ from the memory-root layout:
     handoff        a `<TS>-handoff-<topic>.md` file, with its `.slots.json`
                    sidecar as part of the same item. `handoffs/` is its place;
                    one in the root or in `running-retros/` is a misplaced handoff
+    archive        a shape-3 chain's `handoffs/archive/<chain-root-stem>/`
+                   directory of hop files. It is kept while any handoff of its
+                   chain (shape-3 `chain_root`, shape-2 `chain:` root) is kept,
+                   and kept when none of them is on disk; it leaves with the
+                   last of them, and stays when one of them is refused
     running-retro  a `<TS>-running-retro-<topic>.md` file, in `running-retros/`
                    or misplaced the same way
     slice          `<slug>/` holding an `INDEX.md`
@@ -154,6 +159,8 @@ class Item:
     reasons: list[str] = field(default_factory=list)
     # link -> state, recorded when the link is looked up
     states: dict[str, str] = field(default_factory=dict)
+    # a handoff's chain root filename, or an archive's (its directory stem + .md)
+    chain: str = ""
 
     @property
     def paths(self) -> list[Path]:
@@ -165,6 +172,8 @@ class Item:
 
     @property
     def keep(self) -> bool:
+        if self.kind == "archive":
+            return self.in_flight
         return self.kind in ("unknown", "concern") or self.in_flight or not self.links
 
 
@@ -246,6 +255,16 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
     return ("scratch" if _name_refs(path.name) else "unknown"), None
 
 
+def _chain_root(path: Path) -> str:
+    """A handoff's chain root: shape 3's `chain_root`, shape 2's first `chain:`
+    entry, else none (shape 1 belongs to no archive)."""
+    try:
+        doc = save_point.parse_doc(path)
+    except (OSError, UnicodeDecodeError):
+        return ""
+    return doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
+
+
 def _unfinished_stage(slice_dir: Path) -> bool:
     checklist = slice_dir / CHECKLIST
     try:
@@ -308,7 +327,7 @@ def inventory(root: Path, label: str) -> list[Item]:
     except OSError:
         return items
 
-    def add(path: Path, kind: str, link_file: Path | None) -> None:
+    def add(path: Path, kind: str, link_file: Path | None, chain: str = "") -> None:
         extras: list[Path] = []
         if kind == "handoff" and _plain_file(
             sidecar := path.with_suffix(".slots.json")
@@ -330,6 +349,7 @@ def inventory(root: Path, label: str) -> list[Item]:
                 sum(size for _, size in stats),
                 links,
                 extras,
+                chain=chain or (_chain_root(path) if kind == "handoff" else ""),
             )
         )
 
@@ -353,6 +373,15 @@ def inventory(root: Path, label: str) -> list[Item]:
                 "running-retros": "running-retro",
             }.get(entry.name, "concern")
             for child in sorted(entry.iterdir()):
+                if entry.name == "handoffs" and child.name == save_point.ARCHIVE_DIR and (
+                    child.is_dir() and not child.is_symlink()
+                ):
+                    for chain in sorted(child.iterdir()):
+                        if chain.is_dir() and not chain.is_symlink():
+                            add(chain, "archive", None, f"{chain.name}.md")
+                        else:
+                            add(chain, "unknown", None)
+                    continue
                 visit(child, parent_kind)
             continue
         visit(entry, None)
@@ -465,8 +494,19 @@ def mark_in_flight(
             except (OSError, UnicodeDecodeError):
                 pass
     for item in items:
-        if item.kind != "handoff":
+        if item.kind not in ("handoff", "archive"):
             judge(item)
+    for item in items:
+        if item.kind == "archive":
+            chain = [
+                i for i in items
+                if i.kind == "handoff" and i.root == item.root and i.chain == item.chain
+            ]
+            kept = [i.path.name for i in chain if i.keep]
+            if not chain:
+                item.reasons.append("no hot file of its chain is on disk")
+            elif kept:
+                item.reasons.append(f"a kept handoff of its chain: {', '.join(kept)}")
 
 
 def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[str]]:
@@ -813,8 +853,15 @@ def cmd_clean(args: argparse.Namespace) -> int:
         if any(item.root == label for item in stale)
     }
     failed = removed = 0
-    for item in stale:
-        if refusal := _blocked(item, root_of[item.root], guards[item.root]):
+    held: set[tuple[str, str]] = set()  # (root, chain) of a handoff not removed
+    # Handoffs before archives, so an archive leaves only after its chain did.
+    for item in sorted(stale, key=lambda i: i.kind == "archive"):
+        refusal = _blocked(item, root_of[item.root], guards[item.root])
+        if item.kind == "archive" and (item.root, item.chain) in held:
+            refusal = "a handoff of its chain was not removed"
+        if refusal and item.kind == "handoff":
+            held.add((item.root, item.chain))
+        if refusal:
             failed += 1
             print(f"refused: {item.path.as_posix()} ({refusal})")
         elif not args.apply:
@@ -827,6 +874,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
                     print(f"removed: {path.as_posix()}{_attribution(item)}")
             except OSError as exc:
                 failed += 1
+                held.add((item.root, item.chain))
                 print(f"failed: {item.path.as_posix()} ({exc})")
                 continue
             removed += 1

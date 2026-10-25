@@ -44,8 +44,9 @@ This skill adapts to the consuming repo rather than imposing structure:
   topic's memory-tier slice:
   never committed; on the session's first memory-tier write, verify-or-create the resolved memory
   root's `.gitignore` containing `*` (announced). The sibling `handoff` skill's
-  `<memory_dir>/handoffs/` holds only handoff save-points, a fixed-filename checklist there would
-  clobber across two in-flight topics.
+  `<memory_dir>/handoffs/` holds only handoff save-points (hot files, plus the per-hop archive
+  files in its `archive/` subdirectory), a fixed-filename checklist there would clobber across two
+  in-flight topics.
 - **Quality gates.** The consuming repo's own build/test/lint commands, review criteria and commit conventions govern;
   this skill names WHERE gates belong in the sequence, not what they contain.
 - **Override boundary.** The stage set itself is fixed. Plugin identity, not consumer config; there
