@@ -473,6 +473,8 @@ test("a primary limit with no retry-after names its pool and the reset", () => {
   const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}`, "X-Ratelimit-Resource": "core" }), ok(4244)]);
   stopped(r);
   assert.match(r.out, /::error title=GitHub rate limit::the core pool is exhausted .*before 2026-10-23T06:13:50Z/);
+  // The merge job reads this through post-merge-dispatch's rate-limited output.
+  assert.match(r.output, /^stop=the core pool until 2026-10-23T06:13:50Z$/m);
 });
 
 test("a secondary limit named only by its message stops every pool for a minute", () => {

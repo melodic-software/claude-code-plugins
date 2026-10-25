@@ -417,11 +417,15 @@ test("every post-merge check reads the lane records, and only the merge job uplo
 
 // Runs the early job's check against a fake python3 that prints a report and
 // exits `code`.
-const runEarlyCheck = (code, needsDispatch = false) => {
+const runEarlyCheck = (code, needsDispatch = false, stops) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-"));
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
+    if (stops !== undefined) {
+      mkdirSync(join(dir, "api-budget"));
+      writeFileSync(join(dir, "api-budget", "stop"), stops);
+    }
     writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\necho '{"needsDispatch": ${needsDispatch}}'\nexit ${code}\n`);
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
@@ -455,6 +459,48 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
   assert.match(run.output, /^code=75$/m);
   assert.equal(run.keptCode, "75");
 });
+
+// The stop the check recorded in the job's stop file (babysit_gh.py
+// _record_stop) goes to the next jobs as the rate-limited output, naming the
+// pool and its reset; 1792868400 is 2026-10-24T19:00:00Z.
+test("the early check names the stopped pool and its reset in its rate-limited output", () => {
+  const core = runEarlyCheck(75, false, "graphql 1792860000\ncore 1792868400\n");
+  assert.match(core.output, /^rate-limited=the core pool until 2026-10-24T19:00:00Z$/m);
+  assert.match(runEarlyCheck(75, false, "* 1792868400\n").output, /^rate-limited=every pool until 2026-10-24T19:00:00Z$/m);
+  // No readable stop still stops the next jobs.
+  assert.match(runEarlyCheck(75).output, /^rate-limited=an unrecorded pool until its reset$/m);
+  for (const code of [0, 1, 3]) {
+    assert.doesNotMatch(runEarlyCheck(code, false, "core 1792868400\n").output, /rate-limited=/);
+  }
+  const header = `${jobBlock("post-merge-dispatch").split("\n    steps:\n")[0]}\n`;
+  assert.match(header, /\n {4}outputs:\n(?: {6}#.*\n)* {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.dispatch\.outputs\.stop \}\}\n/);
+});
+
+// Owner rule: stop calling a pool once rate-limited until reset. The merge
+// and enable-auto-merge jobs read on the same GITHUB_TOKEN, so a stop in
+// post-merge-dispatch ends each before its first step that could call GitHub,
+// red, naming the pool.
+for (const id of ["merge", "enable-auto-merge"]) {
+  test(`${id} sends nothing and ends red when post-merge-dispatch stopped on a rate limit`, () => {
+    const list = stepsOf(jobBlock(id));
+    const first = list[0];
+    assert.equal(first.name, "Stop on post-merge-dispatch's rate limit");
+    assert.match(first.block, /\n {8}if: needs\.post-merge-dispatch\.outputs\.rate-limited != ''\n/);
+    assert.match(first.block, /\n {10}STOP: \$\{\{ needs\.post-merge-dispatch\.outputs\.rate-limited \}\}\n/);
+    const result = spawnSync("bash", ["-c", runScript(first.name, list)], {
+      encoding: "utf8",
+      env: { ...process.env, STOP: "the core pool until 2026-10-24T19:00:00Z" },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /^::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit \(the core pool until 2026-10-24T19:00:00Z\); this job sends nothing to GitHub$/m);
+    // Every later step that runs after a failure waits on a step the stop skipped.
+    for (const { name, block } of list.slice(1)) {
+      const condition = /\n {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(block);
+      const text = condition ? (condition[1] ?? condition[2]) : "";
+      if (/always\(\)|!cancelled\(\)|failure\(\)/.test(text)) assert.match(text, /steps\./, name);
+    }
+  });
+}
 
 test("the early check warns when it cannot judge, and stays quiet on a verdict", () => {
   for (const code of [2, 3, 4]) {

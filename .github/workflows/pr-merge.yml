@@ -134,6 +134,10 @@ jobs:
       actions: write # read full runs and their records; start pr-require-checks.yml on main and re-run a red lane-dispatched run
       checks: read # read a failed full run's annotations
       issues: read # read the demotion records the merge floor depends on
+    outputs:
+      # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
+      # if one did: the merge and enable-auto-merge jobs then send nothing.
+      rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.dispatch.outputs.stop }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -206,7 +210,16 @@ jobs:
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           case $code in
             2 | 3 | 4) echo "::warning::the post-merge check exited $code (2 refused, 3 unreadable, 4 write failed); needsDispatch=$needs" ;;
-            75) echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run" && needs=false ;;
+            75)
+              echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run" && needs=false
+              # The stop it recorded in the job's stop file (babysit_gh.py), for
+              # the merge and enable-auto-merge jobs, which read on this token too.
+              pool='' until=''
+              read -r pool until < <(tail -n 1 "$RUNNER_TEMP/api-budget/stop" 2>/dev/null) || true
+              case $pool in '*') pool="every pool" ;; [a-z_]*) pool="the $pool pool" ;; *) pool="an unrecorded pool" ;; esac
+              when=$(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) && [[ $until =~ ^[0-9]+$ ]] || when="its reset"
+              echo "rate-limited=$pool until $when" >>"$GITHUB_OUTPUT"
+              ;;
           esac
           if [[ $(jq -r '.hold // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true) == recovery-unrecorded ]]; then
             echo "::error::the post-merge hold's recovery run has no pr-merge-dispatched record either; no further full run starts: $(jq -r '.reason // ""' "$RUNNER_TEMP/post-merge.json")"
@@ -299,8 +312,10 @@ jobs:
                 elif ((until <= now)); then
                   until=$((now + 60))
                 fi
-                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ)"
+                when=$(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ)
+                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $when"
                 echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+                echo "stop=$pool until $when" >>"$GITHUB_OUTPUT"
                 exit 1
               fi
             elif [ -z "$status" ]; then
@@ -486,6 +501,17 @@ jobs:
       # merge that still needs a full run is the post-merge-dispatch job's.
       dispatch: ${{ steps.mode.outputs.live == 'true' && steps.gate.outputs.dispatch == 'true' }}
     steps:
+      # A rate limit stopped post-merge-dispatch's GITHUB_TOKEN calls, which
+      # this job's reads share: it sends nothing and ends red. Every later step
+      # that runs after a failure waits on a step this one skips.
+      - name: Stop on post-merge-dispatch's rate limit
+        if: needs.post-merge-dispatch.outputs.rate-limited != ''
+        env:
+          STOP: ${{ needs.post-merge-dispatch.outputs.rate-limited }}
+        run: |
+          echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
+          exit 1
+
       # Everything below runs from main as it is right now, never from a PR.
       # Full history: the gate reads the pipeline config's history from this
       # clone with git instead of one contents-API call per commit.
@@ -1485,6 +1511,16 @@ jobs:
       issues: read # the demotion records the lane's room re-checks
       id-token: write # prove to the token broker which workflow this is
     steps:
+      # As in the merge job: a rate limit post-merge-dispatch stopped on holds
+      # this job's GITHUB_TOKEN reads too.
+      - name: Stop on post-merge-dispatch's rate limit
+        if: needs.post-merge-dispatch.outputs.rate-limited != ''
+        env:
+          STOP: ${{ needs.post-merge-dispatch.outputs.rate-limited }}
+        run: |
+          echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
+          exit 1
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1813,8 +1849,10 @@ jobs:
                 elif ((until <= now)); then
                   until=$((now + 60))
                 fi
-                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ)"
+                when=$(date -u -d "@$until" +%Y-%m-%dT%H:%M:%SZ)
+                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $when"
                 echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+                echo "stop=$pool until $when" >>"$GITHUB_OUTPUT"
                 exit 1
               fi
             elif [ -z "$status" ]; then
