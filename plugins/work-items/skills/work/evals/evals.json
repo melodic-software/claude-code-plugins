@@ -135,14 +135,14 @@
     {
       "id": 10,
       "name": "work-ci-mode-leaves-pr-checks-to-ci-but-stops-on-required-ones",
-      "prompt": "/work-items:work --issue 540 --ci\n\nIssue 540 asks for a wording fix in one skill body. Its \"Done when\" says: the skill text is updated, and CI's `lint-skills` job passes on the PR. The runner's system prompt names the repository's unit tests as a check to run. In this sandbox the skill linter behind `lint-skills` is refused, and the unit test command also cannot run because a dependency fails to install. What does the run record in work-outcome.json, and does it stop?",
-      "expected_output": "The run separates the two checks. The `lint-skills` job is a check the issue names as one the PR's CI runs, so it is not required of this run: it goes in `not_done` as left to the PR's CI with `\"required\": false`, and the run does not stop for it. The unit tests are named by the runner's system prompt, so they are required: because they could not run, they go in `not_done` with `\"required\": true`, and the lane reports the run stopped whatever `exit` says. The run does not downgrade the runner-named check because the issue also names a CI check, and does not upgrade the CI-only check to required.",
+      "prompt": "/work-items:work --issue 540 --ci\n\nIssue 540 asks for a wording fix in one skill body. Its \"Done when\" says: the skill text is updated, and CI's `lint-skills` job passes on the PR. The runner's system prompt names the repository's changelog-fragment check as a check to run. In this sandbox the skill linter behind `lint-skills` is refused, and the changelog-fragment check also cannot run because a dependency fails to install. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The run separates the two checks. The `lint-skills` job is a check the issue names as one the PR's CI runs, so it is not required of this run: it goes in `not_done` as left to the PR's CI with `\"required\": false`, and the run does not stop for it. The changelog-fragment check is named by the runner's system prompt, so it is required: because it could not run, it goes in `not_done` with `\"required\": true`, and the lane reports the run stopped whatever `exit` says. The run does not downgrade the runner-named check because the issue also names a CI check, and does not upgrade the CI-only check to required.",
       "files": [],
       "narration": true,
       "expectations": [
         "Records the issue-named CI check (`lint-skills` on the PR) in `not_done` as left to the PR's CI with `\"required\": false`",
         "Does not stop the run because of the CI-only check it could not run",
-        "Records the runner-named unit tests it could not run in `not_done` with `\"required\": true`",
+        "Records the runner-named changelog-fragment check it could not run in `not_done` with `\"required\": true`",
         "States that the required gap makes the lane report the run stopped, whatever `exit` says",
         "Does not mark the runner-named check `\"required\": false` on the grounds that the issue named a different check as a CI check"
       ]

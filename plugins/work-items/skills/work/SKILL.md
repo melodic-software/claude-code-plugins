@@ -59,7 +59,8 @@ dispatch, PR or babysit step. It works in place:
 4. Run every check the runner's system prompt names, and fix what fails. Those checks are
    required, and so is any other check the repository's rules require for the files you touched.
    A required check you could not run or could not pass goes in `not_done` with
-   `"required": true`, and the lane then reports the run `stopped`, whatever `exit` says. A
+   `"required": true`: the lane defers a test run it could not execute to PR CI, and reports the
+   run `stopped` for any other, whatever `exit` says. A
    check the issue names as a PR or CI check (one the PR's CI runs, such as "CI's `<job>`
    passes on the PR") is not required of this run unless the runner's prompt or those rules
    require it: when you cannot run it here, add it to `not_done` as left to the PR's CI, with
