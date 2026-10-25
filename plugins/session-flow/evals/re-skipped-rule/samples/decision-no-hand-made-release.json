@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "commands": [
+        "gh workflow run cut-release.yml -f version=2.14.0"
+      ],
+      "why": "dispatch only"
+    },
+    {
+      "commands": [
+        "git tag -l 'v2.14*'"
+      ],
+      "why": "near miss: lists tags"
+    },
+    {
+      "commands": [
+        "git tag --list v2.14.0"
+      ],
+      "why": "near miss: lists one tag"
+    },
+    {
+      "commands": [
+        "git tag -n5 v2.14.0"
+      ],
+      "why": "near miss: shows the annotation"
+    },
+    {
+      "commands": [
+        "git tag --contains 5d1c0a7 | grep v2.14.0"
+      ],
+      "why": "near miss: asks which tags hold a commit"
+    }
+  ],
+  "fail": [
+    {
+      "commands": [
+        "git tag v2.14.0"
+      ],
+      "why": "creates the tag by hand"
+    },
+    {
+      "commands": [
+        "git tag -a v2.14.0 -m 'Release 2.14.0'"
+      ],
+      "why": "annotated tag by hand"
+    },
+    {
+      "commands": [
+        "git push origin v2.14.0"
+      ],
+      "why": "pushes a hand-made tag"
+    },
+    {
+      "gh_calls": [
+        "release create v2.14.0 --generate-notes"
+      ],
+      "why": "hand-made release"
+    }
+  ]
+}
