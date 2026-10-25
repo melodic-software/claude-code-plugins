@@ -879,6 +879,25 @@ describe("unrunnableCriteria", () => {
     ["after days", "Confirm after 7 days that the cache stays under 1 GB.", /over time/],
     ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
     ["a page an item compares against", "Confirm the table matches https://example.com/page.", /example\.com/],
+    // Done-when items from the concise-skills rollout issues (#6584, #6602, #6615).
+    ["before and after numbers", "The PR body holds a per-skill decision table, description and body decided separately, with the before and after numbers behind each row.", /paid eval/],
+    ["measure-invocation trigger scores", "The PR body shows `/skill-quality:check measure-invocation` trigger scores for the before and the after description on the same probes.", /paid eval/],
+    [
+      "before and after trigger rates",
+      "The PR body carries the before and after trigger rates from held-out probes (`measure-invocation.sh emit-plugin-eval`, run with `--ablation none` on each target model).",
+      /paid eval/,
+    ],
+    ["a plugin-eval delta", "`/evals:plugin-eval` with and without; difference in the PR body.", /paid eval/],
+    // Live CLI items from #6963, #6758, #6761, #6877 and #9914.
+    ["claude -p", 'A comment on this issue records whether the `/usage` report from `claude -p "/usage" --output-format stream-json` carries its rate limits.', /Claude Code CLI/],
+    ["a recorded probe", "A recorded probe: a subagent Write into a path covered by a path-scoped rule, with a logging InstructionsLoaded hook.", /Claude Code CLI/],
+    ["a named Claude Code version", "A recorded probe answers questions 1 to 3 on a named Claude Code version.", /Claude Code CLI/],
+    ["the probe's version", "The monitor guidance states the `-p` behavior with the probe's Claude Code version.", /Claude Code CLI/],
+    ["a measured result", "The verified-mechanics row is updated with the measured result and the Claude Code version.", /Claude Code CLI/],
+    ["a plugin install", "`claude plugin install testing@melodic-software` exits 0.", /Claude Code CLI/],
+    // A comment-only deliverable (#6636).
+    ["a comment on this issue", "One comment on this issue with the versions released per plugin over the last 14 days.", /comment instead/],
+    ["no file changed", "No file is changed.", /comment instead/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {
@@ -907,6 +926,20 @@ describe("unrunnableCriteria", () => {
     ["a lane host at a sentence end", "The page matches https://code.claude.com."],
     ["GitHub at a sentence end", "Check the repository at https://github.com."],
     ["a subdomain of a wildcard host", "Confirm the step matches https://docs.example.org/en/actions.", ["*.example.org"]],
+    ["a no-spend trigger probe check", "`bash plugins/skill-quality/scripts/measure-invocation.sh validate plugins/tdd/probes` exits 0."],
+    ["a dry-run plugin eval", "`/evals:plugin-eval` dry-run reports the cost estimate."],
+    ["measure-invocation's own test", "`bash scripts/run-test-file.sh plugins/skill-quality/scripts/measure-invocation.test.sh` exits 0, with a new case."],
+    ["a static skill check", "`/skill-quality:check plugins/improvement` on the PR head reports no FAIL that the run on main does not."],
+    ["an eval suite validation", "`/evals:validate` passes on `plugins/improvement`'s eval suite at the PR head."],
+    ["before and after named as text", "`plugins/review/README.md` states that a PR changing a lane's prompt, model or effort cites a before and after score."],
+    ["a headless browser run", "The page makes no network request when opened from `file://` (verified in a browser network panel or a headless run)."],
+    ["a probe as one source among docs", "Default, range, and subagent reach are established from docs or a recorded probe."],
+    ["claude --version in code", "`precompute.sh` emits a notice when `claude --version` is a newer minor, using fixture strings."],
+    ["a path under .claude", "`.claude/settings.json` denies the new command."],
+    ["a script posting a comment", "work-unblock posts a comment on the issue saying why."],
+    ["a code comment", "A code comment in `admit.mjs` explains the new kind."],
+    ["a PR body line", "The PR body says which items moved."],
+    ["a file change limit", "No file outside `plugins/tdd` is changed."],
   ];
   for (const [name, line, hosts] of negatives) {
     test(`passes ${name}`, () => {
