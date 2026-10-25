@@ -10,6 +10,17 @@
         }
       ],
       "why": "write-css fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-animation"
+          }
+        }
+      ],
+      "why": "write-animation fired; it routes CSS motion and carries the ease-in rule"
     }
   ],
   "fail": [

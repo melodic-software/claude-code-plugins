@@ -85,7 +85,8 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
   component matches two or three, a page most of them. Skip any technique in
   `css.techniques.disable`.
 - **Lint what you changed**: unless `--no-lint`, run the review script below on files you wrote and
-  fix its findings that no project convention overrides.
+  fix its findings that no project convention overrides. Its `ease-in` finding on an exit the user
+  explicitly asked to accelerate is expected: keep that curve and name the trade-off.
 
 | Read | Before you write |
 |---|---|
@@ -107,7 +108,9 @@ moves to its topic reference.
 - `hover`: every `:hover` rule sits inside `@media (hover: hover) and (pointer: fine)`.
 - `logical`: inline and block properties and start and end values, never left, right, top, bottom.
 - `outline`: focus is styled with `:focus-visible` and `outline`; never `outline: none` or `0`.
-- `ease-in`: never `ease-in` on UI; ease-out to enter or leave, ease-in-out to move on screen.
+- `ease-in`: never `ease-in` on UI; ease-out to enter or leave, ease-in-out to move on screen. An explicit
+  request for an exit that accelerates away wins: use `ease-in` there and warn that its slow start can read as lag. The
+  review script and `audit-animation` still report it; that finding is expected.
 - `color`: colors in `oklch()`, with `none` as the hue of grays; variants via `color-mix(in oklch, …)`.
 - `transition-all`: a transition names its properties, never `all`.
 - `motion`: a transition that moves or scales sits inside `@media (prefers-reduced-motion: no-preference)`.
