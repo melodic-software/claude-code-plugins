@@ -5,7 +5,9 @@ description: >
   born-triaged marker, its author is a listed human or the lanes App (by
   numeric id), and it has an Issue Type and a status label. Re-reads the
   issue for up to about 25 seconds while only the type or status label is
-  missing. Always exits 0; any read failure emits skip=false.
+  missing. Always exits 0; any read failure emits skip=false, and a rate
+  limit, from this read or a stop the job already holds, also emits
+  rate-limited=true.
 
 inputs:
   issue-number:
@@ -35,6 +37,9 @@ outputs:
   human-ids:
     description: "The trusted-actor list's `kind: human` ids, comma-joined; empty when the list is unreadable."
     value: ${{ steps.check.outputs.human-ids }}
+  rate-limited:
+    description: "`true` when the rate guard holds a stop on the issue read's pool; callers then make no more GitHub calls with the token. Otherwise `false`."
+    value: ${{ steps.check.outputs.rate-limited }}
 
 runs:
   using: composite

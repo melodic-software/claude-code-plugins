@@ -239,6 +239,15 @@ function world({
     if ((match = route.match(/\/issues\/(\d+)$/)) && lookup(match[1])) {
       return lookup(match[1]);
     }
+    // Another repository's blocker, read there.
+    if ((match = route.match(/\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/))) {
+      const other = Object.values(blockedBy)
+        .flat()
+        .find((item) => String(item.number) === match[2] && item.repository_url === `${API}/repos/${match[1]}`);
+      if (other) {
+        return other;
+      }
+    }
     throw new Error(`unexpected ${method} ${path}`);
   };
   return { github, calls };
@@ -1236,8 +1245,8 @@ const refired = (n, key = KEY) => [
   `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: refireComment(key) })}`,
   ...restarted(n),
 ];
-function failedRun({ runs = [laneRun()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], blobs = BLOBS } = {}) {
-  const fake = world({ openReady: [ready(30, labels)], comments: { 30: comments }, events: { 30: events }, runs, blobs });
+function failedRun({ runs = [laneRun()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], blobs = BLOBS, blockedBy = {} } = {}) {
+  const fake = world({ openReady: [ready(30, labels)], comments: { 30: comments }, events: { 30: events }, runs, blobs, blockedBy });
   return { ...fake, actions: fake.github };
 }
 
@@ -1411,8 +1420,10 @@ function stalledRun({
   events = [added(LABELED_AT, OWNER)],
   blobs = BLOBS,
   queuedIssues = [],
+  blockedBy = {},
 } = {}) {
   const fake = world({
+    blockedBy,
     queuedIssues,
     openReady: [ready(number)],
     comments: { [number]: comments },
@@ -1556,6 +1567,98 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
 test("a run another gate stopped before its mint, with no WIP cap skip, is not re-fired", async () => {
   const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] }];
   const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// The admit job's blocker gate skipped the run: its `Wait for open blockers`
+// step ran and pick-slot did not. Agent-ready stays on and no marker follows;
+// the sweep re-fires the issue once no blocker is open, past any bound, and
+// never hands it to a person for it.
+const BLOCKER_SKIPPED = [
+  { name: "admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }, { name: "Wait for open blockers", conclusion: "success" }] },
+  { name: "pick-slot", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+];
+
+test("a run the blocker gate skipped waits, with no write, while a blocker is open", async () => {
+  for (const state of ["open", "closed"]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [issue(31, { state }), issue(32)] } });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], state);
+  }
+});
+
+test("a run the blocker gate skipped is re-fired once no blocker is open, past the per-version bound, with no needs-human", async () => {
+  for (const pumps of [{}, earlierPumps(3)]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [issue(31, { state: "closed" })] }, ...pumps });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), refired(30));
+    assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+  }
+});
+
+test("a run the blocker gate skipped still waits on a blocker no listed human or merge here closed", async () => {
+  const unmerged = { ...issue(31, { state: "closed" }), pull_request: { merged_at: null } };
+  const stranger = { id: 1234, login: "someone-else", type: "User" };
+  for (const blocker of [
+    unmerged,
+    issue(31, { state: "closed", reason: "not_planned", closer: stranger }),
+    issue(31, { state: "closed", repo: "o/other", closer: stranger }),
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [blocker] } });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(blocker));
+  }
+});
+
+test("a run the blocker gate skipped is re-fired once a listed human closed its blocker as not planned or in another repository", async () => {
+  for (const blocker of [issue(31, { state: "closed", reason: "not_planned" }), issue(31, { state: "closed", repo: "o/other" })]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [blocker] } });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), refired(30), JSON.stringify(blocker));
+  }
+});
+
+// The admit job's provenance stop is final: the sweep never re-fires it and
+// adds no needs-human (admission's refusal path hands it to a person).
+const UNTRUSTED_STOPPED = [
+  {
+    name: "admit",
+    conclusion: "success",
+    steps: [
+      { name: "Wait for open blockers", conclusion: "success" },
+      { name: "Stop on untrusted provenance", conclusion: "success" },
+    ],
+  },
+  { name: "pick-slot", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+];
+
+test("a run the gate stopped on untrusted provenance is never re-fired, past any wait or bound, and gets no needs-human", async () => {
+  for (const ended of ["2026-10-16T10:05:00Z", "2026-10-15T00:00:00Z"]) {
+    const { github, actions, calls } = stalledRun({ jobs: UNTRUSTED_STOPPED, conclusion: "success", ended });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], ended);
+  }
+});
+
+test("an agent-ready issue whose untrusted-provenance label someone unlisted removed is never re-fired or handed to a person", async () => {
+  const untrusted = { name: "work-class: untrusted-provenance" };
+  const events = [
+    added("2026-10-16T08:00:00Z", OWNER),
+    { event: "labeled", label: untrusted, actor: LANES_BOT, created_at: "2026-10-16T08:00:01Z" },
+    { event: "unlabeled", label: untrusted, actor: { id: 999999, login: "stranger" }, created_at: "2026-10-16T08:00:02Z" },
+  ];
+  for (const runs of [[], [laneRun()]]) {
+    const { github, actions, calls } = failedRun({ runs, events });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], `${runs.length} run(s)`);
+  }
+});
+
+test("a stranded issue with an open blocker is neither re-fired nor handed to a person", async () => {
+  const { github, actions, calls } = failedRun({ runs: [], events: [added("2026-10-16T08:00:00Z", OWNER)], blockedBy: { 30: [issue(31)] } });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), []);
 });
@@ -1750,6 +1853,8 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
     assert.ok(caller[id] !== undefined, id);
   }
   assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
+  assert.ok(steps(caller.admit).includes("Wait for open blockers"));
+  assert.ok(steps(caller.admit).includes("Stop on untrusted provenance"));
   assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
@@ -2104,7 +2209,7 @@ function reopened({ issues = [fixIssue(30)], comments = [note(), recurrenceNote(
     comments: Object.fromEntries(issues.map((item) => [item.number, comments])),
     events: Object.fromEntries(issues.map((item) => [item.number, events])),
     timeline: Object.fromEntries(issues.map((item) => [item.number, pulls.map((pull) => crossRef(pull))])),
-    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, repository: { nameWithOwner: REPO } }))])),
+    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, state: "OPEN", repository: { nameWithOwner: REPO } }))])),
     pulls: Object.fromEntries([...pulls, ...closing].map((pull) => [pull.number, pull])),
     runs,
   });
@@ -2422,7 +2527,7 @@ const namingPull = (state, body = "Refs: #25") => ({
 
 test("the sweep keeps a deferred issue deferred while an open pull request is for it, and admits it once that closes", async (t) => {
   const log = t.mock.method(console, "log", () => {});
-  for (const facts of [{ timeline: [namingPull("open")] }, { closing: [{ number: 40, repository: { nameWithOwner: REPO } }] }]) {
+  for (const facts of [{ timeline: [namingPull("open")] }, { closing: [{ number: 40, state: "OPEN", repository: { nameWithOwner: REPO } }] }]) {
     log.mock.resetCalls();
     const open = deferredWorld(facts);
     assert.equal(await sweep({ github: open.github }, PAUSING), 0);
@@ -2430,9 +2535,11 @@ test("the sweep keeps a deferred issue deferred while an open pull request is fo
     const lines = log.mock.calls.map((call) => String(call.arguments[0]));
     assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 is for it"), lines.join("\n"));
   }
-  const closed = deferredWorld({ timeline: [namingPull("closed")] });
-  assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
-  assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)]);
+  for (const facts of [{ timeline: [namingPull("closed")] }, { closing: [{ number: 40, state: "MERGED", repository: { nameWithOwner: REPO } }] }]) {
+    const closed = deferredWorld(facts);
+    assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
+    assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)], JSON.stringify(facts));
+  }
 });
 
 test("the sweep admits a deferred issue an open pull request only mentions", async (t) => {
@@ -2581,7 +2688,7 @@ test("a person's mark whose criteria only the App wrote is refused; a text read 
 test("a person's mark waits, still deferred, while an open pull request closes or Refs it; one that only mentions it does not hold it", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const waiting = `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: open pull request #40 is for it.` })}`;
-  for (const facts of [{ closing: [{ number: 40, repository: { nameWithOwner: REPO } }] }, { timeline: [namingPull("open")] }]) {
+  for (const facts of [{ closing: [{ number: 40, state: "OPEN", repository: { nameWithOwner: REPO } }] }, { timeline: [namingPull("open")] }]) {
     log.mock.resetCalls();
     const open = markedWorld(facts);
     assert.equal(await sweep({ github: open.github, admission: admissionFor() }, PAUSING), 0);
@@ -2783,7 +2890,7 @@ test("a stranded issue with a listed human's open closing PR is left alone; an u
       comments: { 30: [note()] },
       events: { 30: [added("2026-10-16T08:00:00Z", OWNER)] },
       blobs: BLOBS,
-      closing: { 30: [{ number: 7950, repository: { nameWithOwner: REPO } }] },
+      closing: { 30: [{ number: 7950, state: "OPEN", repository: { nameWithOwner: REPO } }] },
       pulls: { 7950: { number: 7950, state: "open", user } },
     });
   const listed = humanPr(OWNER);
