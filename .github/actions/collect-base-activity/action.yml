@@ -483,9 +483,11 @@ runs:
             # .lane/git that runs only git status, diff, log and show, with
             # no system, global, fsmonitor, hook, pager, external-diff or
             # textconv program. It refuses the options that write a file or
-            # read one outside the checkout (--output, --no-index, -O and
-            # their prefixes) and any path argument that resolves outside the
-            # checkout, since git diff on such a path reads it as --no-index.
+            # read one outside the checkout (--output, --no-index, --orderfile,
+            # their prefixes, and -O alone or in a bundle of short options),
+            # status --verbose (it runs textconv), and any path argument that
+            # resolves outside the checkout, since git diff on such a path
+            # reads it as --no-index.
             # Bash(git *) stays denied, so git runs only through it.
             if [ -n "${ISSUE_NUMBER:-}" ]; then
               mkdir -p "$STAGE/git"
@@ -495,12 +497,13 @@ runs:
                   'cd "$workspace" && workspace=$(pwd -P) || exit 2' \
                   'case ${1:-} in status | diff | log | show) ;; *) echo "refused: git-read runs git status, diff, log or show" >&2 && exit 2 ;; esac' \
                   'for arg in "${@:2}"; do' \
+                  '  [ "$1" != status ] || case $arg in -v* | -[!-]*v* | --v*) echo "refused: $arg" >&2 && exit 2 ;; esac' \
                   '  case $arg in' \
-                  '    -O*) echo "refused: $arg" >&2 && exit 2 ;;' \
+                  '    -O* | -[!-]*O*) echo "refused: $arg" >&2 && exit 2 ;;' \
                   '    --?*)' \
                   '      name=${arg%%=*}' \
                   '      name=${name#--}' \
-                  '      for bad in output no-index ext-diff textconv open-files-in-pager paginate exec-path git-dir work-tree; do' \
+                  '      for bad in output no-index orderfile ext-diff textconv open-files-in-pager paginate exec-path git-dir work-tree; do' \
                   '        if [ "${#name}" -ge 2 ] && [ "${bad#"$name"}" != "$bad" ] || [ "${name#"$bad"}" != "$name" ]; then' \
                   '          echo "refused: $arg" >&2 && exit 2' \
                   '        fi' \

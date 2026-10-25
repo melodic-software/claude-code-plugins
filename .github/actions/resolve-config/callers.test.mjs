@@ -5866,6 +5866,33 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
     }
   }
   assert.ok(values >= 10, `${values} values read`);
+  // Once the subscription call ran, an output it left empty stays empty: the
+  // first call's value for it, set by its issue-fields job on a handoff, is
+  // never taken. Step conditions that read the calls are held to it too.
+  const subscriptionRan = (first) => (expression) => {
+    const context = {};
+    for (const [ref, call, rest] of String(expression).matchAll(/needs\.(resolve-issue(?:-subscription)?)\.(result|outputs\.[\w-]+)/g)) {
+      context[ref] = rest === "result" ? "success" : call === "resolve-issue" ? first : "";
+    }
+    return evaluate(expression, context);
+  };
+  let reads = 0;
+  for (const id of after) {
+    const job = jobs[id];
+    const expressions = [
+      ["if", job.if],
+      ...Object.entries(job.with ?? {}),
+      ...(job.steps ?? []).flatMap((step) => [...Object.entries(step.env ?? {}), ["if", step.if], ["continue-on-error", step["continue-on-error"]]]),
+    ];
+    for (const [name, expression] of expressions) {
+      if (!/needs\.resolve-issue/.test(String(expression ?? ""))) continue;
+      reads += 1;
+      for (const stale of ["true", "stale"]) {
+        assert.equal(subscriptionRan(stale)(expression), subscriptionRan("")(expression), `${id} ${name} takes the first call's ${stale} after the subscription call ran`);
+      }
+    }
+  }
+  assert.ok(reads > values, `${reads} reads, step conditions included`);
   // The started and reuse gates follow the call that ran too.
   const gate = (id, sub, first) =>
     evaluate(jobs[id].if, {

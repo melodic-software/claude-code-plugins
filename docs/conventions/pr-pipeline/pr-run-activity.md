@@ -705,7 +705,8 @@ job, which head code can forge, knows whether it was a credit stop or an empty k
    `.lane/git/git-read`, read-only and denied to the file tools, as its one way to git:
    `Bash(<workspace>/.lane/git/git-read *)` runs only `git status`, `diff`, `log` and `show`, with
    no system, global, fsmonitor, hook, pager, external-diff or textconv program, and refuses
-   `--output`, `--no-index`, `-O`, their prefixes and any path that resolves outside the checkout
+   `--output`, `--no-index`, `--orderfile`, their prefixes, `-O` alone or in a bundle of short
+   options, `status --verbose` (it runs textconv), and any path that resolves outside the checkout
    (a bare `git diff` on such a path reads it as `--no-index`). `Bash(git *)` stays denied. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
    name its skill, `Grep`, `Glob`, `Edit`, `Write`, `Agent` and `Edit(./.lane/scratch/**)`, which
@@ -1503,6 +1504,9 @@ Recorded, not fixed:
   pass.
 - The summary job's reuse summary is uploaded without the scan job's scan; run-claude-cli writes
   its structured output only after its own credential scan finds none.
+- A reuse never hands off, so on the issue lane its summary pass runs on the first call's API key
+  alone. With that key empty or out of credit the pass fails softly and the PR keeps the fixed
+  text.
 - On a resumed issue run the scan covers this run's patch and outcome, not the earlier run's
   commits on the branch it resumes, and a reused branch's commits reach a PR with no scan at
   reuse. Those commits were scanned when their run made them, against the pattern list of that

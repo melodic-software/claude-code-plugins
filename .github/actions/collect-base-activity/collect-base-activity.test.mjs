@@ -1369,6 +1369,8 @@ test("run-claude-cli: an issue lane's git-read runs only git's read commands, an
   const marker = path.join(dir, "ran");
   git("config", "core.fsmonitor", `touch ${marker}; false`);
   git("config", "diff.external", `touch ${marker}`);
+  git("config", "diff.planted.textconv", `touch ${marker}; cat`);
+  writeFileSync(path.join(workspace, ".gitattributes"), "a.txt diff=planted\n");
   writeFileSync(path.join(dir, "outside.txt"), "secret\n");
   const run = launch({ ISSUE_NUMBER: "7", SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH), WORKSPACE: workspace });
   assert.equal(run.status, 0, run.stdout);
@@ -1379,7 +1381,7 @@ test("run-claude-cli: an issue lane's git-read runs only git's read commands, an
     assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
   }
   assert.match(read("diff").stdout, /-one\n\+two/);
-  assert.equal(existsSync(marker), false, "no planted fsmonitor or external diff ran");
+  assert.equal(existsSync(marker), false, "no planted fsmonitor, external diff or textconv ran");
   for (const args of [
     ["log", "--output=x"],
     ["log", "--outp=x"],
@@ -1387,6 +1389,13 @@ test("run-claude-cli: an issue lane's git-read runs only git's read commands, an
     ["diff", "--no-index", "a.txt", path.join(dir, "outside.txt")],
     ["diff", path.join(dir, "outside.txt"), "a.txt"],
     ["diff", "-Ofile"],
+    ["diff", `-RO${path.join(dir, "outside.txt")}`],
+    ["diff", "-pO/nonexistent"],
+    ["diff", "--orderf=a.txt"],
+    ["status", "-v"],
+    ["status", "-sv"],
+    ["status", "--verbose"],
+    ["status", "--verb"],
     ["diff", "--ext-diff"],
     ["log", "--textconv"],
     ["commit", "-m", "x"],
@@ -1399,6 +1408,7 @@ test("run-claude-cli: an issue lane's git-read runs only git's read commands, an
     assert.match(result.stderr, /^refused: /, JSON.stringify(args));
   }
   assert.equal(existsSync(path.join(workspace, "x")), false, "nothing was written");
+  assert.equal(existsSync(marker), false, "no refused call ran a planted program");
 });
 
 test("run-claude-cli: a staged plugin with no .mcp.json gets an empty server list, and one that ships its own keeps it", () => {
