@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "At 30 s, cold starts (~41 s median) outlived the lease, jobs re-queued and #4144 merged twice.",
+      "why": "full"
+    },
+    {
+      "answer": "Cold starts take about 41 s, so a 30 s lease let running jobs re-queue and double-run.",
+      "why": "mechanism"
+    },
+    {
+      "answer": "Because a 30 s lease expired mid-cold-start and caused a double merge; 90 s covers the 41 s cold start.",
+      "why": "mechanism and number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "90 s was the default.",
+      "why": "no reason"
+    },
+    {
+      "answer": "A shorter lease costs more API calls.",
+      "why": "invented reason"
+    },
+    {
+      "answer": "To keep latency low.",
+      "why": "wrong direction"
+    }
+  ]
+}

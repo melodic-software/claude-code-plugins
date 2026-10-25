@@ -109,6 +109,10 @@ export const INTAKE_LABEL = ".github/workflows/intake-label-needs-triage.yml";
 // pending run when a newer one for the same PR head queues behind it, and that
 // newer run judges the head.
 export const JUDGE_STEP = "Judge the pull request";
+// The step before JUDGE_STEP. A cut list that reaches it or the judge step
+// cannot show a runner loss from an annotation: the judge step's log may echo
+// model or PR text that reads as one.
+export const JUDGE_PREDECESSOR = "Write the prompt and schema";
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
@@ -227,11 +231,12 @@ async function holdReason(call, repo, runId) {
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
   }
+  const jobs = await withAnnotations(call, repo, listing.jobs);
   // A job whose steps did not list in full (stepsKnown) throws too, so the
   // next pass reads it again, unless it lost its runner: then its list ends at
-  // the step that was running.
-  const jobs = await withAnnotations(call, repo, listing.jobs);
-  if (!jobs.every((job) => stepsKnown(job) || lostRunnerNoted(job))) {
+  // the step that was running. Only a failed job's annotation counts.
+  const cut = jobs.filter((job) => !stepsKnown(job));
+  if (!cut.every((job) => job?.conclusion === "failure" && lostRunnerNoted(job))) {
     throw new Error("a job's steps did not list in full, so which steps ran is unknown");
   }
   const steps = jobs.flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []));
@@ -239,6 +244,11 @@ async function holdReason(call, repo, runId) {
   // A listed judge step counts as started in any state but a finished skip.
   if (steps.some((s) => s?.name === JUDGE_STEP && !(s.status === "completed" && s.conclusion === "skipped"))) {
     return "after its judge step started";
+  }
+  // An annotation can be echoed text, so a cut list that reaches the judge
+  // step's predecessor stays held rather than read as a lost runner.
+  if (cut.some((job) => job.steps?.some((s) => s?.name === JUDGE_PREDECESSOR))) {
+    return "after its judge step may have started";
   }
   return started.length === 0 ? "before any of its jobs started" : undefined;
 }

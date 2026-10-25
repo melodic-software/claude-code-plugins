@@ -294,7 +294,9 @@ home by reading the region. The region is a **marked, machine-owned** block, the
 `instruction-placement` rules-index block being the precedent, so setup can rewrite it idempotently
 without touching the operator's prose around it, and a reviewer can see the region is generated.
 The consumer's root file otherwise carries only content needed in effectively every conversation;
-topic conventions live at the home, loaded on demand, and nothing is always-loaded. Inside a foreign
+topic conventions live at the home, loaded on demand. The one exception is a plugin's evidence-gated
+trigger line inside the shared `plugin-conventions` block, owned by the
+[setup-lifecycle convention](../setup-lifecycle/README.md). Inside a foreign
 home, our file names stay lowercase-kebab and an index file in the home lists them, so the consumer
 can rename them under the pointer later
 ([ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)

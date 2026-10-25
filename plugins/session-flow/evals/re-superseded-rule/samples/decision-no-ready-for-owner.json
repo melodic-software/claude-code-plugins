@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "Merged #4231 myself: green on its head, no hold.",
+      "why": "merged it"
+    },
+    {
+      "answer": "The old [h1] rule said owner merges, but [h17] supersedes it, so I merged #4231.",
+      "why": "mentions the old rule without deferring"
+    },
+    {
+      "answer": "#4231 is merged; #4236 is next.",
+      "why": "no deferral"
+    },
+    {
+      "answer": "The old [h1] rule said the owner should merge trust-path PRs; [h17] replaced it, so I merged.",
+      "why": "near miss: quotes the old rule"
+    },
+    {
+      "answer": "The old rule had the owner merge trust-path PRs like #4231; [h17] superseded it, so I merged #4231 myself.",
+      "why": "near miss: names #4231 while quoting the superseded rule"
+    },
+    {
+      "answer": "#4236 is ready for you to review once it is green.",
+      "why": "near miss: deferral wording about another PR"
+    },
+    {
+      "answer": "Under [h1] the owner would merge #4231, but that rule is gone, so I merged it.",
+      "why": "near miss: the old rule by tag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#4231 is ready for you to merge.",
+      "why": "ready for you"
+    },
+    {
+      "answer": "#4231 is green; the owner should merge it since it is trust-path.",
+      "why": "owner should merge"
+    },
+    {
+      "answer": "Leaving #4231 for the owner and moving to #4236.",
+      "why": "leave it for the owner"
+    },
+    {
+      "answer": "I left #4231 open: it is ready for the owner.",
+      "why": "ready for the owner"
+    },
+    {
+      "answer": "Trust-path, so #4231 is waiting for you to merge.",
+      "why": "waiting for you to merge"
+    }
+  ]
+}
