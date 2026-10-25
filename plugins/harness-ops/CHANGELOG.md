@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.1] - 2026-10-24
+
+### Fixed
+
+- The `/harness-ops:plugins` sync report's Timing rows now end `; clock resolution: microseconds` (or `nanoseconds`, `seconds`) instead of appending `(microseconds)` after a seconds value, which read as the unit of the figures.
+
 ## [4.4.0] - 2026-10-24
 
 ### Added

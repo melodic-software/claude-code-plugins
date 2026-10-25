@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "It skips draft PRs in the frontier, in lane/frontier.py.",
+      "why": "both"
+    },
+    {
+      "answer": "lane/frontier.py: drafts are filtered out of the frontier.",
+      "why": "both"
+    },
+    {
+      "answer": "#4277 changes lane/frontier.py so draft PRs are skipped.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It adds telemetry for skipped drafts.",
+      "why": "that is #4280"
+    },
+    {
+      "answer": "It skips drafts.",
+      "why": "no file"
+    },
+    {
+      "answer": "It changes tests/test_frontier.py only.",
+      "why": "wrong file"
+    }
+  ]
+}
