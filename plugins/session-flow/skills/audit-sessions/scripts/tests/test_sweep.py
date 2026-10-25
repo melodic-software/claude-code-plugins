@@ -90,9 +90,80 @@ def test_store_round_trip_yields_per_session_medians(data_dir):
     result = sweep(data_dir)
     assert result.returncode == 0, result.stdout + result.stderr
     metrics = envelope(result)["data"]["metrics"]
-    assert metrics["tokens.main"] == {"value": 20, "unit": "tokens", "n": 3}
+    threshold = RULE["tokens.main"]["threshold"]
+    assert metrics["tokens.main"] == {"value": 20, "unit": "tokens", "n": 3, "p90": 90, "threshold": threshold, "baseline_stale": False}
     assert metrics["cache.write_5m_share"]["value"] == pytest.approx(0.75)
+    assert metrics["cache.write_5m_share"]["p90"] is None
     assert set(metrics) == set(RULE)
+
+
+def test_trigger_is_pinned_one_sided_at_half_again_the_threshold():
+    assert RULES["stale_p90_factor"] == 1.5
+    assert "one-sided" in RULES["recheck"] and "threshold of 0" in RULES["recheck"]
+
+
+def test_p90_uses_collects_percentile_rule():
+    import collect
+    import sweep
+
+    for values in ([], [7], [1, 2], list(range(10)), list(range(11)), [5, 1, 9, 3, 7, 2]):
+        assert sweep.p90(values) == collect._percentile(values, 0.9), values
+
+
+def test_store_p90_over_half_again_a_threshold_marks_the_row_and_keeps_the_exit_code(data_dir):
+    # Ten sessions: the p90 is the ninth value. human.turns's p90 of 22 exceeds
+    # 1.5 x 14 = 21; tools.denials's p90 of 40 does not exceed 1.5 x 27 = 40.5.
+    turns, denials = RULE["human.turns"]["threshold"], RULE["tools.denials"]["threshold"]
+    assert (turns, denials) == (14, 27)
+    write_store(
+        data_dir,
+        *[record(f"s{n}", **{"human.turns": 22 if n >= 8 else 3, "tools.denials": 40 if n >= 8 else 3}) for n in range(10)],
+    )
+    result = sweep(data_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    env = envelope(result)
+    metrics = env["data"]["metrics"]
+    assert metrics["human.turns"]["p90"] == 22 and metrics["human.turns"]["threshold"] == 14
+    assert metrics["human.turns"]["baseline_stale"] is True
+    assert metrics["tools.denials"]["p90"] == 40 and metrics["tools.denials"]["baseline_stale"] is False
+    assert env["status"] == "pass" and env["data"]["stale_p90_factor"] == 1.5
+    md = sweep(data_dir, "--format", "md")
+    assert md.returncode == 0, md.stderr
+    table = md.stdout.split("## Metrics", 1)[1].split("## Findings", 1)[0]
+    rows = {row.split("|")[1].strip(" `"): row for row in table.splitlines() if row.startswith("| `")}
+    assert "| 22 (stale baseline) | 14 |" in rows["human.turns"]
+    assert "| 40 | 27 |" in rows["tools.denials"]
+    stale_line = next(line for line in table.splitlines() if line.startswith("Stale baseline:"))
+    assert "`human.turns`" in stale_line and "`tools.denials`" not in stale_line
+    assert "does not change the exit code" in stale_line
+
+
+def test_trigger_never_fires_without_a_threshold_or_below_one():
+    import sweep
+
+    assert sweep.baseline_stale(10**9, None, 1.5) is False
+    assert sweep.baseline_stale(None, 10, 1.5) is False
+    assert sweep.baseline_stale(1, 0, 1.5) is True and sweep.baseline_stale(0, 0, 1.5) is False
+    assert sweep.baseline_stale(1, 10, 1.5) is False
+
+
+def test_no_stale_line_when_no_row_is_marked(data_dir):
+    write_store(data_dir, record("s1"))
+    md = sweep(data_dir, "--format", "md").stdout
+    assert "Stale baseline:" not in md and "(stale baseline)" not in md
+
+
+@pytest.mark.parametrize("factor", [None, "1.5", 0.5, True])
+def test_rules_file_without_a_usable_factor_is_rejected(tmp_path, factor):
+    import sweep
+
+    rules = {key: value for key, value in RULES.items() if key != "stale_p90_factor"}
+    if factor is not None:
+        rules["stale_p90_factor"] = factor
+    path = tmp_path / "sweep-rules.json"
+    path.write_text(json.dumps(rules), encoding="utf-8")
+    with pytest.raises(ValueError, match="stale_p90_factor"):
+        sweep.load_rules(path)
 
 
 @pytest.mark.parametrize("bad", ["wrong-schema", "not-json"])
@@ -162,7 +233,7 @@ def test_automated_sessions_are_set_aside_from_medians_and_findings(data_dir):
     assert result.returncode == 0, result.stdout + result.stderr
     env = envelope(result)
     data = env["data"]
-    assert data["metrics"]["tokens.main"] == {"value": 10, "unit": "tokens", "n": 1}
+    assert (data["metrics"]["tokens.main"]["value"], data["metrics"]["tokens.main"]["n"]) == (10, 1)
     assert data["metrics"]["human.turns"]["value"] == 3
     assert data["findings"] == []
     assert (data["window"]["sessions"], data["window"]["automated_set_aside"]) == (1, 1)
@@ -219,6 +290,15 @@ def test_report_only_metric_never_finds_and_is_listed_unchecked(data_dir):
     assert "context.clear_commands" not in findings_by_metric(env)
     unchecked = {row["what"] for row in env["data"]["unchecked"]}
     assert {"context.clear_commands", "cache.write_5m_share"} <= unchecked
+    assert env["data"]["metrics"]["context.clear_commands"]["p90"] == 50
+    assert env["data"]["metrics"]["context.clear_commands"]["baseline_stale"] is False
+
+
+def test_report_only_reasons_attribute_basis_numbers_to_the_reference_machine(data_dir):
+    write_store(data_dir, record("s1"))
+    reasons = [u["reason"] for u in envelope(sweep(data_dir))["data"]["unchecked"] if u["reason"].startswith("reported only")]
+    assert len(reasons) == sum(rule["threshold"] is None for rule in RULE.values())
+    assert all("measured on the reference machine, not this store" in reason for reason in reasons)
 
 
 def test_metrics_without_a_canary_are_listed_unchecked(data_dir):
@@ -272,7 +352,15 @@ def test_canary_lost_degrades_metric(data_dir, tmp_path):
     env = envelope(result)
     assert env["status"] == "warning"
     assert "tools.interrupts" not in findings_by_metric(env)
-    assert env["data"]["metrics"]["tools.interrupts"] == {"value": None, "unit": "count", "n": 2, "degraded": True}
+    assert env["data"]["metrics"]["tools.interrupts"] == {
+        "value": None,
+        "unit": "count",
+        "n": 2,
+        "p90": None,
+        "threshold": 1,
+        "baseline_stale": False,
+        "degraded": True,
+    }
     assert env["data"]["drift"]["degraded_metrics"] == ["tools.interrupts"]
     assert env["data"]["window"]["cc_versions"] == ["2.0.1", "2.0.2"]
     md = sweep(data_dir, *args, "--format", "md")
@@ -499,7 +587,8 @@ def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
     result = sweep(data_dir)
     assert result.returncode == 0, result.stdout + result.stderr
     env = envelope(result)
-    assert env["data"]["metrics"]["edits.churn_per_pr"] == {"value": 6, "unit": "count", "n": 5}
+    churn_row = env["data"]["metrics"]["edits.churn_per_pr"]
+    assert churn_row == {"value": 6, "unit": "count", "n": 5, "p90": 7, "threshold": 5, "baseline_stale": False}
     churn = findings_by_metric(env)["edits.churn_per_pr"]
     assert churn["threshold"] == 5 and churn["value"] == 7 and churn["lens"] == "churn"
     assert churn["evidence"] == [
@@ -550,5 +639,6 @@ def test_records_without_prs_or_edits_sweep_cleanly(data_dir):
     result = sweep(data_dir, "--format", "md")
     assert result.returncode == 0, result.stdout + result.stderr
     env = envelope(sweep(data_dir))
-    assert env["data"]["metrics"]["edits.churn_per_pr"] == {"value": None, "unit": "count", "n": 0}
+    churn_row = env["data"]["metrics"]["edits.churn_per_pr"]
+    assert churn_row == {"value": None, "unit": "count", "n": 0, "p90": None, "threshold": 5, "baseline_stale": False}
     assert "edits.churn_per_pr" not in findings_by_metric(env)

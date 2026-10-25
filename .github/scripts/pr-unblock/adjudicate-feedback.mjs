@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // adjudicate-feedback.mjs: the pr-unblock lane's adjudication of a disputed
 // review finding, one an address-feedback round answered INCORRECT. A
-// fresh-context model sees the finding's claim, the lane's cited evidence and
-// the files at the head, never either side's reasoning, and returns a verdict
-// as structured output; this file stages its input, collects its verdict, and
-// applies it with no model.
+// fresh-context model sees the whole review comment, the locations both the
+// reviewer and the lane cited and those files at the head, never the lane's
+// reasoning, and returns a verdict as structured output; this file stages its
+// input, collects its verdict, and applies it with no model.
 //
 //   prepare  run by pr-unblock.yml's adjudicate-feedback job, base code only,
 //            with the job's read-only token, before any model turn: reads the
@@ -14,11 +14,11 @@
 //            stood before and no trusted person directed (up to MAX_THREADS)
 //            writes
 //            <OUT_DIR>/<slot>/: finding.json (path, line, head, and the
-//            claim: the review comment's first paragraph, with its severity
-//            line), evidence.json (the cited path:line list, never the
-//            lane's note) and files/<path>.txt, the cited files and the
-//            finding's own at the head. <OUT_DIR>/index.json names each slot's
-//            thread. Outputs `count`.
+//            review comment), evidence.json (the lane's cited path:line
+//            list, never its note), review-evidence.json (the locations the
+//            review comment cites) and files/<path>.txt, the cited files and
+//            the finding's own at the head. <OUT_DIR>/index.json names each
+//            slot's thread. Outputs `count`.
 //   collect  run after the model steps: reads each slot's verdict.json (the
 //            launcher's structured output) and writes VERDICTS_FILE, one
 //            entry per indexed thread; an absent or malformed verdict is
@@ -33,7 +33,8 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, FINDING_STANDS, need, SHA, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, FINDING_STANDS, need, SHA } from "./address-feedback.mjs";
+import { budgetedFetch } from "./request-budget.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -45,8 +46,7 @@ export const QUESTIONS = ["intent", "design", "security"];
 // FINDING_STANDS, which the next address-feedback round reads.
 export const FINDING_ANSWERED = "<!-- pr-unblock adjudicate-feedback: finding-answered -->";
 const FILE_BYTES = 204800;
-const CLAIM_CHARS = 2000;
-// The most cited locations one slot stages: publish-feedback.mjs's
+// The most cited locations one slot stages from each side: publish-feedback.mjs's
 // LIMITS.evidence, which rejects a reply citing more.
 const EVIDENCE_CAP = 10;
 // Each staged file's suffix, so a cited CLAUDE.md, AGENTS.md or .claude/**
@@ -56,6 +56,11 @@ const PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 const PATH_LINE = /^([A-Za-z0-9_@+.-]+(?:\/[A-Za-z0-9_@+.-]+)*):([1-9][0-9]{0,6})$/;
 const DOT_SEGMENT = /(^|\/)\.\.?(\/|$)/;
 const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
+// A path:line token in review prose; the path must hold a `/` or a `.`.
+const PROSE_LOCATION = /(?<![\w@+./:-])((?:[\w@+.-]+\/)*[\w@+.-]+):([1-9][0-9]{0,6})(?![\w])/g;
+// The security-review lane's severity line (security-review SKILL.md,
+// "Reporting"), anywhere in the comment.
+const CRITICAL = /^[ \t]*severity:[ \t]*critical[ \t]*$/im;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_SEGMENT.test(path);
@@ -70,46 +75,38 @@ export const stood = (comments) => (comments ?? []).some((comment) => comment.au
 // adjudicated.
 export const directed = (comments) => (comments ?? []).some((comment) => comment.direction === true);
 
-// Whether an adjudicator may judge a dispute on the thread: only one a
-// pr-verify verifier note opened, or a review comment keepThreads tagged with
-// the code-review lane (a github-actions[bot] footer; claude[bot] writes its
-// own body, so it names no lane). A security-review finding, and one of no
-// tagged lane, always goes to a person.
+// Whether an adjudicator may judge a dispute on the thread: only a review
+// comment keepThreads tagged with the code-review lane (a github-actions[bot]
+// footer; claude[bot] writes its own body, so it names no lane) that carries
+// no `severity: CRITICAL` line. A CRITICAL finding, a security-review
+// finding, one of no tagged lane, and a pr-verify verifier note (resolving it
+// leaves the verifier's FAIL holding the merge, and pr-verify judges each
+// head once) always go to a person.
 export const adjudicable = (comments) => {
   const root = comments?.[0];
-  return root?.author === "verifier" || (root?.author === "reviewer" && root.lane === "claude-review");
+  return root?.author === "reviewer" && root.lane === "claude-review" && !CRITICAL.test(String(root.body ?? ""));
 };
 
-// The review comment's claim, without its rationale: a leading `severity:`
-// line, then the first paragraph after it, cut at CLAIM_CHARS. The repro,
-// the reasoning and the suggested fix in later paragraphs, and the review
-// lane's footer, are left out. Leading `<!-- -->` marker lines are dropped;
-// a verifier note (verify-notes.mjs) is its introduction line and the quoted
-// block that holds the finding, so the claim is the whole note.
-export function claimOf(body) {
-  const text = String(body ?? "").replace(/\r\n/g, "\n");
-  const note = firstLine(text) === VERIFY_NOTE_MARKER;
-  const lines = text.split("\n");
-  while (lines.length > 0 && /^<!--.*-->\s*$/.test(lines[0])) {
-    lines.shift();
+// The locations a review comment cites: path:line tokens in its prose and
+// line-numbered permalinks into `repository`, each safe path:line once, at
+// most EVIDENCE_CAP.
+export function reviewerEvidence(body, repository) {
+  const text = String(body ?? "");
+  const found = [...text.matchAll(PROSE_LOCATION)].filter((match) => /[/.]/.test(match[1])).map((match) => [match.index, match[1], match[2]]);
+  if (/^[\w.-]+\/[\w.-]+$/.test(repository ?? "")) {
+    const permalink = new RegExp(`https://github\\.com/${repository.replace(/\./g, "\\.")}/blob/[0-9a-f]{40}/([^\\s#?)\\]]+)#L([1-9][0-9]{0,6})`, "g");
+    found.push(...[...text.matchAll(permalink)].map((match) => [match.index, match[1], match[2]]));
   }
-  const paragraphs = lines
-    .join("\n")
-    .split(/\n[ \t]*\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== "" && !/^`?claude-lane: /.test(paragraph));
-  let severity = null;
-  if (paragraphs.length > 0 && /^severity: \S+$/i.test(paragraphs[0].split("\n")[0])) {
-    const [line, ...rest] = paragraphs[0].split("\n");
-    severity = line;
-    if (rest.join("\n").trim() === "") {
-      paragraphs.shift();
-    } else {
-      paragraphs[0] = rest.join("\n").trim();
+  const seen = new Set();
+  const out = [];
+  for (const [, path, line] of found.sort((a, b) => a[0] - b[0])) {
+    const key = `${path}:${line}`;
+    if (safePath(path) && !seen.has(key) && out.length < EVIDENCE_CAP) {
+      seen.add(key);
+      out.push({ path, line: Number(line) });
     }
   }
-  const claim = note ? lines.join("\n").trim() : (paragraphs[0] ?? "");
-  return { severity, claim: claim.slice(0, CLAIM_CHARS) };
+  return out;
 }
 
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
@@ -128,9 +125,9 @@ function readChecked(path, expected, what) {
 
 // The slots to adjudicate: each INCORRECT reply whose thread the select job
 // kept, is adjudicable, no adjudication has stood and no trusted person
-// directed, in reply order, one slot per thread. Returns [{thread, finding, evidence, paths}] and
-// the threads past MAX_THREADS.
-export function disputes(threadFile, repliesText) {
+// directed, in reply order, one slot per thread. Returns [{thread, finding,
+// evidence, cited, paths}] and the threads past MAX_THREADS.
+export function disputes(threadFile, repliesText, repository = "") {
   const kept = new Map((threadFile.threads ?? []).map((thread) => [thread.id, thread]));
   const slots = [];
   const over = [];
@@ -152,24 +149,26 @@ export function disputes(threadFile, repliesText) {
       .map((ev) => PATH_LINE.exec(ev))
       .filter((match) => match && !DOT_SEGMENT.test(match[1]))
       .map((match) => ({ path: match[1], line: Number(match[2]) }));
-    const root = thread.comments?.[0] ?? {};
-    const paths = [...new Set([thread.path, ...evidence.map((ev) => ev.path)])].filter(safePath);
+    const comment = String(thread.comments?.[0]?.body ?? "");
+    const cited = reviewerEvidence(comment, repository);
+    const paths = [...new Set([thread.path, ...evidence.map((ev) => ev.path), ...cited.map((ev) => ev.path)])].filter(safePath);
     slots.push({
       thread: thread.id,
-      finding: { path: thread.path, line: thread.line ?? null, ...claimOf(root.body) },
+      finding: { path: thread.path, line: thread.line ?? null, comment },
       evidence,
+      cited,
       paths,
     });
   }
   return { slots, over };
 }
 
-export async function prepare({ threadsText, repliesText, headSha, outDir, getText }) {
+export async function prepare({ threadsText, repliesText, headSha, outDir, getText, repository = "" }) {
   const threadFile = JSON.parse(threadsText);
   if (threadFile?.version !== 1 || threadFile.head_sha !== headSha) {
     throw new Error("threads.json is not the select job's thread file for this head");
   }
-  const { slots, over } = disputes(threadFile, repliesText);
+  const { slots, over } = disputes(threadFile, repliesText, repository);
   mkdirSync(outDir, { recursive: true });
   const index = [];
   for (const [slot, entry] of slots.entries()) {
@@ -194,10 +193,9 @@ export async function prepare({ threadsText, repliesText, headSha, outDir, getTe
       found.set(path, state);
     }
     writeFileSync(join(dir, "finding.json"), `${JSON.stringify({ head_sha: headSha, ...entry.finding, file: found.get(entry.finding.path) ?? "absent" }, null, 2)}\n`);
-    writeFileSync(
-      join(dir, "evidence.json"),
-      `${JSON.stringify(entry.evidence.map((ev) => ({ location: `${ev.path}:${ev.line}`, file: found.get(ev.path) ?? "absent" })), null, 2)}\n`,
-    );
+    const locations = (list) => `${JSON.stringify(list.map((ev) => ({ location: `${ev.path}:${ev.line}`, file: found.get(ev.path) ?? "absent" })), null, 2)}\n`;
+    writeFileSync(join(dir, "evidence.json"), locations(entry.evidence));
+    writeFileSync(join(dir, "review-evidence.json"), locations(entry.cited));
     index.push({ slot, thread: entry.thread });
   }
   writeFileSync(join(outDir, "index.json"), `${JSON.stringify({ version: 1, head_sha: headSha, slots: index, over }, null, 2)}\n`);
@@ -262,7 +260,7 @@ const evidenceLine = (evidence) => (evidence.length > 0 ? `Evidence: ${evidence.
 
 // The fixed reply for a lane or reviewer verdict; no model text.
 export function adjudicationReply(verdict, evidence, headSha) {
-  const seen = `A fresh-context adjudicator read the finding, the evidence below and the code at \`${headSha}\`, without either side's reasoning,`;
+  const seen = `A fresh-context adjudicator read the review comment, the locations both sides cited and the code at \`${headSha}\`, without the fixing lane's reasoning,`;
   return verdict === "lane"
     ? [FINDING_ANSWERED, "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**", "", `${seen} and found that the code answers the finding.`, "", evidenceLine(evidence)].join("\n")
     : [
@@ -298,9 +296,9 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   is the cap: feedback-disputed, and no second adjudication;
 // - an INCORRECT thread a trusted person directed (directed) is theirs:
 //   feedback-disputed, and no adjudication;
-// - an INCORRECT thread that is not adjudicable (a security-review finding,
-//   or one of unknown lane) goes to a person: feedback-disputed, and any
-//   verdict for it is ignored;
+// - an INCORRECT thread that is not adjudicable (a CRITICAL or
+//   security-review finding, a verifier note, or one of unknown lane) goes to
+//   a person: feedback-disputed, and any verdict for it is ignored;
 // - an INCORRECT thread with no verdict escalates feedback-unadjudicated;
 // - human: no reply, feedback-question-<intent|design|security>; a question
 //   only the owner answers stays the owner's;
@@ -336,7 +334,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       continue;
     }
     if (!adjudicable(now.get(thread)?.comments)) {
-      log(`${thread}: not a code-review or verifier finding; it goes to a person, not to an adjudicator`);
+      log(`${thread}: not a non-CRITICAL code-review finding; it goes to a person, not to an adjudicator`);
       raise("feedback-disputed");
       continue;
     }
@@ -398,6 +396,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     if (!SHA.test(env.HEAD_SHA)) {
       throw new Error("HEAD_SHA is not a commit id");
     }
+    // Each read's rate-limit headers go to the job-end api-budget notice.
     const client =
       api ??
       createGitHubApi({
@@ -405,12 +404,14 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
         repository: env.GITHUB_REPOSITORY,
         apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
         graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        fetch: budgetedFetch({ log }).fetch,
       });
     const { count, over } = await prepare({
       threadsText: readChecked(env.THREADS_FILE, env.THREADS_SHA256, "threads.json"),
       repliesText: readChecked(env.REPLIES_FILE, env.REPLIES_SHA256, "replies.jsonl"),
       headSha: env.HEAD_SHA,
       outDir: env.OUT_DIR,
+      repository: env.GITHUB_REPOSITORY,
       getText: (path, ref) => client.getText(path, ref),
     });
     output("count", String(count));

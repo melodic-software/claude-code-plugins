@@ -1892,8 +1892,8 @@ findings listed by key. Its scripts and tests are in
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line
 `<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
-and, per current finding, the key, the owning area and the evidence inside a text fence as inert
-lines. Each finding's fingerprint changes only when its evidence does: the failure text, the run, PR or
+and, per current finding, the key, the owning area, and the summary and the evidence each inside
+a text fence as inert lines; the change comment fences each summary too. Each finding's fingerprint changes only when its evidence does: the failure text, the run, PR or
 stop-comment set, the newest failed merge group, the last merge, or the day for a ceiling; the state
 fingerprint covers the signal's keys and fingerprints, and no finding is the clear state. The newest
 issue for a signal decides: open with the same state, nothing is written; open with a new state, a

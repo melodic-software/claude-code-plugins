@@ -240,18 +240,20 @@ fi
 if [[ "${CC_STUB_CLEAN:-0}" == "1" ]]; then
   cat <<JSON
 {"marketplace":"$mp","scope":"user","checked":1,"match":1,"stale_content":0,
- "unverifiable":0,"skipped_absent_project_paths":0,
+ "unverifiable":0,"not_checked":0,"skipped_absent_project_paths":0,
  "installs":[{"id":"alpha@$mp","version":"0.1.0","verdict":"match",
               "differing":0,"missing_from_cache":0,"extra_in_cache":0}]}
 JSON
   exit 0
 fi
 cat <<JSON
-{"marketplace":"$mp","scope":"user","checked":2,"match":1,"stale_content":1,
- "unverifiable":0,"skipped_absent_project_paths":0,
+{"marketplace":"$mp","scope":"user","checked":3,"match":1,"stale_content":1,
+ "unverifiable":0,"not_checked":1,"skipped_absent_project_paths":0,
  "installs":[{"id":"alpha@$mp","version":"0.1.0","verdict":"stale-content",
               "differing":2,"missing_from_cache":1,"extra_in_cache":1},
              {"id":"beta@$mp","version":"0.1.0","verdict":"match",
+              "differing":0,"missing_from_cache":0,"extra_in_cache":0},
+             {"id":"gamma@$mp","version":"0.1.0","verdict":"not-at-head",
               "differing":0,"missing_from_cache":0,"extra_in_cache":0}]}
 JSON
 exit 0
@@ -380,6 +382,8 @@ assert_eq "sync: only the stale install gets a per-id row" "1" \
   "$(jq -r '.marketplaces[0].cache_content.stale | length' <<<"$out")"
 assert_eq "sync: that row carries the id, its version, and the file count" "alpha@market1 0.1.0 4" \
   "$(jq -r '.marketplaces[0].cache_content.stale[0] | "\(.id) \(.version) \(.files_differ)"' <<<"$out")"
+assert_eq "sync: the not-checked count is carried apart from unverifiable" "1 0" \
+  "$(jq -r '.marketplaces[0].cache_content | "\(.not_checked) \(.unverifiable)"' <<<"$out")"
 assert_eq "sync: the update is reported as a forward move" "forward" \
   "$(jq -r '.marketplaces[0].user_sweep.updated[0].direction' <<<"$out")"
 assert_eq "sync: old version came from the pre-mutation snapshot" "0.1.0" \
@@ -1405,7 +1409,7 @@ assert_eq "stale many: the full list keeps a path past the cap with its count" "
   "$(jq --arg p "$(norm_path "$case_dir/g12/x")" '.[] | select(.path == $p) | .count' \
     "$stale_run_dir/stale-project-records.market1.json" 2>/dev/null)"
 assert_eq "stale many: the printed digest carries no per-path array" "false" \
-  "$(jq '[.. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
+  "$(jq '[.marketplaces[].stale_project_records | .. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
 # Audit's scratch directory is removed on exit, so the render names no file there.
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
@@ -1431,6 +1435,43 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_
 report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
 assert_exit "render re-entry: exit 0" 0 "$REPORT_RC"
 assert_golden "render re-entry: the superseding report matches the golden" ask-reentry-installed.txt "$REPORT_TEXT"
+
+# --- a re-entry keeps the first pass's invalid install_new and its timings -----
+# The re-entry takes no --install-new, so the superseding report would otherwise
+# drop the warning, and its run total would cover only the re-entry.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.3.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new bogus --journal-root "$case_dir/journal")
+assert_exit "invalid policy re-entry: the first pass exits 0" 0 $?
+assert_eq "invalid policy re-entry: the first pass falls back to ask and stops" "ask true" \
+  "$(jq -r '"\(.install_new) \(.marketplaces[0].stopped_before_install)"' <<<"$out")"
+assert_eq "invalid policy re-entry: a first pass times itself alone" "null" \
+  "$(jq -c '.timings.passes' <<<"$out")"
+run_dir=$(jq -r '.run_dir' <<<"$out")
+first_total=$(jq -r '.timings.total' <<<"$out")
+out2=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir" --render)
+assert_exit "invalid policy re-entry: exit 0" 0 $?
+digest2=$(printf '%s\n' "$out2" | head -n 1)
+assert_eq "invalid policy re-entry: the superseding digest keeps the invalid value" "bogus" \
+  "$(jq -r '.install_new_invalid' <<<"$digest2")"
+assert_eq "invalid policy re-entry: and the policy the run used" "ask" "$(jq -r '.install_new' <<<"$digest2")"
+assert_contains "invalid policy re-entry: the superseding report still carries the warning" "$out2" \
+  'install_new value "bogus" is not all, none, or ask; this run used ask'
+assert_eq "invalid policy re-entry: the run timings name both passes" "first only_install" \
+  "$(jq -r '.timings.passes | map(.pass) | join(" ")' <<<"$digest2")"
+assert_eq "invalid policy re-entry: the first pass row is the first digest's total" "$first_total" \
+  "$(jq -r '.timings.passes[0].total' <<<"$digest2")"
+assert_eq "invalid policy re-entry: the run total is at least the first pass's total" "true" \
+  "$(jq -r --argjson first "$first_total" '.timings.total >= $first' <<<"$digest2")"
+assert_eq "invalid policy re-entry: the run total is the two passes summed" "true" \
+  "$(jq -r '.timings | .total - (.passes[0].total + .passes[1].total) | . < 0.0015 and . > -0.0015' <<<"$digest2")"
+assert_contains "invalid policy re-entry: the run Timing row names both passes" \
+  "$(printf '%s\n' "$out2" | grep -E '^Timing: [0-9.]+s run total over both passes \(first pass [0-9.]+s, --only-install re-entry [0-9.]+s; the wait between them is not counted\); [0-9.]+s outside the marketplace blocks; clock resolution: (microseconds|nanoseconds|seconds)$')" \
+  "over both passes"
 
 # --- an ask-policy re-entry where the human picked none of the offered plugins
 CASE_NUM=$((CASE_NUM + 1))
@@ -1635,6 +1676,20 @@ assert_eq "divergences split: an old digest with a project leads with the here c
 assert_eq "divergences split: zero stays zero" 'Divergences: 0 actionable' \
   "$(div_row_of '{"divergences":{"post":0,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}}')"
 
+# --- the Divergences row names its project paths --------------------------------
+# No project root resolved, and the skewed records sit in two other paths: one
+# sub-line per path, the busier one capped at three ids with the rest counted.
+div_by_path='{"post":6,"pre_existing":6,"new_total":0,"new_by_interval":{"in_repo":0,"user_sweep":0},
+  "actionable_here":0,"actionable_elsewhere":6,"in_worktrees":0,"blocked":0,
+  "by_path":[{"path":"/w/a","count":5,"ids":["a@m","b@m","c@m"],"more":2},
+             {"path":"/w/b","count":2,"ids":["a@m","f@m"],"more":0}]}'
+div_text=$(needs_digest sync "{\"divergences\": $div_by_path}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_golden "divergence by path, no project root: the report matches the golden" divergence-by-path-no-root.txt "$div_text"
+assert_eq "divergence by path: one sub-line per path" "2" \
+  "$(grep -c '^  - /w/' <<<"$div_text")"
+assert_eq "divergence by path: exactly one sub-line is capped" "1" \
+  "$(grep -c '^  - /w/.*, +[0-9][0-9]* more$' <<<"$div_text")"
+
 # --- the split computed from a real fleet ---------------------------------------
 # alpha carries one pin per class beside its user record, all behind the user
 # version: a plain directory (actionable), a linked worktree (.git is a file naming
@@ -1697,6 +1752,32 @@ assert_contains "divergences real: the row names the blocked part" "$REPORT_TEXT
 # delta (a submodule .git file), epsilon (a separate git dir under a directory
 # named worktrees) are plain checkouts; zeta's present pin already sits at the
 # highest version, so only its absent pin is the skew and the row is blocked.
+assert_eq "divergences real: every diverging record carries id, scope, version and projectPath" "true" \
+  "$(jq '.marketplaces[0].divergences.records | length > 0
+    and all(.[]; has("id") and has("scope") and has("version") and has("projectPath"))' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: the records name every diverging id" \
+  '["alpha@market1","beta@market1","delta@market1","epsilon@market1","gamma@market1","zeta@market1"]' \
+  "$(jq -c '[.marketplaces[0].divergences.records[].id] | unique' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: a record carries its scope, version and projectPath" "project 0.1.0 true" \
+  "$(jq -r --arg p "$p_gone" '.marketplaces[0].divergences.records[] | select(.id == "gamma@market1")
+    | "\(.scope) \(.version) \(.projectPath == $p)"' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: a pin already at the highest version is not a diverging record" "true" \
+  "$(jq --arg p "$p_gone" '[.marketplaces[0].divergences.records[] | select(.id == "zeta@market1") | .projectPath] == [$p]' <<<"$REPORT_DIGEST")"
+# The busiest path is not present, so it sorts after every path converge can act on.
+assert_eq "divergences real: by_path puts converge-actionable paths first, then worktrees, then absent paths" \
+  '["actionable","actionable","actionable","worktree","blocked"]' \
+  "$(jq -c '[.marketplaces[0].divergences.by_path[].class]' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: a by_path entry counts its records and names its ids" "true" \
+  "$(jq --arg p "$p_gone" '.marketplaces[0].divergences.by_path[] | select(.path == $p)
+    | .class == "blocked" and .count == 3 and .ids == ["alpha@market1","gamma@market1","zeta@market1"] and .more == 0' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: records[] does not carry the by_path class" "false" \
+  "$(jq '[.marketplaces[0].divergences.records[] | has("class")] | any' <<<"$REPORT_DIGEST")"
+assert_contains "divergences real: an absent path's sub-line says it is not present" "$REPORT_TEXT" \
+  "  - <case>/gone (not present): 3 diverging record(s): alpha@market1, gamma@market1, zeta@market1"
+assert_contains "divergences real: a worktree path's sub-line says it is a linked worktree" "$REPORT_TEXT" \
+  "  - <case>/wt (linked worktree): 2 diverging record(s): alpha@market1, beta@market1"
+assert_eq "divergences real: one by_path entry per project path" "5" \
+  "$(jq '.marketplaces[0].divergences.by_path | length' <<<"$REPORT_DIGEST")"
 
 # The run stands in a linked worktree whose own pin is skewed: that pin is
 # converge-actionable here, never classed `worktree`, while a sibling worktree's
@@ -2313,14 +2394,26 @@ assert_eq "cache scope: the always-zero project-path counter is not carried" "fa
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 0,
   "unverifiable": 3, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_contains "cache scope: the unverifiable-only row names user scope" "$cache_text" \
-  "Cache content: 3 of 10 user-scope install(s) unverifiable"
+  "Cache content: 7 of 10 user-scope install(s) compared, no disagreement found; 3 unverifiable, which is not a pass"
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 1,
   "unverifiable": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
   jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_contains "cache scope: the stale row names user scope" "$cache_text" \
   "Cache content: 1 user-scope install(s) whose cache files disagree"
-assert_contains "cache scope: the checked sub-line names user scope" "$cache_text" \
-  "(checked 10 user-scope install(s): 7 match, 2 unverifiable"
+assert_contains "cache scope: the tally sub-line names user scope" "$cache_text" \
+  "(of 10 user-scope install(s): 7 match, 2 unverifiable; unverifiable is not a pass)"
+# A record at a commit other than the clone's HEAD is not compared, and the row
+# says so in its own words rather than counting it unverifiable.
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 86, "match": 2, "stale_content": 0,
+  "unverifiable": 0, "not_checked": 84, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: not-checked-only row" "$cache_text" \
+  "Cache content: 2 of 86 user-scope install(s) compared, no disagreement found; 84 not checked (recorded at an older commit)"
+assert_not_contains "cache content: a not-checked record is not called unverifiable" "$cache_text" "unverifiable"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 6, "stale_content": 1,
+  "unverifiable": 1, "not_checked": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
+  jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: the tally sub-line under a finding names both counts" "$cache_text" \
+  "(of 10 user-scope install(s): 6 match, 1 unverifiable, 2 not checked (recorded at an older commit); unverifiable is not a pass)"
 assert_contains "cache content: a row without pending fragments keeps the repair" "$cache_text" \
   "Remediation: remove that version's directory"
 
