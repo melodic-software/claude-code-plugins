@@ -295,16 +295,18 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 `.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
-exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
-`not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
+unappliable patch goes to `report-escalation`, as does a run that changed nothing and escalated a
+check. A patch that pushed escalates nothing, whatever the model escalated beside it: the new
+head's CI decides, and a red new head gets its own run. The one exception: a run at
+`model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 `fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
-without a retry. The same
+pushes and `ci-status` stays red. In a run that changed nothing, `protected-path`,
+`weaken-required` and `flaky` go to a person without a retry; beside a pushed patch, the new
+head's CI decides for them too. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
@@ -1483,7 +1485,8 @@ opened the pull request: a spec written by a trusted human counts, so an adopted
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
-parent's task-list lines (below), so a lane pull request never supplies its own spec.
+parent's task-list lines or those of intake's refinement on it (below), so a lane pull request
+never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -1582,8 +1585,14 @@ head:
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
   admission's `task-list`, "- [ ] " with its trailing space, from
-  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
-  listed human last edited it. On that edited path a line may also be a trusted line with its box
+  `.github/actions/resolve-config/admission-rules.json` at the default branch, as resolve-pr reads it from main's checkout, whatever the pull request's base; a missing or empty `task-list` counts nothing), and either nobody edited it or a
+  listed human last edited it. A header whose third line is
+  `<!-- size-split refinement=<id> updated_at=<time> -->` also allows that refinement comment's
+  task-list lines, never its prose, heading or marker lines, and counts only while that comment is
+  still the lanes App's newest refinement on the parent, never edited, with `updated_at` equal to
+  its `created_at` or to the recorded time, on a parent body a listed human wrote, and last edited
+  if ever; a deleted, edited or superseded refinement leaves it untrusted, whoever edited the
+  sub-issue since. On the edited path a line may also be a trusted line with its box
   ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
   `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
   so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than

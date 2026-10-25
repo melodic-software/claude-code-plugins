@@ -1813,10 +1813,11 @@ jobs:
   # The push job: apply-patch.mjs, a script with no model that runs no head
   # code. It checks the patch against the model job's SHA-256 and head,
   # applies it, refuses what patch-rules.json's ci-context row refuses, and
-  # pushes one commit without force. An empty or refused patch, a collection
-  # the run's collector refused, or an escalated check, hands the PR to a
-  # person (a refused collection reaches select with no patch-state, which
-  # escalates ci-fix-invalid). One leg answers: the fallback call when it ran,
+  # pushes one commit without force. An empty or refused patch, or a
+  # collection the run's collector refused, hands the PR to a person (a
+  # refused collection reaches select with no patch-state, which escalates
+  # ci-fix-invalid); a pushed patch hands none, so the new head's CI decides.
+  # One leg answers: the fallback call when it ran,
   # else the first, and every input is that leg's scan job's, never a run
   # job's; a call that handed off left none.
   apply-patch:

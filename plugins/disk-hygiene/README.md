@@ -23,8 +23,10 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
   ranking.
-- Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
-  via `--root-children` with an explicit child selection), user shell-folder roots,
+- Filesystem roots, mount targets (a non-root mount such as a tmpfs `/tmp` can only have its
+  immediate children listed, read-only, with `--root-children`), OS-managed roots on every Windows
+  volume (unless addressed only via `--root-children` with an explicit child selection), user
+  shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
   predicates cannot be disabled by policy. The sole VCS exception is the evidence mode for an
@@ -268,8 +270,7 @@ launched.
   records nothing and changes no decision: the verdict is computed and emitted before the record is
   attempted, and the write path raises nothing.
 - **Not a replacement for telemetry.** A configured `HOOK_TELEMETRY_SINK` keeps receiving exactly
-  what it received before. The local record is the floor beneath it, for the ordinary case where no
-  sink exists.
+  what it received before. The local record covers the ordinary case where no sink exists.
 - **What is not recorded.** The plugin-level defer, the branch this hook takes for every Bash
   command that does not name the engine, writes nothing, which is what keeps the always-on path
   free. The watchdog's expiry path also writes nothing: that callback runs while the main thread is

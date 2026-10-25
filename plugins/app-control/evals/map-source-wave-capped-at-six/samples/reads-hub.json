@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/SKILL.md"
+          }
+        }
+      ],
+      "why": "read the hub"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".claude/skills/control-shop/features/*"
+          }
+        }
+      ],
+      "why": "listed folders but read no hub"
+    }
+  ]
+}

@@ -1332,8 +1332,9 @@ refusal posts nothing.
    `model-rung` 1. A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
-   with nothing minted. A report that escalated a check sets `ci-fix-escalated` and proceeds, so
-   the fixes that landed are pushed and the rest go to a person.
+   with nothing minted. A `written` patch proceeds with no escalation, whatever the report
+   escalated: the push makes a new head, and that head's own CI decides. A red new head gets its
+   own fix-ci run, which escalates what it cannot fix, and `loop.fix-ci-rounds` ends the rounds.
 2. The hold-label step runs as for a skill, before the head checkout (depth 1).
 3. The script, from its base copy, with the lane token and `/usr/bin/git` under an allowlisted
    environment (no hooks, fsmonitor, global or system config), applies the patch to the gated

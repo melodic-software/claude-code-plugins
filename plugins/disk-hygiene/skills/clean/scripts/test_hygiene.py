@@ -3960,6 +3960,112 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertEqual(2, code)
             self.assertIn("mount points are not valid audit targets", payload["error"])
+            self.assertIn("--root-children", payload["hint"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def _mount_point_target_patches(self, mounts: set[Path]) -> list[object]:
+        resolved = {path.resolve() for path in mounts}
+        return [
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+            mock.patch.object(hygiene, "is_volume_root", return_value=False),
+            mock.patch.object(hygiene, "system_roots", return_value=[]),
+            mock.patch.object(
+                hygiene,
+                "mount_state",
+                side_effect=lambda path, *args: (Path(path).resolve() in resolved, None),
+            ),
+        ]
+
+    def test_root_children_lists_immediate_children_of_a_mount_point_target(
+        self,
+    ) -> None:
+        # A tmpfs /tmp is a mount point but not a volume root. Its loose
+        # top-level files are the leftovers, so they are admitted like a volume
+        # root's; a nested mount is withheld and nothing is walked.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "tmpfs"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "orphan.tmp").write_text("x", encoding="utf-8")
+            (target / "session-scratch").mkdir()
+            (target / "session-scratch" / "inner.tmp").write_text("y", encoding="utf-8")
+            (target / ".X11-unix").mkdir()
+            (target / "wslg").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._mount_point_target_patches({target, target / "wslg"}),
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            self.assertIs(True, payload["mount_point_target"])
+            admitted = {item["name"]: item["kind"] for item in payload["admitted_children"]}
+            self.assertEqual(
+                {"orphan.tmp": "file", "session-scratch": "directory"}, admitted
+            )
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual(
+                {".X11-unix": "hidden", "wslg": "nested-mount-point"}, skipped
+            )
+            self.assertIn("own target", payload["note"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_quiet_mount_point_listing_goes_to_the_output_file(self) -> None:
+        # A real /tmp can hold tens of thousands of top-level entries, so under
+        # --quiet stdout carries counts and the full listing lands in --output,
+        # where preview still refuses it as a snapshot.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "tmpfs"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "orphan.tmp").write_text("x", encoding="utf-8")
+            (target / "session-scratch").mkdir()
+            (target / ".X11-unix").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._mount_point_target_patches({target}),
+                extra_args=["--root-children", "--quiet"],
+            )
+            self.assertEqual(0, code)
+            self.assertNotIn("admitted_children", payload)
+            self.assertEqual({"directory": 1, "file": 1}, payload["admitted_kinds"])
+            self.assertEqual({"hidden": 1}, payload["root_children_skipped"])
+            listing_path = data_root / "snapshot.json"
+            self.assertEqual(str(listing_path), payload["listing_path"])
+            listing = json.loads(listing_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                {"orphan.tmp", "session-scratch"},
+                {item["name"] for item in listing["admitted_children"]},
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "snapshot"):
+                hygiene.resolve_snapshot_target(listing)
+
+    def test_root_child_selection_on_a_mount_point_target_is_refused(self) -> None:
+        # Selecting children would walk inside the mount and write a snapshot;
+        # an admitted child directory is scanned as its own target instead.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "tmpfs"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "session-scratch").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._mount_point_target_patches({target}),
+                extra_args=["--root-children", "--root-child", "session-scratch"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("mount-point target", payload["error"])
             self.assertFalse((data_root / "snapshot.json").exists())
 
     def test_scan_refusal_of_shell_folder_descendant_carries_hint(self) -> None:

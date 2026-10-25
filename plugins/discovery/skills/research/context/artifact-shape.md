@@ -60,6 +60,23 @@ Body sections, after the frontmatter:
    opening anything.
 4. **Next-stage-handoff**: settled facts vs. open decisions for the planning step.
 
+**Restatements cite; they do not restate.** The verbatim rule for abstracts extends to every other
+place the artifact repeats an accepted claim: the index Summary, the Settled list and the rest of the
+Next-stage-handoff, and any catalog or table cell that draws on a claim. Each cites the claim's `id:`
+(`M1`) and does not restate its figures, qualifiers or attribution; the claim's header entry and its
+sidecar section say those once. A claim restated in a second place drifts there: it drops its flag,
+its attribution or a qualifier, or states a page's content as product behavior. Each fresh verifier
+samples a different restatement, so rework that adds text fails somewhere new, while rework that
+shrinks the restatement to a pointer converges. The one thing a pointer repeats is a confidence
+label: a line that names a claim at `HIGH (single source)`, `MEDIUM` or `LOW` carries that label
+verbatim on the same line, as in `(M1, HIGH (single source))`, and so does any cell that does
+restate a claim. The flag stays visible wherever the claim goes (`discipline.md`, "Single-source
+first-party content claims"), and a Gap never reads as a finding.
+`scripts/check-restatement-labels.py` reports every line of the index and the sidecars, outside the
+`claims:` headers and the fetch log, that names such a claim's ID without its label. The parent runs
+it after the acceptance gate, advisory for now ([`dispatch.md`](dispatch.md), "The restatement check
+is advisory").
+
 ## The sidecars: `RESEARCH-<section>.md`
 
 Siblings of the index, inside the same slice directory. Each carries the Output Format's content for
@@ -80,6 +97,7 @@ section: <stable kebab-case id, matches the index anchor>
 abstract: <one line, mirrored verbatim into the index>
 claims:
   - claim: "<one-line claim>"
+    id: M1                    # the claim ID every restatement cites; unique in the slice
     confidence: HIGH          # HIGH | HIGH (single source) | MEDIUM | LOW
     single_source: "<why only one publisher exists>"   # only at HIGH (single source); omit otherwise
     tiers: [0, 1]             # source tiers backing this claim
@@ -103,6 +121,12 @@ produced_by: <phase id>
 
 The vocabulary is reused, never reinvented: `HIGH | HIGH (single source) | MEDIUM | LOW` and
 `Tier 0..3` are the research skill's own, defined in `discipline.md`.
+
+**`id:` is the claim's handle.** It follows `claim:` in each entry: one or more capital letters, an
+optional hyphen, digits, and an optional lowercase letter (`M1`, `CI-02`, `S2a`), unique across the
+slice's sidecars. The index and every sidecar body cite a claim by it, so a restatement is a pointer
+that resolves to one header entry. A claim with no `id:` cannot be cited, and the restatement check
+never looks for it.
 
 **`single_source:` is the flag's reason, and criterion 4 grades it.** A claim at
 `HIGH (single source)` carries it; no other claim does. It states why only one publisher of the
