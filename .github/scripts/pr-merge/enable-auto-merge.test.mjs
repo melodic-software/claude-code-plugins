@@ -28,6 +28,9 @@ import {
   READER_EVENTS,
   main,
   pythonRoom,
+  pythonVerify,
+  costLine,
+  ghCalls,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
   readRoom,
@@ -1362,6 +1365,92 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
     budget: "github-token",
   });
   assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+});
+
+// The calls line as babysit_gh.py itself prints it, for three Actions-token
+// reads (the paginated artifact listing and two run records) and one
+// lane-token GraphQL read: 4 in all, 3 under GITHUB_TOKEN, 1 paginated.
+const BABYSIT_SCRIPTS = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+function producedCallsLine() {
+  const done = spawnSync(
+    "python3",
+    [
+      "-c",
+      `import sys
+sys.path.insert(0, sys.argv[1])
+import babysit_gh as g
+job = {"GH_TOKEN": "job"}
+for args, env in (
+    (["api", "repos/o/r/actions/artifacts?per_page=100", "--paginate", "--slurp"], job),
+    (["api", "repos/o/r/actions/runs/1"], job),
+    (["api", "repos/o/r/actions/runs/2"], job),
+    (["api", "graphql", "-f", "query=q"], None),
+):
+    kind = g.gh_call_kind(args, env)
+    g._gh_call_counts[kind] = g._gh_call_counts.get(kind, 0) + 1
+print(g.gh_call_summary())
+g.reset_gh_call_counts()`,
+      BABYSIT_SCRIPTS,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(done.status, 0, done.stderr);
+  return done.stdout.trim();
+}
+
+test("ghCalls reads babysit_gh.py's calls line: in all, under GITHUB_TOKEN, and paginated", () => {
+  const line = producedCallsLine();
+  assert.deepEqual(ghCalls(`warning: something\n${line}\n`), { total: 4, githubToken: 3, paginated: 1 });
+  assert.equal(ghCalls("no calls line\n"), null);
+  assert.equal(ghCalls("babysit-gh-calls {not json\n"), null);
+  assert.equal(costLine({ number: 7, calls: { total: 4, githubToken: 3, paginated: 1 }, ms: 1500 }), "#7 calls=4 github-token=3 paginated=1 ms=1500");
+  assert.equal(costLine({ number: 7, calls: null, ms: 20 }), "#7 calls=unknown ms=20");
+});
+
+test("pythonVerify logs each read's calls and time, keeps them, and names the error line, not the calls line, on a failure", async () => {
+  const line = producedCallsLine();
+  const answers = [
+    { status: 0, stdout: `${JSON.stringify(PASSED)}\n`, stderr: `${line}\n` },
+    { status: 1, stdout: "", stderr: `Traceback\nRuntimeError: listing 502\n${line}\n` },
+  ];
+  const spawn = () => answers.shift();
+  let at = 1000;
+  const clock = () => (at += 250);
+  const verify = pythonVerify({ GITHUB_REPOSITORY: REPO }, { spawn, clock });
+  const lines = [];
+  const log = console.log;
+  console.log = (text) => lines.push(text);
+  try {
+    assert.deepEqual(await verify(pull(1)), PASSED);
+    await assert.rejects(verify(pull(2)), /exited 1: RuntimeError: listing 502$/);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250"]);
+  assert.deepEqual(
+    verify.costs.map(({ number, ms }) => [number, ms]),
+    [
+      [1, 250],
+      [2, 250],
+    ],
+  );
+});
+
+test("the step summary carries each verifier read's cost even when the run raised nothing", async () => {
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const { github, writes } = world([pull(1)]);
+  const verify = async ({ headRefOid: head }) => ({ ...PASSED, head });
+  verify.costs = [{ number: 1, calls: { total: 9, githubToken: 7, paginated: 1 }, ms: 46800 }];
+  const log = console.log;
+  console.log = () => {};
+  try {
+    assert.equal(await main({ env: { ...ENV, GITHUB_STEP_SUMMARY: summary }, github, verify, room: room(), sleep: async () => {} }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.equal(readFileSync(summary, "utf8"), "enable-auto-merge: #1 calls=9 github-token=7 paginated=1 ms=46800\n");
 });
 
 test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a kill as unreadable", async () => {
