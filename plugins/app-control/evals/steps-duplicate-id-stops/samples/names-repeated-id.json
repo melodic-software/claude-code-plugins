@@ -3,12 +3,32 @@
     {
       "answer": "The run cannot start: pick-month.yaml is included twice with no prefix, so the step id open-picker is repeated (and so is choose-month). Nothing was launched.",
       "why": "names the repeated id"
+    },
+    {
+      "answer": "Blocked before launch: step id `open-picker` appears twice, because pick-month.yaml is included twice without a prefix.",
+      "why": "says the id appears twice"
+    },
+    {
+      "answer": "blocked: repeated step id open-picker, choose-month (pick-month.yaml included twice without prefix)",
+      "why": "names the ids after the repeat word"
+    },
+    {
+      "answer": "The step ids are not unique: open-picker and choose-month are each used twice, so the feature stops.",
+      "why": "names the ids as not unique"
     }
   ],
   "fail": [
     {
       "answer": "The run would perform open-billing, open-picker, choose-month, open-picker, choose-month and press-export.",
       "why": "performs both copies and reports no repeat"
+    },
+    {
+      "answer": "No duplicate ids: open-picker and choose-month come from pick-month.yaml, so the run can start.",
+      "why": "denies the repeat"
+    },
+    {
+      "answer": "The run performs open-billing, open-picker, choose-month, then repeats open-picker and choose-month, then press-export.",
+      "why": "lists both copies as a run and names no repeated id"
     }
   ]
 }

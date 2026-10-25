@@ -20,7 +20,7 @@ graders:
   - name: names-undeclared-year
     type: regex
     flags: i
-    pattern: '`?year`?[\s\S]{0,120}(not declared|undeclared|does not declare|doesn''t declare|not (one of|among|in) (its|the) param)|(not declared|undeclared|does not declare|doesn''t declare)[\s\S]{0,120}`?year`?'
+    pattern: '(?<!this )(?<!of )`?\byear\b`?(?!\s*\d)[\s\S]{0,120}(?<!no )(?<!nothing )(not declared|undeclared|isn''t declared|does not declare|doesn''t declare|not (a|one of|among|in) (its |the )?(declared )?param|unknown|no year param)|(?<!no )(?<!nothing )(not declared|undeclared|does not declare|doesn''t declare)[\s\S]{0,120}(?<!this )(?<!of )`?\byear\b`?(?!\s*\d)|\|\s*year\s*\|\s*(no|✗|undeclared)'
     arm: both
   - name: stops-on-undeclared-with
     type: llm
