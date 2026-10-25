@@ -24,6 +24,18 @@
       "description": "Blocks writes containing high-confidence secret or credential patterns. On by default.",
       "default": true
     },
+    "secret_pattern_detection_allowed_roots": {
+      "type": "string",
+      "title": "Secret-pattern-detection allowed roots",
+      "description": "Comma-separated absolute directories; a Write, Edit or NotebookEdit whose real path is strictly under one is not scanned for secrets. Empty by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details.",
+      "default": ""
+    },
+    "secret_pattern_detection_skip_gitignored": {
+      "type": "boolean",
+      "title": "Secret-pattern-detection skips gitignored files",
+      "description": "When true, a Write, Edit or NotebookEdit to a file its own repository ignores is not scanned for secrets. Off by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details.",
+      "default": false
+    },
     "hardcoded_path_check_enabled": {
       "type": "boolean",
       "title": "Hardcoded-path-check guard",
