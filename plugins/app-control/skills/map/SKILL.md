@@ -1,5 +1,5 @@
 ---
-description: "Generate a project's control skill (its control-* skill) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive; check lists contract breaks, editing nothing; refresh brings it back in line with the app, or converts a testing feature map, through one upkeep pull request. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo', 'check the control skill', 'refresh the control skill', 'refresh the feature map'."
+description: "Generate a project's control skill (its control-* skill) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive; check lists contract breaks, editing nothing; refresh brings it back in line with the app, or converts a testing feature map, through one upkeep pull request. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo', 'check the control skill', 'refresh the control skill'."
 argument-hint: "[create [<app>]|check [<dir>]|refresh [<path>]] [--dir .claude/skills/control-<slug>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -175,8 +175,8 @@ conversion moves out of.
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" check --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    A pending conversion runs regardless of a `skip` line.
 3. **Refuse** an attended-only control skill when unattended.
-4. **Source wave.** One read-only subagent per feature file, in waves of at most 6 at once; the cap
-   is fixed here.
+4. **Source wave.** One read-only subagent per feature file, in waves capped at 6, each filled to
+   the cap before the next starts: 8 features run as 6 then 2. The cap is fixed here.
 5. **Live pass** of every feature through `/app-control:drive`: Ready before the first drive and
    after any failed one, cleanup after each drive, and every evidence path checked after cleanup.
 6. **Triage** each difference as doc drift, driver gap or product regression. Regressions go to the
@@ -184,13 +184,17 @@ conversion moves out of.
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" record --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    Otherwise commit on `control-skill-upkeep/control-<slug>`, named for the control skill's
    directory, from the default branch, merged into and never rebased; open or update one pull
-   request. An existing `feature-map-upkeep/<slug>` branch is reported, never adopted.
+   request. List every local and remote `feature-map-upkeep/*` branch and report each one by
+   name, never adopting it.
+7. **Return.** With several control skills, switch back to the branch the pass started on after
+   each one's step 6, before the next starts.
 
 ## Next
 
-- /app-control:drive <app> <feature> drives a seeded feature and records evidence. Run it again
-  after `config/defaults.json` is committed to prove the send steps create left unproven.
-- /app-control:map refresh keeps a control skill current after the app changes.
+- A seeded feature needs driving with evidence: /app-control:drive <app> <feature>.
+- Create left a send step unproven and `config/defaults.json` is now committed:
+  /app-control:drive <app> <feature>.
+- The app changed after the control skill was written: /app-control:map refresh.
 
 ## Gotchas
 

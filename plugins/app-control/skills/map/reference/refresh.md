@@ -50,13 +50,15 @@ The path argument, when given, is one of:
   `Doctor` and `Features` fields and its feature files sit beside it as `<feature>.md` with a
   `## Traps` section. That path is held to the location rules in naming.md minus the last one (the
   `control-<s>` shape), and to the real-path checks; refused, the outcome is **blocked** with the
-  rule it breaks. The person passes this path; refresh reads no testing setting to find it.
+  rule it breaks. A legacy map is converted only when the person passes its path; refresh reads no
+  testing setting and looks in no default place to find one.
 
 Without an argument, take each `.claude/skills/control-*/` directory, each held to the same rules
-and checks as a given one (a refused directory is skipped and named in the report); with several, an attended pass
-asks which and an unattended one refreshes each in turn, one branch per skill. With none, and no
-legacy map at `.claude/skills/feature-map/`, the outcome is **blocked**: no control skill exists,
-and `/app-control:map create` writes one.
+and checks as a given one (a refused directory is skipped and named in the report); with several,
+an attended pass asks which and an unattended one refreshes each in turn, one branch per skill (see
+Return to the starting branch). With none, the outcome is **blocked**: no control skill exists;
+`/app-control:map create` writes one, and `/app-control:map refresh <legacy path>` converts a legacy
+testing feature map.
 
 A control skill whose feature files are any flat `features/<id>.md` is due a flat-to-folder
 conversion; a legacy map is due a format conversion. Both follow Converting a legacy map.
@@ -89,8 +91,8 @@ control skill, the usual state just after `create`) or a legacy map being conver
 counts as changed.
 
 Record `git status --porcelain` from the repository root, then dispatch one subagent per feature
-file, in waves no larger than the cap SKILL.md states: start the next wave only when every subagent
-of the one before has returned. Tell each subagent to use Read, Grep and Glob only and never edit
+file, in waves of the cap SKILL.md states, each filled to the cap before the next starts (8 features
+run as 6 then 2): start the next wave only when every subagent of the one before has returned. Tell each subagent to use Read, Grep and Glob only and never edit
 or run anything; that limit is an instruction in its prompt, and no agent definition enforces it.
 Give each its feature file, the index line's `sources` globs, the changed-file list and these
 questions: which parts, entry points, handles, routes or commands the file lists are gone, renamed
@@ -145,9 +147,10 @@ Then the outcome:
   goes on. Then:
   1. **Branch.** The branch is `control-skill-upkeep/control-<slug>`, the control skill's full
      directory name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
-     `control-skill-upkeep/shop`), the only branch a pass writes for that skill. When a
-     `feature-map-upkeep/<slug>` branch exists for the same map, report it with its open pull
-     request if any; never commit to it, merge it or adopt it.
+     `control-skill-upkeep/shop`), the only branch a pass writes for that skill. List every local
+     and remote `feature-map-upkeep/*` branch (`git branch --list 'feature-map-upkeep/*'` and
+     `git branch -r --list '*/feature-map-upkeep/*'`) and report each one by name, with its open
+     pull request if any; never check out, commit to, merge or adopt one.
      Create the upkeep branch from the default branch when it does not exist; when it does, merge
      the default branch into it, never a rebase. Before switching, run
      `git ls-files -- "<dir>"` and `git status --porcelain --untracked-files=all`:
@@ -175,14 +178,21 @@ Then the outcome:
      commit on the branch and report that a pull request still needs checking or opening, with any
      error. Done when the report holds the pull request URL or the reason there is none.
 
+### Return to the starting branch
+
+A pass over several control skills records `git branch --show-current` before the first one. After
+each control skill's step 6, whatever its outcome, it switches back to that branch before the next
+skill's step 1, so no skill is refreshed on another skill's upkeep branch. Done when `git branch
+--show-current` prints the starting branch.
+
 ## Converting a legacy map
 
 A conversion is doc work and rides the same upkeep pull request as the pass's other edits.
 
 - **Target.** A legacy testing-format map converts into `.claude/skills/control-<app slug>/`, the
-  slug from its `Application` name through the slug rule in [naming.md](naming.md#slug-rule). When
-  that directory already holds a `SKILL.md`, the outcome is **blocked**: refresh never merges two
-  maps; the report names both. A flat `features/<id>.md` converts in place to
+  slug from its `Application` name (only the part before any `, built from` clause) through the
+  slug rule in [naming.md](naming.md#slug-rule). When that directory already holds a `SKILL.md`,
+  the outcome is **blocked**: refresh never merges two maps; the report names both. A flat `features/<id>.md` converts in place to
   `features/<id>/README.md`.
 - **Hub.** `Application` becomes the App line, `Driver` the driving tool (with `Attended runs
   only.` when it was there), `Launch` the `## Launch` pointer, `Doctor` the `## Ready` command
@@ -210,6 +220,6 @@ A conversion is doc work and rides the same upkeep pull request as the pass's ot
 - each edit, by triage class, with the `file:line` or drive evidence behind it;
 - each regression and whether it went to `/bugs:write`;
 - the features found but not mapped;
-- any `feature-map-upkeep/<slug>` branch found, reported and not adopted;
+- each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
 - for a conversion, the old and new paths, and the pointer and setting left to change;
 - the branch, the commit and the pull request URL, or why there is none.
