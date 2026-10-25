@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.0] - 2026-10-25
+
+### Added
+
+- `lib/convention-key.sh`, the team-layer reader for the convention keys: `layer ROOT KEY` prints `yaml`, `legacy-md` or `none`, and `value` and `list` print the YAML value.
+
+### Changed
+
+- The commit and PR convention keys (`subject_pattern`, `type_list`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`, `pr_body_required_sections`, `branch_issue_pattern`) now take their team value from `docs/conventions/source-control.yaml`, validated by `schemas/source-control.schema.json`. `.claude/source-control.md` is read only for a key the YAML lacks, for one release, and a YAML the shared reader rejects stops the lookup instead of falling back. `/source-control:setup apply layer=team` writes the YAML and moves the convention keys out of the legacy file.
+- `parse-branch-issue.sh` reads `branch_issue_pattern` from the team YAML before the legacy markdown, and `--explain` prints the layer that supplied the pattern on stderr. Like `/source-control:commit`, it reads either team file only when git tracks it and notes an untracked one it skipped. The deprecation note for the `branch_issue_pattern` userConfig now points at the YAML.
+
+### Fixed
+
+- `/source-control:babysit-prs` binds a review lane's second attempt when the first failed because posting the review hit GitHub's API rate limit: an annotation that opens with that lane's `failure-class=publish-failed` line whose detail opens with `API rate limit exceeded` or `You have exceeded a secondary rate limit`. Such a re-run was refused as `rerun-not-allowed`, which left later incremental reviews unbound (`incremental-gap`). Any other publish failure still refuses the re-run.
+
 ## [3.2.2] - 2026-10-25
 
 ### Fixed

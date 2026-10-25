@@ -26,6 +26,8 @@ Scale to the task. Not every section is needed for every plan. A trivial fix nee
 These sections sit under PLAN.md's `## Plan`, before the first phase ([plan-md-anatomy.md](../templates/plan-md-anatomy.md)).
 
 ```markdown
+Citations checked at: <the full commit SHA check-plan-citations.sh printed at Step 4.7>
+
 ### Goal
 
 **Serves**: <the Brief's `### Problem`, in one line, so a reader can check this Goal against it>
