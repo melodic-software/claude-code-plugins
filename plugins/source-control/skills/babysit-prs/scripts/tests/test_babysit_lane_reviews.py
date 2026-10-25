@@ -207,5 +207,153 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         self.read.assert_not_called()
 
 
+# The gate's hold texts (babysit_merge.unattended_enqueue), written out.
+EJECTED = (
+    f"queue-ejected:2 failed-check removals from the merge queue at head {HEAD}; "
+    "a push resets the count"
+)
+UNREADABLE_QUEUE = "the merge queue's removals of this head are unreadable"
+RUN = "https://github.com/example-org/example-repo/actions/runs/9"
+
+
+class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
+    """`evidence --lane-queue`: the gate's `merge.max-queue-ejections` cap
+    (default 2) on a head the merge queue keeps removing for failed checks,
+    which native auto-merge would otherwise re-arm without end."""
+
+    def cli(
+        self,
+        queue: dict[str, object] | Exception,
+        *,
+        evidence: ve.Evidence | None = None,
+        risk: str | None = None,
+        runs: list[str] | Exception | None = None,
+    ) -> dict[str, object]:
+        out = io.StringIO()
+        runs = [RUN] if runs is None else runs
+        runs_effect = runs if isinstance(runs, Exception) else None
+        argv = ["evidence", "--lane-reviews", "--lane-queue", "--repo", REPO]
+        argv += ["--base-sha", BASE, "--rung", "C2", "41", HEAD]
+        effect = queue if isinstance(queue, Exception) else None
+        with (
+            mock.patch.object(policy, "read_config_at", return_value=CONFIG),
+            mock.patch.object(policy, "with_default_branch", return_value=CONFIG),
+            mock.patch.object(policy, "pull_request", return_value=PR),
+            mock.patch.object(
+                ve.Reader,
+                "evidence",
+                lambda self, n, h, pr=None: evidence or ve.Evidence(None, HEAD, (), 0),
+            ),
+            mock.patch.object(ve, "lane_risk_refusal", return_value=risk),
+            mock.patch.object(
+                babysit_merge,
+                "read_merge_queue",
+                side_effect=effect,
+                return_value=None if effect else queue,
+            ) as read,
+            mock.patch.object(
+                babysit_merge,
+                "_failed_merge_group_runs",
+                side_effect=runs_effect,
+                return_value=None if runs_effect else runs,
+            ),
+            contextlib.redirect_stdout(out),
+        ):
+            ve.main(argv)
+        self.read = read
+        return json.loads(out.getvalue())
+
+    def test_a_head_under_the_cap_carries_its_count_and_no_refusal(self) -> None:
+        for count in (0, 1):
+            with self.subTest(count=count):
+                report = self.cli({"readError": None, "failedEjections": count})
+                self.assertEqual(
+                    report["queue"],
+                    {
+                        "failedEjections": count,
+                        "limit": 2,
+                        "refusal": None,
+                        "comment": None,
+                        "readError": None,
+                        "commentError": None,
+                    },
+                )
+
+    def test_a_head_at_or_over_the_cap_carries_the_gates_hold_and_comment(
+        self,
+    ) -> None:
+        for count in (2, 3):
+            with self.subTest(count=count):
+                queue = self.cli({"readError": None, "failedEjections": count})["queue"]
+                self.assertEqual(
+                    (queue["failedEjections"], queue["limit"], queue["refusal"]),
+                    (count, 2, EJECTED.replace("ejected:2", f"ejected:{count}")),
+                )
+                comment = str(queue["comment"]).split("\n")
+                self.assertEqual(comment[0], "<!-- babysit-merge-queue-ejections -->")
+                self.assertIn(f"head `{HEAD}` {count} times", comment[1])
+                self.assertIn(f"- {RUN}", comment)
+
+    def test_an_unreadable_count_refuses_with_no_comment_and_says_why(self) -> None:
+        for queue, why in (
+            (
+                {"readError": "could not read the merge queue: boom"},
+                "could not read the merge queue: boom",
+            ),
+            (
+                {"readError": None, "failedEjections": None},
+                "the merge queue's timeline items could not be counted",
+            ),
+            (RuntimeError("boom"), "RuntimeError: boom"),
+        ):
+            with self.subTest(queue=repr(queue)):
+                self.assertEqual(
+                    self.cli(queue)["queue"],
+                    {
+                        "failedEjections": None,
+                        "limit": 2,
+                        "refusal": UNREADABLE_QUEUE,
+                        "comment": None,
+                        "readError": why,
+                        "commentError": None,
+                    },
+                )
+
+    def test_a_failed_runs_read_still_refuses_and_names_its_error(self) -> None:
+        queue = self.cli(
+            {"readError": None, "failedEjections": 2}, runs=RuntimeError("boom")
+        )["queue"]
+        self.assertEqual(
+            (queue["refusal"], queue["comment"], queue["commentError"]),
+            (EJECTED, None, "error: boom"),
+        )
+
+    def test_the_comment_is_the_one_the_gate_posts(self) -> None:
+        queue = self.cli({"readError": None, "failedEjections": 2})["queue"]
+        with mock.patch.object(
+            babysit_merge, "_failed_merge_group_runs", return_value=[RUN]
+        ):
+            gate = babysit_merge.queue_ejection_hold(REPO, "main", 41, HEAD, 2, 2)
+        self.assertEqual((queue["refusal"], queue["comment"]), gate[:2])
+
+    def test_a_refused_verdict_or_a_risk_hold_reads_no_queue(self) -> None:
+        for kwargs in (
+            {"evidence": ve.Evidence(ve.FAIL, HEAD, (), 0)},
+            {"risk": "unsafe-path: docs/link"},
+        ):
+            with self.subTest(kwargs=repr(kwargs)):
+                report = self.cli({"readError": None, "failedEjections": 5}, **kwargs)
+                self.assertNotIn("queue", report)
+                self.read.assert_not_called()
+
+    def test_the_flag_needs_the_risk_read_that_checks_the_head(self) -> None:
+        argv = ["evidence", "--lane-queue", "--repo", REPO, "--base-sha", BASE]
+        with (
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            ve.main([*argv, "41", HEAD])
+
+
 if __name__ == "__main__":
     unittest.main()
