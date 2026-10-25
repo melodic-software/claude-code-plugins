@@ -9,6 +9,7 @@ follows GitHub's documented signals and `gh api -i`'s observed shape.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import pathlib
@@ -494,17 +495,50 @@ class TheJobStopFile(GuardCase):
         self.stop_file.write_bytes(text.encode("utf-8"))
 
     def test_every_stop_file_vector_in_the_shared_file(self) -> None:
-        table = json.loads(VECTORS.read_text(encoding="utf-8"))["stop_file"]
-        self.assertGreaterEqual(len(table["cases"]), 11)
-        for vector in table["cases"]:
+        table = json.loads(VECTORS.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(table["stop_files"]), 7)
+        for vector in table["stop_files"]:
             with self.subTest(vector["name"]):
                 gh.reset_rate_guard()
                 self.write_stops(vector["text"])
                 got = {
-                    pool: gh.stopped_until(pool, now=table["now"])
+                    pool: gh.stopped_until(pool, now=table["vector_now"])
                     for pool in vector["until"]
                 }
                 self.assertEqual(got, vector["until"])
+
+    def assert_unrecorded_stop_reported_and_latched(self) -> None:
+        self.answer(
+            1,
+            head(403, **core(0))
+            + '{"message":"API rate limit exceeded for user ID 1."}',
+            "gh: API rate limit exceeded for user ID 1. (HTTP 403)",
+        )
+        with (
+            mock.patch("sys.stderr", new_callable=io.StringIO) as err,
+            self.assertRaises(gh.RateLimitExhausted),
+        ):
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        unrecorded = [
+            line for line in err.getvalue().splitlines() if "not be recorded" in line
+        ]
+        self.assertEqual(len(unrecorded), 1, err.getvalue())
+        self.assertIn("the core pool", unrecorded[0])
+        with self.assertRaises(gh.RateLimitExhausted):
+            gh.gh_capture(["api", "repos/o/r/pulls/2"])
+        self.assertEqual(len(self.sent), 1)
+
+    def test_a_stop_the_file_cannot_take_is_reported_and_the_latch_holds(
+        self,
+    ) -> None:
+        self.stop_file.mkdir(parents=True)
+        self.assert_unrecorded_stop_reported_and_latched()
+
+    def test_a_stop_dir_that_cannot_be_made_is_reported_and_the_latch_holds(
+        self,
+    ) -> None:
+        self.stop_file.parent.write_text("", encoding="utf-8")
+        self.assert_unrecorded_stop_reported_and_latched()
 
     def test_a_recorded_stop_refuses_its_pool_before_any_call(self) -> None:
         self.write_stops("core 4102444800\n")
