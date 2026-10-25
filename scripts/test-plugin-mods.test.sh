@@ -132,4 +132,37 @@ else
   bad "each mod's output prints under its own header, in order" "output: $LAST_OUTPUT"
 fi
 
+register_file() { # <plugin> <file>
+  mkdir -p "$f/plugins/$1/hooks"
+  : >"$f/plugins/$1/hooks/$2"
+}
+
+new_case
+hooks_json stray "$CLASSIC"
+register_file stray register.ts
+hooks_json withmod "$MOD"
+register_file withmod register.tsx
+stub_claude 2.1.300 0
+run 1 "a register file with no modules fails the run"
+assert_output_contains "no-modules line" "plugins/stray ships hooks/register.ts but hooks/hooks.json names no modules"
+no_test_ran "a register file with no modules runs no test"
+
+new_case
+register_file nohooks register.tsx
+run 1 "a register file with no hooks.json fails even without claude"
+assert_output_contains "no-hooks.json line" "plugins/nohooks ships hooks/register.tsx but hooks/hooks.json names no modules"
+
+new_case
+hooks_json empty '{"modules": []}'
+register_file empty register.ts
+stub_claude 2.1.300 0
+run 1 "a register file beside an empty modules array fails the run"
+no_test_ran "an empty modules array runs no test"
+
+new_case
+hooks_json withmod "$MOD"
+register_file withmod register.tsx
+stub_claude 2.1.300 0
+run 0 "a register file beside a modules array passes"
+
 test_harness::report
