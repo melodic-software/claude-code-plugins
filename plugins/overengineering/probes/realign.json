@@ -10,13 +10,6 @@
     "harness-config:audit-automation-gaps",
     "code-tidying:audit-dead-code"
   ],
-  "competitor_dirs": {
-    "overengineering:audit": "plugins/overengineering/skills/audit",
-    "overengineering:delta": "plugins/overengineering/skills/delta",
-    "overengineering:justify": "plugins/overengineering/skills/justify",
-    "harness-config:audit-automation-gaps": "plugins/harness-config/skills/audit-automation-gaps",
-    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -11,14 +11,6 @@
     "work-items:decompose",
     "planning:design-handoff"
   ],
-  "competitor_dirs": {
-    "planning:interview": "plugins/planning/skills/interview",
-    "planning:design": "plugins/planning/skills/design",
-    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
-    "implementation:implement": "plugins/implementation/skills/implement",
-    "work-items:decompose": "plugins/work-items/skills/decompose",
-    "planning:design-handoff": "plugins/planning/skills/design-handoff"
-  },
   "queries": [
     {
       "id": "pos-train-01",

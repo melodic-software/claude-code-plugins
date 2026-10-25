@@ -537,11 +537,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # The no-question line drops `lock` from the runs that ask nothing: `lock` asks its problem
 # question, so it always writes a register the gate grades; an unattended pre-confirmed item
 # writes that row `answered` citing the label (problem-framing.md "Pre-confirmed").
+# gate reads only the Restatement stamp (#9912); no defense weakened
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "b848ba47dd1806383cf7ee7d908d816009dbcbd6c670804a7e35c67d32b0eb2a"
+  "f90cc6c8121e2568b49ab8c7a9984112c47060c636200732e6981a64fe8ad35f"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -580,11 +581,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The start-fresh line names the scope-change note as the Brief's only history; it touches no assumption, gap or Brief rule.
 # The `me`-mode persistence line routes a pause through /session-flow:workflow; it touches no assumption, gap or Brief rule.
 # The cross-check and section schema name nine headings, Problem and Work size added; the gate requires more and retires no row.
+# gate reads only the Restatement stamp (#9912); no defense weakened
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "24345865fa0f8200906a8635127237bee6c00bdac4728b6178d0ede76ea97567"
+  "9beea2e4efe382b0d4d2bd5c3be72cc06dd2122a7c35eea2207ad0324b96d0ca"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -637,11 +639,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # The `lock` exemption became one registered problem question, and the no-question carve-out no
 # longer names `lock`; both bring `lock` under the gate and keep STOP-on-gap. The carve-out
 # says `lock` always writes its problem row, so its register always gates.
+# gate reads only the Restatement stamp (#9912); no defense weakened
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "8f439fd3dd258d3121768851a155733657dae22d7c687de1468d3b3440264717"
+  "661b74163de8a4f962989eac8104002abb6da47d9822eb01cc7379dbc733900d"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
