@@ -1187,7 +1187,7 @@ describe("a Feature under a parent at status: needs-decision", () => {
     created_at: "2026-10-22T00:00:00Z",
     body: "**Decision recorded.** Part A first.",
   };
-  // fakeGitHub answers issue 7; this answers the parent's events, comments and
+  // fakeGitHub answers the Feature; this answers the parent's events, comments and
   // the comment editor read select-trusted-text sends.
   const withParent = ({ labels, events = setBy(APP), comments = [], failOn } = {}) => {
     const fake = fakeGitHub({ issue: feature, parent: parentIssue(labels), failOn });
