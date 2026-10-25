@@ -1084,7 +1084,7 @@ Claude Code, so they have no switch here: a clone turns one off by declining its
 
 | Guard | Option |
 | ----- | ------ |
-| secret-pattern-detection | `secret_pattern_detection_enabled` |
+| secret-pattern-detection | `secret_pattern_detection_enabled`, `secret_pattern_detection_allowed_roots`, `secret_pattern_detection_skip_gitignored` |
 | hardcoded-path-check | `hardcoded_path_check_enabled` |
 | block-no-verify | `block_no_verify_enabled` |
 | block-dangerous-git | `block_dangerous_git_enabled` |
@@ -1161,7 +1161,9 @@ repo-specific policy of their own:
 - **Secret allowlist.** A generic built-in allowlist exempts dependency caches
   (`.venv/`, `node_modules/`), `.env.example` / `.sample` / `.template`
   placeholders, `tests/fixtures` / `tests/testdata` trees, `settings.local.json`,
-  `CLAUDE.local.md`, and hook scripts.
+  `CLAUDE.local.md`, and hook scripts. Two opt-in options exempt your own local
+  notes: `secret_pattern_detection_allowed_roots` and
+  `secret_pattern_detection_skip_gitignored` (see [Option details](#option-details)).
 - **CLI-flag tuning.** `cli-flag-verify` checks a default binary set
   (`claude gh dotnet docker kubectl terraform az aws`); override with the
   `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` environment variable (`bin1,bin2,…`) in the
@@ -1255,6 +1257,35 @@ clone or, with `scope=shared`, for every clone.
 ## Configuration
 
 ### Option details
+
+**`secret_pattern_detection_allowed_roots`.** For credentials you keep on purpose in local notes
+that are never committed, such as a notes directory under home that is not a repository. Only you
+set it: it is read from the hook's own environment, never from the tool call. A Write, Edit or
+NotebookEdit that holds a token is not blocked when its target's real path is strictly under a
+listed directory, so a symlink under a root that points outside it is still scanned and a path
+outside whose real path lands under one is not. The root itself, a sibling that shares its name
+prefix, a target spelled with a `.` or `..` segment, and an existing file with a second hard link
+are scanned. On Windows only a drive-letter target (`C:/...`) is judged. An entry that is relative,
+empty, UNC, holds a glob character, a line break or a `..` component, is not an existing directory,
+or resolves to a filesystem root, a home directory (`HOME`, `USERPROFILE`) or a directory holding
+one grants nothing. When neither `HOME` nor `USERPROFILE` is set, or a set one is relative or
+missing, no entry grants. `~` is not expanded, so write each entry absolute. The option never
+applies to a GitHub MCP write, whose content leaves the machine.
+
+**`secret_pattern_detection_skip_gitignored`.** For a gitignored notes folder such as `.work/` in
+each checkout and worktree, without listing every one. When `true`, a Write, Edit or NotebookEdit
+that holds a token is not blocked when `git check-ignore` reports its target ignored by the
+repository that holds the target, asked from the target's nearest existing directory, so it works
+in a session started at home too. A tracked file, a file that is not ignored, a file in no
+repository and a symlink are scanned, and so are an existing file with a second hard link and a
+target spelled with a `.` or `..` segment. On Windows only a drive-letter target is judged. Anything
+that can write `.git/info/exclude` or a `.gitignore` can make a path ignored without a tracked
+diff. The option never applies to a GitHub MCP write.
+
+Neither option changes the [`pre-commit-content`](#git-hooks) git hook: it still judges the lines a
+commit adds, a force-added ignored file included. That backstop runs only in clones where
+`/guardrails:setup apply install-git-hooks` ran, and a clone can decline it, so a file either
+option exempts is checked at commit time only there.
 
 **`block_dangerous_git_enabled`.** The `push --force-with-lease` case blocked is one that leases
 against a value git resolves at push time, meaning either no expected value, or an expectation that
@@ -1362,6 +1393,8 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `secret_pattern_detection_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED` | Blocks writes containing high-confidence secret or credential patterns. On by default. |
+| `secret_pattern_detection_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ALLOWED_ROOTS` | Comma-separated absolute directories; a Write, Edit or NotebookEdit whose real path is strictly under one is not scanned for secrets. Empty by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details. |
+| `secret_pattern_detection_skip_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED` | When true, a Write, Edit or NotebookEdit to a file its own repository ignores is not scanned for secrets. Off by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details. |
 | `hardcoded_path_check_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED` | Blocks writes containing hardcoded machine-specific paths. On by default. |
 | `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Blocks git hook-bypass attempts: --no-verify, core.hooksPath=, and hook-manager env-var disables for a configurable set (lefthook, husky, pre-commit and simple-git-hooks by default). On by default. |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0 or false (e.g. lefthook,husky). Empty, the default, uses the built-in set: lefthook, husky, pre_commit, simple_git_hooks. |
