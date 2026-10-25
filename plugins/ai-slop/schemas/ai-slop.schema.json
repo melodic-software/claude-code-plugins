@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/ai-slop/schemas/ai-slop.schema.json",
+  "title": "ai-slop team config",
+  "description": "Schema for a repository's docs/conventions/ai-slop.yaml, the team layer of the ai-slop plugin (ADR 0064, ADR 0075). The same keys are valid in docs/conventions/ai-slop.local.yaml (the personal layer) and in the legacy .claude/ai-slop.json files, which the audit reads only when the YAML beside them is absent. Every key is optional; an absent key keeps the shipped default. Reader: skills/audit/scripts/detect.sh through skills/audit/scripts/lib/cascade-read.sh.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "globs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "words": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "thresholds": {
+      "type": "object",
+      "description": "Per-1000-word density at or above which a density rule reports a file.",
+      "additionalProperties": false,
+      "properties": {
+        "ai_vocabulary": {
+          "type": "number",
+          "minimum": 0,
+          "description": "rule-ai-vocabulary density threshold; the shipped default is 3.0."
+        },
+        "copulative_avoidance": {
+          "type": "number",
+          "minimum": 0,
+          "description": "rule-copulative-avoidance density threshold; the shipped default is 4.0."
+        }
+      }
+    },
+    "em_dash_allowed_paths": {
+      "$ref": "#/$defs/globs",
+      "description": "Globs whose files decline rule-em-dash; the older spelling of rule_allowed_paths.rule-em-dash, merged into it. Replaces the lower layer's list whole."
+    },
+    "rule_allowed_paths": {
+      "type": "object",
+      "description": "Rule slug to the globs whose files decline that one rule. A higher layer's entry replaces that slug only; an empty list clears it.",
+      "propertyNames": { "pattern": "^rule-[a-z0-9-]+$" },
+      "additionalProperties": { "$ref": "#/$defs/globs" }
+    },
+    "excluded_paths": {
+      "$ref": "#/$defs/globs",
+      "description": "Globs whose files the audit does not scan. Replaces the lower layer's list whole."
+    },
+    "disabled_rules": {
+      "type": "array",
+      "description": "Rule slugs switched off for the whole repository. Replaces the lower layer's list whole.",
+      "items": { "type": "string", "pattern": "^rule-[a-z0-9-]+$" }
+    },
+    "vocab_add": {
+      "$ref": "#/$defs/words",
+      "description": "Words added to the rule-ai-vocabulary list."
+    },
+    "vocab_remove": {
+      "$ref": "#/$defs/words",
+      "description": "Words removed from the rule-ai-vocabulary list."
+    },
+    "phrase_add": {
+      "$ref": "#/$defs/words",
+      "description": "Extended-regex fragments added to the rule-model-era-phrases roster."
+    },
+    "phrase_remove": {
+      "$ref": "#/$defs/words",
+      "description": "Shipped rule-model-era-phrases fragments removed, written exactly as shipped."
+    }
+  }
+}

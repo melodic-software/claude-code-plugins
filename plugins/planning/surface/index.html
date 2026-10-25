@@ -226,6 +226,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .sup-banner,.lockban{border-color:var(--wait);background:var(--wait-soft)}
 .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 section.blk{display:grid;gap:8px}
+section.roundrestate{border-left:3px solid var(--res);background:var(--res-soft);padding:9px 14px;border-radius:0 6px 6px 0;margin-bottom:10px}
 section.blk>h4,details.more>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
 details.more,details.src{display:grid;gap:12px}
 details.more>summary{cursor:pointer;padding:4px 0}
@@ -609,6 +610,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const who = () => setting("displayName") || "You";
 
   // ---------- markdown subset (escape first) ----------
+  function roundRestateCard(q){ // the round's restate, pinned above the round's first question
+    const stage = q.stage || "", round = q.round || 1, r = (S.doc.rounds || []).find(x => (x.stage || "") === stage && x.round === round);
+    if (!r || !r.restate) return "";
+    const first = S.doc.questions.filter(x => (x.stage || "") === stage && (x.round || 1) === round).sort(byIdCmp)[0];
+    if (!first || first.id !== q.id) return "";
+    const list = (label, ids) => ids.length ? "<p><b>" + label + "</b> " + ids.map(refHtml).join(" ") + "</p>" : "";
+    return '<section class="blk roundrestate" id="roundRestate"><h4>Where round ' + esc(String(round)) + " starts</h4>" + md(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+  }
   function refHtml(id){ const q = Q[id]; return '<button type="button" class="ref" data-q="' + esc(id) + '"><b>' + esc(id) + '</b>' + esc(q ? (q.short || q.title) : "unknown") + '</button>'; }
   let termMemo = {key: null, re: null, defs: {}};
   function termMemoOf(){ // the glossary's terms as escaped text, longest first, so one pass wraps each defined term; rebuilt only when the glossary changes
@@ -1246,7 +1255,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!q) { el.innerHTML = '<p class="empty">' + (S.loaded ? "Pick a question." : "Loading questions.") + "</p>"; renderAnswer(); return; }
     const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
     const marks = (S.doc.meta || {}).emojiMarkers === true;
-    let h = checkpointBanner();
+    let h = checkpointBanner() + roundRestateCard(q);
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + addedChip(q) + (g ? "<span>" + esc(g.title) + "</span>" : "") +
       '<span class="chip s-' + esc(st) + '">' + stateLabel(q) + '</span><span class="grow"></span>' +
       (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +

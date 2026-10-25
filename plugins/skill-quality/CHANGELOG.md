@@ -3,6 +3,18 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.5] - 2026-10-25
+
+### Changed
+
+- The settings-token baseline is empty: its one row, for `/evals:plugin-eval`, is gone now that the skill states the fallback for its settings token, so every settings token used as a condition with no fallback fails check 31 when this marketplace checks its own skills.
+
+## [0.31.4] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.31.3] - 2026-10-23
 
 ### Fixed
