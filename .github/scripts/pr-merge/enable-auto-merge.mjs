@@ -79,7 +79,8 @@
 // left alone while the reason and head are unchanged (refusalWrites). The
 // comment is the record; only a cause a person must clear (owner direction
 // 2026-10-24: untrusted provenance, a security finding, a trusted-actor
-// widening or a real charge, see verifyClears) also gets the human-gated
+// widening or a real charge, see verifyClears; and a configured denied path,
+// which only a trusted approval lifts) also gets the human-gated
 // label, put back while the comment stands unless a person removed it
 // since. clear-escalations takes the label off once the head moves, and
 // this run labels the new head again only if its cause still holds. Holds a
@@ -502,8 +503,8 @@ function priorRefusal(comments, bot) {
     .at(-1);
 }
 
-// The comment and label write for a refusal `clears` (verifyClears, `lane`
-// for a hold path, `person` for a cost hold) with `reason` at `pull`'s head:
+// The comment and label write for a refusal `clears` (verifyClears, or
+// `person` for a hold path or a cost hold) with `reason` at `pull`'s head:
 // the comment first, so a label never stands unexplained, and the label only
 // when this write made the comment a person's, so a label a person removed
 // stays off until the reason or the head changes. Returns what it wrote, or
@@ -707,7 +708,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   }
   const pathHeld = pathHold(detail.files, holdPaths);
   if (pathHeld !== null) {
-    return { action: armed ? "disarm" : "none", reason: pathHeld, clears: "lane" };
+    return { action: armed ? "disarm" : "none", reason: pathHeld, clears: "person" };
   }
   const costHeld = costHold(detail.files, detail.costDecision);
   if (costHeld !== null) {

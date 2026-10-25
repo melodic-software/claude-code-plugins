@@ -276,14 +276,15 @@ const COST_FILES = [{ filename: "infra/main.tf" }];
 const MISSING = { refusal: "verify:missing", needsHuman: false, head: HEAD, ineligible: null, reviews: null };
 const MISSING_REASON = "pr-merge's gate refuses its verifier verdict (verify:missing)";
 
-test("a refusal a person must clear is commented on and labeled human-gated; a hold path only commented on", async () => {
+test("a refusal a person must clear, a cost path or a configured denied path, is commented on and labeled human-gated", async () => {
   const { code, writes, notes } = await run([pull(1, { files: COST_FILES }), pull(2, { files: [{ filename: "docs/held.md" }] })]);
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
   assert.deepEqual(notes, [
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
-    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } },
   ]);
 });
 
