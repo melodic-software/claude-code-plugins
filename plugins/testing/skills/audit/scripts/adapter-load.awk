@@ -310,7 +310,7 @@ FNR == 1 {
   key = substr(body, 1, RLENGTH - 1)
   # run-e2e's and write's keys share the config file; scripts/resolve-config.sh
   # e2e and write read them, so the scan neither parses nor checks their values.
-  # feature_map_dir is retired and read by nothing.
+  # feature_map_dir is retired: no script resolves it.
   if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir|browser_driver|tdd_refactor_step|first_test|pixel_tolerance)$/) {
     sp = 0
     E2E_KEY = key; E2E_WARNED = (key == "pixel_tolerance")

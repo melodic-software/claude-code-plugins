@@ -344,25 +344,25 @@
     {
       "id": "feature-map-01",
       "name": "control-skill-ready-before-first-drive",
-      "prompt": "/testing:run-e2e the timer page. .claude/skills/control-timer/SKILL.md exists; its ## Ready section is `curl -fsS http://127.0.0.1:5180/healthz` and its driving tool is playwright.",
+      "prompt": "/testing:run-e2e the timer page. .claude/skills/control-timer/SKILL.md exists; its ## Ready section is `curl -fsS http://127.0.0.1:5180/healthz` and its driving tool is playwright. That Ready exits 7 with `Failed to connect to 127.0.0.1 port 5180`.",
       "expected_output": "Before the first drive, the drive subagent runs the control skill's Ready command. Only when it passes does driving start; a failing Ready is reported as an environment failure with its output, and nothing is driven.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs the control skill's Ready command before the first drive step",
-        "Drives nothing when Ready fails, reporting an environment failure with its output"
+        "Reports an environment failure carrying Ready's exit 7 output and drives no step"
       ]
     },
     {
       "id": "feature-map-02",
       "name": "control-skill-ready-after-failed-drive",
-      "prompt": "/testing:run-e2e the timer page. A control skill exists for the app, with a Ready command. Mid-run, choosing the `Start` button times out.",
+      "prompt": "/testing:run-e2e the timer page. A control skill exists for the app, with a Ready command. Mid-run, choosing the `Start` button times out; afterwards the health check and Ready both pass.",
       "expected_output": "The timeout is not yet a product failure. The run re-runs the health check and the control skill's Ready; if either fails it reports an environment failure with their output, and only a failure against a healthy app is reported as a product failure.",
       "files": [],
       "narration": true,
       "expectations": [
         "Re-runs the control skill's Ready after the failed step",
-        "Reports a product failure only when Ready and the health check pass"
+        "Reports the Start timeout as a product failure, with the health output beside it"
       ]
     },
     {
@@ -397,7 +397,7 @@
       "files": [],
       "narration": true,
       "expectations": [
-        "Warns that a legacy feature map is present at docs/maps/web and names /app-control:map refresh docs/maps/web",
+        "Warns that a legacy feature map is present at docs/maps/web and names /app-control:map refresh docs/maps/web without running it",
         "Continues the run, driving the export page the scenario names, without running the legacy map's Doctor"
       ]
     },
