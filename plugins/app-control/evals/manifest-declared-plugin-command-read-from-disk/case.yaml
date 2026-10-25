@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: manifest-declared-plugin-command-read-from-disk
+description: A plugin kept in the repository's skills folder (folder shop-tools, manifest name shopkit) whose manifest commands map points control-shop at tooling/shop-driver.md, outside commands/, is found through that manifest path and read from disk as data, never loaded through the Skill tool, so drive uses it rather than its no-control-skill fallback
+tags: [drive, control-skill, unattended, regression-guard]
+expected_outcome: "Drive reads .claude/skills/shop-tools/.claude-plugin/plugin.json, then reads .claude/skills/shop-tools/tooling/shop-driver.md from disk as the control skill for shop, never loads shopkit:control-shop or control-shop through the Skill tool, writes a report under evidence/ that names control-shop and carries no `No control skill` or `blocked: control skill` line, and asks nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive ready shop --unattended --out ./evidence"
+  allowed_tools: [Read, Glob, Grep, Skill, AskUserQuestion, Bash, Write]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: reads-manifest-path-file
+    type: tool_used
+    tool: Read
+    input_match: '\.claude/skills/shop-tools/tooling/shop-driver\.md'
+    min: 1
+    arm: both
+  - name: names-shop-skill-in-report
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'control-shop'
+    arm: both
+  - name: no-fallback
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'No control skill'
+    match: not_contains
+    arm: both
+  - name: no-blocked-stop
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'blocked: control skill'
+    match: not_contains
+    arm: both
+  - name: control-skill-not-loaded
+    type: tool_used
+    tool: Skill
+    input_match: 'control-'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-nothing
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both

@@ -47,16 +47,21 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
    `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file
    whose folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
-   starts with `control-`). Drop a match inside a submodule or a dependency folder such as
-   `node_modules` or `vendor`, and a main-checkout file at a path this checkout also holds. Its
-   source is `project`.
+   starts with `control-`). A `.claude/skills/*/` folder holding `.claude-plugin/plugin.json` is a
+   plugin: also search it and keep its files as step 2 does. Drop a match inside a submodule or a
+   dependency folder such as `node_modules` or `vendor`, and a main-checkout file at a path this
+   checkout also holds. Its source is `project`.
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
-   the folder the list reports for it (see the plugin list below), look in its
-   `skills/*/SKILL.md` and `commands/**/*.md`, and keep matches by step 1's rule. Its source is
-   `plugin` and its full name `<plugin>:control-<app>`, where `<plugin>` is the `name` in that
-   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below);
-   a folder with no manifest takes the name the manifest page gives it (see the manifest file
-   below). Session-only plugins are not read. Two cases record a `blocked:` line and stop the run,
+   the folder the list reports for it (see the plugin list below) and search the skill and command
+   files it loads from its default folders and its `.claude-plugin/plugin.json` `skills` and
+   `commands` keys, located as the manifest page's component paths and path rules say (see the
+   manifest's component paths below). Read no path that resolves outside the folder. Keep matches
+   by step 1's rule, except that a `commands` map entry's `source` file is kept or dropped by the
+   entry's key alone, under that rule. Its source is `plugin` and its full name
+   `<plugin>:control-<app>`, where `<plugin>` is the `name` in that folder's
+   `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below); a folder
+   with no manifest takes the name the manifest page gives it (see the manifest file below).
+   Session-only plugins are not read. Two cases record a `blocked:` line and stop the run,
    each only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
    when step 1 kept no repository match for that app: a listed plugin whose manifest defines
    `control-<app>` as an inline command, with no file (`control skill <name> has no file to read`;
@@ -97,8 +102,12 @@ fields and what it shows from inside a session:
 <https://code.claude.com/docs/en/plugins/loading#entry-name-and-manifest-name>; the manifest file
 and the name a plugin without one takes:
 <https://code.claude.com/docs/en/plugins/manifest-reference#manifest-file>; the manifest's
-commands: <https://code.claude.com/docs/en/plugins/manifest-reference#commands>; plugin skills and
-commands: <https://code.claude.com/docs/en/plugins/components#skills>,
+commands: <https://code.claude.com/docs/en/plugins/manifest-reference#commands>; the manifest's
+component paths and path rules, and how each key combines with its default folder:
+<https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms>,
+<https://code.claude.com/docs/en/plugins/manifest-reference#path-rules>,
+<https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location>;
+plugin skills and commands: <https://code.claude.com/docs/en/plugins/components#skills>,
 <https://code.claude.com/docs/en/plugins/components#commands>; a worktree session's repository
 plugins: <https://code.claude.com/docs/en/plugins/loading#check-why-a-repository-plugin-didnt-load>;
 Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>; which
