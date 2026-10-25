@@ -239,7 +239,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
 
    When preflight's `suite_tools` lists gated tools, add `--allow-tools` with exactly those tools;
    without the grant each is removed from every run, so a case that must run or verify its own
-   work cannot.
+   work cannot. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a short directory outside the system temp directories that you create first (for example `/run/user/$(id -u)/ev`); under the default temp directory the sandbox cannot write, and the gate fails the runs ([sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start)).
 
    Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
