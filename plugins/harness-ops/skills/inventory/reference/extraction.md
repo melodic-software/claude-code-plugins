@@ -462,8 +462,8 @@ reference is `F.prototype.k` with a named key other than `constructor` (a call, 
 `F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
 given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
 built from a string: global `eval` other than a direct call, the global `Function` used other
-than for `typeof`, `instanceof` or a `.prototype` read, any member named `eval` or `Function`,
-and node:vm, since code in a new context still reaches this realm
+than for `typeof`, `instanceof` or a `.prototype` read (below), any member named `eval` or
+`Function`, and node:vm, since code in a new context still reaches this realm
 (`this.constructor.constructor("...")()` inside `runInNewContext`): any load of `vm` or
 `node:vm` except an import naming only `isContext`, and a runner's name (`runInThisContext`,
 `runInNewContext`, `runInContext`, `compileFunction`, `SourceTextModule`, `SyntheticModule`)
@@ -473,6 +473,24 @@ syntax check, and ajv running the validator code it generates), 3 with a member 
 evaluator, the workflow runtime, a CLI command definition), and 1 with a direct `eval`
 (protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the workflow runtime, the plugin loader, a
 test kit). A load the scan cannot name (below) may load `node:vm`, so it is a sink too.
+
+`Function(...)` and `new Function(...)` build a function from strings and run none of its body;
+only a call runs it. So a use of the global `Function` is no sink when the function it builds is
+discarded (an expression statement, or a sequence operand other than the last, as in
+`try{return new Function(""),!0}catch(e){return!1}`), nor when it is called directly
+(`Function("return this")()`) with every argument a string literal or a template without
+substitutions and the code those spell, parsed with acorn as an unnamed function expression in a
+module, holds no sink by this same rule (followed up to 4 folds deep). The module goal rejects
+what only sloppy code allows (`with`) and parses the rest the same, except an HTML-like comment,
+so text holding `<!--` or `-->` is not folded. `test_reader_findings` pins the three shapes #9983 reports
+on 2.1.310 (lodash's probe, the `new Function("")` probe, an unused syntax check) as clearing;
+ajv's generated code is no constant and stays a sink. Any other use stays a sink: a stored function
+(`var F=Function("...");F()`), a body that is no constant (`Function(s)()`), `.call` or `.apply`
+on the result. The folded calls trust the global `Function` itself, so the rule counts `Function`
+among the trusted names: a write of it (`Function=g`, `globalThis.Function=g`), a definer given
+the key `"Function"`, or a computed key that may spell it, in any module, is a sink. Another call
+given the string (`tagTester("Function")`) is not: a callee that could write it by its parameter
+holds a computed write of its own.
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
@@ -507,7 +525,8 @@ computed key.
 
 Stated assumptions, not checked:
 
-- Code built from strings is not analyzed, only counted as a sink (above).
+- Code built from strings is not analyzed, only counted as a sink (above), except a direct call
+  of `Function` on constant strings, whose code is scanned as written.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
 - A spread is a copy of the elements, the reading both readers rest on: the sink rule does not
