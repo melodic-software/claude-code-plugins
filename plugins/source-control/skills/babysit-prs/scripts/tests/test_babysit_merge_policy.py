@@ -1396,6 +1396,9 @@ class Eligibility(unittest.TestCase):
             "Work-Class: Untrusted-Provenance",
             " work-class: untrusted-provenance ",
             "work-class:untrusted-provenance",
+            "work-class: untrusted_provenance",
+            "work-class: untrusted–provenance",
+            "untrusted-provenance",
         ):
             with self.subTest(label):
                 eligibility_fake(
