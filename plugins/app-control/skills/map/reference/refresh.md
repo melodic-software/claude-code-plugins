@@ -44,7 +44,7 @@ it.
 The path argument, when given, is one of:
 
 - a control skill, `.claude/skills/control-<slug>/`, held to the `--dir` rules in
-  [naming.md](naming.md#location-rules);
+  [naming.md](naming.md#location-rules) and to its [real-path checks](naming.md#real-paths);
 - a legacy testing-format map at any other path (`.claude/skills/feature-map/` or wherever the
   person's `feature_map_dir` pointed): its `SKILL.md` index has `Application`, `Launch`, `Driver`,
   `Doctor` and `Features` fields and its feature files sit beside it as `<feature>.md` with a
@@ -52,7 +52,8 @@ The path argument, when given, is one of:
   `control-<s>` shape), and to the real-path checks; refused, the outcome is **blocked** with the
   rule it breaks. The person passes this path; refresh reads no testing setting to find it.
 
-Without an argument, take each `.claude/skills/control-*/` directory; with several, an attended pass
+Without an argument, take each `.claude/skills/control-*/` directory, each held to the same rules
+and checks as a given one (a refused directory is skipped and named in the report); with several, an attended pass
 asks which and an unattended one refreshes each in turn, one branch per skill. With none, and no
 legacy map at `.claude/skills/feature-map/`, the outcome is **blocked**: no control skill exists,
 and `/app-control:map create` writes one.
@@ -131,7 +132,7 @@ Sort every difference between the control skill and the app:
 | Class | What the passes show | Where it goes |
 |---|---|---|
 | Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true. Ships in the pull request |
-| Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | A fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Never a floor loosened |
+| Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | Attended: after the person agrees, a fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Unattended: the fix goes in the report unwritten and nothing is driven again, since the `cli/` code enforces the safety floors and no one has reviewed the change. Never a floor loosened |
 | Product regression | A behavior the files list is gone, or fails against a healthy app | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
 | Not mapped | A user-facing feature the control skill does not list | The report |
 
@@ -160,7 +161,8 @@ Then the outcome:
 
      When git refuses the switch or merge, the outcome is **blocked** with git's stderr line.
      Done when `git branch --show-current` prints the upkeep branch.
-  2. **Write** the edits. Then run the Check steps in SKILL.md on the result; a structural finding
+  2. **Write** the edits, re-running the [real-path checks](naming.md#real-paths) before each
+     write. Then run the Check steps in SKILL.md on the result; a structural finding
      in a file this pass wrote is fixed before the commit, and one it cannot fix makes the outcome
      **blocked** with the finding.
   3. **Commit** only the control skill's files, staged by path (and for a conversion, the legacy
