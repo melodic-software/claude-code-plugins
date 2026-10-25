@@ -254,6 +254,50 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def test_a_run_at_zero_turns_with_no_error_is_invalid(self):
+        result = self.clean()
+        result["cases"][0]["arms"]["with"][0].update(turns=0, costUsd=0, error=None)
+        result["cases"][0]["arms"]["without"][0].update(turns=4, costUsd=0.2)
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case control-no-trigger, with-arm run 1: 0 turns and no run error",
+            proc.stdout,
+        )
+        self.assertIn("1 run never started or had no sandbox", proc.stdout)
+        self.assertIn("check run errors: PASS", proc.stdout)
+
+    def test_a_zero_turn_run_with_an_error_is_reported_once(self):
+        result = self.clean()
+        result["cases"][0]["arms"]["with"][0].update(turns=0, error="credential store")
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+        self.assertIn("check session started: PASS", proc.stdout)
+
+    def test_a_trace_showing_the_sandbox_failing_to_start_is_invalid(self):
+        trace = self.dir / "no-sandbox.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1",'
+            '"is_error":true,"content":"Sandbox is required but failed to initialize:'
+            ' Failed to create bridge sockets after 5 attempts."}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":4}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=4)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: the shell sandbox failed"
+            " to start (%s)" % trace,
+            proc.stdout,
+        )
+        self.assertIn("check permission denials: PASS", proc.stdout)
+
     def test_a_denial_seen_only_as_a_tool_result_is_counted(self):
         trace = self.dir / "denied.jsonl"
         trace.write_text(
