@@ -9,7 +9,7 @@
 // attempt ended cancelled, timed_out, startup_failure or failure is re-run
 // once, only after the plan names its record
 // reconcile-rerun-<run id>-2-<head sha> for the upload steps, only when a
-// job of that attempt started, and never when its judge step succeeded;
+// job of that attempt started, and never when its verdict write started;
 // pr-verify run shapes follow a recorded workflow_run run (head_branch main,
 // head_sha the main tip, no pull_requests).
 import assert from "node:assert/strict";
@@ -20,7 +20,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec, WRITE_STEP } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -467,6 +467,12 @@ test("pr-verify still names its judge step as the reconciler reads it", () => {
   assert.ok(judge < stepAt("Upload the verdict"));
   const names = [...workflow.matchAll(/^[ ]*- name: (.+)$/gm)].map((m) => m[1]);
   assert.equal(names[names.indexOf(JUDGE_STEP) - 1], JUDGE_PREDECESSOR);
+  // Both jobs write the verdict only on the judge step's true outcome.
+  const writes = [...workflow.matchAll(new RegExp(`- name: ${WRITE_STEP}\\n(?:[ ]{8,}.*\\n)+`, "g"))].map((m) => m[0]);
+  assert.equal(writes.length, 2);
+  for (const step of writes) {
+    assert.match(step, /\n[ ]+if: steps\.judge\.outcome == 'success'\n/);
+  }
 });
 
 test("a verify run lost during its judge step is recorded and re-run once", async () => {
@@ -478,14 +484,29 @@ test("a verify run lost during its judge step is recorded and re-run once", asyn
   }
 });
 
+// The judge step is continue-on-error, so the jobs API lists it as success
+// even when it broke; only the verdict write, which runs on its true outcome,
+// shows that the judgment finished.
+test("a verify run whose judge step lists success but whose verdict write was skipped is re-run once", async () => {
+  const [job] = verifyJob("success");
+  const steps = job.steps.flatMap((s) => (s.name === "Upload the verdict" ? [{ name: WRITE_STEP, status: "completed", conclusion: "skipped" }, s] : [s]));
+  const { code, reruns, outputs } = await reconcile({
+    pulls: [],
+    runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [{ ...job, conclusion: "failure", steps }] }],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+});
+
 // A judgment that finished may hold a FAIL its run then failed to write or
 // upload; a re-run would judge the head a second time.
-test("a verify run whose judge step succeeded is held with its reason, not re-run, even when the upload failed", async () => {
+test("a verify run whose verdict write started is held with its reason, not re-run, even when the upload failed", async () => {
   const [job] = verifyJob("success");
   const steps = job.steps.flatMap((s) =>
     s.name === "Upload the verdict"
       ? [
-          { name: "Write the verdict", status: "completed", conclusion: "success" },
+          { name: WRITE_STEP, status: "completed", conclusion: "success" },
           { ...s, conclusion: "failure" },
         ]
       : [s],
@@ -502,7 +523,7 @@ test("a verify run whose judge step succeeded is held with its reason, not re-ru
     assert.equal(code, 0);
     assert.deepEqual(reruns, []);
     assert.deepEqual(records(outputs), ["", "", ""]);
-    assert.match(readFileSync(summary, "utf8"), /lane run 201 \(\.github\/workflows\/pr-verify\.yml\) ended failure after its judge step succeeded/);
+    assert.match(readFileSync(summary, "utf8"), /lane run 201 \(\.github\/workflows\/pr-verify\.yml\) ended failure after its verdict write started/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
