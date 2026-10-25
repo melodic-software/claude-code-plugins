@@ -5,7 +5,8 @@
 # is one line in $RUNNER_TEMP/api-budget/<token>:
 #   <status> <limit> <remaining> <used> <reset epoch> <resource>
 # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
-# lines. Never fails the caller.
+# lines. Never fails the caller, except that a stop the rate guard below
+# cannot record ends the step.
 #
 #   api_budget_read <token> <file>
 #                               gh api -i output: the header block at the start
@@ -23,7 +24,17 @@
 # call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
 # gh's status, so no caller resends a write GitHub accepted. Its stops are
 # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
-# it) goes in $RUNNER_TEMP/api-budget/guessed too.
+# it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
+# shaped `^([a-z_]+|\*) [0-9]{1,12}$`, as rate-guard.mjs does, so a fragment
+# a short write left spoils only the line it runs into.
+#
+# Most calls run in $(...) subshells, whose variables never reach the shell
+# that started them, so the file is what carries a stop from one call to the
+# next. A stop the file cannot take (no space, no permission) would leave
+# every later call free to reach the exhausted pool. So the step ends there:
+# the error names the pool, API_BUDGET_UNRECORDED refuses every later call in
+# this shell, and from a subshell the step's shell ($$) is sent TERM.
+#
 #   api_budget_classify         jq filter: rate-guard.mjs's classify over
 #                               {status, headers, body, now (ms), pool, floor}
 #   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
@@ -157,13 +168,13 @@ api_budget_pool() {
 api_budget_stop_until() {
   local file=${RUNNER_TEMP:-/tmp}/api-budget/stop
   [[ -s $file ]] || return 0
-  awk -v pool="$1" -v now="$(date +%s)" '($1 == pool || $1 == "*" || pool == "any") && $2 ~ /^[0-9]+$/ && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
+  awk -v pool="$1" -v now="$(date +%s)" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && ($1 == pool || $1 == "*" || pool == "any") && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
     END { if (max) print max }' "$file"
 }
 
 api_budget_guessed() {
   local file=${RUNNER_TEMP:-/tmp}/api-budget/guessed
-  [[ -s $file ]] && awk -v t="$1" '$2 == t { found = 1 } END { exit !found }' "$file"
+  [[ -s $file ]] && awk -v t="$1" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t { found = 1 } END { exit !found }' "$file"
 }
 
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
@@ -171,6 +182,10 @@ api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
 
 api_budget_refuse() {
   local until
+  if [[ -n ${API_BUDGET_UNRECORDED:-} ]]; then
+    echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$API_BUDGET_UNRECORDED") stop could not be recorded, so this step sends no further call" >&2
+    return 1
+  fi
   until=$(api_budget_stop_until "$1")
   [[ -z $until ]] && return 0
   echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
@@ -179,12 +194,16 @@ api_budget_refuse() {
 
 api_budget_stop() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget
-  if mkdir -p "$dir" 2>/dev/null; then
-    echo "$1 $2" >>"$dir/stop"
-    [[ $3 != fallback ]] || echo "$1 $2" >>"$dir/guessed"
-  fi
   echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}" >&2
-  return 1
+  # One printf per line: the line and its newline go in one write.
+  if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
+    { [[ $3 != fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
+    return 1
+  fi
+  API_BUDGET_UNRECORDED=$1
+  echo "::error::GitHub's $(api_budget_label "$1") stop could not be recorded in $dir; later calls would reach the exhausted pool, so this step ends" >&2
+  ((BASH_SUBSHELL == 0)) || kill -s TERM "$$" 2>/dev/null
+  exit 1
 }
 
 # shellcheck disable=SC2016 # a jq program

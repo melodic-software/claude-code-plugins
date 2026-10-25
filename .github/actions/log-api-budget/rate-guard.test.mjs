@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -248,6 +248,43 @@ test("a stop is written to the job's stop file, and a later latch refuses from i
     await assert.rejects(later(URL_B), RateLimitStop);
     assert.equal(gh.sent.length, 1);
   }));
+
+// A stop the job's stop file could not take is reported, and this process's
+// latch still refuses the pool.
+test("a stop the stop file cannot take is reported in the error line, and the latch still holds", async () =>
+  withDir(async (dir) => {
+    const stopFile = join(dir, "api-budget", "stop");
+    mkdirSync(stopFile, { recursive: true });
+    const lines = [];
+    const gh = fakeGitHub([PRIMARY, [200]]);
+    const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile });
+    const fetch = latch.guard(gh.fetch);
+    await fetch(URL_A);
+    const error = lines.find((line) => line.startsWith("::error::"));
+    assert.match(error, /core API rate limit/);
+    assert.match(error, /the stop could not be recorded in the job's stop file \(EISDIR\)/);
+    await assert.rejects(fetch(URL_B), RateLimitStop);
+    assert.equal(gh.sent.length, 1);
+  }));
+
+// The stop-file reader every port shares: rate-guard.vectors.json's
+// stop_files, read through a latch at vector_now.
+const POOL_URLS = {
+  core: "https://api.github.com/repos/o/r",
+  graphql: "https://api.github.com/graphql",
+  search: "https://api.github.com/search/issues?q=x",
+  code_search: "https://api.github.com/search/code?q=x",
+};
+
+for (const vector of VECTORS.stop_files) {
+  test(`stop file: ${vector.name}`, () =>
+    withDir((dir) => {
+      const stopFile = join(dir, "stop");
+      writeFileSync(stopFile, vector.text);
+      const latch = createRateLimitLatch({ now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+      assert.deepEqual(Object.fromEntries(Object.entries(POOL_URLS).map(([pool, url]) => [pool, latch.until(url)])), vector.until);
+    }));
+}
 
 // No lane script calls fetch outside the guard, except the files below, each
 // for its stated reason. A new raw fetch fails here until it is guarded or

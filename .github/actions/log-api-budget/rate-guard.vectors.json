@@ -236,5 +236,42 @@
       },
       "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792748040, "pool": "search" }
     }
+  ],
+  "stop_files": [
+    {
+      "name": "one pool's stop holds that pool only",
+      "text": "core 1792751600\n",
+      "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a * stop holds every pool, and the later of two stops wins",
+      "text": "* 1792748060\ncore 1792749000\ncore 1792751600\ngraphql 1792748030\n",
+      "until": { "core": 1792751600, "graphql": 1792748060, "search": 1792748060, "code_search": 1792748060 }
+    },
+    {
+      "name": "a stop already past holds nothing",
+      "text": "core 1792747000\n* 1792748000\n",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a last line with no newline still counts, and blank lines are skipped",
+      "text": "\n\nsearch 1792751600",
+      "until": { "core": null, "graphql": null, "search": 1792751600, "code_search": null }
+    },
+    {
+      "name": "every line not shaped `<pool> <1-12 digits>` is skipped",
+      "text": "core 99999999999x\n* abc\ncore 1e12\nCORE 1792751600\ncore  1792751600\n core 1792751600\ncore 1792751600 \ncore 1792751600 extra\ncore\t1792751600\ncore 1234567890123\ncore-x 1792751600\n",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a carriage return ends no line: a CRLF line, and one with a stray CR, are skipped",
+      "text": "core 1792751600\r\ncore 1\rgraphql 1792751600\n",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a short write's fragment spoils only the line it merges into",
+      "text": "core 17927graphql 1792751600\n* 1792748060\ncode_search 1792751600\n",
+      "until": { "core": 1792748060, "graphql": 1792748060, "search": 1792748060, "code_search": 1792751600 }
+    }
   ]
 }
