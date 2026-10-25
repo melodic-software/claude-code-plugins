@@ -967,10 +967,11 @@ merge:
   # would instead make the PR ineligible. The verifier verdict, both AI
   # review lanes, ci-status and the post-merge revert breaker still gate every
   # lane PR.
-  # Owner decision Q624 still holds for the rest: no denied path, size cap or
-  # C2 contradiction check. Each comes back by setting it here: list
-  # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
-  # or `max-changed-lines` (the earlier 8 and 400).
+  # Owner decision Q624 still holds for the rest: no denied path or size cap.
+  # Each comes back by setting it here: list denied-paths, or set
+  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+  # `c2-contradictions` is deprecated and has no effect; set, it adds a
+  # `configNotes` entry to the gate report.
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs off the HIGH floor merge on the
   # verifier verdict.
