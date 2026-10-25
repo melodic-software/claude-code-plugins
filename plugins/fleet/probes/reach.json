@@ -9,10 +9,6 @@
     "session-flow:continue-in-background",
     "repo-fleet-hygiene:audit"
   ],
-  "competitor_dirs": {
-    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
-    "repo-fleet-hygiene:audit": "plugins/repo-fleet-hygiene/skills/audit"
-  },
   "queries": [
     {
       "id": "pos-train-01",
