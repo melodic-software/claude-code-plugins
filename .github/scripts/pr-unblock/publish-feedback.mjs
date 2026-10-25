@@ -249,13 +249,12 @@ function citedFiles(evidence, patches, thread, prPaths = new Set()) {
 }
 
 // Whether a fix commit's changed files touch a thread ({ path, named_paths }):
-// the path itself, a file its named_paths holds, a file citedFiles gives
-// (`cited`), so a finding fixed in another file of the PR or the thread's
-// scope lands only at a line its evidence cites, or for a skill's SKILL.md
-// any file under that skill's directory.
+// the path itself, a file citedFiles gives (`cited`), so a finding fixed in
+// another file of the PR or the thread's scope lands only at a line its
+// evidence cites, or for a skill's SKILL.md any file under that skill's
+// directory.
 function touchesThread(changed, thread, cited) {
-  const named = Array.isArray(thread.named_paths) ? thread.named_paths : [];
-  if (changed.some((file) => file === thread.path || named.includes(file) || cited.has(file))) {
+  if (changed.some((file) => file === thread.path || cited.has(file))) {
     return true;
   }
   const skillDir = SKILL_FILE.exec(thread.path)?.[1];
@@ -322,7 +321,7 @@ const claimedFixes = (reviewComments, appId) =>
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
 // exactly one fix commit (isLaneFix), and it must change, for every VALID
-// thread, its path, a file its named_paths holds, a file the PR already
+// thread, its path, a file the PR already
 // changes or inThreadScope allows for that thread alone at a line the reply's
 // evidence cites, or for a thread on a skill's SKILL.md any file in that
 // skill's directory (touchesThread).
