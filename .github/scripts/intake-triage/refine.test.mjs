@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
-import { MARKER } from "./apply-verdict.mjs";
+import { MARKER, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, splitSource, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
@@ -26,6 +26,12 @@ const appComment = (body) => ({ id: 11, user: { login: "melodic-automation-lanes
 // The lanes App's refinement of the issue body `body`.
 const refined = (body, text = "old") => ({ ...appComment(`${REFINE_MARKER}\n${bodyVersion(body)}\n${text}`), id: 12 });
 const splitComment = (body, from) => refined(body, `${splitSource(from)}\nold`);
+// The lanes App's apply-verdict reasons comment listing `reasons`.
+const EARLIER = "(an earlier verdict)";
+const verdictComment = (...reasons) => ({
+  ...appComment([VERDICT_MARKER, `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`, "", ...reasons].join("\n")),
+  id: 13,
+});
 
 describe("isThin", () => {
   test("an intent flag is thin", () => {
@@ -317,6 +323,29 @@ describe("applyRefinement", () => {
     assert.ok(writes(fake.calls)[2].body.body.startsWith(`${REFINE_MARKER}\n${bodyVersion(issueOf().body)}\n`), "it names the body it refined");
   });
 
+  for (const [name, comments] of [
+    ["an earlier security flag", [laneComment(), verdictComment("- flagged: intent", `- flagged: security ${EARLIER}`)]],
+    ["a cost flag", [laneComment(), verdictComment("- flagged: intent, cost")]],
+  ]) {
+    test(`an exact refinement keeps the App's needs-decision when its verdict comment lists ${name}, and asks for no re-triage`, async () => {
+      const fake = fakeGitHub({ issue: issueOf(), comments, events: labeledBy(APP), spec: CONFIRMED });
+      const result = await apply(fake, EXACT);
+      assert.equal(result.redispatch, false);
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+        "the comment only",
+      );
+    });
+  }
+
+  test("an exact refinement lifts the App's needs-decision when its verdict comment lists only intent", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment(), verdictComment("- flagged: intent")], events: labeledBy(APP), spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, true);
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path.endsWith("/labels/status%3A%20needs-decision")));
+  });
+
   test("an exact refinement keeps a needs-decision a person set, and asks for no re-triage", async () => {
     const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(HUMAN) });
     const result = await apply(fake, EXACT);
@@ -514,6 +543,13 @@ describe("split", () => {
     const result = await select(fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(HUMAN) }));
     assert.equal(result.refine, false);
     assert.match(result.reason, /person set/);
+  });
+
+  test("does not split an issue whose App verdict comment lists an earlier security flag", async () => {
+    const comments = [...heldComments, verdictComment(`- flagged: security ${EARLIER}`)];
+    const result = await select(fakeGitHub({ issue: held(), comments, events: labeledBy(APP) }));
+    assert.equal(result.refine, false);
+    assert.match(result.reason, /flagged: security/);
   });
 
   test("leaves an issue with no unrunnable item untouched", async () => {

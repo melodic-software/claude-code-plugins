@@ -500,7 +500,9 @@ activities:
     # cannot perform, a split the model judges sound lists those items in the
     # refinement comment as checks a person runs, rewrites the issue body's
     # done-when to the rest plus a line pointing at that comment, lifts
-    # needs-decision and triages once more. One refinement per body version.
+    # needs-decision and triages once more. Neither lifts while the App's
+    # verdict comment lists a flag other than intent; that hold stays for a
+    # person. One refinement per body version.
     # Never agent-ready or needs-human, and no new issue. A script, no model.
     # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/refine.mjs
