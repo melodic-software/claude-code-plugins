@@ -23,7 +23,7 @@ graders:
     arm: both
   - name: names-upkeep-branch
     type: regex
-    pattern: 'control-skill-upkeep/control-clockwork-web'
+    pattern: 'control-skill-upkeep/control-clockwork-web(?![\w-])'
     arm: both
   - name: converts-in-upkeep-pull-request
     type: llm

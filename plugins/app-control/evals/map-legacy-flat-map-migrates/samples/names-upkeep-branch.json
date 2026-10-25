@@ -3,12 +3,20 @@
     {
       "answer": "Commit on control-skill-upkeep/control-clockwork-web and open one pull request.",
       "why": "names the upkeep branch"
+    },
+    {
+      "answer": "The branch is `control-skill-upkeep/control-clockwork-web`.",
+      "why": "names the branch in backticks"
     }
   ],
   "fail": [
     {
       "answer": "Commit on feature-map-upkeep/claude-skills-feature-map.",
       "why": "adopts the testing upkeep branch"
+    },
+    {
+      "answer": "Commit on control-skill-upkeep/control-clockwork-web-built-from-apps-web.",
+      "why": "slugs the built-from clause into the branch"
     }
   ]
 }
