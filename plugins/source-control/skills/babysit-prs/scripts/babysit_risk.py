@@ -186,7 +186,10 @@ class RiskResult:
 # its signer process, request-lane-token, which mints and hands out the lanes
 # App token, check-trusted-trigger and the rate guard it sends every call
 # through, check-kill-switch, whose writeOutputs both of those actions write
-# their verdicts through, code owners and submodules. merge-holds.mjs
+# their verdicts through, code owners and submodules; and the files that
+# enforce the floor (owner decision Q-ENFORCE (A)): the merge-holds,
+# enable-auto-merge, superseded and clear-escalations scripts, this module,
+# the ci-status workflow and the pipeline config. merge-holds.mjs
 # HOLD_PATH_FLOOR is the same list (test_merge_holds_sync.py).
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/check-trusted-trigger/**",
@@ -196,6 +199,13 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/check-kill-switch/**",
     ".github/actions/request-lane-token/**",
     ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    ".github/workflows/pr-require-checks.yml",
+    "docs/conventions/pr-pipeline.yaml",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

@@ -217,9 +217,13 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // decision Q-FLOOR (B)): the code main runs to mint and scope lane tokens
 // and judge triggers (resolve-config, request-lane-token,
 // check-trusted-trigger, check-kill-switch, the rate guard), code owners and
-// submodules. babysit_risk.HIGH_FLOOR, which test_merge_holds_sync.py checks
-// this equals. A constant of the module ci-status and enable-auto-merge run
-// from the base commit, so a pull request cannot rewrite it.
+// submodules; and the files that enforce the floor (owner decision
+// Q-ENFORCE (A)): this module, enable-auto-merge, superseded,
+// clear-escalations, babysit_risk.py, the ci-status workflow and the
+// pipeline config. babysit_risk.HIGH_FLOOR, which test_merge_holds_sync.py
+// checks this equals. A constant of the module ci-status and
+// enable-auto-merge run from the base commit, so a pull request cannot
+// rewrite it.
 export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/actions/check-trusted-trigger/**",
   "**/CODEOWNERS",
@@ -228,6 +232,13 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/actions/check-kill-switch/**",
   ".github/actions/request-lane-token/**",
   ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/scripts/pr-merge/merge-holds.mjs",
+  ".github/scripts/pr-merge/enable-auto-merge.mjs",
+  ".github/scripts/pr-merge/superseded.mjs",
+  ".github/scripts/pr-merge/clear-escalations.mjs",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  ".github/workflows/pr-require-checks.yml",
+  "docs/conventions/pr-pipeline.yaml",
 ]);
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`

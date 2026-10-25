@@ -271,8 +271,8 @@ class HighReasonTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("security-finding",))
 
     def test_floor_paths_are_high_whatever_the_switch(self):
-        # Owner decision Q-FLOOR (B): the narrow floor holds with
-        # high-path-floor off too.
+        # Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): the narrow floor,
+        # with the files that enforce it, holds with high-path-floor off too.
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
             (
@@ -283,6 +283,13 @@ class HighReasonTests(unittest.TestCase):
                 ".github/actions/check-kill-switch/**",
                 ".github/actions/request-lane-token/**",
                 ".github/actions/log-api-budget/rate-guard.mjs",
+                ".github/scripts/pr-merge/merge-holds.mjs",
+                ".github/scripts/pr-merge/enable-auto-merge.mjs",
+                ".github/scripts/pr-merge/superseded.mjs",
+                ".github/scripts/pr-merge/clear-escalations.mjs",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+                ".github/workflows/pr-require-checks.yml",
+                "docs/conventions/pr-pipeline.yaml",
             ),
         )
         cases = [
@@ -294,6 +301,14 @@ class HighReasonTests(unittest.TestCase):
             (".github/actions/check-kill-switch/check-kill-switch.mjs", ".github/actions/check-kill-switch/**"),
             (".github/actions/request-lane-token/action.yml", ".github/actions/request-lane-token/**"),
             (".github/actions/log-api-budget/rate-guard.mjs", ".github/actions/log-api-budget/rate-guard.mjs"),
+            (".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-merge/merge-holds.mjs"),
+            (".github/scripts/pr-merge/enable-auto-merge.mjs", ".github/scripts/pr-merge/enable-auto-merge.mjs"),
+            (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
+            (".github/scripts/pr-merge/clear-escalations.mjs", ".github/scripts/pr-merge/clear-escalations.mjs"),
+            ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"),
+            (".github/workflows/pr-require-checks.yml", ".github/workflows/pr-require-checks.yml"),
+            ("docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
+            ("Docs/Conventions/PR-Pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
         ]  # fmt: skip
         for path, glob in cases:
             for on in (True, False):
@@ -307,7 +322,7 @@ class HighReasonTests(unittest.TestCase):
         for path in (
             ".github/actions/log-api-budget/action.yml",
             ".github/actions/check-trusted-trigger-x/a.mjs",
-            ".github/scripts/pr-merge/merge-holds.mjs",
+            ".github/scripts/pr-merge/gate-check.mjs",
             "docs/CODEOWNERS.md",
         ):
             for on in (True, False):
@@ -1116,8 +1131,9 @@ def _lane_input(files):
 
 class LanePathFloorTests(unittest.TestCase):
     """The live pr-merge config holds no path for being trusted alone (owner
-    direction 2026-10-24) except the narrow floor (owner decision Q-FLOOR
-    (B)); the trust gate still holds the trusted-actor list."""
+    direction 2026-10-24) except the narrow floor (owner decisions Q-FLOOR
+    (B) and Q-ENFORCE (A)); the trust gate still holds the trusted-actor
+    list."""
 
     def test_the_live_config_has_the_floor_off(self):
         self.assertIs(_lane_config().high_path_floor, False)
@@ -1132,6 +1148,13 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/actions/check-kill-switch/action.yml",
             ".github/actions/request-lane-token/action.yml",
             ".github/actions/log-api-budget/rate-guard.mjs",
+            ".github/scripts/pr-merge/merge-holds.mjs",
+            ".github/scripts/pr-merge/enable-auto-merge.mjs",
+            ".github/scripts/pr-merge/superseded.mjs",
+            ".github/scripts/pr-merge/clear-escalations.mjs",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            ".github/workflows/pr-require-checks.yml",
+            "docs/conventions/pr-pipeline.yaml",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
@@ -1139,9 +1162,8 @@ class LanePathFloorTests(unittest.TestCase):
 
     def test_trusted_paths_off_the_floor_merge(self):
         for path in (
-            ".github/scripts/pr-merge/merge-holds.mjs",
-            ".github/scripts/pr-merge/enable-auto-merge.mjs",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            ".github/scripts/pr-merge/gate-check.mjs",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
             ".github/actions/log-api-budget/action.yml",
         ):
             with self.subTest(path):
@@ -1172,7 +1194,7 @@ class LanePathFloorTests(unittest.TestCase):
             "docs/conventions/x.md",
             "REVIEW.md",
             "plugins/review/skills/x/SKILL.md",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
             "plugins/source-control/lib/x.awk",
             "plugins/work-items/x.md",
@@ -1208,7 +1230,10 @@ class LanePathFloorTests(unittest.TestCase):
     def test_a_pipeline_caps_edit_still_holds_as_cost(self):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
-        self.assertEqual(_codes(score(_lane_input(files))), ("cost-review-required",))
+        self.assertEqual(
+            _codes(score(_lane_input(files))),
+            ("cost-review-required", "high-path:docs/conventions/pr-pipeline.yaml"),
+        )
 
 
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
@@ -1515,10 +1540,10 @@ class TrustGateTests(unittest.TestCase):
         self.assertEqual(_codes(result), (TRUSTED,))
 
     def test_paths_the_owner_lifted_do_not_hold_with_the_floor_off(self):
-        # The scorer, the merge gate, the pipeline config, workflows and the
-        # security review merge normally.
+        # The merge gate, workflows and the security review merge normally;
+        # the scorer and the pipeline config are on the floor (owner decision
+        # Q-ENFORCE (A)).
         for path in (
-            f"{B}babysit_risk.py",
             f"{B}babysit_merge.py",
             f"{B}babysit_review_evidence.py",
             ".github/workflows/pr-merge.yml",

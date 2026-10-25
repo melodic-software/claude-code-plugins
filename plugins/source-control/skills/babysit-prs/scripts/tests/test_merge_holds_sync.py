@@ -9,7 +9,7 @@ at most actions), so no lanes App push changes a workflow file. That covers
 lanes App pushes only: another identity with write access can still push a
 workflow change after auto-merge is armed.
 
-- The floor (owner decision Q-FLOOR (B)): `HOLD_PATH_FLOOR` is
+- The floor (owner decisions Q-FLOOR (B) and Q-ENFORCE (A)): `HOLD_PATH_FLOOR` is
   `babysit_risk.HIGH_FLOOR`, and `pathHold` holds, with no configured glob,
   exactly the paths `glob_match` matches over it, case variants included;
   a trusted path off the floor holds only for a configured glob. Every module
@@ -159,7 +159,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_floor_is_the_same_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
-        self.assertEqual(len(risk.HIGH_FLOOR), 7)
+        self.assertEqual(len(risk.HIGH_FLOOR), 14)
         for path, held, configured in zip(
             FLOOR_PATHS, answer["held"], answer["configured"], strict=True
         ):

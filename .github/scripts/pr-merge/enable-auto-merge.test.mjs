@@ -290,9 +290,10 @@ test("a refusal a person must clear, a cost path or a configured denied path, is
   ]);
 });
 
-// Owner decision Q-FLOOR (B): a floor path holds with no configured glob
-// naming it, as a cause a person must clear, so it gets the label; a trusted
-// path off the floor arms.
+// Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): a floor path, the files
+// that enforce the floor included, holds with no configured glob naming it,
+// as a cause a person must clear, so it gets the label; a trusted path off
+// the floor arms.
 test("a floor path no configured glob names is commented on and labeled human-gated; a trusted path off it arms", async () => {
   const floor = [
     ".github/actions/resolve-config/resolve.mjs",
@@ -302,13 +303,20 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/actions/log-api-budget/rate-guard.mjs",
     ".github/CODEOWNERS",
     "vendor/.gitmodules",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    ".github/workflows/pr-require-checks.yml",
+    "docs/conventions/pr-pipeline.yaml",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
-    pull(9, { files: [{ filename: ".github/scripts/pr-merge/merge-holds.mjs" }] }),
+    pull(99, { files: [{ filename: ".github/scripts/pr-merge/gate-check.mjs" }] }),
   ]);
   assert.equal(code, 0);
-  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_9", head: HEAD }]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_99", head: HEAD }]);
   assert.deepEqual(
     notes,
     floor.flatMap((filename, index) => [
@@ -940,7 +948,7 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     pull(4, { files: [{ filename: "docs/held.md" }] }),
     pull(5),
     // The rest of .github merges on the review lanes.
-    pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-merge/merge-holds.mjs" }] }),
+    pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-merge/gate-check.mjs" }] }),
   ]);
   assert.deepEqual(writes, [
     { mutation: "disarm", id: "PR_2" },

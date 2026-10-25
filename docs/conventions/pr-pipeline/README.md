@@ -584,8 +584,8 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: only the
 narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
 main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
-`CODEOWNERS` and `.gitmodules`) waits for a person, and the security lane judges the rest, the
-trusted-actor list included. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+`CODEOWNERS`, `.gitmodules` and the files that enforce the floor) waits for a person, and the
+security lane judges the rest, the trusted-actor list included. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
@@ -782,15 +782,21 @@ and its queued entries leave; two different identities, or an unreadable head co
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **Narrow path floor.** A fixed set of paths in the wrapper's code (`babysit_risk.HIGH_FLOOR`,
-  owner decision Q-FLOOR (B)), joined with `merge.diff-check.denied-paths` (empty here) and
+  owner decisions Q-FLOOR (B) and
+  [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)),
+  joined with `merge.diff-check.denied-paths` (empty here) and
   matched case-insensitively, scores HIGH whatever `high-path-floor` says and is never merged
   unattended: `.github/actions/resolve-config/**`, whose code the token broker runs from main in
   its signer process, `.github/actions/request-lane-token/**`, which mints the lanes App token,
   `.github/actions/check-trusted-trigger/**` and the rate guard it sends every call through
   (`.github/actions/log-api-budget/rate-guard.mjs`), `.github/actions/check-kill-switch/**`,
-  whose output writer both actions use, `**/CODEOWNERS` and `**/.gitmodules`. No other path is
-  held for being trusted (owner direction 2026-10-24): the trusted-actor list, the pipeline config
-  and every other path merge on the review lanes, which judge them. A
+  whose output writer both actions use, `**/CODEOWNERS`, `**/.gitmodules`, and the files that
+  enforce the floor: `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`,
+  `superseded.mjs` and `clear-escalations.mjs` there,
+  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
+  `.github/workflows/pr-require-checks.yml` and `docs/conventions/pr-pipeline.yaml`. No other path
+  is held for being trusted (owner direction 2026-10-24): the trusted-actor list and every other
+  path merge on the review lanes, which judge them. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
   installs or runs something new is a security-review finding, not a hold; where
   `high-path-floor` is on, the gate still scores it HIGH as `manifest-review-required`, and this

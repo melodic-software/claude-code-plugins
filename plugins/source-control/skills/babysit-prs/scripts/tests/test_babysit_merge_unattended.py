@@ -2360,7 +2360,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
     def test_a_cost_hold_holds(self) -> None:
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         pipeline = dataclasses.replace(
-            LOW_FILE, path="docs/conventions/pr-pipeline.yaml", patch=patch
+            LOW_FILE, path="plugins/foo/pr-pipeline.yaml", patch=patch
         )
         self.files = ((pipeline,), True)
         code, out = self.run_main()

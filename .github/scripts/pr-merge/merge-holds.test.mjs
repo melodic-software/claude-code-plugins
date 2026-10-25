@@ -294,8 +294,9 @@ const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "
 // denied path still holds. Owner decision Q-FLOOR (B) keeps a narrow floor:
 // resolve-config, request-lane-token, check-trusted-trigger,
 // check-kill-switch, the rate guard, CODEOWNERS and .gitmodules hold with no
-// configured glob, and a trusted person's approval of the head lifts them as
-// it lifts a configured one.
+// configured glob, and so do the files that enforce it (owner decision
+// Q-ENFORCE (A)); a trusted person's approval of the head lifts them as it
+// lifts a configured one.
 const FLOOR_FILES = [
   ".github/actions/resolve-config/resolve.mjs",
   ".github/actions/Resolve-Config/lane-rules.json",
@@ -307,6 +308,13 @@ const FLOOR_FILES = [
   "plugins/foo/codeowners",
   ".gitmodules",
   "vendor/sub/.gitmodules",
+  ".github/scripts/pr-merge/merge-holds.mjs",
+  ".github/scripts/pr-merge/enable-auto-merge.mjs",
+  ".github/scripts/pr-merge/superseded.mjs",
+  ".github/scripts/pr-merge/clear-escalations.mjs",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  ".github/workflows/pr-require-checks.yml",
+  "docs/conventions/pr-pipeline.yaml",
 ];
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {
@@ -325,13 +333,13 @@ test("ci-status holds no other trusted path or manifest change, only a configure
   for (const path of [
     "plugins/foo/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
-    "docs/conventions/pr-pipeline.yaml",
+    "docs/conventions/pr-pipeline/README.md",
     ".github/standards/trusted-actors/README.md",
     ".github/standards/trusted-actors/trusted-actors.schema.json",
     ".github/actions/log-api-budget/action.yml",
     ".github/actions/log-api-budget/rate-guard.test.mjs",
     ".github/actions/check-trusted-trigger-x/a.mjs",
-    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/gate-check.mjs",
     "docs/CODEOWNERS.md",
   ]) {
     const passed = await ci([{ filename: path, status: "modified" }]);
