@@ -342,15 +342,13 @@ Then three short sections the engine's document already carries:
   judgment finding of its own, derive its identity with the engine (`audit-engine.sh anchor` and
   `audit-engine.sh finding-id`) and append the row in the same shape with `"tier": "judged"`.
 
-For any finding the operator decides to keep, print its `suppress:` line as a stanza they can paste
-under `suppressions:` in `docs/conventions/harness-config.yaml` (team layer; the convention home the
-repository binds, when it binds another): `check`, `claim`, `sites` with `surface` and a quoted
-`"anchor/v1":` key, a non-empty `reason`, and today's `date`, keyed by the `finding_id` the engine
-printed. When the engine's `suppressions.layers` reports the team layer as a compatibility read, point
-the operator at `/harness-config:setup apply` first: once the YAML exists the engine ignores the older
-team file, so a YAML holding only the new stanza would un-suppress every earlier entry.
-That is the declared route for session posture; the skill never infers posture from the
-environment.
+For a finding the operator keeps, print its `suppress:` line as a stanza to paste under
+`suppressions:` in `docs/conventions/harness-config.yaml` (team layer, in the bound convention home):
+`check`, `claim`, `sites` with `surface` and a quoted `"anchor/v1":` key, a non-empty `reason`, and
+today's `date`, keyed by the engine's `finding_id`. When `suppressions.layers` reports the team layer
+as a compatibility read, point the operator at `/harness-config:setup apply` first: once the YAML exists
+the engine ignores the older team file, so a YAML with only the new stanza un-suppresses every earlier
+entry. That is the declared route for session posture; the skill never infers posture from the environment.
 
 ### Severity guide
 
@@ -394,17 +392,14 @@ After all fixes:
 ### Refusals in auto mode
 
 Two operations are refused in auto mode. Writing the team-layer suppression record is refused as
-`[Instruction Poisoning]`. Re-running `scripts/audit-engine.sh` for the after-fix summary is refused
-as `[Self-Modification]`. Never retry around a refusal. Hand the operator the fallback: they apply
-the suppression edit themselves, or run the engine re-run and paste its output back. Report the
-before/after comparison from what they return.
+`[Instruction Poisoning]`; re-running `scripts/audit-engine.sh` for the after-fix summary, as
+`[Self-Modification]`. Never retry around a refusal. Hand the operator the fallback: they apply the
+suppression edit themselves, or run the engine and paste its output back. Report the before/after comparison from what they return.
 
-Claim: auto mode refuses those two operations under those two category names. Basis: an empirical
-`harness-config:audit@0.48.2` `--fix` run in auto mode on Claude Code 2.1.283, recorded in
-[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153), when the
-team record lived under `.claude/`. As of 2026-09-27. Recheck when a Claude Code release changes
-auto-mode classifier categories, a run where either refusal no longer fires, or the first auto-mode
-run that writes `harness-config.yaml`.
+Claim: auto mode refuses those two operations under those two category names. Basis: an empirical `harness-config:audit@0.48.2`
+`--fix` auto-mode run on Claude Code 2.1.283, recorded in [melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153)
+when the team record lived under `.claude/`. As of 2026-09-27. Recheck when a release changes auto-mode classifier
+categories, either refusal stops firing, or an auto-mode run first writes `harness-config.yaml`.
 
 ### Fixes the skill can apply
 
