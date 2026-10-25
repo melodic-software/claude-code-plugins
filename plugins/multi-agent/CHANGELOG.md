@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1] - 2026-10-24
+
+### Changed
+
+- `/multi-agent:assess` points at the Claude Code subagent page's comparison of subagents and the main conversation for a close `subagent` or `single` call, with an as-of date and recheck trigger.
+
 ## [0.12.0] - 2026-10-22
 
 ### Changed

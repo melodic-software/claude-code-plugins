@@ -252,8 +252,9 @@ test("an agent-ready issue a blocker still blocks is not queued work; one whose 
     5: [],
   };
   const reads = await read({ merged: 24, queued: issues(1, 2, 3, 4, 5), blockedBy });
-  assert.deepEqual(reads.blocked, [1, 2, 3]);
-  assert.equal(status(reads).queued_issues, 2);
+  // #3's blocker closed as not planned counts as done (admission's rule).
+  assert.deepEqual(reads.blocked, [1, 2]);
+  assert.equal(status(reads).queued_issues, 3);
 });
 
 test("blocker reads skip issues a lane PR names, stop at BLOCKER_READS, and a failed one leaves the issue queued", async () => {

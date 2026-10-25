@@ -41,7 +41,7 @@ writeFileSync(
 // One issue with its comments. `editors` maps a comment id to its last
 // editor's id; `author` opened the issue; `gone` names labels GitHub answers 404 for on removal (a run
 // that already took them); `fail` names one `METHOD path` write that answers 500 once.
-function world({ labels, author = OWNER, state = "open", pullRequest = false, comments, editors = {}, gone = [], fail = null }) {
+function world({ labels, author = OWNER, state = "open", pullRequest = false, comments = [], events = [], editors = {}, gone = [], fail = null }) {
   let failing = fail;
   const current = new Set(labels);
   const writes = [];
@@ -63,6 +63,7 @@ function world({ labels, author = OWNER, state = "open", pullRequest = false, co
     if (method === "GET" && path === base) return issue();
     const one = /^\/repos\/[^/]+\/[^/]+\/issues\/comments\/([0-9]+)$/.exec(path);
     if (method === "GET" && one) return shaped.find((c) => String(c.id) === one[1]);
+    if (method === "GET" && path.startsWith(`${base}/events?`)) return path.endsWith("page=1") ? events : [];
     if (method === "GET" && path.startsWith(`${base}/comments?`)) return path.endsWith("page=1") ? shaped : [];
     if (method === "POST" && path === "/graphql") {
       return {
@@ -259,4 +260,62 @@ test("the kill switch stops the run before any API call", async () => {
   const code = await main({ github: async () => (calls += 1), log: () => {}, env: { KILL_SWITCH: "" } });
   assert.equal(code, 0);
   assert.equal(calls, 0);
+});
+
+// A listed human lifting `needs-human` (an `issues: unlabeled` run) re-enters
+// intake with no comment. The newest unlabeled needs-human event names who.
+const lift = (actor, name = "needs-human") => ({ event: "unlabeled", actor, label: { name }, created_at: "2026-10-24T00:00:00Z" });
+const runLift = (w) => run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "" });
+
+test("a listed human lifting needs-human sends the issue back to triage", async () => {
+  const w = world({ labels: ["priority: medium"], events: [lift(OWNER)] });
+  assert.equal(await runLift(w), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+});
+
+test("the newest needs-human removal decides who lifted it", async () => {
+  const w = world({ labels: [], events: [lift(STRANGER), lift(OWNER)] });
+  assert.equal(await runLift(w), 0);
+  expectDispatched(w);
+});
+
+test("a lift on a lanes App issue sends it back to triage", async () => {
+  const w = world({ labels: [], author: LANES_APP, events: [lift(OWNER)] });
+  assert.equal(await runLift(w), 0);
+  expectDispatched(w);
+});
+
+const liftQuiet = [
+  ["an outsider's removal", { labels: [], events: [lift(STRANGER)] }],
+  ["an older listed removal followed by an outsider's", { labels: [], events: [lift(OWNER), lift(STRANGER)] }],
+  ["a removal of another label", { labels: [], events: [lift(OWNER, "priority: low")] }],
+  ["no removal event", { labels: [], events: [] }],
+  ["a status label still present", { labels: ["status: needs-info"], events: [lift(OWNER)] }],
+  ["an issue already agent-ready", { labels: ["agent-ready"], events: [lift(OWNER)] }],
+  ["an issue that carries needs-human again", { labels: ["needs-human"], events: [lift(OWNER)] }],
+  ["an issue already in needs-triage", { labels: ["needs-triage"], events: [lift(OWNER)] }],
+  ["an untrusted author", { labels: [], author: AUTHOR, events: [lift(OWNER)] }],
+  ["a closed issue", { labels: [], state: "closed", events: [lift(OWNER)] }],
+  ["a pull request", { labels: [], pullRequest: true, events: [lift(OWNER)] }],
+];
+
+for (const [name, setup] of liftQuiet) {
+  test(`a needs-human lift changes nothing for ${name}`, async () => {
+    const w = world(setup);
+    assert.equal(await runLift(w), 0);
+    assert.deepEqual(w.writes, []);
+  });
+}
+
+test("a failed dispatch after a lift takes needs-triage back off", async () => {
+  const w = world({ labels: ["priority: medium"], events: [lift(OWNER)], fail: `POST ${DISPATCH}` });
+  assert.equal(await runLift(w), 1);
+  assert.deepEqual(w.labels(), ["priority: medium"]);
+});
+
+test("the workflow runs on a needs-human unlabel", () => {
+  const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
+  assert.match(workflow, /^ {2}issues:.*\n {4}types: \[unlabeled\]$/m);
+  assert.match(workflow, /github\.event\.label\.name == 'needs-human'/);
 });

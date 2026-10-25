@@ -61,6 +61,7 @@ the finding; a tool behavior you did not probe is an assumption, and the finding
 - Every Brief acceptance criterion maps to at least one phase, no phase does work the Brief's Out-of-scope section lists, and every phase or work item traces to a criterion or to something a criterion needs (a test, a migration, a dead-code removal); one that does not is a finding, with the action to cut it or surface it as an Open Decision for the user
 - No machine-specific path (a drive letter such as `C:\`, or a `/Users/<name>` or `/home/<name>` path) unless it is marked as a deliberate example; a published PLAN.md is read on other machines
 - Contract migrations have a pre-flight consumer check as the first work item
+- Every phase or test step that spends model runs (evals, agent fan-outs, benchmark batches) has a graded reproduction check before any baseline or comparison batch, a run count sized from tokens measured on 1-2 runs, and a `**Run budget:**` line whose runner refuses runs past the count and launches nothing after the first usage-limit error; a missing one is a finding
 - The plan cites the standards sections loaded for the surfaces it touches, or states why grounding was skipped (scale tier)
 
 Report format:

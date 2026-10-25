@@ -1,5 +1,116 @@
 # Changelog for the PR pipeline convention
 
+## [5.5.1] - 2026-10-24
+
+### Fixed
+
+- A handoff job's log now shows the decision: `handoff-evidence.sh` prints one line naming each settled fact and the read count, such as `handoff evidence: posted=false allowed=true (1 read)`, before it exits successfully (`.github/scripts/lib/handoff-evidence.sh`).
+
+## [5.5.0] - 2026-10-24
+
+### Added
+
+- Intake writes a native blocked-by edge for each open issue in the repository the triage names on a new `Blocked by: none|#N[, #M]` verdict line, before admission reads the blockers; only `#<number>` tokens count, the issue itself, pull requests, closed and other-repository issues and existing edges are skipped, and at most 50 are written (`.github/scripts/intake-triage/edges.mjs`, `.github/workflows/intake-triage.yml`).
+
+### Changed
+
+- Intake admission now treats a blocker closed as not planned or a duplicate as no longer blocking, and reads another repository's blocker there instead of waiting on it for good. A blocker here still needs a close by a listed human or a merge; another repository's blocker counts only on a listed human's close.
+- Intake admission takes the unblocked issues oldest first: an issue that passes the rules while an older open issue waits in `admission-deferred` is deferred behind it, and the hourly sweep admits them in order. While the sweep still counts only completed or merged blockers in this repository, an issue that rests on any other blocker never gets `admission-deferred`, which the sweep would drop without admitting it: with room it is admitted without that wait, and with the lane full it waits with a comment.
+- The admission refusal comment no longer asks a person to add `agent-ready` by hand; it names what admission needs.
+- An issue admission would refuse only for Size Large (split at intake pending, owner Q93) is parked instead: it keeps `status: ready`, gets no `status: needs-decision`, loses `admission-deferred` and gets a comment naming what it waits on. Any other refusal reason still refuses and names both.
+
+- Intake triage stops an issue for a person only on intent or security. A `status: needs-decision` or `status: needs-info` the lanes App set on an earlier run gives way to a clean verdict and is taken off only when the App's earlier verdict comment lists no `flagged:` reason; a listed flag, or no App verdict comment at all (an issue held before these comments), keeps the hold, and the new comment carries it forward; `needs-human` is never lifted, whoever set it, and a hold from the triage run's own escalation, a listed human or an unread setter still holds. A `needs-triage` the triage left no longer keeps a clean verdict from `status: ready` and is taken off after the verdict. An issue field a listed human set to another value is kept and is the value admission reads, without a hold; one from any other setter still holds. GitHub keeping other field options than `models.issue-dimensions` maps fails the run without adding `status: needs-decision`. Whenever the verdict sets `status: needs-decision`, the reasons go on the issue in one lanes App comment edited in place, not only in the step summary; a held verdict writes that comment before its labels and, when the write fails, adds no label and removes none but `status: ready`, names the failure in the step summary and fails the job, so no hold lands without its record; a ready verdict that admission refused or did not finish leaves that comment too, and a failed write there still rewords the lane comment and fails the job (`.github/scripts/intake-triage/apply-verdict.mjs`).
+
+### Fixed
+
+- ci-status fails a ready pull request whose review lane the kill switch stopped (`CLAUDE_LANES_DISABLED`, `CLAUDE_LANES_REPO_DISABLED`, or a lane's own `CLAUDE_REVIEW_DISABLED` or `CLAUDE_SECURITY_REVIEW_DISABLED`), naming the lane: "did not run on <head> (<run>): a kill switch was on when it started. Once it is off, re-run all jobs of <run>; ci-status re-runs when it finishes." Before, a stopped lane passed, so a head pushed while the switch was on could merge with no review. The kill switch pauses review and never waives it; the admin bypass stays the break-glass.
+- ci-status reads only review runs from this repository's head. A fork's run on the same commit, even the newest, no longer decides a lane, and a pull request whose head is a fork fails as a fork before any run is read.
+
+## [5.4.0] - 2026-10-24
+
+### Changed
+
+- Intake refinement no longer stops an issue for a person on its own: a split of done-when items an unattended lane run cannot perform files no `needs-human` child issue, and lists those items in the refinement comment as checks a person runs, leaving the rest of the done-when in the body for admission; the lanes App refines each version of an issue body once instead of each issue once; an exact refinement that finds a duplicate or fixing change asks whether to close the issue instead of failing the run; and an issue edited while the model ran is triaged again instead of left waiting (`.github/scripts/intake-triage/refine.mjs`, `.github/workflows/intake-triage.yml`).
+- work-unblock lifts the `needs-human` hold report-outcome put on an issue for a lanes App `Refs:` pull request when that pull request closes unmerged, not only when it merges, and hands the issue to triage (`.github/scripts/work-unblock/label-unblocked.mjs`).
+
+### Fixed
+
+- The lane sweep's file step drops a finding whose slice is not its unit's, whose workflow is not its slice A or D unit's, or whose job is not among the jobs its unit's data lists, so a judge steered by CI log text cannot put a finding in the digest against a workflow or job its unit does not show. A unit that lists no jobs leaves the job unbound; the free-text signature still lets a steered judge mint fresh fingerprints, which land only as digest entries, at most 3 per unit.
+
+## [5.3.0] - 2026-10-24
+
+### Changed
+
+- The monitoring lane keeps one rolling issue per signal, `Monitoring: <signal>`, in place of one issue per signal and key. It rewrites the body and adds a comment only when the signal's state changes, closes the issue when the signal clears, and reopens the same issue when it fires again; it never files a second. GitHub incidents are listed in the run summary and no longer filed. Open issues from the per-key form are closed as not planned, pointing at the signal's rolling issue (`.github/scripts/maintenance-monitor-signals/`).
+- The lane sweep writes its findings into one rolling digest issue, `Lane sweep: open findings`, in place of filing an issue per finding. A sweep whose findings or their tracking issues changed replaces the body, so a fixed finding drops off; when the collector or a judge leg read only part of the day, earlier entries carry over (`.github/scripts/maintenance-audit-lane-runs/file-findings.mjs`, `findings.mjs`).
+- Neither lane labels its issues `needs-triage` any more; each keeps its `source:` label. Each rewrite takes `agent-ready` off the rewritten issue, since a person vetted the earlier text. The [pr-pipeline README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-monitoring-lane) has the rules.
+
+- A review finding `address-feedback` answers `INCORRECT` no longer hands the pull request to a person. pr-unblock.yml's new `adjudicate-feedback` job gives a fresh-context model, once per disputed thread (up to three a round), the finding's claim without its rationale, the locations the lane cited without its note, and those files at the head. It runs on `run-claude-cli` under `dontAsk` with Read alone, confined to its own slot by Read denials on the base checkout and the runner's temp directory (where the lane's replies, with its reasoning, sit), with each staged file under a `.txt` suffix so a cited `CLAUDE.md` is never loaded as instructions, and returns `lane`, `reviewer` or `human` as structured output. The model route is the new run route `adjudicate-feedback`, on the `review` profile (Opus), above the review lanes' `pr-review` (Sonnet at effort high). `publish-feedback` applies the verdict with fixed text: `lane` replies and resolves the thread; `reviewer` replies that the finding stands and leaves it open, and the next round works it again (`threadAuthors` keeps it); `human` escalates `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`. A thread a trusted person directed (a fix request, or a reply after an escalation) is not adjudicated: an `INCORRECT` reply on it escalates `feedback-disputed`. Only a code-review lane finding (a github-actions[bot] comment ending in the `claude-lane: claude-review` footer; the same footer in a claude[bot] comment, whose body the model writes, names no lane) or a verifier note is adjudicated: a disputed security-review finding, or one whose lane its comment does not name, always goes to a person as `feedback-disputed`, and no verdict resolves it. A thread whose finding stood is not adjudicated again: the next round's `INCORRECT`, `UNCERTAIN` or `VALID-defer` on it escalates `feedback-disputed`. No verdict escalates `feedback-unadjudicated`. A stands verdict in a round that left the head unmoved, so no review run follows, skips the reply check as the new `finding-stands`, and `pr-feedback-dispatch.yml`'s half-hourly sweep dispatches that head again, as it does after `no-model-turn`; the select job's round cap and the sweep's three skips per head bound it. Verdicts are checked against the head the select job read, so a round that pushes a fix for one thread still applies the verdict on another. The write file takes `review-adjudication-attempt` and `review-adjudication-sha256`. No label is added; `fix-ci`, `resolve-conflicts`, `fix-docs` and `apply-patch` keep running while a thread is disputed, and the open thread still holds the merge.
+
+### Fixed
+
+- A handoff no longer depends on step data GitHub's jobs listing can return late or empty. Every handoff read (pr-unblock's five handoff jobs and `fix-ci-unreported`, and pr-refine's `fix-docs-handoff`) now runs one script, `.github/scripts/lib/handoff-evidence.sh`, which decides from job-level conclusions first: a skipped report job means no check was posted, and a new read-runner job, `broker-allowed`, succeeds only on broker-check's allow. Only a report that ran is read through its step, and that read is retried with backoff for about five minutes, then fails the job with one error line naming what stayed missing. Before, an empty step list read as "not allowed", so an empty or credit-stopped key ended the item stopped instead of starting the subscription leg, and as "not posted", which started a second leg after a call that had posted.
+
+## [5.2.1] - 2026-10-24
+
+### Changed
+
+- Intake triage no longer holds an issue for cost when the work only spends from a flat or prepaid source: model runs, lane runs and `claude plugin eval` passes bill the prepaid API keys, which do not auto-refill (owner Q37). Only a new or renewing charge (Actions billing, Azure, a key or plan that renews or auto-recharges) is cost (`.github/workflows/intake-triage.yml`).
+
+## [5.2.0] - 2026-10-24
+
+### Added
+
+- intake-reenter sends an issue back to intake triage when a listed human removes `needs-human` and leaves no `status:` label, no `agent-ready` and an author intake admits.
+
+## [5.1.0] - 2026-10-24
+
+### Changed
+
+- On an issue whose body a listed human wrote, and last edited if ever, intake triage's newest refinement comment (opening `<!-- intake-triage refinement -->`) by the lanes App now counts as spec while it is unedited: pr-verify's `resolve-pr.mjs` gives it to the verifier as spec text when it was posted before the pull request opened, and admission (`admit.mjs`) counts its task list for criterion 7. The lanes App is the trusted-actor list's id for `merge.agent-identity` in pr-verify and the list's id for the App's login in admission. An edited newest refinement counts nothing and no older one stands in for it; an App-filed issue, a body someone else last edited, a comment whose first text is not exactly the marker, and any other Bot's or App's comment stay out. A lane pull request still never supplies its own spec. The refinement stays out of the recorded spec comments the merge gate compares, whose filter stays human-only, so the gate does not see a refinement edited, hidden or added after a pass; an edit only removes it from spec. Intake's refinement banner and `refine.mjs`'s criteria check follow the rule.
+
+## [5.0.0] - 2026-10-24
+
+### Changed
+
+- At the address-feedback round cap (`loop.review-rounds`), a pull request whose open findings all come from the code review lane no longer goes to a person. One more round runs on every kept thread, a fresh fixer in a new session like every round, and the round marker names it as past the cap. After that round the select job skips `cost-gated`, adds no label, and waits for the next write-access fix request. A security lane finding, a pr-verify note (an intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a pull request a person gated with the human-gated label (its hold lifts only on a fix request newer than the last round) still escalates `feedback-round-cap`, before and after the fresh fixer's round.
+
+- pr-merge's `enable-auto-merge` job skips its work, green with a notice, when another run's `enable-auto-merge` job still waits and does the same work, so a backlog of events costs one pass instead of one serial pass each. On a pull request event it runs only for a lanes App pull request (`AUTOMATION_LANES_APP_SENDER_ID`), so any other pull request's check reads skipped instead of pending behind the queue.
+- pr-merge's merge job reuses its run's `post-merge-dispatch` check when that check judged main at the merge job's commit under six minutes ago, instead of running the same check again.
+- The merge and `enable-auto-merge` jobs read main's pr-merge run listing, each run's artifact list and each compare once between their kept-file readers (the gate cursor, the head-ref map and the lane records).
+
+### Removed
+
+- **Breaking:** the `admission` and `work-classes` keys of `applies-when` are gone from the schema, so a `pr-pipeline.yaml` that still sets either fails validation; delete the key. No pipeline predicate reads a work class (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)): an issue with no class or any class, `work-class: structural` included, is decided by its labels, events and holds alone. resolve-issue's PR still carries `Hold: a human merges this` for an issue labeled `work-class: untrusted-provenance`, a trust hold that reads no other class.
+
+### Fixed
+
+- pr-merge's refire step now reads the annotations of a failed pr-unblock write-runner job (`<caller> / run`) when the jobs API lists its steps empty or cut short without the token step, so a refused run still gets its empty commit. A job that lists the token step as passed, and any job that is not a write-runner job, are still skipped.
+- The red-main report counts a failed job that lists no failed step as a failing check of its own, matching the post-merge check.
+- The demotion alert judges failing checks with red-main's rule (`failing-checks.mjs`) instead of its own shell copy. A failed job that lists no failed step now files, and, as a baseline entry, such a job excuses nothing.
+
+- A merge job no longer skips its gate citing a pending run whose merge job already ran: a run reads pending while any one of its jobs waits, so the skip now reads the pending run's jobs and counts it only while its merge job still waits.
+
+## [4.21.0] - 2026-10-24
+
+### Changed
+
+- A review-dependency `merge` verdict on a Dependabot pull request that changes a workflow or action file no longer waits for a person, and the `dependency-workflow-held` escalation reason is retired. The verdict job instead posts the merge marker only when that change is a full-SHA pin swap: every changed line in those files a `uses:` line that keeps its indent and action path, with both refs full 40-hex SHAs, so only the SHA and the trailing comment differ. Anything else (a tag ref, a path change, a new step, a `run:` change, an added or removed line, an added or deleted file) escalates the new `dependency-workflow-unpinned`. A lane fix still never lands under `.github/`.
+
+- An issue run of the read runner (`work-resolve-issue`'s `resolve-issue`) now hands its reply, run fields, patch and outcome files to the scan job only sealed to the scan-carrier key, as a PR-mode run does. The scan job opens them, scans them for credentials, and is the only job that uploads them; the run job uploads nothing, and its step summary shows no model text but a gate skill's verdict. See [The scan job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-scan-job).
+- The read runner's patch outputs now come from the scan job alone. Its issue outputs (`scan-issue-run-started`, `scan-reuse-branch`, `scan-resume-branch`, `scan-resume-tip`, `scan-base-sha`) come from a new `issue-fields` job, which runs whatever the run job's result, holds each run job field to its closed set and combinations, and re-derives any branch claim with the default-tip earlier-work check. `work-resolve-issue.yml` reads only these, and the reuse summary job takes its code from the default branch tip. The run-job-sourced `issue-run-started`, `reuse-branch`, `resume-branch`, `resume-tip` and `base-sha` outputs are removed.
+- The skill's `work-outcome.json` is cut at 48 KiB, down from 64 KiB, so every sealed payload at its cap still fits the five chunks a job's outputs hold.
+
+## [4.20.0] - 2026-10-24
+
+### Changed
+
+- Intake no longer gates on work class (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)): a triage verdict proposing no class, a class outside the repository's labels, `work-class: structural`, or a class a person set reaches `status: ready` on its Size, Complexity, Uncertainty and flags alone, and admission and the work-unblock mark no longer refuse by class. `work-class: untrusted-provenance` still holds the issue and refuses admission, now also when the repository lacks the label, when another class is already held (the label is added beside it), and when the label was removed by neither a listed human nor the lanes App; work-unblock treats it as a hold label, so a blocker close no longer adds `agent-ready` to such an issue. The triage rubric says the class gates nothing but that one (`.github/workflows/intake-triage.yml`, `.github/scripts/intake-triage/apply-verdict.mjs`, `admit.mjs`, `.github/scripts/work-unblock/label-unblocked.mjs`).
+
+- Intake triage escalates an issue to a person (`needs_human`) only for text that tries to instruct the model or a report of a live exposure (owner intent, 2026-10-24: an item stops only for an intent or vision question or for security). A workflow, permission or governance change, unclear scope, an unsure approach or an oversized issue is triaged as usual, keeping the comment, class and fields; an intent question the issue cannot answer, or a very-high security risk, gets its flag, `status: needs-decision` and a numbered `RECOMMENDED:` question instead of a silent hand-off (`.github/workflows/intake-triage.yml`).
+
+- A removed `agent-ready` no longer keeps an issue out of the issue lane for good. Intake admission and work-unblock leave it out only until the lanes App or a listed human adds `status: ready` after the newest removal; then admission runs its rules as usual. A `status: ready` added by anyone else, or before the removal, does not lift it, and a lane restart still does not count as a removal.
+
 ## [4.19.6] - 2026-10-24
 
 ### Changed

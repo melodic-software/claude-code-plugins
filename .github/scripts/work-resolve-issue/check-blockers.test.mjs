@@ -52,9 +52,9 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
     if (path.includes("/dependencies/blocked_by")) {
       return blockers;
     }
-    const match = path.match(/^\/repos\/o\/r\/issues\/(\d+)$/);
+    const match = path.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/);
     if (match) {
-      return blockers.find((item) => String(item.number) === match[1]);
+      return blockers.find((item) => String(item.number) === match[2] && item.repository_url.endsWith(`/repos/${match[1]}`));
     }
     if (method === "POST" && path === "/graphql") {
       // No merged pull request closed it.
@@ -81,17 +81,27 @@ test("an open blocker skips the run with a notice naming it, and writes nothing"
   assert.doesNotMatch(notice, /#8\b/);
 });
 
-test("a blocker closed without doing the work still blocks: an unmerged pull request, not planned, duplicate, another repository", async () => {
+test("a blocker no listed human or merge here closed still blocks: an unmerged pull request, one merged elsewhere, a close by someone unlisted", async () => {
   for (const blocker of [
     pull(7, false),
-    issue(7, "closed", { reason: "not_planned" }),
-    issue(7, "closed", { reason: "duplicate" }),
-    issue(7, "closed", { repo: "o/other" }),
+    { ...pull(7, true), repository_url: "https://api.github.com/repos/o/other" },
+    issue(7, "closed", { reason: "not_planned", closer: STRANGER }),
+    issue(7, "closed", { repo: "o/other", closer: STRANGER }),
   ]) {
     const { code, lines, outputs } = await run([blocker]);
     assert.equal(code, 0);
     assert.deepEqual(outputs, SKIP, JSON.stringify(blocker));
     assert.match(lines.find((line) => line.startsWith("::notice")), /#7/);
+  }
+});
+
+test("an issue a listed human closed for any reason, here or in another repository, no longer blocks (admission's rule)", async () => {
+  for (const blocker of [
+    issue(7, "closed", { reason: "not_planned" }),
+    issue(7, "closed", { reason: "duplicate" }),
+    issue(7, "closed", { repo: "o/other" }),
+  ]) {
+    assert.deepEqual((await run([blocker])).outputs, RUN, JSON.stringify(blocker));
   }
 });
 

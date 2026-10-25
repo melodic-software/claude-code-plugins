@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "For --to ceo@example.com the CLI's send command exits 4 without sending: the address is not on the allowlist.",
+      "why": "names the floor refusal exit the contract fixes"
+    },
+    {
+      "answer": "cli/invite refuses ceo@example.com (exit 4), so the run stops at the form.",
+      "why": "exit code in parentheses"
+    },
+    {
+      "answer": "The send command exits with code 4 and prints the refused floor.",
+      "why": "exit with code wording"
+    },
+    {
+      "answer": "It refuses with exit code: 4.",
+      "why": "colon form"
+    },
+    {
+      "answer": "The command exits non-zero (`4`) and sends nothing.",
+      "why": "non-zero with the code in parentheses"
+    },
+    {
+      "answer": "The send command returns 4 without sending.",
+      "why": "returns wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The proving run opens Invite teammate, types ceo@example.com, then stops before Send because it is not allowed.",
+      "why": "no CLI refusal exit named"
+    },
+    {
+      "answer": "The send command posts the invite to ceo@example.com and exits 0.",
+      "why": "sends and exits 0"
+    }
+  ]
+}

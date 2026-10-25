@@ -506,6 +506,66 @@ class TestBriefIds(SessionCase):
         self.assertIn("- Q2 Short Q2: alt a:", constraints)
         self.assertNotIn("Q3 Short Q2", constraints)
 
+    def constraint_ledger(self):
+        ledger = self.tmp / "constraint-ledger.md"
+        ledger.write_text(
+            "## Constraint ledger\n\n"
+            "- C1 | confirmed | internal tool only | user, round 1\n"
+            "- C2 | inherited | floor scanners run a browser | PRD Assumptions\n"
+            "```\n- C9 | confirmed | fenced, not a row\n```\n\n"
+            "## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? | \n",
+            encoding="utf-8",
+        )
+        return ledger
+
+    def test_the_ledger_constraint_section_fills_constraints_without_a_restatement(self):
+        self.session([question("Q1")], [])
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn(
+            "- C1 (confirmed): internal tool only (user, round 1)", constraints
+        )
+        self.assertIn(
+            "- C2 (inherited): floor scanners run a browser (PRD Assumptions)",
+            constraints,
+        )
+        self.assertNotIn("C9", constraints)
+        self.assertNotIn("none recorded", constraints)
+
+    def test_a_confirmed_restatement_outranks_the_ledger_constraint_section(self):
+        rev = {
+            "rev": 1,
+            "at": AT,
+            "sections": {"constraints": "- stdlib only"},
+        }
+        self.session(
+            [question("Q1")],
+            [
+                {
+                    **event(1, None, "confirm-understanding", "confirm"),
+                    "contentRev": 1,
+                }
+            ],
+            restatements=[rev],
+        )
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- stdlib only", constraints)
+        self.assertNotIn("C1", constraints)
+
+    def test_the_page_constraints_lead_and_the_ledger_adds_only_other_ids(self):
+        self.session([question("Q1")], [])
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["constraints"] = [{"id": "C1", "text": "Page wording.", "at": AT}]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- C1: Page wording.", constraints)
+        self.assertNotIn("internal tool only", constraints)
+        self.assertIn("- C2 (inherited):", constraints)
+
     def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
         self.session(
             [question("Q1"), question("Q3"), question("Q4")],

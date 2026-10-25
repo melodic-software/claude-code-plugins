@@ -158,15 +158,15 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
   // An agent-ready issue a blocker still blocks never runs (check-blockers.mjs),
   // so it is not queued work. One blocker-list read per queued issue no lane PR
   // names, at most BLOCKER_READS; past that, or on a failed read, the issue
-  // counts as queued. A closed-as-completed issue blocker counts as done
-  // without reading who closed it: an untrusted close the lane would still
-  // wait on is counted as queued, which only slows admissions.
+  // counts as queued. A closed issue blocker, here or in another repository,
+  // counts as done without reading who closed it: an untrusted close the lane
+  // would still wait on is counted as queued, which only slows admissions.
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
   const blocked = [];
   const unnamed = open === null ? [] : (queued?.items ?? []).filter((number) => !named.has(number) && Number.isSafeInteger(number) && number > 0);
   for (const number of unnamed.slice(0, BLOCKER_READS)) {
     try {
-      if ((await stillBlocking(await blockersOf(github, `/repos/${repo}/issues/${number}`), repo, async () => true)).length > 0) {
+      if ((await stillBlocking(await blockersOf(github, `/repos/${repo}/issues/${number}`), repo, async () => true, async () => true)).length > 0) {
         blocked.push(number);
       }
     } catch {

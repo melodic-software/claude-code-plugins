@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
 // it blocked that is now ready for the resolve-issue lane, which the label
-// starts: open, every blocker closed as completed by a listed human or a
-// merge (a pull request blocker: merged), no hold label, and not already
+// starts: open, every blocker closed by a listed human or a merge, by
+// admission's rule (admit.mjs blockerDone), no hold label, and not already
 // agent-ready. Every fact is read from the API now, never from the event
 // payload. No model.
 //
@@ -98,9 +98,9 @@
 // unmerged, the App adds needs-triage and removes
 // agent-ready, so triage decides what is left; a person adding agent-ready
 // again re-runs it. Open, it waits: report-outcome put needs-human on the
-// issue of a Refs PR, and this lifts that hold only when that PR merges,
-// only while its refs-hold marker and the App's needs-human label are the
-// newest. Each hand-off also counts against limits.restarts-per-run.
+// issue of a Refs PR, and this lifts that hold once that PR merges or closes
+// unmerged, only while its refs-hold marker and the App's needs-human label
+// are the newest. Each hand-off also counts against limits.restarts-per-run.
 //
 // It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
 // a repeat failure: the reopen keeps agent-ready but ran on that workflow's
@@ -145,7 +145,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -267,11 +267,17 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
-  // admit.mjs blockerDone: a merged pull request, or an issue here closed as
-  // completed with a trusted close (trustedClose), read fresh from the issue.
-  const pending = await stillBlocking(await blockersOf(github, base), repo, (number) => trustedClose({ github, repo, number, humans, closes }));
+  // admit.mjs blockerDone: a pull request merged here, or an issue closed with
+  // a trusted close (trustedClose here, trustedElsewhere in another
+  // repository), read fresh from the issue.
+  const pending = await stillBlocking(
+    await blockersOf(github, base),
+    repo,
+    (number) => trustedClose({ github, repo, number, humans, closes }),
+    (blocker) => trustedElsewhere(github, blocker, humans),
+  );
   if (pending.length > 0) {
-    return `${pending.length} blocker(s) not closed as completed by a listed human or a merge`;
+    return `${pending.length} blocker(s) not closed by a listed human or a merge`;
   }
   // Removing the label by hand stops the lane until a person adds it back,
   // or the App or a listed human marks the issue `status: ready` again.
@@ -812,7 +818,8 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
 // What the lane PR the newest agent-ready label's run opened asks for: a
 // hand-off to triage once it merged with `Refs:` or closed unmerged, or
 // nothing, with why. `held`: the issue's one hold is needs-human, which only
-// a merge of the Refs PR report-outcome set it for lifts.
+// the end (merge or unmerged close) of the Refs PR report-outcome set it for
+// lifts.
 function pullRefusal({ pull, number, comments, events, bot, held }) {
   const byApp = (marker) => comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(marker));
   const refs = String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`;
@@ -821,7 +828,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
     const human = events.filter((event) => ["labeled", "unlabeled"].includes(event.event) && String(event.label?.name).toLowerCase() === HUMAN_LABEL);
     const newest = human.at(-1);
     const ours = newest?.event === "labeled" && newest.actor?.login === bot && byApp(refsHoldMarker(pull.number));
-    if (!(ours && merged && refs)) {
+    if (!(ours && refs && pull.state !== "open")) {
       return { reason: `held by ${HUMAN_LABEL}` };
     }
   }
@@ -861,11 +868,14 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   // The lane skips an issue a blocker still blocks (check-blockers.mjs), so
   // one is never re-fired or handed to a person while one does.
   const closes = new Map();
-  const pending = await stillBlocking(await blockersOf(github, `/repos/${repo}/issues/${number}`), repo, (blocker) =>
-    trustedClose({ github, repo, number: blocker, humans, closes }),
+  const pending = await stillBlocking(
+    await blockersOf(github, `/repos/${repo}/issues/${number}`),
+    repo,
+    (blocker) => trustedClose({ github, repo, number: blocker, humans, closes }),
+    (blocker) => trustedElsewhere(github, blocker, humans),
   );
   if (pending.length > 0) {
-    return { reason: `waiting on ${pending.length} blocker(s) not closed as completed by a listed human or a merge` };
+    return { reason: `waiting on ${pending.length} blocker(s) not closed by a listed human or a merge` };
   }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };

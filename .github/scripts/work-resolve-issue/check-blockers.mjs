@@ -8,8 +8,9 @@
 //   was by neither a listed human nor the lanes App, does not run, for good:
 //   `untrusted` is true, and work-unblock's sweep never re-fires the run.
 // - Then blockers (owner decision Q95): an issue a blocker still blocks, as
-//   admission judges it (admit.mjs blockerDone: a merged pull request, or an
-//   issue here closed as completed with a trusted close), does not run until
+//   admission judges it (admit.mjs blockerDone: a pull request merged here, or
+//   an issue closed, for any reason, by a listed human or, here only, a merge
+//   or commit; another repository's issue is read there), does not run until
 //   none does; the sweep re-fires it then.
 //
 // Either way `proceed` is false, agent-ready stays on, and a notice says why.
@@ -29,7 +30,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, isTrustedClose, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { blockersOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { blockersOf, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -57,7 +58,7 @@ export async function main({ env = process.env, github, log = console.log, write
     held = untrustedHold({ labels: issue?.labels, events: await paginate(client, `${base}/events`), humans, isApp: (actor) => actor?.id === appId });
     if (!held) {
       const trusted = async (blocker) => isTrustedClose(client, repository, await client("GET", `/repos/${repository}/issues/${blocker}`), humans);
-      pending = await stillBlocking(await blockersOf(client, base), repository, trusted);
+      pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
     }
   } catch (error) {
     log(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events or blockers could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
@@ -70,7 +71,7 @@ export async function main({ env = process.env, github, log = console.log, write
     return 0;
   }
   if (pending.length > 0) {
-    log(`::notice title=blocked::the run is skipped and agent-ready kept while ${pending.map((blocker) => named(blocker, repository)).join(", ")} still blocks it (not a merged pull request or an issue here closed as completed by a listed human or a merge); work-unblock's sweep re-fires it once none does`);
+    log(`::notice title=blocked::the run is skipped and agent-ready kept while ${pending.map((blocker) => named(blocker, repository)).join(", ")} still blocks it (not a pull request merged here or an issue closed by a listed human or a merge); work-unblock's sweep re-fires it once none does`);
     write({ proceed: "false", untrusted: "false" });
     return 0;
   }
