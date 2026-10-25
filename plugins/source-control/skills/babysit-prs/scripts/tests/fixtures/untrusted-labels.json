@@ -1,0 +1,18 @@
+{
+  "holds": [
+    "work-class: untrusted-provenance",
+    "Work-Class: Untrusted_Provenance",
+    "work-class:UNTRUSTED-provenance",
+    "untrusted",
+    "UNTRUSTED",
+    "not-untrusted-really"
+  ],
+  "passes": [
+    "agent-ready",
+    "untrust",
+    "un-trusted",
+    "untruﬆed",
+    "untruſted",
+    "UNTRUſTED"
+  ]
+}

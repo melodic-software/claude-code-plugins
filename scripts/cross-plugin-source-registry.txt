@@ -508,6 +508,11 @@ lib/git-hooks/install.mjs
 # duplication audit: the root canonical and the copies.
 lib/git-hooks/install.mjs -> plugins/*/lib/git-hooks/install.mjs
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies, which sit at a
+# different path in each plugin.
+lib/redact.py -> plugins/session-flow/skills/audit-sessions/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/git-hooks/check-lib.sh, the shared helpers each pre-commit entry sources.
 lib/git-hooks/check-lib.sh

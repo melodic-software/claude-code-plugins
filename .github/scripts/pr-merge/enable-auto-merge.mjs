@@ -29,7 +29,11 @@
 //   nothing (verifyHold). The link is the gate's own rule
 //   (babysit_merge_policy._linked_issue): one closing issue in this
 //   repository, or, with none, the one issue its plain `Refs: #<issue>` lines
-//   name. Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
+//   name, and that issue clears the trust hold
+//   (babysit_merge_policy.trust_refusal): its labels read whole, none naming
+//   untrusted work in any spelling and none ever removed by a non-human, so
+//   one added after admission refuses for a person
+//   (`untrusted-provenance`). Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
 //   at it, no earlier FAIL is uncleared, FAILs sit at fewer than
 //   merge.max-verify-fails heads, and the spec is unchanged and trusted. A
 //   read that fails, or a line without the link's answer, refuses. Only the

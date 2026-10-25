@@ -2,6 +2,7 @@
 # session-bridge's watcher (the loopback adapter's client). Run in a background Bash task; it exits
 # when the page has something new.
 #   bash watch.sh '<data_dir>'
+# Authenticates with WATCH_TOKEN from the session env file (TOKEN when an app has no separate one).
 # Reads NAME and CONTROL from session-bridge.conf beside this script: NAME names the session env
 # file (.<NAME>-session.env) and the token header (X-<Name>-Token); CONTROL is the app's control
 # script beside this one, named in messages and run by wake.sh.
@@ -17,6 +18,9 @@
 # time), when this watcher's lease was released while it waited, or when a poll fails after
 # `CONTROL stop` removed the env file; it prints why to stderr and does not retry. Each poll sends
 # this process's pid (&pid=$$), which the lease records so `CONTROL stop` can end this watcher.
+# Exits 4 after WAIT_EMPTY consecutive waits with no event (default 40, 60 minutes at the default
+# 90 s wait), so a watcher orphaned by a crashed session ends and the server can expire; it prints
+# the re-arm command for a live session to stderr.
 # Each poll names this watcher: WATCH_ID, else CLAUDE_CODE_SESSION_ID (Claude Code exports it to
 # every shell a session runs, so every re-arm shares it), else <hostname>-<parent pid>. A parent
 # pid of 1 (a Claude Code Bash shell on Windows reports it, for every session) names no one, so
@@ -41,12 +45,15 @@ dir=$(abs_dir "$1") || { echo "no such data dir: $1" >&2; exit 2; }
 env_file="$dir/.$NAME-session.env"
 [[ -f "$env_file" ]] || { echo "no $env_file: run $CONTROL ensure-running first" >&2; exit 2; }
 PORT=$(sed -n 's/^PORT=//p' "$env_file" | tr -d '\r')
-TOKEN=$(sed -n 's/^TOKEN=//p' "$env_file" | tr -d '\r')
+TOKEN=$(sed -n 's/^WATCH_TOKEN=//p' "$env_file" | tr -d '\r')
+[[ -n "$TOKEN" ]] || TOKEN=$(sed -n 's/^TOKEN=//p' "$env_file" | tr -d '\r')
 WAIT_TIMEOUT=$(sed -n 's/^WAIT_TIMEOUT=//p' "$env_file" | tr -dc '0-9')
 WAIT_TIMEOUT=${WAIT_TIMEOUT:-90}
 [[ -n "$PORT" && -n "$TOKEN" ]] || { echo "server not running (empty $env_file)" >&2; exit 2; }
 [[ "$PORT" =~ ^[0-9]+$ ]] || { echo "PORT in $env_file is not a number: re-run ensure-running" >&2; exit 2; }
 max_fails=${WAIT_FAILS:-12}
+max_empty=${WAIT_EMPTY:-40}
+[[ "$max_empty" =~ ^[0-9]+$ && "$max_empty" -gt 0 ]] || max_empty=40
 # after=handled returns every unhandled event; .watch-replay bounds re-delivery to one extra wake.
 replayed=$(tr -dc '0-9' 2>/dev/null <"$dir/.watch-replay")
 replayed=${replayed:-0}
@@ -92,6 +99,7 @@ watcher=$(url_encode "$watcher")
 field() { printf '%s' "$out" | sed -n "s/.*\"$1\": \"\\([^\"]*\\)\".*/\\1/p"; }
 
 fails=0
+empty=0
 while :; do
   # The body comes back on stdout (no file path reaches curl), with the status on a last line.
   # The token header goes in on stdin (`-H @-`), so it never appears in curl's argv.
@@ -144,6 +152,14 @@ while :; do
       esac
       exit 0
       ;;
-    *) ;;
+    *)
+      # An orphan (its session crashed) would otherwise poll forever and keep the server and its
+      # token alive. The parent pid cannot tell: it is 1 for a Claude Code Bash shell on Windows.
+      empty=$((empty + 1))
+      if [[ "$empty" -ge "$max_empty" ]]; then
+        echo "no events in $empty consecutive waits: this watcher is exiting so an orphan does not keep the $NAME server alive; a live session re-arms with: bash $(shell_quote "$here/wake.sh") $(shell_quote "$dir")" >&2
+        exit 4
+      fi
+      ;;
   esac
 done

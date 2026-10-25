@@ -247,7 +247,7 @@ recover_dotdot_prefix() {
 }
 
 # True when a RELATIVE cite resolves back inside the citing file's own skill
-# root ($4, e.g. `.claude/skills/foo/` or `plugins/demo/skills/alpha/`). Both
+# root ($4, e.g. `.claude/skills/foo/` or `plugins/<plugin>/skills/<skill>/`). Both
 # relative shapes land here: a `../`-prefixed path resolves directly, while a
 # bare `skills/<self>/` short cite resolves through its recovered `../` prefix.
 # A bare short cite with no prefix to recover counts as self-citation outright,
