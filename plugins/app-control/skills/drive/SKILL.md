@@ -45,14 +45,15 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    checkout, read from `git worktree list --porcelain` (see its output format below). Glob each
    root for `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
-   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file
-   whose folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
-   starts with `control-`). A `.claude/skills/*/` folder holding `.claude-plugin/plugin.json` is a
-   plugin: the globs and listings above skip it, and it is searched and its files kept only as
-   step 2 does, so a file its manifest's `commands` key leaves unloaded (such as a stale
-   `commands/control-<app>.md`) is never kept. Drop a match inside a submodule or a
-   dependency folder such as `node_modules` or `vendor`, and a main-checkout file at a path this
-   checkout also holds. Its source is `project`.
+   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). First drop every
+   file they return from inside a submodule, a dependency folder such as `node_modules` or
+   `vendor`, or a plugin folder, and a main-checkout file at a path this checkout also holds. A
+   `.claude/skills/*/` folder holding `.claude-plugin/plugin.json` is a plugin folder: the globs
+   and listings above do return its files, but they are dropped here and it is searched and its
+   files kept only as step 2 does, so a file its manifest's `commands` key leaves unloaded (such
+   as a stale `commands/control-<app>.md`) is never kept. Of the files left, keep each whose
+   folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
+   starts with `control-`). Its source is `project`.
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
    the folder the list reports for it (see the plugin list below) and search the skill and command
    files it loads from its default folders and its `.claude-plugin/plugin.json` `skills` and
