@@ -22,13 +22,12 @@ merge for C2/C3 classes.
   prose-only update to the fail-closed paragraph.
 - **Basis:**
   - Issue [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588).
-  - `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs`: usage line 12 names
+  - The autonomy plugin's `check-security-binding.mjs` (`/autonomy:setup`): usage line 12 names
     `--evidence` and `--probe-evidence-root`; `verifyProbeTranscript` (line 1310) returns the
     fail-closed reason "no --probe-evidence-root configured" at lines 1316-1317 when the root is
     null.
-  - `plugins/autonomy/skills/setup/SKILL.md`: "Agent-unwritable bootstrap for security
-    resolution" (line 214).
-  - `plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.mjs`: builds each
+  - `/autonomy:setup`: "Agent-unwritable bootstrap for security resolution".
+  - The autonomy plugin's `check-security-binding.fixtures.test.mjs` (`/autonomy:setup`): builds each
     fixture argv with `--probe-evidence-root` (line 80) and `--evidence` (line 81).
   - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition" (line 37), whose promotion gate
     reads at lines 60-84.
