@@ -858,8 +858,8 @@ order and `more` the number left. The actionable paths come first, then the link
 the paths that are not present, each group with the most records first, so the first sub-line under
 the `converge` pointer is a place `converge` can run from. The render keeps the count line and adds
 one sub-line per entry, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
-`+<more> more` tail only when ids were left out, and ` (linked worktree)` or ` (not present)` after
-the path when `converge` cannot act on it there. Three ids per path is a judgment cap
+`+<more> more` tail only when ids were left out, and `(linked worktree)` or `(not present)` after
+the path, one space from it, when `converge` cannot act on it there. Three ids per path is a judgment cap
 (`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of paths is not capped, since each path is one
 place the operator acts: `converge` from an actionable path, a worktree removal, or a stale record to
 clear. `count` counts records and `more` counts distinct ids, so an id with both a project and a
