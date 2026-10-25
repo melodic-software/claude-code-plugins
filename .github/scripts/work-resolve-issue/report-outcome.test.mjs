@@ -542,6 +542,47 @@ test("a done outcome whose not_done holds a skipped required check is stopped", 
   assert.match(plan.comment, /check-changelog-fragments/);
 });
 
+// The lane runs no test runner (pr-pipeline.yaml resolve-issue verify-scripts),
+// and the PR's CI runs the suites. These not_done lines are the ones runs
+// 40112451984 (issue 9691) and 40113312256 (issue 9797) reported.
+const LEFT_TO_CI = [
+  "`python3 -m pytest plugins/planning/surface/test_exporters.py -q` was not run: this run's Bash allows only the named wrapper scripts, so the new and updated tests are unexecuted",
+  "`bash scripts/affected-tests.sh --run` was not run for the same reason; check-affected did not execute the planning python tests",
+  "Surface test suite under plugins/planning/surface/ was not run: this run's Bash allows only the named wrappers, so no python or shell test could be executed",
+];
+
+test("a done outcome whose required gaps are only test runs opens the PR and defers them to PR CI", () => {
+  const plan = decideDone({
+    outcome: {
+      ...done,
+      notDone: [{ what: "Did not render the page", required: false }, ...LEFT_TO_CI.map((what) => ({ what, required: true }))],
+    },
+  });
+  assert.equal(plan.action, "open-pr");
+  const gaps = section(plan.body, "Not verified");
+  for (const what of LEFT_TO_CI) {
+    assert.ok(gaps.includes(`- Deferred to PR CI: ${what}\n`) || gaps.endsWith(`- Deferred to PR CI: ${what}`), gaps);
+  }
+  assert.ok(gaps.includes("- Did not render the page"), gaps);
+  assert.ok(!gaps.includes("Deferred to PR CI: Did not render"), gaps);
+});
+
+test("a required test run left to PR CI does not excuse another required gap", () => {
+  for (const other of ["scripts/check-changelog-fragments.sh --check: not run", "The review subagent step was not run; the diff is unreviewed"]) {
+    const plan = decideDone({
+      outcome: {
+        ...done,
+        notDone: [
+          { what: LEFT_TO_CI[0], required: true },
+          { what: other, required: true },
+        ],
+      },
+    });
+    assert.equal(plan.action, "hand-back", other);
+    assert.equal(plan.exit, "stopped", other);
+  }
+});
+
 test("the outcome file's structured fields are read as lists of text", () => {
   const file = {
     ...done,

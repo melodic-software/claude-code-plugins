@@ -17,9 +17,11 @@
 //             sections from the outcome's summary, changes, verification and
 //             not_done, and its Verification section the runner's check
 //             results (RUNNER_CHECKS). A done outcome whose not_done holds a
-//             required check is stopped, and so is one whose runner checks
-//             failed or cannot be read for the branch's current tip, whatever
-//             the outcome file says.
+//             required check is stopped, unless that check is a test run
+//             (TEST_RUN), which the lane cannot do: the body lists it as
+//             deferred to PR CI. One whose runner checks failed or cannot be
+//             read for the branch's current tip is stopped, whatever the
+//             outcome file says.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
@@ -230,6 +232,12 @@ const notDoneList = (value) =>
     .filter(Boolean)
     .slice(0, MAX_ITEMS)
     .map(({ what, required }) => ({ what: what.slice(0, MAX_ITEM), required }));
+
+// A not_done item that is a test run: a test runner or a test suite by name.
+// The lane runs no test runner (resolve-issue's verify-scripts leave them out),
+// and the PR's CI runs the suites.
+const TEST_RUN =
+  /\b(?:pytest|unittest|node --test|npm (?:run )?test|jest|vitest|bats|(?:invoke-)?pester|go test|dotnet test|affected-tests\.sh|run-test-file\.sh|test suites?)\b/i;
 
 // The prep steps the run reports, each {activity, result}, both strings;
 // post-statuses.mjs decides which of them it posts.
@@ -774,7 +782,11 @@ export function decide({
       runId,
     });
   }
-  if (outcome.notDone.some(({ required }) => required)) {
+  // A required test run the lane could not do is left to the PR's CI, which
+  // runs the suites and has fix-ci repair a failure. `required` is the model's
+  // own word, so reading its text grants the run nothing it lacked.
+  const deferred = (item) => item.required && TEST_RUN.test(item.what);
+  if (outcome.notDone.some((item) => item.required && !deferred(item))) {
     return handBack({
       outcome: {
         ...outcome,
@@ -800,7 +812,7 @@ export function decide({
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
   // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
   // in the org PR template's order, with the run's gaps above the work.
-  const gaps = outcome.notDone.map(({ what }) => what);
+  const gaps = outcome.notDone.map((item) => (deferred(item) ? `Deferred to PR CI: ${item.what}` : item.what));
   const body = [
     refs ? `Refs: #${issueNumber}` : `Closes #${issueNumber}`,
     ...(hold ? ["", HOLD_LINE] : []),
