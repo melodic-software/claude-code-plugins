@@ -3370,3 +3370,75 @@ test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as don
   assert.equal(await sweep({ github }, { LANES_BOT_LOGIN: app.login }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
+
+// A split made by hand (#5901): no split record, but a listed human or the
+// App linked every sub-issue (the newest sub_issue_added naming it), the
+// parent is not `recurring`, and its body holds no open task-list item (the
+// admission rules' `- [ ] `), so its work is its sub-issues'.
+const linked = (number, actor = OWNER, repo = REPO) => ({
+  event: "sub_issue_added",
+  actor,
+  created_at: "2026-10-15T00:00:00Z",
+  sub_issue: { number, repository: { full_name: repo } },
+});
+function handSplitWorld({ parent = issue(30), links = [linked(31), linked(32)], failOn } = {}) {
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  const second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) });
+  return world({
+    closedList: [first],
+    issues: { 30: parent, 31: first, 32: second },
+    parents: { 31: parent },
+    subIssues: { 30: [first, second] },
+    events: { 30: links },
+    failOn,
+  });
+}
+
+test("a split made by hand closes once every sub-issue a listed human or the App linked is closed", async () => {
+  for (const links of [
+    [linked(31), linked(32)],
+    [linked(31, LANES_BOT), linked(32)],
+  ]) {
+    const { github, calls } = handSplitWorld({ links });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writtenPaths(calls), closeParentWrites, JSON.stringify(links));
+  }
+});
+
+test("a split made by hand stays open on an untrusted or missing link, an open task item, recurring, or a failed read", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const [setup, code] of [
+    [{ links: [linked(31), linked(32, outsider)] }, 0],
+    // The newest link of 32 is the outsider's re-add.
+    [{ links: [linked(31), linked(32), { ...linked(32, outsider), created_at: "2026-10-15T01:00:00Z" }] }, 0],
+    [{ links: [linked(31)] }, 0],
+    [{ links: [linked(31), linked(32, OWNER, "melodic-software/other")] }, 0],
+    [{ parent: { ...issue(30), body: "Split by hand.\n\n- [ ] One item left here." } }, 0],
+    [{ parent: issue(30, { labels: ["recurring"] }) }, 0],
+    [{ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/${REPO}/issues/30/events`) }, 1],
+  ]) {
+    const { github, calls } = handSplitWorld(setup);
+    assert.equal(await sweep({ github }), code, JSON.stringify(setup));
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("the App's close of a split made by hand counts as done for what it blocks", async () => {
+  for (const [links, expected] of [
+    [[linked(31), linked(32)], [labeled(20)]],
+    [[linked(31)], []],
+  ]) {
+    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const { github, calls } = world({
+      closedList: [parent],
+      blockingOf: { 30: [issue(20)] },
+      issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+      blockedBy: { 20: [parent] },
+      subIssues: { 30: [subIssue(31), subIssue(32)] },
+      comments: { 20: [note()], 30: [] },
+      events: { 30: links },
+    });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), expected);
+  }
+});

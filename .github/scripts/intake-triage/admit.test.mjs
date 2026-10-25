@@ -1105,7 +1105,7 @@ describe("size split sub-issues", () => {
 
   // fakeGitHub answers one issue's text; these reads add the parent's text,
   // sub-issue lists and other issues by number.
-  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {} }) => {
+  const withIssues = (fake, { specs = {}, subIssues = {}, issues = {}, comments = {}, events = {} }) => {
     const github = async (method, path, body) => {
       if (method === "POST" && path === "/graphql" && specs[body.variables?.number] && !body.query.includes("closedByPullRequestsReferences")) {
         fake.calls.push({ method, path, body });
@@ -1116,6 +1116,11 @@ describe("size split sub-issues", () => {
       if (method === "GET" && sub) {
         fake.calls.push({ method, path, body });
         return subIssues[sub[1]] ?? [];
+      }
+      const linked = /^\/repos\/o\/r\/issues\/(\d+)\/events/.exec(path);
+      if (method === "GET" && linked && linked[1] !== "7") {
+        fake.calls.push({ method, path, body });
+        return events[linked[1]] ?? [];
       }
       const read = /^\/repos\/o\/r\/issues\/(\d+)(\/comments)?(\?|$)/.exec(path);
       if (method === "GET" && read && read[1] !== "7") {
@@ -1146,15 +1151,20 @@ describe("size split sub-issues", () => {
   test("a blocker the lanes App closed counts only as a split parent whose sub-issues a listed human closed", async () => {
     const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
     const blocker = { number: PARENT, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
-    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN } });
-    for (const [comments, expected] of [
+    const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN }, repository_url: "https://api.github.com/repos/o/r" });
+    // A split made by hand: a listed human linked each sub-issue.
+    const link = (number, id = HUMAN) => ({ event: "sub_issue_added", actor: { id }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
+    for (const [comments, expected, links = []] of [
       [[record], "admitted"],
       [[], "waiting"],
+      [[], "admitted", [link(31), link(32)]],
+      [[], "waiting", [link(31), link(32, 4242)]],
     ]) {
       const fake = withIssues(fakeGitHub({ blockers: [blocker] }), {
         issues: { [PARENT]: blocker, 31: closedChild(31), 32: closedChild(32) },
         comments: { [PARENT]: comments },
         subIssues: { [PARENT]: [closedChild(31), closedChild(32)] },
+        events: { [PARENT]: links },
       });
       assert.equal((await go(fake)).outcome, expected);
     }

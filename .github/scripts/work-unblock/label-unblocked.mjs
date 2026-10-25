@@ -136,7 +136,10 @@
 // When a sub-issue of a size split (intake's refine.mjs, owner Q93) closes,
 // by a listed human or, on the sweep, a merge, and every sub-issue of its
 // open parent is closed that way, the App comments on the parent and closes
-// it as completed. Only a parent whose split record the App posted counts.
+// it as completed. Only a split parent counts (admit.mjs isSplitParent): one
+// whose split record the App posted, or one split by hand whose every
+// sub-issue the App or a listed human linked, not `recurring`, with no open
+// task-list item in its body.
 //
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
@@ -174,7 +177,7 @@ import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wi
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
-import { splitParentClosed, splitRecord } from "../intake-triage/admit.mjs";
+import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
@@ -1431,7 +1434,7 @@ const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 // (admit.mjs splitParentClosed, owner Q93).
 async function isTrustedClose(github, repo, issue, humans, bot) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
-  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, trusted });
+  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, humans, trusted });
 }
 
 // For each issue in `closed` (on the sweep, only one a listed human or a
@@ -1451,9 +1454,9 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
   return failed;
 }
 
-// Closes, as completed and with one comment first, the open parent a size
-// split filed issue `number` under, once every sub-issue is closed by a
-// listed human or a merge (owner Q93). Its body is never edited.
+// Closes, as completed and with one comment first, the open split parent
+// (admit.mjs isSplitParent) of issue `number`, once every sub-issue is
+// closed by a listed human or a merge (owner Q93). Its body is never edited.
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
   if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
     return;
@@ -1464,10 +1467,10 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   }
   const base = `/repos/${repo}/issues/${parent.number}`;
   const comments = await paginate(github, `${base}/comments`);
-  if (!comments.some((comment) => comment.user?.login === bot && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+  const children = await paginate(github, `${base}/sub_issues`);
+  if (!(await isSplitParent({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans }))) {
     return;
   }
-  const children = await paginate(github, `${base}/sub_issues`);
   for (const child of children) {
     if (child?.state !== "closed" || !NUMBER.test(String(child.number)) || !(await trustedClose({ github, repo, number: Number(child.number), humans, closes, bot }))) {
       console.log(`label-unblocked: split parent #${parent.number} stays open: sub-issue #${child?.number} is not closed by a listed human or a merge`);

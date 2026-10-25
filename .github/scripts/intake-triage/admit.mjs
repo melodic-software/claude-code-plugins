@@ -874,19 +874,55 @@ export function splitRecord(body) {
   };
 }
 
-// Whether `issue`, as just read, is a parent a size split filed every
-// sub-issue for, closed as completed by the lanes App (`isApp(actor)`) once
-// each sub-issue was closed by a listed human or a merge (`trusted(number)`):
-// the one close by the App that counts as done (owner Q93).
-export async function splitParentClosed({ github, repository, issue, isApp, trusted }) {
+// The default branch's admission rules, beside this script like readSchedule's
+// file, read once.
+let baseRules;
+const baseTaskList = () =>
+  (baseRules ??= loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url))))["task-list"];
+
+// Whether `issue` in this repository is a split parent, whose work is its
+// sub-issues' (owner Q93): the lanes App (`isApp(actor)`) posted a split
+// record with its sub-issues filed (refine.mjs), or it was split by hand:
+// `children` (its sub-issues as listed) is not empty, the newest
+// sub_issue_added naming each child was the App's or a listed human's, it is
+// not `recurring`, and its body holds no task-list item (the admission
+// rules' `task-list`, unticked). `comments` are its comments. A failed read
+// throws.
+export async function isSplitParent({ github, repository, issue, comments, children, isApp, humans }) {
+  if (comments.some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+    return true;
+  }
+  if (children.length === 0 || names(issue.labels).includes(RECURRING) || taskItems(issue.body, baseTaskList()).length > 0) {
+    return false;
+  }
+  const linker = new Map();
+  const events = await paginate(github, `/repos/${repository}/issues/${issue.number}/events`);
+  for (const event of events.filter((item) => item?.event === "sub_issue_added")) {
+    const key = `${String(event.sub_issue?.repository?.full_name).toLowerCase()}#${event.sub_issue?.number}`;
+    const newest = linker.get(key);
+    if (newest === undefined || !(Date.parse(event.created_at) < Date.parse(newest.created_at))) {
+      linker.set(key, event);
+    }
+  }
+  return children.every((child) => {
+    const actor = linker.get(`${repoOf(child?.repository_url)}#${child?.number}`)?.actor;
+    return actor !== undefined && (isApp(actor) || humans.has(actor?.id));
+  });
+}
+
+// Whether `issue`, as just read, is a split parent (isSplitParent) closed as
+// completed by the lanes App (`isApp(actor)`) once each sub-issue was closed
+// by a listed human or a merge (`trusted(number)`): the one close by the App
+// that counts as done (owner Q93).
+export async function splitParentClosed({ github, repository, issue, isApp, humans, trusted }) {
   if (issue?.state !== "closed" || issue.state_reason !== "completed" || !isApp(issue.closed_by) || !Number.isInteger(issue.number)) {
     return false;
   }
   const base = `/repos/${repository}/issues/${issue.number}`;
-  if (!(await paginate(github, `${base}/comments`)).some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+  const children = await paginate(github, `${base}/sub_issues`);
+  if (!(await isSplitParent({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans }))) {
     return false;
   }
-  const children = await paginate(github, `${base}/sub_issues`);
   for (const child of children) {
     if (child?.state !== "closed" || !(await trusted(child.number))) {
       return false;
@@ -902,7 +938,7 @@ export const closedByTrusted = ({ github, repository, humans, appId }) => {
   const isApp = (actor) => appId !== undefined && actor?.id === appId;
   const trusted = async (number) => {
     const issue = await github("GET", `/repos/${repository}/issues/${number}`);
-    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, trusted });
+    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
   };
   return trusted;
 };
