@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "It conflicts with main and is labeled needs-human: the owner must decide the threshold change.",
+      "why": "both"
+    },
+    {
+      "answer": "Merge conflict since #4316, plus a needs-human hold from reviewer-two.",
+      "why": "both"
+    },
+    {
+      "answer": "needs-human hold on the queue_policy.py threshold, and it is not cleanly mergeable.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing; it is approved and green.",
+      "why": "stale fact"
+    },
+    {
+      "answer": "It conflicts with main.",
+      "why": "misses the hold"
+    },
+    {
+      "answer": "It needs another approval.",
+      "why": "wrong blocker"
+    }
+  ]
+}

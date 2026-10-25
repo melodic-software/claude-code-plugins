@@ -40,6 +40,7 @@ while (($#)); do
     shift 2
     ;;
   -X | --method | -H | --header) shift 2 ;;
+  --hostname) printf 'host %s\n' "$2" >>"$fix/calls"; shift 2 ;;
   -*) shift ;;
   *) [[ -z "$endpoint" ]] && endpoint="$1"; shift ;;
   esac
@@ -257,7 +258,8 @@ scenario unresolved none green green
 run "gh pr merge with -R and #number" 'gh pr merge -R acme/widgets "#42"' 2
 assert_contains "-R names the repo" "$(calls)" "repos/acme/widgets/pulls/42"
 scenario unresolved none green green
-run "gh pr merge after cd &&" 'cd /tmp && gh pr merge 42 --squash' 2
+run "gh pr merge after cd &&" 'cd /tmp && gh pr merge 42 -R acme/widgets --squash' 2
+assert_contains "gh pr merge after cd && -> the thread is listed" "$ERR" "src/app.py:12"
 scenario unresolved none green green
 run "gh pr merge with an env prefix" 'GH_PROMPT_DISABLED=1 gh pr merge 42' 2
 scenario unresolved none green green
@@ -721,6 +723,79 @@ echo '{"state":"closed","head":{"sha":"abc123"},"base":{"repo":{"full_name":"acm
 run "closed PR: nothing to guard" 'gh pr merge 42' 0
 assert_eq "closed PR -> no output" "" "$OUT"
 
+# --- 8e. target-resolution gaps (#8657) ---------------------------------------
+# Item 1: an obfuscated spelling of the merge word, subcommand or method.
+scenario unresolved none green green
+run "quote-split merge word" 'gh pr mer"ge" 42 -R acme/widgets' 2
+assert_contains "quote-split merge word -> the PR is checked" "$ERR" "src/app.py:12"
+scenario unresolved none green green
+run "single-quote-split merge word" "gh pr 'mer'ge 42 -R acme/widgets" 2
+unresolvable "subcommand from a variable" 'VERB=merge; gh pr $VERB 42 -R acme/widgets'
+unresolvable "subcommand from a quoted variable" 'V=merge; gh pr "$V" 42 -R acme/widgets'
+assert_contains "variable subcommand -> says why" "$ERR" "not literal"
+unresolvable "REST method from a variable" 'gh api -X "$M" repos/acme/widgets/pulls/42/merge'
+unresolvable "REST method from a variable, --method" 'gh api --method "$M" repos/acme/widgets/pulls/42/merge'
+unresolvable "curl method from a variable" 'curl -X "$M" https://api.github.com/repos/acme/widgets/pulls/42/merge'
+quiet "variable subcommand, no merge in the command" 'gh pr $SUB view 42'
+quiet "variable method on a route that is not a merge" 'gh api -X "$M" repos/acme/widgets/pulls/42/comments'
+
+# Item 2: a host-qualified repo is read without its host; a 404 on a literal
+# target is refused, never run unchecked.
+scenario none none green green
+run "host-qualified repo" 'gh pr merge 42 -R github.com/acme/widgets --squash' 0
+assert_contains "host-qualified repo -> read without the host" "$(calls)" "repos/acme/widgets/pulls/42"
+assert_absent "host-qualified repo -> the host is not in the path" "$(calls)" "repos/github.com"
+scenario unresolved none green green
+run "host-qualified repo with an unresolved thread" 'gh pr merge 42 -R github.com/acme/widgets' 2
+assert_contains "host-qualified repo -> the thread is listed" "$ERR" "src/app.py:12"
+scenario none none green green
+run "host-qualified repo on another host" 'gh pr merge 42 -R ghe.example.com/acme/widgets' 0
+assert_contains "other host -> asked of that host" "$(calls)" "host ghe.example.com"
+assert_contains "other host -> repo without the host" "$(calls)" "repos/acme/widgets/pulls/42"
+scenario none none green green
+run "URL selector on another host" 'gh pr merge https://ghe.example.com/acme/widgets/pull/42' 0
+assert_contains "URL on another host -> asked of that host" "$(calls)" "host ghe.example.com"
+scenario none none green green
+rm -f "$FIX/pr.json"
+run "404 on a literal target" 'gh pr merge 42 -R acme/widgets --squash' 2
+assert_contains "404 on a literal target -> says 404" "$ERR" "HTTP 404"
+assert_contains "404 on a literal target -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+scenario none none green green
+rm -f "$FIX/pr.json"
+run "404 on a bare number (repo from the cwd): fails open" 'gh pr merge 42 --squash' 0
+assert_contains "404 on the cwd repo -> says it will run unchecked" "$OUT" "will run unchecked"
+
+# Item 3: a changed repository context with no -R.
+unresolvable "cd before a merge with no -R" 'cd ../other && gh pr merge 42 --squash'
+unresolvable "pushd before a merge with no -R" 'pushd other >/dev/null; gh pr merge 42'
+unresolvable "GH_REPO before the merge" 'GH_REPO=other/repo gh pr merge 42 --squash'
+unresolvable "exported GH_REPO" 'export GH_REPO=other/repo; gh pr merge 42'
+unresolvable "exported GH_REPO spelled with quotes" 'export GH_RE""PO=other/repo; gh pr merge 42'
+unresolvable "GH_HOST before the merge" 'GH_HOST=ghe.example.com gh pr merge 42'
+scenario none none green green
+run "cd, then a merge with -R" 'cd other && gh pr merge 42 -R acme/widgets --squash' 0
+assert_contains "cd with -R -> reads that repo" "$(calls)" "repos/acme/widgets/pulls/42"
+scenario none none green green
+run "cd, then a merge by URL" 'cd other && gh pr merge https://github.com/acme/widgets/pull/42' 0
+scenario none none green green
+run "GH_REPO with -R" 'GH_REPO=a/b gh pr merge 42 -R acme/widgets' 0
+quiet "cd, then git merge" 'cd other && git merge origin/main'
+unresolvable "cd inside a for loop body" 'for d in a b; do cd $d && gh pr merge 42; done'
+unresolvable "cd after then" 'if cd other; then gh pr merge 42; fi'
+unresolvable "cd after command" 'command cd other && gh pr merge 42'
+scenario none none green green
+run "cd after the merge does not change its repository" 'gh pr merge 42 --squash && cd ..' 0
+assert_contains "cd after the merge -> the session repo is read" "$(calls)" "repos/{owner}/{repo}/pulls/42"
+
+# Item 4: a branch name goes into the pulls query encoded.
+scenario none none green green
+run "branch holding & and #" "gh pr merge 'feat/a&b#c' -R acme/widgets --squash" 0
+assert_contains "branch -> encoded in the head query" "$(calls)" "head=acme:feat/a%26b%23c"
+assert_absent "branch -> not raw in the query" "$(calls)" "b#c"
+scenario none none green green
+run "branch holding a space and %" "gh pr merge 'a b%c' -R acme/widgets" 0
+assert_contains "branch with space and % -> encoded" "$(calls)" "head=acme:a%20b%25c"
+
 # --- 9. MUST stay quiet: no merge at a command position (hook-precision rule 2)
 quiet "merge named in a commit message" 'git commit -m "gh pr merge 42 after review"'
 quiet "merge in single-quoted echo" "echo 'run gh pr merge 42 --admin'"
@@ -798,6 +873,16 @@ scenario unresolved none green green
 run_ps "PowerShell: gh pr merge" 'gh pr merge 42 --squash' 2
 scenario unresolved none green green
 run_ps "PowerShell: gh.exe pr merge after ;" 'Set-Location C:\repo; gh.exe pr merge 42' 2
+# Item 3 on PowerShell: a directory change with no -R is refused before any read.
+for c in 'Set-Location ..\other; gh pr merge 42 --squash' 'Push-Location other; gh pr merge 42' \
+  'Pop-Location; gh pr merge 42' 'sl other; gh pr merge 42' 'set-location other; gh pr merge 42'; do
+  scenario none none green green
+  run_ps "PowerShell: $c" "$c" 2
+  assert_contains "PowerShell: $c -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+  assert_absent "PowerShell: $c -> never asked gh" "$(calls)" "pulls/"
+done
+scenario none none green green
+run_ps "PowerShell: Set-Location, then a merge with -R" 'Set-Location other; gh pr merge 42 -R acme/widgets' 0
 scenario none none green green
 run_ps "PowerShell: a backtick escape is not a substitution" 'gh pr merge 42 -R acme/widgets --body "line`nnext"' 0
 scenario unresolved requested failed failed
