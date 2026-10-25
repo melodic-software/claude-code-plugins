@@ -108,7 +108,7 @@ four cubic Bezier control points; map them to the stack's own easing form.
 
 - **Never ease-in on interface motion.** It starts slowly, which delays the exact moment the user
   is watching; an ease-out of the same length feels faster. An explicit request for an exit that
-  accelerates away is honored with `ease-in`, and the reply names that it starts slow.
+  accelerates away is honored with `ease-in`, and the reply warns that its slow start can read as lag.
 - The platform's built-in ease-out is weak for interface motion; prefer the configured curve.
 - Need a curve that is not configured? Take one from an established easing collection rather than
   inventing control points, and name it as a default.

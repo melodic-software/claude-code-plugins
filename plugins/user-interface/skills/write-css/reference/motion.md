@@ -64,7 +64,7 @@ for each role. The project's own easing and duration tokens beat both.
 Rules:
 
 - Never use `ease-in` on UI. It starts slow and reads as lag. Unless the user explicitly asks for an
-  exit that accelerates away: then use it for that exit and say it starts slow.
+  exit that accelerates away: then use it for that exit and warn that its slow start can read as lag.
 - `out` is for anything entering or leaving, `in_out` for something already on screen that moves
   or morphs, and `drawer` for a drawer or sheet.
 - Keep each transition within its role: `press` for press feedback, `small` for tooltips and small

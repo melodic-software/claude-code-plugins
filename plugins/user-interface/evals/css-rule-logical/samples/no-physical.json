@@ -11,6 +11,10 @@
     {
       "answer": "```css\n.bubble--in { margin-inline-start: 12px; text-align: start; }\n```\n\nIn right-to-left languages these flip. To keep the physical sides, use `margin-left` and `text-align: left` instead.",
       "why": "logical CSS; the physical alternative is named only in inline code in the prose"
+    },
+    {
+      "answer": "```css\n.bubble--in { text-align: start; }\n```\n\nTo pin the physical side instead, write `.rtl { text-align: left; }`.",
+      "why": "logical CSS; a whole physical rule is quoted only in inline code in the prose"
     }
   ],
   "fail": [
