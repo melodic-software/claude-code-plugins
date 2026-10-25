@@ -163,15 +163,36 @@ fi
 details=''
 resume="To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:"
 if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
-  # Every page, as address-feedback.mjs listThreads reads them: an open
-  # thread past the first 100 can be the one that stopped the lane.
+  # Page by page, as address-feedback.mjs listThreads reads them: an open
+  # thread past the first 100 can be the one that stopped the lane. Anyone
+  # who can comment can add threads, so the read stops at MAX_THREAD_PAGES
+  # pages and the comment says so.
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
   query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
     reviewThreads(first: 100, after: $endCursor) { nodes { isResolved path line comments(first: 1) { nodes { url } } } pageInfo { hasNextPage endCursor } } } } }'
-  if threads=$(gh api graphql --paginate --slurp -f query="$query" -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" |
-    jq -er '[.[].data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)
+  MAX_THREAD_PAGES=10
+  nodes='[]' cursor='' unread=false read_ok=true
+  for ((page_n = 1; ; page_n++)); do
+    args=(-f query="$query" -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER")
+    [[ -n $cursor ]] && args+=(-f endCursor="$cursor")
+    if ! page=$(gh api graphql "${args[@]}") ||
+      ! nodes=$(jq -ce --argjson acc "$nodes" '$acc + .data.repository.pullRequest.reviewThreads.nodes' <<<"$page") ||
+      ! next=$(jq -er '.data.repository.pullRequest.reviewThreads.pageInfo | if .hasNextPage then .endCursor else "" end' <<<"$page"); then
+      read_ok=false
+      break
+    fi
+    [[ -n $next ]] || break
+    if ((page_n >= MAX_THREAD_PAGES)); then
+      unread=true
+      break
+    fi
+    cursor=$next
+  done
+  if [[ $read_ok == true ]] && threads=$(jq -er --argjson unread "$unread" '[.[] | select(.isResolved == false)
       | "- `\((.path // "") | gsub("[`<>]"; "") | gsub("[\r\n]+"; " "))\(if .line then ":\(.line)" else "" end)`: \(.comments.nodes[0].url // "")"]
-      | .[:20] | join("\n")'); then
+      | (.[:20] + (if length > 20 then ["- and \(length - 20) more"] else [] end)
+        + (if $unread then ["- review threads past the first 1,000 were not read; see the pull request'"'"'s Files changed tab"] else [] end))
+      | join("\n")' <<<"$nodes"); then
     [[ -n $threads ]] || threads='- none open now'
   else
     threads='- the open review threads could not be read; see the pull request'"'"'s Files changed tab'

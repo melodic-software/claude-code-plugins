@@ -50,8 +50,14 @@ case "$method $endpoint" in
 "GET repos/o/r/issues/42/comments") cat "$STUB/comments.json" ;;
 "GET graphql")
   [[ -f $STUB/fail_graphql ]] && { echo 'stub gh: graphql failed' >&2; exit 1; }
-  # threads.json holds what `--paginate --slurp` prints: an array of pages.
-  cat "$STUB/threads.json" 2>/dev/null || echo '[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}]'
+  # threads.json holds an array of pages; each graphql call serves the next.
+  n=$(cat "$STUB/graphql_n" 2>/dev/null || echo 0)
+  echo $((n + 1)) >"$STUB/graphql_n"
+  if [[ -f $STUB/threads.json ]]; then
+    jq -e ".[$n]" "$STUB/threads.json" || { echo "stub gh: no page $n" >&2; exit 1; }
+  else
+    echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}'
+  fi
   ;;
 "POST repos/o/r/issues/42/labels")
   [[ -f $STUB/fail_labels ]] && { echo 'stub gh: label POST failed' >&2; exit 1; }
@@ -341,9 +347,31 @@ cat >"$STUB/threads.json" <<'EOF'
 ],"pageInfo":{"hasNextPage":false,"endCursor":"c2"}}}}}}]
 EOF
 run feedback-not-converging
-has "not-converging: reads every page of review threads" '--paginate' "$STUB/calls"
+has "not-converging: asks for the next page by its cursor" 'endCursor=c1' "$STUB/calls"
 has "not-converging: names an open thread from a later page" '- `src/late.js:9`: https://github.com/o/r/pull/42#discussion_r11' "$STUB/bodies"
 check "not-converging: a later page's thread is not reported as none open" 0 "$(grep -c 'none open now' "$STUB/bodies" || true)"
+
+# The read is bounded, since anyone who can comment can add threads: at most
+# 10 pages (1,000 threads), and the comment says when more were not read.
+setup '[]' '[]'
+jq -n '[range(12) | {data: {repository: {pullRequest: {reviewThreads: {
+  nodes: [{isResolved: false, path: "src/p\(.).js", line: 1, comments: {nodes: [{url: "https://github.com/o/r/pull/42#discussion_p\(.)"}]}}],
+  pageInfo: {hasNextPage: true, endCursor: "c\(.)"}}}}}}]' >"$STUB/threads.json"
+run feedback-not-converging
+check "not-converging: reads at most 10 pages of review threads" 10 "$(grep -c '^GET graphql$' "$STUB/requests")"
+has "not-converging: names a thread on the 10th page" '- `src/p9.js:1`' "$STUB/bodies"
+check "not-converging: reads nothing past the 10th page" 0 "$(grep -c 'src/p10.js' "$STUB/bodies" || true)"
+has "not-converging: says threads past the first 1,000 were not read" 'past the first 1,000 were not read' "$STUB/bodies"
+
+# At most 20 open threads are listed, then how many more.
+setup '[]' '[]'
+jq -n '[{data: {repository: {pullRequest: {reviewThreads: {
+  nodes: [range(25) | {isResolved: false, path: "src/t\(.).js", line: 1, comments: {nodes: [{url: "u\(.)"}]}}],
+  pageInfo: {hasNextPage: false, endCursor: null}}}}}}]' >"$STUB/threads.json"
+run feedback-not-converging
+has "not-converging: lists the 20th open thread" '- `src/t19.js:1`: u19' "$STUB/bodies"
+check "not-converging: lists no 21st open thread" 0 "$(grep -c 'src/t20.js' "$STUB/bodies" || true)"
+has "not-converging: says how many more open threads there are" '- and 5 more' "$STUB/bodies"
 
 setup '[]' '[]'
 : >"$STUB/fail_graphql"
