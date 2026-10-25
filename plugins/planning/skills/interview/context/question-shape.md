@@ -24,19 +24,19 @@ SKILL.md "Spoke paths" defines.
 | `scope` | the view, screen or artifact the question is about ([Scope](#scope)) |
 | `context` | what drives the decision ([Context](#context)) |
 | `recommendation` | the one recommended answer, or the `Withheld:` text |
-| `basis` | opens `Checked against:` (see [Plain names](#plain-names)), then the `Basis:` label and the reasoning |
+| `basis` | opens `Checked against:` (see [Plain names](#plain-names)), then the `Basis:` evidence list (each fact with its source) and the one-line inference |
 | `alternatives` | `{key, text, tradeoff}`, keys `a` to `d`; none restates the recommendation |
 | `dependsOn` | earlier question ids only |
 
-The rules in SKILL.md's Stance apply in every lane: one verdict marker, a `Basis:` on every
-recommendation, a withheld question asked open, `Commits you to:` parts listed, yes accepting the
+The rules in SKILL.md's Stance apply in every lane: one verdict marker, a `Basis:` evidence list and an
+`Inference:` line on every recommendation (never bare judgment), a withheld question asked open, `Commits you to:` parts listed, yes accepting the
 recommendation.
 
 ## Per lane
 
 | Lane | Where each field goes |
 |---|---|
-| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the context line and `Source:` block are `context`, `My recommendation:`, `Basis:` and `Checked against:` are `recommendation` and `basis`, `Alternatives to consider:` lists `alternatives` |
+| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the context line and `Source:` block are `context`, `My recommendation:`, `Basis:`, `Inference:` and `Checked against:` are `recommendation` and `basis`, `Alternatives to consider:` lists `alternatives` |
 | page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `facts` carries the `Checked against:` line, then `context`, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
 | shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); `scope` is required, and two or three alternatives |
 

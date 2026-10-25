@@ -494,7 +494,10 @@ done
 # recommendation, and restrict convention-only recommending to non-consequential questions.
 # Each adds a requirement on the recommendation; none resolves a row or relaxes a defense. A
 # withheld question drops its recommendation but is still asked and registered, so it too
-# resolves nothing. The three recommendation-basis links point at the plugin-shipped
+# resolves nothing. The basis is now an evidence list (each fact with its source) plus one
+# `Inference:` line, and a bare judgment basis is no longer valid even for a non-consequential
+# question: one with no fact to cite is researched first or asked withheld. That raises the
+# bar on a recommendation and resolves no row. The three recommendation-basis links point at the plugin-shipped
 # context file instead of an org URL; a link target changes no rule.
 # The `Source:` block and the sentence that alternatives exclude the recommendation shape how a question is shown; neither resolves a row.
 # The quality-bar paragraph adds a round-1 question and depth scaling; deferred prototype concerns are named in the reply, so it resolves nothing silently.
@@ -661,7 +664,9 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "b510e6db77b7c247fe18b91f799051da3ceb34f282c1a16a4734d297ccda6e6d"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
-# a requirement and resolves nothing new.
+# a requirement and resolves nothing new. Step 4 now requires the evidence list and `Inference:`
+# line for every recommendation and drops convention-only recommending entirely: a question with
+# no fact to cite is researched first or asked withheld. It raises the bar and resolves no row.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The constraint ledger's Re-check bullet revises an open recommendation a new row changes; it resolves no row.
 # PRD seeds the Brief; Variation intent rename
