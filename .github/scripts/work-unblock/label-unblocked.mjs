@@ -1081,11 +1081,12 @@ async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, a
   // edited in place, never a new comment or a hold.
   const backoff = (key, since, cause) => {
     const first = Math.min(...markers.filter((marker) => refiredOn(marker, key)).map((marker) => marker.at));
-    // An App re-add after a breaker record is that trip's, not this cause's.
-    const refires = events.filter((event) => {
-      const at = Date.parse(event.created_at);
-      return isLabel(event, "labeled") && event.actor?.login === bot && at >= first && !markers.filter((marker) => marker.at <= at).at(-1)?.breaker;
-    }).length;
+    // Each breaker record's own re-add, the App's first after it (dated by
+    // when it was posted), is that trip's, not this cause's; the backoff
+    // comment's edits never move it.
+    const adds = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot);
+    const trips = new Set(markers.filter((marker) => marker.breaker).map((marker) => adds.find((event) => Date.parse(event.created_at) >= marker.at)));
+    const refires = adds.filter((event) => Date.parse(event.created_at) >= first && !trips.has(event)).length;
     const due = backoffDue(since, refires);
     if (now < due) {
       return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };

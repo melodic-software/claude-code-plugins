@@ -2078,6 +2078,46 @@ test("breaker trips past limit-stops-per-issue since a person last added agent-r
   tripped(fresh.calls);
 });
 
+// The backoff comment is dated by its last edit, which moves it past the
+// re-adds it made earlier; a breaker record before it still claims only its
+// own re-add. Three re-fires of a failed run on these workflow files (06:00,
+// 08:00 and 10:00, the last two on the backoff comment, edited at 09:59)
+// around one breaker trip (07:00) wait 24 hours, not 12.
+test("a breaker trip's re-add is its own: the backoff counts every other re-fire after the backoff comment is edited", async () => {
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const unlabeled = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+  const history = {
+    comments: [
+      note(),
+      refireNote(KEY, "2026-10-16T06:00:00Z"),
+      { id: 71, body: `${BREAKER_MARKER}\nThe token broker refused the run for the lanes kill switch.`, user: LANES_BOT, created_at: "2026-10-16T07:00:00Z" },
+      { id: 72, body: infraComment(KEY, "A cause.", 2), user: LANES_BOT, created_at: "2026-10-16T08:00:00Z", updated_at: "2026-10-16T09:59:59Z" },
+    ],
+    events: [
+      added("2026-10-16T05:00:00Z", OWNER),
+      unlabeled("2026-10-16T06:00:00Z"),
+      added("2026-10-16T06:00:01Z"),
+      unlabeled("2026-10-16T07:00:00Z"),
+      added("2026-10-16T07:00:01Z"),
+      unlabeled("2026-10-16T08:00:00Z"),
+      added("2026-10-16T08:00:01Z"),
+      unlabeled("2026-10-16T09:59:59Z"),
+      added(LABELED_AT),
+    ],
+  };
+  // The run ended at 10:05: three re-fires wait 24 hours, so nothing at 12 hours.
+  const early = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T22:05:00Z") }), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const due = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }), 0);
+  const done = writes(due.calls);
+  assert.equal(done.length, 3, done.join("\n"));
+  assert.ok(done[0].startsWith(`PATCH /repos/${REPO}/issues/comments/72 `), done[0]);
+  assert.ok(done[0].includes("has re-fired it 4 time(s)"), done[0]);
+  assert.deepEqual(done.slice(1), restarted(30));
+});
+
 test("a refusal whose log does not name the kill switch on the step's last line stays a failed run", async () => {
   const lines = (...items) => `${items.join("\n")}\n`;
   for (const [name, log] of [
