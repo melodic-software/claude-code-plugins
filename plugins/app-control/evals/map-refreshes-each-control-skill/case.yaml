@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: map-refreshes-each-control-skill
+description: A bare unattended refresh over two control skills refreshes each in turn on its own upkeep branch and returns to the starting branch between them
+tags: [map, refresh, branch, unattended, invented]
+expected_outcome: "The reply finds both control skills and, without asking which, plans them one after the other: control-admin's correction committed on control-skill-upkeep/control-admin and control-shop's on control-skill-upkeep/control-shop, each branch created from main, each commit holding only that skill's files and going out in that skill's own pull request. Between the two skills it switches back to main, the branch the pass started on, so the second skill is never refreshed on the first skill's upkeep branch. Nothing is switched, written or committed in this session."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh --unattended. Read the control skills, but do not drive the app, switch branches, write or commit anything in this session. The pass starts on main. For each control skill, treat the decide step as printing `run` and the source wave and live pass as already run: control-admin's users feature now lives at `/admin/users` (admin/users.py:4), which works, and `/admin/people` returns 404; control-shop's cart button is now labeled `Add to cart` (shop/cart.py:9) and works. Nothing else differs. In order, name each branch you would be on for each control skill, where each commit goes, which pull request each change goes in, and what happens between the two skills, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 400
+graders:
+  - name: names-both-branches
+    type: regex
+    pattern: '^(?=[\s\S]*control-skill-upkeep/control-admin(?![\w-]))(?=[\s\S]*control-skill-upkeep/control-shop(?![\w-]))'
+    arm: both
+  - name: one-branch-per-skill
+    type: llm
+    criteria: "PASS only if the reply (1) refreshes both control skills in turn without asking which, (2) commits control-admin's correction only on control-skill-upkeep/control-admin and control-shop's only on control-skill-upkeep/control-shop, each commit holding only that skill's files, (3) creates or updates each upkeep branch from main, the default branch, and opens or updates one pull request per skill, and (4) switches back to main, the starting branch, after the first skill and before the second skill's work starts. FAIL if both skills share one branch or one pull request, if the second skill is branched from, edited on or committed to the first skill's upkeep branch, if it never returns to main between the two skills, or if it stops to ask which skill to refresh."

@@ -10,7 +10,7 @@ they mean.
 | Skill | What it does |
 |---|---|
 | `/app-control:drive` | Bare drive performs a feature's steps; `ready` reports what is reachable; `capture --kind <kind>` records one artifact; `cleanup` stops what the run started and checks the evidence survives; `--attach` reaches a process already running that the person named, in an interactive session only; `--unattended` asks nothing |
-| `/app-control:map` | Bare map proposes what it would write; `create` discovers the repository, asks only what discovery left open, writes the control skill (hub, feature folders, config, driver CLI and an instruction-file pointer) and proves it once through drive; `--unattended` is a dry run that writes nothing and lists every open question with a recommendation |
+| `/app-control:map` | Bare map proposes what it would write; `create` discovers the repository, asks only what discovery left open, writes the control skill (hub, feature folders, config, driver CLI and an instruction-file pointer) and proves it once through drive; `check` reports contract breaks and edits nothing; `refresh` brings a control skill back in line with the app (or converts a testing feature map) through one upkeep pull request, keeping product regressions out of it; with `create`, `--unattended` is a dry run that writes nothing and lists every open question with a recommendation |
 
 Both skills are model-invoked, so other skills, scheduled runs and CI jobs call drive instead of the
 project's own control skill, and map is the only writer of that control skill.
@@ -28,8 +28,7 @@ control skill.
 
 ## Not yet in this plugin
 
-Reading an `app-control.yaml` override, attaching to a process drive did not start, and checking
-or refreshing an existing control skill.
+Reading an `app-control.yaml` override and attaching to a process drive did not start.
 
 ## Attribution
 
