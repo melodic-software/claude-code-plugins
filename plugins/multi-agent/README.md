@@ -124,9 +124,8 @@ and its evidence: [`reference/routing-rubric.md`](reference/routing-rubric.md).
 
 ## Configuration
 
-One surface, layered user-global (`~/.claude/multi-agent.yaml`), team (a
-fenced block tagged `yaml config` in `docs/conventions/multi-agent.md`, else
-`.claude/multi-agent.yaml`) and a gitignored overlay
+One surface, layered user-global (`~/.claude/multi-agent.yaml`), team
+(`docs/conventions/multi-agent.yaml`) and a gitignored overlay
 (`.claude/multi-agent.local.yaml`), each overriding the bundled defaults per
 key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 [`reference/config.md`](reference/config.md).

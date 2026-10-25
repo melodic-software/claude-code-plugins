@@ -1076,6 +1076,24 @@ def _cached_config(value: Any) -> PipelineConfig | None:
     return c if ok else None
 
 
+CONFIG_AT_SECTION = "config-at"
+
+
+def config_at(repo: str, sha: str) -> PipelineConfig:
+    """`read_config_at`, shared by the run's gate processes by commit: the
+    files at a commit never change, so a saved read of any age serves. Only a
+    read with no error and no note is saved, so a file that did not read is
+    read again."""
+    key = f"{repo}@{sha}"
+    cached = _cached_config(run_cache.get(CONFIG_AT_SECTION, key, None))
+    if cached is not None and cached.base_sha == sha:
+        return cached
+    config = read_config_at(repo, sha)
+    if not config.error and not config.notes:
+        run_cache.put(CONFIG_AT_SECTION, key, asdict(config))
+    return config
+
+
 def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConfig:
     """The config at the default branch head, saved once per cache window
     (`run_cache.MAX_AGE`) for the run's gate processes, never saving a failed
@@ -1089,7 +1107,7 @@ def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConf
         SHARED_HEAD_CONFIGS[repo] = cached.base_sha
         return cached
     _, head = _default_branch_head(repo, branch)
-    config = read_config_at(repo, head)
+    config = config_at(repo, head)
     if config.error:
         raise StopReadError(
             DEFAULT_BRANCH_UNREADABLE,
