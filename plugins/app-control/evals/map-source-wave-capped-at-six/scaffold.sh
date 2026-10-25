@@ -8,6 +8,8 @@ mkdir -p "$skill" shop
 {
   printf -- '---\ndescription: "Launch, ready-check, capture and clean up the shop app."\n---\n\n'
   # shellcheck disable=SC2016 # the backticks are literal markdown, not command substitution
+  printf -- '- App: shop, built from `shop/`\n- Driving tool: playwright\n\n'
+  # shellcheck disable=SC2016 # the backticks are literal markdown, not command substitution
   printf '## Launch\n\nRun the `run-shop` skill.\n\n## Ready\n\n`curl -fsS http://127.0.0.1:8080/healthz`\n\n'
   printf '## Capture\n\nnone\n\n## Cleanup\n\nStop the pid recorded at launch.\n\n## Features\n\n'
   for f in "${features[@]}"; do
