@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.1] - 2026-10-25
+
+### Changed
+
+- The audit's findings-persistence guide names `/review:fanout` and its `fix` action by invocation instead of citing files inside the review plugin's skill folder, which a separate install of `ai-slop` does not carry.
+
 ## [0.15.0] - 2026-10-25
 
 ### Changed

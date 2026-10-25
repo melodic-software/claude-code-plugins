@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.5] - 2026-10-25
+
+### Fixed
+
+- Harden the view bridge: the watcher exits after 40 consecutive empty waits (exit 4) so an orphaned watcher no longer keeps the server alive, the wait and lease-release endpoints need a watcher-only token that the page never receives, and U+2028 and U+2029 are escaped in output lines.
+
 ## [1.3.4] - 2026-10-25
 
 ### Changed
