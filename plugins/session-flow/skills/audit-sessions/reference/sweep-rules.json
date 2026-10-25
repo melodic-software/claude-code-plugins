@@ -1,8 +1,9 @@
 {
   "schema": "audit-sessions.sweep-rules/v1",
-  "basis": "Thresholds are the per-session p90 of a 90-session spike on one machine (Claude Code 2.1.275-2.1.287, 2026-10-02), approved by the maintainer at plan Phase 6 entry; a session above a threshold is an outlier against that baseline, not wrong in absolute terms. A null threshold reports the metric without a finding.",
+  "basis": "Thresholds are a shipped reference baseline, the same for every installation: the per-session p90 of a 90-session spike on one reference machine (Claude Code 2.1.275-2.1.287, 2026-10-02), approved by the maintainer at plan Phase 6 entry, unless a rule's basis names another source; a session above a threshold is an outlier against that baseline, not wrong in absolute terms. Every number in a rule's basis comes from those reference measurements, not from the store being swept. A null threshold reports the metric without a finding.",
   "verified": "2026-10-02",
-  "recheck": "a Claude Code release changes a canary-fed metric, or the store's own p90 for a metric moves past its threshold by half",
+  "recheck": "a Claude Code release changes a canary-fed metric, or a swept store's own p90 for a thresholded metric exceeds stale_p90_factor times its threshold. The trigger is one-sided: a p90 below the threshold never fires it, and a threshold of 0 fires on any p90 above 0. sweep.py marks such a metric baseline_stale",
+  "stale_p90_factor": 1.5,
   "rules": [
     {
       "metric": "tokens.main",

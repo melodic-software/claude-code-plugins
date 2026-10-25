@@ -223,6 +223,16 @@ def block($d):
                 else empty end)] | join("; ")) as $parts
            | "Divergences: \($parts) (of \($v.post) in all: \($intervals))"
          end),
+      # One sub-line per project path holding a skewed record, so the count names where
+      # the work is. A path converge cannot act on says why; a digest written before
+      # `class` renders every path bare. A digest written before `by_path` renders the
+      # count line alone.
+      ((.divergences.by_path // [])[]
+       | "  - \(.path)"
+         + (if .class == "blocked" then " (not present)"
+            elif .class == "worktree" then " (linked worktree)" else "" end)
+         + ": \(.count) diverging record(s): \(.ids | join(", "))"
+         + (if (.more // 0) > 0 then ", +\(.more) more" else "" end)),
 
       # The digest names this plugin's own row; a digest written before it did
       # carries no row, so the note names no plugin rather than guess one.
@@ -381,6 +391,10 @@ def block($d):
     (if $d.mode == "audit" then "Run: audit scratch directory, removed on exit"
      else "Run journal: \($d.run_dir)" end),
     "Timing: \($d.timings.total | secs) run total"
+    # A re-entry digest times both passes; the marketplace rows above time the
+    # re-entry alone.
+    + (if ($d.timings.passes // null) == null then ""
+       else " over both passes (first pass \($d.timings.passes[0].total | secs), --only-install re-entry \($d.timings.passes[1].total | secs); the wait between them is not counted)" end)
     + (if $d.timings.outside_marketplaces == null then ""
        else "; \($d.timings.outside_marketplaces)s outside the marketplace blocks" end)
     + "; clock resolution: \($d.timings.resolution)",
