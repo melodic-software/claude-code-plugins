@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
+import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { main } from "./check-blockers.mjs";
 
 const HUMAN = { id: 101, login: "person" };
@@ -191,4 +192,24 @@ test("an issue number that is not one, no trusted list, or no App id skips the r
     assert.deepEqual(outputs, SKIP);
     assert.ok(lines.some((line) => line.startsWith("::warning")));
   }
+});
+
+// Admission counts a split parent the lanes App closed once a listed human
+// closed every sub-issue (admit.mjs closedByTrusted); the run gate must too.
+test("a split parent the lanes App closed after a listed human closed every part no longer blocks; an open part keeps it blocking", async () => {
+  const record = { id: 61, user: APP, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [50, 51] })}` };
+  const world = (partState) => (path) => {
+    if (path === "/repos/o/r/issues/42") return { number: 42, state: "open", labels: [] };
+    if (path.startsWith("/repos/o/r/issues/42/events")) return [];
+    if (path.includes("/42/dependencies/blocked_by")) return [issue(7, "closed", { closer: APP })];
+    if (path === "/repos/o/r/issues/7") return issue(7, "closed", { closer: APP });
+    if (path.startsWith("/repos/o/r/issues/7/comments")) return [record];
+    if (path.startsWith("/repos/o/r/issues/7/sub_issues")) return [issue(50, "closed"), issue(51, partState)];
+    if (path === "/repos/o/r/issues/50") return issue(50, "closed");
+    if (path === "/repos/o/r/issues/51") return issue(51, partState);
+    if (path === "/graphql") return { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } };
+    throw new Error(`unexpected ${path}`);
+  };
+  assert.deepEqual((await run(world("closed"))).outputs, RUN);
+  assert.deepEqual((await run(world("open"))).outputs, SKIP);
 });

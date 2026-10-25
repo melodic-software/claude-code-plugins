@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "control-admin: from main, switch to control-skill-upkeep/control-admin, commit, open its pull request; switch back to main. control-shop: from main, switch to `control-skill-upkeep/control-shop`, commit, open its own pull request.",
+      "why": "names both upkeep branches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Commit both corrections on control-skill-upkeep/control-admin and open one pull request.",
+      "why": "one shared branch"
+    },
+    {
+      "answer": "control-skill-upkeep/control-admin, then control-skill-upkeep/control-shop-v2.",
+      "why": "misnames the second branch"
+    }
+  ]
+}
