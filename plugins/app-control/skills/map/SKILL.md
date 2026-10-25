@@ -177,7 +177,8 @@ conversion moves out of.
 3. **Refuse** an attended-only control skill when unattended.
 4. **Source wave.** One read-only subagent per feature file, in waves capped at 6, each filled to
    the cap before the next starts: 8 features run as 6 then 2. The cap is fixed here. A legacy
-   map is converted first, uncommitted on the upkeep branch, so both passes read the control skill.
+   map is converted first (an attended pass asks before), uncommitted on the upkeep branch, so
+   both passes read the control skill.
 5. **Live pass** of every feature through `/app-control:drive`: Ready before the first drive and
    after any failed one, cleanup after each drive, and every evidence path checked after cleanup.
 6. **Triage** each difference as doc drift, driver gap or product regression. Regressions go to the

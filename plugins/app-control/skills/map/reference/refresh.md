@@ -85,14 +85,19 @@ switch tools on your own. An attended pass may proceed.
 ## 4. Source wave
 
 **A legacy conversion is written first.** Drive reads only control skills, so before the source
-wave of a legacy map's conversion, do step 6.1 (branch, same rules), then move the legacy files into
+wave of a legacy map's conversion, an attended pass shows the planned conversion (the upkeep
+branch, each legacy file and its new path) and asks; declined, the outcome is **blocked** and
+nothing is written. Approved, or unattended, do step 6.1 (branch, same rules), then move the legacy files into
 `.claude/skills/control-<slug>/` with `git mv` (plain move for an untracked map) and rewrite them
 in place per Converting a legacy map, re-running the [real-path checks](naming.md#real-paths)
 before each write. Commit nothing yet; the `sources` globs and each entry point's `driven` mark
-wait for step 6.2. Both passes then read the converted control skill. A pass that stops before step
-6.3, or whose edits the person declines, leaves these files uncommitted in the working tree on the
-upkeep branch: the report names each one and the legacy path it moved from, and nothing is
-reverted. Every other pass keeps the order below.
+wait for step 6.2. Both passes then read the converted control skill. The step-6 ask then covers
+the pass's other edits. A pass that stops before step 6.3, or whose step-6 edits are declined,
+undoes the conversion before it ends: it moves each file back to its legacy path (`git mv` back,
+or a plain move for an untracked map), restores the rewritten legacy files with `git restore
+--source=HEAD --staged --worktree -- <path>`, and returns to the branch the pass started on. The
+report names each file and says the conversion was undone. Done when `git status --porcelain`
+prints what it printed before the pass. Every other pass keeps the order below.
 
 Find the base commit: the last commit that touched the control skill directory,
 `git log -1 --format=%H -- "<dir>"`. List what changed since:
@@ -237,6 +242,6 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
 - each regression and whether it went to `/bugs:write`;
 - the features found but not mapped;
 - each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
-- for a conversion, the old and new paths, each file left uncommitted, and the pointer and setting
+- for a conversion, the old and new paths, whether a stopped pass undid the conversion, and the pointer and setting
   left to change;
 - the branch, the commit and the pull request URL, or why there is none.
