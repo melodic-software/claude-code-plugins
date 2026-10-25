@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # guardrails-pre-commit-content v2
 # guardrails pre-commit check: secrets and machine-specific paths in the lines
 # this commit adds.
@@ -24,14 +24,19 @@
 #
 # Findings print as "<path>:<line>: <message>" on stderr and exit 1. The
 # message says how to fix the content; this hook never suggests skipping it.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 
 # The pattern libraries: beside an installed copy (entry assets), or in the
 # plugin's lib/ when run from the plugin itself.

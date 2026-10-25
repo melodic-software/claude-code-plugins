@@ -122,7 +122,10 @@ credentials. With husky or plain hooks it commits copies under
 `rm -rf "$(git rev-parse --git-path info)"/lefthook-remotes/claude-code-plugins-* && lefthook install`.
 Each entry blocks only on what the commit or push adds. A clone that does not want an
 entry declines it through `/guardrails:setup` (`install.mjs decline --entry <name>`),
-which also removes the entry's registration when it is already installed.
+which also removes the entry's registration when it is already installed. Every entry
+starts under `sh` and never starts a `bash` by name, which on Windows can be System32's WSL
+launcher; `commit-msg-convention` and its resolver are POSIX sh throughout, so they need no
+bash beside git's sh.
 
 | Entry | Event | What it checks |
 |-------|-------|----------------|
