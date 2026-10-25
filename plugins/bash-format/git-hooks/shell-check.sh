@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # bash-format pre-commit check: format the staged shell scripts the repository
 # opted in to format, then report what ShellCheck finds on the lines this commit
 # adds.
@@ -26,14 +26,19 @@
 # agent and a notice for a person; a tool that is skipped only drops its own half
 # (no shfmt: no rewrite; no shellcheck: no findings). The rule holds in every
 # mode.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 # shellcheck source=shfmt-rewrite.sh
 . "$here/shfmt-rewrite.sh" || exit 1
 

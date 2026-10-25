@@ -67,28 +67,71 @@ def block($d):
   | (.normalize.project_report.output // "") as $pnorm
   | (.enable_gap - ($enabled_ok | map(.id)) - ($would_enable | map(.id))
      - (.project_enable_rows | map(.id))) as $enable_unfilled
+  | (.install_enable_deferred == true and (.install_gap | length) > 0
+     and .stopped_before_install != true) as $install_deferred
+  | (.install_enable_deferred == true and (.enable_gap | length) > 0) as $enable_deferred
+  # The `Action needed` bullets for pending actions: work this run left to a person
+  # (an install declined, skipped by policy or held for the ask prompt, an unfilled
+  # enable, a withheld downgrade, a delisted plugin). The header counts them; a gap
+  # deferred by a failed refresh is refresh state instead, so it is not among them.
+  | [if .stopped_before_install == true then
+       "\(.install_gap | length) catalog plugin(s) not installed at user scope (policy ask; stopped before Step 4 pending the batched prompt): \(.install_gap | join(", "))"
+     elif $install_deferred then empty
+     elif ($audit | not) and $d.install_new == "ask" and ($install_left | length) > 0 then
+       "\($install_left | length) catalog plugin(s) offered and not installed (policy ask): \($install_left | join(", ")); ask offers them again on every sync unless they are disabled with enabledPlugins: false"
+     elif ($d.install_new == "none" or ($audit and $d.install_new == "ask")) and (.install_gap | length) > 0 then
+       "\(.install_gap | length) catalog plugin(s) not installed at user scope (policy \($d.install_new)): \(.install_gap | join(", "))"
+     else empty end] as $install_pending
+  | [if ($enable_deferred | not) and ($enable_unfilled | length) > 0 then
+       "missing_from_enabled, not enabled this run: \($enable_unfilled | join(", "))"
+     else empty end,
+     (.project_enable_rows[]
+      | "project-scope enable gap: (cd \"\(.project_path)\" && claude plugin enable \(.id) -s project)\n    Writes that repo's committed .claude/settings.json; review the diff before committing")] as $enable_pending
+  | [(.installed_disabled // [])[]
+     | "\(.): installed but not enabled; claude plugin enable \(.) -s user"] as $disabled_pending
+  | [(if ((.delisted // []) | length) == 0 then empty
+      elif $audit then
+        "delisted, absent from the unrefreshed catalog: \(.delisted | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+      else
+        "delisted, absent from the catalog: \(.delisted | join(", ")); uninstall each with `claude plugin uninstall <id> -s user`"
+      end),
+     (if ((.delisted_project // []) | length) == 0 then empty
+      elif $audit then
+        "delisted in this repo, absent from the unrefreshed catalog: \(.delisted_project | map(scoped) | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+      else
+        (.project_root // "?") as $root
+        | (.delisted_project[] | "delisted in this repo, absent from the catalog: (cd \"\($root)\" && claude plugin uninstall \(.id) -s \(.scope))")
+      end),
+     (if ((.delisted_settings_only // []) | length) == 0 then empty
+      elif $audit then
+        "enabled in settings, not installed, and absent from the unrefreshed catalog: \(.delisted_settings_only | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+      else
+        "enabled in settings, not installed, and absent from the catalog: \(.delisted_settings_only | join(", ")); remove each key from enabledPlugins in the settings file that sets it"
+      end)] as $delisted_pending
+  | [if ($audit | not) and ($withheld | length) > 0 then
+       "downgrade withheld: \($withheld | length) plugin(s), \($withheld | map("\(scoped): \(.installed) → \(.catalog)") | join(", ")); likely cause: marketplace source moved backward (\(.catalog_source // "source unknown")); rerun with --allow-downgrade only if the rollback is intended"
+     else empty end] as $withheld_pending
+  # Audit predicts a withheld downgrade as its `Would withhold` row, not a bullet;
+  # it counts as one pending action.
+  | (($install_pending + $enable_pending + $disabled_pending + $delisted_pending + $withheld_pending | length)
+     + (if $audit and ($withheld | length) > 0 then 1 else 0 end)) as $pending
+  # `needs update`: refresh, update and failure state only. Audit predicts what sync
+  # would update, install or enable itself.
   | (if $audit then
-       (($would | length) > 0 or ($withheld | length) > 0
-        or (.install_gap | length) > 0 or (.enable_gap | length) > 0
-        or ((.delisted // []) | length) > 0
-        or ((.delisted_project // []) | length) > 0
-        or ((.delisted_settings_only // []) | length) > 0)
+       (($would | length) > 0 or ($would_enable | length) > 0
+        or ($d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true))
      else
-       (($failed | length) > 0 or ($withheld | length) > 0
-        or .install_enable_deferred == true or .stopped_before_install == true
+       (($failed | length) > 0 or .install_enable_deferred == true
         or ($installed_failed | length) > 0 or ($enabled_failed | length) > 0
-        or (.errors | length) > 0 or ($enable_unfilled | length) > 0
-        or ($install_left | length) > 0
-        or ((.installed_disabled // []) | length) > 0
-        or ((.delisted // []) | length) > 0
-        or ((.delisted_project // []) | length) > 0
-        or ((.delisted_settings_only // []) | length) > 0)
+        or (.errors | length) > 0)
      end) as $needs
   | .timings as $t
   | .source_checkout as $src
   | (($src.behind // 0) > 0) as $behind
   | [
-      "Marketplace: \(.name): \(if $needs then "needs update" elif $behind then "source checkout behind \($src.upstream)" else "current" end) (autoUpdate: \(.auto_update | auto_update_slot))",
+      "Marketplace: \(.name): \(if $needs then "needs update" elif $behind then "source checkout behind \($src.upstream)" else "current" end)"
+      + (if $pending > 0 then ", \($pending) action(s) pending" else "" end)
+      + " (autoUpdate: \(.auto_update | auto_update_slot))",
       # A directory source is read as it is on disk; this row says how fresh that is.
       (if $src == null then empty
        elif $src.state == "not_a_repo" then
@@ -289,7 +332,13 @@ def block($d):
            "Cache content: \($c.stale_content) \($installs) whose cache files disagree with their recorded gitCommitSha",
            ($c.stale[] | (if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end)
                          + (if .unreleased_changes == true then " (unreleased changes pending)" else "" end)),
-           (if ($c.unverifiable // 0) > 0 then "  (checked \($c.checked) \($installs): \($c.match) match, \($c.unverifiable) unverifiable; unverifiable is not a pass)" else empty end),
+           (if ($c.unverifiable // 0) > 0 or ($c.not_checked // 0) > 0 then
+              "  (of \($c.checked) \($installs): \($c.match) match"
+              + (if ($c.unverifiable // 0) > 0 then ", \($c.unverifiable) unverifiable" else "" end)
+              + (if ($c.not_checked // 0) > 0 then ", \($c.not_checked) not checked (recorded at an older commit)" else "" end)
+              + (if ($c.unverifiable // 0) > 0 then "; unverifiable is not a pass" else "" end)
+              + ")"
+            else empty end),
            (if any($c.stale[]; .unreleased_changes == true) then
               "  Unreleased changes pending: the marketplace holds changelog fragments for that plugin, so its files",
               "  changed without a version bump; its next release brings the cache up to date. Leave its cache alone."
@@ -298,8 +347,10 @@ def block($d):
               "  Remediation\(if any($c.stale[]; .unreleased_changes == true) then ", for the rows not marked unreleased" else "" end): remove that version's directory under the plugin cache, then re-run",
               "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
             else empty end)
-         elif ($c.unverifiable // 0) > 0 then
-           "Cache content: \($c.unverifiable) of \($c.checked) \($installs) unverifiable (recorded commit not in the local marketplace clone); no disagreement found among the rest"
+         elif ($c.unverifiable // 0) > 0 or ($c.not_checked // 0) > 0 then
+           "Cache content: \($c.match) of \($c.checked) \($installs) compared, no disagreement found"
+           + (if ($c.not_checked // 0) > 0 then "; \($c.not_checked) not checked (recorded at an older commit)" else "" end)
+           + (if ($c.unverifiable // 0) > 0 then "; \($c.unverifiable) unverifiable, which is not a pass" else "" end)
          else empty end),
 
       (if $t == null then "Timing: n/a"
@@ -318,46 +369,19 @@ def block($d):
             + (if $src.ahead > 0 then "; it also carries \($src.ahead) local commit(s), so --ff-only refuses until they are reconciled" else "" end)
             + (if $src.dirty then "; tracked files are modified, and the pull refuses if it would overwrite them" else "" end)
           else empty end),
-         (if .stopped_before_install == true then
-            "\(.install_gap | length) catalog plugin(s) not installed at user scope (policy ask; stopped before Step 4 pending the batched prompt): \(.install_gap | join(", "))"
-          elif .install_enable_deferred == true and (.install_gap | length) > 0 then
+         (if $install_deferred then
             "install gap deferred (marketplace refresh failed): \(.install_gap | join(", "))"
-          elif ($audit | not) and $d.install_new == "ask" and ($install_left | length) > 0 then
-            "\($install_left | length) catalog plugin(s) offered and not installed (policy ask): \($install_left | join(", ")); ask offers them again on every sync unless they are disabled with enabledPlugins: false"
-          elif ($d.install_new == "none" or ($audit and $d.install_new == "ask")) and (.install_gap | length) > 0 then
-            "\(.install_gap | length) catalog plugin(s) not installed at user scope (policy \($d.install_new)): \(.install_gap | join(", "))"
           else empty end),
-         (if .install_enable_deferred == true and (.enable_gap | length) > 0 then
+         $install_pending[],
+         (if $enable_deferred then
             "enable gap deferred (marketplace refresh failed): \(.enable_gap | join(", "))"
-          elif ($enable_unfilled | length) > 0 then
-            "missing_from_enabled, not enabled this run: \($enable_unfilled | join(", "))"
           else empty end),
-         (.project_enable_rows[]
-          | "project-scope enable gap: (cd \"\(.project_path)\" && claude plugin enable \(.id) -s project)\n    Writes that repo's committed .claude/settings.json; review the diff before committing"),
+         $enable_pending[],
          ($failed[] | "update failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"),
          ($installed_failed[] | "install failed (exit \(.rc)): \(.id): \(reported)"),
          ($enabled_failed[] | "enable failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"),
-         ((.installed_disabled // [])[]
-          | "\(.): installed but not enabled; claude plugin enable \(.) -s user"),
-         (if ((.delisted // []) | length) == 0 then empty
-          elif $audit then
-            "delisted, absent from the unrefreshed catalog: \(.delisted | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
-          else
-            "delisted, absent from the catalog: \(.delisted | join(", ")); uninstall each with `claude plugin uninstall <id> -s user`"
-          end),
-         (if ((.delisted_project // []) | length) == 0 then empty
-          elif $audit then
-            "delisted in this repo, absent from the unrefreshed catalog: \(.delisted_project | map(scoped) | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
-          else
-            (.project_root // "?") as $root
-            | (.delisted_project[] | "delisted in this repo, absent from the catalog: (cd \"\($root)\" && claude plugin uninstall \(.id) -s \(.scope))")
-          end),
-         (if ((.delisted_settings_only // []) | length) == 0 then empty
-          elif $audit then
-            "enabled in settings, not installed, and absent from the unrefreshed catalog: \(.delisted_settings_only | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
-          else
-            "enabled in settings, not installed, and absent from the catalog: \(.delisted_settings_only | join(", ")); remove each key from enabledPlugins in the settings file that sets it"
-          end),
+         $disabled_pending[],
+         $delisted_pending[],
          (if (.user_scope_orphans | length) > 0 then
             "user-scope orphan(s), a project/local record with no user-scope install: \(.user_scope_orphans | join(", "))"
           else empty end),
@@ -374,9 +398,7 @@ def block($d):
          (if ($pnorm | test("^project-unsorted")) then
             "project-scope enabledPlugins map is unsorted (\(.project_root // "?")/.claude/settings.json): converge is the only action that may rewrite it"
           else empty end),
-         (if ($audit | not) and ($withheld | length) > 0 then
-            "downgrade withheld: \($withheld | length) plugin(s), \($withheld | map("\(scoped): \(.installed) → \(.catalog)") | join(", ")); likely cause: marketplace source moved backward (\(.catalog_source // "source unknown")); rerun with --allow-downgrade only if the rollback is intended"
-          else empty end),
+         $withheld_pending[],
          (.errors[] | "error: \(.)")
        ] | if length == 0 then empty else "Action needed:", (.[] | "  - \(.)") end)
     ]

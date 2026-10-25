@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Regression tests for lib/resolve-convention-pattern.sh — the shared commit/PR
 # convention ENFORCEMENT-pattern resolver. Run: bash lib/resolve-convention-pattern.test.sh
+# The resolver is POSIX sh: the cases run it under dash where installed, else
+# sh, and one runs it under bash too.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -9,6 +11,12 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/resolve-convention-pattern.sh"
+if SH="$(command -v dash)"; then
+  echo "running the resolver under $SH"
+else
+  SH="sh"
+  echo "note: dash is not on PATH, so the resolver runs under sh"
+fi
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -46,15 +54,18 @@ newrepo() {
   [[ -n "${2:-}" ]] && printf '%s\n' "$2" >"$d/.claude/source-control.local.md"
   printf '%s' "$d"
 }
-run() { bash "$SCRIPT" "$1" "${2:-subject_pattern}"; }
+run() { "$SH" "$SCRIPT" "$1" "${2:-subject_pattern}"; }
 
 # --- --help ---
-out="$(bash "$SCRIPT" --help)"
+out="$("$SH" "$SCRIPT" --help)"
 assert_exit "--help exits 0" 0 $?
+assert_eq "--help prints the header, not the linter directive" "yes|no" \
+  "$(grep -q '^Usage:' <<<"$out" && echo yes || echo no)|$(grep -q 'shellcheck' <<<"$out" && echo yes || echo no)"
 
 # --- Conventional Commits keyword expands to the canonical ERE ---
 r="$(newrepo $'## subject_pattern\nConventional Commits')"
 assert_eq "CC keyword -> CC_ERE" "$CC_ERE" "$(run "$r")"
+assert_eq "bash resolves it the same" "$CC_ERE" "$(bash "$SCRIPT" "$r" subject_pattern)"
 
 # --- self-describing preamble above the first H2 is inert (setup template) ---
 # /source-control:setup apply writes a prose header for non-plugin readers; the
@@ -373,9 +384,9 @@ track "$r" "$WELL_KNOWN"
 assert_eq "well-known: omitted key -> markdown fallback" '^MDPR: .+' "$(run "$r" pr_title_pattern)"
 
 # --- usage / invalid key ---
-bash "$SCRIPT" >/dev/null 2>&1
+"$SH" "$SCRIPT" >/dev/null 2>&1
 assert_exit "no args -> exit 2" 2 $?
-bash "$SCRIPT" "$TEST_TMPDIR" bogus_key >/dev/null 2>&1
+"$SH" "$SCRIPT" "$TEST_TMPDIR" bogus_key >/dev/null 2>&1
 assert_exit "invalid key -> exit 2" 2 $?
 
 echo ""

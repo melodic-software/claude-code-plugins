@@ -29,7 +29,7 @@ block is composed; the skills section changes how a block's commands are run.
 
 ## Pre-computed context
 
-Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/.claude/bugs.md" 2>/dev/null || echo "absent — bundled default lanes apply"`
+Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/docs/conventions/bugs.yaml" 2>/dev/null || ls "${CLAUDE_PROJECT_DIR:-.}/.claude/bugs.md" 2>/dev/null || echo "absent — bundled default lanes apply"`
 
 Consumer gotchas:
 !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" || echo "(consumer gotchas unavailable)"`
@@ -76,8 +76,10 @@ findings live only in the transcript.
 | `--track` | **Filing** | After reporting, file verified findings as raw intake, subject to `filing_posture` and the Step 7 ladder. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 
-`lanes` and `filing_posture` resolve from `.claude/bugs.md`; keys, layers, and merge semantics live
-only in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). When no layer
+`lanes` and `filing_posture` resolve from `docs/conventions/bugs.yaml`, the team layer; the old
+`.claude/bugs.md` is read only while that file is absent, as the one-release fallback. Keys,
+layers, and merge semantics live only in
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). When no layer
 declares lanes, use the bundled generic default lanes in [`context/lenses.md`](context/lenses.md).
 
 ## Cursor ladder (rotation mode)
@@ -356,7 +358,7 @@ verified, say so and name the lane and rung, so the next run rotates on.
 - **Never declare `type: review-findings` on a scan report.** That frontmatter alone routes a report
   into the `/review:fanout` fix relay; a scan report is intake.
 - **Consumer gotchas extend these.** The pre-computed block holds the `## Gotchas` sections of the
-  `.claude/bugs.md` layers (user-global, team, local overlay) in layer order; apply them to this
+  bugs config layers (user-global, team, local overlay) in layer order; apply them to this
   invocation. A missing layer is absent, not an error. A generalizable line belongs in this
   shipped skill via an issue, not in the consumer file.
 
@@ -367,5 +369,5 @@ verified, say so and name the lane and rung, so the next run rotates on.
 | [`context/lenses.md`](context/lenses.md) | Step 2, writing each hunter's dispatch prompt; also holds the hotspot ranking and the bundled default lanes. |
 | [`context/verification-gate.md`](context/verification-gate.md) | Step 4, before dispatching the refute gate on a candidate. |
 | [`context/findings-report.md`](context/findings-report.md) | Step 5, emitting the report, and rung 2 reading a prior cursor back. |
-| [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) | A `.claude/bugs.md` key decides the run (lane, rotation, filing posture) and its layer is unclear. |
+| [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) | A `docs/conventions/bugs.yaml` key decides the run (lane, rotation, filing posture) and its layer is unclear. |
 | [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md) | Emitting a finding in the five-field shape, running the duplicate scan, or resolving where reports persist. |
