@@ -40,15 +40,12 @@ extraction waits for the third (Rule of Three).
   stays the unaltered fetch. URLs arrive `\&`-escaped. Some real headings arrive as HTML tags
   (`<h2 id="where-skills-live">`, any of `<h1>`-`<h6>` with an `id`) instead of `#` lines, so the
   Phase 2 inventory counts both forms; a `#`-only scan drops an H2 and merges its section into
-  the previous unit. The channel drops custom heading ids and empty span anchors, so a slug
-  derived from a `.md` heading can name an anchor the live page does not have: take every Basis
-  anchor from the rendered page's `id`s, and cite an id that keeps a typographic apostrophe
-  (U+2019) percent-encoded (`%E2%80%99`). Worked examples: the managed-settings page's custom id
-  `present-admin-documents`, and the headless page's
-  `#fail-ci-when-a-plugin-or-mcp-server-doesn%E2%80%99t-load` (probe: list the rendered page's
-  ids with `grep -o 'id="[^"]*"'` and compare them with the `.md` fetch's headings and links;
-  run on both pages, as of 2026-10-25; recheck trigger: a `.md` fetch carries a custom heading
-  id). Digest text reproduces these artifacts
+  the previous unit. A slug derived from a `.md` heading can name an anchor the live page does
+  not have, so take every Basis anchor from the rendered page's `id`s, and cite an id that keeps
+  a typographic apostrophe (U+2019) percent-encoded (`%E2%80%99`). Probe for a page: list its
+  rendered ids with `grep -o 'id="[^"]*"'` and compare them with the anchors the `.md` fetch
+  implies (as of 2026-10-25; recheck trigger: a `.md` fetch carries every rendered heading id).
+  Digest text reproduces these artifacts
   byte-exact and never repairs them. The reader-facing exception under **Archive-reading
   conventions** covers escaped links: a downstream artifact written *for a reader* repairs the
   corruption and discloses that it did.
@@ -162,7 +159,7 @@ archive wrong in a way its own verification cannot catch:
   malformed auto-links are reproduced byte-exact so a verifier can tell faithful reproduction from
   digest transcription error. The three blog-channel extraction artifacts under **Fetch channel**
   above, and the `code.claude.com` raw-md register (Documentation-Index banner, `theme={null}`
-  fences, hard-tab expansion, `\&`-escaped URLs, dropped custom heading ids), are this rule's standing instances. One
+  fences, hard-tab expansion, `\&`-escaped URLs), are this rule's standing instances. One
   exception, and it runs the other way: a downstream artifact reproducing a known-corrupt entry
   *for a reader* rather than for verification repairs the corruption and says that it did,
   escaped links included.
