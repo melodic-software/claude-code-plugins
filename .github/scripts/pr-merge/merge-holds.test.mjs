@@ -597,10 +597,10 @@ test("linkHold binds a pass to the issue and link kind it judged", () => {
   assert.equal(linkHold(record(5, "refs"), "<!-- Refs: #5 -->", closes(), "o/r"), null);
   assert.equal(linkHold(record(5, "closes"), "Closes #5", closes(5, 6), "o/r"), null);
   assert.match(linkHold(record(5, "closes"), "Closes #6", closes(6, 7), "o/r"), /it closes #6, #7, and the pass judged #5/);
-  assert.equal(
-    linkHold(record(5, "closes"), "Closes x/y#5", { totalCount: 1, nodes: [{ number: 5, repository: { nameWithOwner: "x/y" } }] }, "o/r"),
-    null,
-  );
+  // Closing issues all in another repository drop the judged one.
+  const foreign = { number: 5, repository: { nameWithOwner: "x/y" } };
+  assert.match(linkHold(record(5, "closes"), "Closes x/y#5", { totalCount: 1, nodes: [foreign] }, "o/r"), /it closes x\/y#5, and the pass judged #5/);
+  assert.equal(linkHold(record(5, "closes"), "Closes x/y#5\nCloses #5", { totalCount: 2, nodes: [foreign, ...closes(5).nodes] }, "o/r"), null);
   assert.match(linkHold(record(5, "pull-request"), "", closes(), "o/r"), /kind 'pull-request'/);
   assert.match(linkHold(null, "Closes #5", closes(5), "o/r"), /record could not be read/);
   assert.match(linkHold({ linked_issues: [{ number: 5 }, { number: 6 }] }, "Closes #5", closes(5), "o/r"), /link changed/);

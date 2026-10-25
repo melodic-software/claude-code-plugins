@@ -114,10 +114,10 @@ export function refsIssue(body) {
 // live link, or null when it does. The live link is its closing issues in
 // `repo`, or, with no closing issue at all, the one issue its plain `Refs:`
 // lines name (refsIssue). The pass binds unless the live link names an issue
-// and drops the one it judged, or names only that issue linked another way
-// (its `spec_kind`, `closes` when absent, as the reader reads an older
-// record). A link of no issue, or of more than one, holds nothing here: the
-// fix loop rewrites it.
+// and drops the one it judged (closing issues all in another repository drop
+// it), or names only that issue linked another way (its `spec_kind`, `closes`
+// when absent, as the reader reads an older record). A link of no issue, or
+// of more than one, holds nothing here: the fix loop rewrites it.
 export function linkHold(record, body, closing, repo) {
   if (record === null || typeof record !== "object" || !Array.isArray(record.linked_issues)) {
     return "its verifier pass's record could not be read";
@@ -135,8 +135,9 @@ export function linkHold(record, body, closing, repo) {
   const live = linked === "closes" ? closing.nodes.filter(own).map((issue) => issue.number) : refs === null ? [] : [refs];
   const judged = record.linked_issues.map((issue) => issue?.number);
   const [only] = judged;
-  if (judged.length !== 1 || (live.length > 0 && !live.includes(only)) || (live.length === 1 && kind !== linked)) {
-    return `its link changed since pr-verify passed it: it ${linked} ${live.map((n) => `#${n}`).join(", ") || "no issue"}, and the pass judged ${judged.map((n) => `#${n}`).join(", ") || "no issue"} (${kind})`;
+  if (judged.length !== 1 || ((linked === "closes" || live.length > 0) && !live.includes(only)) || (live.length === 1 && kind !== linked)) {
+    const named = linked === "closes" ? closing.nodes.map((issue) => `${own(issue) ? "" : issue?.repository?.nameWithOwner}#${issue?.number}`) : live.map((n) => `#${n}`);
+    return `its link changed since pr-verify passed it: it ${linked} ${named.join(", ") || "no issue"}, and the pass judged ${judged.map((n) => `#${n}`).join(", ") || "no issue"} (${kind})`;
   }
   return null;
 }
