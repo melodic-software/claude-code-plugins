@@ -87,6 +87,13 @@ layer() {
   mkdir -p "$(dirname "$1")"
   # shellcheck disable=SC2016  # the backticks are literal Markdown, not a command substitution
   printf '# Source control\n\n## subject_pattern\n\nConventional Commits\n\n## branch_issue_pattern\n\n`%s`\n\n## trailer_policy\n\nnone\n' "$2" >"$1"
+  track "$1"
+}
+
+# `track <file>` stages a file the case wrote inside its repo, since a team file
+# is a config layer only when git tracks it. Outside a git repo it does nothing.
+track() {
+  git -C "$CASE_REPO" add -f -- "$1" >/dev/null 2>&1 || true
 }
 
 new_case() {
@@ -99,6 +106,7 @@ new_case() {
 layer_raw() {
   mkdir -p "$(dirname "$1")"
   printf '%s' "$2" >"$1"
+  track "$1"
 }
 
 # run_cfg <desc> <branch> <pattern-arg> <env-value|-> <want-out> <want-exit> <stderr-check> [<stderr-absent>]
@@ -475,6 +483,7 @@ fi
 yaml_layer() {
   mkdir -p "$(dirname "$1")"
   printf '%s\n' 'pr_open_state: ready' "branch_issue_pattern: '$2'" >"$1"
+  track "$1"
 }
 
 # run_explain <desc> <branch> <want-out> <want-layer-ERE>
@@ -509,6 +518,7 @@ run_explain "the layer is the YAML when both files carry the key" "feat/12-add-w
 new_case
 mkdir -p "${CASE_REPO}/docs/conventions"
 printf '%s\n' 'pr_open_state: ready' >"${CASE_REPO}/docs/conventions/source-control.yaml"
+track "${CASE_REPO}/docs/conventions/source-control.yaml"
 layer "${CASE_REPO}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
 run_cfg "the legacy markdown is read when the YAML lacks the key" "alice.b/1234-fix" "" - "1234" 0 empty
 run_explain "the resolver names the legacy file when the YAML lacks the key" "alice.b/1234-fix" "1234" \
@@ -540,6 +550,19 @@ new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '^[^/]+/([0-9]+)-'
 run_cfg "the YAML beats a userConfig positional, no deprecation note" \
   "alice.b/1234-fix" '^[a-z]+/([0-9]+)-' - "1234" 0 empty
+
+new_case
+yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '-([0-9]+)$'
+git -C "$CASE_REPO" rm -q --cached -- docs/conventions/source-control.yaml
+layer "${CASE_REPO}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+run_cfg "an untracked team YAML is ignored, the tracked legacy file supplies the pattern" \
+  "feat/12-add-widget-1234" "" - "12" 0 "source-control\.yaml is not tracked by git"
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+git -C "$CASE_REPO" rm -q --cached -- .claude/source-control.md
+run_cfg "an untracked legacy team file is ignored, the default applies" \
+  "feat/12-add-widget-1234" "" - "12" 0 "\.claude/source-control\.md is not tracked by git"
 
 new_case
 run_explain "the default is the named layer when nothing is configured" "feat/42-x" "42" 'default$'

@@ -24,8 +24,9 @@
 #      `$HOME/.claude/source-control.md`. The team layer is the
 #      `branch_issue_pattern` key of `<repo>/docs/conventions/source-control.yaml`;
 #      only when that file lacks the key is the legacy
-#      `<repo>/.claude/source-control.md` read, for one release. A team YAML the
-#      shared reader rejects stops resolution. `--explain` prints the layer that
+#      `<repo>/.claude/source-control.md` read, for one release. Either team
+#      file is read only when git tracks it; an untracked one is skipped with a
+#      note. A team YAML the shared reader rejects stops resolution. `--explain` prints the layer that
 #      supplied the pattern on stderr.
 #      In a markdown layer the value is the `## branch_issue_pattern` section's
 #      first non-blank line, surrounding backticks
@@ -282,9 +283,18 @@ if [[ -n "$REPO_ROOT" ]]; then
       TEAM_YAML="${REPO_ROOT}/${CONVENTION_KEY_YAML_REL}"
       config_root_paths_same "$overlay" "$USER_LAYER" || LAYERS+=("$overlay")
       # The team layer is the YAML; the legacy markdown file follows it and is
-      # read only when the YAML lacks the key.
-      LAYERS+=("$TEAM_YAML")
-      config_root_paths_same "$team" "$USER_LAYER" || LAYERS+=("$team")
+      # read only when the YAML lacks the key. Either is a layer only when git
+      # tracks it, as in the commit skill.
+      team_files=("$TEAM_YAML")
+      config_root_paths_same "$team" "$USER_LAYER" || team_files+=("$team")
+      for file in "${team_files[@]}"; do
+        rel="${file#"${REPO_ROOT}/"}"
+        if convention_key_tracked "$REPO_ROOT" "$rel"; then
+          LAYERS+=("$file")
+        elif [[ -e "$file" ]]; then
+          note "${rel} is not tracked by git, so it is not a config layer"
+        fi
+      done
       ;;
   esac
 fi

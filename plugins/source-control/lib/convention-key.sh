@@ -31,6 +31,12 @@ CONVENTION_KEY_YAML_REL="docs/conventions/source-control.yaml"
 CONVENTION_KEY_MD_REL=".claude/source-control.md"
 CONVENTION_KEY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# True when git tracks the repo-relative file REL under ROOT. An untracked or
+# gitignored team file is not a config layer (skills/commit/SKILL.md).
+convention_key_tracked() {
+  git -C "$1" ls-files --error-unmatch -- "$2" >/dev/null 2>&1
+}
+
 # Print the parser's key<TAB>value records for the team YAML under ROOT, nothing
 # when the file is absent. Returns 3 when the parser rejects the file; a key
 # repeated in one mapping is a rejection too.
