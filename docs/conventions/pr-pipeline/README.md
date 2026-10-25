@@ -579,8 +579,9 @@ a job that loads the head would run), `agent-instructions` (`**/CLAUDE.md`, `**/
 review CLI loads from the head's checkout, so a lane could steer the review judging it),
 `**/.gitattributes` (a `-diff` or `binary` attribute hides a file's text from the review's diff),
 a symbolic link, a gitlink, a backslash path, and a rename into any of those, with its source. The
-row's `max-files`, `allow` and `content-rule` see every change, kept ones included, so a narrow row
-never hands on a withheld change it would not admit. A kept path is never a stop: on a `[head]` row
+row's `max-files`, `allow` and `content-rule` see every change, kept ones included (the content
+rule skips a symbolic link or gitlink, which its own refusal keeps), so a narrow row never hands on
+a withheld change it would not admit. A kept path is never a stop: on a `[head]` row
 `apply-patch.mjs` withholds each kept change, pushes the rest, and writes the withheld part as
 `kept.diff` (`KEPT_PATCH_DIR`, its SHA-256 the step's `kept-sha256` output) beside `kept.json`,
 a manifest naming the commit it applies to (the one pushed, else the gated head), the SHA-256,

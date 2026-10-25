@@ -864,8 +864,8 @@ export async function push({
     return escalate("invalid", `the patched ${leaked.path} carries a credential shape`);
   }
   // The row's max-files, allow and content rules see every change, kept ones
-  // included, so a narrow row never hands on a withheld change it would not
-  // admit.
+  // included (but a link, below), so a narrow row never hands on a withheld
+  // change it would not admit.
   if (row["max-files"] !== null && entries.length > row["max-files"]) {
     return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
   }
@@ -873,7 +873,11 @@ export async function push({
   if (outside) {
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
-  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
+  // A symbolic link or gitlink is kept by its own refusal, so the content
+  // rule, which reads file bytes, never judges one.
+  const linkMode = (entry) => [entry.oldMode, entry.newMode].some((mode) => mode === SYMLINK || mode === GITLINK);
+  const contentRefusal =
+    row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries: entries.filter((entry) => !linkMode(entry)), git, context });
   if (contentRefusal) {
     return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
   }

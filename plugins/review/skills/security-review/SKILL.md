@@ -205,6 +205,8 @@ one the diff touches with what the change lets run, load or merge:
 - the lanes' own apply and collect code (`.github/scripts/apply-patch/**`,
   `.github/scripts/read-patch/collect-patch.sh`) and their settings
   (`docs/conventions/pr-pipeline.yaml`)
+- the review criteria a reviewer reads from the head: `REVIEW.md` and the synced standards it and
+  the skills cite (`docs/standards/**`)
 
 A workflow, a `settings*.json`, an agent instruction file (`AGENTS.md`, `CLAUDE.md`,
 `CLAUDE.local.md`, anything under `.claude/`), a `.mcp.json` or `.lsp.json`, and a

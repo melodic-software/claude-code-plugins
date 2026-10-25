@@ -665,6 +665,21 @@ test("dependency-review: a kept path beside a version bump escalates patch-prote
   }
 });
 
+// A symbolic link or gitlink is kept by its refusal, so the content rule
+// never judges it and the log names the refusal, not the content rule.
+test("dependency-review: a manifest turned into a symbolic link beside a version bump is withheld by its symlink refusal", async (t) => {
+  const fix = dependencyPatch(t, (repo) => {
+    bump(repo);
+    rmSync(join(repo, "requirements.txt"));
+    symlinkSync("package.json", join(repo, "requirements.txt"));
+  });
+  const lines = [];
+  const result = await dependencyPush(fix, fakeApi(fix.repo, fix.head), { log: (line) => lines.push(line) });
+  assert.equal(result.outcome, "pushed", lines.join("\n"));
+  assert.deepEqual(result.kept.paths, ["requirements.txt"]);
+  assert.ok(lines.includes("withheld (symlink): requirements.txt"), lines.join("\n"));
+});
+
 test("max-files counts the kept paths too", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     writeFileSync(join(repo, "README.md"), "# changed\n");
