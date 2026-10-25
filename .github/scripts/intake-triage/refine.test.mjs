@@ -418,8 +418,10 @@ describe("applyRefinement", () => {
     );
   });
 
-  // Owner decision Q9: admission reads criteria only from a listed human's
-  // text, so a re-triage on the App's text alone would only refuse again.
+  // Owner decisions Q9 and Q78: admission reads criteria from a listed
+  // human's text and, on an issue a listed human filed, the newest unedited
+  // refinement, this one once posted; a re-triage on other text would only
+  // refuse again.
   for (const [branch, setup] of [
     ["the App's needs-decision", { issue: issueOf(), events: labeledBy(APP) }],
     ["a status: ready issue awaiting admission", { issue: issueOf({ labels: [{ name: "status: ready" }] }), events: [] }],
@@ -450,6 +452,23 @@ describe("applyRefinement", () => {
       assert.deepEqual(done, ["POST /repos/o/r/issues/7/labels", ...lifted, "POST /repos/o/r/issues/7/comments"]);
       assert.deepEqual(writes(fake.calls)[0].body, { labels: ["needs-triage"] });
       assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
+    });
+
+    test(`an exact refinement of ${branch} re-triages over an older unedited refinement with no task list: the newest counts`, async () => {
+      const older = { body: `${REFINE_MARKER}\nAn earlier refinement with no criteria.`, lastEditedAt: null, author: actor(APP), editor: null };
+      const spec = { ...specOf(), comments: { totalCount: 1, nodes: [older] } };
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+    });
+
+    test(`an exact refinement of ${branch} past admission's comment window keeps the labels: admission would not read it`, async () => {
+      const spec = { ...specOf(), comments: { totalCount: 100, nodes: [] } };
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+      );
     });
 
     test(`an exact refinement of ${branch} the lanes App filed with no task list keeps the labels: its refinement is no one's spec`, async () => {

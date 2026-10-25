@@ -84,7 +84,7 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { earlierFlags, LANES_APP_LOGIN, MARKER, ownVerdict } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
@@ -653,11 +653,12 @@ export async function applyRefinement({ github, repository, number, appId, human
   // a listed human filed, the newest unedited refinement, so a re-triage
   // without them would refuse again. It judges the spec as it will read once
   // this refinement is posted, as the newest comment: one read, before any
-  // label write.
+  // label write. Past admission's comment window the refinement is unread
+  // and admission refuses, so it asks for no triage.
   const untrusted = async () => {
     const spec = await specOf(github, repository, number);
     const refinement = { body: render(output, { body: issue.body, retriage: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
-    if (hasTrustedCriteria({ ...spec, comments: [...spec.comments, refinement] }, humans, rules["task-list"], appId)) {
+    if (spec.commentCount < SPEC_COMMENTS && hasTrustedCriteria({ ...spec, comments: [...spec.comments, refinement] }, humans, rules["task-list"], appId)) {
       return false;
     }
     await post();
@@ -676,7 +677,8 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "needs-decision", redispatch: false };
   }
   // A `status: ready` issue admission has not taken (no needs-decision, no
-  // agent-ready) is triaged again when a listed human's text holds criteria.
+  // agent-ready) is triaged again when the text admission counts, with this
+  // refinement posted, holds criteria.
   if (!labels.includes(NEEDS_DECISION)) {
     if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
       await post();
