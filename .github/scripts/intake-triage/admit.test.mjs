@@ -1262,6 +1262,14 @@ describe("a Feature under a parent at status: needs-decision", () => {
     assert.equal((await go(withParent({ comments: [verdict("intent"), decision] }))).outcome, "admitted");
   });
 
+  test("is admitted when the parent's only verdict holds nothing and no refinement exists", async () => {
+    const holdsNothing = {
+      ...verdict("intent"),
+      body: [VERDICT_MARKER, "The latest triage verdict holds nothing: admission moved the issue to needs-decision; its comment says why."].join("\n"),
+    };
+    assert.equal((await go(withParent({ comments: [holdsNothing] }))).outcome, "admitted");
+  });
+
   test("is refused when the parent also carries needs-human", async () => {
     const fake = withParent({ labels: [NEEDS_DECISION, "needs-human"] });
     assert.ok(refusedForParent(await go(fake)));

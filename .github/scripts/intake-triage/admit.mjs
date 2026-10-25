@@ -567,7 +567,8 @@ export const refinementExact = (body) => {
 // Whether `parent` (an issue at `status: needs-decision`, as just read) still
 // awaits a decision: the lanes App (`appId`) may not lift the label
 // (decisionStays), or the App's newest refinement on it is not exact
-// (refinementExact), or it has no refinement but an App verdict, and no
+// (refinementExact), or it has no refinement but an App verdict flagging
+// intent, and no
 // decision comment of a listed human's (select-trusted-text's
 // isDecisionComment) is newer. A parent in another
 // repository, or any failed read, counts as open.
@@ -584,8 +585,8 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
     const refinement = comments.findLast(
       (comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER),
     );
-    // With no refinement yet, the App's verdict is what still asks.
-    const asking = refinement ?? ownVerdict(comments, appId);
+    // With no refinement yet, an App verdict that flags intent is what still asks.
+    const asking = refinement ?? (earlierFlags(comments, appId)?.includes("intent") ? ownVerdict(comments, appId) : undefined);
     if (asking === undefined || (refinement !== undefined && refinementExact(refinement.body))) {
       return false;
     }
