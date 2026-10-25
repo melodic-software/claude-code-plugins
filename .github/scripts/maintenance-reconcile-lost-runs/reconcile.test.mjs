@@ -8,9 +8,10 @@
 // githubstatus.com components response, trimmed. A pr-verify run whose first
 // attempt ended cancelled, timed_out, startup_failure or failure is re-run
 // once, only after the plan names its record
-// reconcile-rerun-<run id>-2-<head sha> for the upload steps, and only when a
-// job of that attempt started; pr-verify run shapes follow a recorded
-// workflow_run run (head_branch main, head_sha the main tip, no pull_requests).
+// reconcile-rerun-<run id>-2-<head sha> for the upload steps, only when a
+// job of that attempt started, and never when its judge step succeeded;
+// pr-verify run shapes follow a recorded workflow_run run (head_branch main,
+// head_sha the main tip, no pull_requests).
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -468,12 +469,42 @@ test("pr-verify still names its judge step as the reconciler reads it", () => {
   assert.equal(names[names.indexOf(JUDGE_STEP) - 1], JUDGE_PREDECESSOR);
 });
 
-test("a verify run lost after its judge step started is recorded and re-run once", async () => {
-  for (const conclusion of ["success", "failure", "cancelled"]) {
+test("a verify run lost during its judge step is recorded and re-run once", async () => {
+  for (const conclusion of ["failure", "cancelled"]) {
     const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: verifyJob(conclusion) }] });
     assert.equal(code, 0, conclusion);
     assert.deepEqual(reruns, [201], conclusion);
     assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""], conclusion);
+  }
+});
+
+// A judgment that finished may hold a FAIL its run then failed to write or
+// upload; a re-run would judge the head a second time.
+test("a verify run whose judge step succeeded is held with its reason, not re-run, even when the upload failed", async () => {
+  const [job] = verifyJob("success");
+  const steps = job.steps.flatMap((s) =>
+    s.name === "Upload the verdict"
+      ? [
+          { name: "Write the verdict", status: "completed", conclusion: "success" },
+          { ...s, conclusion: "failure" },
+        ]
+      : [s],
+  );
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-summary-"));
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const { code, reruns, outputs } = await reconcile({
+      pulls: [],
+      runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: [{ ...job, conclusion: "failure", steps }] }],
+      env: { GITHUB_STEP_SUMMARY: summary },
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+    assert.match(readFileSync(summary, "utf8"), /lane run 201 \(\.github\/workflows\/pr-verify\.yml\) ended failure after its judge step succeeded/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

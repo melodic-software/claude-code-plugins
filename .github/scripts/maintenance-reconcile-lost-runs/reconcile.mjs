@@ -22,10 +22,12 @@
 //   wait for this re-run unless it is already queued or going, so it may run
 //   beside a fix-ci run (CI minutes, no model).
 // - Lane: a pr-verify run whose first attempt ended as above or failure (a
-//   judgment that broke, or a run the kill switch stopped, which fails). Its
-//   trigger check trusts a re-run github-actions[bot]
-//   starts only through this workflow's record of it, the artifact
-//   rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
+//   judgment that broke, or a run the kill switch stopped, which fails), and
+//   whose judge step did not succeed: a judgment that finished is never taken
+//   again, so a FAIL a later step lost to a write or upload error is held for a
+//   person, with the reason in the summary. Its trigger check trusts a re-run
+//   github-actions[bot] starts only through this workflow's record of it, the
+//   artifact rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
 //   plan step names each record, the workflow uploads them, and only then does
 //   the act step re-run the run, so the record exists before the re-run. The
 //   same holds for each CI re-run that carries a record.
@@ -107,10 +109,12 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // starts it again, so its failed jobs are re-run once. Adding the label is
 // idempotent, so the re-run is safe whatever the failure was.
 export const INTAKE_LABEL = ".github/workflows/intake-label-needs-triage.yml";
-// A lost lane run whose steps listed in full is re-run once whether or not its
-// judge step started (a cut list is held below). The re-run grants nothing: a
-// FAIL the first attempt uploaded counts whatever the run's conclusion, so a
-// second judgment cannot clear it, and attempt 2 is never re-run. Cancelling
+// A lost lane run whose steps listed in full is re-run once when it was lost
+// before or during its judgment (a cut list is held below). One whose judge
+// step succeeded is held: the judgment may be a FAIL that a later write or
+// upload step lost, and a re-run would sample the head a second time. A FAIL
+// the first attempt uploaded counts whatever the run's conclusion, so a second
+// judgment cannot clear it, and attempt 2 is never re-run. Cancelling
 // a run is not what prevents this: the lanes App token has no actions: write,
 // but the ci-status job in pr-require-checks.yml does hold it. A run none of
 // whose jobs started is left alone: GitHub
@@ -241,7 +245,8 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
 const NOT_STARTED = "before any of its jobs started";
 
 // Why the run's first attempt must not be re-run, or undefined when it may be:
-// no job started any step. An unreadable listing throws.
+// no job started any step, or a judge step succeeded. An unreadable listing
+// throws.
 async function holdReason(call, repo, runId) {
   const listing = await call("GET", `/repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -262,6 +267,11 @@ async function holdReason(call, repo, runId) {
   // step or its predecessor stays held rather than read as a lost runner.
   if (cut.some((job) => job.steps?.some((s) => s?.name === JUDGE_PREDECESSOR || s?.name === JUDGE_STEP))) {
     return "after its judge step may have started";
+  }
+  // A finished judgment may be a FAIL the run then failed to write or upload;
+  // a re-run would judge the head a second time.
+  if (started.some((s) => s.name === JUDGE_STEP && s.conclusion === "success")) {
+    return "after its judge step succeeded, so a re-run would judge the head again";
   }
   return started.length === 0 ? NOT_STARTED : undefined;
 }

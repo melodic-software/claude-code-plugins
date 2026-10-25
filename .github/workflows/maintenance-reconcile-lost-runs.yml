@@ -10,8 +10,10 @@ name: maintenance-reconcile-lost-runs
 # re-run and is never touched again. A pr-verify run is also re-run when its
 # first attempt failed: a judgment that broke after it started, or a run the
 # lanes kill switch stopped, which fails so that it is re-run once the switch
-# is off. A pr-verify run none of whose jobs started is not re-run: a newer run
-# for the same head judges it.
+# is off. A pr-verify run whose judge step succeeded is not re-run, even when a
+# later write or upload step failed, so a head is never judged twice; the
+# summary names the hold. A pr-verify run none of whose jobs started is not
+# re-run: a newer run for the same head judges it.
 #
 # A CI run on the PR's current head that ended failure only from an outside
 # outage (each failed job hit its time limit, failed in an install step, or
