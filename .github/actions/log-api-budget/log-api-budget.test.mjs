@@ -291,13 +291,41 @@ test("gh guard: a paginated secondary or abuse-detection limit waits the minute;
     }
   }));
 
-test("gh guard: a 200 that spends the last request prints its body, records its reading and returns 1", () =>
+// The call got a good answer, so it keeps gh's status: a caller that read a
+// failure would retry a write GitHub already accepted. The next call is
+// refused.
+test("gh guard: a 200 that spends the last request keeps its body and status 0, and stops the pool", () =>
   withDir((dir) => {
-    const out = guarded(dir, ['200 0 - {"ok":1}'], 'body=$(gh api repos/o/r) || echo "rc=$?"\necho "$body"');
-    assert.equal(out.stdout, 'rc=1\n{"ok":1}\n');
+    const out = guarded(
+      dir,
+      ['200 0 - {"ok":1}', "200 4000 - {}"],
+      'body=$(gh api repos/o/r) && echo "rc=0"\necho "$body"\ngh api repos/o/r/pulls >/dev/null || echo "next=$?"',
+    );
+    assert.equal(out.stdout, 'rc=0\n{"ok":1}\nnext=1\n');
+    assert.equal(out.calls.length, 1);
     assert.match(state(dir, "github-token"), /^200 5000 0 /);
-    assert.match(out.stderr, /; the call returns 1$/m);
-    assert.doesNotMatch(out.stderr, /this step fails/);
+    assert.match(out.stderr, /; its answer stands, and later calls to it are refused$/m);
+    assert.equal(stopFor(dir)[0], "core");
+  }));
+
+test("gh guard: a POST answered 200 with remaining 0 returns 0, so no caller resends the write", () =>
+  withDir((dir) => {
+    for (const flag of ["", "-i "]) {
+      rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+      const out = guarded(dir, ['200 0 - {"id":1}'], `gh api ${flag}-X POST repos/o/r/issues/1/comments -f body=x >/dev/null && echo sent`);
+      assert.equal(out.stdout, "sent\n", flag);
+      assert.equal(out.calls.length, 1, flag);
+    }
+  }));
+
+test("gh guard: a refused answer still returns 1 on both paths", () =>
+  withDir((dir) => {
+    for (const flag of ["", "-i "]) {
+      rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+      const out = guarded(dir, ['403 0 - {"message":"API rate limit exceeded"}'], `gh api ${flag}repos/o/r >/dev/null || echo "rc=$?"`);
+      assert.equal(out.stdout, "rc=1\n", flag);
+      assert.match(out.stderr, /; the call returns 1$/m, flag);
+    }
   }));
 
 test("gh guard: a stop-file line whose reset is not a number stops nothing", () =>
@@ -411,6 +439,14 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       assert.match(last, new RegExp(`\\n {10}tokens: ${token}\\n?\\s*$`), `${file} ${job} logs ${token}`);
     }
   }
+});
+
+// ci-status has no checkout of the schema, so its wrapper's floor is set in
+// the job env, pinned here to the schema default the Node guard reads.
+test("ci-status sets the shell read floor to the schema's read-floor default", () => {
+  const floor = /\n {6}API_BUDGET_READ_FLOOR: "?([0-9.]+)"?\n/.exec(CI);
+  assert.ok(floor, "ci-status sets API_BUDGET_READ_FLOOR");
+  assert.equal(Number(floor[1]), apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]);
 });
 
 test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () => {

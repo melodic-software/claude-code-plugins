@@ -62,6 +62,16 @@
       "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "*" }
     },
     {
+      "name": "secondary 403 with remaining 0 still stops every pool, until x-ratelimit-reset",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues",
+        "status": 403,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "You have exceeded a secondary rate limit." }
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792751600, "pool": "*" }
+    },
+    {
       "name": "primary rate-limit 403 with no headers stops every pool for an hour, past any primary reset",
       "input": { "url": "https://api.github.com/repos/o/r", "status": 403, "headers": {}, "body": "{\"message\":\"API rate limit exceeded for installation ID 1.\"}" },
       "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792751600, "pool": "*" }

@@ -141,6 +141,19 @@ test("a secondary limit with no retry-after waits one minute", async () => {
   assert.deepEqual(time.slept, [61_000]);
 });
 
+// The only guessed stop short enough to wait out is the documented minute; a
+// primary limit with no time is guessed at an hour, past the default cap.
+test("a primary limit with no reset header, a guessed hour, is not waited on or resent", async () => {
+  const gh = github([{ status: 403, body: '{"message":"API rate limit exceeded for installation."}', headers: {} }]);
+  const time = clock(RESET - 3000);
+  const budget = budgeted({ fetch: gh.fetch, log: () => {}, ...time });
+  const response = await budget.fetch("https://api.example/repos/o/r/x", { headers: {} });
+  assert.equal(response.status, 403);
+  assert.equal(response.rateLimited, true);
+  assert.deepEqual(time.slept, []);
+  assert.equal(gh.sent.length, 1);
+});
+
 test("a reset past the wait cap fails at once and names the reset", async () => {
   const gh = github([limited({ "x-ratelimit-reset": String(RESET) })]);
   const lines = [];

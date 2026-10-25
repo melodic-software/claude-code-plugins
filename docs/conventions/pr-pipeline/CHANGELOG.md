@@ -1,5 +1,25 @@
 # Changelog for the PR pipeline convention
 
+## [5.5.0] - 2026-10-24
+
+### Added
+
+- Intake writes a native blocked-by edge for each open issue in the repository the triage names on a new `Blocked by: none|#N[, #M]` verdict line, before admission reads the blockers; only `#<number>` tokens count, the issue itself, pull requests, closed and other-repository issues and existing edges are skipped, and at most 50 are written (`.github/scripts/intake-triage/edges.mjs`, `.github/workflows/intake-triage.yml`).
+
+### Changed
+
+- Intake admission now treats a blocker closed as not planned or a duplicate as no longer blocking, and reads another repository's blocker there instead of waiting on it for good. A blocker here still needs a close by a listed human or a merge; another repository's blocker counts only on a listed human's close.
+- Intake admission takes the unblocked issues oldest first: an issue that passes the rules while an older open issue waits in `admission-deferred` is deferred behind it, and the hourly sweep admits them in order. While the sweep still counts only completed or merged blockers in this repository, an issue that rests on any other blocker never gets `admission-deferred`, which the sweep would drop without admitting it: with room it is admitted without that wait, and with the lane full it waits with a comment.
+- The admission refusal comment no longer asks a person to add `agent-ready` by hand; it names what admission needs.
+- An issue admission would refuse only for Size Large (split at intake pending, owner Q93) is parked instead: it keeps `status: ready`, gets no `status: needs-decision`, loses `admission-deferred` and gets a comment naming what it waits on. Any other refusal reason still refuses and names both.
+
+- Intake triage stops an issue for a person only on intent or security. A `status: needs-decision` or `status: needs-info` the lanes App set on an earlier run gives way to a clean verdict and is taken off only when the App's earlier verdict comment lists no `flagged:` reason; a listed flag, or no App verdict comment at all (an issue held before these comments), keeps the hold, and the new comment carries it forward; `needs-human` is never lifted, whoever set it, and a hold from the triage run's own escalation, a listed human or an unread setter still holds. A `needs-triage` the triage left no longer keeps a clean verdict from `status: ready` and is taken off after the verdict. An issue field a listed human set to another value is kept and is the value admission reads, without a hold; one from any other setter still holds. GitHub keeping other field options than `models.issue-dimensions` maps fails the run without adding `status: needs-decision`. Whenever the verdict sets `status: needs-decision`, the reasons go on the issue in one lanes App comment edited in place, not only in the step summary; a held verdict writes that comment before its labels and, when the write fails, adds no label and removes none but `status: ready`, names the failure in the step summary and fails the job, so no hold lands without its record; a ready verdict that admission refused or did not finish leaves that comment too, and a failed write there still rewords the lane comment and fails the job (`.github/scripts/intake-triage/apply-verdict.mjs`).
+
+### Fixed
+
+- ci-status fails a ready pull request whose review lane the kill switch stopped (`CLAUDE_LANES_DISABLED`, `CLAUDE_LANES_REPO_DISABLED`, or a lane's own `CLAUDE_REVIEW_DISABLED` or `CLAUDE_SECURITY_REVIEW_DISABLED`), naming the lane: "did not run on <head> (<run>): a kill switch was on when it started. Once it is off, re-run all jobs of <run>; ci-status re-runs when it finishes." Before, a stopped lane passed, so a head pushed while the switch was on could merge with no review. The kill switch pauses review and never waives it; the admin bypass stays the break-glass.
+- ci-status reads only review runs from this repository's head. A fork's run on the same commit, even the newest, no longer decides a lane, and a pull request whose head is a fork fails as a fork before any run is read.
+
 ## [5.4.0] - 2026-10-24
 
 ### Changed

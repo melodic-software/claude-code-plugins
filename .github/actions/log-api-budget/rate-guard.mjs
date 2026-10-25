@@ -162,7 +162,8 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
       ? best
       : [nowSeconds + (best || secondary ? SIGNALS.fallbackSeconds : SIGNALS.primaryFallbackSeconds), "fallback"];
   const resource = String(get("x-ratelimit-resource") ?? "");
-  const every = retryAfter !== null || ((message || tooMany) && remaining !== 0);
+  // A secondary limit is not per resource, whatever remaining says.
+  const every = retryAfter !== null || secondary || ((message || tooMany) && remaining !== 0);
   const pool = every ? "*" : /^[a-z_]+$/.test(resource) ? resource : poolOf(url);
   return { latched, low, reset_source: source, reset: at, pool };
 }
