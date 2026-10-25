@@ -195,37 +195,62 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 A session PR is one a person on the trusted-actor list (`kind: human`) opened, which the session
 that wrote it may still push to (owner rule, 2026-10-24: after `agent-ready` a person is needed only
 for unclear or changed intent, a high security risk, or induced cost). `address-feedback` works it
-as above when no body line starts with `Hold:` (read as [Adoption](#adoption) reads it) and a
-trusted person (a `User` on the list) made the newest `labeled` event of the `lanes-may-fix` label
-still on it. The idle path is off until the owner sets `adoption.feedback-idle-minutes`
-([Adoption](#adoption)); this repository leaves it unset, since the lease protects the branch but
-not a session's unpushed local work. Once set, a session PR also goes without the label when its
-head was pushed at least `feedback-idle-minutes` ago. The push time is the creation of the earliest
-completed review run at the head, since a `pull_request` run starts on the push; an unreadable time
-is not idle, and a lane's own push restarts the wait. A label anyone else added
-counts as no label. A trusted App's PR is not a session PR. A review completion on a session PR's
-branch starts no dispatch job (the job takes only `work-resolve-issue/issue-` branches), so the
-half-hourly sweep is its path: each tick it also takes a labeled (or, with the idle path on, any)
-session PR whose head no
-`pr-unblock / address-feedback` check run has counted, reading nothing for one a hold label or a
-`Hold:` line holds and only its threads for one with no unresolved thread, and dispatches at most one
-PR per tick in all. The session and the lane never push over each other. The session author's own
-reply on a thread, unless a fix request, keeps that thread from the lane (`address-feedback.mjs`
-`threadAuthors`). A session push after the select job read the head moves the PR off the reviewed
-head, so the push and reply jobs' trigger gate refuses them (`untrusted-actor`, a commit the lanes
-App did not sign follows the gated head), which posts a neutral `untrusted-trigger` check and
-escalates nothing. Behind the gate, `apply-patch.mjs` skips `superseded-sha` under the
-`review-threads` row's `skip-moved-head`, and a push after it read the branch fails its
-fast-forward-only ref update. Such a round spends one model call and posts no round marker, so it
-does not count toward `loop.review-rounds`; the next idle window at the new head starts the next.
+as above when it carries no `do-not-merge` or human-gated label (`needs-human` unless
+`.work-item-tracker.json` names another), no body line starts with `Hold:` (read as
+[Adoption](#adoption) reads it), and a trusted person (a `User` on the list) made the newest
+`labeled` event of the `lanes-may-fix` label still on it. A label anyone else added counts as no
+label. A trusted App's PR is not a session PR.
+
+The idle path is off until the owner sets `adoption.feedback-idle-minutes` ([Adoption](#adoption));
+this repository leaves it unset, since the lease protects the branch but not a session's unpushed
+local work. Once set, a session PR also goes without the label when its head was pushed at least
+`feedback-idle-minutes` ago. The push time is the creation of the newest completed review run at the
+head, since a `pull_request` run starts on the push; an unreadable time is not idle, and a lane's own
+push restarts the wait.
+
+A review completion on a session PR's branch starts no dispatch job (the job takes only
+`work-resolve-issue/issue-` branches), so the half-hourly sweep is its path. Each tick it also takes
+a labeled (or, with the idle path on, any) session PR whose head has no
+`pr-unblock / address-feedback` check run. That counts the gate's `untrusted-trigger` skip, so a
+head the gate refused (a commit no trusted person pushed) is not sent again every tick. The sweep
+reads nothing for a PR a hold label or a `Hold:` line holds, and only its threads for one with no
+unresolved thread. It dispatches at most one PR per tick in all.
+
+The session and the lane never push over each other:
+
+- The session author's own reply on a thread, unless a fix request, keeps that thread from the
+  lane (`address-feedback.mjs` `threadAuthors`).
+- A session push after the select job read the head moves the PR off the reviewed head. The push
+  and reply jobs' trigger gate then refuses them (`untrusted-actor`: a commit the lanes App did not
+  sign follows the gated head), which posts a neutral `untrusted-trigger` check and escalates
+  nothing.
+- Behind the gate, `apply-patch.mjs` skips `superseded-sha` under the `review-threads` row's
+  `skip-moved-head`, and holds the patch when a `Hold:` line or a hold label appeared while the model
+  worked.
+- Its ref update is a compare-and-swap from the gated head: GraphQL `updateRefs` with `beforeOid`
+  ([Git mutations](https://docs.github.com/en/graphql/reference/git), "RefUpdate.beforeOid specifies
+  that the given reference needs to point to the given value before performing any updates").
+  A branch moved after the read, even force-pushed back to an ancestor, refuses the write.
+
+Such a round spends one model call and posts no round marker, so it does not count toward
+`loop.review-rounds`.
+
+What the label does not settle:
+
+- It approves every later head while it stays on. A person who wants the lane off a new head
+  removes it, or adds `do-not-merge` or a `Hold:` line.
+- It cannot tell a person from an agent working under that person's token: both are the same
+  `User` on the label event.
+- The lease protects pushed commits only. Work the session has not pushed yet is outside it, which
+  is why the label, not idle time, is this repository's signal.
 
 It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-verify.yml` on
 `main` uploaded a `fail` verdict, its `post-verify-notes` job (a base job with no model, holding
 `pull-requests: write`) posts the verdict's summary and notes on the PR as file-level review
 comments by `github-actions[bot]`, each starting `<!-- pr-verify:fail-note -->`, on the head the
 verdict judged (`.github/scripts/pr-unblock/verify-notes.mjs`). It posts only on an open PR still at
-that head, and only the comments that head does not hold yet, by file; on an adopted PR the lanes App did not open, no round starts and
-the notes tell its author why the lane refuses it. A note that starts with a path the PR changes goes on
+that head, and only the comments that head does not hold yet, by file; on a PR the lanes App did not open, a round starts only as for a
+session PR, and the notes tell its author why the pr-merge lane refuses it. A note that starts with a path the PR changes goes on
 that file; the summary and the other notes go on the first such file, or on the PR's first changed
 file. `address-feedback` keeps such a thread as the `verifier`'s finding, as it keeps the reviewer
 bot's, when its review is `github-actions[bot]`'s on a head the reviewed-head markers name. The

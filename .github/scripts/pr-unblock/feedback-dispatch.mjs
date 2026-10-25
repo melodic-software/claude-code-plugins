@@ -199,7 +199,7 @@ async function idleMinutesOf(loadAdoption) {
 // holds it; a lanes-may-fix label whose newest labeled event a trusted person
 // made lets it through at once; otherwise, only while
 // adoption.feedback-idle-minutes is set (read from `loadAdoption` only
-// then), the head must have been pushed at least `idleMinutes` ago. The push time is the earliest completed review
+// then), the head must have been pushed at least `idleMinutes` ago. The push time is the newest completed review
 // run's creation at the head (a pull_request run starts on the push), so a
 // lane's own push restarts the wait too; an unreadable time is not idle.
 async function sessionHold({ api, pull, head, trustedHumans, loadAdoption, now, reviewRuns, settings }) {
@@ -217,7 +217,10 @@ async function sessionHold({ api, pull, head, trustedHumans, loadAdoption, now, 
     return `carries no ${MAY_FIX_LABEL} label a trusted person added, and adoption.feedback-idle-minutes is not set`;
   }
   const runs = reviewRuns ?? (await reviewRunsAt({ api, head, settings }));
-  const pushed = Math.min(...runs.map((run) => Date.parse(run.created_at ?? "")).map((time) => (Number.isNaN(time) ? Infinity : time)));
+  // The newest run at the head: a later run (a re-run, a reopen) only makes
+  // the wait longer, never shorter. Any unreadable time is not idle.
+  const times = runs.map((run) => Date.parse(run.created_at ?? ""));
+  const pushed = times.length === 0 || times.some(Number.isNaN) ? Infinity : Math.max(...times);
   const minutes = Math.floor((now - pushed) / 60_000);
   if (!(minutes >= idleMinutes)) {
     const ago = Number.isFinite(minutes) ? `${minutes} minute(s) ago` : "at an unreadable time";
@@ -327,6 +330,9 @@ export async function dispatchFeedback({
   const held = (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
   if (held.length > 0) {
     return skip(`#${number} is labeled ${held.join(", ")}`);
+  }
+  if (session && (pull.labels ?? []).some((label) => label.name === humanGatedLabel)) {
+    return skip(`#${number} is a trusted person's PR labeled ${humanGatedLabel}`);
   }
   if (session) {
     const why = await sessionHold({ api, pull, head, trustedHumans, loadAdoption, now, reviewRuns, settings });
@@ -457,14 +463,14 @@ export async function dispatchFeedback({
 // A session PR held by a hold label or an owner Hold: line costs no read,
 // and one with no unresolved review thread one read.
 // Returns dispatchFeedback's result with that run's id, or null.
-export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, trustedHumans = new Set(), loadAdoption = async () => ({}), ...rest }) {
+export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, trustedHumans = new Set(), loadAdoption = async () => ({}), humanGatedLabel = "needs-human", ...rest }) {
   const open = (await api.listOpenPulls(settings.base)).filter(
     (pull) => pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
   );
   const isSession = (pull) =>
     pull.user?.id !== appSenderId &&
     trustedHumans.has(pull.user?.id) &&
-    !(pull.labels ?? []).some((label) => settings.holdLabels.includes(label.name)) &&
+    !(pull.labels ?? []).some((label) => settings.holdLabels.includes(label.name) || label.name === humanGatedLabel) &&
     !BODY_HOLD.test(String(pull.body ?? ""));
   // Read once, and only when a session PR is open.
   // Without adoption.feedback-idle-minutes only a labeled session PR can go.
@@ -475,7 +481,7 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
     const head = pull.head.sha;
     let dispatched = null;
     try {
-      dispatched = await sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest: { ...rest, trustedHumans, loadAdoption } });
+      dispatched = await sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest: { ...rest, trustedHumans, loadAdoption, humanGatedLabel } });
     } catch (error) {
       // One PR's failed read leaves the PRs after it to the sweep.
       log(`::warning::#${pull.number}: the sweep could not decide head ${head}: ${error.message}`);
@@ -505,10 +511,12 @@ async function sweepOne({ api, pull, head, repository, appSenderId, log, setting
     }
   } else if (
     pull.user?.id === appSenderId ||
-    // A check dispatchFeedback would not count (the gate's untrusted-trigger
-    // skip, a reset limit stop) leaves a session PR's head to the sweep,
-    // its only path; dispatchFeedback decides again with the config's limits.
-    anyHandles(await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId }), { now: rest.now ?? Date.now() })
+    // Any address-feedback check run at a session PR's head ends the sweep's
+    // first pass there, the gate's untrusted-trigger skip included: the gate
+    // refused that head (a commit no trusted person pushed), and only a new
+    // head or a releasing reply sends it again, so the tick cannot spend a
+    // run on it every half hour.
+    (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).length > 0
   ) {
     return null;
   }

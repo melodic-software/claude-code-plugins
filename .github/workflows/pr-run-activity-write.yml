@@ -1825,7 +1825,8 @@ jobs:
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # Checked against the four reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
-          # review-replies only; empty otherwise.
+          # review-replies, and apply-patch, where a PR the lanes App did not
+          # open is held by a Hold: body line.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
           TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}

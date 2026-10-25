@@ -160,8 +160,8 @@ function fakeApi(repo, head, overrides = {}) {
       return tree;
     },
     createCommit: async (message, tree, parents) => (record("createCommit", { message, tree, parents }), "c".repeat(40)),
-    updateRef: async (ref, sha, force) => {
-      record("updateRef", { ref, sha, force });
+    updateRef: async (ref, sha, force, before) => {
+      record("updateRef", { ref, sha, force, before });
       tip = overrides.afterWrite ?? sha;
     },
     createRef: async (ref, sha) => {
@@ -636,7 +636,7 @@ test("a pushed patch commits the row's message and trailer on the gated head and
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.equal(createCommit.message, "Fix failing CI checks on feat/x\n\nLane-Activity: some-lane/some-activity\n");
   assert.deepEqual(createCommit.parents, [fix.head]);
-  assert.deepEqual(api.calls.at(-2), { updateRef: { ref: "heads/feat/x", sha: "c".repeat(40), force: false } });
+  assert.deepEqual(api.calls.at(-2), { updateRef: { ref: "heads/feat/x", sha: "c".repeat(40), force: false, before: fix.head } });
 });
 
 // The kept threads as keptThreadsFrom reads them from a threads.json.
@@ -936,7 +936,38 @@ test("under the review-threads row a session push after the select job skips sup
   assert.equal(during.calls.some((call) => call.updateRef || call.createCommit), false);
   const quiet = fakeApi(fix.repo, fix.head);
   assert.equal((await pushWith(fix, quiet, { row: row("review-threads"), context: kept })).outcome, "pushed");
-  assert.equal(quiet.calls.find((call) => call.updateRef).updateRef.force, false, "the write fast-forwards only");
+  assert.deepEqual(quiet.calls.find((call) => call.updateRef).updateRef, { ref: "heads/feat/x", sha: "c".repeat(40), force: false, before: fix.head }, "the write swaps only from the gated head");
+});
+
+// An owner's Hold: line set while the model worked holds a PR the lanes App
+// did not open; the lanes App's own merge hold line does not hold its PR.
+test("a Hold: body line holds the push on a PR the lanes App did not open, not on the lanes App's own", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
+  const kept = { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "README.md" }]) }, appId: 77 };
+  const owner = fakeApi(fix.repo, fix.head, { pull: { draft: false, user: { id: 5 }, body: "Closes #1\n\nHold: mine", head: { repo: { full_name: "o/r" } } } });
+  assert.deepEqual(await pushWith(fix, owner, kept), { outcome: "held" });
+  assert.deepEqual(writes(owner), []);
+  const lane = fakeApi(fix.repo, fix.head, { pull: { draft: false, user: { id: 77 }, body: "Hold: a human merges this", head: { repo: { full_name: "o/r" } } } });
+  assert.equal((await pushWith(fix, lane, kept)).outcome, "pushed");
+});
+
+// The PR write is a compare-and-swap from the gated head (GraphQL updateRefs
+// beforeOid), so a branch force-pushed back to an ancestor is never re-grown.
+test("the API client swaps a PR branch only from the expected head through GraphQL updateRefs", async () => {
+  const requests = [];
+  const fetch = async (url, init) => {
+    requests.push({ url, body: init.body ? JSON.parse(init.body) : null });
+    const data = requests.length === 1 ? { repository: { id: "R_1" } } : { updateRefs: { clientMutationId: null } };
+    return new Response(JSON.stringify({ data }));
+  };
+  const { createGitHubApi } = await import("./apply-patch.mjs");
+  const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  await api.updateRef("heads/feat/x", "c".repeat(40), false, "a".repeat(40));
+  assert.equal(requests.length, 2);
+  assert.ok(requests.every((request) => request.url === "https://api.example/graphql"));
+  assert.deepEqual(requests[1].body.variables, { repositoryId: "R_1", refUpdates: [{ name: "refs/heads/feat/x", afterOid: "c".repeat(40), beforeOid: "a".repeat(40), force: false }] });
+  const refused = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", fetch: async (url, init) => new Response(JSON.stringify(JSON.parse(init.body).query.startsWith("query") ? { data: { repository: { id: "R_1" } } } : { errors: [{ message: "ref was not at beforeOid" }] })) });
+  await assert.rejects(refused.updateRef("heads/feat/x", "c".repeat(40), false, "a".repeat(40)), /beforeOid/);
 });
 
 // --- fix-ci's refusals, one test each ---

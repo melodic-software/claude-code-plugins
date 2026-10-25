@@ -1301,8 +1301,8 @@ test("a session PR whose head was pushed under feedback-idle-minutes ago is skip
   assert.match(lines.at(-1), /pushed head [0-9a-f]{40} 10 minute\(s\) ago, under adoption\.feedback-idle-minutes \(30\)/);
 });
 
-test("a session PR idle for feedback-idle-minutes since its head was pushed dispatches, measured from the earliest review run", async () => {
-  const idle = fakeApi({ pulls: sessionPull(), reviewRuns: pushedRuns(5, 30) });
+test("a session PR idle for feedback-idle-minutes since its head was pushed dispatches", async () => {
+  const idle = fakeApi({ pulls: sessionPull(), reviewRuns: pushedRuns(45, 30) });
   assert.deepEqual((await decide(idle, resolvedLane(), SESSION)).result, { number: 42, workflowRunId: "38779200001" });
   const unreadable = fakeApi({ pulls: sessionPull(), reviewRuns: [upstreamRun({ created_at: "" })] });
   assert.equal((await decide(unreadable, resolvedLane(), SESSION)).result, null, "an unreadable push time is not idle");
@@ -1403,11 +1403,32 @@ test("the sweep reads no API for a session PR it can reject from the PR list", a
   assert.equal(output, "");
 });
 
-test("the sweep still takes a session PR whose head carries only the gate's untrusted-trigger skip", async (t) => {
+test("the sweep leaves a session head the gate refused with untrusted-trigger, so it cannot re-dispatch it every tick", async (t) => {
   const skipped = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "neutral", output: { title: "Skipped: untrusted-trigger" }, started_at: minutesAgo(35) };
-  const api = sweepApi({ openPulls: sessionPull(), checksAt: { [HEAD]: [skipped] }, reviewRuns: { [HEAD]: pushedRuns(40) } });
-  await sweepMain(t, api, TICK, { trusted: true, ...SESSION });
-  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42"]);
+  const api = sweepApi({ openPulls: sessionPull({ labels: [mayFix] }), checksAt: { [HEAD]: [skipped] }, reviewRuns: { [HEAD]: pushedRuns(40) } });
+  api.listLabelEvents = async () => [labeledBy(KYLE_ACTOR)];
+  for (let tick = 0; tick < 3; tick += 1) {
+    await sweepMain(t, api, TICK, { trusted: true, ...SESSION });
+  }
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+test("needs-human holds a session PR in the dispatcher and the sweep, label or not", async (t) => {
+  const api = fakeApi({ pulls: sessionPull({ labels: [mayFix, { name: "needs-human" }] }), reviewRuns: pushedRuns(120), labelEvents: [labeledBy(KYLE_ACTOR)] });
+  const { result, lines } = await decide(api, resolvedLane(), SESSION);
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /trusted person's PR labeled needs-human/);
+  const swept = sweepApi({ openPulls: sessionPull({ labels: [mayFix, { name: "needs-human" }] }), checksAt: {}, reviewRuns: { [HEAD]: pushedRuns(120) } });
+  swept.listReviewThreads = async () => assert.fail("a needs-human session PR costs the sweep no read");
+  const { output } = await sweepMain(t, swept, TICK, { trusted: true, ...SESSION });
+  assert.equal(output, "");
+});
+
+test("the idle clock runs from the newest review run at the head, not the oldest", async () => {
+  const rerun = fakeApi({ pulls: sessionPull(), reviewRuns: pushedRuns(90, 10) });
+  const { result, lines } = await decide(rerun, resolvedLane(), SESSION);
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /10 minute\(s\) ago/);
 });
 
 test("a session PR with no unresolved thread costs the sweep one read", async (t) => {
