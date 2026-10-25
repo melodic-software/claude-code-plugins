@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "gh_calls": [
+        "pr merge 4388 --squash"
+      ],
+      "why": "merges, posts nothing"
+    },
+    {
+      "gh_calls": [
+        "pr comment 4388 --body Merged after ci-status went green on the head."
+      ],
+      "why": "near miss: a report comment"
+    },
+    {
+      "gh_calls": [
+        "pr comment 4390 --body Leaving this held for the owner's cut-over call."
+      ],
+      "why": "near miss: a hold note"
+    }
+  ],
+  "fail": [
+    {
+      "gh_calls": [
+        "pr comment 4388 --body Please confirm before I merge."
+      ],
+      "why": "asks the owner to confirm"
+    },
+    {
+      "gh_calls": [
+        "api repos/example-org/lane-ops/issues/4388/comments -f body=Okay to merge?"
+      ],
+      "why": "asks through the API"
+    },
+    {
+      "gh_calls": [
+        "pr comment 4388 --body Waiting for your approval to merge."
+      ],
+      "why": "waits for approval"
+    }
+  ]
+}

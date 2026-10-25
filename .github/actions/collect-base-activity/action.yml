@@ -10,9 +10,10 @@ description: >
   instruction to commit). An activity edits when its effect is not read, or
   when its applied-by sets patch: it then leaves its change uncommitted for
   the runner to collect as a patch. With launcher run-claude-cli, a read
-  skill's plugin, CI context, scratch directory and prompt file are staged
-  in $RUNNER_TEMP/lane-stage for the runner to copy to .lane/, with the
-  launcher's tool lists and preamble in place of claude_args. Contract:
+  skill's plugin, CI context, scratch directory, prompt file and check and
+  verify-script wrappers are staged in $RUNNER_TEMP/lane-stage for the
+  runner to copy to .lane/, with the launcher's tool lists and preamble in
+  place of claude_args. Contract:
   docs/conventions/pr-pipeline/pr-run-activity.md, run job step 8 and Skill
   activities.
 
@@ -86,8 +87,9 @@ inputs:
       $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
       checkout, and the tool rules name them there. It takes a read skill
       only (ci-context included, and one that hands on a patch with no
-      prepare mode, review-threads, dependency-review or merge-base), never a gate, an
-      issue lane or an activity with checks, self-checks or verify-scripts.
+      prepare mode, review-threads, dependency-review or merge-base), never
+      a gate; checks, self-checks and verify-scripts only in a skill that
+      hands on a patch with no prepare mode, such as an issue lane's.
     required: false
     default: claude-code-action
 
@@ -174,6 +176,136 @@ runs:
           echo "::error::$1"
           exit 1
         }
+        # The activity's checks run from a base copy of scripts/ the skill
+        # cannot edit, against the checkout, through a wrapper with the flags
+        # fixed: the Bash rule allows the wrapper alone, with no arguments.
+        # The skill runs checks and self-checks alike; only checks does the
+        # runner run again. Each wrapper is written under <dir>/bin and names
+        # the copy at <at>, where the runner leaves it. Sets check_wrappers
+        # (their paths at <at>) and check_prompt.
+        stage_checks() {
+          local dir=$1 at=$2 check script flags wrapper config
+          check_wrappers=()
+          [[ $at =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+            fail "the checks directory or workspace has a name a rule cannot carry"
+          for check in "${checks[@]}"; do
+            [[ $check =~ ^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$ ]] || fail "a check must be a scripts/ script with fixed flags"
+          done
+          mkdir -p "$dir/bin"
+          cp -R "$BASE_PATH/scripts" "$dir/"
+          # check-affected.sh lints with the configs beside its copy, and
+          # run-ruff.sh reads its version pin there.
+          for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
+            [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$dir/$(dirname "$config")" && cp "$BASE_PATH/$config" "$dir/$config"; }
+          done
+          for check in "${checks[@]}"; do
+            script=${check%% *}
+            flags=${check#"$script"}
+            wrapper=bin/$(basename "$script" .sh)
+            [ ! -e "$dir/$wrapper" ] || fail "two checks run the same script"
+            # The same environment as a verify-script's wrapper below: no
+            # GitHub token, and no system, global, hook or fsmonitor git
+            # config.
+            {
+              printf '#!/usr/bin/env bash\ncd %q || exit 2\n' "$WORKSPACE"
+              printf '%s\n' \
+                'unset GH_TOKEN GITHUB_TOKEN' \
+                'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
+                'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
+              # An issue lane's patch lands through the issue row, whose
+              # script-exec-bit makes each new or changed script executable,
+              # so the checks judge the tree with that bit.
+              if [ "$edits" = patch ] && [ -n "${ISSUE_NUMBER:-}" ]; then
+                echo 'export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1'
+              fi
+              printf 'CHECK_DATA_ROOT=%q exec %q%s\n' "$WORKSPACE" "$at/$script" "$flags"
+            } >"$dir/$wrapper"
+            chmod +x "$dir/$wrapper"
+            check_wrappers+=("$at/$wrapper")
+          done
+          check_prompt="Before you report done, run each of these repository checks as written, with no arguments: ${check_wrappers[*]}. Fix each failure a check reports in the working tree and run the check again; name any failure you could not fix in your report."
+        }
+        # The activity's verify-scripts run with any arguments from a base
+        # copy of the script's plugin (or of scripts/) the skill cannot edit,
+        # so the files a script reads beside itself come along. Each runs
+        # through a wrapper that starts in the checkout, refuses an argument
+        # naming a path outside it (a script may print what it reads), unsets
+        # GH_TOKEN and GITHUB_TOKEN in the script's own environment (an
+        # ancestor's /proc/<pid>/environ still holds them), and keeps git from
+        # loading system, global or hook and fsmonitor programs. As for the
+        # checks, <dir> is where the copy is written and <at> where it runs.
+        # Sets verify_wrappers and verify_prompt.
+        stage_verify() {
+          local dir=$1 at=$2 script unit rest verifier commands=""
+          verify_wrappers=()
+          [[ $at =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+            fail "the verify-scripts copy or workspace has a name a rule cannot carry"
+          mkdir -p "$dir/bin"
+          for script in "${verify[@]}"; do
+            [[ $script =~ ^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\.sh$ ]] ||
+              fail "a verify-script must be the exact path of a scripts/ script"
+            [ -f "$BASE_PATH/$script" ] || fail "a verify-script is not in the base"
+            unit=scripts
+            if [[ $script == plugins/* ]]; then
+              rest=${script#plugins/}
+              unit=plugins/${rest%%/*}
+            fi
+            if [ ! -e "$dir/$unit" ]; then
+              mkdir -p "$dir/$(dirname "$unit")"
+              cp -R "$BASE_PATH/$unit" "$dir/$unit"
+              # chmod does not follow a link, so its target would stay writable.
+              [ -z "$(find "$dir/$unit" -type l -print -quit)" ] || fail "a verify-script's directory holds a symbolic link"
+            fi
+            verifier=bin/$(basename "$script" .sh)
+            [ ! -e "$dir/$verifier" ] || fail "two verify-scripts share a file name"
+            {
+              printf '#!/usr/bin/env bash\nworkspace=%q\ncopy=%q\n' "$WORKSPACE" "$at/$script"
+              printf '%s\n' \
+                'cd "$workspace" && workspace=$(pwd -P) || exit 2' \
+                'for arg in "$@"; do' \
+                '  for path in "$arg" "${arg#*=}"; do' \
+                '    [ -e "$path" ] || [ -L "$path" ] || continue' \
+                '    real=$(realpath -e -- "$path") || exit 2' \
+                '    case $real in' \
+                '      "$workspace" | "$workspace"/*) ;;' \
+                '      *) echo "refused: $path is outside the checkout" >&2 && exit 2 ;;' \
+                '    esac' \
+                '  done' \
+                'done' \
+                'unset GH_TOKEN GITHUB_TOKEN' \
+                'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
+                'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
+              # check-skill.sh runs each skill's scripts/*.test.sh, and the
+              # runner's ~/.claude is read-only, so it gets a fresh, writable
+              # HOME and CLAUDE_CONFIG_DIR.
+              if [ "$script" = plugins/skill-quality/scripts/check-skill.sh ]; then
+                printf '%s\n' \
+                  'HOME=$(mktemp -d) && mkdir "$HOME/.claude" || exit 2' \
+                  'export HOME CLAUDE_CONFIG_DIR="$HOME/.claude"'
+              fi
+              printf '%s\n' \
+                'bash "$copy" "$@"' \
+                'status=$?' \
+                'echo "exit status: $status" >&2' \
+                'exit "$status"'
+            } >"$dir/$verifier"
+            chmod +x "$dir/$verifier"
+            verify_wrappers+=("$at/$verifier")
+            commands="$commands $at/$verifier <arguments>;"
+          done
+          # A Bash allow rule must match each subcommand of a compound command
+          # (https://code.claude.com/docs/en/permissions, "Compound
+          # commands"), so under dontAsk a chained, piped or interpreter
+          # command is denied; Read, Grep and Glob need no rule in a working
+          # directory (same page, "Permission modes").
+          verify_prompt="To run one of these repository verification scripts, run its wrapper by exactly this path, with the script's own arguments and paths inside the checkout:${commands%;}. Bash runs only the wrappers named in these instructions, each as its own command (a verification wrapper prints the script's exit status): use Read, Grep and Glob to inspect files and Edit or Write to change them, never cd, ;, &&, a pipe or an interpreter one-liner."
+          if [ -e "$dir/bin/git-mv-rm" ]; then
+            verify_prompt="$verify_prompt Rename or delete a file with $at/bin/git-mv-rm."
+          fi
+          if [ -e "$dir/bin/run-test-file" ]; then
+            verify_prompt="$verify_prompt Run a test file only through $at/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
+          fi
+        }
         [[ -z ${ISSUE_NUMBER:-} || $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the issue number is malformed"
         subject="a pull request"
         if [ -n "${ISSUE_NUMBER:-}" ]; then
@@ -181,6 +313,9 @@ runs:
         fi
         mkdir -p "$MARKETPLACE"
         cp -R "$BASE_PATH/plugins" "$BASE_PATH/.claude-plugin" "$MARKETPLACE/"
+        # The plugin loads in place from this copy, so its hooks run from
+        # here: no process the skill starts may rewrite them.
+        chmod -R a-w "$MARKETPLACE"
         marketplace=$(jq -r '.name' "$MARKETPLACE/.claude-plugin/marketplace.json")
         name='^[a-z0-9][a-z0-9-]*$'
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
@@ -220,6 +355,8 @@ runs:
           jq -e '.selected["applied-by"].patch // empty' "$RESOLVED" >/dev/null; then
           edits=patch
         fi
+        mapfile -t checks < <(jq -r '(.selected.checks // []) + (.selected["self-checks"] // []) | .[]' "$RESOLVED")
+        mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
         # Read-only commands such as cat, echo and diff run with no allow
         # rule in every mode, until a deny rule names them
         # (https://code.claude.com/docs/en/permissions#read-only-commands).
@@ -233,15 +370,18 @@ runs:
         # below name it; the runner leaves .lane/ out of the patch. The
         # launcher has no system prompt, so the preamble carries it, and the
         # prompt asks for the Skill tool, since a slash command after the
-        # preamble would not expand.
+        # preamble would not expand. An issue lane's skill reads issue.json
+        # from the scratch directory, where the runner writes it.
         if [ "$LAUNCHER" = run-claude-cli ]; then
-          [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
           { [ "$edits" = read ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = ci-context ]; }; } ||
             { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ] || [ "$PREPARE" = dependency-review ] || [ "$PREPARE" = merge-base ]; }; } ||
             fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads, dependency-review or merge-base"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
-          jq -e '[.selected.checks, .selected["self-checks"], .selected["verify-scripts"]] | all(. == null or . == [])' "$RESOLVED" >/dev/null ||
-            fail "run-claude-cli: checks, self-checks and verify-scripts have no wrapper on the launcher"
+          # Their wrappers run through Bash, which only the patch skill with
+          # no prepare mode gets with rules of its own.
+          if ((${#checks[@]} + ${#verify[@]})) && { [ "$edits" != patch ] || [ -n "$PREPARE" ]; }; then
+            fail "run-claude-cli: checks, self-checks and verify-scripts run only in a skill that hands on a patch with no prepare mode"
+          fi
           [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ && $STAGE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the workspace or the stage directory has a name a rule cannot carry"
           plugin=${SKILL%%:*}
@@ -341,6 +481,81 @@ runs:
                 ;;
             esac
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes. Run each shell command as one plain command per call, a script by the absolute path the skill names: no variables, cd, ;, &&, a pipe, a command substitution or an interpreter, and redirect output only into $lane/scratch."
+            # An issue lane's skill reads the work it resumes and checks its
+            # own change with git, through git-read, a wrapper staged under
+            # .lane/git that runs only git status, diff, log and show, with
+            # no system, global, fsmonitor, hook, pager, external-diff or
+            # textconv program. It refuses the options that write a file or
+            # read one outside the checkout (--output, --no-index, --orderfile,
+            # their prefixes, and -O alone or in a bundle of short options),
+            # status --verbose (it runs textconv), and any path argument that
+            # resolves outside the checkout, since git diff on such a path
+            # reads it as --no-index.
+            # Bash(git *) stays denied, so git runs only through it.
+            if [ -n "${ISSUE_NUMBER:-}" ]; then
+              mkdir -p "$STAGE/git"
+              {
+                printf '#!/usr/bin/env bash\nworkspace=%q\n' "$WORKSPACE"
+                printf '%s\n' \
+                  'cd "$workspace" && workspace=$(pwd -P) || exit 2' \
+                  'case ${1:-} in status | diff | log | show) ;; *) echo "refused: git-read runs git status, diff, log or show" >&2 && exit 2 ;; esac' \
+                  'for arg in "${@:2}"; do' \
+                  '  [ "$1" != status ] || case $arg in -v* | -[!-]*v* | --v*) echo "refused: $arg" >&2 && exit 2 ;; esac' \
+                  '  case $arg in' \
+                  '    -O* | -[!-]*O*) echo "refused: $arg" >&2 && exit 2 ;;' \
+                  '    --?*)' \
+                  '      name=${arg%%=*}' \
+                  '      name=${name#--}' \
+                  '      for bad in output no-index orderfile ext-diff textconv open-files-in-pager paginate exec-path git-dir work-tree; do' \
+                  '        if [ "${#name}" -ge 2 ] && [ "${bad#"$name"}" != "$bad" ] || [ "${name#"$bad"}" != "$name" ]; then' \
+                  '          echo "refused: $arg" >&2 && exit 2' \
+                  '        fi' \
+                  '      done' \
+                  '      ;;' \
+                  '  esac' \
+                  '  for path in "$arg" "${arg#*=}" "${arg#*:}"; do' \
+                  '    [ -e "$path" ] || [ -L "$path" ] || continue' \
+                  '    real=$(realpath -e -- "$path") || exit 2' \
+                  '    case $real in' \
+                  '      "$workspace" | "$workspace"/*) ;;' \
+                  '      *) echo "refused: $path is outside the checkout" >&2 && exit 2 ;;' \
+                  '    esac' \
+                  '  done' \
+                  'done' \
+                  'unset GH_TOKEN GITHUB_TOKEN' \
+                  'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_PAGER=cat PAGER=cat GIT_EXTERNAL_DIFF=' \
+                  'export GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null GIT_CONFIG_KEY_2=core.pager GIT_CONFIG_VALUE_2=cat' \
+                  'command=$1' \
+                  'shift' \
+                  'case $command in' \
+                  '  status) exec git --no-pager status "$@" ;;' \
+                  '  *) exec git --no-pager "$command" --no-ext-diff --no-textconv "$@" ;;' \
+                  'esac'
+              } >"$STAGE/git/git-read"
+              chmod +x "$STAGE/git/git-read"
+              allowed+=("Bash($lane/git/git-read *)")
+              denied+=("Edit(./.lane/git/**)" "Write(./.lane/git/**)" "NotebookEdit(./.lane/git/**)")
+              preamble="$preamble Read the repository's state and history only with $lane/git/git-read status, diff, log or show and their arguments, each as one plain command; it refuses --output, --no-index and a path outside the checkout, and no other git command runs."
+            fi
+            # The check and verify-script copies go to .lane/checks and
+            # .lane/verify, which the runner makes read-only, and are denied
+            # to the file tools.
+            if ((${#checks[@]})); then
+              stage_checks "$STAGE/checks" "$lane/checks"
+              for wrapper in "${check_wrappers[@]}"; do
+                allowed+=("Bash($wrapper)")
+              done
+              denied+=("Edit(./.lane/checks/**)" "Write(./.lane/checks/**)" "NotebookEdit(./.lane/checks/**)")
+              preamble="$preamble $check_prompt"
+            fi
+            if ((${#verify[@]})); then
+              stage_verify "$STAGE/verify" "$lane/verify"
+              for wrapper in "${verify_wrappers[@]}"; do
+                allowed+=("Bash($wrapper *)")
+              done
+              denied+=("Edit(./.lane/verify/**)" "Write(./.lane/verify/**)" "NotebookEdit(./.lane/verify/**)")
+              preamble="$preamble $verify_prompt"
+            fi
             # review-threads: the skill reads the thread file the runner
             # checked, and records its replies to those threads, only through
             # the review-thread tool: a base copy of feedback-thread.sh behind
@@ -408,6 +623,7 @@ runs:
             denied=("${kept[@]}")
           fi
           skill_args=$(jq -r '.selected.args // ""' "$RESOLVED")
+          [ -z "${ISSUE_NUMBER:-}" ] || skill_args="--issue $ISSUE_NUMBER${skill_args:+ $skill_args}"
           for target in "${targets[@]}"; do
             skill_args="${skill_args:+$skill_args }$target"
           done
@@ -533,145 +749,36 @@ runs:
                 system_prompt="$system_prompt This run may read web pages: read each external source through /discovery:read-docs, /discovery:research, /knowledge:docpage-digest or /knowledge:map-corpus."
               fi
             fi
-            # The activity's checks run from a base copy outside the working
-            # directory, which the skill cannot edit, against the checkout,
-            # through a wrapper with the flags fixed: the Bash rule allows the
-            # wrapper alone, with no arguments. The skill runs checks and
-            # self-checks alike; only checks does the runner run again.
-            mapfile -t checks < <(jq -r '(.selected.checks // []) + (.selected["self-checks"] // []) | .[]' "$RESOLVED")
+            # The checks run from a base copy outside the working directory.
             if ((${#checks[@]})); then
-              [[ $CHECKS_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
-                fail "the checks directory or workspace has a name a rule cannot carry"
-              shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
-              for check in "${checks[@]}"; do
-                [[ $check =~ $shape ]] || fail "a check must be a scripts/ script with fixed flags"
-              done
-              mkdir -p "$CHECKS_DIR/bin"
-              cp -R "$BASE_PATH/scripts" "$CHECKS_DIR/"
-              # check-affected.sh lints with the configs beside its copy, and
-              # run-ruff.sh reads its version pin there.
-              for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
-                [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$CHECKS_DIR/$(dirname "$config")" && cp "$BASE_PATH/$config" "$CHECKS_DIR/$config"; }
-              done
-              wrappers=""
-              for check in "${checks[@]}"; do
-                script=${check%% *}
-                flags=${check#"$script"}
-                wrapper="$CHECKS_DIR/bin/$(basename "$script" .sh)"
-                [ ! -e "$wrapper" ] || fail "two checks run the same script"
-                # The same environment as a verify-script's wrapper below:
-                # no GitHub token, and no system, global, hook or fsmonitor
-                # git config.
-                {
-                  printf '#!/usr/bin/env bash\ncd %q || exit 2\n' "$WORKSPACE"
-                  printf '%s\n' \
-                    'unset GH_TOKEN GITHUB_TOKEN' \
-                    'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
-                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
-                  # An issue lane's patch lands through the issue row, whose
-                  # script-exec-bit makes each new or changed script
-                  # executable, so the checks judge the tree with that bit.
-                  if [ "$edits" = patch ] && [ -n "${ISSUE_NUMBER:-}" ]; then
-                    echo 'export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1'
-                  fi
-                  printf 'CHECK_DATA_ROOT=%q exec %q%s\n' "$WORKSPACE" "$CHECKS_DIR/$script" "$flags"
-                } >"$wrapper"
-                chmod +x "$wrapper"
+              stage_checks "$CHECKS_DIR" "$CHECKS_DIR"
+              for wrapper in "${check_wrappers[@]}"; do
                 allowed="$allowed,Bash($wrapper)"
-                wrappers="$wrappers $wrapper"
               done
               # The skill's bare Edit and Write must not reach the copy it runs.
               chmod -R a-w "$CHECKS_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
-              system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers. Fix each failure a check reports in the working tree and run the check again; name any failure you could not fix in your report."
+              system_prompt="$system_prompt $check_prompt"
               # The checks read the working tree, so a run that commits runs
               # them first and commits after, or its fixes stay uncommitted.
               if [ "$CAN_COMMIT" = true ]; then
                 system_prompt="$system_prompt Run the checks before you commit: run them, fix, run them again, then commit your changes and the fixes."
               fi
             fi
-            # The activity's verify-scripts run with any arguments from a
-            # read-only base copy of the script's plugin (or of scripts/),
-            # so the files a script reads beside itself come along. Each runs
-            # through a wrapper that starts in the checkout, refuses an
-            # argument naming a path outside it (a script may print what it
-            # reads), unsets GH_TOKEN and GITHUB_TOKEN in the script's own
-            # environment (an ancestor's /proc/<pid>/environ still holds
-            # them), and keeps git from loading system, global or
-            # hook and fsmonitor programs.
-            mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
             if ((${#verify[@]})); then
-              [[ $VERIFY_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
-                fail "the verify-scripts copy or workspace has a name a rule cannot carry"
-              shape='^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\.sh$'
-              mkdir -p "$VERIFY_DIR/bin"
-              commands=""
-              for script in "${verify[@]}"; do
-                [[ $script =~ $shape ]] || fail "a verify-script must be the exact path of a scripts/ script"
-                [ -f "$BASE_PATH/$script" ] || fail "a verify-script is not in the base"
-                unit=scripts
-                if [[ $script == plugins/* ]]; then
-                  rest=${script#plugins/}
-                  unit=plugins/${rest%%/*}
-                fi
-                if [ ! -e "$VERIFY_DIR/$unit" ]; then
-                  mkdir -p "$VERIFY_DIR/$(dirname "$unit")"
-                  cp -R "$BASE_PATH/$unit" "$VERIFY_DIR/$unit"
-                  # chmod does not follow a link, so its target would stay writable.
-                  [ -z "$(find "$VERIFY_DIR/$unit" -type l -print -quit)" ] || fail "a verify-script's directory holds a symbolic link"
-                fi
-                verifier="$VERIFY_DIR/bin/$(basename "$script" .sh)"
-                [ ! -e "$verifier" ] || fail "two verify-scripts share a file name"
-                {
-                  printf '#!/usr/bin/env bash\nworkspace=%q\ncopy=%q\n' "$WORKSPACE" "$VERIFY_DIR/$script"
-                  printf '%s\n' \
-                    'cd "$workspace" && workspace=$(pwd -P) || exit 2' \
-                    'for arg in "$@"; do' \
-                    '  for path in "$arg" "${arg#*=}"; do' \
-                    '    [ -e "$path" ] || [ -L "$path" ] || continue' \
-                    '    real=$(realpath -e -- "$path") || exit 2' \
-                    '    case $real in' \
-                    '      "$workspace" | "$workspace"/*) ;;' \
-                    '      *) echo "refused: $path is outside the checkout" >&2 && exit 2 ;;' \
-                    '    esac' \
-                    '  done' \
-                    'done' \
-                    'unset GH_TOKEN GITHUB_TOKEN' \
-                    'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
-                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
-                  # check-skill.sh runs each skill's scripts/*.test.sh, and
-                  # the runner's ~/.claude is read-only, so it gets a fresh,
-                  # writable HOME and CLAUDE_CONFIG_DIR.
-                  if [ "$script" = plugins/skill-quality/scripts/check-skill.sh ]; then
-                    printf '%s\n' \
-                      'HOME=$(mktemp -d) && mkdir "$HOME/.claude" || exit 2' \
-                      'export HOME CLAUDE_CONFIG_DIR="$HOME/.claude"'
-                  fi
-                  printf '%s\n' \
-                    'bash "$copy" "$@"' \
-                    'status=$?' \
-                    'echo "exit status: $status" >&2' \
-                    'exit "$status"'
-                } >"$verifier"
-                chmod +x "$verifier"
+              stage_verify "$VERIFY_DIR" "$VERIFY_DIR"
+              for verifier in "${verify_wrappers[@]}"; do
                 allowed="$allowed,Bash($verifier *)"
-                commands="$commands $verifier <arguments>;"
               done
               chmod -R a-w "$VERIFY_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$VERIFY_DIR/**),Write(/$VERIFY_DIR/**)"
-              # A Bash allow rule must match each subcommand of a compound
-              # command (https://code.claude.com/docs/en/permissions,
-              # "Compound commands"), so under dontAsk a chained, piped or
-              # interpreter command is denied; Read, Grep and Glob need no
-              # rule in a working directory (same page, "Permission modes").
-              system_prompt="$system_prompt To run one of these repository verification scripts, run its wrapper by exactly this path, with the script's own arguments and paths inside the checkout:${commands%;}. Bash runs only the wrappers named in these instructions, each as its own command (a verification wrapper prints the script's exit status): use Read, Grep and Glob to inspect files and Edit or Write to change them, never cd, ;, &&, a pipe or an interpreter one-liner."
-              if [ -e "$VERIFY_DIR/bin/git-mv-rm" ]; then
-                system_prompt="$system_prompt Rename or delete a file with $VERIFY_DIR/bin/git-mv-rm."
-              fi
-              if [ -e "$VERIFY_DIR/bin/run-test-file" ]; then
-                system_prompt="$system_prompt Run a test file only through $VERIFY_DIR/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
-              fi
+              system_prompt="$system_prompt $verify_prompt"
             fi
+            # The skill's bare Edit and Write must not reach the plugin copy.
+            # An Edit rule covers every built-in file tool and the Bash file
+            # writes Claude Code recognizes; a Write path rule is never
+            # consulted (https://code.claude.com/docs/en/permissions#read-and-edit).
+            disallowed="${disallowed:+$disallowed,}Edit(/$MARKETPLACE/**)"
             # The shell deny set above; the Read rules keep the skill out of
             # process files and out of the checkout's git config, where the
             # action stores its token.

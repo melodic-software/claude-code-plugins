@@ -59,7 +59,7 @@ FIXTURE_MANIFEST = (
     "non-uuid/handoffs/20260901T100000Z-handoff-widget.md",
     "ascii-rails/handoffs/20260901T100000Z-handoff-widget.md",
     "fill-leftover/handoffs/20260901T100000Z-handoff-widget.md",
-    "shape-3/handoffs/20260901T100000Z-handoff-widget.md",
+    "shape-4/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260902T100000Z-handoff-widget.md",
     "dropped-entry/handoffs/20260901T100000Z-handoff-widget.md",
@@ -185,8 +185,8 @@ def test_validate_shape1_seven_section_legacy_warns_and_exits_zero(tmp_path):
     assert "WARN" in out(result)
 
 
-def test_validate_shape3_hard_fails_with_exit_3(tmp_path):
-    handoffs = materialize(tmp_path, "shape-3")
+def test_validate_newer_shape_hard_fails_with_exit_3(tmp_path):
+    handoffs = materialize(tmp_path, "shape-4")
     result = run("validate", str(handoffs / HOP1))
     assert result.returncode == 3, out(result)
     assert "read it, do not rewrite it" in out(result)
@@ -363,13 +363,17 @@ def test_validate_promoted_pointer_stands_in_for_one_entry(tmp_path, pointers, p
     kept = "- [h1] Migrations run forward-only; a down-migration corrupts the tenant partition key.\n"
     text1 = hop1.read_text(encoding="utf-8")
     hop1.write_text(
-        text1.replace(kept, kept + "- [h1] Migrations run forward-only; seeds are too.\n"),
+        text1.replace(
+            kept, kept + "- [h1] Migrations run forward-only; seeds are too.\n"
+        ),
         encoding="utf-8",
     )
     anchor = "- [h1] The public `WidgetReader` signature is frozen.\n"
     pointer = "- [h1] Promoted to docs/adr/0007.md: Migrations run forward-only;\n"
     text2 = hop2.read_text(encoding="utf-8")
-    hop2.write_text(text2.replace(anchor, anchor + pointer * pointers), encoding="utf-8")
+    hop2.write_text(
+        text2.replace(anchor, anchor + pointer * pointers), encoding="utf-8"
+    )
     result = run("validate", str(hop2), "--strict-transcript")
     assert (result.returncode == 0) is passes, out(result)
 
@@ -565,18 +569,18 @@ def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
     [
         # Header, payload and signature spell FAKE.
         (
-            "auth eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal x",
+            "auth eyJhbGciOiJIUzI1NiJ9" + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal x",
             "JWT",
         ),
         ("eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal", "JWT"),
-        ("eyJ" + "A" * 513 + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal", "JWT"),
-        ("eyJ" + "A" * 4000 + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal", "JWT"),
+        ("eyJ" + "A" * 513 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal", "JWT"),
+        ("eyJ" + "A" * 4000 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal", "JWT"),
         (
-            "ghs" + "_1_eyJ" + "A" * 513 + ".FAKEpayload" ".FAKEsignatureNOTreal",
+            "ghs" + "_1_eyJ" + "A" * 513 + ".FAKEpayload.FAKEsignatureNOTreal",
             "GitHub token",
         ),
         (
-            "ghs" + "_1_eyJ" + "A" * 4000 + ".FAKEpayload" ".FAKEsignatureNOTreal",
+            "ghs" + "_1_eyJ" + "A" * 4000 + ".FAKEpayload.FAKEsignatureNOTreal",
             "GitHub token",
         ),
         ("dsn postgres://u:p@h/db", "connection string"),
@@ -791,7 +795,10 @@ def new_args(
     *extra: str,
     sid: str = SID_A,
     now: str = "2026-09-01T10:00:00Z",
+    shape: str | None = "2",
 ) -> list[str]:
+    """`new` arguments; the shape-2 writer by default, so the shape-2 contract
+    keeps its tests; `shape=None` passes no --shape (the default shape)."""
     return [
         "new",
         "--topic",
@@ -804,6 +811,7 @@ def new_args(
         projects_root(tmp_path),
         "--now",
         now,
+        *(["--shape", shape] if shape else []),
         *extra,
     ]
 
@@ -946,14 +954,27 @@ def test_new_hop2_carries_amendments_below_the_opening_ask(tmp_path):
     amendment = '- **Amended (verbatim, 2026-09-01):** "Also do the other thing."'
     anchor = "Opening ask:\nDo the thing please.\n"
     assert anchor in text
-    hop1.write_text(text.replace(anchor, f"{anchor}\n{amendment}\n"), encoding="utf-8", newline="\n")
-    result = run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    hop1.write_text(
+        text.replace(anchor, f"{anchor}\n{amendment}\n"), encoding="utf-8", newline="\n"
+    )
+    result = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
     assert result.returncode == 0, err(result)
     hop2 = handoffs / HOP2
     carried = hop2.read_text(encoding="utf-8")
     assert amendment in carried, carried
     # Carried above the pointer, where an amendment belongs.
-    assert carried.index(amendment) < carried.index(f"Opening ask: see {HOP1} § Original goal")
+    assert carried.index(amendment) < carried.index(
+        f"Opening ask: see {HOP1} § Original goal"
+    )
     hop2.write_text(model_fill(carried), encoding="utf-8", newline="\n")
     validated = run("validate", str(hop2), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
@@ -1036,7 +1057,12 @@ def test_new_after_a_shape1_chain_records_every_hop_its_pointers_reach(tmp_path)
     legacy = _two_hop_legacy_chain(handoffs)
     result = run(
         *new_args(
-            repo, tmp_path, "--previous", str(legacy), sid=SID_B, now="2026-09-02T10:00:00Z"
+            repo,
+            tmp_path,
+            "--previous",
+            str(legacy),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
         )
     )
     assert result.returncode == 0, err(result)
@@ -1064,7 +1090,12 @@ def test_validate_still_accepts_the_two_entry_chain_after_a_shape1_predecessor(
     )
     result = run(
         *new_args(
-            repo, tmp_path, "--previous", str(legacy), sid=SID_B, now="2026-09-02T10:00:00Z"
+            repo,
+            tmp_path,
+            "--previous",
+            str(legacy),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
         )
     )
     assert result.returncode == 0, err(result)
@@ -1494,7 +1525,9 @@ def test_new_hop2_places_the_new_slot_above_a_carried_superseded_marker(tmp_path
     text = hop2.read_text(encoding="utf-8")
     assert section[slot_index] in text
     hop2.write_text(
-        model_fill(text.replace(section[slot_index], entry)), encoding="utf-8", newline="\n"
+        model_fill(text.replace(section[slot_index], entry)),
+        encoding="utf-8",
+        newline="\n",
     )
     validated = run("validate", str(hop2), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
@@ -1652,7 +1685,12 @@ def new_hop2_skeleton(tmp_path: Path) -> Path:
     )
     run(
         *new_args(
-            repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
         )
     ).check_returncode()
     return handoffs / HOP2
@@ -1695,7 +1733,9 @@ def test_fill_preserves_every_inline_prefix(tmp_path):
     payload["drift-check"] = "the next action writes the save-point, which is the goal."
     payload["did"] = "did the thing"
     payload["left"] = "the rest"
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     text = target.read_text(encoding="utf-8")
     assert "**Amended:** None." in text
     assert (
@@ -1710,7 +1750,9 @@ def test_fill_handles_two_slots_on_the_this_session_line(tmp_path):
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["did"] = "landed the fill subcommand"
     payload["left"] = "the docs sweep"
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     line = next(
         ln
         for ln in target.read_text(encoding="utf-8").split("\n")
@@ -1726,7 +1768,9 @@ def test_this_session_carries_one_rescan_line_and_refuses_a_second_or_a_stray(tm
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["rescan"] = "read the lossless on-disk transcript; no compaction occurred"
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     text = target.read_text(encoding="utf-8")
     assert text.count("\nRe-scan: read the lossless on-disk transcript") == 1
     assert run("validate", str(target), "--strict-transcript").returncode == 0
@@ -1736,7 +1780,9 @@ def test_this_session_carries_one_rescan_line_and_refuses_a_second_or_a_stray(tm
             encoding="utf-8",
             newline="\n",
         )
-        assert run("validate", str(target), "--strict-transcript").returncode == 1, extra
+        assert run("validate", str(target), "--strict-transcript").returncode == 1, (
+            extra
+        )
 
 
 def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
@@ -1761,13 +1807,20 @@ def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
     target.unlink()
     run(
         *new_args(
-            repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
         )
     ).check_returncode()
     carried = target.read_text(encoding="utf-8")
     assert old in carried
     payload = required_slots(carried)
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     assert run("validate", str(target), "--strict-transcript").returncode == 0
 
 
@@ -1780,12 +1833,18 @@ def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path
     text = target.read_text(encoding="utf-8")
     assert carried in text
     slot = next(
-        line for line in text.splitlines() if line.startswith("<!-- FILL: constraints-new")
+        line
+        for line in text.splitlines()
+        if line.startswith("<!-- FILL: constraints-new")
     )
-    copy = "- [h2] UNVERIFIED (predecessor failed validation): the  THING must stay green."
+    copy = (
+        "- [h2] UNVERIFIED (predecessor failed validation): the  THING must stay green."
+    )
     payload = required_slots(text)
     target.write_text(text.replace(slot, copy), encoding="utf-8", newline="\n")
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     warned = run("validate", str(target), "--strict-transcript")
     assert warned.returncode == 0, out(warned) + err(warned)
     assert "WARN: Constraints that must hold: duplicate" in out(warned)
@@ -1802,7 +1861,9 @@ def test_fill_multi_line_value_lands_as_lines_in_place(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["next"] = "First headline\nSecond headline\nThird headline"
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     text = target.read_text(encoding="utf-8")
     assert "\nNext:\nFirst headline\nSecond headline\nThird headline\n─" in text
     validated = run("validate", str(target), "--strict-transcript")
@@ -1814,7 +1875,9 @@ def test_fill_multi_line_value_into_crlf_stays_all_crlf(tmp_path):
     target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["next"] = "First headline\nSecond headline"
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     data = target.read_bytes()
     assert "Next:\r\nFirst headline\r\nSecond headline\r\n─".encode("utf-8") in data
     assert b"\n" not in data.replace(b"\r\n", b"")
@@ -1852,7 +1915,9 @@ def test_fill_deletes_absent_optional_slot_line(tmp_path, slot):
     assert f"<!-- FILL: {slot} " in text
     payload = required_slots(text)
     assert slot not in payload
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     after = target.read_text(encoding="utf-8")
     assert "<!-- FILL" not in after
     assert slot not in after
@@ -1867,7 +1932,9 @@ def test_fill_substitutes_a_present_optional_slot(tmp_path):
         target.read_text(encoding="utf-8"), "goal-first", "ship the fill subcommand"
     )
     payload["below-rail"] = "Re-arm the sweep loop in its own follow-up message."
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     after = target.read_text(encoding="utf-8")
     assert "\nship the fill subcommand\n" in after
     assert "Re-arm the sweep loop in its own follow-up message." in after
@@ -1885,7 +1952,9 @@ GOAL_COPY_LINE = (
 )
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 RAIL = "─" * 58
-CONDITION = "Every call site of OrderReader uses the retry policy and `dotnet test` exits 0."
+CONDITION = (
+    "Every call site of OrderReader uses the retry policy and `dotnet test` exits 0."
+)
 
 
 def directive_line(text: str) -> str:
@@ -1907,7 +1976,9 @@ def goal_target(tmp_path: Path, *slots: str, condition: str = CONDITION) -> Path
     payload = required_slots(skeleton)
     for slot in slots:
         payload[slot] = goal_slot_value(skeleton, slot, condition)
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     return target
 
 
@@ -1964,7 +2035,9 @@ def test_goal_condition_at_the_limit_passes_and_over_it_fails(tmp_path):
 def test_validate_refuses_a_leading_goal_line_in_the_goal_region(tmp_path):
     target = goal_target(tmp_path, "goal-first")
     text = target.read_text(encoding="utf-8")
-    result = validate_text(target, text.replace(f"\n{CONDITION}\n", f"\n/goal {CONDITION}\n"))
+    result = validate_text(
+        target, text.replace(f"\n{CONDITION}\n", f"\n/goal {CONDITION}\n")
+    )
     assert result.returncode == 1, out(result) + err(result)
     assert "starts with '/goal'" in out(result), out(result)
 
@@ -1978,7 +2051,9 @@ def test_validate_refuses_a_leading_goal_line_in_the_resume_region(tmp_path):
         slots_file(tmp_path, required_slots(target.read_text(encoding="utf-8"))),
     ).check_returncode()
     text = target.read_text(encoding="utf-8")
-    result = validate_text(target, text.replace(f"{RAIL}\nRead @", f"{RAIL}\n/goal ship it\nRead @", 1))
+    result = validate_text(
+        target, text.replace(f"{RAIL}\nRead @", f"{RAIL}\n/goal ship it\nRead @", 1)
+    )
     assert result.returncode == 1, out(result) + err(result)
     assert "starts with '/goal'" in out(result), out(result)
     assert "must be the 'Read @' directive" in out(result), out(result)
@@ -2011,7 +2086,14 @@ def test_validate_refuses_a_goal_region_not_ending_in_the_directive(tmp_path):
     target = goal_target(tmp_path, "goal-first")
     text = target.read_text(encoding="utf-8")
     directive = directive_line(text)
-    result = validate_text(target, text.replace(f"{directive}\n{RAIL}\n\n{COPY_LINE}", f"Do the thing.\n{RAIL}\n\n{COPY_LINE}", 1))
+    result = validate_text(
+        target,
+        text.replace(
+            f"{directive}\n{RAIL}\n\n{COPY_LINE}",
+            f"Do the thing.\n{RAIL}\n\n{COPY_LINE}",
+            1,
+        ),
+    )
     assert result.returncode == 1, out(result) + err(result)
     assert "ending in the 'Read @' directive line" in out(result), out(result)
 
@@ -2019,7 +2101,9 @@ def test_validate_refuses_a_goal_region_not_ending_in_the_directive(tmp_path):
 def test_validate_refuses_a_goal_region_with_a_blank_line_between_the_rails(tmp_path):
     target = goal_target(tmp_path, "goal-first")
     text = target.read_text(encoding="utf-8")
-    result = validate_text(target, text.replace(f"{RAIL}\n{CONDITION}\n", f"{RAIL}\n{CONDITION}\n\n", 1))
+    result = validate_text(
+        target, text.replace(f"{RAIL}\n{CONDITION}\n", f"{RAIL}\n{CONDITION}\n\n", 1)
+    )
     assert result.returncode == 1, out(result) + err(result)
     assert "blank line between the rails" in out(result), out(result)
 
@@ -2053,7 +2137,9 @@ def test_emit_substitutes_the_real_path_in_both_regions(tmp_path):
         ("both-defects", 2, "must be a string"),
     ],
 )
-def test_fill_refusals_leave_the_target_byte_identical(tmp_path, case, expected, needle):
+def test_fill_refusals_leave_the_target_byte_identical(
+    tmp_path, case, expected, needle
+):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     if case == "missing-required":
@@ -2092,7 +2178,9 @@ def test_fill_refusals_leave_the_target_byte_identical(tmp_path, case, expected,
 def test_fill_refuses_a_target_with_no_slots(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     before = target.read_bytes()
     again = run(
         "fill", str(target), "--slots", slots_file(tmp_path, {}, name="empty.json")
@@ -2156,7 +2244,7 @@ def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
 @pytest.mark.parametrize(
     ("line", "expected", "needle"),
     [
-        ("handoff_shape: 3\n", 3, "read it, do not rewrite it"),
+        ("handoff_shape: 4\n", 3, "read it, do not rewrite it"),
         ("handoff_shape: 1\n", 2, "handoff_shape 1"),
         ("", 2, "no handoff_shape key"),
         ("handoff_shape: 0\n", 2, "handoff_shape 0 is not a shape"),
@@ -2197,7 +2285,9 @@ def test_fill_closing_value_rewrites_next_and_deletes_the_slot(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["next"] = NEXT_CLOSED
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     text = target.read_text(encoding="utf-8")
     assert f"\n{NEXT_CLOSED}\n─" in text
     assert "\nNext:\n" not in text
@@ -2214,7 +2304,9 @@ def test_fill_closing_value_into_crlf_keeps_crlf(tmp_path):
     target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["next"] = NEXT_CLOSED
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     data = target.read_bytes()
     assert f"\r\n{NEXT_CLOSED}\r\n─".encode("utf-8") in data
     assert b"\r\r" not in data
@@ -2230,7 +2322,9 @@ def test_fill_closing_value_works_with_a_goal_region_present(tmp_path):
     payload["goal-after"] = goal_slot_value(
         target.read_text(encoding="utf-8"), "goal-after", "close the loop"
     )
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     text = target.read_text(encoding="utf-8")
     assert f"\n{NEXT_CLOSED}\n─" in text
     assert "\nclose the loop\n" in text
@@ -2264,7 +2358,9 @@ def test_fill_an_ordinary_next_value_leaves_next_bare(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["next"] = "Ship the docs sweep"
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     text = target.read_text(encoding="utf-8")
     assert "\nNext:\nShip the docs sweep\n─" in text
     assert NEXT_CLOSED not in text
@@ -2284,7 +2380,9 @@ def test_fill_slot_pattern_round_trips_through_the_fill_helper(tmp_path):
     module = _save_point_module()
     target = new_skeleton(tmp_path)
     text = target.read_text(encoding="utf-8")
-    matches = [m for line in text.split("\n") for m in module.FILL_SLOT_RE.finditer(line)]
+    matches = [
+        m for line in text.split("\n") for m in module.FILL_SLOT_RE.finditer(line)
+    ]
     carrying = [line for line in text.split("\n") if module.FILL_MARK in line]
     assert matches
     # One line carries two slots, so the spans outnumber the lines holding them.
@@ -2314,7 +2412,9 @@ def test_fill_preserves_a_file_with_no_trailing_newline(tmp_path):
     target.write_bytes(data.rstrip(b"\n"))
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["below-rail"] = "Re-arm nothing; the loop is retired."
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     after = target.read_bytes()
     assert after.endswith(b"the loop is retired.")
 
@@ -2324,7 +2424,9 @@ def test_fill_leaves_no_other_file_beside_the_target(tmp_path):
     leaves one behind would put a stray file where handoffs are swept for."""
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     assert sorted(p.name for p in target.parent.iterdir()) == [target.name]
 
 
@@ -2332,7 +2434,9 @@ def test_fill_value_with_a_lone_cr_is_not_split(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
     payload["brief"] = "before\rafter"
-    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    run(
+        "fill", str(target), "--slots", slots_file(tmp_path, payload)
+    ).check_returncode()
     data = target.read_bytes()
     assert b"before\rafter\n" in data
     assert data.count(b"\r") == 1
@@ -2343,3 +2447,641 @@ def test_help_exits_zero():
     assert result.returncode == 0
     for command in ("new", "fill", "validate", "emit"):
         assert command in out(result), out(result)
+
+
+# --- shape 3: hot file plus one immutable archive file per hop ----------------------
+#
+# Expected values come from PLAN.md `## Design` Contracts: the frontmatter keys, the
+# hop-file name `archive/<chain-root-stem>/h<N>-<session8>.md`, the FAIL list and the
+# cap of 10,000 tokens at the 2.46 bytes per token AUDIT.md measured on handoff files.
+
+SID_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+SID_D = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+SID_E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+HOP4 = "20260904T100000Z-handoff-widget.md"
+HOP5 = "20260905T100000Z-handoff-widget.md"
+HOT_CAP = 24_600
+# The Read tool's 25,000-token page cap at 2.34 bytes per token (#9238 asks for a
+# FAIL above it).
+READ_CAP = 58_500
+# The Brief's hot-file content list in its written order, `Original goal` first and
+# `## Resume prompt` last (PLAN.md "Hot file and archive"): an external contract.
+SHAPE3_SECTIONS = [
+    "Original goal",
+    "Review before you continue",
+    "Direction changes",
+    "Resumption brief",
+    "Completion criteria",
+    "Remaining actions, in order",
+    "Open questions",
+    "Current rules",
+    "Observations",
+    "Pending commands",
+    "Environment to re-establish",
+    "Decisions in force",
+    "Suggested skills",
+    "This session",
+    "Prior sessions",
+    "Standing preferences",
+    "Resume prompt",
+]
+SHAPE3_VALUES = {
+    "goal": "> Do the thing.",
+    "intent": "Fewer bytes, same accuracy.",
+    "vision": "Every change is a measured improvement.",
+    "amended": "None.",
+    "opening-ask": "Do the thing please.",
+    "review": "- Nothing beyond this file: the next action needs no archive section.",
+    "trail": '- [h1] start: do the thing (owner-directed, "Do the thing please.").',
+    "brief": "Do the next thing on `main`; read Current rules first.",
+    "criteria": "- [ ] the thing is done",
+    "remaining": "1. Do the next thing.",
+    "open-questions": "None. Nothing is unknown.",
+    "rules": "- [R1] The thing must stay green.\n- [R2] Never push to main.",
+    "observations": "- The thing takes a minute to run.",
+    "commands": "None. No command waits on the user.",
+    "environment": "Branch `main`, clean tree; nothing to recreate.",
+    "decisions": "- The thing over the other thing.",
+    "skills": "None. Remaining work runs inline.",
+    "did": "did the thing",
+    "left": "the rest",
+    "rescan": "the re-scan read the lossless on-disk transcript",
+    "preferences": "None. No standing preference this chain.",
+    "next": "Do the next thing",
+}
+
+
+def shape3_fill(text: str, values: dict[str, str] | None = None) -> str:
+    """Fill a shape-3 skeleton the way a well-behaved model would. Optional slot
+    lines not keyed in `values` are deleted; an unknown required slot raises."""
+    merged = {**SHAPE3_VALUES, **(values or {})}
+    kept: list[str] = []
+    for line in text.split("\n"):
+        whole = FILL_RE.fullmatch(line.strip())
+        if (
+            whole
+            and whole.group(1) not in merged
+            and whole.group(2).startswith("optional:")
+        ):
+            continue
+        kept.append(FILL_RE.sub(lambda m: merged[m.group(1)], line))
+    return "\n".join(kept)
+
+
+def s3_new(
+    repo: Path,
+    tmp_path: Path,
+    previous: Path | None = None,
+    *,
+    sid: str = SID_A,
+    now: str = "2026-09-01T10:00:00Z",
+) -> subprocess.CompletedProcess[bytes]:
+    flag = ["--previous", str(previous)] if previous else ["--no-previous"]
+    return run(*new_args(repo, tmp_path, *flag, sid=sid, now=now, shape="3"))
+
+
+def s3_hop(
+    repo: Path,
+    tmp_path: Path,
+    previous: Path | None = None,
+    *,
+    sid: str = SID_A,
+    now: str = "2026-09-01T10:00:00Z",
+    values: dict[str, str] | None = None,
+) -> Path:
+    made = s3_new(repo, tmp_path, previous, sid=sid, now=now)
+    assert made.returncode == 0, err(made)
+    path = Path(out(made).strip())
+    text = shape3_fill(path.read_text(encoding="utf-8"), values)
+    path.write_text(text, encoding="utf-8", newline="\n")
+    return path
+
+
+def s3_chain(repo: Path, tmp_path: Path, sids: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    for day, sid in enumerate(sids, 1):
+        previous = paths[-1] if paths else None
+        now = f"2026-09-0{day}T10:00:00Z"
+        paths.append(s3_hop(repo, tmp_path, previous, sid=sid, now=now))
+    return paths
+
+
+def hop_file(handoffs: Path, root: str, hop: int, sid: str) -> Path:
+    return handoffs / "archive" / root.removesuffix(".md") / f"h{hop}-{sid[:8]}.md"
+
+
+def strict(path: Path) -> subprocess.CompletedProcess[bytes]:
+    return run("validate", str(path), "--strict-transcript")
+
+
+def headings(path: Path) -> list[str]:
+    lines = path.read_text(encoding="utf-8").split("\n")
+    return [line[3:] for line in lines if line.startswith("## ")]
+
+
+def edit(path: Path, old: str, new: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    assert old in text, old
+    path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
+
+
+def _sections_by_hand(text: str) -> dict[str, str]:
+    """Each `## ` section body of a file, trimmed of blank edge lines."""
+    found: dict[str, str] = {}
+    for chunk in text.split("\n## ")[1:]:
+        title, _, body = chunk.partition("\n")
+        found[title] = body.strip("\n")
+    return found
+
+
+def test_shape3_is_what_new_writes_by_default(tmp_path):
+    repo = make_repo(tmp_path)
+    made = run(*new_args(repo, tmp_path, "--no-previous", shape=None))
+    assert made.returncode == 0, err(made)
+    text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
+    assert "handoff_shape: 3\n" in text
+    assert "\nchain:" not in text
+    for line in (
+        f"chain_root: {HOP1}",
+        "hop: 1",
+        "archive: archive/20260901T100000Z-handoff-widget/",
+        "archive_from: 1",
+        "repo: ssh://git@github.com/example/repo",
+    ):
+        assert f"\n{line}\n" in text, line
+    assert "previous_handoff" not in text
+
+
+def test_shape3_hop1_validates_with_sections_in_the_contract_order(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    result = strict(hop1)
+    assert result.returncode == 0, out(result) + err(result)
+    assert "FAIL" not in out(result) and "WARN" not in out(result), out(result)
+    assert headings(hop1) == SHAPE3_SECTIONS
+    assert hop_file(repo / ".work" / "handoffs", HOP1, 1, SID_A).is_file()
+    edit(hop1, "## Observations\n", "## Observations held\n")
+    renamed = strict(hop1)
+    assert renamed.returncode == 1 and "headings:" in out(renamed), out(renamed)
+
+
+def test_shape3_written_before_suggested_skills_still_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    text = hop1.read_text(encoding="utf-8")
+    start = text.index("## Suggested skills\n")
+    legacy = text[:start] + text[text.index("## This session\n") :]
+    hop1.write_text(legacy, encoding="utf-8", newline="\n")
+    result = strict(hop1)
+    assert result.returncode == 0, out(result) + err(result)
+    assert "WARN" in out(result) and "Suggested skills" in out(result), out(result)
+
+
+def test_shape3_validate_enforces_the_section_order(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    text = hop1.read_text(encoding="utf-8")
+    swapped = (
+        text.replace("## Observations\n", "## @@\n")
+        .replace("## Pending commands\n", "## Observations\n")
+        .replace("## @@\n", "## Pending commands\n")
+    )
+    hop1.write_text(swapped, encoding="utf-8", newline="\n")
+    result = strict(hop1)
+    assert result.returncode == 1, out(result)
+    assert "headings: expected '## Observations' at position 9" in out(result)
+
+
+def test_shape3_hot_file_over_the_byte_cap_fails(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    text = hop1.read_text(encoding="utf-8")
+    size = len(text.encode("utf-8"))
+    anchor = SHAPE3_VALUES["observations"] + "\n"
+
+    def padded(total: int) -> str:
+        return text.replace(anchor, anchor + "x" * (total - size - 1) + "\n", 1)
+
+    hop1.write_text(padded(HOT_CAP), encoding="utf-8", newline="\n")
+    assert len(hop1.read_bytes()) == HOT_CAP
+    at_cap = strict(hop1)
+    assert at_cap.returncode == 0, out(at_cap)
+    hop1.write_text(padded(HOT_CAP + 1), encoding="utf-8", newline="\n")
+    over = strict(hop1)
+    assert over.returncode == 1, out(over)
+    assert "FAIL: size: 24601 bytes" in out(over) and "24600" in out(over), out(over)
+
+
+def test_shape3_core_alone_over_the_cap_is_unvalidated_and_still_emits(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values={"rules": "- [R1] " + "y" * HOT_CAP})
+    result = strict(hop1)
+    assert result.returncode == 0, out(result)
+    assert "FAIL" not in out(result), out(result)
+    assert "UNVALIDATED" in out(result)
+    assert out(result).strip().splitlines()[-1].startswith("validate: UNVALIDATED")
+    emitted = run("emit", str(hop1))
+    assert emitted.returncode == 0, err(emitted)
+    assert out(emitted) == _section_body(hop1, "Resume prompt")
+    assert "UNVALIDATED" in err(emitted)
+
+
+def test_shape3_hot_file_over_the_read_cap_fails_even_when_its_core_is_too_large(
+    tmp_path,
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values={"rules": "- [R1] " + "y" * READ_CAP})
+    assert len(hop1.read_bytes()) > READ_CAP
+    result = strict(hop1)
+    assert result.returncode == 1, out(result)
+    assert f"FAIL: size: {len(hop1.read_bytes())} bytes" in out(result), out(result)
+    assert f"{READ_CAP}-byte Read page cap" in out(result), out(result)
+    assert "UNVALIDATED" not in out(result), out(result)
+    emitted = run("emit", str(hop1))
+    assert emitted.returncode == 0, err(emitted)
+    assert out(emitted) == _section_body(hop1, "Resume prompt")
+    assert "FAIL:" in err(emitted) and f"{READ_CAP}-byte Read page cap" in err(emitted)
+    assert "UNVALIDATED" not in err(emitted), err(emitted)
+
+
+def test_shape3_goal_must_start_with_the_predecessors_section_byte_for_byte(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values={"goal": "> Do the thing. "})
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert "> Do the thing. \n" in hop2.read_text(encoding="utf-8")
+    assert strict(hop2).returncode == 0, out(strict(hop2))
+    edit(hop2, "> Do the thing. \n", "> Do the thing.\n")
+    trimmed = strict(hop2)
+    assert trimmed.returncode == 1, out(trimmed)
+    needle = "FAIL: Original goal: does not start with the predecessor's section"
+    assert needle in out(trimmed), out(trimmed)
+    edit(hop2, "> Do the thing.\n", "> Do the thing now. \n")
+    reworded = strict(hop2)
+    assert reworded.returncode == 1 and needle in out(reworded), out(reworded)
+
+
+def test_shape3_goal_appends_a_new_amendment_below_the_copied_section(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    amendment = '- **Amended (verbatim, 2026-09-02):** "Also do the other thing."'
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={"goal-new": amendment},
+    )
+    result = strict(hop2)
+    assert result.returncode == 0, out(result)
+    goal = _sections_by_hand(hop2.read_text(encoding="utf-8"))["Original goal"]
+    carried = _sections_by_hand(hop1.read_text(encoding="utf-8"))["Original goal"]
+    assert goal.startswith(carried + "\n")
+    assert goal.endswith(amendment)
+
+
+def test_shape3_crlf_predecessor_goal_compares_by_line_content(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    hop1.write_bytes(hop1.read_bytes().replace(b"\n", b"\r\n"))
+    assert strict(hop1).returncode == 0, out(strict(hop1))
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert b"\r" not in hop2.read_bytes()
+    result = strict(hop2)
+    assert result.returncode == 0, out(result) + err(result)
+    assert "Original goal" not in out(result)
+
+
+def test_shape3_retired_rule_may_leave_for_the_archive_but_not_vanish(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1, hop2 = s3_chain(repo, tmp_path, [SID_A, SID_B])
+    edit(hop2, "- [R2] Never push to main.\n", "")
+    retired = strict(hop2)
+    assert retired.returncode == 0, out(retired)
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    edit(archived, "- [R2] Never push to main.\n", "")
+    vanished = strict(hop2)
+    assert vanished.returncode == 1, out(vanished)
+    assert "[R2]" in out(vanished) and "h2-bbbbbbbb.md" in out(vanished), out(vanished)
+
+
+def test_shape3_duplicate_rule_id_fails(tmp_path):
+    repo = make_repo(tmp_path)
+    rules = "- [R1] The thing must stay green.\n- [R1] Never push to main."
+    hop1 = s3_hop(repo, tmp_path, values={"rules": rules})
+    result = strict(hop1)
+    assert result.returncode == 1, out(result)
+    assert "duplicate rule id [R1]" in out(result), out(result)
+
+
+def test_shape3_rule_without_an_id_fails(tmp_path):
+    repo = make_repo(tmp_path)
+    rules = "- [R1] The thing must stay green.\n- Never push to main."
+    hop1 = s3_hop(repo, tmp_path, values={"rules": rules})
+    result = strict(hop1)
+    assert result.returncode == 1, out(result)
+    assert "without a [R<n>] id" in out(result), out(result)
+
+
+def test_shape3_changed_rule_needs_its_prior_text_in_the_hop_file(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1, hop2 = s3_chain(repo, tmp_path, [SID_A, SID_B])
+    rule = "- [R1] The thing must stay green.\n"
+    edit(hop2, rule, "- [R1] The thing must stay green and fast.\n")
+    rewritten = strict(hop2)
+    assert rewritten.returncode == 0, out(rewritten)
+    edit(hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B), rule, "")
+    lost = strict(hop2)
+    assert lost.returncode == 1, out(lost)
+    assert "[R1]" in out(lost) and "prior text" in out(lost), out(lost)
+
+
+def test_shape3_missing_hop_file_on_the_chain_path_fails(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    hop1, hop2, hop3 = s3_chain(repo, tmp_path, [SID_A, SID_B, SID_C])
+    assert strict(hop3).returncode == 0, out(strict(hop3))
+    own = hop_file(handoffs, HOP1, 3, SID_C)
+    kept = own.read_bytes()
+    own.unlink()
+    no_own = strict(hop3)
+    assert no_own.returncode == 1 and "h3-cccccccc.md" in out(no_own), out(no_own)
+    own.write_bytes(kept)
+    hop_file(handoffs, HOP1, 2, SID_B).unlink()
+    no_pred = strict(hop3)
+    assert no_pred.returncode == 1, out(no_pred)
+    assert "h2-bbbbbbbb.md" in out(no_pred), out(no_pred)
+
+
+def test_shape3_github_state_claim_warns(tmp_path):
+    repo = make_repo(tmp_path)
+    claim = "- PR #42 is merged into main."
+    hop1 = s3_hop(repo, tmp_path, values={"observations": claim})
+    result = strict(hop1)
+    assert result.returncode == 0, out(result)
+    assert "WARN: line" in out(result) and "GitHub state" in out(result), out(result)
+    edit(hop1, claim, "- PR #42 holds the change; re-read it before acting.")
+    pointer = strict(hop1)
+    assert pointer.returncode == 0 and "GitHub state" not in out(pointer), out(pointer)
+
+
+def test_shape3_retry_rewrites_only_its_own_hop_file(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    hop1 = s3_hop(repo, tmp_path)
+    s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    s3_hop(repo, tmp_path, hop1, sid=SID_C, now="2026-09-03T10:00:00Z")
+    own = hop_file(handoffs, HOP1, 2, SID_B)
+    sibling = hop_file(handoffs, HOP1, 2, SID_C)
+    own_bytes, sibling_bytes = own.read_bytes(), sibling.read_bytes()
+    own.write_bytes(own_bytes + b"tampered\n")
+    retry = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-04T10:00:00Z")
+    assert retry.returncode == 0, err(retry)
+    assert own.read_bytes() == own_bytes
+    assert sibling.read_bytes() == sibling_bytes
+    other = "bbbbbbbb-0000-4000-8000-000000000000"
+    clash = s3_new(repo, tmp_path, hop1, sid=other, now="2026-09-05T10:00:00Z")
+    assert clash.returncode == 1, err(clash)
+    assert "h2-bbbbbbbb.md" in err(clash), err(clash)
+    assert own.read_bytes() == own_bytes
+    assert not (handoffs / HOP5).exists()
+
+
+def test_shape3_fork_writes_a_sibling_hop_file(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    hop1 = s3_hop(repo, tmp_path)
+    left = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    right = s3_hop(repo, tmp_path, hop1, sid=SID_C, now="2026-09-03T10:00:00Z")
+    archive = handoffs / "archive" / HOP1.removesuffix(".md")
+    assert sorted(p.name for p in archive.iterdir()) == [
+        "h1-aaaaaaaa.md",
+        "h2-bbbbbbbb.md",
+        "h2-cccccccc.md",
+    ]
+    for successor in (left, right):
+        result = strict(successor)
+        assert result.returncode == 0, out(result)
+        assert "\nhop: 2\n" in successor.read_text(encoding="utf-8")
+
+
+def _good_chain_memory(tmp_path: Path) -> Path:
+    """The good-chain fixture as a memory root `new` accepts (outside any git repo)."""
+    handoffs = materialize(tmp_path, "good-chain")
+    (handoffs.parent / ".gitignore").write_text("*\n", encoding="utf-8")
+    return handoffs
+
+
+def _new_in(
+    handoffs: Path, tmp_path: Path, previous: Path, sid: str, now: str
+) -> subprocess.CompletedProcess[bytes]:
+    return run(
+        "new",
+        "--topic",
+        "widget",
+        "--memory-dir",
+        str(handoffs.parent),
+        "--session-id",
+        sid,
+        "--projects-root",
+        projects_root(tmp_path),
+        "--now",
+        now,
+        "--previous",
+        str(previous),
+    )
+
+
+def test_shape3_first_split_of_a_hop57_shape2_chain_needs_no_earlier_hop_files(
+    tmp_path,
+):
+    handoffs = _good_chain_memory(tmp_path)
+    names = [f"20260801T{i:02d}0000Z-handoff-widget.md" for i in range(53)]
+    chain = "".join(f"  - {name}\n" for name in [*names, HOP1, HOP2, HOP3])
+    edit(
+        handoffs / HOP3,
+        f"chain:\n  - {HOP1}\n  - {HOP2}\n  - {HOP3}\n",
+        "chain:\n" + chain,
+    )
+    made = _new_in(handoffs, tmp_path, handoffs / HOP3, SID_D, "2026-09-10T10:00:00Z")
+    assert made.returncode == 0, err(made)
+    hot = Path(out(made).strip())
+    text = hot.read_text(encoding="utf-8")
+    assert f"\nchain_root: {names[0]}\n" in text
+    assert "\nhop: 57\n" in text and "\narchive_from: 57\n" in text
+    assert hop_file(handoffs, names[0], 57, SID_D).is_file()
+    hot.write_text(shape3_fill(text), encoding="utf-8", newline="\n")
+    result = run("validate", str(hot))
+    assert result.returncode == 0, out(result)
+    assert "FAIL" not in out(result) and "h56" not in out(result), out(result)
+
+
+def test_shape3_first_split_dereferences_the_root_goal(tmp_path):
+    handoffs = _good_chain_memory(tmp_path)
+    made = _new_in(handoffs, tmp_path, handoffs / HOP3, SID_D, "2026-09-10T10:00:00Z")
+    assert made.returncode == 0, err(made)
+    hot = Path(out(made).strip())
+    text = hot.read_text(encoding="utf-8")
+    assert "\nhop: 4\n" in text and "\narchive_from: 4\n" in text
+    assert f"\nchain_root: {HOP1}\n" in text
+    ask = (
+        "Opening ask:\n"
+        "Make the widget importer idempotent. A second run doubles every row today.\n"
+        "Start with the composite key, then the re-run test.\n"
+    )
+    assert ask in text
+    assert "Opening ask: see" not in text
+    assert "Next action serves it by" not in _sections_by_hand(text)["Original goal"]
+    hot.write_text(shape3_fill(text), encoding="utf-8", newline="\n")
+    result = run("validate", str(hot))
+    assert result.returncode == 0, out(result)
+    assert "FAIL" not in out(result), out(result)
+    edit(hot, ask, f"Opening ask: see {HOP1} § Original goal\n")
+    pointer = run("validate", str(hot))
+    assert pointer.returncode == 1, out(pointer)
+    assert "Opening ask" in out(pointer) and HOP1 in out(pointer), out(pointer)
+
+
+def test_shape3_first_split_of_a_370kb_predecessor_moves_sections_verbatim(tmp_path):
+    handoffs = _good_chain_memory(tmp_path)
+    pred = handoffs / HOP1
+    anchor = (
+        "- [h1] The public `WidgetReader` signature is frozen; "
+        "two downstream repos compile against it.\n"
+    )
+    sentence = "the lane must keep this rule while the chain runs "
+    filler = "".join(f"- [h1] Rule {i}: {sentence * 12}\n" for i in range(700))
+    edit(pred, anchor, anchor + filler)
+    assert len(pred.read_bytes()) >= 370_000
+    before = pred.read_bytes()
+    made = _new_in(handoffs, tmp_path, pred, SID_D, "2026-09-10T10:00:00Z")
+    assert made.returncode == 0, err(made)
+    assert pred.read_bytes() == before
+    archived = hop_file(handoffs, HOP1, 2, SID_D).read_text(encoding="utf-8")
+    for title, body in _sections_by_hand(before.decode("utf-8")).items():
+        if title in ("Original goal", "Resume prompt"):
+            continue
+        assert f"## {title}\n\n{body}\n" in archived, title
+    hot = Path(out(made).strip())
+    filled = shape3_fill(hot.read_text(encoding="utf-8"))
+    hot.write_text(filled, encoding="utf-8", newline="\n")
+    assert len(hot.read_bytes()) < HOT_CAP
+    assert "Rule 17:" not in filled
+    result = run("validate", str(hot))
+    assert result.returncode == 0, out(result)
+
+
+def test_shape3_prior_sessions_keeps_the_last_three_rows(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    paths = s3_chain(repo, tmp_path, [SID_A, SID_B, SID_C, SID_D, SID_E])
+    body = _sections_by_hand(paths[-1].read_text(encoding="utf-8"))["Prior sessions"]
+    rows = [line for line in body.split("\n") if line.startswith("| 2026")]
+    assert [row.rstrip(" |").rsplit("| ", 1)[-1] for row in rows] == [HOP2, HOP3, HOP4]
+    archived = hop_file(handoffs, HOP1, 5, SID_E).read_text(encoding="utf-8")
+    assert f"| {HOP1} |" in archived
+    result = run("validate", str(paths[-1]))
+    assert result.returncode == 0, out(result)
+    assert "FAIL" not in out(result), out(result)
+
+
+def test_shape3_skeleton_fills_through_fill_and_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    made = s3_new(repo, tmp_path)
+    assert made.returncode == 0, err(made)
+    target = Path(out(made).strip())
+    instructions = slot_instructions(target.read_text(encoding="utf-8"))
+    payload = {
+        name: SHAPE3_VALUES[name]
+        for name, instruction in instructions.items()
+        if not instruction.startswith("optional:")
+    }
+    filled = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    assert filled.returncode == 0, err(filled)
+    result = strict(target)
+    assert result.returncode == 0, out(result)
+
+
+def test_shape3_predecessor_is_never_continued_as_shape2(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    made = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
+    assert made.returncode == 1, err(made)
+    assert "shape 3" in err(made), err(made)
+    assert not (repo / ".work" / "handoffs" / HOP2).exists()
+
+
+def test_shape3_after_a_shape1_predecessor_points_at_its_root_and_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    handoffs.mkdir()
+    legacy = handoffs / LEGACY
+    shutil.copy(FIXTURES / "legacy-14" / "handoffs" / LEGACY, legacy)
+    before = legacy.read_bytes()
+    hot = s3_hop(repo, tmp_path, legacy, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert legacy.read_bytes() == before
+    text = hot.read_text(encoding="utf-8")
+    assert f"\nprevious_handoff: {LEGACY}\n" in text
+    assert f"\nchain_root: {LEGACY}\n" in text and "\nhop: 2\n" in text
+    pointer = f"Opening ask: see {LEGACY} § Original goal (shape-1 root, no verbatim ask recorded)"
+    assert pointer in text
+    archived = hop_file(handoffs, LEGACY, 2, SID_B).read_text(encoding="utf-8")
+    assert "## Constraints that must hold\n" in archived
+    result = strict(hot)
+    assert result.returncode == 0, out(result)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (f"chain_root: {HOP1}", "chain_root: ../../../escaped.md"),
+        (
+            f"chain_root: {HOP1}",
+            "chain_root: 20260901T100000Z-handoff-x/../../../../escaped.md",
+        ),
+    ],
+)
+def test_shape3_new_refuses_a_chain_root_that_leaves_the_archive(tmp_path, old, new):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    edit(hop1, old, new)
+    before = sorted(p.as_posix() for p in tmp_path.rglob("*"))
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert made.returncode == 1, err(made)
+    assert "chain_root" in err(made), err(made)
+    assert sorted(p.as_posix() for p in tmp_path.rglob("*")) == before
+
+
+def test_shape2_to_3_new_refuses_a_chain_entry_that_leaves_the_archive(tmp_path):
+    handoffs = _good_chain_memory(tmp_path)
+    edit(handoffs / HOP3, f"chain:\n  - {HOP1}\n", "chain:\n  - ../../../escaped.md\n")
+    before = sorted(p.as_posix() for p in tmp_path.rglob("*"))
+    made = _new_in(handoffs, tmp_path, handoffs / HOP3, SID_D, "2026-09-10T10:00:00Z")
+    assert made.returncode == 1, err(made)
+    assert sorted(p.as_posix() for p in tmp_path.rglob("*")) == before
+
+
+def test_shape3_a_retired_rule_id_is_never_offered_again(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    hop2 = Path(out(made).strip())
+    hop2.write_text(
+        shape3_fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
+    edit(hop2, "- [R2] Never push to main.\n", "")
+    assert strict(hop2).returncode == 0, out(strict(hop2))
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    assert strict(hop3).returncode == 0, out(strict(hop3))
+    made = s3_new(repo, tmp_path, hop3, sid=SID_D, now="2026-09-04T10:00:00Z")
+    skeleton = Path(out(made).strip()).read_text(encoding="utf-8")
+    assert "new ids from R3" in slot_instructions(skeleton)["rules-new"]

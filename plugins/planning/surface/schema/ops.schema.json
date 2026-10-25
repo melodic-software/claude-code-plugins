@@ -27,6 +27,7 @@
           {"$ref": "#/$defs/archive-visual"},
           {"$ref": "#/$defs/record-terminal"},
           {"$ref": "#/$defs/set-status"},
+          {"$ref": "#/$defs/glossary"},
           {"$ref": "#/$defs/revising-by-claude"},
           {"$ref": "#/$defs/context"},
           {"$ref": "#/$defs/wait"},
@@ -282,6 +283,18 @@
       "properties": {
         "op": {"enum": ["set-status"]},
         "text": {"$ref": "#/$defs/line"},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "glossary": {
+      "description": "Define a coined session term: `term` (at most 60 characters) with a non-empty `definition`, or remove the term with `clear`; exactly one of the two. A term already defined is redefined. The page lists the terms in its Terms panel and shows the definition on hover wherever the term appears in question text. At most 100 terms.",
+      "type": "object",
+      "required": ["op", "term"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["glossary"]},
+        "term": {"type": "string", "maxLength": 60},
+        "definition": {"$ref": "#/$defs/line"},
         "clear": {"type": "boolean"}
       }
     },

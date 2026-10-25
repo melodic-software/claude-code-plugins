@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "scripts/queue_risk.py, scripts/queue_policy.py and tests/test_queue_risk.py.",
+      "why": "all three"
+    },
+    {
+      "answer": "Three files: queue_risk.py, queue_policy.py and test_queue_risk.py; the handoff's one-file scope is stale.",
+      "why": "all three plus the correction"
+    },
+    {
+      "answer": "Not just queue_risk.py: it also touches scripts/queue_policy.py and tests/test_queue_risk.py.",
+      "why": "names the extras"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Only scripts/queue_risk.py.",
+      "why": "stale scope"
+    },
+    {
+      "answer": "scripts/queue_risk.py and config/routing.toml.",
+      "why": "wrong second file"
+    },
+    {
+      "answer": "scripts/queue_risk.py and a test.",
+      "why": "misses queue_policy.py"
+    }
+  ]
+}

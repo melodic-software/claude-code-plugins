@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "#4318 is held: it carries needs-human and conflicts with main.",
+      "why": "names both"
+    },
+    {
+      "answer": "Not merging #4318: mergeable is CONFLICTING.",
+      "why": "conflicting"
+    },
+    {
+      "answer": "#4318 has a merge conflict after #4316.",
+      "why": "merge conflict"
+    },
+    {
+      "answer": "Held: #4318 needs the owner's call on the threshold (needs-human).",
+      "why": "hold word before the number"
+    },
+    {
+      "answer": "I am not merging #4318.",
+      "why": "not merging"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Merged #4318.",
+      "why": "never re-read"
+    },
+    {
+      "answer": "#4318 is approved and green; moving on to #4322.",
+      "why": "repeats the stale fact"
+    },
+    {
+      "answer": "Started #4322.",
+      "why": "silent on the hold"
+    },
+    {
+      "answer": "#4316 conflicts with main; #4322 is next.",
+      "why": "near miss: a conflict about another PR"
+    },
+    {
+      "answer": "Nothing is held. #4318 is approved and green.",
+      "why": "near miss: hold word in another sentence"
+    }
+  ]
+}

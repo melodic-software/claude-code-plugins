@@ -13,6 +13,7 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  closingPulls,
   countTurnCapRestarts,
   decide,
   findPrior,
@@ -24,6 +25,7 @@ import {
   readChecks,
   readOutcome,
   readTurnCap,
+  RESUMABLE,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
@@ -1429,9 +1431,30 @@ test("lane.json's max-turns class is the turn-cap record; any other class is non
     [{ branch: "", class: "max-turns", "max-turns": "75" }, { cap: 75 }],
     [{ branch: "", class: "max-turns", "max-turns": "75; rm" }, { cap: null }],
     [{ branch: "", class: "rate-limit", "max-turns": "75" }, null],
+    [{ branch: "", class: "timeout", "max-turns": "75" }, { cap: null, timeout: true }],
+    [{ branch: "", class: "other", "max-turns": "75" }, null],
   ]) {
     withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readTurnCap(dir), expected, JSON.stringify(lane)));
   }
+});
+
+// A leg run-claude-cli stopped at its timeout (class timeout) ran out of time
+// like a turn cap: with a restart left it keeps agent-ready, so work-unblock
+// restarts it and the next run resumes its branch (turn-cap is RESUMABLE);
+// it never hands back as stopped while a restart is left.
+test("a leg timeout with no outcome of its own restarts from its branch like a turn cap, naming the time", () => {
+  const timedOut = withDir({ "lane.json": JSON.stringify({ branch: "", class: "timeout", "max-turns": "75" }) }, (dir) => readTurnCap(dir));
+  const plan = capped({ turnCap: timedOut });
+  assert.equal(plan.action, "turn-cap");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap run=555 -->\n"), plan.comment);
+  assert.match(plan.comment, /its time ran out \(the launcher's leg timeout\)/);
+  assert.ok(plan.comment.includes(BRANCH));
+  assert.equal(parseOutcomeMarker(plan.comment).outcome, "turn-cap");
+  assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome), "the next run resumes the branch");
+  const spent = capped({ turnCap: timedOut, turnCapRestarts: 1 });
+  assert.equal(spent.action, "hand-back", "with its restarts used it goes to a person");
 });
 
 test("restarts count the App's turn-cap markers since a person last added agent-ready, not this run's", () => {
@@ -1535,8 +1558,9 @@ const branchFact = (name, { aheadBy = 2, behindBy = 0, tip = LANE_TIP, tipAt = D
   pulls,
 });
 const pullBy = (login, state = "open") => ({ state, user: { login } });
-const closer = (typename, login, databaseId, repo = "o/r") => ({
+const closer = (typename, login, databaseId, repo = "o/r", state = "OPEN") => ({
   number: 501,
+  state,
   author: { __typename: typename, login, ...(databaseId ? { databaseId } : {}) },
   repository: { nameWithOwner: repo },
 });
@@ -1931,6 +1955,24 @@ test("--find-prior goes ahead on an outsider's closing PR", async () => {
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
+test("--find-prior goes ahead past a listed human's merged or closed closing PR, which GitHub lists despite includeClosedPrs: false", async () => {
+  for (const state of ["MERGED", "CLOSED"]) {
+    const { output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID, "o/r", state)] });
+    assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n", state);
+  }
+});
+
+test("closingPulls keeps only the open closing PRs and asks GitHub for each one's state", async () => {
+  const calls = [];
+  const github = async (method, path, body) => {
+    calls.push(body);
+    return graphql(["OPEN", "MERGED", "CLOSED"].map((state, i) => ({ ...closer("User", "stranger", 42, "o/r", state), number: 600 + i })));
+  };
+  const nodes = await closingPulls(github, { owner: "o", name: "r", number: 77 });
+  assert.deepEqual(nodes.map((node) => node.number), [600]);
+  assert.match(calls[0].query, /nodes \{ number state /);
+});
+
 test("--find-prior names an unreported lane branch ahead of main as the reuse branch", async () => {
   const { code, calls, output } = await runPrior({ refs: [refOf(lane(400))] });
   assert.equal(code, 0);
@@ -1994,6 +2036,12 @@ const failsClosed = async (label, facts) => {
 test("--find-prior fails past the 50-page cap of closing PRs", async () => {
   const pages = Array.from({ length: 51 }, (_, i) => [{ ...closer("User", `stranger${i}`, 1000 + i), number: 600 + i }]);
   await failsClosed("51 pages", { graphqlPages: pages });
+});
+
+test("--find-prior fails on a closing PR with no state", async () => {
+  for (const state of [undefined, null, 1]) {
+    await failsClosed(String(state), { nodes: [{ ...closer("User", "stranger", 42), state }] });
+  }
 });
 
 test("--find-prior fails on a closing-PR page with no page information", async () => {
