@@ -557,8 +557,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30, frontierLock: "confirm", requireDepends: false};
   const RESTART = "Restart the server to enable this.";
   const NOT_LISTENING = "No session is listening; type next in the terminal";
-  const FIRST_WAKE = "Not listening: approve any prompt in the terminal, or type next";
-  const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
+  const FIRST_WAKE = "approve any prompt in the terminal, or type next"; // the header's instruction while no watcher has ever polled
+  const DEAF_AFTER = 30; // seconds with no watcher poll before the chips and the receipt line say no session is listening; the header does not wait on it
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
   const TEXT_MAX = 20000; // a note box's length: the lane's longest text (ops.schema.json markdown), inside the server's 64 KB body
   // The composer kit (question-shape.js) runs both note boxes: Ctrl or Cmd + Enter sends and Escape leaves (P5: the
@@ -984,8 +984,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!(l.waiters > 0) && (l.lease || l.state === "reading") && !stalled()) { // Claude holds the lease, or the bridge reports the session reading (its window after a delivery), no watcher waits, and no delivery has gone unhandled for 10 minutes
       return ["working", d ? "Claude is working on " + subject(d) : "Claude is working"];
     }
-    if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
-    return l.waiters > 0 ? ["listening", "Live"] : ["rest", "Idle"]; // Live needs a waiter; the lease alone no longer shows it
+    if (!(l.waiters > 0)) { // no waiter and no lease, or a stalled delivery: not listening from the first render, with no DEAF_AFTER grace (that grace is the chips' and the receipt line's)
+      const p = pending();
+      if (!p.length) return ["rest", "Idle"]; // only a waiting event needs Claude
+      const d = p.find(delivered), ids = [...new Set((d ? [d, ...p.filter(e => e !== d)] : p).map(subject))]; // the delivered one first, as the receipt line lists them
+      const who = ids.length > 3 ? ids.slice(0, 3).join(", ") + " and " + (ids.length - 3) + " more" : ids.join(", ");
+      return ["idle", "Not listening for " + who + ": " + (neverPolled() ? FIRST_WAKE : "type next")];
+    }
+    return ["listening", "Live"]; // Live needs a waiter; the lease alone no longer shows it
   }
   function working(){ // what Claude is doing with the user's events, else ""
     if (!S.online) return "";

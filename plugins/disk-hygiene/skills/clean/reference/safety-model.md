@@ -90,7 +90,8 @@ every confirmation gate apply exactly as before. Removing anything the inventory
   checkout `clear` under the complete evidence bundle below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
-  above, not this structural mount veto);
+  above, not this structural mount veto; `--root-children` on a non-root mount target only lists
+  its immediate children and writes no snapshot, so the veto still covers removal);
 - no virtual-disk image file, matched by name and case-insensitively against the baseline
   `disk_image_name_globs` (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`; WSL's
   `ext4.vhdx` is covered by `*.vhdx`). The entry reports `virtual-disk` in `protected_reasons` and

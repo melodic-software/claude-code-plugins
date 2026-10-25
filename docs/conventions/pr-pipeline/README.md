@@ -295,16 +295,18 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 `.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
-exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
-`not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
+unappliable patch goes to `report-escalation`, as does a run that changed nothing and escalated a
+check. A patch that pushed escalates nothing, whatever the model escalated beside it: the new
+head's CI decides, and a red new head gets its own run. The one exception: a run at
+`model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 `fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
-without a retry. The same
+pushes and `ci-status` stays red. In a run that changed nothing, `protected-path`,
+`weaken-required` and `flaky` go to a person without a retry; beside a pushed patch, the new
+head's CI decides for them too. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
