@@ -144,10 +144,15 @@ calls, and the evidence and no-orphan checks that follow the run.
 
 ## Check
 
-1. Run `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" <dir>`. It prints one `<rule> | <path> |
-   <detail>` line per structural finding and lists its rules in its header. Without a shell, Read
-   the script and apply those rules by hand, resolving source globs against the directory that
-   holds `.claude/`; report only what the rules find, never a finding that might apply.
+1. Run `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" "<dir>"`, once per directory, the
+   directory quoted; a directory name with a character outside `A-Z a-z 0-9 . _ - /` or a `..`
+   segment is reported and never reaches a shell. With no `<dir>` and no
+   `.claude/skills/control-*/` directory, report that and stop. The script prints one
+   `<rule> | <path> | <detail>` line per structural finding and lists its rules in its header.
+   Without a shell, Read the script and apply those rules by hand, resolving source globs against
+   the directory that holds `.claude/`; a glob that is absolute, has a `..` segment or starts in a
+   symlink that leads outside that directory is an `index-glob` finding and is never resolved.
+   Report only what the rules find, never a finding that might apply.
 2. Judge the copied recipe, which the script cannot: a hub or feature section that repeats the
    commands or steps of a recipe kept elsewhere (a `run-<name>` or verify skill, `cli/README.md`,
    another feature's Drive) instead of naming it, against the contract's "Driver commands". Report

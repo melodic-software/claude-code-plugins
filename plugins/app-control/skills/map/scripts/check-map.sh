@@ -4,11 +4,14 @@
 # skill directory. Never edits. Exits 0 with or without findings; 2 on a usage error.
 #
 # Rules:
+#   index-form         an index line names no feature file in its second field
 #   index-dead         an index line names a feature file that does not exist
 #   index-duplicate    two index lines name the same feature file
 #   index-missing      a feature file on disk has no index line
 #   index-entry-count  an index line's `entry points: <n>` differs from the file's entry lines
-#   index-glob         an index source glob matches no file under the repository root
+#   index-glob         an index source glob matches no file under the project root (the
+#                      directory holding .claude/), or is absolute, has a `..` segment, or
+#                      starts in a symlink that leads outside that root
 #   section-missing    a feature README lacks one of the six sections
 #   section-extra      a feature README has an H2 section outside the six
 #   section-order      a feature README's sections are out of the contract's order
@@ -16,10 +19,12 @@
 #   entry-reason       an entry point line ends `not driven` with no reason
 #   link               a relative Markdown link in any .md file resolves to nothing
 #   shared-use         a `shared/<item>` is named by fewer than two feature files
-#   shared-why         a `shared/<item>` README has no `Why shared: <reason>` line
+#   shared-why         a `shared/<item>` has no `Why shared: <reason>` line (in its README.md
+#                      for a folder, in the file for a file, after an optional comment marker)
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
-# written. What a shared item is, what counts as a use and where its why line goes: the contract's
+# written. A README.md inside a feature's folder belongs to that feature, not to a new one. Hidden
+# files and dependency folders (node_modules, .venv) are skipped. What a shared item is, what counts as a use and where its why line goes: the contract's
 # "Shared items" section.
 set -euo pipefail
 
@@ -89,6 +94,7 @@ fi
   exit 2
 }
 
+root_real="$(cd "$root" && pwd -P)"
 SECTIONS=("Parts" "Sub-features" "Entry points" "Reset" "Drive" "Gotchas")
 
 finding() { printf '%s | %s | %s\n' "$1" "$2" "$3"; }
@@ -108,12 +114,28 @@ entry_lines() {
 
 declare -A features=() indexed=()
 while IFS= read -r f; do features["$f"]=readme; done < <(cd "$dir" && find features -mindepth 2 -type f -name README.md 2>/dev/null | LC_ALL=C sort)
+# Drop a README.md that sits inside another feature's folder.
+for f in "${!features[@]}"; do
+  d="$(dirname "$(dirname "$f")")"
+  while [[ "$d" == features/* ]]; do
+    key="$d/README.md"
+    [[ -z "${features[$key]:-}" ]] || {
+      unset 'features[$f]'
+      break
+    }
+    d="$(dirname "$d")"
+  done
+done
 while IFS= read -r f; do features["$f"]=legacy; done < <(cd "$dir" && find features -mindepth 1 -maxdepth 1 -type f -name '*.md' 2>/dev/null | LC_ALL=C sort)
 
 # Index lines, in hub order.
 while IFS= read -r line; do
   IFS='|' read -r -a fields <<<"$line"
   path="$(trim "${fields[1]:-}")"
+  if [[ -z "$path" ]]; then
+    finding index-form SKILL.md "$line"
+    continue
+  fi
   if [[ -n "${indexed[$path]:-}" ]]; then
     finding index-duplicate SKILL.md "$path is indexed more than once"
     continue
@@ -134,6 +156,16 @@ while IFS= read -r line; do
   for glob in "${globs[@]}"; do
     glob="$(trim "$glob")"
     [[ -n "$glob" ]] || continue
+    # The literal part before the first wildcard must resolve inside the root, so a symlink
+    # cannot carry the expansion out of the project.
+    # A directory that does not exist expands to nothing, so it stays with the root.
+    prefix="${glob%%[*?[]*}"
+    [[ "$prefix" == */ ]] || prefix="$(dirname "$prefix")"
+    real="$(cd "$root/$prefix" 2>/dev/null && pwd -P)" || real="$root_real"
+    if [[ "$glob" == /* || "/$glob/" == */../* || ("$real" != "$root_real" && "$real" != "$root_real"/*) ]]; then
+      finding index-glob SKILL.md "$path: $glob leaves the project root"
+      continue
+    fi
     hits="$(
       cd "$root"
       shopt -s globstar nullglob
@@ -202,7 +234,7 @@ while IFS= read -r md; do
     [[ "$target" =~ ^[A-Za-z][A-Za-z0-9+.-]*: ]] && continue
     [[ -e "$base/$target" ]] || finding link "$md" "$target does not resolve"
   done < <(link_targets "$dir/$md")
-done < <(cd "$dir" && find . -type f -name '*.md' | sed 's|^\./||' | LC_ALL=C sort)
+done < <(cd "$dir" && find . \( -name node_modules -o -name '.?*' \) -prune -o -type f -name '*.md' -print | sed 's|^\./||' | LC_ALL=C sort)
 
 # shared/ items.
 if [[ -d "$dir/shared" ]]; then
@@ -220,10 +252,10 @@ if [[ -d "$dir/shared" ]]; then
     [[ -d "$readme" ]] && readme="$readme/README.md"
     if [[ ! -f "$readme" ]]; then
       finding shared-why "$item" "no README.md"
-    elif ! grep -qiE '^[[:space:]]*why shared:[[:space:]]*[^[:space:]]' "$readme"; then
+    elif ! grep -qiE '^[[:space:]]*(#|//|--|<!--)?[[:space:]]*why shared:[[:space:]]*[^[:space:]]' "$readme"; then
       finding shared-why "$item" "no 'Why shared: <reason>' line"
     fi
-  done < <(cd "$dir" && find shared -mindepth 1 -maxdepth 1 | LC_ALL=C sort)
+  done < <(cd "$dir" && find shared -mindepth 1 -maxdepth 1 -not -name '.*' | LC_ALL=C sort)
 fi
 
 exit 0
