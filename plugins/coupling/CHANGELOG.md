@@ -3,6 +3,16 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3] - 2026-10-25
+
+### Added
+
+- Trigger probe set `probes/reduce.json` for the model-invoked `reduce` skill, written blind from its current description and frozen as the baseline for a later description rewrite. No skill behavior changes.
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.4.2] - 2026-10-20
 
 ### Changed
