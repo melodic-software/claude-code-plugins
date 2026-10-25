@@ -137,8 +137,9 @@ All as of 2026-10-25; recheck when any of them changes.
   at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
   recheck on a py-spy major release, or when a `threads` row names another recorder).
 - **A steps file is data.** When a feature's `## Drive` names one, expand its includes and check
-  its step ids before launching anything, per the contract's "Steps files": a repeated id or an
-  undeclared `with` name stops the feature, naming it. Report each step by its id; an optional step
+  its step ids before launching anything, per the contract's "Steps files": every condition there
+  that stops the run stops the feature before launch, naming the id, include or `with` name that
+  failed. Report each step by its id; an optional step
   whose target is absent is `skipped: optional`; finally steps run after a failure too. Artifact
   names carry the step id.
 - **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
