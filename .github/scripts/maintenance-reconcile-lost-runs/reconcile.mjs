@@ -108,10 +108,12 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // idempotent, so the re-run is safe whatever the failure was.
 export const INTAKE_LABEL = ".github/workflows/intake-label-needs-triage.yml";
 // A lost lane run whose steps listed in full is re-run once whether or not its
-// judge step started (a cut list is held below):
-// attempt 2 is never re-run, a FAIL uploaded before the loss still counts, and
-// the lanes App token, which pushes lane commits, cannot cancel a run (it has
-// no actions: write). A run none of whose jobs started is left alone: GitHub
+// judge step started (a cut list is held below). The re-run grants nothing: a
+// FAIL the first attempt uploaded counts whatever the run's conclusion, so a
+// second judgment cannot clear it, and attempt 2 is never re-run. Cancelling
+// a run is not what prevents this: the lanes App token has no actions: write,
+// but the ci-status job in pr-require-checks.yml does hold it. A run none of
+// whose jobs started is left alone: GitHub
 // cancels a pending run when a newer one for the same PR head queues behind
 // it, and that newer run judges the head.
 export const JUDGE_STEP = "Judge the pull request";
