@@ -42,19 +42,19 @@ keep going.
 Every stop below writes its `blocked: <reason>` line, and any list or path it prints, in the report.
 
 1. **Repository control skills.** The roots are this checkout and, in a worktree, the main
-   checkout (the first `worktree` entry of `git worktree list --porcelain`). Glob each root for
-   `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
+   checkout, read from `git worktree list --porcelain` (see its output format below). Glob each
+   root for `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
-   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file whose
-   folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
+   `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file
+   whose folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
    starts with `control-`). Drop a match inside a submodule or a dependency folder such as
    `node_modules` or `vendor`, and a main-checkout file at a path this checkout also holds. Its
    source is `project`.
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
-   its folder (`readFromFolder` when given, else `installPath`), look in its `skills/*/SKILL.md` and
-   `commands/**/*.md`, and keep matches by step 1's rule. Its source is `plugin` and its full name
-   `<plugin>:control-<app>`, where `<plugin>` is the `name` in that folder's
-   `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below).
+   the folder the list reports for it (see the plugin list below), look in its
+   `skills/*/SKILL.md` and `commands/**/*.md`, and keep matches by step 1's rule. Its source is
+   `plugin` and its full name `<plugin>:control-<app>`, where `<plugin>` is the `name` in that
+   folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below).
    Session-only plugins are not read. Each of these records a `blocked:` line and stops the run
    there: a `control-<app>` a manifest defines inline, with no file (`control skill <name> has no
    file to read`), and a `<plugin>:control-<app>` name this session shows (no `<app>`: any
@@ -97,8 +97,9 @@ fields and what it shows from inside a session:
 commands: <https://code.claude.com/docs/en/plugins/components#skills>,
 <https://code.claude.com/docs/en/plugins/components#commands>; a worktree session's repository
 plugins: <https://code.claude.com/docs/en/plugins/loading#check-why-a-repository-plugin-didnt-load>;
-Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>. All
-as of 2026-10-25; recheck when any of them changes.
+Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>; which
+worktree entry is the main checkout: <https://git-scm.com/docs/git-worktree#_list_output_format>.
+All as of 2026-10-25; recheck when any of them changes.
 
 ## Rules
 
