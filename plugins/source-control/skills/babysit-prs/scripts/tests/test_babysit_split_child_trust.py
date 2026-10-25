@@ -16,6 +16,7 @@ import pathlib
 import subprocess
 import sys
 import unittest
+from datetime import timedelta
 from typing import Any
 from unittest import mock
 
@@ -254,6 +255,25 @@ class OneReadPerChild(unittest.TestCase):
             [env for args, env in self.fake.calls if args[:2] == ["api", "graphql"]],
             [{"GH_TOKEN": "t"}],
         )
+
+    def test_a_reused_answer_notes_when_it_was_read(self) -> None:
+        start = ve.run_cache.now()
+        ticks = (start + timedelta(seconds=n) for n in range(1000))
+        with (
+            mock.patch.dict("os.environ", {}, clear=False) as env,
+            mock.patch.object(postmerge, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve.run_cache, "now", side_effect=lambda: next(ticks)),
+        ):
+            env.pop("BABYSIT_RUN_CACHE", None)
+            reader = ve.Reader(
+                REPO, "main", agent_identity=LANES_LOGIN, actions_token="t"
+            )
+            with ve.run_cache.track() as first:
+                self.assertTrue(reader._trusted_spec({"linked_issues": [self.child]}))
+            with ve.run_cache.track() as second:
+                self.assertTrue(reader._trusted_spec({"linked_issues": [self.child]}))
+        self.assertTrue(first)
+        self.assertLessEqual(set(first), set(second))
 
     def test_no_read_for_an_issue_the_lanes_app_did_not_write(self) -> None:
         human = self.data["humans"][0]

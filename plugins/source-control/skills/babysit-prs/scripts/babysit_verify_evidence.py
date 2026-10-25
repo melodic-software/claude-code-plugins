@@ -657,8 +657,13 @@ class Reader:
     # Admission's `task-list` (`_task_list`), once read.
     _task_list_value: Any = None
     _task_list_read: bool = False
-    # Whether each size-split sub-issue judged counts (`_split_child`).
-    _split_children: dict[int, bool] = field(default_factory=dict)
+    _task_list_at: datetime | None = None
+    # Whether each size-split sub-issue judged counts (`_split_child`), and
+    # when each read behind it was taken, noted again on every answer
+    # (`run_cache.note`).
+    _split_children: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
     # The pull requests `link_refusal` read, each taken by the next
     # `_closing_issues` instead of reading it again.
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -1078,7 +1083,9 @@ class Reader:
                 self._task_list_value = rules.get("task-list")
                 run_cache.put("task-list", key, self._task_list_value, at)
             self._task_list_read = True
-            run_cache.note(at)
+            self._task_list_at = at
+        if self._task_list_at is not None:
+            run_cache.note(self._task_list_at)
         value = self._task_list_value
         return value if isinstance(value, str) and value else None
 
@@ -1098,15 +1105,20 @@ class Reader:
         ):
             return False
         if number not in self._split_children:
-            task_list = self._task_list()
-            node = self._graphql(
-                SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
-            ).get("issue")
-            body = split_child_body(
-                node, self.repo, self._trusted_humans(), app_id, task_list
-            )
-            self._split_children[number] = body is not None
-        return self._split_children[number]
+            with run_cache.track() as taken:
+                task_list = self._task_list()
+                run_cache.note(run_cache.now())
+                node = self._graphql(
+                    SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
+                ).get("issue")
+                body = split_child_body(
+                    node, self.repo, self._trusted_humans(), app_id, task_list
+                )
+            self._split_children[number] = (body is not None, tuple(taken))
+        counts, read_at = self._split_children[number]
+        for at in read_at:
+            run_cache.note(at)
+        return counts
 
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
