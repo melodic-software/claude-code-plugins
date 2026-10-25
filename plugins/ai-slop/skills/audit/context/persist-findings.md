@@ -20,9 +20,8 @@ space before writing (a destination that cannot be proven is reported and not wr
 
 Common case, a summary that yields to the contract on any disagreement: with no location declared
 in `CLAUDE.md` or `.claude/rules`, the file goes to `<repo>/.work/reviews/<branch-slug>/` once
-`git check-ignore` confirms that path is ignored. The slug rule is in `/review:fanout` "Shared inputs"
-(`plugins/review/skills/fanout/SKILL.md`). A destination that cannot be resolved follows the
-contract, and the run reports report-only.
+`git check-ignore` confirms that path is ignored. The slug rule is in `/review:fanout` "Shared inputs".
+A destination that cannot be resolved follows the contract, and the run reports report-only.
 
 File name: `${TS}-ai-slop.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free, Windows-safe).
 Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer.
@@ -92,7 +91,7 @@ the section's line form. The script writes all of it. Omit `tier:`,
 A re-run writes what it currently finds and never replays: never re-emit a previous file, never
 copy rows forward. Writing a fresh file does not retire the old one: `review:fanout fix` skips a
 findings file only when a `type: fix-pass-record` for the same branch names it by file name and
-content digest (`plugins/review/skills/fanout/context/fix-pass-mode.md` Step 1). After this
+content digest (Step 1 of `/review:fanout fix`). After this
 skill's own `fix` action completes, in this order:
 
 1. **Retire the consumed file.** Run
