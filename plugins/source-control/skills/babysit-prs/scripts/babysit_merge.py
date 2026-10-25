@@ -2173,7 +2173,7 @@ MERGE_QUEUE_QUERY = (
     "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}} "
     "queueEvents:timelineItems(last:3,itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT,"
     "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
-    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason} "
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason createdAt} "
     "... on AddedToMergeQueueEvent{createdAt "
     "actor{__typename ... on User{databaseId} ... on Bot{databaseId}} "
     "enqueuer{login databaseId}}}}}}}"
@@ -2188,9 +2188,10 @@ def _ejected_enqueue(pr: dict[str, Any]) -> dict[str, Any] | None:
     """The enqueue whose entry the merge queue then removed for failed checks,
     with no head change since, read from the newest queue events and head
     changes (`queueEvents`, oldest first): `{"enqueue": that
-    AddedToMergeQueueEvent, "requeued": whether one newer enqueue follows the
-    removal}`. None for any other order, a malformed item, or no such removal.
-    Head changes sort as `_failed_ejections` reads them."""
+    AddedToMergeQueueEvent, "removedAt": the removal's time, "requeued":
+    whether one newer enqueue follows the removal}`. None for any other order,
+    a malformed item, or no such removal. Head changes sort as
+    `_failed_ejections` reads them."""
     nodes = json_object(pr.get("queueEvents")).get("nodes")
     if not is_json_array(nodes):
         return None
@@ -2203,7 +2204,11 @@ def _ejected_enqueue(pr: dict[str, Any]) -> dict[str, Any] | None:
         or enqueue.get("__typename") != ADDED
     ):
         return None
-    return {"enqueue": enqueue, "requeued": requeued}
+    return {
+        "enqueue": enqueue,
+        "removedAt": removal.get("createdAt"),
+        "requeued": requeued,
+    }
 
 
 def _failed_ejections(pr: dict[str, Any]) -> int | None:

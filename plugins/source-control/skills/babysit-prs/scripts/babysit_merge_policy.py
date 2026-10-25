@@ -2600,17 +2600,21 @@ def requeued_by_person(
     ejected: Any,
     *,
     human_ids: Collection[int],
-    head_committed: Callable[[], Any],
+    head_first_seen: Callable[[], Any],
     queued_at_head: Callable[[], bool],
+    quiet_since: Callable[[datetime], bool],
 ) -> bool:
     """Whether a person's merge-queue enqueue of this head stands in for the
     idle wait (owner decision Q-REQ (a)): `ejected` (`ejected_enqueue`) is the
     enqueue whose entry the queue removed for failed checks with no head
     change since; its actor and its enqueuer are both a kind human id on the
     trusted list (`human_ids`; never a login or a GitHub type, since GitHub
-    types an App's enqueuer a User); the head was committed no later than that
-    enqueue; and no other enqueue followed but the lane's own entry at this
-    head (`queued_at_head`). Anything unreadable is False."""
+    types an App's enqueuer a User); no other enqueue followed but the lane's
+    own entry at this head (`queued_at_head`); GitHub first saw the head
+    (`head_first_seen`, `_head_first_seen`) no later than that enqueue, so it
+    is the head the person queued; and no person has spoken since the removal
+    (`quiet_since`, `_quiet_since`), so a request to wait keeps the idle
+    rule. Anything unreadable is False."""
     item = json_object(ejected)
     enqueue = json_object(item.get("enqueue"))
     ids = [
@@ -2622,9 +2626,74 @@ def requeued_by_person(
     if requeued is not False and not (requeued is True and queued_at_head()):
         return False
     try:
-        return _time(head_committed()) <= _time(enqueue.get("createdAt"))
+        removed = _time(item.get("removedAt"))
+        return _time(head_first_seen()) <= _time(
+            enqueue.get("createdAt")
+        ) and quiet_since(removed)
     except PolicyReadError:
         return False
+
+
+def _head_first_seen(owner: str, name: str, pr: Mapping[str, Any]) -> str:
+    """When GitHub first saw the pull request's head commit on its head
+    branch: the earliest `created_at` of GitHub Actions' check suites for that
+    commit whose `head_branch` is the pull request's. GitHub sets it when the
+    push arrives, unlike a commit's dates, which the pusher sets. No such
+    suite, a listing past one page, or an unreadable one raises."""
+    head = json_object(pr.get("head"))
+    sha, ref = str(head.get("sha") or ""), head.get("ref")
+    if not SHA_RE.fullmatch(sha) or not isinstance(ref, str) or not ref:
+        raise PolicyReadError(f"head {sha!r} on {ref!r} unreadable")
+    status, payload = _get(
+        f"repos/{owner}/{name}/commits/{sha}/check-suites"
+        f"?app_id={ACTIONS_APP_ID}&per_page=100"
+    )
+    listing = json_object(payload)
+    suites = json_array(listing.get("check_suites"))
+    if status != 200 or listing.get("total_count") != len(suites):
+        raise PolicyReadError(f"head {sha} check suites unreadable (status {status})")
+    seen = [
+        json_object(s).get("created_at")
+        for s in suites
+        if json_object(s).get("head_branch") == ref
+    ]
+    if not seen:
+        raise PolicyReadError(f"head {sha} has no check suite on {ref}")
+    return min(seen, key=_time)
+
+
+def _discussion(owner: str, name: str, number: int) -> list[dict[str, Any]]:
+    """Every comment, review and inline review comment on the pull request,
+    over REST."""
+    return [
+        item
+        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
+        for item in _paginated(
+            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
+            f"#{number} {kind.split('/')[-1]}",
+        )
+    ]
+
+
+def _quiet_since(
+    owner: str, name: str, number: int, identity: str, since: datetime
+) -> bool:
+    """Whether no person has commented, reviewed or commented inline on the
+    pull request at or after `since`, by when it was created, edited or
+    submitted. The agent identity, automation accounts and bots do not count;
+    a person's item with no readable time does. An unreadable discussion
+    raises."""
+    skip = {_login_key(identity), *AUTOMATION_LOGINS}
+    for item in _discussion(owner, name, number):
+        author = _rest_actor(item.get("user"))
+        login = str((author or {}).get("login") or "")
+        if actor_kind({"author": author}) != "human" or _login_key(login) in skip:
+            continue
+        stamps = [item.get(k) for k in ("created_at", "updated_at", "submitted_at")]
+        stamps = [s for s in stamps if s]
+        if not stamps or any(_time(s) >= since for s in stamps):
+            return False
+    return True
 
 
 def lane_eligibility(
@@ -2691,8 +2760,11 @@ def lane_eligibility(
             if not_adopted in FRESH_REFUSALS and requeued_by_person(
                 ejected_enqueue(),
                 human_ids=adoption_human_ids,
-                head_committed=committed,
+                head_first_seen=lambda: _head_first_seen(owner, name, pr),
                 queued_at_head=queued_at_head,
+                quiet_since=lambda since: _quiet_since(
+                    owner, name, number, str(agent_identity or ""), since
+                ),
             ):
                 adoption = REQUEUE_ADOPTION
             elif not_adopted:
@@ -3419,16 +3491,8 @@ def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[s
     comment, and a stranger's text must not dequeue the identity's entry."""
     from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
 
-    corpus = [
-        item
-        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
-        for item in _paginated(
-            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
-            f"#{number} {kind.split('/')[-1]}",
-        )
-    ]
     found = set()
-    for item in corpus:
+    for item in _discussion(owner, name, number):
         author = _rest_actor(item.get("user"))
         login = str((author or {}).get("login") or "")
         if actor_kind({"author": author}) != "human" or _login_key(login) in {

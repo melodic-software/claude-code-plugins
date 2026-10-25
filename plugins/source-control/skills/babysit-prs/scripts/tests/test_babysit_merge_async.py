@@ -957,9 +957,15 @@ class MergeQueueReadBack(unittest.TestCase):
             "enqueuer": {"databaseId": 5},
         }
         lane = {**added, "actor": {"__typename": "Bot", "databaseId": 9}}
+        at = "2026-10-25T17:03:28Z"
+        out = {**_removed(), "createdAt": at}
+
+        def found(enqueue: dict[str, Any], requeued: bool = False) -> dict[str, Any]:
+            return {"enqueue": enqueue, "removedAt": at, "requeued": requeued}
+
         for events, expected in (
-            ([COMMIT, added, _removed()], {"enqueue": added, "requeued": False}),
-            ([added, _removed(), lane], {"enqueue": added, "requeued": True}),
+            ([COMMIT, added, out], found(added)),
+            ([added, out, lane], found(added, True)),
             ([added, _removed("merge_conflict")], None),
             ([added, _removed("manually_removed")], None),
             ([_removed(), added, _removed("merged")], None),
@@ -968,13 +974,13 @@ class MergeQueueReadBack(unittest.TestCase):
             ([added, COMMIT, _removed()], None),
             # The lane's retry ejected: its own enqueue, which no person made.
             (
-                [added, _removed(), lane, _removed()],
-                {"enqueue": lane, "requeued": False},
+                [added, _removed(), lane, out],
+                found(lane),
             ),
             ([_removed()], None),
             ([added], None),
             ([], None),
-            ([None, added, _removed()], {"enqueue": added, "requeued": False}),
+            ([None, added, out], found(added)),
             ([added, None, _removed()], None),
             (None, None),
         ):
@@ -995,6 +1001,8 @@ class MergeQueueReadBack(unittest.TestCase):
             (1, "failed_checks"),
         )
         self.assertIn("ADDED_TO_MERGE_QUEUE_EVENT", merge.MERGE_QUEUE_QUERY)
+        queue_events = merge.MERGE_QUEUE_QUERY.split("queueEvents:", 1)[1]
+        self.assertIn("RemovedFromMergeQueueEvent{reason createdAt}", queue_events)
 
     def test_failed_merge_group_runs_are_the_pull_requests_own(self) -> None:
         runs = {

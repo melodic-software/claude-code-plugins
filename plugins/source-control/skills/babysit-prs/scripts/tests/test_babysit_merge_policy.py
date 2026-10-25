@@ -4128,6 +4128,8 @@ ADOPT_NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
 IDLE = "2026-10-11T11:00:00Z"  # 25 hours before ADOPT_NOW
 FRESH = "2026-10-11T13:00:00Z"  # 23 hours before ADOPT_NOW
 NOW_ISH = "2026-10-11T14:00:00Z"  # an hour after FRESH
+REMOVED = "2026-10-11T13:30:00Z"  # the queue removed the entry FRESH queued
+SEEN = "2026-10-11T12:50:00Z"  # the head first reached GitHub
 HEAD = "c" * 40
 
 
@@ -4158,6 +4160,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     FILES = LaneEligibility.FILES
     COMMENTS = LaneEligibility.COMMENTS
     COMMIT = f"repos/{REPO}/commits/{HEAD}"
+    SUITES = f"repos/{REPO}/commits/{HEAD}/check-suites?app_id=15368&per_page=100"
     issue_node = LaneEligibility.issue_node
     fake_lane = LaneEligibility.fake
 
@@ -4582,13 +4585,14 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "enqueuer": {"databaseId": OWNER_ID},
         }
         enqueue.update(changes.pop("enqueue", {}))
-        return {"enqueue": enqueue, "requeued": False, **changes}
+        return {"enqueue": enqueue, "removedAt": REMOVED, "requeued": False, **changes}
 
     def requeued(self, ejected: Any, **kwargs: Any) -> bool:
         args: dict[str, Any] = {
             "human_ids": (OWNER_ID,),
-            "head_committed": lambda: FRESH,
+            "head_first_seen": lambda: SEEN,
             "queued_at_head": lambda: False,
+            "quiet_since": lambda when: True,
         }
         args.update(kwargs)
         return policy.requeued_by_person(ejected, **args)
@@ -4627,14 +4631,153 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 ejected = self.ejected(enqueue=enqueue)
                 self.assertFalse(self.requeued(ejected, human_ids=humans))
 
-    def test_a_head_committed_after_the_enqueue_does_not_requeue(self) -> None:
-        self.assertFalse(self.requeued(self.ejected(), head_committed=lambda: NOW_ISH))
+    def test_a_head_first_pushed_after_the_enqueue_does_not_requeue(self) -> None:
+        # The server's first check suite on the head, never a commit date
+        # (a backdated commit fast-forwarded after the removal).
+        self.assertFalse(self.requeued(self.ejected(), head_first_seen=lambda: NOW_ISH))
+        self.assertTrue(self.requeued(self.ejected(), head_first_seen=lambda: FRESH))
 
         def unreadable() -> str:
             raise policy.PolicyReadError("502")
 
-        self.assertFalse(self.requeued(self.ejected(), head_committed=unreadable))
+        self.assertFalse(self.requeued(self.ejected(), head_first_seen=unreadable))
         self.assertFalse(self.requeued(self.ejected(enqueue={"createdAt": None})))
+
+    def test_a_word_after_the_removal_stops_the_requeue(self) -> None:
+        seen: list[Any] = []
+
+        def quiet(when: Any) -> bool:
+            seen.append(when)
+            return False
+
+        self.assertFalse(self.requeued(self.ejected(), quiet_since=quiet))
+        self.assertEqual(seen, [policy._time(REMOVED)])
+
+        def unreadable(when: Any) -> bool:
+            raise policy.PolicyReadError("502")
+
+        self.assertFalse(self.requeued(self.ejected(), quiet_since=unreadable))
+        for removed in (None, "", "2026-10-11T13:30:00"):
+            with self.subTest(removed=removed):
+                self.assertFalse(self.requeued(self.ejected(removedAt=removed)))
+
+    def discussion_fake(self, **surfaces: list[dict[str, Any]]) -> GhFake:
+        gh = GhFake().install(self)
+        for kind in ("issues/7/comments", "pulls/7/reviews", "pulls/7/comments"):
+            key = kind.replace("/", "_")
+            gh.rest[f"repos/{REPO}/{kind}?per_page=100"] = surfaces.get(key, [])
+        return gh
+
+    def test_only_a_persons_word_after_the_removal_breaks_the_quiet(self) -> None:
+        removed = policy._time(REMOVED)
+        person = {"login": OWNER_LOGIN, "type": "User"}
+        lanes = {"login": IDENTITY, "type": "Bot"}
+        review_bot = {"login": "claude[bot]", "type": "Bot"}
+        before, after = "2026-10-11T13:00:00Z", "2026-10-11T14:00:00Z"
+        for label, surfaces, quiet in (
+            ("nothing said", {}, True),
+            (
+                "a person before the removal",
+                {
+                    "issues_7_comments": [
+                        {"user": person, "created_at": before, "updated_at": before}
+                    ]
+                },
+                True,
+            ),
+            (
+                "a person asking to wait after it",
+                {
+                    "issues_7_comments": [
+                        {"user": person, "created_at": after, "updated_at": after}
+                    ]
+                },
+                False,
+            ),
+            (
+                "an earlier comment edited after it",
+                {
+                    "issues_7_comments": [
+                        {"user": person, "created_at": before, "updated_at": after}
+                    ]
+                },
+                False,
+            ),
+            (
+                "a person's review after it",
+                {"pulls_7_reviews": [{"user": person, "submitted_at": after}]},
+                False,
+            ),
+            (
+                "a person's inline comment after it",
+                {
+                    "pulls_7_comments": [
+                        {"user": person, "created_at": after, "updated_at": after}
+                    ]
+                },
+                False,
+            ),
+            (
+                "the lane identity after it",
+                {
+                    "issues_7_comments": [
+                        {"user": lanes, "created_at": after, "updated_at": after}
+                    ]
+                },
+                True,
+            ),
+            (
+                "a review bot after it",
+                {"pulls_7_reviews": [{"user": review_bot, "submitted_at": after}]},
+                True,
+            ),
+            (
+                "a person's item with no time",
+                {"issues_7_comments": [{"user": person}]},
+                False,
+            ),
+        ):
+            with self.subTest(label):
+                self.discussion_fake(**surfaces)
+                self.assertIs(
+                    policy._quiet_since("owner", "repo", 7, IDENTITY, removed), quiet
+                )
+
+    def test_an_unreadable_discussion_is_not_quiet(self) -> None:
+        gh = self.discussion_fake()
+        gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = 502
+        with self.assertRaises(policy.PolicyReadError):
+            policy._quiet_since("owner", "repo", 7, IDENTITY, policy._time(REMOVED))
+
+    def suites(self, *suites: dict[str, Any], total: int | None = None) -> GhFake:
+        gh = GhFake().install(self)
+        gh.rest[self.SUITES] = {
+            "total_count": len(suites) if total is None else total,
+            "check_suites": list(suites),
+        }
+        return gh
+
+    def test_the_head_is_first_seen_at_its_earliest_check_suite_here(self) -> None:
+        pr = owner_pr(head={"sha": HEAD, "ref": "feat/x"})
+        mine = {"head_branch": "feat/x", "created_at": "2026-10-11T12:40:00Z"}
+        later = {"head_branch": "feat/x", "created_at": "2026-10-11T12:55:00Z"}
+        elsewhere = {"head_branch": "other", "created_at": "2026-10-11T09:00:00Z"}
+        self.suites(later, mine, elsewhere)
+        self.assertEqual(
+            policy._head_first_seen("owner", "repo", pr), "2026-10-11T12:40:00Z"
+        )
+        for label, gh_setup in (
+            ("no suite on its branch", lambda: self.suites(elsewhere)),
+            ("more suites than one page", lambda: self.suites(mine, total=101)),
+            (
+                "an unreadable listing",
+                lambda: self.suites().rest.update({self.SUITES: 502}),
+            ),
+        ):
+            with self.subTest(label):
+                gh_setup()
+                with self.assertRaises(policy.PolicyReadError):
+                    policy._head_first_seen("owner", "repo", pr)
 
     def test_no_ejected_enqueue_does_not_requeue(self) -> None:
         for ejected in (None, {}, [], {"enqueue": None, "requeued": False}):
@@ -4656,9 +4799,20 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     self.assertEqual(policy.ejected_enqueue(REPO, 7), expected)
                 read.assert_called_once_with(REPO, 7)
 
+    def requeue_fake(self, comments: list[dict[str, Any]] | None = None) -> GhFake:
+        gh = self.owner_fake(committed=FRESH)
+        gh.rest[self.SUITES] = {
+            "total_count": 1,
+            "check_suites": [{"head_branch": "feat/x", "created_at": SEEN}],
+        }
+        gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
+        gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
+        gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
+        return gh
+
     def test_a_fresh_owner_pr_a_person_enqueued_is_adopted(self) -> None:
-        self.owner_fake(committed=FRESH)
-        pr = owner_pr(updated_at=FRESH)
+        self.requeue_fake()
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
         result = self.eligibility(
             pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
         )
@@ -4678,6 +4832,22 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 result = self.eligibility(pr, **args)
                 self.assertEqual(result.reason, f"not-adopted:{reason}")
                 self.assertIsNone(result.adoption)
+
+    def test_a_wait_comment_after_the_removal_keeps_the_idle_rule(self) -> None:
+        # AGENTS.md: a person's comment asking to wait stops the merge.
+        wait = {
+            "user": {"login": OWNER_LOGIN, "type": "User"},
+            "body": "hold on, looking at the flake",
+            "created_at": "2026-10-11T14:00:00Z",
+            "updated_at": "2026-10-11T14:00:00Z",
+        }
+        self.requeue_fake(comments=[wait])
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+        self.assertIsNone(result.adoption)
 
     def test_a_hold_or_an_idle_pr_never_reads_the_queue(self) -> None:
         def unread() -> Any:

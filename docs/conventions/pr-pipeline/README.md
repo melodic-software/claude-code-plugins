@@ -2255,15 +2255,18 @@ these hold:
 - the `AddedToMergeQueueEvent` that queued the removed entry has an `actor` and an `enqueuer`
   whose ids are both `kind: human` on the trusted-actor list. Logins and GitHub types are not
   read, because GitHub types an App's enqueuer as a `User`;
-- the head commit's committer date is no later than that enqueue.
+- GitHub first saw the head no later than that enqueue. That time is the earliest `created_at`
+  of GitHub Actions' check suites for the head commit on the PR's head branch. GitHub sets it when
+  the push arrives, so a commit dated in the past but pushed after the removal does not pass;
+- no person has commented, reviewed or commented inline since the removal, counting a comment
+  edited since then. The lanes App and bots do not count. A request to wait therefore keeps the
+  idle rule, as a comment after the lane's pin does for its own queued entry.
 
 The only newer queue event allowed is the lane's own entry at this head, as described in
 [The pr-merge lane](#the-pr-merge-lane). Anything else, or anything unreadable, falls back to the
 idle rule. The decision records `requeue-after-ejection`. The gate then runs unchanged: every
 hold, the verifier verdict, the head pin, and the `merge.max-queue-ejections` cap. If the lane's
-own retry is removed too, its enqueue is not a person's, so the PR waits `idle-hours`. The
-timeline orders a commit by its date (UNVERIFIED), so a commit dated before the enqueue but
-pushed after the removal is not seen as a head change. The gate still checks that head in full.
+own retry is removed too, its enqueue is not a person's, so the PR waits `idle-hours`.
 
 An adopted PR that closes no issue in this repository is judged against its own title and body
 when a person (a `kind: human` id on the trusted list, not merely a GitHub `User`) opened it or
