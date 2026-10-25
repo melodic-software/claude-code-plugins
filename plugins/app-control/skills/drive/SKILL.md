@@ -48,7 +48,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). Keep each file
    whose folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`:
    starts with `control-`). A `.claude/skills/*/` folder holding `.claude-plugin/plugin.json` is a
-   plugin: also search it and keep its files as step 2 does. Drop a match inside a submodule or a
+   plugin: the globs and listings above skip it, and it is searched and its files kept only as
+   step 2 does, so a file its manifest's `commands` key leaves unloaded (such as a stale
+   `commands/control-<app>.md`) is never kept. Drop a match inside a submodule or a
    dependency folder such as `node_modules` or `vendor`, and a main-checkout file at a path this
    checkout also holds. Its source is `project`.
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
