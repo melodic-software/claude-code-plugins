@@ -626,8 +626,8 @@ The schema checks each file's shape. The config reader also rejects:
 - an activity named `run` or `report`, `pr-run-activity`'s own job names;
 - any `extends:` value ([Not settled yet](#not-settled-yet)).
 
-The reader also adds the config file's own path and the trusted-actor list to
-`merge.diff-check.denied-paths`, whatever the config says.
+The reader adds no path to `merge.diff-check.denied-paths`: it resolves the config's own list,
+each entry once.
 
 ## Concurrency
 
