@@ -55,7 +55,10 @@ branch_issue_pattern: '^[^/]+/([0-9]+)-'
 
 The sections below describe each key's value grammar; read "H2" there as "the key in the YAML, or
 its `## <key>` H2 in the legacy file". A list value is a YAML sequence in the YAML and a bullet list
-in the H2. Markdown, one `## <key>` H2 per key, the value as the section body. Seven babysit-prs
+in the H2.
+
+The overlay, the user-global file and the legacy team file are Markdown: one `## <key>` H2 per key,
+the value as the section body. Seven babysit-prs
 repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
 `babysit_skip_downgrade_logins`, `babysit_review_gate_context`,

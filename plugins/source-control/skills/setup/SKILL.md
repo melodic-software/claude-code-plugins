@@ -105,7 +105,10 @@ Per-layer verdicts:
   rule. Absent → INFO, remediable by `apply`. Per key, `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$REPO_ROOT" <key>`
   prints `yaml`, `legacy-md` or `none`: report a `legacy-md` key as WARN (read through the
   compatibility read for one release; `apply` migrates it into the YAML), and name the supplying
-  file in `won by`.
+  file in `won by`. The probe does not check trackedness, so first run
+  `git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"` and
+  `git ls-files --error-unmatch -- ":/.claude/source-control.md"`: a team file git does not track
+  supplies no key, so never name it in `won by`, and report it as untracked instead.
 - **Legacy team file** (`REPO_ROOT/.claude/source-control.md`, the compatibility read): present →
   report which keys it still contributes (the `babysit_*` keys stay there); apply the same ignore check.
 - **Local overlay ignore rule** (the recursive `.claude/**/*.local.*`, covering
