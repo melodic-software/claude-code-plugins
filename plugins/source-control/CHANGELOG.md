@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.3] - 2026-10-25
+
+### Changed
+
+- The babysit-loop promotion-evidence helper's settings reader, `skills/babysit-loop/scripts/operator-options.mjs`, is now generated from the repository's shared `lib/plugin-options.mjs`. `resolve-promotion-evidence.mjs` passes its five option keys to the reader, so which settings it reads, and when it fails closed, are unchanged.
+
 ## [3.3.2] - 2026-10-25
 
 ### Fixed
