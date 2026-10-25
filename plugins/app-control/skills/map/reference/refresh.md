@@ -84,6 +84,16 @@ switch tools on your own. An attended pass may proceed.
 
 ## 4. Source wave
 
+**A legacy conversion is written first.** Drive reads only control skills, so before the source
+wave of a legacy map's conversion, do step 6.1 (branch, same rules), then move the legacy files into
+`.claude/skills/control-<slug>/` with `git mv` (plain move for an untracked map) and rewrite them
+in place per Converting a legacy map, re-running the [real-path checks](naming.md#real-paths)
+before each write. Commit nothing yet; the `sources` globs and each entry point's `driven` mark
+wait for step 6.2. Both passes then read the converted control skill. A pass that stops before step
+6.3, or whose edits the person declines, leaves these files uncommitted in the working tree on the
+upkeep branch: the report names each one and the legacy path it moved from, and nothing is
+reverted. Every other pass keeps the order below.
+
 Find the base commit: the last commit that touched the control skill directory,
 `git log -1 --format=%H -- "<dir>"`. List what changed since:
 `git diff --no-ext-diff --no-textconv --name-only <base> HEAD`. With no such commit (an untracked
@@ -94,8 +104,8 @@ Record `git status --porcelain` from the repository root, then dispatch one suba
 file, in waves of the cap SKILL.md states, each filled to the cap before the next starts (8 features
 run as 6 then 2): start the next wave only when every subagent of the one before has returned. Tell each subagent to use Read, Grep and Glob only and never edit
 or run anything; that limit is an instruction in its prompt, and no agent definition enforces it.
-Give each its feature file, the index line's `sources` globs, the changed-file list and these
-questions: which parts, entry points, handles, routes or commands the file lists are gone, renamed
+Give each its feature file, the index line's `sources` globs (none yet in a conversion), the
+changed-file list and these questions: which parts, entry points, handles, routes or commands the file lists are gone, renamed
 or moved in the source; which entry points the source now has that the file does not list; which
 gotchas no longer apply; and one drive recipe for the live pass. Every answer cites `file:line`.
 Features whose sources did not change still get a subagent: a rename can sit in a shared file.
@@ -148,8 +158,8 @@ Then the outcome:
 - Something to ship: **changed**. An attended pass shows the proposed edits and asks before writing,
   committing or opening anything; declined, they go in the report unwritten. An unattended pass
   goes on. Then:
-  1. **Branch.** The branch is `control-skill-upkeep/control-<slug>`, the control skill's full
-     directory name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
+  1. **Branch.** A legacy conversion did this before step 4 and stays on that branch. The branch
+     is `control-skill-upkeep/control-<slug>`, the control skill's full directory name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
      `control-skill-upkeep/shop`), the only branch a pass writes for that skill. List every local
      and remote `feature-map-upkeep/*` branch (`git branch --list 'feature-map-upkeep/*'` and
      `git branch -r --list '*/feature-map-upkeep/*'`) and report each one by name, with its open
@@ -167,8 +177,8 @@ Then the outcome:
 
      When git refuses the switch or merge, the outcome is **blocked** with git's stderr line.
      Done when `git branch --show-current` prints the upkeep branch.
-  2. **Write** the edits, re-running the [real-path checks](naming.md#real-paths) before each
-     write. Then run the Check steps in SKILL.md on the result; a structural finding
+  2. **Write** the edits (for a legacy conversion, also the `sources` globs and `driven` marks),
+     re-running the [real-path checks](naming.md#real-paths) before each write. Then run the Check steps in SKILL.md on the result; a structural finding
      in a file this pass wrote is fixed before the commit, and one it cannot fix makes the outcome
      **blocked** with the finding.
   3. **Commit** only the control skill's files, staged by path (and for a conversion, the legacy
@@ -190,7 +200,8 @@ skill's step 1, so no skill is refreshed on another skill's upkeep branch. Done 
 
 ## Converting a legacy map
 
-A conversion is doc work and rides the same upkeep pull request as the pass's other edits.
+A conversion is doc work and rides the same upkeep pull request as the pass's other edits. A
+legacy map's conversion is written before step 4 (see there); a flat one's at step 6.2.
 
 - **Target.** A legacy testing-format map converts into `.claude/skills/control-<app slug>/`, the
   slug from its `Application` name (only the part before any `, built from` clause) through the
@@ -225,5 +236,6 @@ A conversion is doc work and rides the same upkeep pull request as the pass's ot
 - each regression and whether it went to `/bugs:write`;
 - the features found but not mapped;
 - each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
-- for a conversion, the old and new paths, and the pointer and setting left to change;
+- for a conversion, the old and new paths, each file left uncommitted, and the pointer and setting
+  left to change;
 - the branch, the commit and the pull request URL, or why there is none.
