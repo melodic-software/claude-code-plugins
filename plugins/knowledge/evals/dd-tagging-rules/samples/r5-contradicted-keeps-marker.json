@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R5 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | Contradicted by delegates.md:5, which says each subagent starts in a fresh context."
+    },
+    {
+      "answer": "**ROW R5** | `cc-applicable` | `vendor-claimed (blog, 2026-10-20 fetch)` | corpus/harness/delegates.md line 5 negates this."
+    },
+    {
+      "answer": "ROW R5 | cc-applicable | contradicted by delegates.md#L5; vendor-claimed (blog, 2026-10-20 fetch) | blog-only and in conflict with the docs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R5 | cc-applicable | none | Contradicted by delegates.md:5.",
+      "why": "contradiction note without the marker, though no page states the clause"
+    },
+    {
+      "answer": "ROW R5 | cc-applicable | none | delegates.md:5 documents subagent context.",
+      "why": "contradicting page cited as the basis"
+    },
+    {
+      "answer": "ROW R5 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | Contradicted by the subagents page.",
+      "why": "note names no page line"
+    }
+  ]
+}
