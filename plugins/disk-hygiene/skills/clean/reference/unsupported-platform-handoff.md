@@ -213,12 +213,18 @@ bodies through `--body-file <path>` or `-F <path>`.
 
 ## Hook registration outlives the cleanup
 
-This skill's frontmatter hooks stay registered for the **rest of the session** once
-`/disk-hygiene:clean` has run
+This skill's frontmatter hooks stay registered for the **rest of the process** that ran
+`/disk-hygiene:clean`
 ([Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents),
-as of 2026-10-11; recheck when that section changes how long a skill's hooks stay registered).
+as of 2026-10-25; recheck when that section changes how long a skill's hooks stay registered).
 So the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
-unrelated later work in the same session, not only to this cleanup. Say so when a later,
-unrelated command is blocked or prompted, rather than treating it as a surprise; the session's own
-end is what clears it. Both registration surfaces, the kill switch, and what the belt does and does not
-bound: see [`safety-model.md`](safety-model.md).
+unrelated later work in the same process, not only to this cleanup. Say so when a later,
+unrelated command is blocked or prompted, rather than treating it as a surprise.
+
+They do **not** survive a resume: after `claude -p --resume` the belt was absent and a PowerShell
+delete the user had approved before the resume ran unprompted
+([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853)). Run each approved
+manual-lane delete in the same process that ran the skill. When a session resumed after this skill
+ran, the plugin's resume notice says so at session start: make no delete or overwrite until the user
+types `/disk-hygiene:clean` again. Both registration surfaces, the kill switch, the resume record, and
+what the belt does and does not bound: see [`safety-model.md`](safety-model.md).
