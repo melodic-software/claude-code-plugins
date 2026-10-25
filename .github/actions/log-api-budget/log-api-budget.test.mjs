@@ -339,25 +339,32 @@ test("gh guard: a stop-file line whose reset is not a number stops nothing", () 
 
 // A stop the wrapper cannot record would leave every later call, in this
 // shell or a $(...) subshell, free to reach the exhausted pool: the step ends
-// after the one refused call, whichever shell made it.
+// after the one refused call, whichever shell made it. Its two errors reach
+// the step's stderr once each, also when the caller holds the subshell's
+// stderr in a file it reads only after the call, as gh_read does. That case
+// writes the step's stderr to a file: Node gives a child a socket, which
+// /proc/$$/fd/2 cannot open, where the runner gives it a pipe.
 test("gh guard: a stop it cannot record ends the step after one call, naming the pool", () =>
   withDir((dir) => {
     const main = "gh api repos/o/r >/dev/null || true\ngh api repos/o/r/pulls >/dev/null || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
     const sub = "x=$(gh api repos/o/r) || true\ny=$(gh api repos/o/r/pulls) || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
+    const held = 'exec 2>"$RUNNER_TEMP/step-stderr"\nerr=$(mktemp)\nx=$(gh api repos/o/r 2>"$err") || true\ncat "$err" >&2\ngh api repos/o/r/pulls >/dev/null || true\necho reached';
     const unwritable = {
       "an api-budget file where the directory goes": () => writeFileSync(join(dir, "api-budget"), ""),
       "a stop directory where the file goes": () => mkdirSync(join(dir, "api-budget", "stop"), { recursive: true }),
     };
     for (const [how, make] of Object.entries(unwritable)) {
-      for (const [shell, script] of Object.entries({ main, sub })) {
+      for (const [shell, script] of Object.entries({ main, sub, "held-stderr": held })) {
         rmSync(join(dir, "api-budget"), { recursive: true, force: true });
         make();
         const out = guarded(dir, ['403 0 - {"message":"API rate limit exceeded"}', "200 4000 - {}", "200 4000 - {}"], script);
         const label = `${how}, ${shell} shell`;
+        const stderr = shell === "held-stderr" ? readFileSync(join(dir, "step-stderr"), "utf8") : out.stderr;
         assert.equal(out.calls.length, 1, label);
         assert.notEqual(out.status, 0, label);
         assert.doesNotMatch(out.stdout, /reached/, label);
-        assert.match(out.stderr, /::error::'gh api repos\/o\/r' hit GitHub's core API rate limit[^\n]*\n(?:.*\n)*::error::GitHub's core API stop could not be recorded/, label);
+        assert.match(stderr, /::error::'gh api repos\/o\/r' hit GitHub's core API rate limit[^\n]*\n(?:.*\n)*::error::GitHub's core API stop could not be recorded/, label);
+        assert.equal(stderr.match(/::error::/g)?.length, 2, `${label}: ${stderr}`);
       }
     }
   }));

@@ -40,6 +40,8 @@ export const SIGNALS = Object.freeze({
   primaryFallbackSeconds: 3600,
 });
 
+const MAX_RESET = 999_999_999_999;
+
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
 
 const SCHEMA = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
@@ -141,7 +143,9 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   // A secondary limit is not per resource, whatever remaining says.
   const every = retryAfter !== null || secondary || ((message || tooMany) && remaining !== 0);
   const pool = every ? "*" : /^[a-z_]+$/.test(resource) ? resource : poolOf(url);
-  return { latched, low, reset_source: source, reset: at, pool };
+  // Stop-file readers take at most 12 digits, so a later stop is written at
+  // the largest they read.
+  return { latched, low, reset_source: source, reset: Math.min(at, MAX_RESET), pool };
 }
 
 export const resetLabel = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");

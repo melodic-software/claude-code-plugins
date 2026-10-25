@@ -235,6 +235,11 @@
         "body": { "items": [] }
       },
       "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792748040, "pool": "search" }
+    },
+    {
+      "name": "a retry-after that would put the reset past 12 digits stops at the largest 12-digit second",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 429, "headers": { "retry-after": "999999999999" }, "body": {} },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 999999999999, "pool": "*" }
     }
   ],
   "stop_files": [

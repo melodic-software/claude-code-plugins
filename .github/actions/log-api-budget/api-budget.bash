@@ -22,7 +22,8 @@
 # exhausted, no gh call goes to that pool before its reset for the rest of the
 # job; each refusal returns 1 with an error naming the reset, and so does a
 # call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
-# gh's status, so no caller resends a write GitHub accepted. Its stops are
+# gh's status, so no caller resends a write GitHub accepted, unless its stop
+# cannot be recorded, which ends the step first (below). Its stops are
 # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
 # it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
 # shaped `^([a-z_]+|\*) [0-9]{1,12}$`, as rate-guard.mjs does, so a fragment
@@ -33,7 +34,11 @@
 # next. A stop the file cannot take (no space, no permission) would leave
 # every later call free to reach the exhausted pool. So the step ends there:
 # the error names the pool, API_BUDGET_UNRECORDED refuses every later call in
-# this shell, and from a subshell the step's shell ($$) is sent TERM.
+# this shell, and from a subshell the step's shell ($$) is sent TERM. A caller
+# may hold a subshell's stderr in a file it reads only after the call, so from
+# a subshell both error lines go to $$'s stderr. Callers must not trap TERM or
+# run the wrapper under a nested bash -c, whose $$ is the inner shell: either
+# leaves the step running.
 #
 #   api_budget_classify         jq filter: rate-guard.mjs's classify over
 #                               {status, headers, body, now (ms), pool, floor}
@@ -193,15 +198,18 @@ api_budget_refuse() {
 }
 
 api_budget_stop() {
-  local dir=${RUNNER_TEMP:-/tmp}/api-budget
-  echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}" >&2
+  local dir=${RUNNER_TEMP:-/tmp}/api-budget lines
+  lines=("::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
   # One printf per line: the line and its newline go in one write.
   if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
     { [[ $3 != fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
+    printf '%s\n' "${lines[@]}" >&2
     return 1
   fi
   API_BUDGET_UNRECORDED=$1
-  echo "::error::GitHub's $(api_budget_label "$1") stop could not be recorded in $dir; later calls would reach the exhausted pool, so this step ends" >&2
+  lines+=("::error::GitHub's $(api_budget_label "$1") stop could not be recorded in $dir; later calls would reach the exhausted pool, so this step ends")
+  # >> and not >: a step stderr that is a file is not truncated.
+  ((BASH_SUBSHELL > 0)) && { printf '%s\n' "${lines[@]}" >>"/proc/$$/fd/2"; } 2>/dev/null || printf '%s\n' "${lines[@]}" >&2
   ((BASH_SUBSHELL == 0)) || kill -s TERM "$$" 2>/dev/null
   exit 1
 }
@@ -229,7 +237,8 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
        (if $rem == 0 and $reset != null then [$reset, "x-ratelimit-reset"] else empty end)] as $c
     | (if ($c | length) > 0 then ($c | reduce .[1:][] as $x (.[0]; if $x[0] > .[0] then $x else . end)) else null end) as $best
     | (if $best != null and $best[0] > $n then $best
-       else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end) as $at
+       else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end
+       | .[0] |= ([., 999999999999] | min)) as $at
     | (($h["x-ratelimit-resource"] // "") | tostring) as $res
     | {latched: true, low: $low, reset_source: $at[1], reset: $at[0],
        pool: (if $ra != null or $secondary or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
