@@ -771,7 +771,8 @@ class TestFlowQuery(unittest.TestCase):
                 [],
             ),
             ("Function.prototype.constructor(s)();", ["function-constructor"]),
-            ("Function.prototype[k](s)();", ["function-constructor"]),
+            # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
+            ("Function.prototype[k](s)();", ["unknown-load", "function-constructor"]),
             ("var P=Function.prototype;", ["function-constructor"]),
             ("Function.prototype.valueOf().constructor(s)();", ["function-constructor"]),
             ("Function.prototype instanceof H;", ["function-constructor"]),
