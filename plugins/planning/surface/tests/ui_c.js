@@ -212,12 +212,13 @@ async page => {
     // an imported superseded-by-plan row says the plan displaced the answer, and its buttons record accept or the `was` alternative
     await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200);
     const planBan = await page.textContent("#planban").catch(() => "");
-    ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /\/planning:plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
+    ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /The plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
     await page.locator("#choices .choice", {hasText: "(was)"}).click();
     await page.click("[data-save]"); await page.waitForTimeout(700);
     let se = (await events()).filter(e => e.id === "S1").pop();
     ok("the (was) button records the was alternative", se && se.kind === "alt" && se.alt === "was", JSON.stringify(se));
-    ok("the banner leaves once the question is answered", await page.$("#planban") === null);
+    await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200); // the save moved on to the next open question
+    ok("the banner leaves once the question is answered", await sel() === "S1" && await page.$("#planban") === null, await sel());
     await page.locator("#choices .choice.rec").first().click();
     await page.click("[data-save]"); await page.waitForTimeout(700);
     se = (await events()).filter(e => e.id === "S1").pop();
