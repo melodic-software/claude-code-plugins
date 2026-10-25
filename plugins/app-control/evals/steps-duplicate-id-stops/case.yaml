@@ -20,7 +20,7 @@ graders:
   - name: names-repeated-id
     type: regex
     flags: i
-    pattern: '(?<!no )(?<!not )(repeat(s|ed)?|duplicat(e|ed|es))\s+(the\s+)?(step\s+)?ids?\b[^\n.]{0,40}(open-picker|choose-month)|(open-picker|choose-month)`?\s+(is|are|was)\s+(repeated|duplicated)|(open-picker|choose-month)`?[^\n.]{0,40}\b(appears?|occurs?)\s+(twice|more than once)|(open-picker|choose-month)`?"?[^\n.,;()]{0,25}\b(twice|two times)\b|(open-picker|choose-month)`?\s+repeats[.;,]|ids?\b[^\n.]{0,20}(open-picker|choose-month)[^\n.]{0,40}\bcollide|(open-picker|choose-month)[\s\S]{0,120}(?<!no )(?<!not )(duplicate|repeated) (step )?ids|(not unique|must be unique)[\s\S]{0,60}(open-picker|choose-month)|(open-picker|choose-month)[\s\S]{0,60}(not unique|must be unique)'
+    pattern: '(?<!no )(?<!not )(repeat(s|ed)?|duplicate|duplicated|duplicates)\s+(the\s+)?(step\s+)?ids?\b[^\n.]{0,40}(open-picker|choose-month)|(open-picker|choose-month)`?\s+(is|are|was)\s+(repeated|duplicated)|(open-picker|choose-month)`?[^\n.]{0,40}\b(appears?|occurs?)\s+(twice|more than once)|(open-picker|choose-month)`?"?[^\n.,;()]{0,25}\b(twice|two times)\b|(open-picker|choose-month)`?\s+repeats[.;,]|ids?\b[^\n.]{0,20}(open-picker|choose-month)[^\n.]{0,40}\bcollide|(open-picker|choose-month)[\s\S]{0,120}(?<!no )(?<!not )(duplicate|repeated) (step )?ids|(not unique|must be unique)[\s\S]{0,60}(open-picker|choose-month)|(open-picker|choose-month)[\s\S]{0,60}(not unique|must be unique)'
     arm: both
   - name: stops-before-start
     type: llm
