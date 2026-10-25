@@ -1405,7 +1405,7 @@ assert_eq "stale many: the full list keeps a path past the cap with its count" "
   "$(jq --arg p "$(norm_path "$case_dir/g12/x")" '.[] | select(.path == $p) | .count' \
     "$stale_run_dir/stale-project-records.market1.json" 2>/dev/null)"
 assert_eq "stale many: the printed digest carries no per-path array" "false" \
-  "$(jq '[.. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
+  "$(jq '[.marketplaces[].stale_project_records | .. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
 # Audit's scratch directory is removed on exit, so the render names no file there.
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
@@ -1672,6 +1672,20 @@ assert_eq "divergences split: an old digest with a project leads with the here c
 assert_eq "divergences split: zero stays zero" 'Divergences: 0 actionable' \
   "$(div_row_of '{"divergences":{"post":0,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}}')"
 
+# --- the Divergences row names its project paths --------------------------------
+# No project root resolved, and the skewed records sit in two other paths: one
+# sub-line per path, the busier one capped at three ids with the rest counted.
+div_by_path='{"post":6,"pre_existing":6,"new_total":0,"new_by_interval":{"in_repo":0,"user_sweep":0},
+  "actionable_here":0,"actionable_elsewhere":6,"in_worktrees":0,"blocked":0,
+  "by_path":[{"path":"/w/a","count":5,"ids":["a@m","b@m","c@m"],"more":2},
+             {"path":"/w/b","count":2,"ids":["a@m","f@m"],"more":0}]}'
+div_text=$(needs_digest sync "{\"divergences\": $div_by_path}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_golden "divergence by path, no project root: the report matches the golden" divergence-by-path-no-root.txt "$div_text"
+assert_eq "divergence by path: one sub-line per path" "2" \
+  "$(grep -c '^  - /w/' <<<"$div_text")"
+assert_eq "divergence by path: exactly one sub-line is capped" "1" \
+  "$(grep -c '^  - /w/.*, +[0-9][0-9]* more$' <<<"$div_text")"
+
 # --- the split computed from a real fleet ---------------------------------------
 # alpha carries one pin per class beside its user record, all behind the user
 # version: a plain directory (actionable), a linked worktree (.git is a file naming
@@ -1734,6 +1748,32 @@ assert_contains "divergences real: the row names the blocked part" "$REPORT_TEXT
 # delta (a submodule .git file), epsilon (a separate git dir under a directory
 # named worktrees) are plain checkouts; zeta's present pin already sits at the
 # highest version, so only its absent pin is the skew and the row is blocked.
+assert_eq "divergences real: every diverging record carries id, scope, version and projectPath" "true" \
+  "$(jq '.marketplaces[0].divergences.records | length > 0
+    and all(.[]; has("id") and has("scope") and has("version") and has("projectPath"))' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: the records name every diverging id" \
+  '["alpha@market1","beta@market1","delta@market1","epsilon@market1","gamma@market1","zeta@market1"]' \
+  "$(jq -c '[.marketplaces[0].divergences.records[].id] | unique' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: a record carries its scope, version and projectPath" "project 0.1.0 true" \
+  "$(jq -r --arg p "$p_gone" '.marketplaces[0].divergences.records[] | select(.id == "gamma@market1")
+    | "\(.scope) \(.version) \(.projectPath == $p)"' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: a pin already at the highest version is not a diverging record" "true" \
+  "$(jq --arg p "$p_gone" '[.marketplaces[0].divergences.records[] | select(.id == "zeta@market1") | .projectPath] == [$p]' <<<"$REPORT_DIGEST")"
+# The busiest path is not present, so it sorts after every path converge can act on.
+assert_eq "divergences real: by_path puts converge-actionable paths first, then worktrees, then absent paths" \
+  '["actionable","actionable","actionable","worktree","blocked"]' \
+  "$(jq -c '[.marketplaces[0].divergences.by_path[].class]' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: a by_path entry counts its records and names its ids" "true" \
+  "$(jq --arg p "$p_gone" '.marketplaces[0].divergences.by_path[] | select(.path == $p)
+    | .class == "blocked" and .count == 3 and .ids == ["alpha@market1","gamma@market1","zeta@market1"] and .more == 0' <<<"$REPORT_DIGEST")"
+assert_eq "divergences real: records[] does not carry the by_path class" "false" \
+  "$(jq '[.marketplaces[0].divergences.records[] | has("class")] | any' <<<"$REPORT_DIGEST")"
+assert_contains "divergences real: an absent path's sub-line says it is not present" "$REPORT_TEXT" \
+  "  - <case>/gone (not present): 3 diverging record(s): alpha@market1, gamma@market1, zeta@market1"
+assert_contains "divergences real: a worktree path's sub-line says it is a linked worktree" "$REPORT_TEXT" \
+  "  - <case>/wt (linked worktree): 2 diverging record(s): alpha@market1, beta@market1"
+assert_eq "divergences real: one by_path entry per project path" "5" \
+  "$(jq '.marketplaces[0].divergences.by_path | length' <<<"$REPORT_DIGEST")"
 
 # The run stands in a linked worktree whose own pin is skewed: that pin is
 # converge-actionable here, never classed `worktree`, while a sibling worktree's

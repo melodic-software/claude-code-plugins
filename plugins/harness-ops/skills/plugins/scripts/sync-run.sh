@@ -121,10 +121,17 @@
 #   instead, which is what keeps a backward move off the report's `Updated:` line
 #   even for an id the guard could not prove in advance.
 #   `divergences` is `{pre, mid, post, new_total, new_by_interval, pre_existing,
-#   actionable_here, actionable_elsewhere, in_worktrees, blocked}`: `post` counts
-#   the actionable (`versionsMatch: false`) rows, and the last four split it by
-#   what an operator can do about each row (see `divergence_block`). A digest
-#   written before the split carries none of the four.
+#   actionable_here, actionable_elsewhere, in_worktrees, blocked, records, by_path}`:
+#   `post` counts the actionable (`versionsMatch: false`) rows, and
+#   `actionable_here` through `blocked` split it by what an operator can do about
+#   each row (see `divergence_block`). A digest written before the split carries
+#   none of the four. `records[]` is `{id, scope, version, projectPath}` for every
+#   record that makes a counted row skewed (projectPath null at user scope), and
+#   `by_path[]` is `{path, class, count, ids, more}` per projectPath among them,
+#   `class` the path's pin class (`actionable`, `worktree` or `blocked`), the
+#   actionable paths first and then most records first, `ids` the first
+#   DIVERGENCE_PATH_IDS distinct ids and `more` the rest. A digest written before
+#   them carries neither, and one written before `class` carries no `class`.
 #   `moved_during_run[]` is `{id, scope, kind, old, new, direction}` for each id whose
 #   update call the CLI answered "already at the latest version" while the post
 #   snapshot's version differs from the pre-mutation one: it moved during the run
@@ -161,6 +168,8 @@ NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
 CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
 # The stale-project-records section prints at most this many parent directories.
 STALE_PARENT_ROWS=10
+# Each Divergences sub-line names at most this many ids of its project path.
+DIVERGENCE_PATH_IDS=3
 
 # jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
 # every jq call here goes through, shared with fleet-state.sh and
@@ -825,7 +834,7 @@ divergence_block() {
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n --argjson moved "$moved_rows" \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
-    --argjson wt "$linked" "$ACTIONABLE_DEF"'
+    --argjson wt "$linked" --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF"'
     # A pin at the project the run stands in is converge-actionable even when that
     # project is itself a linked worktree, so it is never classed `worktree`.
     ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
@@ -854,6 +863,19 @@ divergence_block() {
       | if ($c | length) == 0 or ($c | index("actionable")) != null then "actionable"
         elif ($c | index("worktree")) != null then "worktree"
         else "blocked" end;
+    # The records that make a row skewed: the same pins row_class judges, plus a
+    # user-scope record behind a project pin, so every diverging id is named. A row
+    # whose versions differ only past the triple (`1.2.3` against `1.2.3-beta`) has
+    # no such pin, so all of its scopes are kept rather than none. Each record also
+    # carries its pin_class, which by_path keeps and records[] drops.
+    def diverging_records:
+      .id as $id
+      | [.scopes[]? | select(.projectPathIsHome != true)] as $s
+      | ([$s[] | .version | version_triple | select(. != null)] | max) as $top
+      | [$s[] | select($top == null or (.version | version_triple) != $top)] as $d
+      | (if ($d | length) > 0 then $d else $s end)
+      | map({id: $id, scope, version, projectPath: (.projectPath // null),
+             class: (if (.projectPath // "") != "" then pin_class else null end)});
     ($moved | map(.id)) as $conc
     | ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($q[0] | act) as $post
     | ($post - $pre) as $new
@@ -862,6 +884,7 @@ divergence_block() {
     | ([$q[0].installed[]? | select(.currentProject == true) | .id]) as $here
     | ([$q[0].divergences[]? | actionable | {id, c: row_class}]) as $rows
     | ([$rows[] | select(.c == "actionable")]) as $act_rows
+    | ([$q[0].divergences[]? | actionable | diverging_records[]]) as $records
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
        new_by_interval: {in_repo: ([$by_step[] | select(. as $i | $mid | index($i))] | length),
@@ -871,7 +894,17 @@ divergence_block() {
        actionable_here: ([$act_rows[] | select(.id as $i | $here | index($i))] | length),
        actionable_elsewhere: ([$act_rows[] | select(.id as $i | $here | index($i) | not)] | length),
        in_worktrees: ([$rows[] | select(.c == "worktree")] | length),
-       blocked: ([$rows[] | select(.c == "blocked")] | length)}'
+       blocked: ([$rows[] | select(.c == "blocked")] | length),
+       records: [$records[] | del(.class)],
+       # A path converge can act on sorts before a linked worktree, and a worktree
+       # before a path that is not present, so the first sub-line under the
+       # converge pointer is a place converge can run from.
+       by_path: ([$records[] | select((.projectPath // "") != "")]
+                 | group_by(.projectPath)
+                 | map((map(.id) | unique) as $ids
+                       | {path: .[0].projectPath, class: .[0].class, count: length, ids: $ids[:$cap],
+                          more: ([($ids | length) - $cap, 0] | max)})
+                 | sort_by(({actionable: 0, worktree: 1, blocked: 2}[.class // ""] // 0), -.count, .path))}'
 }
 
 # --- per-marketplace accumulators ----------------------------------------------

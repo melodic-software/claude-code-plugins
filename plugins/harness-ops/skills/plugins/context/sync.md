@@ -859,6 +859,27 @@ project records note below it, which says why a path can be absent. `divergences
 (`projectPathPresent` stays advisory), and a digest written before the split carries none of the four
 counts and renders the row as it did.
 
+**Name where the skew sits, one sub-line per project path.** A count alone tells the operator how
+much to converge but not where. The digest's `divergences.records[]` carries every diverging id as
+`{id, scope, version, projectPath}`, one entry per record that makes a counted row skewed: the
+project/local pins the class rule above judges, plus a user-scope record behind a project pin
+(`projectPath` null). A row whose versions differ only past the numeric triple has no such pin, so
+all of its scopes are listed rather than none. `divergences.by_path[]` groups the records that carry
+a `projectPath` as `{path, class, count, ids, more}`: `class` is the path's pin class under the rule
+above (`actionable`, `worktree` or `blocked`), `ids` holds the first three distinct ids in sorted
+order and `more` the number left. The actionable paths come first, then the linked worktrees, then
+the paths that are not present, each group with the most records first, so the first sub-line under
+the `converge` pointer is a place `converge` can run from. The render keeps the count line and adds
+one sub-line per entry, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
+`+<more> more` tail only when ids were left out, and `(linked worktree)` or `(not present)` after
+the path, one space from it, when `converge` cannot act on it there. Three ids per path is a judgment cap
+(`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of paths is not capped, since each path is one
+place the operator acts: `converge` from an actionable path, a worktree removal, or a stale record to
+clear. `count` counts records and `more` counts distinct ids, so an id with both a project and a
+local record at one path is counted twice and named once. A digest written before these fields
+carries neither and renders the count line alone; one written before `class` renders every path
+without a suffix.
+
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the
 digest's `self_updated` is true when this plugin's install moved either way, whichever step or
