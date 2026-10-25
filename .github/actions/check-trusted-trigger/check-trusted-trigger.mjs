@@ -138,7 +138,8 @@ async function brokenBody(response) {
   }
 }
 // A POST to /graphql whose query is a query operation (or the `{ ... }`
-// shorthand) and names no mutation or subscription anywhere: a read.
+// shorthand) and names no mutation or subscription anywhere, comments and
+// strings included, so a `#` inside a string cannot hide one: a read.
 // Anything else, a body that does not parse included, is a write.
 export function isGraphQLRead(url, init = {}) {
   if (init.method !== "POST" || !/\/graphql$/.test(String(url)) || typeof init.body !== "string") {
@@ -147,7 +148,7 @@ export function isGraphQLRead(url, init = {}) {
   try {
     const query = JSON.parse(init.body)?.query;
     const text = typeof query === "string" ? query.replace(/#[^\n]*/g, "").trim() : "";
-    return /^(query\b|\{)/.test(text) && !/\b(mutation|subscription)\b/.test(text);
+    return /^(query\b|\{)/.test(text) && !/\b(mutation|subscription)\b/.test(query);
   } catch {
     return false;
   }

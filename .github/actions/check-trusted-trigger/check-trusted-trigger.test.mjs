@@ -1976,12 +1976,15 @@ test("createGitHub sends a GraphQL mutation once, on a 500 and on a dropped sock
   const mutation = "mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id } } }";
   // A query document that also holds a mutation operation is a write.
   const mixed = `${ISSUE_QUERY}\nmutation M { addStar(input: {}) { clientMutationId } }`;
-  const gh = flaky([{ status: 500 }, dropped(), dropped()]);
+  // A `#` inside a string is not a comment, so it hides nothing after it.
+  const hashed = 'query Q { search(query: "#1", type: ISSUE, first: 1) { issueCount } } mutation M { addStar(input: {}) { clientMutationId } }';
+  const gh = flaky([{ status: 500 }, dropped(), dropped(), dropped()]);
   const github = createGitHub({ ...gh.options, random: () => 0 });
   await assert.rejects(github("POST", "/graphql", { query: mutation, variables: { id: "t" } }), (error) => error.status === 500);
   await assert.rejects(github("POST", "/graphql", { query: mutation, variables: { id: "t" } }), TypeError);
   await assert.rejects(github("POST", "/graphql", { query: mixed, operationName: "M" }), TypeError);
-  assert.equal(gh.sent.length, 3);
+  await assert.rejects(github("POST", "/graphql", { query: hashed, operationName: "M" }), TypeError);
+  assert.equal(gh.sent.length, 4);
   assert.deepEqual(gh.slept, []);
 });
 
