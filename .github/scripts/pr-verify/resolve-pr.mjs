@@ -93,7 +93,7 @@ const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       parent { number repository { nameWithOwner } body lastEditedAt author { ...actor } editor { ...actor }
-        comments(first: 100) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } } }
+        comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } } }
     }
   }
 }
@@ -287,8 +287,8 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // request, so nothing the App posts once a lane run has the issue becomes
 // spec (`specText`). Other Bot and App text is left out even where
 // select-trusted-text keeps it, except the body of a sub-issue the lanes App
-// filed in a size split, whose lines are its listed-human parent's task-list
-// lines, `taskList` being admission's `task-list` (admit.mjs splitChildBody).
+// filed in a size split, under the split-child trust rule, `taskList` being
+// admission's `task-list` (admit.mjs splitChildBody, its one home).
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's

@@ -85,7 +85,7 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { earlierFlags, LANES_APP_LOGIN, MARKER, ownVerdict } from "./apply-verdict.mjs";
-import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, trustedTaskLines } from "./admit.mjs";
+import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
 export { REFINE_MARKER };
 const TASK = "- [ ] ";
@@ -228,18 +228,25 @@ async function candidates(github, repository, issue, trusted) {
 // A size split (owner Q93): an issue admission parked at SIZE_SPLIT_PENDING
 // is split into sub-issues before any run takes it. The model returns only
 // item numbers: `parts`, each a list of the 1-based numbers of the issue's
-// trusted task-list lines (admit.mjs trustedTaskLines), covering each once,
-// and `order`, pairs [a, b] that make part b wait on part a; parts no pair
-// links run in parallel. The script files each part as a sub-issue of the
-// issue, authored by the lanes App, whose body is admit.mjs splitChildHeader
-// and that part's lines copied as written (admission and pr-verify count it
-// as the listed human's text, splitChildBody), writes the order as native
+// trusted task-list lines (admit.mjs splitTaskLines: the listed human's, then
+// those of intake's refinement where admission counts it), covering each
+// once, and `order`, pairs [a, b] that make part b wait on part a; parts no
+// pair links run in parallel. The script files each part as a sub-issue of
+// the issue, authored by the lanes App, whose body is admit.mjs
+// splitChildHeader, naming the refinement when the part holds a line of it,
+// and that part's lines copied as written (admission and pr-verify trust it
+// under admit.mjs splitChildBody, the rule's one home), writes the order as native
 // blocked-by edges, puts the issue's open blockers on the parts nothing
 // precedes, moves the edges of issues the issue blocks onto the parts nothing
 // follows, and lists the sub-issues in the App's SIZE_SPLIT_MARKER comment.
 // No hold label and no born-triaged marker: intake triages each sub-issue.
 // A sub-issue never splits again, and the issue's body is never edited.
 export const MAX_PARTS = 10;
+
+// The split record's `items`: the digest of the lines split, and of the
+// refinement they copy when they copy one, so a newer refinement with the
+// same lines files no second set of sub-issues. Pure.
+export const splitDigest = ({ lines, source }) => linesDigest(source === null ? lines : [...lines, splitSourceLine(source)]);
 
 // Whether the lanes App's admission comment waits on SIZE_SPLIT_PENDING.
 export function sizeSplitPending(comments, appId) {
@@ -258,8 +265,8 @@ const ownSplit = (comments, appId) => {
 // {refine, reason, context} for an issue admission parked at
 // SIZE_SPLIT_PENDING, or null for any other: a parked issue is never refined
 // another way, and `note(why)` records why one is not split. Only an issue a
-// listed human filed splits, since only its text the sub-issues can carry
-// (admit.mjs splitChildBody). Reads only.
+// listed human filed splits, since only its text, and the refinement on it,
+// the sub-issues can carry (admit.mjs splitChildBody). Reads only.
 async function selectSizeSplit({ github, repository, number, issue, comments, humans, appId, startedAt, splitConfig, note }) {
   if (!sizeSplitPending(comments, appId)) {
     return null;
@@ -285,7 +292,8 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   if (own === null && (issue.sub_issues_summary?.total ?? 0) > 0) {
     return decline("it already has sub-issues");
   }
-  const lines = trustedTaskLines(await specOf(github, repository, number), humans, splitConfig().rules["task-list"]);
+  const split = splitTaskLines(await specOf(github, repository, number), humans, splitConfig().rules["task-list"], appId);
+  const { lines } = split;
   if (lines.length < 2) {
     return decline(`its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`);
   }
@@ -294,7 +302,7 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     reason: `Size large, waiting on its split into sub-issues; ${lines.length} trusted task-list lines`,
     context: {
       version: 1,
-      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: linesDigest(lines), max_parts: MAX_PARTS },
+      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: splitDigest(split), max_parts: MAX_PARTS },
       issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) },
       triage: String(lane[0].body),
     },
@@ -784,8 +792,9 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   if (String(issue.title ?? "") !== context?.issue?.title || String(issue.body ?? "") !== context?.issue?.body || String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
     return skip("changed while the model ran");
   }
-  const lines = trustedTaskLines(await specOf(github, repository, number), humans, rules["task-list"]);
-  const digest = linesDigest(lines);
+  const split = splitTaskLines(await specOf(github, repository, number), humans, rules["task-list"], appId);
+  const { lines } = split;
+  const digest = splitDigest(split);
   if (digest !== context.size_split?.digest) {
     return skip("its trusted task-list lines changed while the model ran");
   }
@@ -817,7 +826,9 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const linked = new Set((await paginate(github, `${base}/sub_issues`)).map((item) => item?.id));
   const children = [];
   for (const [index, items] of record.parts.entries()) {
-    const body = `${splitChildHeader(number, index + 1, record.parts.length)}\n${items.map((n) => lines[n - 1]).join("\n")}`;
+    // A part that holds a refinement line names that refinement (splitChildBody).
+    const source = items.some((n) => n > split.human) ? split.source : null;
+    const body = `${splitChildHeader(number, index + 1, record.parts.length, source)}\n${items.map((n) => lines[n - 1]).join("\n")}`;
     let child = filed.find((item) => item.body === body);
     if (child === undefined) {
       child = await github("POST", `/repos/${repository}/issues`, { title: `${line(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });

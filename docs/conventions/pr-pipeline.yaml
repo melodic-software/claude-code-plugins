@@ -521,11 +521,13 @@ activities:
     # A Size Large issue a listed human filed, which admission parks with
     # "the split into sub-issues at intake is pending" (owner Q93), gets a
     # size split instead: the model returns only item numbers, `parts` over
-    # the issue's trusted task-list lines and `order` pairs; an invalid
-    # partition leaves it parked, with why in the step summary. The script
-    # files each part as a native sub-issue whose body is a fixed header and
-    # that part's lines as written, which admission and pr-verify count as
-    # the listed human's text; writes the order as native blocked-by edges
+    # the issue's trusted task-list lines (the listed human's, then those of
+    # intake's refinement where admission counts it) and `order` pairs; an
+    # invalid partition leaves it parked, with why in the step summary. The
+    # script files each part as a native sub-issue whose body is a fixed
+    # header and that part's lines as written, which admission and pr-verify
+    # trust under the split-child rule (admit.mjs splitChildBody); writes the
+    # order as native blocked-by edges
     # (owner Q94); puts the issue's open blockers on the first parts and moves
     # what the issue blocks onto the last parts; records the split in one
     # comment; and dispatches intake for each sub-issue. No hold label, a
