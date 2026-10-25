@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking: src/reports/sales-summary.js:8 - averageOrderValue iterates while i <= orders.length, so the final pass reads orders[orders.length], which is undefined, and `.total` throws. Use `i < orders.length`.",
+      "why": "names the file, function and loop bound"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No blocking findings. The model files under src/models are consistent and validate their input.",
+      "why": "reviewed only the first files of the diff"
+    },
+    {
+      "answer": "Non-blocking: src/reports/sales-summary.js - averageOrderValue divides by orders.length and returns NaN for an empty list.",
+      "why": "a different problem, already guarded, instead of the loop bound"
+    }
+  ]
+}
