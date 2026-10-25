@@ -1,5 +1,5 @@
 ---
 type: tool_used
 tool: Skill
-input_match: '"skill"\s*:\s*"(?:user-interface:)?write-css"'
+input_match: '"skill"\s*:\s*"(?:user-interface:)?write-(?:css|animation)"'
 ---

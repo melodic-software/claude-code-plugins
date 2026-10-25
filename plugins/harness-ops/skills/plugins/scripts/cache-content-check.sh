@@ -31,10 +31,13 @@
 # that matters here — the comparison itself is shell-local set arithmetic.
 #   1. one `jq` over installed_plugins.json — every install record, every
 #      marketplace, read once;
-#   2. one `git cat-file --batch-check` over every DISTINCT recorded sha — a
-#      sha the batch reports `missing` is `sha-not-local`;
+#   2. one `git rev-parse HEAD` in the marketplace clone — only a record whose
+#      recorded sha IS that commit is compared, and every other record is
+#      `not-at-head`, counted `not_checked` (see the verdict below for why);
 #   3. per distinct sha, one `git show <sha>:.claude-plugin/marketplace.json`
-#      plus one `jq` — the plugin→source-directory map AT THAT COMMIT;
+#      plus one `jq` — the plugin→source-directory map AT THAT COMMIT. After
+#      step 2 the only sha left is HEAD, so this and step 4 run once; they stay
+#      keyed by sha so that gate can change without the join changing;
 #   4. per distinct sha, ONE `git ls-tree -r -z <sha> -- <every source dir at
 #      that sha>` — every blob id the commit says those plugins' files should
 #      have. A multi-pathspec ls-tree reports a pathspec that matched nothing
@@ -63,7 +66,10 @@
 # perfectly matching cache reports `stale-content`. Reading both the source path
 # and the expected tree from the same revision removes the mismatch; a pathspec
 # that still matches nothing at that sha gets its own `no-source-at-sha`
-# verdict, counted unverifiable, never reported as stale content.
+# verdict, counted unverifiable, never reported as stale content. Because only a
+# record at the clone's HEAD is compared, a record older than a rename is
+# `not-at-head` before it reaches this lookup; reading the commit rather than
+# the checkout still keeps an edited or dirty work tree out of the answer.
 #
 # Path transport is NUL-separated end to end (`ls-tree -z`, `find -print0`,
 # `check-ignore -z`). Without `-z`, git QUOTES a pathname carrying non-ASCII,
@@ -123,19 +129,26 @@
 #                         or is in the cache and not at the sha. This is the
 #                         finding; the record's paths[] lists up to
 #                         MAX_REPORTED_PATHS of them
-#   sha-not-local         the recorded `gitCommitSha` is not an object in the
-#                         installLocation clone. NOT an error and NEVER fetched:
-#                         a fetch is a network mutation this audit does not
-#                         perform. This is the ORDINARY case, not an edge one —
-#                         the marketplace clone is observed to be shallow and
-#                         Claude Code re-clones it on update. Pointer, as of
-#                         2026-10-18 (the page states the re-clone, not a
-#                         depth; recheck when it changes):
+#   not-at-head           the recorded `gitCommitSha` is not the commit at the
+#                         installLocation clone's HEAD, so the record is not
+#                         compared. NOT an error, NOT unverifiable, and NEVER
+#                         fetched: a fetch is a network mutation this audit
+#                         does not perform, and some hosts refuse a fetch by
+#                         sha. Counted in `not_checked`, apart from both
+#                         `match` and `unverifiable`. This is the ORDINARY
+#                         case, not an edge one — the marketplace clone is
+#                         observed to be shallow and Claude Code re-clones it
+#                         on update, so an older recorded commit is usually
+#                         not in the clone at all. Pointer, as of 2026-10-25
+#                         (the page states the re-clone, not a depth; recheck
+#                         when it changes):
 #                         https://code.claude.com/docs/en/plugins/host-marketplace.md
-#                         So only installs recorded at a commit inside the
-#                         clone can be compared and most read here right
-#                         after a refresh. A report is only as strong as
-#                         the share of installs it could actually compare
+#                         Even an older commit a deeper clone does hold is not
+#                         compared, so the answer does not depend on how deep
+#                         the clone happens to be
+#   no-clone-head         the installLocation is a git work tree whose HEAD
+#                         names no commit (an unborn branch), so there is no
+#                         commit any record could be compared against
 #   no-git-commit-sha     the record carries no `gitCommitSha` to compare against
 #   no-install-location   the marketplace has no `installLocation`, or it is not
 #                         a directory on this machine
@@ -160,10 +173,12 @@
 #
 # Output (stdout), default and with --json: one JSON object.
 #   {marketplace, scope, checked, match, stale_content, unverifiable,
-#    skipped_absent_project_paths, installs:[…]}
-#   `unverifiable` counts every install whose verdict is neither `match` nor
-#   `stale-content` — the audit looked and could not decide, which is reported
-#   as its own number rather than folded into either side.
+#    not_checked, skipped_absent_project_paths, installs:[…]}
+#   `not_checked` counts every `not-at-head` install: recorded at a commit
+#   other than the clone's HEAD, so not compared. `unverifiable` counts every
+#   other install whose verdict is neither `match` nor `stale-content` — the
+#   audit looked and could not decide. Both are reported as their own numbers
+#   rather than folded into either side, and `checked` is the sum of all four.
 #   `installs[].unreleased_changes` is true when the clone's work tree holds
 #   `.changes/<plugin>/`: changelog fragments for changes that ship without a
 #   version bump until the marketplace's next release.
@@ -440,7 +455,7 @@ check_marketplace() {
   local install_loc_native
   to_slashes_to install_loc_native "$install_loc"
 
-  local checked=0 n_match=0 n_stale=0 n_unverifiable=0 n_skipped=0
+  local checked=0 n_match=0 n_stale=0 n_unverifiable=0 n_not_checked=0 n_skipped=0
   local records_json="" first="yes"
   local stale_ids=""
 
@@ -527,53 +542,36 @@ check_marketplace() {
   local n=${#i_id[@]}
   local k
 
-  # --- Pass 1: is each DISTINCT sha an object in this clone -------------------
+  # --- Pass 1: only a record at the clone's HEAD is compared -----------------
   #
-  # One `cat-file --batch-check` for the whole marketplace. Never `git fetch`
-  # here. Fetching is a network mutation the audit does not perform, and it
-  # would also silently repair the very condition the verdict exists to report.
-  # This test comes BEFORE the source lookup, and must: the source path is read
-  # out of the commit itself, so there is nothing to read until the commit is
-  # known to be present locally.
-  local -A sha_local=() sha_seen=()
-  local -a probe_shas=()
+  # One `rev-parse` for the whole marketplace, and only when a record is still
+  # undecided. The clone is observed shallow and is re-cloned on update, so a
+  # record at any other commit usually has no object here to compare against;
+  # comparing only at HEAD makes the answer the same however deep the clone is.
+  # Never `git fetch` here. Fetching is a network mutation the audit does not
+  # perform, some hosts refuse a fetch by sha, and it would also silently
+  # repair the very condition the verdict exists to report. This test comes
+  # BEFORE the source lookup, and must: the source path is read out of the
+  # commit itself, so there is nothing to read until the commit is known to be
+  # present locally. A sha that equals HEAD is.
+  local pending="" clone_head=""
   for ((k = 0; k < n; k++)); do
-    [[ -z "${i_verdict[k]}" ]] || continue
-    sha="${i_sha[k]}"
-    [[ -z "${sha_seen[$sha]+set}" ]] || continue
-    sha_seen["$sha"]=1
-    # The batch's protocol is one object name per LINE, so a sha carrying
-    # whitespace would desynchronise every answer after it. Such a value is not
-    # an object name either — it is left out and reads as `sha-not-local`,
-    # which is what a per-record `cat-file -e` would have said.
-    case "$sha" in
-    *[$' \t\n\r']*) continue ;;
-    *) ;;
-    esac
-    probe_shas+=("$sha")
-  done
-  if [[ ${#probe_shas[@]} -gt 0 ]]; then
-    local probe_in="" probe_out="" probe_line="" pi=0
-    printf -v probe_in '%s^{commit}\n' "${probe_shas[@]}"
-    if git_to probe_out -C "$install_loc_native" cat-file --batch-check <<<"${probe_in%$'\n'}" &&
-      [[ -n "$probe_out" ]]; then
-      # Positional by contract: one answer line per input line, in order. A
-      # present object answers `<oid> <type> <size>`, an absent one echoes the
-      # input back with ` missing`.
-      while IFS= read -r probe_line; do
-        [[ $pi -lt ${#probe_shas[@]} ]] || break
-        case "$probe_line" in
-        "" | *" missing" | *" ambiguous") ;;
-        *) sha_local["${probe_shas[pi]}"]=1 ;;
-        esac
-        pi=$((pi + 1))
-      done <<<"$probe_out"
+    if [[ -z "${i_verdict[k]}" ]]; then
+      pending="yes"
+      break
     fi
+  done
+  if [[ -n "$pending" ]]; then
+    git_to clone_head -C "$install_loc_native" rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null ||
+      clone_head=""
   fi
   for ((k = 0; k < n; k++)); do
     [[ -z "${i_verdict[k]}" ]] || continue
-    [[ -z "${sha_local[${i_sha[k]}]+set}" ]] || continue
-    i_verdict[k]="sha-not-local"
+    if [[ -z "$clone_head" ]]; then
+      i_verdict[k]="no-clone-head"
+    elif [[ "${i_sha[k]}" != "$clone_head" ]]; then
+      i_verdict[k]="not-at-head"
+    fi
   done
 
   # --- Pass 2: the source directory each record's own commit names ------------
@@ -690,7 +688,8 @@ check_marketplace() {
           # version, one installPath — and a map keyed by directory alone would
           # merge their trees: a file present only at the newer sha would then
           # read as in-tree for the older record, never reach `extras_idx`, and
-          # a stale cache would verdict `match`.
+          # a stale cache would verdict `match`. The HEAD gate in Pass 1 leaves
+          # one sha today; the key keeps this join correct if that gate widens.
           tree_hash["$s"$'\x1f'"$owner"$'\x1f'"$rel"]="$blob"
           owner_idx["$s"$'\x1f'"$owner"]+=" $idx"
         fi
@@ -975,6 +974,7 @@ check_marketplace() {
       n_stale=$((n_stale + 1))
       stale_ids+="${i_id[k]}"$'\n'
       ;;
+    not-at-head) n_not_checked=$((n_not_checked + 1)) ;;
     *) n_unverifiable=$((n_unverifiable + 1)) ;;
     esac
 
@@ -1029,8 +1029,8 @@ check_marketplace() {
   local j_mp j_scope_out
   json_string_to j_mp "$mp"
   json_string_to j_scope_out "$SCOPE"
-  printf '{"marketplace":%s,"scope":%s,"checked":%d,"match":%d,"stale_content":%d,"unverifiable":%d,"skipped_absent_project_paths":%d,"installs":[%s]}' \
-    "$j_mp" "$j_scope_out" "$checked" "$n_match" "$n_stale" "$n_unverifiable" "$n_skipped" "$records_json"
+  printf '{"marketplace":%s,"scope":%s,"checked":%d,"match":%d,"stale_content":%d,"unverifiable":%d,"not_checked":%d,"skipped_absent_project_paths":%d,"installs":[%s]}' \
+    "$j_mp" "$j_scope_out" "$checked" "$n_match" "$n_stale" "$n_unverifiable" "$n_not_checked" "$n_skipped" "$records_json"
 }
 
 # --- Dispatch ------------------------------------------------------------------

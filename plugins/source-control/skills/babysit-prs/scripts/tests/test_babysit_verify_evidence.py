@@ -3298,7 +3298,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
     def test_the_lane_switches_turned_on_restore_the_refusals(self) -> None:
         self.config = dataclasses.replace(
             self.config, high_path_floor=True, max_changed_files=8,
-            c2_contradictions=True,
         )  # fmt: skip
         self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
@@ -3367,7 +3366,6 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         # Q624 turns the floor and caps off for the pr-merge lane only.
         self.config = dataclasses.replace(
             self.config, high_path_floor=False, max_changed_files=None,
-            c2_contradictions=False,
         )  # fmt: skip
         self.files = ((changed(MANIFEST),), True)
         code, out = self.run_main()

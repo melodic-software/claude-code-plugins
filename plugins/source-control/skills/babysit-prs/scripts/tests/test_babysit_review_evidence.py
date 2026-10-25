@@ -1734,8 +1734,6 @@ class SeverityTests(Base):
                 )
                 result = risk.score(
                     risk.RiskInput(
-                        work_class="C2",
-                        rung=risk.Rung.C2,
                         files=(
                             risk.ChangedFile(
                                 "plugins/foo/a.md", None, "added", 1, 0, True, "100644"
@@ -1745,7 +1743,6 @@ class SeverityTests(Base):
                         max_changed_lines=200,
                         high_paths=(),
                         lanes=lanes,
-                        blast_radius=None,
                     )
                 )
                 codes = [r.code for r in result.reasons]

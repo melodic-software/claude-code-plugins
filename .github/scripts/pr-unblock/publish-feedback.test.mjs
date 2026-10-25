@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isEscalationReply } from "./address-feedback.mjs";
 import { main, publish, renderReply } from "./publish-feedback.mjs";
@@ -450,7 +451,7 @@ test("an INCORRECT reply the adjudicator rules for the lane is answered, resolve
       "<!-- pr-unblock adjudicate-feedback: finding-answered -->",
       "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**",
       "",
-      `A fresh-context adjudicator read the finding, the evidence below and the code at \`${GATED}\`, without either side's reasoning, and found that the code answers the finding.`,
+      `A fresh-context adjudicator read the review comment, the locations both sides cited and the code at \`${GATED}\`, without the fixing lane's reasoning, and found that the code answers the finding.`,
       "",
       "Evidence: `docs/b.md:1`",
     ].join("\n"),
@@ -1276,4 +1277,17 @@ test("lineChanged reads a patch's new-side hunks", async () => {
     assert.equal(lineChanged(patch, line), want, String(line));
   }
   assert.equal(lineChanged(undefined, 1), false);
+});
+
+// collect-base-activity runs a script activity from a copy of its own
+// directory under $RUNNER_TEMP, so every import must resolve inside it.
+test("the script loads from a copy of its own directory alone", async () => {
+  const copy = mkdtempSync(join(tmpdir(), "base-script-"));
+  try {
+    cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
+    const module = await import(pathToFileURL(join(copy, "publish-feedback.mjs")).href);
+    assert.equal(typeof module.main, "function");
+  } finally {
+    rmSync(copy, { recursive: true, force: true });
+  }
 });

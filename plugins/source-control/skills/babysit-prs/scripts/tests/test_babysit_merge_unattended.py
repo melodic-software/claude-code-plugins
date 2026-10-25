@@ -2972,22 +2972,69 @@ class OneUnattendedMergeInFlight(Unattended):
             {str(PR): "ineligible:opt-in-label:labeler-not-human"},
         )
 
-    def test_a_queued_entry_whose_class_rose_above_the_rung_dequeues_itself(
+    def test_a_queued_entry_whose_issue_turned_untrusted_dequeues_itself(
         self,
     ) -> None:
-        # Local review of ed841af72: a human relabels the linked issue C4 after
-        # the enqueue. Eligibility still passes, so only the class ceiling says
-        # it must never merge unattended.
+        # A human labels the linked issue untrusted-provenance after the
+        # enqueue: the trust hold refuses it, so its own entry leaves.
         self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
         self.queued = [PR]
-        self.eligible = policy.Eligibility(True, None, "C4", 40)
+        self.eligible = policy.Eligibility(False, "untrusted-provenance")
         code, out = self.run_main()
         self.assert_no_merge(code)
-        # The scorer rates C4 HIGH, so the reasons comment follows the dequeue.
-        self.assertEqual(self.log, [f"dequeue:[{PR}]", "risk-comment:POST"])
+        self.assertEqual(self.log, [f"dequeue:[{PR}]"])
         self.assertEqual(
-            out["unattended"]["writes"]["holds"], {str(PR): "class-above-rung:C4>C2"}
+            out["unattended"]["writes"]["holds"],
+            {str(PR): "ineligible:untrusted-provenance"},
         )
+
+    def test_a_queued_entry_whose_rung_lost_promotion_dequeues_itself(
+        self,
+    ) -> None:
+        # The rung's cells stop qualifying after the enqueue (a demotion
+        # restarted the window, or the resolver became unreadable): the armed
+        # entry leaves the queue instead of merging without evidence.
+        for promotion, hold in (
+            (
+                policy.Promotion(
+                    dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
+                ),
+                "promotion-unqualified:C2",
+            ),
+            (policy.Promotion(None, "resolver-failed"), "promotion-unqualified:C2"),
+        ):
+            with self.subTest(hold=hold, cells=promotion.cells):
+                self.log = []
+                self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+                self.queued = [PR]
+                self.promotion = promotion
+                code, out = self.run_main()
+                self.assert_no_merge(code)
+                self.assertEqual(self.log, [f"dequeue:[{PR}]"])
+                self.assertEqual(out["unattended"]["writes"]["holds"], {str(PR): hold})
+
+    def test_a_queued_entry_whose_issue_was_relabeled_structural_stays(
+        self,
+    ) -> None:
+        # Owner decision (option a): no class ceiling, so a relabel to a
+        # structural class, or to none, leaves an eligible entry queued.
+        for work_class in ("C4", None):
+            with self.subTest(work_class=work_class):
+                self.log = []
+                self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+                self.queued = [PR]
+                self.eligible = policy.Eligibility(True, None, work_class, 40)
+                _, out = self.run_main()
+                # The only refusal left is the in-flight one its own entry
+                # sets up.
+                self.assertEqual(
+                    out["unattended"]["reason"],
+                    f"in-flight:identity-entry-queued:#{PR}",
+                )
+                self.assertNotIn(f"dequeue:[{PR}]", self.log)
+                self.assertNotIn(
+                    str(PR), out["unattended"].get("writes", {}).get("holds", {})
+                )
 
     def test_a_queued_entry_this_run_scores_above_low_dequeues_itself(self) -> None:
         # #7339 comment 2: an eligible entry rescored MED stayed queued.

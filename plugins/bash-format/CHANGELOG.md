@@ -3,6 +3,12 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.5] - 2026-10-25
+
+### Fixed
+
+- **Git hook entry:** `shell-check.sh` starts under `sh` and starts no `bash` by name, which on Windows can be System32's WSL launcher. The vendored check lib reruns it under the first bash on `PATH` outside System32; with none, bash is a missing tool under the check-placement contract (`checks.skipmissing`, else fail for an agent and a notice for a person). The vendored installer's plain dispatcher runs an entry that starts `#!/bin/sh` with `sh` (an older copy by its own first line until it is refreshed), its lefthook and husky run lines read `sh <path>`, and it replaces a dispatcher an earlier release wrote instead of refusing it as modified. Rerun `/bash-format:setup apply install-git-hooks` to pick it up ([#9774](https://github.com/melodic-software/claude-code-plugins/issues/9774)).
+
 ## [0.12.4] - 2026-10-24
 
 ### Changed

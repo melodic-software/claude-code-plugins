@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # markdown-format pre-commit check: rewrite the staged Markdown files, then
 # report what markdownlint-cli2 still finds on the lines this commit adds.
 #
@@ -24,14 +24,19 @@
 # PATH, else the repo's own node_modules/.bin. Missing markdownlint-cli2 follows
 # the check-placement contract in every mode: checks.skipmissing, else fail for
 # an agent and a notice for a person.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 # shellcheck source=markdown-gates.sh
 . "$here/markdown-gates.sh" || exit 1
 

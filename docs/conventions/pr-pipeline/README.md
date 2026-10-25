@@ -685,16 +685,17 @@ run by the local babysit lane (loop-lane), or `pr-merge`. When it is absent the 
 `pr-merge`, the meaning a rung had before this key existed. The babysit wrapper merges only when it
 reads the authority the wrapper runs as: `local-babysit` by default, `pr-merge` under
 `--authority pr-merge` (below). `merge.report-only: true` makes that authority report each
-decision and write nothing. `merge.rung` is the highest work class that authority merges without a
-human. Work classes are defined in
-[`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md).
+decision and write nothing. `merge.rung` is a pacing cap: `off` merges nothing without a human,
+and `C2` or `C3` lets the authority merge. Neither authority reads a work class
+([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 
 - `off` is the default. The first rung a repository adopts is `C2`, together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
-- The work class comes from the linked issue's label and is re-checked against the diff. No class,
-  or a class the diff contradicts, means no lane merge.
-- No rung reaches C4 or C5: `merge.rung` stops at `C3`, and C5 always needs a human. The pr-merge
-  lane reads no class and merges on the verifier verdict instead ([The pr-merge lane](#the-pr-merge-lane)).
+- No work class is read, and no class, missing class or diff shape caps the rung. The only
+  class-named check is the local babysit lane's untrusted-provenance hold: a pull request whose
+  linked issue carries `work-class: untrusted-provenance`, or had it removed by a non-human, waits
+  for a human. The pr-merge lane merges on the verifier verdict
+  ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
@@ -733,10 +734,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   or no `authority`, the wrapper merges nothing.
 - **Same repository.** The pull request's head is in this repository, never a fork.
 - **Risk score.** A diff the risk scorer rates LOW merges, and so does a MEDIUM one whose every
-  reason is a class, size or reported-finding reason (`class-contradicted`, `blast-radius-missing`,
-  `lines-over`, `files-over`, `no-patch:*`, `findings:claude-review`,
-  `findings:claude-security-review`). Every other MEDIUM reason (unbound or missing review
-  evidence, an unread file listing, the rung) and every HIGH one refuse.
+  reason is a size or reported-finding reason (`lines-over`, `files-over`, `no-patch:*`,
+  `findings:claude-review`, `findings:claude-security-review`). Every other MEDIUM reason
+  (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
 - **Review flags.** A review flag holds only for a cost increase (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
@@ -956,13 +956,13 @@ except six:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the scorer's fixed HIGH path set, now empty, and the manifest
   review HIGH),
-  `c2-contradictions` (true
-  scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
   `high-path-floor: false` (owner direction 2026-10-24); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
-  2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor, both
-  caps and the C2 contradictions. The review evidence, the security lane's CRITICAL findings, the
+  2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor and both
+  caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
+  The schema still accepts it so existing configs validate, and a gate report whose config sets it
+  carries a `configNotes` entry saying so. The review evidence, the security lane's CRITICAL findings, the
   cost hold and the trusted-actor widening hold still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the
@@ -1458,7 +1458,8 @@ value judges none (`verify-authors-invalid`). The trusted-spec rule below does n
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
-reads `verify:untrusted-spec`, so a lane pull request never supplies its own spec.
+reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
+parent's task-list lines (below), so a lane pull request never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -1551,8 +1552,20 @@ head:
   included) are the ones it recorded by id and update time, none added, edited or deleted; a partial
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
-  list's humans, the pull request's author included (otherwise `verify:untrusted-spec`); a Bot or
-  App, the lanes App among them, never counts. The model's spec text holds what such
+  list's humans, the pull request's author included, or is a sub-issue intake's size split filed
+  whose body counts as its parent's text (otherwise `verify:untrusted-spec`). That sub-issue counts
+  when the lanes App wrote it, a listed human filed its native parent in this repository, its body
+  opens with the split header for that parent, every line after the header is one of the parent's
+  trusted task-list lines (a line of the parent's listed-human body or comments that starts with
+  admission's `task-list`, "- [ ] " with its trailing space, from
+  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
+  listed human last edited it. On that edited path a line may also be a trusted line with its box
+  ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
+  `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
+  so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than
+  100 comments leaves it untrusted, and a failed read of the sub-issue, its parent or the rules
+  refuses `verify:unreadable`. Otherwise a Bot or App, the lanes App among them, never counts. The
+  model's spec text holds what such
   accounts wrote and, on an issue whose body such an account wrote, intake triage's newest
   refinement comment (opening `<!-- intake-triage refinement -->`, by the lanes App's id from
   `merge.agent-identity` on the trusted-actor list) while unedited and posted before the pull
@@ -1881,8 +1894,8 @@ findings listed by key. Its scripts and tests are in
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line
 `<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
-and, per current finding, the key, the owning area and the evidence inside a text fence as inert
-lines. Each finding's fingerprint changes only when its evidence does: the failure text, the run, PR or
+and, per current finding, the key, the owning area, and the summary and the evidence each inside
+a text fence as inert lines; the change comment fences each summary too. Each finding's fingerprint changes only when its evidence does: the failure text, the run, PR or
 stop-comment set, the newest failed merge group, the last merge, or the day for a ceiling; the state
 fingerprint covers the signal's keys and fingerprints, and no finding is the clear state. The newest
 issue for a signal decides: open with the same state, nothing is written; open with a new state, a

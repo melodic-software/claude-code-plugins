@@ -30,7 +30,7 @@ for the pass. All of it is specified in [reference/run-contract.md](reference/ru
 | [reference/run-state-and-resumability.md](reference/run-state-and-resumability.md) | Starting, leasing, or resuming a run, and diagnosing a lock that outlived its holder. |
 | [reference/report-location-and-schema.md](reference/report-location-and-schema.md) | Writing the report, or judging what `--report-to` may target. |
 | [reference/determinism-tiers.md](reference/determinism-tiers.md) | Assigning a finding's tier, or running the self-check's comparison. |
-| [reference/suppression.md](reference/suppression.md) | Reading or writing the target's `.claude/audit-pass.md` record. |
+| [reference/suppression.md](reference/suppression.md) | Reading or writing the target's suppression record (`harness-config.yaml`). |
 | [reference/doctor-handoff.md](reference/doctor-handoff.md) | Reaching the `/doctor` handoff, whether it is present or absent. |
 | [reference/liveness-sources.md](reference/liveness-sources.md) | Inventorying Phase 1 liveness: which sources this run can reach, what each one establishes, and the three losses it names in `skipped`. |
 | [reference/lane-catalog.md](reference/lane-catalog.md) | Dispatching Phase 3, or resolving what a `--lanes` id covers: every lane, what each delegated skill owns, what is not dispatched, and the substrate probe. |
@@ -403,8 +403,9 @@ behavior P4 already licenses.
 
 ## The suppression record
 
-A deliberately-kept finding is recorded at `.claude/audit-pass.md` in the target repository, layered
-per the config-cascade convention. **It is the only suppression mechanism, and there is no inline
+A deliberately-kept finding is recorded in the `suppressions` mapping of
+`docs/conventions/harness-config.yaml` in the target repository (the convention home it binds, when
+it binds another), layered per the config-cascade convention. **It is the only suppression mechanism, and there is no inline
 marker**, at any target: a marker would have to carry the same constituents, could not express a
 two-site finding at all, and would write into a tree the pass must leave clean. An entry stores the
 finding's **constituents**, meaning `check`, `claim`, and every `(surface, anchor)` site, under the

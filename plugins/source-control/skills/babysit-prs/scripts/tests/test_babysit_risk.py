@@ -24,7 +24,6 @@ from babysit_risk import (
     LaneEvidence,
     Risk,
     RiskInput,
-    Rung,
     holds,
     normalize_path,
     score,
@@ -91,14 +90,11 @@ BOTH_LANES_CLEAN = (_lane("claude-review"), _lane("claude-security-review"))
 
 def _input(**changes):
     base = RiskInput(
-        work_class="C2",
-        rung=Rung.C2,
         files=(_file("plugins/foo/skills/bar/SKILL.md"),),
         files_complete=True,
         max_changed_lines=200,
         high_paths=(),
         lanes=BOTH_LANES_CLEAN,
-        blast_radius=None,
     )
     return dataclasses.replace(base, **changes)
 
@@ -113,53 +109,45 @@ class AllPassTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.LOW)
         self.assertEqual(result.reasons, ())
 
-    def test_c1_class_is_contradicted_by_any_pull_request(self):
-        # Spec: C1 work produces no pull request, so a C1 PR is contradicted.
-        result = score(_input(work_class="C1"))
-        self.assertEqual(result.score, Risk.MED)
-        self.assertEqual(_codes(result), ("class-contradicted",))
+    def test_a_structural_shaped_diff_scores_low(self):
+        # The former class-contradicted shapes: a removal, a rename, a schema
+        # change and a two-plugin diff, each with nothing else wrong, now
+        # score LOW with no reason (owner decision, option a).
+        for name, files in (
+            ("removed", (_file("plugins/foo/old.md", status="removed", additions=0),)),
+            (
+                "renamed",
+                (
+                    _file(
+                        "plugins/foo/new.md",
+                        status="renamed",
+                        previous_path="plugins/foo/old.md",
+                    ),
+                ),
+            ),
+            (
+                "copied",
+                (
+                    _file(
+                        "plugins/foo/b.md",
+                        status="copied",
+                        previous_path="plugins/foo/a.md",
+                    ),
+                ),
+            ),
+            ("changed", (_file("plugins/foo/a.md", status="changed"),)),
+            ("schema", (_file("plugins/foo/config.schema.json"),)),
+            ("two plugins", (_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
+        ):
+            with self.subTest(name):
+                result = score(_input(files=files))
+                self.assertEqual((result.score, result.reasons), (Risk.LOW, ()))
 
 
 class SingleMedReasonTests(unittest.TestCase):
     """Each single miss flips an all-pass input to exactly one MED reason."""
 
     CASES = [
-        ("class missing", dict(work_class=None), "class-missing"),
-        ("class not a C1..C5 token", dict(work_class="C9"), "class-missing"),
-        (
-            "class above rung",
-            dict(work_class="C3", blast_radius="low"),
-            "class-above-rung",
-        ),
-        ("rung off", dict(rung=Rung.OFF), "class-above-rung"),
-        (
-            "removed file",
-            dict(files=(_file("plugins/foo/old.md", status="removed", additions=0),)),
-            "class-contradicted",
-        ),
-        (
-            "renamed file",
-            dict(
-                files=(
-                    _file(
-                        "plugins/foo/new.md",
-                        status="renamed",
-                        previous_path="plugins/foo/old.md",
-                    ),
-                )
-            ),
-            "class-contradicted",
-        ),
-        (
-            "schema file",
-            dict(files=(_file("plugins/foo/config.schema.json"),)),
-            "class-contradicted",
-        ),
-        (
-            "two plugins",
-            dict(files=(_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
-            "class-contradicted",
-        ),
         (
             "201 changed lines",
             dict(files=(_file("plugins/foo/a.md", additions=150, deletions=51),)),
@@ -235,11 +223,6 @@ class SingleMedReasonTests(unittest.TestCase):
                 )
             ),
             "findings:claude-review",
-        ),
-        (
-            "blast radius missing above C2",
-            dict(work_class="C3", rung=Rung.C3, blast_radius=None),
-            "blast-radius-missing",
         ),
     ]
 
@@ -371,9 +354,7 @@ class RenameTests(unittest.TestCase):
         )
         result = score(_input(files=files, high_paths=("**/CODEOWNERS",)))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(
-            _codes(result), ("high-path:**/CODEOWNERS", "class-contradicted")
-        )
+        self.assertEqual(_codes(result), ("high-path:**/CODEOWNERS",))
 
     def test_rename_into_a_workflow_takes_the_cost_hold(self):
         files = (
@@ -386,25 +367,13 @@ class RenameTests(unittest.TestCase):
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
         # A file renamed into a workflow also takes the cost hold.
-        self.assertEqual(
-            _codes(result),
-            ("cost-review-required", "class-contradicted"),
-        )
-
-    def test_rename_across_plugins_counts_both_plugins(self):
-        files = (
-            _file(
-                "plugins/foo/x.md", status="renamed", previous_path="plugins/bar/x.md"
-            ),
-        )
-        self.assertEqual(_codes(score(_input(files=files))), ("class-contradicted",))
+        self.assertEqual(_codes(result), ("cost-review-required",))
 
 
 class OrderingTests(unittest.TestCase):
     def test_high_beats_every_med(self):
         result = score(
             _input(
-                work_class=None,
                 files=(_file(".gitmodules", has_patch=False),),
                 files_complete=False,
                 high_paths=("**/.gitmodules",),
@@ -425,7 +394,6 @@ class OrderingTests(unittest.TestCase):
         )
         result = score(
             _input(
-                work_class="C3",
                 files=files,
                 files_complete=False,
                 lanes=lanes,
@@ -438,8 +406,6 @@ class OrderingTests(unittest.TestCase):
                 "high-path:**/.gitmodules",
                 "high-path:**/CODEOWNERS",
                 "security-finding",
-                "blast-radius-missing",
-                "class-above-rung",
                 "files-incomplete",
                 "findings:claude-review",
                 "lines-over",
@@ -457,16 +423,6 @@ class EvidenceAndPluginTests(unittest.TestCase):
         result = score(_input(lanes=lanes))
         self.assertEqual(result.score, Risk.MED)
         self.assertEqual(_codes(result), ("evidence-unbound:claude-review",))
-
-    def test_plugin_directories_differing_only_in_case_are_two_plugins(self):
-        files = (_file("plugins/Foo/a.md"), _file("plugins/foo/b.md"))
-        result = score(_input(files=files))
-        self.assertEqual(_codes(result), ("class-contradicted",))
-
-    def test_plugins_segment_is_folded_when_counting_plugins(self):
-        files = (_file("Plugins/foo/a.md"), _file("plugins/bar/b.md"))
-        result = score(_input(files=files))
-        self.assertEqual(_codes(result), ("class-contradicted",))
 
 
 class _OverBudget(BaseException):
@@ -587,42 +543,6 @@ class GlobWorkTests(unittest.TestCase):
                 self.assertIn(f"high-path:{glob}", _codes(result))
 
 
-class BlastRadiusTests(unittest.TestCase):
-    def test_blast_radius_ignored_for_c2(self):
-        for value in (None, "", "high"):
-            with self.subTest(value):
-                self.assertEqual(score(_input(blast_radius=value)).score, Risk.LOW)
-
-    def test_rated_blast_radius_above_c2_is_low(self):
-        result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="low"))
-        self.assertEqual(result.score, Risk.LOW)
-
-    def test_only_a_low_rating_keeps_a_class_above_c2_low(self):
-        # Spec: the plan's scale is LOW / MEDIUM / HIGH / CRITICAL; any value
-        # other than LOW above C2 rates MED.
-        for value in (
-            "high",
-            "HIGH",
-            "MEDIUM",
-            "CRITICAL",
-            "unknown",
-            "none",
-            "null",
-            " low",
-        ):
-            with self.subTest(value):
-                result = score(
-                    _input(work_class="C3", rung=Rung.C3, blast_radius=value)
-                )
-                self.assertEqual(result.score, Risk.MED)
-        result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="LOW"))
-        self.assertEqual(result.score, Risk.LOW)
-
-    def test_blank_blast_radius_above_c2_is_missing(self):
-        result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="  "))
-        self.assertEqual(_codes(result), ("blast-radius-missing",))
-
-
 class MalformedInputTests(unittest.TestCase):
     """Missing or unrecognized data is a miss: never LOW, and never a raise."""
 
@@ -640,26 +560,6 @@ class MalformedInputTests(unittest.TestCase):
             dict(files=(_file("plugins/foo/a.md", status=None),)),
             Risk.MED,
             "files-incomplete",
-        ),
-        (
-            "copied is structural",
-            dict(
-                files=(
-                    _file(
-                        "plugins/foo/b.md",
-                        status="copied",
-                        previous_path="plugins/foo/a.md",
-                    ),
-                )
-            ),
-            Risk.MED,
-            "class-contradicted",
-        ),
-        (
-            "changed is structural",
-            dict(files=(_file("plugins/foo/a.md", status="changed"),)),
-            Risk.MED,
-            "class-contradicted",
         ),
         (
             "negative additions",
@@ -709,8 +609,6 @@ class MalformedInputTests(unittest.TestCase):
             Risk.MED,
             "files-incomplete",
         ),
-        ("rung out of range", dict(rung=9), Risk.MED, "class-above-rung"),
-        ("rung None", dict(rung=None), Risk.MED, "class-above-rung"),
         (
             "max_changed_lines None",
             dict(max_changed_lines=None),
@@ -724,8 +622,7 @@ class MalformedInputTests(unittest.TestCase):
 
     def test_malformed_inputs_map_to_the_documented_code(self):
         # Spec: the module docstring's mapping (per-file data and the listing
-        # to files-incomplete, an unknown rung to class-above-rung, an
-        # unreadable limit to lines-over, an unreadable HIGH set or path to
+        # to files-incomplete, an unreadable limit to lines-over, an unreadable HIGH set or path to
         # high-path:**), never LOW and never a raise.
         for name, changes, severity, code in self.CASES:
             with self.subTest(name):
@@ -773,15 +670,12 @@ class MalformedInputTests(unittest.TestCase):
 
     def test_two_sided_change_needs_a_previous_mode(self):
         # Spec: modified, changed, renamed or copied with previous_mode None, malformed
-        # or '000000' (absent) is HIGH, at a class where nothing else fires.
+        # or '000000' (absent) is HIGH.
         for status in ("modified", "changed", "renamed", "copied"):
             for previous_mode in (None, "777", "000000"):
                 with self.subTest((status, previous_mode)):
                     result = score(
                         _input(
-                            work_class="C3",
-                            rung=Rung.C3,
-                            blast_radius="low",
                             files=(
                                 _file(
                                     "plugins/foo/b.md",
@@ -866,20 +760,14 @@ class MalformedInputTests(unittest.TestCase):
         result = score(_input(files=(_file("plugins/a\nb"),)))
         self.assertIn("high-path:**", _codes(result))
 
-    def test_rename_or_copy_without_a_previous_path_is_high_at_every_class(self):
+    def test_rename_or_copy_without_a_previous_path_is_high(self):
         for status in ("renamed", "copied"):
-            for work_class, rung in (("C2", Rung.C2), ("C3", Rung.C3)):
-                with self.subTest((status, work_class)):
-                    result = score(
-                        _input(
-                            work_class=work_class,
-                            rung=rung,
-                            blast_radius="low",
-                            files=(_file("plugins/foo/x.md", status=status),),
-                        )
-                    )
-                    self.assertEqual(result.score, Risk.HIGH)
-                    self.assertIn("high-path:**", _codes(result))
+            with self.subTest(status):
+                result = score(
+                    _input(files=(_file("plugins/foo/x.md", status=status),))
+                )
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
 
     def test_unhashable_status_is_malformed_not_a_raise(self):
         for status in ([], {}, ["renamed"]):
@@ -1014,15 +902,6 @@ class LaneSwitchTests(unittest.TestCase):
     def test_the_floor_off_still_refuses_unsafe_paths(self):
         result = score(_input(files=(_file("../x"),), high_floor=False))
         self.assertIn("high-path:**", _codes(result))
-
-    def test_contradictions_off_leave_a_structural_diff_low(self):
-        files = (
-            _file("plugins/a/x.md", status="removed", previous_mode=None),
-            _file("plugins/b/y.schema.json"),
-        )
-        self.assertIn("class-contradicted", _codes(score(_input(files=files))))
-        result = score(_input(files=files, c2_contradictions=False))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     def test_no_file_cap_leaves_many_files_low(self):
         files = tuple(
@@ -1167,19 +1046,6 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.MED)
                 self.assertIn("evidence-unbound:unknown", _codes(result))
 
-    def test_class_contradicted_names_the_files(self):
-        files = (_file("plugins/foo/old.md", status="removed", additions=0),)
-        reason = score(_input(files=files)).reasons[0]
-        self.assertEqual(reason.code, "class-contradicted")
-        self.assertIn("plugins/foo/old.md", reason.detail)
-
-    def test_rung_is_named_in_the_detail(self):
-        reasons = score(
-            _input(work_class="C3", rung=Rung.C2, blast_radius="low")
-        ).reasons
-        self.assertIn("C2", reasons[0].detail)
-        self.assertNotIn("<Rung", reasons[0].detail)
-
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[6]
 
@@ -1209,7 +1075,6 @@ def _lane_input(files):
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
         high_floor=config.high_path_floor,
-        c2_contradictions=config.c2_contradictions,
         max_changed_files=config.max_changed_files,
         lines_optional=True,
     )
@@ -1426,8 +1291,8 @@ class ManifestTests(unittest.TestCase):
 
 
 class HoldsTests(unittest.TestCase):
-    """#9270: a MED score merges unattended when every reason is a class or
-    size reason; every other reason holds."""
+    """A MED score merges unattended when every reason is a size or
+    reported-finding reason; every other reason holds."""
 
     def _holds(self, **changes):
         return holds(score(_input(**changes)))
@@ -1439,8 +1304,6 @@ class HoldsTests(unittest.TestCase):
         for changes in (
             dict(files=(_file("plugins/foo/logo.png", has_patch=False),)),
             dict(files=(_file("plugins/foo/a.md", additions=500),)),
-            dict(work_class="C3", rung=Rung.C3, blast_radius=None),
-            dict(files=(_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
         ):
             with self.subTest(changes=changes):
                 result = score(_input(**changes))
@@ -1481,15 +1344,8 @@ class HoldsTests(unittest.TestCase):
             self._holds(files=(_file(".gitmodules"),), high_paths=("**/.gitmodules",))
         )
 
-    def test_the_rung_and_an_unread_listing_hold(self):
-        for changes in (
-            dict(work_class=None),
-            dict(rung=Rung.OFF),
-            dict(work_class="C3", blast_radius="low"),
-            dict(files_complete=False),
-        ):
-            with self.subTest(changes=changes):
-                self.assertTrue(self._holds(**changes))
+    def test_an_unread_listing_holds(self):
+        self.assertTrue(self._holds(files_complete=False))
 
 
 class SecurityBlockingTests(unittest.TestCase):
@@ -1600,9 +1456,7 @@ class TrustGateTests(unittest.TestCase):
         )
         for changed in cases:
             with self.subTest(changed=changed):
-                result = score(
-                    _input(files=(changed,), high_floor=False, c2_contradictions=False)
-                )
+                result = score(_input(files=(changed,), high_floor=False))
                 self.assertEqual(_codes(result), (TRUSTED,))
 
     def test_a_case_folded_path_holds(self):

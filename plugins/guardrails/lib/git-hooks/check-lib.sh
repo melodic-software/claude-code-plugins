@@ -1,10 +1,21 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # GENERATED from lib/git-hooks/check-lib.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
+# shellcheck shell=bash
 # Shared helpers for git-hook check scripts: the file set, the changed lines,
 # the push range, the missing-tool skip key and agent detection. A check script
-# sources this file from its own directory and runs under bash, never under sh.
+# sources this file from its own directory before it runs any bash syntax.
 # The contract is the check-placement convention's check-script runtime table.
+#
+# Git runs a hook under sh, and on Windows a `bash` looked up by name can be
+# System32's WSL launcher, so a check script starts as POSIX sh and the block
+# below, POSIX sh too, puts it under bash. It looks for the first bash on PATH
+# that is not in System32, Sysnative or WindowsApps. Under a sh that is not
+# bash it reruns the script under that bash, once: CHECKS_REEXEC marks the
+# rerun, so a `bash` that is not bash cannot loop. With none, bash is a missing
+# tool under the contract's rule. Under bash already, POSIX mode goes off; when
+# that bash started as sh, and so in POSIX mode, the bash found is the one
+# checks_bash_run starts a check's own bash scripts with.
 #
 # Names are POSIX-safe (checks_files, not checks::files) and the syntax stays
 # within bash 3.2, which is what macOS ships: no associative arrays, no
@@ -46,6 +57,82 @@
 #   checks_is_agent            0 when an agent runs the hook
 #   checks_skip_listed <tool>  0 when checks.skipmissing names the tool
 #   checks_push_ranges         pre-push: "<base> <local>" per pushed ref
+#   checks_bash_run <script> [args...]
+#                              run a bash script in a child bash with POSIX
+#                              mode off, never a bash found by name
+
+# checks_as: sh (not bash), posix (bash started as sh) or empty (bash).
+# shellcheck disable=SC2086,SC2292 # POSIX sh until bash runs it: PATH and the skip list split unquoted, no [[ ]]
+{
+  checks_as=""
+  checks_bash=""
+  if [ -z "${BASH_VERSION:-}" ]; then
+    checks_as="sh"
+  else
+    case ":${SHELLOPTS:-}:" in
+    *:posix:*) checks_as="posix" ;;
+    *) ;;
+    esac
+  fi
+  checks_ifs=$IFS
+  if [ -n "$checks_as" ]; then
+    IFS=:
+    set -f
+    for checks_dir in $PATH; do
+      case "$checks_dir" in
+      /* | [A-Za-z]:[\\/]*) ;;
+      *) continue ;;
+      esac
+      case "${checks_dir%[\\/]}" in
+      *[\\/][Ss][Yy][Ss][Tt][Ee][Mm]32 | *[\\/][Ss][Yy][Ss][Nn][Aa][Tt][Ii][Vv][Ee] | *[\\/][Ww][Ii][Nn][Dd][Oo][Ww][Ss][Aa][Pp][Pp][Ss] | *[\\/][Ww][Ii][Nn][Dd][Oo][Ww][Ss][Aa][Pp][Pp][Ss][\\/]*) continue ;;
+      *) ;;
+      esac
+      if [ -f "$checks_dir/bash" ] && [ -x "$checks_dir/bash" ]; then
+        checks_bash="$checks_dir/bash"
+        break
+      fi
+    done
+    set +f
+    IFS=$checks_ifs
+  fi
+  if [ "$checks_as" = sh ]; then
+    if [ -n "$checks_bash" ] && [ -z "${CHECKS_REEXEC:-}" ]; then
+      CHECKS_REEXEC=1
+      export CHECKS_REEXEC
+      exec "$checks_bash" "$0" "$@"
+    fi
+    checks_skip=$(git config --get checks.skipmissing 2>/dev/null) || checks_skip=""
+    IFS=,
+    set -f
+    for checks_item in $checks_skip; do
+      checks_item="${checks_item#"${checks_item%%[![:space:]]*}"}"
+      checks_item="${checks_item%"${checks_item##*[![:space:]]}"}"
+      if [ "$checks_item" = bash ]; then
+        echo 'SKIPPED: bash (missing)' >&2
+        exit 0
+      fi
+    done
+    set +f
+    IFS=$checks_ifs
+    checks_install='bash from the system package manager (on Windows, Git for Windows); System32 bash is the WSL launcher and is never used'
+    if [ "${CLAUDECODE:-}" = 1 ] || [ -n "${AI_AGENT:-}" ]; then
+      printf 'FAIL: bash missing. Install: %s\n' "$checks_install" >&2
+      echo 'To skip only while bash is missing: git -c checks.skipmissing=bash commit ... (or push ...)' >&2
+      exit 1
+    fi
+    printf 'NOTICE: bash missing, so this check did not run. Install: %s\n' "$checks_install" >&2
+    exit 0
+  fi
+  unset CHECKS_REEXEC
+  # The bash checks_bash_run starts: this one, unless it started as sh; then
+  # the bash found, and with none, this one with POSIX mode turned off.
+  if [ "$checks_as" = posix ]; then
+    CHECKS_CHILD_BASH=$checks_bash
+  else
+    CHECKS_CHILD_BASH=$BASH
+  fi
+  set +o posix
+}
 
 CHECKS_EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
 
@@ -75,6 +162,21 @@ checks_init() {
 
 checks_is_agent() {
   [[ "${CLAUDECODE:-}" == 1 || -n "${AI_AGENT:-}" ]]
+}
+
+# checks_bash_run <script> [args...]: run <script> under CHECKS_CHILD_BASH
+# (set above). When that is empty, this bash started as sh with no other bash
+# on PATH outside System32, and a child it starts would start in POSIX mode too:
+# then the child turns POSIX mode off and sources the script with its
+# arguments, so $0 and BASH_SOURCE[0] both name the script as when it runs on
+# its own.
+checks_bash_run() {
+  if [[ -n "$CHECKS_CHILD_BASH" ]]; then
+    "$CHECKS_CHILD_BASH" "$@"
+    return
+  fi
+  # shellcheck disable=SC2016 # $0 and $@ are the child's
+  "$BASH" -c 'set +o posix; shopt -u sourcepath; . "$0" "$@"' "$@"
 }
 
 # git config --get exits 1 for an unset key; that is an empty list, not an error.

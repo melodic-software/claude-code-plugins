@@ -1,0 +1,124 @@
+{
+  "skill": "playwright:demo-video",
+  "plugin": "playwright",
+  "skill_dir": "plugins/playwright/skills/demo-video",
+  "ranking_note": "Authored blind from the before descriptions at commit 7f7f5219ab98be34e7bc288fc70c01a5a13f2073, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked playwright skills (setup is user-invoked only).",
+  "competitors": [
+    "playwright:check",
+    "playwright:playwright"
+  ],
+  "competitor_dirs": {
+    "playwright:check": "plugins/playwright/skills/check",
+    "playwright:playwright": "plugins/playwright/skills/playwright"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you put together a short video showing the new date picker in action so reviewers can see it on my PR?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Record a polished screen capture of the checkout redesign with zooms and captions, and add it to pull request #412."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want reviewers to watch the new onboarding wizard working instead of reading screenshots; make an MP4 and post it on the PR."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Film the updated search autocomplete in the browser and upload the clip to my open PR."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Create a narrated walkthrough clip of the dark mode toggle to include in the PR description."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a demo video of the drag-and-drop reorder feature I just built."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reviewers keep asking to see the modal fix actually working; capture a clean recording with cursor highlights and attach that to my PR."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Produce a screencast of the new invoice export, with captions, and link it in the pull request."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you make a short clip proving the cart badge updates now, so I can drop it into the PR?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Shoot a 30-second video of the redesigned pricing page for the merge request reviewers."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just grab a screenshot of the homepage so I can see how the hero section looks."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is playwright-cli installed, and can it find a browser on this box?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Summarize this YouTube video about React Server Components for me."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a screen recording of our native Windows desktop app's installer wizard."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run the login flow end to end in a real browser and tell me if any network requests fail."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Turn on Playwright tracing while you click through the cart, and save the trace file."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Edit this MP4 I already have to trim off the first ten seconds."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a PR description summarizing the UI changes on this branch."
+    }
+  ]
+}
