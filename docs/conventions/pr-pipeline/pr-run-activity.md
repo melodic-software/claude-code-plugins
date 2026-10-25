@@ -323,13 +323,14 @@ one is computed by a runner step, never read from model text. All but `act-outco
 empty; `head-sha` and `head-ref` are the trigger gate's; `base-sha` is set only by step 4, so it
 is always on the default branch. `escalation-reason` comes from the base's reply, verdict and
 apply-patch scripts, which run no model and no head code. `act-outcome` is the activity step's
-outcome, except that a skill step claude-code-action failed only because a `success` result went
-over `--max-turns` counts as succeeded. That holds only when the execution file's last result
-message has subtype `success`, `is_error` false and `num_turns` over the cap; any other failure,
-or a missing or unreadable execution file, still fails the job. A skill whose step succeeded is a
-failure when it took no model turn, when it is a gate skill and the verdict check (below) fails,
-or when its commits could not be moved onto the PR branch. These checks are steps that run after
-the skill.
+outcome. In the read file a skill runs on run-claude-cli (`act-key` or `act-token`), and one
+whose step succeeded is a failure when it took no model turn. In the write file a skill step
+claude-code-action failed only because a `success` result went over `--max-turns` counts as
+succeeded. That holds only when the execution file's last result message has subtype `success`,
+`is_error` false and `num_turns` over the cap; any other failure, or a missing or unreadable
+execution file, still fails the job. There a skill whose step succeeded is a failure when it took
+no model turn, when it is a gate skill and the verdict check (below) fails, or when its commits
+could not be moved onto the PR branch. These checks are steps that run after the skill.
 
 The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
 failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
@@ -521,17 +522,12 @@ skill skips this check. Why a skill activity loads nothing from
 the PR head:
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 
-On PR events claude-code-action adds a second head-isolation layer beside `--setting-sources user`:
-when it treats the PR head as untrusted, it replaces `.claude`, `.mcp.json`, `CLAUDE.md` and its
-other listed config paths with the PR base branch's copies before Claude starts. In the read
-file, the next step puts back only what that restore changed, so the dirty-tree check does not
-fail on the action's own edits, and a file the skill created or edited under those paths still
-counts as dirty. That step sets `GIT_LITERAL_PATHSPECS=1`, so a head file name is never read as a
-glob. Its one blind spot is accepted: a head file under those paths that the skill deletes is put
-back from the head, so the deletion does not count as dirty. A `read` skill's token cannot push, so
-the deletion never leaves the runner.
+In the write file, on PR events claude-code-action adds a second head-isolation layer beside
+`--setting-sources user`: when it treats the PR head as untrusted, it replaces `.claude`,
+`.mcp.json`, `CLAUDE.md` and its other listed config paths with the PR base branch's copies
+before Claude starts. The read file runs no claude-code-action step.
 
-A skill whose `gating` is `gate` must end with a verdict. `claude_args` adds `--json-schema` with a
+In the write file, a skill whose `gating` is `gate` must end with a verdict. `claude_args` adds `--json-schema` with a
 schema requiring `{"verdict": "pass" | "fail", "summary": string}`; claude-code-action fails its
 step when no structured output returns. The next step reads the action's `structured_output`
 output through `env`, parses it with `jq`, writes the summary to the step summary as data, and fails
@@ -551,7 +547,7 @@ artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) wheneve
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
 reads that artifact.
 
-A slash command whose expansion fails ends with a `success` result and no model turn: claude-code-action
+A slash command whose expansion fails ends with a `success` result and no model turn: the step
 reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
 that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
 skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
