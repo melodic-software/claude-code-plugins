@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { contractOnly, infraCause, infraOnly, reconcilerOwns, stepsKnown, testedRun } from "./infra-failure.mjs";
+import { contractOnly, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, stepsKnown, testedRun } from "./infra-failure.mjs";
 
 const recorded = (id) => JSON.parse(readFileSync(new URL(`./fixtures/jobs-${id}.json`, import.meta.url), "utf8")).jobs;
 const MIXED = recorded(39710654665);
@@ -157,16 +157,30 @@ test("a tail-cut job with no runner-loss annotation stays unknown", () => {
   assert.equal(infraOnly([{ ...cut, status: "completed", annotations: [] }]), false);
 });
 
-test("the reconciler keeps a run whose failed jobs' steps did not list, inside its re-run window", () => {
+test("the reconciler keeps a run whose failed jobs' steps did not list, inside its re-run window and RERUN_DUE_MINUTES", () => {
   const now = Date.parse("2026-10-19T20:00:00Z");
-  const run = (attempt, created = "2026-10-19T19:00:00Z") => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: created });
+  const run = (attempt, created = "2026-10-19T19:00:00Z", updated = "2026-10-19T19:30:00Z") => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: created, updated_at: updated });
   for (const job of [unlisted, cut]) {
-    assert.match(reconcilerOwns({ run: run(2), jobs: [job] }, now), /steps did not list/);
-    assert.match(reconcilerOwns({ run: run(1), jobs: [job] }, now), /./);
-    assert.equal(reconcilerOwns({ run: run(3), jobs: [job] }, now), "");
-    assert.equal(reconcilerOwns({ run: run(2, "2026-10-18T19:00:00Z"), jobs: [job] }, now), "");
+    assert.match(reconcilerOwns({ run: run(1), jobs: [job] }, now), /steps did not list/);
+    // Attempt 2 is past the one infra re-run, so nothing is left to read them for.
+    assert.equal(reconcilerOwns({ run: run(2), jobs: [job] }, now), "");
+    assert.equal(reconcilerOwns({ run: run(1, "2026-10-18T19:00:00Z"), jobs: [job] }, now), "");
+    // Past RERUN_DUE_MINUTES, or with no readable end time, fix-ci takes it.
+    assert.equal(reconcilerOwns({ run: run(1, "2026-10-19T17:00:00Z", "2026-10-19T18:00:00Z"), jobs: [job] }, now), "");
+    assert.equal(reconcilerOwns({ run: run(1, undefined, "not a date"), jobs: [job] }, now), "");
   }
-  assert.equal(reconcilerOwns({ run: run(2), jobs: [job("failure", "Lint markdown")] }, now), "");
+  assert.equal(reconcilerOwns({ run: run(1), jobs: [job("failure", "Lint markdown")] }, now), "");
+});
+
+// One infra re-run per head: the reconciler retries attempt 1 only, the same
+// attempt reconcilerOwns holds fix-ci off for, so fix-ci never takes a head
+// the reconciler would still re-run.
+test("the reconciler re-runs an infra-only run at attempt 1 only", () => {
+  const now = Date.parse("2026-10-19T20:00:00Z");
+  const run = (attempt) => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: "2026-10-19T19:00:00Z", updated_at: "2026-10-19T19:50:00Z" });
+  assert.equal(reconcilerRetries(run(1), now), true);
+  assert.equal(reconcilerRetries(run(2), now), false);
+  assert.equal(reconcilerOwns({ run: run(2), jobs: [job("cancelled", "Install dependencies")] }, now), "");
 });
 
 test("a run where only ci-status ran is contract-only; a tested run is not", () => {
@@ -191,4 +205,13 @@ test("the tested run steps past failed contract-only runs, and stops at any othe
   const green = { id: 4, status: "completed", conclusion: "success" };
   assert.deepEqual(await testedRun([green, failedRun(2)], readJobs), { run: green, jobs: null });
   assert.equal(await testedRun(Array.from({ length: 6 }, () => failedRun(3)), readJobs), undefined);
+});
+
+// A run stuck queued or waiting holds fix-ci off only inside the lookback.
+test("an in-flight tested run holds fix-ci only while it was created inside the lookback", () => {
+  const now = Date.parse("2026-10-19T20:00:00Z");
+  const going = (created) => ({ id: 1, status: "queued", run_attempt: 2, created_at: created });
+  assert.match(reconcilerOwns({ run: going("2026-10-19T19:00:00Z"), jobs: null }, now), /its result decides/);
+  assert.equal(reconcilerOwns({ run: going("2026-10-18T19:00:00Z"), jobs: null }, now), "");
+  assert.equal(reconcilerOwns({ run: going("not a date"), jobs: null }, now), "");
 });
