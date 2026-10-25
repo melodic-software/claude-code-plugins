@@ -90,7 +90,20 @@ not run, because `audit` predicted it, the policy stopped before Step 4, or an `
 re-entry reuses the first pass's result, reads `null`, never 0. The digest's top-level
 `timings.total` times the run from its start until the digest is about to be assembled (so it
 excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
-is the part of it no block's window covers (run setup and each block's assembly into the digest). Its `cwd` is what the `In-repo:` row names when no
+is the part of it no block's window covers (run setup and each block's assembly into the digest).
+An `--only-install` re-entry times both passes: the first pass saves its run timings to
+`first-pass-run.json` in the run directory, and the re-entry's `timings.total` and
+`timings.outside_marketplaces` sum the two passes, `timings.resolution` is the coarser of their
+clocks, and `timings.passes[]` holds each pass's own `{pass, total, outside_marketplaces,
+resolution}` (`first`, then `only_install`). The wait between the passes is in neither, and the
+report's run `Timing:` row names both passes and says the wait is not counted. The blocks still
+time only the re-entry, so on a re-entry the block totals plus `outside_marketplaces` fall short
+of `timings.total` by the first pass's block time. Only the first pass writes the file, so a
+second re-entry reports the first pass and itself, and the earlier re-entry's time is in neither.
+A run directory with no `first-pass-run.json` (an older version's) times the re-entry alone. The
+re-entry also reads `install_new` and `install_new_invalid` back from `flags.json`, so an invalid
+policy value the first pass named is still named in the digest and report that supersede it. The
+digest's `cwd` is what the `In-repo:` row names when no
 project root resolved. Ids and counts only: the per-file cache detail and every snapshot stay in
 the run directory, which the digest names.
 
