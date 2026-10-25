@@ -43,10 +43,10 @@ say(gate["run-dispatcher-upstreams"] === "${{ inputs.feedback-context-sha256 != 
   "the review run must be one of the two review lanes, for a review-threads call only");
 say(!("expected-upstream-head" in gate), "the gate passes no expected-upstream-head");
 
-// cant-fail-ok: the allowed_bots value is the contract the gate decides.
-const skill = steps.find((s) => s.id === "act-skill")?.with ?? {};
-say(skill.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions' || 'melodic-automation-lanes[bot]' }}",
-  `the skill admits github-actions only with a dispatcher-run-id (got ${JSON.stringify(skill.allowed_bots)})`);
+// Every model call runs on run-claude-cli, which keeps no actor allow list of
+// its own: the trigger gate above is the one place a dispatcher run is admitted.
+const actionSteps = Object.values(wf.jobs).flatMap((job) => job.steps ?? []).filter((s) => String(s.uses ?? "").startsWith("anthropics/claude-code-action@"));
+say(actionSteps.length === 0, `no step runs claude-code-action and its allowed_bots (found ${actionSteps.map((s) => s.id).join(", ")})`);
 
 // request-lane-token's check mode refuses a dispatcher run id.
 const broker = wf.jobs["broker-check"].steps.find((s) => s.id === "broker")?.with ?? {};

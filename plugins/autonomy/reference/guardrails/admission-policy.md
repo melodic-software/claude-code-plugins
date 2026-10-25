@@ -97,10 +97,20 @@ Precedence, top-down, first hit decides:
    work-class, label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust,
    ci), matched as whole words. Plugin names that contain a term, such as `context-guard`, refuse
    too: a false positive fails closed.
-3. Cost hit → refuse: a term in the title or body that names a charge (cost, billing, billed,
-   spend, pricing, paid, subscription, SKU, quota, retention, a larger, hosted or self-hosted
-   runner, macOS minutes), matched as whole words. Work that adds or raises a charge waits for the owner unless an
-   owner-recorded decision already covers it, and that check is a person's, not the evaluator's.
+3. Cost hit → refuse, terms matched as whole words in the title or body. A charge term always
+   refuses: billing, billed, spending limit, subscription, SKU, retention, a larger, hosted or
+   self-hosted runner, macOS minutes, seat, Codespaces, a paid plan, top-up, auto-renew,
+   auto-reload, extra usage. A spend word (cost, spend, spending, pricing, paid, quota) refuses
+   unless that occurrence sits in a phrase naming the subscribed model vendor or its product
+   (vendor or product name, up to three closed qualifiers such as API, key, eval or model, then
+   the spend word), and the issue names none of a closed list of other charge sources (the
+   forge and its paid features, cloud, hosting and payment providers, other model vendors,
+   storage, runners, domains, and the generic provider, vendor, service and plan). Spend on the
+   model subscription or the fixed API credit adds no charge, and every other charge waits
+   (owner decision 2026-10-24). Both lists are closed and live in the evaluator script: a spend
+   word that no vendor phrase claims refuses, whatever provider it names. Work
+   that adds or raises a charge waits for the owner unless an owner-recorded decision already
+   covers it, and that check is a person's, not the evaluator's.
 4. Any `work-class:` label present → refuse, label left untouched.
 5. A rule matches → admit; otherwise refuse.
 

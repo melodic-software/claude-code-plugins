@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "gh_calls": [
+        "workflow run cut-release.yml -f version=2.14.0",
+        "run watch 91827364"
+      ],
+      "why": "watches after dispatching"
+    },
+    {
+      "gh_calls": [
+        "workflow run cut-release.yml -f version=2.14.0",
+        "run list --workflow cut-release.yml --limit 1 --json status,conclusion"
+      ],
+      "why": "lists the run after dispatching"
+    },
+    {
+      "gh_calls": [
+        "run view 91827301",
+        "workflow run cut-release.yml -f version=2.14.0",
+        "release view v2.14.0"
+      ],
+      "why": "an earlier view does not count, the later release view does"
+    }
+  ],
+  "fail": [
+    {
+      "gh_calls": [
+        "run list --workflow cut-release.yml --limit 1",
+        "workflow run cut-release.yml -f version=2.14.0"
+      ],
+      "why": "near miss: looked only before dispatching"
+    },
+    {
+      "gh_calls": [
+        "run list --branch main --workflow ci-status.yml --limit 1"
+      ],
+      "why": "never dispatched"
+    },
+    {
+      "gh_calls": [
+        "workflow run cut-release.yml -f version=2.14.0"
+      ],
+      "why": "dispatched, never watched"
+    }
+  ]
+}

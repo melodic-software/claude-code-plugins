@@ -67,7 +67,14 @@ back up.
    actions still connect to it, stated in one sentence. A quote that was
    re-derived instead of copied is reported as drift between the links, the
    paraphrase IS the drift, and it is invisible at any single hop because each
-   rewording is individually plausible. An absent `Original goal` is itself a
+   rewording is individually plausible. For a shape-3 handoff (`handoff_shape: 3`)
+   that comparison is
+   `python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" validate <file>`
+   (`python` when `python3` is absent, 3.10+) on each shape-3 link: an exit 0 means
+   that link's goal section starts with its predecessor's verbatim, and a FAIL line
+   naming `Original goal` is the drift finding, so the links' text never needs
+   reading. Open the prior link's file only for a shape-1 or shape-2 link, or when
+   `validate` cannot run. An absent `Original goal` is itself a
    defect: never infer the goal from the process the document describes, because
    that process is the thing that drifted. Ask for it in the user's own words.
    Where the next actions cannot be tied to the goal in a sentence, that is the
@@ -77,8 +84,9 @@ back up.
 
 1. Gather the session's inputs, the handoff / plan / memory files, the
    `Original goal` they record, and any PRs, issues, branches, skills, or plugin
-   versions they name. When an input chains from a prior handoff, open that file
-   too: the goal check below compares links, which a single document cannot do.
+   versions they name. When an input chains from a prior handoff, the goal check
+   compares links, which a single document cannot do: validate a shape-3 input,
+   and open the prior file for an older one (check 5).
 2. Run the five checks above against live reality. Fetch/read the live source
    (`git fetch` the base, query `gh`, read installed vs repo-source manifests).
    When a check cannot reach what it needs (no network, no `gh`, no fetch),

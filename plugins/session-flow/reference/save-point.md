@@ -25,7 +25,9 @@ semantics. Neither skill restates this content; both walk it in order.
 Save-points are memory-tier, concern-scoped by session. A consumer-declared `memory_dir` (a
 working-docs convention in `CLAUDE.md` / `.claude/rules/`) wins as the memory-tier ROOT; save-points always live
 at **`<memory_dir>/handoffs/`** (default `.work/handoffs/`), in files named `<TS>-handoff-<topic>.md`
-with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). On the session's first
+with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). A shape-3 hop also
+writes one archive file under `<memory_dir>/handoffs/archive/` (structure doc, "Shape 3"), which
+is handoff state like the hot file and is never globbed as a save-point. On the session's first
 memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*`, creating
 it (announced) when absent; never edit the consumer's root `.gitignore`.
 
@@ -201,7 +203,7 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md).
 Walk it while writing the file; never write the section list from memory.
 
-**The file is shape 2, and a script owns its deterministic tier.**
+**The file is shape 3 (a hot file plus its hop file), and a script owns its deterministic tier.**
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has five subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
 
@@ -210,12 +212,15 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   `<plugin data>/artifacts`. When neither exists, `new` refuses and asks for `--memory-dir`.
 - `save_point.py new --topic <slug> [--memory-dir <root>] (--previous <file> | --no-previous)`
   writes the skeleton with every deterministic field filled (filename and `date:`, `session_id`
-  from `CLAUDE_CODE_SESSION_ID`, the resolved `transcript:`, `previous_handoff` and `chain:`, the
-  17 headings in order, the goal and amendments and the five cumulative sections copied off the
-  predecessor with their `[hN]` tags, the `## Prior sessions` table, and the whole
-  `## Resume prompt` block except its `Next:` headlines) and prints the file's absolute
-  forward-slash path. Only the `<!-- FILL: <name> — <instruction> -->` slots are the model's, and
-  `fill` is what applies them. It never overwrites an existing file.
+  from `CLAUDE_CODE_SESSION_ID`, the resolved `transcript:`, `previous_handoff` and the chain
+  position keys, the headings in order, the Original goal, current rules, standing preferences
+  and direction trail copied off a shape-3 predecessor, the last `## Prior sessions` rows, and the
+  whole `## Resume prompt` block except its `Next:` headlines), writes this hop's archive file
+  with the predecessor's other sections verbatim, and prints the hot file's absolute forward-slash
+  path. Only the `<!-- FILL: <name> — <instruction> -->` slots are the model's, and `fill` is what
+  applies them. It never overwrites an existing handoff; it rewrites a hop file only when a retry
+  of the same session writes it again. `--shape 2` writes the shape-2 single file instead (the eval and
+  projection harnesses build shape-2 chains with it); it refuses a shape-3 predecessor.
 - `save_point.py fill <file> --slots <json>` replaces every slot in the file from one JSON object
   keyed by slot name, in a single write, and prints nothing on success. An inline prefix on a
   slot's line (`**Amended:**`, `**Next action serves it by:**`, `did:`, the `left:` separator) is
@@ -226,7 +231,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   twice in the file, a value that itself carries a `FILL` slot marker, a file with no slot left to
   fill, and a closing `next` value whose line above is not exactly `Next:`; 2 on a target that is
   missing, unreadable, not a handoff file (no `type: handoff` frontmatter, the same guard
-  `validate` and `emit` apply), or not shape 2 (shape 1, no `handoff_shape` key, a shape below 1,
+  `validate` and `emit` apply), or not shape 2 or 3 (shape 1, no `handoff_shape` key, a shape below 1,
   or a `handoff_shape` that is not an integer), and on a slots file that is missing, unreadable,
   not valid JSON, not a JSON object, or holding a value that is not a string or not encodable as
   UTF-8; 3 on a `handoff_shape` newer than the engine knows, `validate`'s own verdict, read it and
@@ -243,10 +248,14 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   non-U+2500 rail, more than five `Next:` lines, a `|` in the `did: … · left: …` line, and a
   dropped predecessor entry are all failures. `--strict-transcript` turns the honest
   `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
-  a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above.
+  a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above. On a
+  shape-3 file it also checks the hot file against its predecessor and both hop files; each FAIL
+  line names the fix, and a core too large for the size cap passes labeled UNVALIDATED unless
+  the file is over the Read page cap, which always fails.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
   says so) or a file that still carries a `FILL` slot (an unfinished skeleton is never emitted).
+  A shape-3 file over the Read page cap still emits, with a `FAIL:` notice on stderr.
   When the stored `Read @` path is not the file's own real path (a file preserved out of a removed
   worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
   rewritten.
@@ -257,8 +266,8 @@ screen and the two cannot disagree ("Emit the copy/paste resume prompt", full-pa
 `new` never overwrites, so there is no "extend an earlier turn's write" path: a skeleton that an
 earlier turn left unfinished (compaction mid-fill) stays on disk carrying `FILL` slots, is never
 emitted, and a fresh `new` writes a new timestamped file beside it. Legacy shape-1 files are read
-and never rewritten. The script is read-only on the repository except the one handoff file it
-creates; the self-ignore guard is the skill's own bash step (structure doc), which `new` verifies
+and never rewritten. The script is read-only on the repository except the handoff file and hop
+file it creates; the self-ignore guard is the skill's own bash step (structure doc), which `new` verifies
 and refuses without.
 
 ## Emit the position panel
@@ -690,7 +699,7 @@ fresh session or `/session-flow:retro` chain-walker locate the transcript later,
 the below-rail `claude --resume <UUID>` line reopens. On the full path the script refuses a
 missing or non-UUID value (such as a Remote Control bridge id; `CLAUDE_CODE_BRIDGE_SESSION_ID`
 is never read); the save-point then takes the prompt-only path with the reason
-stated ("no session UUID available; chain gap accepted"), never a hand-written shape-2 file.
+stated ("no session UUID available; chain gap accepted"), never a hand-written handoff file.
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.
 
@@ -781,8 +790,8 @@ the rails plus the copy line, signal 3 the `Prior session:` UUID):
   by `claude --resume <UUID>` in a code span. A consumer anchoring the `/loop` re-arm capture to
   the bottom rail skips that line (and the blank line above it) before scanning for
   `Re-arm <i> of <n>` headers.
-- The file stores the whole block as its final `## Resume prompt` section, so a shape-2 file is
-  recoverable from disk alone: `save_point.py emit <file>` prints it. A file still carrying a
+- The file stores the whole block as its final `## Resume prompt` section, so a shape-2 or
+  shape-3 file is recoverable from disk alone: `save_point.py emit <file>` prints it. A file still carrying a
   `<!-- FILL` slot is an unfinished skeleton, never a candidate, and `emit` refuses it.
 
 Changing this prompt/marker format, the rails, the header, or the meaning of `<L>`, is a
