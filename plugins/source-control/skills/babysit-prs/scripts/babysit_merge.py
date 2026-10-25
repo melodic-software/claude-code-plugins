@@ -305,9 +305,8 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # "Reset" is conservative: the shortest plan limit is a five-hour session
 # window (https://support.claude.com/en/articles/11145838, checked
 # 2026-10-09), so five hours after the failure that window has reset whenever
-# it started, and GitHub's API limits reset sooner. A weekly limit outlasts
-# it; the re-run then fails again and stays failed, since a run is re-run at
-# most once.
+# it started. A weekly limit outlasts it; the re-run then fails again and
+# stays failed, since a run is re-run at most once.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
 ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
