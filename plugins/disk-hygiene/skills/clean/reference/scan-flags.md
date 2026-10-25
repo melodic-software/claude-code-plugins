@@ -34,6 +34,15 @@ more explicit `--root-child <name>` flags, after the human clears the confirmati
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection.
 
+A mount point that is not a volume root (a tmpfs `/tmp` on WSL) is refused as a target, and the
+refusal's `hint` names `--root-children`. With that flag and no `--root-child`, the engine lists the
+mount's immediate children under the strict ladder (loose files admitted, nested mounts withheld as
+`nested-mount-point`), sets `mount_point_target: true`, and walks nothing. Under `--quiet` the full
+listing goes to the `--output` path (`listing_path`) and stdout carries `admitted_kinds` and the
+withheld-reason counts. A `--root-child` selection on a mount point is refused: scan an admitted
+child directory as its own target. No snapshot of a mount-point target exists, so no entry reaches
+preview or removal from this listing.
+
 ## `--deep`
 
 `--deep` selects the deep mode of the read-only `inventory` subcommand: every level of the target
