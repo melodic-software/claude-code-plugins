@@ -17,7 +17,9 @@
 // such run failed or found no failing check, fewer than
 // `limit-stops-per-head` of them stand on it, and since the base tip at most
 // `fix-ci-restarts` failed and none found nothing; at most `fix-ci-per-run`
-// per dispatcher run, lowest PR number first.
+// per dispatcher run, lowest PR number first. The rollup lists only a check
+// name's newest run, so before it dispatches a head the dispatcher reads the
+// head's fix-ci runs over REST, and the per-head count comes from those.
 // A head whose lanes passed but whose pr-test-windows run failed is a
 // candidate too. A head is skipped only while a re-run of its tested run is
 // queued or going, or while an infra-only first failure's one re-run by the
@@ -120,6 +122,15 @@ function headChecks(node, actionsAppId) {
     (context) => context?.__typename === "CheckRun" && context.checkSuite?.app?.databaseId === actionsAppId,
   );
 }
+
+// A REST check run in the rollup's shape, as skipReason reads it.
+const fromRest = (run) => ({
+  name: run.name,
+  status: String(run.status ?? "").toUpperCase(),
+  conclusion: run.conclusion ? String(run.conclusion).toUpperCase() : null,
+  title: run.output?.title ?? null,
+  completedAt: run.completed_at ?? null,
+});
 
 // An owner PR is idle when neither it nor its head commit changed in the last
 // idleHours; an unreadable date is not idle. An App's PR never waits: only a
@@ -273,9 +284,11 @@ export function skipReason(
       return owned;
     }
   }
-  // An untrusted-trigger skip ran nothing, so it does not count.
-  const runs = checks.filter(
-    (run) => run.name === checkName && !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")),
+  // node.fixCiRuns, every fix-ci run on the head (the rollup holds only the
+  // newest), is attached by dispatchCiFixes just before it would dispatch. An
+  // untrusted-trigger skip ran nothing, so it does not count.
+  const runs = (node.fixCiRuns ?? checks.filter((run) => run.name === checkName)).filter(
+    (run) => !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")),
   );
   if (runs.length === 0) {
     return "";
@@ -401,6 +414,20 @@ export async function dispatchCiFixes({
       log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
       continue;
     }
+    // The per-head cap is the loop's hard end, so a head whose runs cannot be
+    // read is not dispatched.
+    let fixCiRuns;
+    try {
+      fixCiRuns = (await api.listCheckRuns({ sha: node.headRefOid, checkName, appId: actionsAppId })).map(fromRest);
+    } catch (error) {
+      if (error.rateLimited) {
+        log(`::warning::#${node.number}: its ${checkName} run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+      } else {
+        failed += 1;
+        log(`::error::#${node.number}: could not read its ${checkName} runs (${error.message}); left for a later run`);
+      }
+      continue;
+    }
     // A re-run going, or an infra-only first failure's re-run still due,
     // decides before a model run; an unreadable run waits on nothing.
     const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
@@ -415,7 +442,7 @@ export async function dispatchCiFixes({
       }
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
     }
-    const reason = skipReason({ ...node, requiredRun, laneGate }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+    const reason = skipReason({ ...node, requiredRun, laneGate, fixCiRuns }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;

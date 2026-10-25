@@ -42,6 +42,15 @@ const check = (name, conclusion, extra = {}) => ({
   ...extra,
 });
 
+// A rollup check run as the REST check-runs listing returns it.
+const toRest = (run) => ({
+  name: run.name,
+  status: run.status.toLowerCase(),
+  conclusion: run.conclusion?.toLowerCase() ?? null,
+  output: { title: run.title ?? null },
+  completed_at: run.completedAt ?? null,
+});
+
 // The head's ci-lanes commit status as the GraphQL rollup returns it: the
 // creator recorded live from a pull request's ci-lanes status, which GraphQL
 // reports as login `github-actions`, not REST's `github-actions[bot]`.
@@ -74,10 +83,27 @@ function fakeApi({
   baseCommittedAt,
   comments = new Map(),
   labelEvents = new Map(),
+  history = new Map(),
 } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [] };
   return {
     calls,
+    // The head's check runs of one name and app over REST, every one of them:
+    // the test's history for the head, else the rollup's runs in REST's shape.
+    async listCheckRuns({ sha, checkName, appId }) {
+      calls.history.push(sha);
+      const rows = history.get(sha);
+      if (rows instanceof Error) {
+        throw rows;
+      }
+      if (rows) {
+        return rows;
+      }
+      const node = pages.flat().find((pull) => pull.headRefOid === sha);
+      return (node?.commits.nodes[0].commit.statusCheckRollup.contexts.nodes ?? [])
+        .filter((run) => run.__typename === "CheckRun" && run.name === checkName && run.checkSuite?.app?.databaseId === appId)
+        .map(toRest);
+    },
     // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
       calls.timeline.push(number);
@@ -243,19 +269,42 @@ test("a new base dispatches a failed or not-applicable head again, within the pe
   assert.equal(api.calls.list, 1, "the base tip comes with the listing");
 });
 
-test("many base moves on one unchanged head dispatch it at most three times", async () => {
-  const fix = (completedAt) => check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt });
-  const runs = [];
+// GitHub's rollup lists only a check name's newest run, so the head's earlier
+// fix-ci runs are in the REST listing alone. A head context skips each time
+// (no failing check it counts) on a base that moves before every dispatcher
+// run is dispatched three times, then held at the cap.
+test("a head fix-ci-context skips after every base move is dispatched three times, not once per move", async () => {
+  const head = "9".padStart(40, "a");
+  const history = [];
   let dispatches = 0;
-  for (let hour = 1; hour <= 10; hour += 1) {
-    const base = `2026-10-22T${String(hour).padStart(2, "0")}:00:00Z`;
-    const { result } = await run({ pages: [[pr(9, { checks: [lanes("FAILURE"), ...runs] })]], baseCommittedAt: base });
-    if (result.dispatched.length > 0) {
+  let lines = [];
+  for (let hour = 1; hour <= 8; hour += 1) {
+    const at = (minute) => `2026-10-22T${String(hour).padStart(2, "0")}:${minute}:00Z`;
+    const newest = history.length === 0 ? [] : [check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt: history.at(-1).completed_at })];
+    ({ lines } = await run({
+      pages: [[pr(9, { checks: [lanes("FAILURE"), ...newest] })]],
+      history: new Map([[head, [...history]]]),
+      baseCommittedAt: at("00"),
+    }));
+    if (lines.some((line) => line.startsWith("dispatched fix-ci #9 "))) {
       dispatches += 1;
-      runs.push(fix(`2026-10-22T${String(hour).padStart(2, "0")}:30:00Z`));
+      history.push({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "neutral", output: { title: "Skipped: not-applicable" }, completed_at: at("30") });
     }
   }
   assert.equal(dispatches, 3);
+  assert.ok(lines.includes("skip fix-ci #9: head's pr-unblock / fix-ci ran 3 time(s), the most one head gets"), lines.join("\n"));
+});
+
+test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit waits, any other error fails", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const limited = Object.assign(new Error("GET check-runs returned 403"), { rateLimited: true });
+  const { lines, result } = await run(
+    { pages: [[pr(1), pr(2)]], history: new Map([[head(1), limited], [head(2), new Error("GET check-runs returned 502")]]) },
+    { maxDispatch: 5 },
+  );
+  assert.deepEqual(result, { dispatched: [], failed: 1 });
+  assert.ok(lines.includes("::warning::#1: its pr-unblock / fix-ci run read is rate limited (GET check-runs returned 403); no fix-ci dispatched, a later run retries"), lines.join("\n"));
+  assert.ok(lines.includes("::error::#2: could not read its pr-unblock / fix-ci runs (GET check-runs returned 502); left for a later run"), lines.join("\n"));
 });
 
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
