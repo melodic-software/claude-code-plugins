@@ -389,7 +389,8 @@ def evaluate_rate_response(
     }
     if not latched:
         return result
-    if ra is not None or ((msg or too_many) and remaining != 0):
+    # A secondary limit is not per resource, whatever remaining says.
+    if ra is not None or secondary or ((msg or too_many) and remaining != 0):
         pool = ALL_POOLS
     else:
         resource = str(headers.get("x-ratelimit-resource") or "")
