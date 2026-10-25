@@ -281,6 +281,30 @@ test("a GraphQL query answered 502 is sent again; a GraphQL mutation answered 50
   }
 });
 
+// A document can hold several operations and the request picks one by
+// operationName (https://spec.graphql.org/October2021/#sec-Executing-Requests),
+// so a document that starts with a query can still run a mutation. A mutation
+// is never resent: one that names any mutation or subscription, or any request
+// that names an operation, is sent once.
+test("a document that starts with a query but holds a mutation, or names an operation, answered 502 is returned at once", async () => {
+  const arm = "query Read { viewer { login } }\nmutation Arm($id: ID!) { enablePullRequestAutoMerge(input: { pullRequestId: $id }) { clientMutationId } }";
+  const bodies = [
+    { query: arm, operationName: "Arm", variables: { id: "PR_1" } },
+    { query: arm, variables: { id: "PR_1" } },
+    { query: "{ viewer { login } }\nsubscription Watch { viewer { login } }" },
+    { query: "query Read { viewer { login } }", operationName: "Read" },
+  ];
+  for (const request of bodies) {
+    const gh = github([{ status: 502 }, { status: 200, body: '{"data":{}}' }]);
+    const time = clock(RESET - 3000);
+    const budget = budgeted({ fetch: gh.fetch, log: () => {}, random: () => 0, ...time });
+    const body = JSON.stringify(request);
+    assert.equal((await budget.fetch("https://api.example/graphql", { method: "POST", headers: {}, body })).status, 502, body);
+    assert.equal(gh.sent.length, 1, body);
+    assert.deepEqual(time.slept, [], body);
+  }
+});
+
 test("a POST answered 500 is returned at once", async () => {
   const gh = github([{ status: 500 }]);
   const time = clock(RESET - 3000);

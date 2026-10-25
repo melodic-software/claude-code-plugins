@@ -204,8 +204,10 @@ export function describe(error) {
 // each socket after its answer, so no request goes out on a pooled one that
 // sat idle through a verifier read and that GitHub has since closed. A GET is
 // left to createGitHub's own retry (retryServerErrors), which resends only
-// GETs and GraphQL queries, so a query's sends here are this retry's times
-// that one's; a REST write such as the refusal comment is never resent, since a
+// GETs and GraphQL queries, so a query can go out up to three times four. This
+// retry's waits, and the first send of each resend, fall outside that helper's
+// 60 s budget; the step's 18-minute timeout (pr-merge.yml) is the outer cap.
+// A REST write such as the refusal comment is never resent, since a
 // lost answer would post it twice. A resent arm is pinned to the same expectedHeadOid, so it can arm
 // only the head the run read. When the lost answer was a success, the resend
 // may arm or disarm a pull request already in that state; should GitHub
