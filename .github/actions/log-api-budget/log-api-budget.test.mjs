@@ -373,9 +373,10 @@ test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () =
 // pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
 // no other notice, so without these lines their calls go unattributed.
 // post-verify-notes' notice covers only its artifact listing, the one call
-// through the gh wrapper: `gh run download` is not `gh api`, and
-// verify-notes.mjs calls through address-feedback's createGitHubApi, a plain
-// fetch that keeps no reading. That notice understates the job's spend.
+// that leaves a reading: `gh run download` goes through the gh wrapper but is
+// not `gh api`, so it leaves none, and verify-notes.mjs calls through
+// address-feedback's createGitHubApi, a plain fetch that keeps no reading.
+// That notice understates the job's spend.
 const FEEDBACK = new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url);
 
 // The job's steps, from `  <job>:` to the next job.
