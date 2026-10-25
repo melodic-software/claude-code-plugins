@@ -233,7 +233,7 @@ test('lines: a reading only session.measure carries reaches Claude at the next c
   ])
 })
 
-test('lines: a crossing delivered after the live reading dips below the threshold states the crossing percent', NO_WRITES, async ($, on) => {
+test('lines: a crossing delivered after the live reading dips below the threshold states the crossing percent, and is not restated while the reading stays below it', NO_WRITES, async ($, on) => {
   const { w } = world(on)
   await bash($)
   w.limits = limits(97)
@@ -243,9 +243,7 @@ test('lines: a crossing delivered after the live reading dips below the threshol
     `rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC.`,
   ])
   await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
-  expect(ownLines((await prompt($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC.`,
-  ])
+  expect(ownLines((await prompt($)).context)).toEqual([])
 })
 
 test('lines: a reset delivered after the live reading changes states the percent of the reading that reset it', NO_WRITES, async ($, on) => {
@@ -1568,4 +1566,159 @@ test('snapshot: the first write after a branch carries the new session id, insid
   expect(bodies(w).map(b => b.session_id)).toEqual(['sess-1', 'sess-2'])
   await bash($)
   expect(bodies(w)).toHaveLength(2)
+})
+
+// An account switch: the state file names another account, or a window's reset time moves earlier.
+const UUID_A = '0a1b2c3d-0000-4000-8000-00000000000a'
+const UUID_B = '0a1b2c3d-0000-4000-8000-00000000000b'
+const RESET_0610 = '2026-10-04T06:10:00Z'
+const RESET_0750 = '2026-10-04T07:50:00Z'
+const identity = (uuid: string | undefined, email: string, mtimeMs: number, extra: object = {}) => ({
+  text: JSON.stringify({ ...extra, oauthAccount: { ...(uuid === undefined ? {} : { accountUuid: uuid }), emailAddress: email } }),
+  mtimeMs,
+})
+const account = (five: number, fiveReset: string, seven = 0): Limit[] => [
+  { kind: 'five_hour', percentUsed: five, resetsAt: fiveReset },
+  { kind: 'seven_day', percentUsed: seven, resetsAt: SEVEN_RESET },
+]
+const SWITCHED = 'rate-limit-guard: the signed-in account changed, so earlier rate-limit lines in this session no longer apply.'
+const SWITCHED_TO_B = `${SWITCHED} Current reading: 5-hour window below 95% (1% used), resets at 2026-10-04 07:50 UTC; 7-day window below 95% (0% used), resets at 2026-10-08 09:00 UTC.`
+const oldReading = (line: string) => line.includes('100% used') || line.includes('06:10')
+
+test('account switch: after a switch, a compaction and a prompt, no line holds the old reading and one switch line is sent', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: account(100, RESET_0610), files: { [STATE_FILE]: identity(UUID_A, 'a@example.com', T0 - 1) } })
+  expect(ownLines((await bash($)).context)).toEqual([`rate-limit-guard: 5-hour window at or above 95% (100% used), resets at 2026-10-04 06:10 UTC.`])
+  w.files[STATE_FILE] = identity(UUID_B, 'b@example.com', T0)
+  w.limits = account(1, RESET_0750)
+  const after = ownLines((await bash($)).context)
+  await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
+  after.push(...ownLines((await prompt($)).context), ...ownLines((await bash($)).context))
+  expect(after.filter(oldReading)).toEqual([])
+  expect(after).toEqual([SWITCHED_TO_B])
+})
+
+test('account switch: seen before the new account\'s first response, the line says there is no reading yet and the old reading is never restated', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: account(100, RESET_0610), files: { [STATE_FILE]: identity(UUID_A, 'a@example.com', T0 - 1) } })
+  await bash($)
+  w.files[STATE_FILE] = identity(UUID_B, 'b@example.com', T0)
+  expect(ownLines((await prompt($)).context)).toEqual([`${SWITCHED} No reading yet for this account.`])
+  await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
+  expect(ownLines((await prompt($)).context)).toEqual([])
+  w.limits = account(97, RESET_0750)
+  expect(ownLines((await bash($)).context)).toEqual([`rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-04 07:50 UTC.`])
+})
+
+test('account switch: with the identity unreadable, a reset time that moves earlier voids the old window the same way', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: account(100, RESET_0750) })
+  expect(ownLines((await bash($)).context)).toEqual([`rate-limit-guard: 5-hour window at or above 95% (100% used), resets at 2026-10-04 07:50 UTC.`])
+  w.limits = account(1, RESET_0610)
+  const after = ownLines((await bash($)).context)
+  await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
+  after.push(...ownLines((await prompt($)).context), ...ownLines((await bash($)).context))
+  expect(after.filter(l => l.includes('100% used') || l.includes('07:50'))).toEqual([])
+  expect(after).toEqual([
+    "rate-limit-guard: a window's reset time moved earlier than recorded, so earlier rate-limit lines for that window no longer apply. Current reading: 5-hour window below 95% (1% used), resets at 2026-10-04 06:10 UTC.",
+  ])
+})
+
+for (const [label, before, after] of [
+  ['the same email under another account UUID', identity(UUID_A, 'me@example.com', T0 - 1), identity(UUID_B, 'me@example.com', T0)],
+  ['another email with no account UUID readable', identity(undefined, 'a@example.com', T0 - 1), identity(undefined, 'b@example.com', T0)],
+] as const) {
+  test(`account switch: ${label} counts as a switch`, NO_WRITES, async ($, on) => {
+    const { w } = world(on, { limits: limits(96), files: { [STATE_FILE]: before } })
+    expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+    w.files[STATE_FILE] = after
+    w.limits = limits(20)
+    const lines = ownLines((await bash($)).context)
+    expect(lines).toHaveLength(1)
+    expect(lines[0].startsWith(SWITCHED)).toBe(true)
+  })
+}
+
+test('account switch: a UUID missing from one read is still compared once it returns', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: limits(96), files: { [STATE_FILE]: identity(UUID_A, 'me@example.com', T0 - 1) } })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+  w.files[STATE_FILE] = identity(undefined, 'me@example.com', T0)
+  expect(ownLines((await bash($)).context)).toEqual([])
+  w.files[STATE_FILE] = identity(UUID_B, 'me@example.com', T0 + 1)
+  w.limits = limits(20)
+  const lines = ownLines((await bash($)).context)
+  expect(lines).toHaveLength(1)
+  expect(lines[0].startsWith(SWITCHED)).toBe(true)
+})
+
+test('account switch: a crossing still pending from the old account is not delivered', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { files: { [STATE_FILE]: identity(UUID_A, 'a@example.com', T0 - 1) } })
+  await bash($)
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: limits(97), changed: ['rateLimits'] })
+  w.files[STATE_FILE] = identity(UUID_B, 'b@example.com', T0)
+  w.limits = account(1, RESET_0750)
+  expect(ownLines((await prompt($)).context)).toEqual([SWITCHED_TO_B])
+})
+
+test('account switch: a handed-off suggestion from the old account is not delivered', OPERATOR, async ($, on) => {
+  const { w } = world(on, { files: { [STATE_FILE]: identity(UUID_A, 'a@example.com', T0 - 1) } })
+  await shownInTypedTurn($, w)
+  w.files[STATE_FILE] = identity(UUID_B, 'b@example.com', T0)
+  w.limits = account(1, RESET_0750)
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([SWITCHED_TO_B])
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([])
+})
+
+test('account switch: a toast queued for the old account is not shown', OPERATOR, async ($, on) => {
+  const { w } = world(on, { files: { [STATE_FILE]: identity(UUID_A, 'a@example.com', T0 - 1) } })
+  await prompt($, 'composer')
+  w.limits = limits(96)
+  expect(ownLines((await bash($)).context)).toEqual([])
+  w.files[STATE_FILE] = identity(UUID_B, 'b@example.com', T0)
+  w.limits = account(1, RESET_0750)
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([SWITCHED_TO_B])
+  expect(w.toasts).toEqual([])
+  expect(crossingLogs(w)).toEqual([])
+})
+
+for (const [label, rewritten] of [
+  ['the state file rewritten with the same identity', identity(UUID_A, 'a@example.com', T0 + 5, { numStartups: 4 })],
+  ['the same account UUID under a new email', identity(UUID_A, 'renamed@example.com', T0 + 5)],
+] as const) {
+  test(`account switch: stays quiet with ${label}, the same reset time and a dip from 96% to 80%`, NO_WRITES, async ($, on) => {
+    const { w } = world(on, { limits: limits(96), files: { [STATE_FILE]: identity(UUID_A, 'a@example.com', T0 - 1) } })
+    expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+    w.files[STATE_FILE] = rewritten
+    w.limits = limits(80)
+    expect(ownLines((await bash($)).context)).toEqual([])
+    expect(ownLines((await prompt($)).context)).toEqual([])
+    w.limits = limits(96)
+    expect(ownLines((await bash($)).context)).toEqual([])
+    expect(w.toasts).toEqual([])
+  })
+}
+
+test('account switch: a reset time read less than a minute earlier is the same window', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: limits(96) })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+  w.limits = [{ kind: 'five_hour', percentUsed: 97, resetsAt: '2026-10-03T20:59:30Z' }, ...limits(undefined)]
+  expect(ownLines((await bash($)).context)).toEqual([])
+})
+
+test('lines: after /clear, a carrier with no reading keeps the edge restatement for the first carrier with one', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: limits(96) })
+  await bash($)
+  await $.session.end({ reason: 'clear', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+  w.sid = 'sess-2'
+  w.limits = []
+  expect(ownLines((await prompt($)).context)).toEqual([])
+  w.limits = limits(96)
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+  expect(ownLines((await bash($)).context)).toEqual([])
+})
+
+test('lines: a restatement states the current reading', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { limits: limits(96), files: { [STATE_FILE]: identity(UUID_A, 'a@example.com', T0 - 1) } })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+  w.limits = limits(97)
+  expect(ownLines((await bash($)).context)).toEqual([])
+  await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
+  expect(ownLines((await prompt($)).context)).toEqual([EDGE_5H_97])
 })

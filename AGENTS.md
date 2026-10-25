@@ -14,11 +14,13 @@ Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subj
 `ci-status` fails any other title.
 
 When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
-`gh pr edit <n> --add-label do-not-merge`) before writing any explanation. "Do not merge" in the body
-or a comment is not enforced by `ci-status`, which reads only the label, except on a lanes App pull
-request, where it also fails on a body hold or a member's veto comment; the babysit merge gate
-still respects a body hold and human comments, so never override one. The hold convention is in
-`docs/conventions/loop-lane/README.md`.
+`gh pr edit <n> --add-label do-not-merge`) before writing any explanation. A session holding a pull
+request for any reason, a measured regression included, applies the label at once and removes it
+when the hold ends: a hold kept only in a session, a handoff or a message does not stop another
+session's merge. "Do not merge" in the body or a comment is not enforced by `ci-status`, which
+reads only the label, except on a lanes App pull request, where it also fails on a body hold or a
+member's veto comment; the babysit merge gate still respects a body hold and human comments, so
+never override one. The hold convention is in `docs/conventions/loop-lane/README.md`.
 
 In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
 (shared changelog fragment); the rule itself is the scope test in

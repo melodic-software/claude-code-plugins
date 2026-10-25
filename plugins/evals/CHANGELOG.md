@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.10.4] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.10.3] - 2026-10-23
 
 ### Changed

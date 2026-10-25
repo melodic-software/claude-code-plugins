@@ -79,7 +79,12 @@
                         "$ref": "#/$defs/text",
                         "description": "A regular expression whose first capture group is the version."
                       },
-                      "min": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" }
+                      "min": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" },
+                      "below": {
+                        "type": "string",
+                        "pattern": "^\\d+(\\.\\d+)*$",
+                        "description": "An exclusive upper bound: a detected version at or above it is outdated. Must be greater than min."
+                      }
                     }
                   }
                 }

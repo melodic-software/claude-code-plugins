@@ -10,7 +10,7 @@ planning plan and brainstorm views, and the review change digest's author Q&A).
 |---|---|
 | `session_bridge.py` | The `Transport` port, the loopback adapter (`LoopbackWatcher`, `LoopbackHandler`, `start`, `serve`), the client half the app's control script runs, the channels adapter (`ChannelRelay`, `ChannelServer`) and `select_transport` |
 | `watch.sh` | The watcher: long-polls `/api/wait` from a background Bash task and prints one JSON line when there are events |
-| `wake.sh` | One wake: the app's `apply` on `<data_dir>/ops.json`, then `watch.sh` |
+| `wake.sh` | One wake: the app's `apply` on `<data_dir>/ops.json`, then the app's `AFTER_APPLY` subcommand when its conf names one (output on stderr, exit code ignored), then `watch.sh` |
 | `test_session_bridge.py` | Tests against a toy app: port, guards, long-poll, lease, event stream, client, `watch.sh` and `wake.sh`, adapter selection, and the channel server over stdio |
 | `view_bridge.py` | The view app: serves a page built by `lib/view-builder.mjs --connect`, takes its actions, and shows the session's replies |
 | `view-bridge.sh` | The view app's control script (`CONTROL` in its `session-bridge.conf`): runs `view_bridge.py` with the first Python 3 that runs |

@@ -48,7 +48,8 @@ Operators keep `--merge human-only` on launch lines; lifting it is the owner's c
 The resolver passes `--credential-roots` to the checker when the operator sets
 `promotion_evidence_credential_roots`; unset, a binding whose L2 proof rests on a filesystem
 credential probe fails closed even with a compliant bootstrap. Remaining work is tracked in [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588). The unattended
-merge path (`babysit_merge_policy.read_promotion`) additionally refuses any option value or
+merge gate (`/source-control:babysit-prs`, `--unattended`) needs the effective rung's cells from
+the table above, read by rung and never by work class, and additionally refuses any option value or
 settings file the lane can write, so on a single-user
 host user-scope settings never qualify there; only managed settings and surfaces owned by someone
 other than the lane identity can.

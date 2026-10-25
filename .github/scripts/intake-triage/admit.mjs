@@ -19,10 +19,8 @@
 //   will read (resolve-pr.mjs linkedIssues): the body or a comment written,
 //   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
-//   (refinementSpec); and the body of a sub-issue a size split filed, while
-//   copying only that human's task-list lines verbatim, unedited or last
-//   edited by a listed human who at most ticked boxes (splitChildBody).
-//   Nothing else the lanes App wrote counts,
+//   (refinementSpec); and the body of a sub-issue a size split filed, under
+//   the split-child trust rule (splitChildBody). Nothing else the lanes App wrote counts,
 //   an App-filed issue included, and an issue with more comments than the
 //   100 pr-verify reads is refused, since pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request in this
@@ -507,14 +505,14 @@ const SPEC_COMMENTS = 100;
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
     body lastEditedAt author { ...actor } editor { ...actor }
-    comments(first: ${SPEC_COMMENTS}) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } }
+    comments(first: ${SPEC_COMMENTS}) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }
   } }
 }
 fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
 
-// {body, lastEditedAt, author, editor, commentCount, comments: [{body,
-// lastEditedAt, author, editor}]} for the issue, as GraphQL answers them. An
-// unexpected shape throws.
+// {body, lastEditedAt, author, editor, commentCount, comments: [{databaseId,
+// createdAt, updatedAt, body, lastEditedAt, author, editor}]} for the issue,
+// as GraphQL answers them. An unexpected shape throws.
 export async function specOf(github, repository, number) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
@@ -547,6 +545,16 @@ export function refinementSpec(comments, appId) {
   return newest?.lastEditedAt == null ? newest : undefined;
 }
 
+// Whether a User among `humans` wrote the item, and last edited it if ever.
+const writtenBy = (humans) => {
+  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  return (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+};
+
+// The refinement comment that counts as spec on `spec`, or undefined: only on
+// a body a listed human wrote (refinementSpec).
+const countedRefinement = (spec, humans, appId) => (spec && writtenBy(humans)(spec) ? refinementSpec(spec.comments, appId) : undefined);
+
 // The texts pr-verify will read as spec: the body and each comment written,
 // and last edited if ever, by a User among `humans`, and, when the body is
 // such text, the lanes App's refinement (refinementSpec)
@@ -554,12 +562,11 @@ export function refinementSpec(comments, appId) {
 // App text counts, except the body of a sub-issue a size split filed
 // (splitChildBody, which reads `taskList`, the rules' `task-list`). Pure.
 export function trustedSpecTexts(spec, humans, appId, taskList) {
-  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
-  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+  const written = writtenBy(humans);
   if (!spec) {
     return [];
   }
-  const refinement = written(spec) ? refinementSpec(spec.comments, appId) : undefined;
+  const refinement = countedRefinement(spec, humans, appId);
   const own = (item) => written(item) || item === refinement || (item === spec && splitChildBody(spec, humans, taskList) !== null);
   return [spec, ...(spec.comments ?? [])].filter(own).map((item) => String(item.body ?? ""));
 }
@@ -573,32 +580,72 @@ const hasTaskLine = (text, taskList) =>
 export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
   trustedSpecTexts(spec, humans, appId, taskList).some((text) => hasTaskLine(text, taskList));
 
-// The task-list lines a listed human wrote on an issue, as written, in order:
-// the items a size split partitions. The lanes App's refinement is left out,
-// so a split copies only a listed human's lines (splitChildBody). Pure.
-export const trustedTaskLines = (spec, humans, taskList) =>
-  trustedSpecTexts(spec, humans, undefined, taskList).flatMap((text) => text.split("\n").filter((line) => line.trimStart().startsWith(taskList)));
+// The lines of `text` that start, past any indent, with `taskList`, as written.
+const taskLinesOf = (text, taskList) =>
+  String(text ?? "")
+    .split("\n")
+    .filter((line) => line.trimStart().startsWith(taskList));
+
+// The task-list lines a listed human wrote on an issue, as written, in order.
+// The lanes App's refinement is left out (splitTaskLines adds it). Pure.
+export const trustedTaskLines = (spec, humans, taskList) => trustedSpecTexts(spec, humans, undefined, taskList).flatMap((text) => taskLinesOf(text, taskList));
+
+// The task-list lines a size split partitions, as written, in order: those a
+// listed human wrote (trustedTaskLines), then those of intake's refinement
+// where admission counts it (trustedSpecTexts), never its other lines.
+// {lines, human, source}: `human` counts the listed human's lines, which come
+// first, and `source` is the refinement's {id, updatedAt} when a line of it
+// follows, else null. A refinement with no readable id or update time adds no
+// line. Pure.
+export function splitTaskLines(spec, humans, taskList, appId) {
+  const own = trustedTaskLines(spec, humans, taskList);
+  const refinement = countedRefinement(spec, humans, appId);
+  const usable = Number.isSafeInteger(refinement?.databaseId) && typeof refinement.updatedAt === "string";
+  const more = usable ? taskLinesOf(refinement.body, taskList) : [];
+  return { lines: [...own, ...more], human: own.length, source: more.length > 0 ? { id: refinement.databaseId, updatedAt: refinement.updatedAt } : null };
+}
+
+// The line after the part line of a sub-issue that copies refinement lines:
+// the refinement comment's id and update time when the split read it.
+export const splitSourceLine = ({ id, updatedAt }) => `<!-- size-split refinement=${id} updated_at=${updatedAt} -->`;
+const SOURCE = /^<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->$/;
 
 // The fixed header of part `part` of `parts` that a size split files from
-// issue `parent`; the copied task lines follow it, one per line.
-export const splitChildHeader = (parent, part, parts) =>
-  [SPLIT_CHILD_MARKER, `Part ${part} of ${parts} of #${parent}, split at intake (owner Q93). The done-when below is copied from #${parent} as written.`, "", "## Done when", ""].join("\n");
+// issue `parent`, with splitSourceLine when `source` is given; the copied
+// task lines follow it, one per line.
+export const splitChildHeader = (parent, part, parts, source = null) =>
+  [
+    SPLIT_CHILD_MARKER,
+    `Part ${part} of ${parts} of #${parent}, split at intake (owner Q93). The done-when below is copied from #${parent}${source ? " and intake's refinement comment on it" : ""} as written.`,
+    ...(source ? [splitSourceLine(source)] : []),
+    "",
+    "## Done when",
+    "",
+  ].join("\n");
 
-// The body of a sub-issue a size split filed, when it counts as the listed
-// human's text it copies (owner Q9 extension), else null. `spec.splitParent`
-// is {number, spec, appId}: the issue's native parent, its text as specOf
-// reads it, and the lanes App's id, set only by the reader that read the
-// parent link (admissionFacts, resolve-pr.mjs). It counts when the lanes App
-// wrote the body, the parent was filed by a listed human, the body opens
-// with splitChildHeader for that parent, and every line after the header is
-// one of the parent's trusted task-list lines (trustedTaskLines with
-// `taskList`, the rules' `task-list`; owner decision on #9906), and either
-// nobody edited it since, or a listed human last edited it and the lines may
-// also be those lines with their box ticked (tickedForms). GitHub names only
-// the last editor, so a listed human's edit after anyone else's vouches for
-// ticked boxes, never for other text. An edit by anyone else, the App
-// included, leaves it untrusted, and so does a missing or empty `taskList`.
-// Pure.
+// The split-child trust rule, its one home (owner Q93 with the Q9
+// extension; split-child.vectors.json holds its cases): the body of a
+// sub-issue a size split filed, when it counts as the text it copies, else
+// null. `spec.splitParent` is {number, spec, appId}: the issue's native
+// parent, its text as specOf reads it, and the lanes App's id, set only by
+// the reader that read the parent link (admissionFacts, resolve-pr.mjs). It
+// counts when the lanes App wrote the body, the parent was filed by a listed
+// human, and the body opens with splitChildHeader for that parent. A header
+// with splitSourceLine names a refinement comment, which must still be
+// intake's newest refinement on the parent, unedited, on a body a listed
+// human wrote (refinementSpec, as trustedSpecTexts counts it), with every
+// comment read and its updated_at equal to its created_at or to the value
+// recorded; a deleted, edited or superseded refinement leaves the body
+// untrusted, whoever edited the body since. Every line after the header is
+// then one of the allowed lines: the parent's trusted task-list lines
+// (trustedTaskLines with `taskList`, the rules' `task-list`; owner decision
+// on #9906) and, under a source line, that refinement's task-list lines,
+// never its other lines. Either nobody edited the body since, or a listed
+// human last edited it and the lines may also be allowed lines with their
+// box ticked (tickedForms). GitHub names only the last editor, so a listed
+// human's edit after anyone else's vouches for ticked boxes, never for other
+// text. An edit by anyone else, the App included, leaves it untrusted, and
+// so does a missing or empty `taskList`. Pure.
 export function splitChildBody(spec, humans, taskList) {
   const parent = spec?.splitParent;
   const author = spec?.author;
@@ -611,12 +658,25 @@ export function splitChildBody(spec, humans, taskList) {
     return null;
   }
   const body = String(spec.body ?? "");
-  const part = /^Part ([1-9][0-9]?) of ([1-9][0-9]?) of #/.exec(body.split("\n")[1] ?? "");
-  const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]))}\n` : null;
+  const rows = body.split("\n");
+  const part = /^Part ([1-9][0-9]?) of ([1-9][0-9]?) of #/.exec(rows[1] ?? "");
+  const tag = SOURCE.exec(rows[2] ?? "");
+  const source = tag ? { id: Number(tag[1]), updatedAt: tag[2] } : null;
+  const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]), source)}\n` : null;
   if (header === null || !body.startsWith(header)) {
     return null;
   }
-  const exact = trustedTaskLines(parent.spec, humans, taskList);
+  let refinement = [];
+  if (source !== null) {
+    const comments = parent.spec?.comments ?? [];
+    const whole = (parent.spec?.commentCount ?? comments.length) === comments.length;
+    const newest = whole ? countedRefinement(parent.spec, humans, parent.appId) : undefined;
+    if (newest?.databaseId !== source.id || typeof newest.updatedAt !== "string" || !(newest.updatedAt === newest.createdAt || newest.updatedAt === source.updatedAt)) {
+      return null;
+    }
+    refinement = taskLinesOf(newest.body, taskList);
+  }
+  const exact = [...trustedTaskLines(parent.spec, humans, taskList), ...refinement];
   const allowed = new Set(edited ? exact.flatMap((line) => [line, ...tickedForms(line, taskList)]) : exact);
   const lines = body.slice(header.length).split("\n");
   return lines.every((line) => allowed.has(line)) ? body : null;

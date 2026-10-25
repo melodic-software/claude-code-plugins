@@ -319,15 +319,14 @@ activities:
       - scripts/new-changelog-fragment.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (a documented default on a vendor docs page) instead of trusting the
-    # issue's quote. It may search the web and fetch the official docs for
-    # what this repository builds on: Claude Code, the Claude platform,
-    # GitHub, Node.js and Python. It lists each page it read in its report.
-    # A list, not `any`, keeps WebFetch off hosts anyone can write to and
-    # keeps the curl-based docs scripts denied. A page can try to steer the
-    # run, so a person still reviews every PR the run opens.
+    # issue's quote. It may search the web, fetch any page and run the
+    # research skills; it lists each page it read in its report. The
+    # launcher stages no curl-based docs script, so pages arrive through
+    # WebFetch alone. The job holds no write token (#8691) and a page can try
+    # to steer the run, so every PR the run opens is reviewed.
     web-access:
       enabled: true
-      domains: [code.claude.com, platform.claude.com, docs.anthropic.com, docs.github.com, nodejs.org, docs.python.org]
+      domains: any
     # Runs model-chosen commands, so no write token: the change leaves as a
     # patch, and the run's outcome file goes to report-outcome.
     effect: read
@@ -522,11 +521,13 @@ activities:
     # A Size Large issue a listed human filed, which admission parks with
     # "the split into sub-issues at intake is pending" (owner Q93), gets a
     # size split instead: the model returns only item numbers, `parts` over
-    # the issue's trusted task-list lines and `order` pairs; an invalid
-    # partition leaves it parked, with why in the step summary. The script
-    # files each part as a native sub-issue whose body is a fixed header and
-    # that part's lines as written, which admission and pr-verify count as
-    # the listed human's text; writes the order as native blocked-by edges
+    # the issue's trusted task-list lines (the listed human's, then those of
+    # intake's refinement where admission counts it) and `order` pairs; an
+    # invalid partition leaves it parked, with why in the step summary. The
+    # script files each part as a native sub-issue whose body is a fixed
+    # header and that part's lines as written, which admission and pr-verify
+    # trust under the split-child rule (admit.mjs splitChildBody); writes the
+    # order as native blocked-by edges
     # (owner Q94); puts the issue's open blockers on the first parts and moves
     # what the issue blocks onto the last parts; records the split in one
     # comment; and dispatches intake for each sub-issue. No hold label, a
@@ -967,10 +968,11 @@ merge:
   # would instead make the PR ineligible. The verifier verdict, both AI
   # review lanes, ci-status and the post-merge revert breaker still gate every
   # lane PR.
-  # Owner decision Q624 still holds for the rest: no denied path, size cap or
-  # C2 contradiction check. Each comes back by setting it here: list
-  # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
-  # or `max-changed-lines` (the earlier 8 and 400).
+  # Owner decision Q624 still holds for the rest: no denied path or size cap.
+  # Each comes back by setting it here: list denied-paths, or set
+  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+  # `c2-contradictions` is deprecated and has no effect; set, it adds a
+  # `configNotes` entry to the gate report.
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs off the HIGH floor merge on the
   # verifier verdict.

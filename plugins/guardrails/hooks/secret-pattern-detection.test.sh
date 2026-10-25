@@ -45,8 +45,10 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 jq_crlf_free
 
 # Neutralize any ambient CLAUDE_PROJECT_DIR (a CC-wrapped run sets it) so the
-# default cases exercise the fail-closed scan path deterministically.
-unset CLAUDE_PROJECT_DIR
+# default cases exercise the fail-closed scan path deterministically. The path
+# options are cleared for the same reason: every case below sets its own.
+unset CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ALLOWED_ROOTS \
+  CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED
 
 # Runtime-constructed obviously-fake tokens (never a literal joined string).
 AWS_PREFIX='AKIA'
@@ -1180,5 +1182,211 @@ nb_both "D1 NotebookEdit: non-temp non-git root, temp target → exit 0" 0 "" \
   "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")" CLAUDE_PROJECT_DIR="$D1_ROOT"
 nb_both "D1 NotebookEdit: root unset, temp target → exit 2" 2 "GitHub PAT" \
   "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")"
+
+# ================= The user's path exemptions (#8761) =======================
+# secret_pattern_detection_allowed_roots and _skip_gitignored. Every fixture
+# sits under TEST_TMPDIR, which the temp-tree decline never exempts here: the
+# root is unset, or is itself under temp. HOME is pinned to a fixture so a root
+# is judged against a known home. On Windows a Write target is judged only in
+# its long drive spelling.
+SPE="$TEST_TMPDIR/spe"
+mkdir -p "$SPE/D/inner" "$SPE/D-sib" "$SPE/outside" "$SPE/home"
+SPE_B="$SPE"
+((D1_WIN)) && SPE_B=$(cygpath -l -m "$SPE")
+SPE_D="$SPE_B/D"
+SPE_AR=CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ALLOWED_ROOTS
+SPE_GI=CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED
+
+# spe_rc <target> [NAME=value...] -> the hook's exit code for a Write of a token.
+# An exit 0 that printed anything reads as `0+output`: the abort boundary turns
+# a crash into a noisy exit 0, which must not pass for an exemption.
+spe_rc() {
+  local target="$1" rc=0 out
+  shift
+  out=$(env HOME="$SPE/home" USERPROFILE= HOOK_TELEMETRY_SINK= "$@" bash "$HOOK" \
+    <<<"$(write_json "$target" "token = '$GH_PAT'")" 2>&1) || rc=$?
+  [[ "$rc" == 0 && -n "$out" ]] && rc="0+output"
+  printf '%s' "$rc"
+}
+
+# --- allowed roots
+assert_exit "allowed roots unset: token under D → exit 2" 2 "$(spe_rc "$SPE_D/sub/x.md")"
+assert_exit "allowed roots: token under D, directory not made yet → exit 0" 0 \
+  "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D")"
+: >"$SPE/D/plain.md"
+assert_exit "allowed roots: existing file in D → exit 0" 0 "$(spe_rc "$SPE_D/plain.md" "$SPE_AR=$SPE_D")"
+assert_exit "allowed roots: entry with a trailing slash → exit 0" 0 \
+  "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D/")"
+assert_exit "allowed roots: bad entries ahead of D leave the list in force → exit 0" 0 \
+  "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=spe-rel/D, ,$SPE_B/D-missing,$SPE_D")"
+for SPE_T in "$SPE_B/D-sib/x.md" "$SPE_D" "$SPE_B/outside/../D/sub/x.md" "$SPE_D/../D/sub/x.md" \
+  "$SPE_D/./sub/x.md" "$SPE_D//sub/x.md" "$SPE_B/outside/x.md"; do
+  assert_exit "allowed roots: target '$SPE_T' → exit 2" 2 "$(spe_rc "$SPE_T" "$SPE_AR=$SPE_D")"
+done
+for SPE_E in " " "," "$SPE_B/outside/../D" "$SPE_D"$'\n' "/"; do
+  assert_exit "allowed roots: entry '$SPE_E' grants nothing → exit 2" 2 \
+    "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_E")"
+done
+# Each of these names an existing directory holding its target, or would once
+# its refusal were dropped, so only the refusal keeps the write scanned.
+mkdir -p "$SPE/glob[D]"
+assert_exit "allowed roots: entry holding a glob bracket grants nothing → exit 2" 2 \
+  "$(spe_rc "$SPE_B/glob[D]/x.md" "$SPE_AR=$SPE_B/glob[D]")"
+assert_exit "allowed roots: entry that is not an existing directory grants nothing → exit 2" 2 \
+  "$(spe_rc "$SPE_B/D-missing/x.md" "$SPE_AR=$SPE_B/D-missing")"
+assert_exit "allowed roots: relative entry naming D from the working directory grants nothing → exit 2" 2 \
+  "$(cd "$SPE" && spe_rc "$SPE_D/sub/x.md" "$SPE_AR=D")"
+if ((!D1_WIN)); then
+  # On POSIX `//tmp/...` names the same directory as `/tmp/...`; the UNC
+  # refusal is what keeps it from granting.
+  mkdir -p "$SPE/star*"
+  assert_exit "allowed roots: entry holding a glob star grants nothing → exit 2" 2 \
+    "$(spe_rc "$SPE_B/star*/x.md" "$SPE_AR=$SPE_B/star*")"
+  assert_exit "allowed roots: UNC-spelled entry grants nothing → exit 2" 2 \
+    "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=/$SPE_D")"
+else
+  echo "SKIP: allowed roots glob-star and UNC-spelling cases (Windows refuses a '*' name and reads '//' as a share)"
+fi
+# A root that is home or holds it grants nothing, for either home variable, and
+# with no home to compare against no root is granted.
+assert_exit "allowed roots: root is HOME → exit 2" 2 "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D" HOME="$SPE/D")"
+assert_exit "allowed roots: root holds HOME → exit 2" 2 \
+  "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D" HOME="$SPE/D/inner")"
+assert_exit "allowed roots: root holds USERPROFILE → exit 2" 2 \
+  "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D" USERPROFILE="$SPE/D/inner")"
+assert_exit "allowed roots: HOME empty → exit 2" 2 "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D" HOME=)"
+assert_exit "allowed roots: HOME relative → exit 2" 2 "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D" HOME=spe-rel)"
+assert_exit "allowed roots: HOME missing → exit 2" 2 \
+  "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_D" HOME="$SPE/home-missing")"
+# Real paths decide: a link under D to outside scans, a link outside to D does not.
+if make_dir_link "$SPE/outside" "$SPE/D/out-link" && make_dir_link "$SPE/D" "$SPE/to-d"; then
+  assert_exit "allowed roots: through a link under D to outside → exit 2" 2 \
+    "$(spe_rc "$SPE_D/out-link/x.md" "$SPE_AR=$SPE_D")"
+  assert_exit "allowed roots: through a link outside D that lands under D → exit 0" 0 \
+    "$(spe_rc "$SPE_B/to-d/sub/x.md" "$SPE_AR=$SPE_D")"
+  assert_exit "allowed roots: entry spelled through a link to D → exit 0" 0 \
+    "$(spe_rc "$SPE_D/sub/x.md" "$SPE_AR=$SPE_B/to-d")"
+else
+  echo "SKIP: allowed roots directory-link cases (no directory link could be made on this host)"
+fi
+: >"$SPE/outside/target.md"
+if ln -s "$SPE/outside/target.md" "$SPE/D/file-link.md" 2>/dev/null && [[ -L "$SPE/D/file-link.md" ]]; then
+  assert_exit "allowed roots: a file symlink under D to outside → exit 2" 2 \
+    "$(spe_rc "$SPE_D/file-link.md" "$SPE_AR=$SPE_D")"
+else
+  echo "SKIP: allowed roots file-symlink case (no symlink could be made on this host)"
+fi
+: >"$SPE/outside/hl-src.md"
+if ln "$SPE/outside/hl-src.md" "$SPE/D/hl.md" 2>/dev/null; then
+  assert_exit "allowed roots: a hard link under D → exit 2" 2 "$(spe_rc "$SPE_D/hl.md" "$SPE_AR=$SPE_D")"
+else
+  echo "SKIP: allowed roots hard-link case (ln could not make a hard link on this host)"
+fi
+nb_both "allowed roots: NotebookEdit under D → exit 0" 0 "" \
+  "$(nb_json "$SPE_D/nb/x.ipynb" "token = '$GH_PAT'")" HOME="$SPE/home" USERPROFILE= "$SPE_AR=$SPE_D"
+# Repository-rooted: the root is a repo, under temp so the decline never fires.
+SPE_REPO="$SPE/repo"
+mkdir -p "$SPE_REPO/notes"
+git -C "$SPE_REPO" init -q
+SPE_REPO_B="$SPE_B/repo"
+assert_exit "allowed roots, repo-rooted: token under the root's notes → exit 0" 0 \
+  "$(spe_rc "$SPE_REPO_B/notes/x.md" CLAUDE_PROJECT_DIR="$SPE_REPO_B" "$SPE_AR=$SPE_REPO_B/notes")"
+assert_exit "allowed roots, repo-rooted: token elsewhere in the repo → exit 2" 2 \
+  "$(spe_rc "$SPE_REPO_B/src/x.md" CLAUDE_PROJECT_DIR="$SPE_REPO_B" "$SPE_AR=$SPE_REPO_B/notes")"
+# Home-rooted: the root is home, so it is cleared and every write is scanned.
+mkdir -p "$SPE/home/.claude/references"
+assert_exit "home-rooted, no option: token in a notes dir under home → exit 2" 2 \
+  "$(spe_rc "$SPE_B/home/.claude/references/x.md" CLAUDE_PROJECT_DIR="$SPE_B/home")"
+assert_exit "allowed roots, home-rooted: token in a listed notes dir under home → exit 0" 0 \
+  "$(spe_rc "$SPE_B/home/.claude/references/x.md" CLAUDE_PROJECT_DIR="$SPE_B/home" \
+    "$SPE_AR=$SPE_B/home/.claude/references")"
+# The dispatcher hands the option to the guard as it is.
+SPE_RC=0
+env HOME="$SPE/home" USERPROFILE= "$SPE_AR=$SPE_D" bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh \
+  hardcoded-path-check.sh block-windows-drive-tmp.sh <<<"$(write_json "$SPE_D/sub/x.md" "token = '$GH_PAT'")" \
+  >/dev/null 2>&1 || SPE_RC=$?
+assert_exit "allowed roots: dispatcher, token under D → exit 0" 0 "$SPE_RC"
+
+# --- skip gitignored
+SPE_G="$SPE/grepo"
+mkdir -p "$SPE_G/.work" "$SPE_G/src"
+git -C "$SPE_G" init -q
+printf '.work/\n' >"$SPE_G/.gitignore"
+printf 'x\n' >"$SPE_G/README.md"
+printf 'x\n' >"$SPE_G/.work/tracked.md"
+git -C "$SPE_G" add .gitignore README.md
+git -C "$SPE_G" add -f .work/tracked.md
+SPE_GB="$SPE_B/grepo"
+assert_exit "skip gitignored unset: token in an ignored file → exit 2" 2 "$(spe_rc "$SPE_GB/.work/x.md")"
+assert_exit "skip gitignored: token in an ignored file → exit 0" 0 "$(spe_rc "$SPE_GB/.work/x.md" "$SPE_GI=true")"
+assert_exit "skip gitignored: ignored, directory not made yet → exit 0" 0 \
+  "$(spe_rc "$SPE_GB/.work/new/deeper/x.md" "$SPE_GI=true")"
+for SPE_T in "$SPE_GB/src/x.md" "$SPE_GB/README.md" "$SPE_GB/.work/tracked.md" "$SPE_B/outside/x.md" \
+  "$SPE_GB/src/../.work/x.md"; do
+  assert_exit "skip gitignored: target '$SPE_T' → exit 2" 2 "$(spe_rc "$SPE_T" "$SPE_GI=true")"
+done
+assert_exit "skip gitignored: a value other than true → exit 2" 2 "$(spe_rc "$SPE_GB/.work/x.md" "$SPE_GI=TRUE")"
+if ln -s "$SPE_G/README.md" "$SPE_G/.work/link.md" 2>/dev/null && [[ -L "$SPE_G/.work/link.md" ]]; then
+  assert_exit "skip gitignored: an ignored symlink to a tracked file → exit 2" 2 \
+    "$(spe_rc "$SPE_GB/.work/link.md" "$SPE_GI=true")"
+else
+  echo "SKIP: skip gitignored symlink case (no symlink could be made on this host)"
+fi
+: >"$SPE_G/src/real.md"
+if ln "$SPE_G/src/real.md" "$SPE_G/.work/hl.md" 2>/dev/null; then
+  assert_exit "skip gitignored: an ignored hard link to a tracked-tree file → exit 2" 2 \
+    "$(spe_rc "$SPE_GB/.work/hl.md" "$SPE_GI=true")"
+else
+  echo "SKIP: skip gitignored hard-link case (ln could not make a hard link on this host)"
+fi
+assert_exit "skip gitignored, repo-rooted: ignored file → exit 0" 0 \
+  "$(spe_rc "$SPE_GB/.work/x.md" CLAUDE_PROJECT_DIR="$SPE_GB" "$SPE_GI=true")"
+assert_exit "skip gitignored, repo-rooted: not ignored → exit 2" 2 \
+  "$(spe_rc "$SPE_GB/src/x.md" CLAUDE_PROJECT_DIR="$SPE_GB" "$SPE_GI=true")"
+assert_exit "skip gitignored, home-rooted: ignored file → exit 0" 0 \
+  "$(spe_rc "$SPE_GB/.work/x.md" HOME="$SPE_G" CLAUDE_PROJECT_DIR="$SPE_GB" "$SPE_GI=true")"
+assert_exit "skip gitignored, home-rooted: not ignored → exit 2" 2 \
+  "$(spe_rc "$SPE_GB/src/x.md" HOME="$SPE_G" CLAUDE_PROJECT_DIR="$SPE_GB" "$SPE_GI=true")"
+nb_both "skip gitignored: NotebookEdit to an ignored notebook → exit 0" 0 "" \
+  "$(nb_json "$SPE_GB/.work/x.ipynb" "token = '$GH_PAT'")" "$SPE_GI=true"
+
+# --- the GitHub MCP lane is untouched by both options
+for SPE_P in "$SPE_D/x.md" ".work/x.md" "notes/x.md"; do
+  SPE_RC=0
+  env HOME="$SPE/home" USERPROFILE= "$SPE_AR=$SPE_D,$SPE_B/repo/notes" "$SPE_GI=true" bash "$HOOK" \
+    <<<"$(mcp_single_json "$SPE_P" "token = '$GH_PAT'")" >/dev/null 2>&1 || SPE_RC=$?
+  assert_exit "MCP create_or_update_file '$SPE_P' with both options set → exit 2" 2 "$SPE_RC"
+  SPE_RC=0
+  env HOME="$SPE/home" USERPROFILE= "$SPE_AR=$SPE_D,$SPE_B/repo/notes" "$SPE_GI=true" bash "$HOOK" \
+    <<<"$(mcp_push_json "$SPE_P" "k = '$AWS_TOKEN'")" >/dev/null 2>&1 || SPE_RC=$?
+  assert_exit "MCP push_files '$SPE_P' with both options set → exit 2" 2 "$SPE_RC"
+done
+
+# --- unset, the options start no process: a blocked Write spawns no resolver,
+# git or stat. Set, the same Write is judged, which shows the shim is on the
+# path the hook takes. The target is this hook's own file: it exists, so a stat
+# run regardless of the options would show, and it sits outside temp, so the
+# temp-tree decline spawns nothing. Judged, it still blocks: it is tracked.
+SPE_SHIM="$TEST_TMPDIR/spe-shim"
+SPE_LOG="$TEST_TMPDIR/spe-shim.log"
+mkdir -p "$SPE_SHIM"
+for SPE_BIN in realpath readlink cygpath git stat; do
+  SPE_REAL=$(command -v "$SPE_BIN") || continue
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "%%s\\n" %s >>"%s"\n' "$SPE_BIN" "$SPE_LOG"
+    printf 'exec "%s" "$@"\n' "$SPE_REAL"
+  } >"$SPE_SHIM/$SPE_BIN"
+  chmod +x "$SPE_SHIM/$SPE_BIN"
+done
+SPE_NT="$HOOK"
+((D1_WIN)) && SPE_NT=$(cygpath -l -m "$HOOK")
+: >"$SPE_LOG"
+assert_exit "options unset: shimmed blocked Write → exit 2" 2 "$(spe_rc "$SPE_NT" PATH="$SPE_SHIM:$PATH")"
+assert_eq "options unset: a blocked Write spawns no resolver, git or stat" "" "$(cat "$SPE_LOG")"
+: >"$SPE_LOG"
+assert_exit "skip gitignored set: shimmed Write to a tracked file → exit 2" 2 \
+  "$(spe_rc "$SPE_NT" PATH="$SPE_SHIM:$PATH" "$SPE_GI=true")"
+assert_contains "skip gitignored set: the shimmed Write ran git" "$(cat "$SPE_LOG")" "git"
 
 report

@@ -1013,6 +1013,7 @@ describe("size split sub-issues", () => {
   // shape them: a trusted child is admitted at its Size, Large included; an
   // untrusted one is refused at Small and at Large.
   const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
+  const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
   // admissionFacts sets splitParent only for a native parent in this
   // repository, with the lanes App id it was given (none when null).
   const vectorSpec = ({ child, parent, ...rest }) => {
@@ -1025,7 +1026,7 @@ describe("size split sub-issues", () => {
       editor: actorOf(child.editor),
       comments: [],
       ...(here
-        ? { splitParent: { number: child.parent.number, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments }, appId } }
+        ? { splitParent: { number: child.parent.number, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments.map(commentOf) }, appId } }
         : {}),
     };
   };
