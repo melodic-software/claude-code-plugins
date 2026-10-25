@@ -98,6 +98,12 @@ HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # The reconciler re-runs any failed lane run once; attempt 2 binds only when
 # attempt 1 failed on a usage limit.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# Or on a rejected credential or a spent key (run-claude-cli's lane-class):
+# like a usage limit, attempt 1 then left no verdict, so a re-run cannot trade
+# one review for another. These bind a re-run but do not start one
+# (rate_limited), since re-running before the secret or credit is fixed would
+# spend the one allowed attempt.
+INFRA_CLASS_RE = re.compile(r"\bclass=(?:auth|credit-stop)\b")
 # Or when the review's own post hit GitHub's API rate limit: the message opens
 # with this lane's publish-review failure line (ci-workflows publish.cjs `fail`)
 # whose detail, the request error's message, opens with GitHub's primary or
@@ -376,7 +382,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if first.get("conclusion") != "failure" or not rate_limited(
+        if first.get("conclusion") != "failure" or not rerun_binds(
             lane, _lane_job(lane, newest["id"], first)
         ):
             raise Unbound("rerun-not-allowed")
@@ -443,6 +449,17 @@ def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
         isinstance(a, Mapping)
         and a.get("annotation_level") == "failure"
         and limited(str(a.get("message") or ""))
+        for a in job["annotations"]
+    )
+
+
+def rerun_binds(lane: str, job: Mapping[str, Any]) -> bool:
+    """Whether attempt 1's lane `job` lets attempt 2 bind: a rate limit, or a
+    rejected credential or spent key (INFRA_CLASS_RE)."""
+    return rate_limited(lane, job) or any(
+        isinstance(a, Mapping)
+        and a.get("annotation_level") == "failure"
+        and INFRA_CLASS_RE.search(str(a.get("message") or ""))
         for a in job["annotations"]
     )
 

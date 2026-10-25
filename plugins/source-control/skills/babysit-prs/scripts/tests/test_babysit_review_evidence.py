@@ -564,6 +564,30 @@ class AttemptRuleTests(Base):
         result = self.bind([self.lane_run(first, self.ok(2))])
         self.assertTrue(result["claude-review"].bound)
 
+    def test_second_attempt_after_a_credential_or_credit_failure(self) -> None:
+        for cls, why in (
+            (
+                "auth",
+                "the Claude credential was rejected; the owner replaces the secret",
+            ),
+            ("credit-stop", "the key ran out of credits"),
+        ):
+            with self.subTest(cls=cls):
+                failed = dict(
+                    OTHER_FAILURE,
+                    message=f"claude-review: failure-class={cls}: {why}",
+                )
+                first = attempt("claude-review", S, 1, [failed], "failure")
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertTrue(result["claude-review"].bound)
+
+    def test_a_credential_failure_is_not_a_rate_limit(self) -> None:
+        failed = dict(
+            OTHER_FAILURE,
+            message="claude-review: failure-class=auth: the Claude credential was rejected",
+        )
+        self.assertFalse(ev.rate_limited("claude-review", {"annotations": [failed]}))
+
     def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
         first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
         result = self.bind([self.lane_run(first, self.ok(2))])
