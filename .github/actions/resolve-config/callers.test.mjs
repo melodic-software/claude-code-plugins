@@ -301,10 +301,16 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.deepEqual(workflow("intake-triage.yml").permissions, {}, "no workflow-level grant");
   assert.equal(job.concurrency["cancel-in-progress"], false);
   assert.notEqual(job.concurrency.group, jobs["intake-triage"].concurrency.group, "its own concurrency group");
-  const runs = (result, failed) => evaluate(job.if, { "needs.intake-triage.result": result, "needs.intake-triage.outputs.triage-failed": failed });
+  const runs = (result, failed, deferred = "") =>
+    evaluate(job.if, {
+      "needs.intake-triage.result": result,
+      "needs.intake-triage.outputs.triage-failed": failed,
+      "needs.intake-triage.outputs.triage-deferred": deferred,
+    });
   assert.equal(runs("success", "false"), true);
   assert.equal(runs("success", ""), true);
   assert.equal(runs("success", "true"), false, "a triage that did not run writes nothing");
+  assert.equal(runs("success", "", "true"), false, "a deferred triage wrote no lane comment");
   assert.equal(runs("failure", "false"), false, "a failed apply writes nothing");
   assert.equal(runs("skipped", ""), false);
 

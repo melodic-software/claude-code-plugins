@@ -292,7 +292,8 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   (each running item waited for, independent, or recorded in flight, OR none running), the
   root-equivalence refusal and the self-ignore guard run, and
   `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
-  `--previous <file>` or `--no-previous`. The path `new` printed is the ONE path used for every
+  `--previous <file>` or `--no-previous`, plus `--purpose "<purpose text>"` when the invocation
+  carried any. The path `new` printed is the ONE path used for every
   later step (`fill`, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
   for a missing or non-UUID session id → prompt-only path, reason stated; no interpreter →
   `validator unavailable: no python3/python on PATH` said in one line, the file written by

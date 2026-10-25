@@ -3,6 +3,25 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.3] - 2026-10-25
+
+### Added
+
+- Two eval cases check that a CI code review of a full-diff file larger than one Read still finds the bug: `code-review-large-diff-pages-to-end` puts it in an ordinary file in the diff's last third, `code-review-large-diff-middle-file` in a service file mid-diff ([evals](https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/review/evals)).
+
+## [1.3.2] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+- `view-bridge/wake.sh` is regenerated from `lib/session-bridge/wake.sh`, which now runs an optional `AFTER_APPLY` subcommand named in `session-bridge.conf` between `apply` and the watcher ([#9719](https://github.com/melodic-software/claude-code-plugins/issues/9719)). This plugin's conf names none, so its wake behaves as before.
+
+### Fixed
+
+- The session bridge now reports why its page server failed to start: `ensure-running` keeps the server's stderr in `.<name>-server.log` in the data dir, prints its last lines and exits non-zero.
+- `stop` ends the watcher whose command line names the full data-dir path, not one that shares the data dir's last path component, so it no longer stops another topic's watcher.
+
 ## [1.3.1] - 2026-10-24
 
 ### Fixed

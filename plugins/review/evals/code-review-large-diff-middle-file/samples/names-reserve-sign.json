@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking: src/services/product-service.js - reserveStock sets stockLevel to `product.stockLevel + quantity`, so reserving stock increases it. It should subtract.",
+      "why": "names the function and the sign"
+    },
+    {
+      "answer": "product-service.js (blocking): reserveStock adds the quantity instead of subtracting it, the same as releaseStock.",
+      "why": "paraphrase: adds instead of subtracting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No findings. The models, routes, services and utils follow one consistent pattern.",
+      "why": "missed the middle of the diff"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
