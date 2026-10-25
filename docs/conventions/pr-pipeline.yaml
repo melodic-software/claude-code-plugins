@@ -446,7 +446,9 @@ activities:
     # with no report, for three hours, and no open PR of the lanes App's or a
     # listed human's for it) once per version of the lane workflow files, then
     # on a backoff (three hours doubling, at most 24) with one comment it
-    # edits, never needs-human; and it hands an agent-ready issue whose
+    # edits, never needs-human (a run the token broker refused for the lanes
+    # kill switch re-fires on its own count and never spends that once); and
+    # it hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged back to intake
     # triage (`status: ready` and agent-ready off, which the hourly triage
     # sweep dispatches intake for), lifting only the needs-human
@@ -468,7 +470,12 @@ activities:
     # label, the Size, Complexity and Uncertainty issue fields, and
     # `status: ready` or `status: needs-decision`, read from the lane comment
     # the triage run posted, with a blocked-by edge for each open issue its
-    # `Blocked by:` line names. Only needs-human, a person's hold, the triage
+    # `Blocked by:` line names; an edge GitHub answers 403, 429 or 5xx for is
+    # missed, and the edges the run wrote are deleted, so work-unblock never
+    # reads a partial set: a ready verdict then lands without `status: ready`
+    # and is not admitted, so the hourly triage sweep runs intake again, and a
+    # 403 fails the job after every write.
+    # Only needs-human, a person's hold, the triage
     # run's own escalation, an untrusted setter, a hold set after an earlier
     # flagged verdict or with no readable earlier verdict, or the verdict
     # itself holds the issue, and the reasons
@@ -500,7 +507,10 @@ activities:
     # cannot perform, a split the model judges sound lists those items in the
     # refinement comment as checks a person runs, rewrites the issue body's
     # done-when to the rest plus a line pointing at that comment, lifts
-    # needs-decision and triages once more. One refinement per body version.
+    # needs-decision and triages once more. Neither lifts while the App's
+    # verdict comment lists a flag other than intent or records that an
+    # earlier flag is unknown; that hold stays for a person. One refinement
+    # per body version.
     # Never agent-ready or needs-human, and no new issue. A script, no model.
     # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/refine.mjs

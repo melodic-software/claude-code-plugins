@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "index-dead | SKILL.md | features/refunds/README.md does not exist",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    },
+    {
+      "answer": "```\nindex-dead | SKILL.md | features/refunds/README.md: no such file\n```\n\nCount: 1",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The index line for features/refunds/README.md points at a file that does not exist.",
+      "why": "names the finding in prose, without the line form only the check action defines"
+    },
+    {
+      "answer": "index-dead | features/refunds/README.md | no file",
+      "why": "wrong rule or path"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

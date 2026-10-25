@@ -50,8 +50,10 @@
 // whose untrusted-provenance label someone unlisted removed, is never
 // re-fired and gets no needs-human: admission's refusal reaches a person.
 //
-// On `schedule` it sweeps instead: every issue closed in the last
-// LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
+// On `schedule` it sweeps instead: every issue closed since the last
+// successful scheduled run that ran its labeling step began (less
+// SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS back; the full window when that
+// cannot be shown) goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
 // swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
@@ -96,6 +98,20 @@
 // the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
 // limit stop, so it never counts toward handing the issue to a person.
 //
+// A run the token broker refused for the lanes kill switch, at broker-check's
+// `Ask the broker whether the lane may run` or at a `Request the lane token`
+// step, is a breaker trip, not a fault in the issue or the lanes; only the
+// refused job's log names the reason (the jobs listing reads the same for a
+// workflow-modified refusal). It is re-fired limits.reset-clamp-min hours after
+// the run ended with a breaker record of its own, and after
+// limits.limit-stops-per-issue trips since a listed human last added
+// agent-ready or a run last reported, on the stranded backoff. A breaker
+// record never spends the once-per-version re-fire, never counts toward the
+// failed-mint bound and never raises another cause's backoff. Each run's log
+// is read once, from its one refused job and at most LOG_CAP_BYTES, and only
+// its failed step's last line counts: a refusal for another reason, or a log
+// that cannot be read, keeps the class it had before.
+//
 // When that label's run opened a pull request instead, the newest one the
 // lanes App opened from the issue's lane branch in this repository decides.
 // Merged with `Refs:` (the issue stays open with nothing to run) or closed
@@ -136,7 +152,10 @@
 //   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
 //                          must be a listed human (`issues` only)
 //   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
-//                          work-resolve-issue runs; unset skips the re-fire
+//                          work-resolve-issue runs, read a refused job's log,
+//                          and find the last sweep and its jobs;
+//                          unset skips the re-fire and uses the full window
+//   GITHUB_RUN_ID          this run, skipped when reading the last sweep
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -156,6 +175,7 @@ import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "..
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { splitParentClosed, splitRecord } from "../intake-triage/admit.mjs";
+import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -179,7 +199,26 @@ const STALE_STEP = "Stop on stale workflow files";
 const BLOCKER_STEP = "Wait for open blockers";
 // The admit job's step a run stops at for good on untrusted provenance.
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
-const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
+// broker-check's step, which asks the broker before any resolve-issue run job.
+const BROKER_STEP = "Ask the broker whether the lane may run";
+// request-lane-token's last line when the broker refuses it, in check mode
+// (BROKER_STEP) or token mode (MINT_STEP), and the runner's line that follows
+// it when the step fails. Only the reason word is read.
+const DENIAL = {
+  check: /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]lane-check-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)/,
+  token: /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]lane-token-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)/,
+};
+const STEP_FAILED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]Process completed with exit code [0-9]+\.$/;
+const BREAKER = "kill-switch";
+// The refused jobs' logs on 2026-10-24 were 45 KB (broker-check) and 94 KB
+// (apply-issue-patch); a longer one is left unread.
+const LOG_CAP_BYTES = 1_048_576;
+// work-unblock.yml's job and its step that runs this script. The kill switch
+// and a lane the config turns off skip the step and leave the run green, so
+// only this step's success shows a sweep ran.
+const SWEEP_JOB = "label-unblocked";
+const SWEEP_STEP = "Label the unblocked issues";
+const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // A person decides these; the lane never starts on them.
@@ -194,8 +233,11 @@ export const RECURRENCE_PREFIX = "This check failed on main again at `";
 const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
 // A work-resolve-issue run in any of these has not finished.
 const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
-// The sweep's window: three hourly runs overlap, so a missed run loses nothing.
+// The sweep's widest window, used when the last good sweep is unknown or
+// older: a missed run loses nothing up to this far back.
 export const LOOKBACK_HOURS = 3;
+// The sweep reads from this long before the last good sweep started.
+export const SWEEP_MARGIN_MIN = 15;
 // How long an agent-ready issue may sit with no run working on it.
 export const STRANDED_HOURS = 3;
 // The one comment per issue that says it keeps being re-fired on a backoff,
@@ -227,10 +269,11 @@ const reportError = (number, error) =>
 
 const isLabel = (event, kind) => event.event === kind && String(event.label?.name).toLowerCase() === LABEL;
 
-// A re-fire marker reads as outcome `refired` with its workflow key.
+// A re-fire marker reads as outcome `refired` with its workflow key, and
+// `breaker` when a kill-switch refusal caused it.
 const parseMarker = (body) => {
   const refire = REFIRED.exec(String(body ?? "")) ?? INFRA.exec(String(body ?? ""));
-  return refire ? { outcome: "refired", key: refire[1] } : parseOutcomeMarker(body);
+  return refire ? { outcome: "refired", key: refire[1], breaker: refire[2] !== undefined } : parseOutcomeMarker(body);
 };
 
 // The lanes App's outcome and re-fire markers on an issue, oldest first, each
@@ -312,6 +355,47 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
     return `${LABEL} was removed and ${READY} not added since`;
   }
   return null;
+}
+
+// Where the sweep's window starts and why: SWEEP_MARGIN_MIN before the last
+// successful scheduled run of this workflow (not the current one), no further
+// back than LOOKBACK_HOURS, and only when that run's SWEEP_STEP succeeded.
+// Anything else (an unreadable listing, no steps, a skipped step) gives the
+// full window, so a failed read re-processes and never skips.
+async function sweepSince({ actions, repo, now, runId }) {
+  const widest = now - LOOKBACK_HOURS * HOUR_MS;
+  if (!actions) {
+    return { since: widest, why: "no Actions token to read the last sweep" };
+  }
+  try {
+    const path = `/repos/${repo}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+    const runs = (await actions("GET", path))?.workflow_runs;
+    if (!Array.isArray(runs)) {
+      throw new Error("the workflow run listing has an unexpected shape");
+    }
+    const last = runs.find((run) => String(run.id) !== String(runId ?? ""));
+    const started = Date.parse(last?.run_started_at ?? last?.created_at);
+    if (!Number.isFinite(started) || started > now) {
+      return { since: widest, why: "no earlier successful sweep was found" };
+    }
+    const at = new Date(started).toISOString();
+    const from = started - SWEEP_MARGIN_MIN * 60_000;
+    if (from <= widest) {
+      return { since: widest, why: `the last successful run started ${at}, past the widest window` };
+    }
+    if (!RUN_ID.test(String(last.id))) {
+      throw new Error("the last successful run has no usable id");
+    }
+    const jobs = await jobLister(actions, repo)(last);
+    const swept = namedJobs(jobs, SWEEP_JOB).some((job) =>
+      (job?.steps ?? []).some((step) => step?.name === SWEEP_STEP && step.conclusion === "success"),
+    );
+    return swept
+      ? { since: from, why: `the last sweep started ${at}` }
+      : { since: widest, why: `the last successful run, started ${at}, shows no completed \`${SWEEP_STEP}\` step` };
+  } catch (error) {
+    return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})` };
+  }
 }
 
 // The issues closed at or after `since`. The listing's `since` filters on the
@@ -601,6 +685,11 @@ const strandedCause = {
 
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token.`;
 
+// The record of a re-fire after a kill-switch refusal, posted before the
+// label moves, once per re-fire.
+export const breakerComment = (key) =>
+  `<!-- work-unblock refired ${key} breaker -->\nThe token broker refused the work-resolve-issue run that \`${LABEL}\` started because the lanes kill switch was on, so it did no work. work-unblock removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits longer before each one, up to ${BACKOFF_CAP_HOURS} hours.`;
+
 // The backoff record of an issue whose re-fires on these workflow files keep
 // ending the same way: one comment per issue, edited on each re-fire.
 export const infraComment = (key, cause, refires) =>
@@ -647,13 +736,22 @@ async function laneRuns(actions, repo, number, addedAt) {
 // How every one of `runs` (completed) did no work in its latest attempt, or
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step fail (`mint-failed`, which
-// wins), was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
-// did not), or was skipped by the admit job's blocker gate (`blocked`: its
-// BLOCKER_STEP ran and pick-slot did not). A run another gate stopped before
-// its mint (an open closing PR, a reused branch) is none of these, so it is
-// never re-fired here.
-async function didNoWork(jobsOf, runs) {
+// wins), had the broker refuse it for the kill switch at broker-check or a
+// mint (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
+// resolve-issue did not), or was skipped by the admit job's blocker gate
+// (`blocked`: its BLOCKER_STEP ran and pick-slot did not). A broker-check
+// refusal for another reason, or one whose log gives none, is none of these.
+// A run another gate stopped before its mint (an open closing PR, a reused
+// branch) is none of these, so it is never re-fired here.
+async function didNoWork(jobsOf, refusalOf, runs) {
+  // A higher rank wins across runs; between equal ranks the first stays.
+  const rank = { capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
   let stalled = null;
+  const atLeast = (kind) => {
+    if (rank[kind] > (rank[stalled] ?? 0)) {
+      stalled = kind;
+    }
+  };
   for (const run of runs) {
     if (!RUN_ID.test(String(run.id))) {
       return null;
@@ -664,6 +762,9 @@ async function didNoWork(jobsOf, runs) {
       return null;
     }
     const named = (name) => namedJobs(jobs, name);
+    const failedAt = (job, name) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === "failure");
+    const checked = named("resolve-issue").find((job) => failedAt(job, BROKER_STEP));
+    const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const capped =
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
@@ -671,15 +772,42 @@ async function didNoWork(jobsOf, runs) {
     const blocked =
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
-    if (mints.some((step) => step.conclusion === "failure")) {
-      stalled = "mint-failed";
+    // One log per run: broker-check's when it refused, else the first failed mint's.
+    const refused = checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
+    if ((await refused) === BREAKER) {
+      atLeast("breaker");
+    } else if (minting) {
+      atLeast("mint-failed");
     } else if (capped) {
-      stalled ??= "capped";
+      atLeast("capped");
     } else if (blocked) {
-      stalled ??= "blocked";
+      atLeast("blocked");
     }
   }
   return stalled;
+}
+
+// The reason the broker refused `job`, from its log: the failed step's last
+// line before the runner's first `Process completed`, in `mode` (check or
+// token). Null when that line is no such refusal or the log cannot be read
+// within LOG_CAP_BYTES, or no log reader was given; the log is data, and no
+// other line of it is read.
+function refusalReader(jobLog, repo) {
+  return async (job, mode) => {
+    if (!jobLog || !RUN_ID.test(String(job?.id))) {
+      return null;
+    }
+    let log;
+    try {
+      log = await jobLog(repo, job.id, { maxBytes: LOG_CAP_BYTES });
+    } catch (error) {
+      console.log(`::warning title=label-unblocked::job ${job.id}'s log was not read: ${escapeCommand(error?.message ?? error)}`);
+      return null;
+    }
+    const lines = String(log ?? "").split("\n");
+    const end = lines.findIndex((line) => STEP_FAILED.test(line));
+    return end > 0 ? (DENIAL[mode].exec(lines[end - 1])?.[1] ?? null) : null;
+  };
 }
 
 // Each run's latest-attempt job listing, read once per run id.
@@ -909,7 +1037,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
+async function refireRefusal({ github, actions, jobLog, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
   if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -944,14 +1072,21 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   }
   // A record counts once the App added the label back at or after it; one
   // whose label write failed is finished by the next sweep, not posted again.
+  // A re-fire record on workflow files `key` other than a breaker trip's.
+  const refiredOn = (marker, key) => marker.outcome === "refired" && !marker.breaker && marker.key === key;
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
   // A re-fire past the first on these workflow files waits longer each time
   // (backoffDue from `since`), and its record is the one backoff comment,
   // edited in place, never a new comment or a hold.
   const backoff = (key, since, cause) => {
-    const first = Math.min(...markers.filter((marker) => marker.outcome === "refired" && marker.key === key).map((marker) => marker.at));
-    const refires = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= first).length;
+    const first = Math.min(...markers.filter((marker) => refiredOn(marker, key)).map((marker) => marker.at));
+    // Each breaker record's own re-add, the App's first after it (dated by
+    // when it was posted), is that trip's, not this cause's; the backoff
+    // comment's edits never move it.
+    const adds = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot);
+    const trips = new Set(markers.filter((marker) => marker.breaker).map((marker) => adds.find((event) => Date.parse(event.created_at) >= marker.at)));
+    const refires = adds.filter((event) => Date.parse(event.created_at) >= first && !trips.has(event)).length;
     const due = backoffDue(since, refires);
     if (now < due) {
       return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };
@@ -976,7 +1111,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
       return { reason: `${why}; a listed human's PR #${person.number} for it is open` };
     }
     const key = await workflowKey();
-    const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
+    const fired = markers.filter((marker) => refiredOn(marker, key));
     if (fired.some(relabeled)) {
       return backoff(key, since, strandedCause[cause]);
     }
@@ -999,11 +1134,21 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
   }
-  const stalled = await didNoWork(jobsOf, runs);
+  const stalled = await didNoWork(jobsOf, refusalReader(jobLog, repo), runs);
   if (stalled) {
-    const due = ended + limits["reset-clamp-min"] * HOUR_MS;
+    // Breaker trips since a listed human last added agent-ready or a run last
+    // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
+    const from = Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...events.filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
+      ...markers.filter((marker) => marker.outcome !== "refired").map((marker) => marker.at),
+    );
+    const trips = stalled === "breaker" ? markers.filter((marker) => marker.breaker && marker.at > from).length : 0;
+    const over = trips - limits["limit-stops-per-issue"];
+    const due = over >= 0 ? backoffDue(ended, over) : ended + limits["reset-clamp-min"] * HOUR_MS;
     if (now < due) {
-      return { reason: `its lane run did no work; it is re-fired after ${new Date(due).toISOString()}` };
+      const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
+      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
     }
     if (await wipCapped()) {
       return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
@@ -1016,17 +1161,17 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
     // goes on a backoff after limits.limit-stops-per-issue re-fires on these
     // workflow files, as a crash does after one. A WIP cap skip made no mint
     // attempt, and the cap and restarts-per-run bound it.
-    const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key).length;
+    const fired = markers.filter((marker) => refiredOn(marker, key)).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
       return backoff(key, ended, MINT_CAUSE);
     }
-    return { reason: null, resets: due, refire: key, recorded };
+    return { reason: null, resets: due, refire: key, recorded, stall: stalled };
   }
   if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(jobsOf, runs)) && !(await stoppedStale(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
   }
   const key = await workflowKey();
-  const recorded = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
+  const recorded = markers.filter((marker) => refiredOn(marker, key));
   if (recorded.some(relabeled)) {
     return stranded(ended, `already re-fired for workflow files ${key}`, "failed-again");
   }
@@ -1037,7 +1182,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read from the API this sweep; `read` lists the issue's
 // comments or events once, shared with the recurrence check.
-async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read }) {
+async function restartRefusal({ github, actions, jobLog, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read }) {
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
   const holds = labels.map((label) => String(label).toLowerCase()).filter((label) => HOLDS.has(label));
   // needs-human alone may be report-outcome's hold on a Refs PR, which the
@@ -1067,6 +1212,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
     return refireRefusal({
       github,
       actions,
+      jobLog,
       repo,
       number: issue.number,
       lastAdd,
@@ -1130,7 +1276,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"] }) {
+async function restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"] }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -1171,6 +1317,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
         (await restartRefusal({
           github,
           actions,
+          jobLog,
           repo,
           issue,
           bot,
@@ -1210,7 +1357,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, recurrence, recorded, handOff, pr, explained, release, infra } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, stall, recurrence, recorded, handOff, pr, explained, release, infra } of ready.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (handOff) {
       // The comment first, then the labels; agent-ready comes off last, so a
@@ -1242,7 +1389,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        await github("POST", `${base}/comments`, { body: refireComment(refire, cause) });
+        await github("POST", `${base}/comments`, { body: stall === "breaker" ? breakerComment(refire) : refireComment(refire, cause) });
       }
       if (infra) {
         await (infra.id === undefined
@@ -1267,7 +1414,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     const add = () => github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
     try {
       await add().catch(add);
-      const why = infra ? "re-fired on a backoff" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
+      const why = infra ? "re-fired on a backoff" : stall === "breaker" ? "re-fired after a kill-switch refusal" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
       console.log(`label-unblocked: #${number} ${why}`);
     } catch (error) {
       failed += 1;
@@ -1358,7 +1505,7 @@ const baseAdmission = (env) => {
     })());
 };
 
-export async function main({ env = process.env, github, actions, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
+export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -1387,11 +1534,15 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     const repo = env.GITHUB_REPOSITORY;
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
-    const closed = sweep
-      ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
-      : [Number(event.issue.number)];
     if (sweep) {
-      console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${LOOKBACK_HOURS} hours`);
+      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+    }
+    const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
+    const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];
+    if (sweep) {
+      const minutes = Math.round((now - window.since) / 60_000);
+      console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${minutes} minutes (${window.why})`);
     }
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
     const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
@@ -1405,8 +1556,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
-      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
-      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits, status });
+      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
