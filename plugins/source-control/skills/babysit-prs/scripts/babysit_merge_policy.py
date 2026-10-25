@@ -168,7 +168,8 @@ class UnattendedPolicy:
     one proceed, and it has no default, so no policy permits a merge by
     omission. `enabled` (Design T20) means the path is configured and no
     identity, credential, kill-switch or post-merge refusal stands; left None
-    it follows `reason`.
+    it follows `reason`. `promoted` is the promotion-evidence read for the
+    effective rung's cells, None when not read; a merge needs both.
     `agent_identity` is the configured `merge.agent-identity` login, stripped
     of surrounding whitespace, or None when unset or blank. `details` carries
     the readers' answers for the report; `inputs` carries what the later steps
@@ -179,6 +180,7 @@ class UnattendedPolicy:
     agent_identity: str | None = None
     details: Mapping[str, Any] | None = None
     enabled: bool | None = None
+    promoted: bool | None = None
     inputs: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
@@ -190,6 +192,7 @@ class UnattendedPolicy:
     def report(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
+            "promoted": self.promoted,
             "reason": self.reason,
             **(self.details or {}),
         }
@@ -1323,9 +1326,9 @@ class Demotion:
     active: bool
     reason: str | None
     records: tuple[int, ...]
-    # The newest record's creation (read by babysit_postmerge), and the newest
-    # human close among cleared records, which restarts the post-merge floor.
-    # Read only while no record holds.
+    # The newest record's creation, which restarts the promotion evidence
+    # window, and the newest human close among cleared records, which restarts
+    # the post-merge floor. Read only while no record holds.
     newest_created: datetime | None = None
     cleared_at: datetime | None = None
 
@@ -3963,6 +3966,169 @@ def with_contents(
     return tuple(read)
 
 
+# --- Promotion evidence -----------------------------------------------------------------------
+
+# The four babysit-loop options the resolver reads from the operator's managed
+# and user settings (operator-options.mjs), each naming a surface or the checker.
+PROMOTION_OPTIONS = (
+    "promotion_evidence_binding",
+    "promotion_evidence_root",
+    "promotion_evidence_source",
+    "promotion_evidence_checker",
+)
+# Optional options whose values are not local paths: the credential roots name
+# the probe host, so only the settings file they came from is checked.
+PROMOTION_SETTINGS_ONLY_OPTIONS = ("promotion_evidence_credential_roots",)
+PROMOTION_RESOLVER = (
+    Path(__file__).resolve().parents[2]
+    / "babysit-loop"
+    / "scripts"
+    / "resolve-promotion-evidence.mjs"
+)
+PROMOTABLE_CELLS = ("C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking")
+# The cells a merge rung needs effective-promoted (promotion-evidence-resolution.md
+# "Promotable cells and rung mapping"); `off` has none and never merges. No
+# work class is read.
+RUNG_CELLS = {
+    "C2": ("C2-auto-merge",),
+    "C3": PROMOTABLE_CELLS,
+}
+
+
+def _lane_writable(path: Path) -> bool:
+    """The lane user can write the path, or replace it through any directory
+    above it (written, or owned and so re-permissioned), as given or after
+    symlinks resolve. Raises `OSError` when the path does not exist."""
+    getuid = getattr(os, "getuid", None)
+    for candidate in {path.absolute(), path.resolve(strict=True)}:
+        for node in (candidate, *candidate.parents):
+            if os.access(node, os.W_OK):
+                return True
+            if getuid is not None and node.stat().st_uid == getuid():
+                return True
+    return False
+
+
+def _options_refusal(
+    options: dict[str, Any], writable: Callable[[Path], bool]
+) -> str | None:
+    """Why the option values the resolver reports, or the settings files they
+    came from, are not trusted: one is unreported, or the lane user can write
+    it or replace it through a directory above it. A lane that can rewrite the
+    evidence, the checker or the setting naming them decides `promoted`. A
+    reported settings-only option checks its settings file alone."""
+    for option in PROMOTION_OPTIONS:
+        entry = json_object(options.get(option))
+        value, source = entry.get("value"), entry.get("file")
+        if not isinstance(value, str) or not isinstance(source, str):
+            return f"option-unreported:{option}"
+        for label, path in (("evidence", value), ("settings", source)):
+            try:
+                if writable(Path(path)):
+                    return f"{label}-lane-writable:{option}"
+            except OSError:
+                return f"{label}-unreadable:{option}"
+    for option in PROMOTION_SETTINGS_ONLY_OPTIONS:
+        if option not in options:
+            continue
+        source = json_object(options.get(option)).get("file")
+        if not isinstance(source, str):
+            return f"option-unreported:{option}"
+        try:
+            if writable(Path(source)):
+                return f"settings-lane-writable:{option}"
+        except OSError:
+            return f"settings-unreadable:{option}"
+    return None
+
+
+def _window_start(at: datetime) -> str:
+    """`at` in the checker's strict form, whole seconds in UTC, rounded up so
+    the restart never lands before the demotion it stands for."""
+    at = at.astimezone(UTC)
+    if at.microsecond:
+        at = at.replace(microsecond=0) + timedelta(seconds=1)
+    return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@dataclass(frozen=True)
+class Promotion:
+    """Each promotable cell's effective state, or the fail-closed reason."""
+
+    cells: Mapping[str, str] | None
+    reason: str | None
+
+    def promoted(self, rung: str | None) -> bool:
+        needed = RUNG_CELLS.get(rung or "")
+        return bool(
+            self.cells
+            and needed
+            and all(self.cells.get(cell) == "promoted" for cell in needed)
+        )
+
+
+def worktree_roots(checkout: Path) -> list[str] | None:
+    """Every worktree of the checkout's repository, or None when git cannot
+    list them."""
+    try:
+        proc = run_command(
+            ["git", "-C", str(checkout), "worktree", "list", "--porcelain"],
+            allowed_executables=("git",),
+            check=False,
+        )
+    except (RuntimeError, ValueError, OSError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return [
+        line.removeprefix("worktree ")
+        for line in proc.stdout.splitlines()
+        if line.startswith("worktree ")
+    ]
+
+
+def read_promotion(
+    *,
+    checkout: Path,
+    window_start: datetime | None,
+    worktrees: Callable[[Path], list[str] | None] = worktree_roots,
+    writable: Callable[[Path], bool] = _lane_writable,
+) -> Promotion:
+    """Run the babysit-loop promotion resolver, which reads the four option
+    values from the operator's managed and user settings itself.
+
+    Every worktree of the checkout is a `--worktree-root`, so a surface in a
+    sibling worktree refuses. With a demotion record, `--window-start` is its
+    creation: the checker reads the source's events plus one `gate-failure`
+    per promotable cell then, so a cell stays unpromoted until it is
+    re-ratified after the demotion. A value the resolver reports, or the
+    settings file it came from, that the lane user can write refuses.
+    Anything doubtful is unpromoted."""
+    roots = worktrees(checkout)
+    if roots is None:
+        return Promotion(None, "worktrees-unreadable")
+    argv = ["node", str(PROMOTION_RESOLVER), "--checkout", str(checkout)]
+    for root in roots:
+        argv += ["--worktree-root", root]
+    if window_start is not None:
+        argv += ["--window-start", _window_start(window_start)]
+    try:
+        proc = run_command(argv, allowed_executables=("node",), check=False)
+        result = json_object(json.loads(proc.stdout))
+    except (RuntimeError, ValueError, OSError) as exc:
+        return Promotion(None, f"resolver-failed: {exc}")
+    if proc.returncode != 0 or result.get("failClosedReason") is not None:
+        return Promotion(None, str(result.get("failClosedReason") or "resolver-failed"))
+    refusal = _options_refusal(json_object(result.get("options")), writable)
+    if refusal:
+        return Promotion(None, refusal)
+    cells = {
+        cell: json_object(state).get("effective")
+        for cell, state in json_object(result.get("cells")).items()
+    }
+    return Promotion({c: str(v) for c, v in cells.items()}, None)
+
+
 @dataclass(frozen=True)
 class PostMergeGate:
     """The post-merge check's answer, as `assess()` consumes it: a refusal
@@ -4203,6 +4369,7 @@ def assess(
     acting_login: str | None = None,
     self_logins: Collection[str] = frozenset(),
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+    promotion: Callable[[datetime | None], Promotion] | None = None,
     authority: str = LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
@@ -4216,7 +4383,8 @@ def assess(
     `authority` is the caller's: the local babysit lane, or the pr-merge CI
     lane, which reads `lane_eligibility` in place of `eligibility` (and
     `dependabot_eligibility` for a Dependabot pull request, whose report-only
-    is `merge.dependabot.mode` short of `enforce`), the
+    is `merge.dependabot.mode` short of `enforce`), no
+    promotion evidence (D16: report-only, then the owner's live flip), the
     kill switch from `lane_kill_switch` (`kill_switch`), the rung cap from
     `lane_rung_cap` (`rung_cap`), and only its own
     merges in flight. The
@@ -4231,8 +4399,10 @@ def assess(
     `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
-    in-flight rule and the pull request's eligibility: each refuses a merge,
-    and all are reported, but an in-flight refusal of a pull request not in the merge queue stops the
+    in-flight rule, the promotion evidence for the rung (`RUNG_CELLS`; no
+    work class is read) and the pull request's eligibility: each refuses a
+    merge, and all are reported, but
+    an in-flight refusal of a pull request not in the merge queue stops the
     reads there.
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
@@ -4244,7 +4414,9 @@ def assess(
     bound to another candidate (`SHARED_BINDING_REFUSALS`); it must not raise.
     `human_gated`, the tracker's resolved human-gated role label, holds an
     adopted pull request in the lane (`adoption_refusal`); None adopts none.
-    With `stop_when_closed`, a pull request the REST record reads
+    `promotion(window_start)` reads the promotion evidence with the newest
+    demotion record's creation as the window restart; without it nothing is
+    promoted. With `stop_when_closed`, a pull request the REST record reads
     as merged refuses (`not_open_refusal`) once the identity and the readers
     the queue sweep needs are read, before the demotion and post-merge
     reads: the gate holds it on the same blocker.
@@ -4494,9 +4666,11 @@ def assess(
             identity,
             details,
             enabled=True,
+            promoted=True if lane else None,
             inputs=inputs,
         )
     if dependabot_pr:
+        promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = (
             dependabot_eligibility(
                 repo,
@@ -4508,12 +4682,14 @@ def assess(
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")
         )
+        promoted = True
         details["dependabot"] = {
             "mode": config.dependabot_mode,
             "majors": config.dependabot_majors,
             **(eligible.dependabot.report() if eligible.dependabot else {}),
         }
     elif lane:
+        promo = Promotion(None, "not-read-in-pr-merge-lane")
         # The trusted list at the default branch head, as its config is read
         # (owner decision Q22): a stacked pull request's base is its author's.
         trusted: tuple[tuple[int, ...], tuple[int, ...]] = ((), ())
@@ -4544,9 +4720,20 @@ def assess(
             ),
             **readers,
         )
+        promoted = True
     else:
+        promo = (
+            promotion(demotion.newest_created)
+            if promotion is not None
+            else Promotion(None, "promotion-unread")
+        )
         eligible = eligibility(repo, number, **readers)
+        promoted = promo.promoted(rung.rung)
     details.update(
+        promotion={
+            "cells": dict(promo.cells) if promo.cells is not None else None,
+            "reason": promo.reason,
+        },
         eligibility={
             "eligible": eligible.eligible,
             "reason": eligible.reason,
@@ -4573,10 +4760,19 @@ def assess(
     refusals = (
         (rung.rung == "off", f"rung-off:{rung.limited_by}"),
         (not flight.clear, f"in-flight:{flight.reason}"),
+        (
+            promo.cells is None and not lane,
+            f"promotion-unqualified:{promo.reason}",
+        ),
+        # The rung's promotion cells (owner decision Q21 option b on #9668):
+        # keyed by the rung, never by the pull request's work class.
+        (not promoted, f"promotion-unqualified:{rung.rung}"),
         *own,
     )
     reason = next((text for refused, text in refusals if refused), None)
-    return UnattendedPolicy(reason, identity, details, enabled=True, inputs=inputs)
+    return UnattendedPolicy(
+        reason, identity, details, enabled=True, promoted=promoted, inputs=inputs
+    )
 
 
 # --- Room for a native lane merge -------------------------------------------------------------

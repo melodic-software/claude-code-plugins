@@ -1019,13 +1019,22 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    config commit, or the newest human close of a demotion record when later). A refusal here or
    above leaves `unattended.enabled: false` and stops every later read.
 3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), the merges in flight (the
-   identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), and
-   eligibility. The rung and its cap are pacing caps: at any effective rung above off, no
-   promotion cell is needed, and the gate reads no promotion evidence. After a demotion record
-   closes, the rung returns with it; nothing re-ratifies a promotion cell first.
+   identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), the
+   promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
+   options from the operator's managed and user settings, never from arguments or the
+   environment), and eligibility. The cells are the effective rung's, never the pull request's
+   work class: rung C2 needs `C2-auto-merge`, rung C3 every C3 cell
+   (`promotion-unqualified:<rung>` otherwise); an unreadable or untrusted resolver refuses as
+   `promotion-unqualified:<reason>`. A settings file, or a binding, probe root, evidence source or
+   checker it names, that the lane user can write, or replace through any directory above it,
+   refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a
+   surface in a sibling worktree refuses too. After a demotion record the resolver's
+   `--window-start` adds a `gate-failure` per promotable cell at the record's creation, so no cell
+   stays promoted until it is re-ratified.
    Past an on rung, an in-flight refusal of a pull request that has no merge-queue entry of its
-   own and is not a Dependabot pull request stops the reads there: eligibility and step 4 are not
-   read, and the refusal is `in-flight:<reason>` as it would be
+   own and is not a Dependabot pull request stops the reads there: the promotion evidence,
+   eligibility, and step 4 are not read, `unattended.promoted` is `null` (`true` in the pr-merge
+   lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be
    after the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
    is still read in full.
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:

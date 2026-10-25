@@ -99,7 +99,8 @@ authority refuses every fork change request and every change request its automat
 the dependency manager did not open.
 
 The babysit unattended merge gate (`/source-control:babysit-prs`, its `--unattended` path) is
-another. It reads no class and no promotion evidence; its rung is a pacing cap. The one label it
+another. It reads no class; it needs its effective rung's promotion cells (rung C2 the `C2-auto-merge`
+cell, rung C3 every C3 cell), read by rung, never by class. The one label it
 reads by a class name is a trust hold: it refuses a change request whose linked item carries
 `work-class: untrusted-provenance`, or had that label removed by a non-human, and it needs the
 linked item vouched for by a human (written by one with write access, or given the admission

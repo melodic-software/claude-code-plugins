@@ -2771,6 +2771,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             (".github/**",), "c2-mechanical", require_verifier_verdict=True,
         )  # fmt: skip
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.verdicts: dict[int, ve.Evidence] = {}
         self.read = mock.Mock(
@@ -3405,6 +3406,7 @@ class TheSweepKeepsTheListingBound(unattended.Unattended):
             (".github/**",), "c2-mechanical", require_verifier_verdict=True,
         )  # fmt: skip
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.flight = policy.InFlight(False, "identity-entry-queued:#5")
         self.queued = [unattended.PR, 5]
