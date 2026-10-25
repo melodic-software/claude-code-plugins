@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "copied-recipe | SKILL.md | Launch: repeats the run-shop skill's steps instead of naming it",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    },
+    {
+      "answer": "copied-recipe | .claude/skills/control-shop/SKILL.md | Launch: the four start steps of run-shop (.claude/skills/run-shop/SKILL.md)",
+      "why": "the check action's <rule> | <path> | <detail> line for this finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Launch section copies the run-shop skill's steps instead of pointing to it.",
+      "why": "names the finding in prose, without the line form only the check action defines"
+    },
+    {
+      "answer": "copied-recipe | SKILL.md | Ready: the curl command",
+      "why": "wrong rule or path"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
