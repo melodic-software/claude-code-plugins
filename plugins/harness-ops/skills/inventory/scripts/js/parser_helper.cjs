@@ -39,11 +39,16 @@
 //     (passed directly to any call, `new` or tagged template), and escape
 //     (anything else: an alias, a literal holding it, a return, an operand,
 //     `await`, a loop iterable, a destructuring source, an export).
+//     `reads` are the other reads, each [kind, offset, top] with kind
+//     spread or member-read: they change nothing themselves, but the
+//     engine looks up names on the prototypes for them (`@@iterator`, the
+//     key read), which a patched prototype can answer with code.
 //     `declares` is whether `offset` names a plain `var`/`let`/`const`
 //     declarator of the variable. A module with a direct `eval` answers
 //     found false, since code inside the eval can write any name.
 //     -> {"id":5,"ok":true,"found":true,"declares":true,
-//         "writes":[["init",120,true]],"mutations":[["method-call",160,true]]}
+//         "writes":[["init",120,true]],"mutations":[["method-call",160,true]],
+//         "reads":[["spread",180,true]]}
 //   {"id":6,"op":"flow","module":"<key>","source":"...","start":{...}}
 //     Whether an array value stays unchanged inside the module, following
 //     it through aliases, returns, arguments and callbacks; `flow` below
@@ -388,7 +393,7 @@ function writes(req) {
   const v = lookup(entry, req);
   if (!v) return { ok: true, found: false };
   const parents = parentsOf(entry);
-  const out = { writes: [], mutations: [] };
+  const out = { writes: [], mutations: [], reads: [] };
   // A function or class declaration rebinds the name with no write
   // reference: `function f(e){function e(){}}` replaces the parameter.
   for (const d of v.defs) {
@@ -399,8 +404,10 @@ function writes(req) {
   for (const r of v.references) {
     const at = [r.identifier.start, r.from === entry.top];
     if (r.isWrite()) out.writes.push([writeKind(parents, r.identifier), ...at]);
-    const kind = r.isReadOnly() ? mutationKind(parents, r.identifier) : null;
+    if (!r.isReadOnly()) continue;
+    const kind = mutationKind(parents, r.identifier);
     if (kind) out.mutations.push([kind, ...at]);
+    else out.reads.push([parents.get(r.identifier).type === "SpreadElement" ? "spread" : "member-read", ...at]);
   }
   const declares =
     !req.top && v.defs.some((d) => d.type === "Variable" && d.name.start === req.offset && d.node.id === d.name);
@@ -416,6 +423,9 @@ const CALLBACK_SLOT = new Map([
     (m) => [m, null],
   ),
 ]);
+// The array methods whose result comes from ArraySpeciesCreate, which reads
+// the array's `constructor` and that constructor's @@species.
+const SPECIES = new Set(["slice", "map", "filter", "concat", "flat", "flatMap"]);
 const FUNCTIONS = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
 const FLOW_STEPS = 20000;
 
@@ -441,10 +451,14 @@ class Flow {
     this.seen = new Set();
     this.steps = 0;
     // The names the walk takes as built in: a method it calls on the
-    // array, a name it relies on the prototypes not holding, and what a
-    // coercion to a primitive looks up (`@@x` is `Symbol.x`). A module that
-    // may write one of them is a sink (`sinks`).
+    // array, a name it relies on the prototypes not holding, a key it reads
+    // as a value, and what the engine looks up on its own for a spread, a
+    // method building a new array, or a coercion to a primitive (`@@x` is
+    // `Symbol.x`). A module that may write one of them is a sink (`sinks`).
     this.trusted = new Set();
+    // How many leading indices the array holds as its own elements: an
+    // index read below it reaches no prototype.
+    this.own = 0;
   }
 
   coerces() {
@@ -496,7 +510,12 @@ class Flow {
     switch (parent?.type) {
       case "SpreadElement": {
         const holder = this.parents.get(parent)?.type;
-        if (holder === "ArrayExpression" || holder === "CallExpression" || holder === "NewExpression") return;
+        if (holder === "ArrayExpression" || holder === "CallExpression" || holder === "NewExpression") {
+          // The spread calls the array's @@iterator and that iterator's `next`.
+          this.trusted.add("@@iterator");
+          this.trusted.add("next");
+          return;
+        }
         break;
       }
       case "MemberExpression":
@@ -564,7 +583,11 @@ class Flow {
   // A member read on the array: a call of a method that never changes it,
   // or the member positions the mutation check already knows are safe. A
   // name neither Array.prototype nor Object.prototype holds reads
-  // undefined, so calling it throws before anything runs.
+  // undefined, so calling it throws before anything runs. A read in a
+  // value-only position trusts its key, since a getter the prototypes hold
+  // for it runs with the array as `this`, unless the array holds the key
+  // itself; a computed key the walk cannot name could be any key, so it is
+  // not followed.
   member(object, member) {
     const call = this.parents.get(member);
     const name = propertyName(member);
@@ -573,6 +596,12 @@ class Flow {
         this.trusted.add(name);
         // Array.prototype.toString calls this.join.
         if (name === "toString") this.trusted.add("join");
+        if (SPECIES.has(name)) {
+          this.trusted.add("constructor");
+          this.trusted.add("@@species");
+        }
+        // concat reads @@isConcatSpreadable on the array and each argument.
+        if (name === "concat") this.trusted.add("@@isConcatSpreadable");
         const slot = CALLBACK_SLOT.get(name);
         if (slot !== null && call.arguments.length) this.callback(call.arguments[0], slot);
         return;
@@ -584,6 +613,11 @@ class Flow {
     }
     const kind = memberKind(this.parents, object);
     if (kind) throw new Unresolved(`a ${kind} on the array`, member.start);
+    const key = keyName(member.property, member.computed);
+    if (key === null) throw new Unresolved("a read on the array by a key that names nothing", member.start);
+    // An array holds its own `length` and elements, so reading them reaches no prototype.
+    if (key === "length" || (/^(?:0|[1-9]\d*)$/.test(key) && Number(key) < this.own)) return;
+    this.trusted.add(key);
   }
 
   // The array as argument `index` of `call`: each function the callee can
@@ -812,6 +846,17 @@ function flow(req) {
     if (start.var) {
       const v = lookup(entry, { ...start, top: start.top === true });
       if (!v) throw new Unresolved(`\`${start.name}\` is not declared`, null);
+      // The elements of an array literal with no hole or spread, when the
+      // variable holds only it; the walk fails on anything that changes it.
+      const def = v.defs.length === 1 ? v.defs[0] : null;
+      const init = def?.type === "Variable" && def.node.id === def.name ? def.node.init : null;
+      if (
+        init?.type === "ArrayExpression" &&
+        init.elements.every((e) => e !== null && e.type !== "SpreadElement") &&
+        v.references.every((r) => !r.isWrite() || r.identifier === def.name)
+      ) {
+        walk.own = init.elements.length;
+      }
       walk.variable(v);
     } else if (Number.isInteger(start.param)) {
       const v = entry.top?.set.get(start.name);

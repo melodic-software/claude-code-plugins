@@ -543,8 +543,27 @@ class TestWritesQuery(unittest.TestCase):
         src = 'var pY=[1];var s="let pY;pY=[2];pY.push(3)";/*pY=[4]*/`pY=[5]`;'
         self.assertEqual(
             self._writes(src),
-            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+            {
+                "declares": True,
+                "writes": [("init", 4, True)],
+                "mutations": [],
+                "reads": [],
+            },
         )
+
+    def test_a_spread_or_a_value_only_member_read_is_a_read(self) -> None:
+        """Neither changes the array, but the engine looks names up on the
+        prototypes for both, so the caller still checks them."""
+        src = "var pY=[1];f(...pY);[...pY];x=pY.zz;"
+        self.assertEqual(
+            self._kinds(src, "reads"),
+            [
+                ("spread", "pY);[..."),
+                ("spread", "pY];x=pY"),
+                ("member-read", "pY.zz;"),
+            ],
+        )
+        self.assertEqual(self._kinds(src, "mutations"), [])
 
     def test_declares_is_only_a_plain_declarator(self) -> None:
         for src, at, declares in (
@@ -562,7 +581,12 @@ class TestWritesQuery(unittest.TestCase):
         src = "var pY=[1];function g(pY){pY=[2];pY.push(3)}"
         self.assertEqual(
             self._writes(src),
-            {"declares": True, "writes": [("init", 4, True)], "mutations": []},
+            {
+                "declares": True,
+                "writes": [("init", 4, True)],
+                "mutations": [],
+                "reads": [],
+            },
         )
 
     def test_offsets_are_positions_in_the_whole_source(self) -> None:
@@ -814,6 +838,38 @@ class TestFlowQuery(unittest.TestCase):
             got["trusted"],
             ["@@toPrimitive", "has", "join", "some", "toString", "valueOf"],
         )
+
+    def test_a_flow_trusts_what_the_engine_looks_up(self) -> None:
+        """A spread calls @@iterator and `next`; `map` and `concat` read
+        `constructor` and @@species, and `concat` @@isConcatSpreadable; a
+        value-only read looks its key up, except an array's own `length`
+        and elements. A computed key the walk cannot name could be any key."""
+        got = self._flow(
+            "var pY=[1];[...pY];pY.map((e)=>e);pY.concat([]);var z=pY.zz,n=pY.length;"
+        )
+        self.assertTrue(got["safe"], got)
+        self.assertEqual(
+            got["trusted"],
+            [
+                "@@isConcatSpreadable",
+                "@@iterator",
+                "@@species",
+                "concat",
+                "constructor",
+                "map",
+                "next",
+                "zz",
+            ],
+        )
+        self.assert_unsafe("var pY=[1];var z=pY[k];", "pY[k]")
+        # The literal's own elements reach no prototype; past them, or
+        # after a hole, an index read does.
+        for src, trusted in (
+            ('var pY=[1,2];var a=pY[1],b=pY["0"],c=pY[2];', ["2"]),
+            ("var pY=[1,,3];var a=pY[0];", ["0"]),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self._flow(src)["trusted"], trusted)
 
     def test_exports_lists_every_exported_name(self) -> None:
         src = "export var a=1,{b}=o;export function c(){}var d;export{d as e};"
