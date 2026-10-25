@@ -11,8 +11,9 @@
 //   2. For VALID replies, which name no commit (the model job commits
 //      nothing), finds the one commit apply-feedback-patch pushed: the lanes
 //      App's, after the select job's head, carrying the review-threads
-//      row's Lane-Activity trailer (isLaneFix). Confirms it changes a path in
-//      each VALID thread's own scope and that the branch changed no path outside the
+//      row's Lane-Activity trailer (isLaneFix). Confirms it changes each
+//      VALID thread's path, or a line its evidence cites in a file of the PR
+//      or the thread's scope (touchesThread), and that the branch changed no path outside the
 //      kept threads' scope (thread-scope.mjs) and none under
 //      .github/workflows/. With no such commit in that range and no patch
 //      written this round (a retry after a round whose fix landed but whose
@@ -235,13 +236,26 @@ export function lineChanged(patch, line) {
   return false;
 }
 
+// The files whose line the reply's `evidence` cites inside a hunk of the fix
+// (`patches`, by filename), among the pull request's files (`prPaths`) and
+// those inThreadScope allows for that one thread.
+function citedFiles(evidence, patches, thread, prPaths = new Set()) {
+  return new Set(
+    evidence
+      .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
+      .filter(([path, line]) => (prPaths.has(path) || inThreadScope(path, new Set([thread.path]), [thread])) && lineChanged(patches.get(path), line))
+      .map(([path]) => path),
+  );
+}
+
 // Whether a fix commit's changed files touch a thread ({ path, named_paths }):
-// a file inThreadScope allows for that thread alone apart from the PR's files,
-// a file the pull request already changes whose line the reply's evidence
-// cites inside a hunk of the fix (`cited`), so a finding on one file fixed in another of the PR's files
-// lands, or for a skill's SKILL.md any file under that skill's directory.
+// the path itself, a file its named_paths holds, a file citedFiles gives
+// (`cited`), so a finding fixed in another file of the PR or the thread's
+// scope lands only at a line its evidence cites, or for a skill's SKILL.md
+// any file under that skill's directory.
 function touchesThread(changed, thread, cited) {
-  if (changed.some((file) => cited.has(file) || inThreadScope(file, new Set([thread.path]), [thread]))) {
+  const named = Array.isArray(thread.named_paths) ? thread.named_paths : [];
+  if (changed.some((file) => file === thread.path || named.includes(file) || cited.has(file))) {
     return true;
   }
   const skillDir = SKILL_FILE.exec(thread.path)?.[1];
@@ -276,7 +290,8 @@ export async function earlierFixOf({ commits, appId, after, thread, evidence, cl
       continue;
     }
     const files = await filesOf(commit.sha);
-    if (!touchesThread(files.map((file) => file.filename), thread, new Set())) {
+    const patches = new Map(files.map((file) => [file.filename, file.patch]));
+    if (!touchesThread(files.map((file) => file.filename), thread, citedFiles(evidence, patches, thread))) {
       continue;
     }
     const later = new Set();
@@ -285,7 +300,6 @@ export async function earlierFixOf({ commits, appId, after, thread, evidence, cl
         later.add(file.filename);
       }
     }
-    const patches = new Map(files.map((file) => [file.filename, file.patch]));
     if (cites.some(([path, line]) => patches.has(path) && !later.has(path) && lineChanged(patches.get(path), line))) {
       return commit.sha;
     }
@@ -308,9 +322,10 @@ const claimedFixes = (reviewComments, appId) =>
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
 // exactly one fix commit (isLaneFix), and it must change, for every VALID
-// thread, a file inThreadScope allows for that thread alone, a file the PR
-// already changes at a line the reply's evidence cites, or for a thread on a
-// skill's SKILL.md any file in that skill's directory (touchesThread).
+// thread, its path, a file its named_paths holds, a file the PR already
+// changes or inThreadScope allows for that thread alone at a line the reply's
+// evidence cites, or for a thread on a skill's SKILL.md any file in that
+// skill's directory (touchesThread).
 // With no fix commit in the range and no patch written this round
 // (`patchWritten`, whose push then did not land), each VALID thread takes its
 // earlier fix on the PR instead (earlierFixOf, after the time `judgedAt` gives:
@@ -353,15 +368,8 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const commitFiles = (await api.getCommit(fixSha)).files ?? [];
     const changed = commitFiles.map((file) => file.filename);
     const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
-    // The pr_paths files whose cited line the fix commit changed.
-    const cited = (reply) =>
-      new Set(
-        reply.evidence
-          .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
-          .filter(([path, line]) => prPaths.has(path) && lineChanged(patches.get(path), line))
-          .map(([path]) => path),
-      );
-    if (!valid.every((reply) => touchesThread(changed, threadOf.get(reply.thread), cited(reply)))) {
+    const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths));
+    if (!valid.every((reply) => touches(threadOf.get(reply.thread), reply))) {
       return null;
     }
     for (const reply of valid) {
