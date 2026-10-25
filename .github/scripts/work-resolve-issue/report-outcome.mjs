@@ -10,10 +10,8 @@
 //             a closing one. The title is the run's Conventional
 //             Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
-//             the hold line when a human must merge it. The PR gets no class
-//             label: the work class lives on the issue only. It gets
-//             `eval: run` when the issue's done-when asks for a measured eval
-//             pass (eval-pass.mjs), which starts that eval. The merge gate reads no
+//             the hold line when a human must merge it. The PR gets no label:
+//             the work class lives on the issue only. The merge gate reads no
 //             work class and treats every lane PR as C2, so the hold line
 //             carries the class floor. The body fills the PR body contract's
 //             sections from the outcome's summary, changes, verification and
@@ -104,7 +102,6 @@ import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { EVAL_RUN_LABEL, needsMeasuredEval } from "./eval-pass.mjs";
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
@@ -1500,14 +1497,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       } else {
         console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
-        // The label starts the PR's eval run; a failed write leaves the PR
-        // open without it, for a person to add.
-        if (needsMeasuredEval(issue.body)) {
-          await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [EVAL_RUN_LABEL] }).then(
-            () => console.log(`report-outcome: labeled PR #${pull.number} ${EVAL_RUN_LABEL}`),
-            (error) => console.log(`::warning title=report-outcome::could not label PR #${pull.number} ${EVAL_RUN_LABEL}: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`),
-          );
-        }
         return 0;
       }
     }

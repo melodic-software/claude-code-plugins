@@ -23,12 +23,15 @@ name: eval-browser-dispatch
 # (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
 # a dispatcher must be a listed human; on a pull request check-trusted-trigger
 # holds the PR author, the event actor and any re-runner to the trusted-actor
-# list, and the label must come from a listed human or the lanes App. The org
-# kill switch is read before the model step, the job token can only read, and
-# each run gets a fresh runner. No write token exists in this job. Scripts and
-# actions run from the default branch; a pull request supplies only the plugin
-# under test, and one that changes what runs when that plugin loads (hooks,
-# manifest, server config) is refused.
+# list, and the label must come from a listed human. The org kill switch is
+# read before the model step, the job token can only read, and each run gets a
+# fresh runner. No write token exists in this job. Scripts and actions run from
+# the default branch; a pull request supplies only the plugin under test. The
+# changed paths come from the checked-out head's own git diff, and
+# select-plugins.mjs lets a selected plugin through only when every change is
+# allowlisted: under evals/, or markdown under skills/ or agents/ that keeps its
+# non-descriptive frontmatter and adds no shell preprocessing. Anything else is
+# refused.
 #
 # The credential is the maintenance role's subscription token. When the secret
 # is empty the job ends with a notice and runs nothing.
@@ -93,8 +96,13 @@ on:
 
 permissions: {}
 
+# Only an `eval: run` label event shares its pull request's group; any other
+# event gets a group of its own, so a different label cannot replace a pending
+# re-run.
 concurrency:
-  group: eval-${{ github.event.pull_request.number || github.run_id }}
+  group: >-
+    eval-${{ github.event_name == 'pull_request' && github.event.label.name == 'eval: run'
+    && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -113,7 +121,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read # check out the repository; nothing in this job writes
-      pull-requests: read # the pull request and its changed files
+      pull-requests: read # check-trusted-trigger reads the pull request
       actions: read # check-trusted-trigger reads this run's re-runner
     steps:
       # The default branch tip; on a dispatch, the dispatched commit, which the
@@ -187,7 +195,8 @@ jobs:
           triggering-actor: ${{ github.triggering_actor }}
 
       # check-trusted-trigger accepts any listed actor; the label that spends
-      # the credential must come from a listed human or the lanes App.
+      # the credential must come from a listed human, so a person opts in to
+      # each run.
       - name: Stop on an untrusted pull request trigger
         if: github.event_name == 'pull_request'
         env:
@@ -195,19 +204,13 @@ jobs:
           REASON: ${{ steps.gate.outputs.reason }}
           LIST: .base/.github/standards/trusted-actors/trusted-actors.json
           SENDER_ID: ${{ github.event.sender.id }}
-          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
           if [ "$PROCEED" != true ]; then
             echo "::error::the trigger is not trusted (reason: ${REASON:-unreadable})"
             exit 1
           fi
-          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
-            exit 1
-          fi
-          if [ "$SENDER_ID" != "$APP_SENDER_ID" ] &&
-            ! jq -e --argjson id "$SENDER_ID" 'any(.actors[]; .id == $id and .kind == "human")' "$LIST" >/dev/null; then
-            echo "::error::untrusted-actor: the 'eval: run' label came from neither a listed human nor the lanes App"
+          if ! jq -e --argjson id "$SENDER_ID" 'any(.actors[]; .id == $id and .kind == "human")' "$LIST" >/dev/null; then
+            echo "::error::untrusted-actor: the 'eval: run' label did not come from a listed human"
             exit 1
           fi
 
@@ -224,16 +227,29 @@ jobs:
             echo "present=false" >>"$GITHUB_OUTPUT"
           fi
 
-      # The pull request's changed files choose the plugins; the target input
-      # does on a dispatch. Each line of `plugins` is a plugins/<name> path.
+      # The plugin under test on a pull request: the label-time head, with full
+      # history so the next step diffs this same commit against its base. A
+      # checkout runs no code from it.
+      - name: Check out the pull request head
+        if: steps.credential.outputs.present == 'true' && github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: .head
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The checked-out head's diff from its merge base with the pull
+      # request's base chooses the plugins; the target input does on a
+      # dispatch. Each line of `plugins` is a plugins/<name> path.
       - name: Choose the plugins
         id: plugins
         if: steps.credential.outputs.present == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           TARGET: ${{ inputs.target }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT" = workflow_dispatch ]; then
             target=${TARGET%/}
@@ -243,10 +259,11 @@ jobs:
             fi
             selected=$target
           else
-            files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-              --jq '.[] | .filename, (.previous_filename // empty)')
-            selected=$(printf '%s\n' "$files" | node .base/.github/scripts/plugin-eval/select-plugins.mjs) || {
-              echo "::error::the pull request changes what runs when a selected plugin loads, so its suite does not run with the credential"
+            merge_base=$(git -C .head merge-base "$BASE_SHA" "$HEAD_SHA")
+            files=$(git -C .head diff --no-renames --name-only "$merge_base" "$HEAD_SHA")
+            selected=$(printf '%s\n' "$files" |
+              node .base/.github/scripts/plugin-eval/select-plugins.mjs --repo .head --base "$merge_base" --head "$HEAD_SHA") || {
+              echo "::error::the pull request changes more of a selected plugin than its suite may run with the credential"
               exit 1
             }
           fi
@@ -261,15 +278,6 @@ jobs:
             echo "$selected"
             echo "EOF"
           } >>"$GITHUB_OUTPUT"
-
-      # The plugin under test: the dispatched commit, or the pull request head.
-      - name: Check out the pull request head
-        if: steps.plugins.outputs.go == 'true' && github.event_name == 'pull_request'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: .head
-          persist-credentials: false
 
       # validate-cases.py makes no model call. A FAIL is a case the binary
       # rejects at load, so the job stops before any spend. On a deterministic

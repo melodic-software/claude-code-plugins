@@ -1203,9 +1203,10 @@ that lane's own invocation overrides it. Remove the label to release the PR.
 [`eval-browser-dispatch.yml`](../../../.github/workflows/eval-browser-dispatch.yml) on a
 same-repository, non-draft PR: the suite of each plugin whose `skills/`, `agents/` or `evals/` the
 PR changes, deterministic graders only, under `--max-cost-usd`, with a PASS or NOT COMPARABLE
-verdict per case in the job summary. The work-resolve-issue lane adds it when it opens a PR for an
-issue whose done-when asks for a measured eval pass; a listed human adds it by hand. It is advisory:
-no required check reads it. Add the label again to run the current head.
+verdict per case in the job summary. Only a listed human's label starts a run, and a selected plugin
+that changes anything but its `evals/` and the markdown in its `skills/` or `agents/`, or that
+changes a skill's or agent's tool, hook or shell settings, is refused. It is
+advisory: no required check reads it. Add the label again to run the current head.
 
 ```bash
 gh pr edit <n> -R "$R" --add-label "eval: run"
