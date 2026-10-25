@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Driver gap: the form sends once a subject is typed. This pass is unattended, so I write nothing in cli/ and drive nothing again; the report carries the proposed --subject fix to cli/clockwork send-invoice, unwritten, for a person to review.",
+      "why": "names the driver gap class"
+    },
+    {
+      "answer": "**Triage class:** Driver gap. The fix stays in the report.",
+      "why": "labels the class in bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Product regression: sending an invoice fails, so the entry stays and it goes to the report.",
+      "why": "calls a CLI gap a regression"
+    },
+    {
+      "answer": "Triage: product regression, not a driver gap; the send fails against a healthy app.",
+      "why": "names driver gap only to reject it"
+    }
+  ]
+}
