@@ -15,7 +15,9 @@ Two independent verifiers over the full digest set, fresh context, production ra
   unavailable, dispatch verifier A through the Agent tool instead, as a non-fork spawn, passing
   `effort` on that call on the same terms as the Workflow call. On either route the verdict header
   records the effective effort and where it came from. If the effective effort is below `medium`,
-  stop Phase 4 and report it instead of verifying.
+  stop Phase 4 and report it instead of verifying. An effort the arm shows only as a marker no
+  record maps to a level (an in-context `reasoning_effort` number, say) is not known to be below
+  `medium`: record it `requested <level>, unconfirmed` with the marker beside it, and continue.
   - **Pointer**: for the Workflow route only, `docs/plugin-philosophy.md` "Effort tiers", the
     "Where per-task effort is set" record, in the marketplace repository; no docs page covers
     per-call Workflow effort.
