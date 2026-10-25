@@ -1198,6 +1198,18 @@ successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there
 verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
 `enable-auto-merge.mjs`'s, whose reader arms nothing they refuse.
 
+The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
+already carries `work-class: untrusted-provenance`. At arm time, `enable-auto-merge` refuses it
+through `evidence --lane-link`. In the merge queue, `ci-status`'s step `Fail a queued pull request
+carrying a hold label` reads the queued pull request's linked issue when an automation opened the
+pull request. The linked issue is its closing issues here, or with none, the one issue its plain
+`Refs:` lines name, by the base's `refsIssue`. The step fails when that issue carries a label
+containing `untrusted` in any case, or had one removed by anyone other than a person on the base's
+trusted-actor list, or through an App. An unreadable link, label list, timeline or trusted-actor
+list fails closed. So a label added after the pull request opened, while it waits to be armed or
+sits in the queue, stops the merge, and a person on that list lifts it by removing the label and
+re-queuing. A person's own pull request is not read.
+
 ### Dependabot pull requests
 
 No Dependabot pull request waits on a human

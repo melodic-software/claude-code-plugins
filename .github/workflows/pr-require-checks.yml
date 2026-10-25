@@ -4312,7 +4312,13 @@ jobs:
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
       # dequeue the pull request as well. An unparsable ref, an unreadable
-      # tracker config or an unreadable label list fails closed. Pinned by
+      # tracker config or an unreadable label list fails closed. For a pull
+      # request an automation opened it then applies the trust hold to its
+      # linked issue (comment in the body). report-outcome's Hold: line covers
+      # the label at PR open and enable-auto-merge at arm time, so this holds a
+      # label added after either: one GraphQL read, a labels read for a Refs
+      # issue, and one timeline read per linked issue; an unreadable one, or
+      # the base's trusted-actor list unreadable, fails closed. Pinned by
       # scripts/ci-hold-merge-group.test.sh, which runs this body.
       - name: Fail a queued pull request carrying a hold label
         if: github.event_name == 'merge_group'
@@ -4363,6 +4369,95 @@ jobs:
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+          # The trust hold, for a pull request an automation opened: its linked
+          # issue (babysit_merge_policy._linked_issue: the closing issues here,
+          # or with none, the one issue its plain `Refs:` lines name, by the
+          # base's merge-holds.mjs refsIssue) carries no label naming untrusted
+          # work, and none was ever removed other than by a person on the base's
+          # trusted-actor list, not through an App (_untrusted,
+          # _untrusted_removed_by_non_human).
+          # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
+          read3() {
+            local attempt
+            for attempt in 1 2 3; do
+              gh_read "$@" && return 0
+              [ "$attempt" -lt 3 ] || return 1
+              sleep $((attempt * 5))
+            done
+          }
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){author{__typename} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
+            -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
+            echo "::error::could not read the issue link of #$pr; re-run this run."
+            exit 1
+          }
+          author=$(jq -er '.data.repository.pullRequest.author.__typename | strings' <<<"$link") || {
+            echo "::error::the author of #$pr could not be read; re-run this run."
+            exit 1
+          }
+          if [ "$author" = User ]; then
+            echo "#$pr is a person's pull request, which the trust hold does not read."
+            exit 0
+          fi
+          closing=$(jq -ec '.data.repository.pullRequest.closingIssuesReferences | objects | select(.totalCount == (.nodes | length))' <<<"$link") || {
+            echo "::error::the closing issues of #$pr could not all be read; a person merges it."
+            exit 1
+          }
+          # One "<number> <label names as JSON, or null when cut>" line per issue.
+          issues=$(jq -r --arg repo "$GITHUB_REPOSITORY" '.nodes[]
+            | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase))
+            | "\(.number) \(if .labels.totalCount == (.labels.nodes | length) then [.labels.nodes[].name] | tojson else "null" end)"' <<<"$closing")
+          if [ "$(jq -r .totalCount <<<"$closing")" = 0 ]; then
+            jq -r '.data.repository.pullRequest.body // ""' <<<"$link" >"$RUNNER_TEMP/queued-body.txt"
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            refs=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { refsIssue } = await import(pathToFileURL(process.argv[2]).href);
+              console.log(refsIssue(readFileSync(process.argv[1], "utf8")) ?? "");' \
+              "$RUNNER_TEMP/queued-body.txt" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || {
+              echo "::error::the Refs line of #$pr could not be read with merge-holds.mjs at $BASE_SHA; re-run this run."
+              exit 1
+            }
+            if [ -n "$refs" ]; then
+              names=$(read3 "repos/$GITHUB_REPOSITORY/issues/$refs/labels?per_page=100" --paginate --jq '.[].name') || {
+                echo "::error::could not read the labels of issue #$refs, which #$pr names; re-run this run."
+                exit 1
+              }
+              issues="$refs $(jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$names")"
+            fi
+          fi
+          if [ -z "$issues" ]; then
+            echo "#$pr links no issue in this repository for the trust hold to read."
+            exit 0
+          fi
+          humans=$(jq -ec '[.actors[] | select(.kind == "human" and (.id | type) == "number") | .id]' \
+            "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || {
+            echo "::error::could not read trusted-actors.json at $BASE_SHA; re-run this run."
+            exit 1
+          }
+          while read -r number names; do
+            if [ "$names" = null ]; then
+              held=1
+              echo "::error::the labels of issue #$number, which #$pr links, could not all be read (issue-labels-unreadable); a person merges it."
+              continue
+            fi
+            if jq -e 'any(.[]; ascii_downcase | contains("untrusted"))' <<<"$names" >/dev/null; then
+              held=1
+              echo "::error::issue #$number, which #$pr links, carries a label naming untrusted work (untrusted-provenance); the merge queue removes #$pr. A person on the trusted-actor list removing the label lifts it; re-queue to merge."
+              continue
+            fi
+            events=$(read3 "repos/$GITHUB_REPOSITORY/issues/$number/timeline?per_page=100" --paginate --jq '.[] | select(.event == "unlabeled") | @json') || {
+              echo "::error::could not read the timeline of issue #$number, which #$pr links; re-run this run."
+              exit 1
+            }
+            if jq -se --argjson humans "$humans" 'any(.[]; (.label.name // "" | ascii_downcase | contains("untrusted"))
+              and (.actor.type != "User" or .performed_via_github_app != null or (.actor.id as $id | any($humans[]; . == $id) | not)))' <<<"$events" >/dev/null; then
+              held=1
+              echo "::error::a label naming untrusted work was removed from issue #$number, which #$pr links, by someone not on the trusted-actor list or through an App (untrusted-provenance-removed-by-non-human); a person merges it."
+            fi
+          done <<<"$issues"
+          [ "$held" -eq 0 ] || exit 1
+          echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails
