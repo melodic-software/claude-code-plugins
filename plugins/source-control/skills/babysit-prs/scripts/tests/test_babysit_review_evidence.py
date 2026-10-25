@@ -591,6 +591,27 @@ class AttemptRuleTests(Base):
                 result = self.bind([self.lane_run(first, self.ok(2))])
                 self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
+    def test_publish_rate_limit_line_below_the_first_line(self) -> None:
+        quoted = dict(
+            OTHER_FAILURE,
+            message="failure-class=incomplete: no review; the log quoted\n"
+            + PUBLISH_RATE_LIMIT["message"],
+        )
+        first = attempt("claude-review", S, 1, [quoted], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_publish_rate_limit_line_of_another_lane(self) -> None:
+        other_lane = dict(
+            PUBLISH_RATE_LIMIT,
+            message=PUBLISH_RATE_LIMIT["message"].replace(
+                "claude-review:", "claude-security-review:", 1
+            ),
+        )
+        first = attempt("claude-review", S, 1, [other_lane], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
     def test_rate_limit_text_outside_a_publish_failure_line(self) -> None:
         other = dict(
             OTHER_FAILURE,

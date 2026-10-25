@@ -356,7 +356,7 @@ test("an unchanged person's refusal is not posted again", () => {
     { clears: "person", reason: HOLD_PATH_REASON },
     { bot: LANES.login, label: "needs-human", minutes: 60, now: Date.parse("2026-10-23T11:00:00Z") },
   );
-  assert.equal(writes.body, null);
+  assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
 });
 
 test("a lane's refusal over a person's comment still edits it, with no label", () => {

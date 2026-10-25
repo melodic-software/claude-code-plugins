@@ -1008,10 +1008,7 @@ minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalat
 rewrites that comment once to end with a line saying the refusal persisted and needs a person, then
 adds the tracker's human-gated role label when no label matches it ignoring case, so the pull
 request leaves the WIP count and reaches the attended queue. The rewrite dates the comment beside
-the label, which the head-moved clear needs to pair them. Under `merge.lane-prs` `native`,
-`enable-auto-merge` escalates a lanes App pull request instead, and posts the escalation to a
-person as a new comment rather than rewriting its earlier one, since an edit notifies no one and
-keeps the comment's old date. The minimum lets a review still
+the label, which the head-moved clear needs to pair them. The minimum lets a review still
 running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
 restart the time; a new head, or a score back at LOW, writes no label. A LOW score rewrites a
 refusal comment naming that head, unless it is escalated, to say the refusal no longer holds, so a
@@ -1024,7 +1021,9 @@ run that finds the comment unchanged (same head and reasons) adds no label. A re
 the lanes App included, by an account off that list, or made through a GitHub App
 (`performed_via_github_app`) lifts nothing, and a new head or new
 reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
-escalations.
+escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes App pull
+request instead, and posts the escalation to a person as a new comment rather than rewriting its
+earlier one, since an edit notifies no one and keeps the comment's old date.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also
