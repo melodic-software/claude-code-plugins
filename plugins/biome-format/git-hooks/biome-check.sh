@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # biome-format pre-commit check: rewrite the staged JavaScript, TypeScript and
 # JSON files, then report what Biome still finds on the lines this commit adds.
 #
@@ -27,14 +27,19 @@
 # else the repository root), else PATH. Missing biome follows the check-placement
 # contract in every mode: checks.skipmissing, else fail for an agent and a notice
 # for a person.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 
 checks_init pre-commit "$@" || exit 0
 

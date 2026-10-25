@@ -766,11 +766,12 @@ rewrites a cache directory whose version number has not moved. So both actions r
 the remediation and stop. Emit SKILL.md's `Cache content:` row, and omit it entirely when the check
 found nothing.
 
-The check reads the marketplace clone at the recorded commit. It never fetches one it does not
-have, since that would be a network mutation and would repair the very condition being reported, so
-an install whose sha is not in the clone is reported as `sha-not-local` and counted as unverifiable,
-not as a pass. A report in which most installs are unverifiable has established very little; say so
-rather than leading with the match count.
+The check compares only installs recorded at the marketplace clone's HEAD. It never fetches a
+commit, since that would be a network mutation and would repair the very condition being reported,
+so an install recorded at any other commit is reported as `not-at-head` and counted in
+`not_checked`, never as a pass and never as unverifiable. The rendered row says `N not checked
+(recorded at an older commit)`. A report in which most installs are not checked has established
+very little; say so rather than leading with the match count.
 
 ## Step 6: Report
 

@@ -103,7 +103,9 @@
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ, unreleased_changes}` per stale install, the last
-#   true when the clone holds `.changes/<plugin>/`. `in_repo.live_read[]` is
+#   true when the clone holds `.changes/<plugin>/`; `cache_content.not_checked`
+#   counts the installs recorded at a commit other than the clone's HEAD, which
+#   the checker does not compare. `in_repo.live_read[]` is
 #   `{id, scope, installed, path}`, filled under --audit only, for each in-repo
 #   record of a marketplace whose `directory` source is the run's own project
 #   root (or a folder under it): the CLI reads that folder live and will not
@@ -1635,6 +1637,7 @@ cache_content_block() {
   # compared.
   if ((rc == 0)) && jq -e 'has("checked")' "$report" >/dev/null 2>&1; then
     jq_to CACHE_JSON -c '{scope: (.scope // "user"), checked, match, stale_content, unverifiable,
+      not_checked: (.not_checked // 0),
       stale_ids: [.installs[]? | select(.verdict == "stale-content") | .id],
       stale: [.installs[]? | select(.verdict == "stale-content")
               | {id, version, files_differ: ((.differing // 0) + (.missing_from_cache // 0)
@@ -1657,7 +1660,7 @@ cache_content_block() {
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to CACHE_JSON -c -n --argjson ids "$ids" \
     '{scope: "user", checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
-      stale_ids: $ids,
+      not_checked: null, stale_ids: $ids,
       stale: ($ids | map({id: ., version: null, files_differ: null, unreleased_changes: null})),
       source: "ids-fallback"}'
 }
