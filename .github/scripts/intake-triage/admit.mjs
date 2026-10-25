@@ -122,8 +122,10 @@ export async function stillBlocking(blockers, repository, isTrusted, elsewhere =
   }
   const untrusted = [];
   for (const blocker of blockers) {
-    const trusted = here(blocker.repository_url, repository) ? isTrusted(Number(blocker.number)) : elsewhere(blocker);
-    if (!blocker.pull_request && !(await trusted)) {
+    if (blocker.pull_request) {
+      continue;
+    }
+    if (!(await (here(blocker.repository_url, repository) ? isTrusted(Number(blocker.number)) : elsewhere(blocker)))) {
       untrusted.push(blocker);
     }
   }

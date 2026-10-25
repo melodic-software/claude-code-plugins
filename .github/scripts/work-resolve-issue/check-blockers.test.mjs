@@ -116,6 +116,36 @@ test("every blocker done, or none, runs: a merged pull request, an issue a liste
   assert.deepEqual((await run([])).outputs, RUN);
 });
 
+test("a merged pull request blocker costs no trust read, so a read that would fail never crashes the run", async () => {
+  const blockers = [issue(8, "closed"), pull(9, true)];
+  const { code, calls, outputs } = await run((path) => {
+    if (path === "/repos/o/r/issues/9") {
+      throw new Error("GET failed: 502");
+    }
+    if (path === "/repos/o/r/issues/42") {
+      return { number: 42, state: "open", labels: [] };
+    }
+    if (path.includes("/events")) {
+      return [];
+    }
+    if (path.includes("/dependencies/blocked_by")) {
+      return blockers;
+    }
+    if (path === "/repos/o/r/issues/8") {
+      return blockers[0];
+    }
+    if (path === "/graphql") {
+      return { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } };
+    }
+    throw new Error(`unexpected ${path}`);
+  });
+  // Let any unawaited read settle before checking.
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(code, 0);
+  assert.deepEqual(outputs, RUN);
+  assert.ok(!calls.includes("GET /repos/o/r/issues/9"));
+});
+
 test("an untrusted-provenance label on the issue stops the run for good, with a notice, before any blocker read", async () => {
   const { code, calls, lines, outputs } = await run([], { subject: { labels: ["agent-ready", UNTRUSTED] } });
   assert.equal(code, 0);
