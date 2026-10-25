@@ -319,15 +319,13 @@ activities:
       - scripts/new-changelog-fragment.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (a documented default on a vendor docs page) instead of trusting the
-    # issue's quote. It may search the web and fetch the official docs for
-    # what this repository builds on: Claude Code, the Claude platform,
-    # GitHub, Node.js and Python. It lists each page it read in its report.
-    # A list, not `any`, keeps WebFetch off hosts anyone can write to and
-    # keeps the curl-based docs scripts denied. A page can try to steer the
-    # run, so a person still reviews every PR the run opens.
+    # issue's quote. It may search the web, fetch any page and run the
+    # research skills; it lists each page it read in its report. The launcher stages no curl-based docs script,
+    # so pages arrive through WebFetch alone. The job holds no write token and
+    # a page can try to steer the run, so every PR the run opens is reviewed.
     web-access:
       enabled: true
-      domains: [code.claude.com, platform.claude.com, docs.anthropic.com, docs.github.com, nodejs.org, docs.python.org]
+      domains: any
     # Runs model-chosen commands, so no write token: the change leaves as a
     # patch, and the run's outcome file goes to report-outcome.
     effect: read
