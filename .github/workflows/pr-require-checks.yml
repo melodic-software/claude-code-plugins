@@ -3140,6 +3140,10 @@ jobs:
       # of status writes and the 90 s rerun wait, plus retry sleeps.
       GH_READ_JOB_SECONDS: 660
       GH_READ_MARGIN_SECONDS: 300
+      # The lanes App's bot account id, which the trust-hold and lanes-hold
+      # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
+      # checks it is merge.agent-identity's trusted-actor id).
+      LANES_APP_ID: 337595936
       # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
@@ -4407,7 +4411,14 @@ jobs:
             exit 0
           fi
           # The lanes App's bot account, as the lanes App step below matches it.
-          lanes=$(jq -r '.data.repository.pullRequest.author | .__typename == "Bot" and .databaseId == 337595936' <<<"$link")
+          # A bot with no numeric id could be it, so that fails closed.
+          lanes=$(jq -r --argjson id "$LANES_APP_ID" '.data.repository.pullRequest.author
+            | if .__typename != "Bot" then false
+              elif (.databaseId | type) == "number" then .databaseId == $id
+              else error("no numeric databaseId") end' <<<"$link") || {
+            echo "::error::the bot author id of #$pr could not be read; re-run this run."
+            exit 1
+          }
           closing=$(jq -ec '.data.repository.pullRequest.closingIssuesReferences | objects | select(.totalCount == (.nodes | length))' <<<"$link") || {
             echo "::error::the closing issues of #$pr could not all be read; a person merges it."
             exit 1
@@ -4557,7 +4568,10 @@ jobs:
           LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
-          lanes_app_id=337595936
+          if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the job's LANES_APP_ID is not a numeric id."
+            exit 1
+          fi
           pr=$PR_NUMBER
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
@@ -4586,7 +4600,7 @@ jobs:
             echo "::error::the author of #$pr could not be read."
             exit 1
           fi
-          if ! jq -e --argjson id "$lanes_app_id" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+          if ! jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
           fi

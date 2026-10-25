@@ -109,6 +109,15 @@ EOF
 printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
+# The lanes App's bot account, as ci-status's job-level LANES_APP_ID names it,
+# and another automation's.
+LANES="$(sed -nE 's/^      LANES_APP_ID: ([0-9]+)$/\1/p' "$WORKFLOW")" DEPENDABOT=49699333
+if [[ "$LANES" =~ ^[1-9][0-9]*$ ]]; then
+  ok "ci-status names the lanes App id once ($LANES)"
+else
+  fail "ci-status has no single job-level LANES_APP_ID: '$LANES'"
+fi
+
 SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-6419-$SHA"
@@ -129,7 +138,7 @@ expect() {
   cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$config/.github/scripts/pr-merge/"
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="$5" STUB_LABELS="$6" STUB_FAILS="$7" \
-    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" BASE_SHA="${BASE_SHA-$BASE}" BASE_CONFIG="$config" \
+    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" LANES_APP_ID="$LANES" BASE_SHA="${BASE_SHA-$BASE}" BASE_CONFIG="$config" \
     bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -c '/labels' "$TMP_ROOT/log")
   TRUST_CALLS=$(grep -cE 'graphql|/timeline|issues/18/labels' "$TMP_ROOT/log")
@@ -177,9 +186,10 @@ expect "a base that is not a commit SHA fails closed without a call" 1 0 - "$QUE
 unset BASE_SHA
 
 # The trust hold. link <author type> <closing issue JSON nodes> [body]
-# [author id]: the link read's answer for the queued pull request.
+# [author id, default another automation's]: the link read's answer for the
+# queued pull request.
 link() {
-  jq -nc --arg author "$1" --argjson nodes "$2" --arg body "${3:-}" --argjson id "${4:-null}" \
+  jq -nc --arg author "$1" --argjson nodes "$2" --arg body "${3:-}" --argjson id "${4:-$DEPENDABOT}" \
     '{data: {repository: {pullRequest: {author: {__typename: $author, databaseId: $id}, body: $body,
       closingIssuesReferences: {totalCount: ($nodes | length), nodes: $nodes}}}}}'
 }
@@ -205,8 +215,6 @@ trust() {
   fi
 }
 UNTRUSTED='work-class: untrusted-provenance'
-# The lanes App's bot account, as the step matches it, and another automation's.
-LANES=337595936 DEPENDABOT=49699333
 
 # Exported once and emptied, never unset, so each assignment reaches the step.
 export STUB_LINK='' STUB_LINK_FAIL='' STUB_TIMELINE='' STUB_TIMELINE_FAIL='' STUB_ISSUE_LABELS='' STUB_ACTORS=''
@@ -274,6 +282,9 @@ STUB_LINK="$(link Bot "[$(issue 16 '[]')]" '' "$LANES")"
 trust "the lanes App's one clean closing issue passes" 0 2 "carries no label naming untrusted work"
 STUB_LINK="$(link Bot '[]' 'Refs: #18' "$LANES")" STUB_ISSUE_LABELS=agent-ready
 trust "the lanes App's one clean Refs issue passes" 0 3 "carries no label naming untrusted work" refs
+# A bot with no numeric id cannot be told apart from the lanes App: it fails closed.
+STUB_LINK="$(link Bot "[$(issue 16 '[]')]" '' null)"
+trust "a bot author with no numeric id fails closed" 1 1 "::error::the bot author id of #6419 could not be read"
 STUB_LINK='' STUB_ISSUE_LABELS=''
 
 # A jq error is neither a match nor a miss: it fails closed.
