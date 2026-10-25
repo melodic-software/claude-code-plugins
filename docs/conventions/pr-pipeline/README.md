@@ -2246,8 +2246,9 @@ person opened. A PR is adopted when all of these hold:
 
 A person's PR also skips the wait when a person put it in the merge queue and the queue removed
 it for failed checks (owner decision Q-REQ (a)). The person's enqueue of that head stands in for
-the idle wait, and grants nothing beyond it. In pr-merge, `babysit_merge_policy.requeued_by_person`
-reads it from `read_merge_queue`, and all of these must hold:
+the idle wait, and grants nothing beyond it. In pr-merge, `babysit_merge_policy.ejected_enqueue`
+reads the enqueue from `read_merge_queue`, and `requeued_by_person` accepts it only when all of
+these hold:
 
 - the PR's newest merge-queue event is a `RemovedFromMergeQueueEvent` with reason
   `failed_checks`, with no pushed commit or force push after it;
