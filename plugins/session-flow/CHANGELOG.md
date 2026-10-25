@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [1.3.1] - 2026-10-25
+
+### Fixed
+
+- A shape-3 handoff hot file keeps its Suggested skills section again, so the handoff purpose argument still tailors the skills the next session is pointed at.
+- A shape-3 handoff written before that section returned still validates, with a warning, so continuing its chain keeps the predecessor checks strict.
+
 ## [1.3.0] - 2026-10-25
 
 ### Added
