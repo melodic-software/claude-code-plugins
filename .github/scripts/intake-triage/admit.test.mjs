@@ -705,12 +705,19 @@ describe("admit", () => {
   });
 
   test("an open pull request that closes it adds admission-deferred, so the sweep revisits it", async () => {
-    const fake = fakeGitHub({ closing: [{ number: 12, repository: { nameWithOwner: "o/r" } }] });
+    const fake = fakeGitHub({ closing: [{ number: 12, state: "OPEN", repository: { nameWithOwner: "o/r" } }] });
     const result = await go(fake);
     assert.equal(result.outcome, "waiting");
     const done = writes(fake.calls);
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`);
     assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*open pull request #12/);
+  });
+
+  test("a merged or closed pull request GitHub still lists as closing it does not hold it", async () => {
+    for (const state of ["MERGED", "CLOSED"]) {
+      const result = await go(fakeGitHub({ closing: [{ number: 12, state, repository: { nameWithOwner: "o/r" } }] }));
+      assert.equal(result.outcome, "admitted", state);
+    }
   });
 
   test("an open pull request that only mentions it does not defer it", async () => {
