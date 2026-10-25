@@ -32,7 +32,6 @@ const run = (config) =>
         event: "synchronize",
         changedPaths: ["src/app.js"],
         labels: [],
-        workClasses: [],
       },
     },
   );

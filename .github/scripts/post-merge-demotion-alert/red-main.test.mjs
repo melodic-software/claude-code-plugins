@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { attemptFailingChecks } from "./failing-checks.mjs";
 import {
+  ALERT_FAILED,
   attribute,
   commitStatus,
   confirm,
@@ -60,6 +62,77 @@ test("a hygiene gate is its own check, and the all-branches gitleaks gate counts
   assert.deepEqual(failingChecks([aggregatorOnly], { 7: [titled("typos failed"), titled("gitleaks failed")] }), [
     "lint-repo: typos failed",
   ]);
+});
+
+test("a failed job listing no failed step is a check of its own; the full list keeps the gitleaks excuse", () => {
+  // The jobs API can answer a completed job with no steps or a cut list.
+  const gitleaks = { 7: [{ annotation_level: "failure", title: "gitleaks failed" }] };
+  const withSteps = (steps) => ({ id: 7, name: "lint-repo", conclusion: "failure", steps });
+  assert.deepEqual(failingChecks([withSteps([])], gitleaks), ["lint-repo"]);
+  assert.deepEqual(failingChecks([{ id: 7, name: "lint-repo", conclusion: "failure" }], gitleaks), ["lint-repo"]);
+  assert.deepEqual(failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }])], gitleaks), ["lint-repo"]);
+  assert.deepEqual(
+    failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }, { name: "Aggregate hygiene results", conclusion: "failure" }])], gitleaks),
+    [],
+  );
+  // A failed step beside the aggregator still charges the job.
+  assert.deepEqual(
+    failingChecks(
+      [
+        withSteps([
+          { name: "Aggregate hygiene results", conclusion: "failure" },
+          { name: "Test hygiene result aggregation", conclusion: "failure" },
+        ]),
+      ],
+      gitleaks,
+    ),
+    ["lint-repo"],
+  );
+});
+
+test("the alert's two modes: a judged run counts a job with unknown steps whole, a baseline leaves it out", () => {
+  // The cases babysit_postmerge.py's Baseline tests hold: lint-repo failing on
+  // the gitleaks gate with its steps empty, cut short, or listed in full.
+  const gitleaks = { 7: [{ annotation_level: "failure", title: "gitleaks failed" }] };
+  const lint = (steps) => ({ id: 7, name: "lint-repo", conclusion: "failure", steps });
+  const lists = {
+    empty: [],
+    cut: [{ name: "Set up job", conclusion: "success" }, { name: "Check out", conclusion: "success" }],
+    full: [{ name: "Set up job", conclusion: "success" }, { name: "Aggregate hygiene results", conclusion: "failure" }],
+  };
+  const alert = { failed: ALERT_FAILED, noFailedJobs: true };
+  for (const [label, judged, base] of [
+    ["empty", ["lint-repo"], []],
+    ["cut", ["lint-repo"], []],
+    ["full", [], []],
+  ]) {
+    assert.deepEqual(failingChecks([lint(lists[label])], gitleaks, alert), judged, label);
+    assert.deepEqual(failingChecks([lint(lists[label])], gitleaks, { ...alert, baseline: true }), base, label);
+  }
+  // A job failing on a real step is a baseline check too.
+  const real = lint([{ name: "Test hygiene result aggregation", conclusion: "failure" }]);
+  assert.deepEqual(failingChecks([real], gitleaks, { ...alert, baseline: true }), ["lint-repo"]);
+  // The alert counts every red conclusion babysit_postmerge.py does, and names
+  // a red run with no failed job; red-main counts only `failure`.
+  const cancelled = { id: 9, name: "test-bash", conclusion: "cancelled", steps: [] };
+  assert.deepEqual(failingChecks([cancelled], {}, alert), ["test-bash"]);
+  assert.deepEqual(failingChecks([cancelled], {}), []);
+  assert.deepEqual(failingChecks([], {}, alert), ["pr-require-checks.yml: no failed jobs"]);
+});
+
+test("failing-checks.mjs reads each red job's annotations and applies the mode", () => {
+  const calls = [];
+  const jobs = [
+    { id: 7, name: "lint-repo", conclusion: "failure", steps: [] },
+    { id: 8, name: "test-node", conclusion: "success", steps: [] },
+  ];
+  const api = (args) => {
+    calls.push(args.find((a) => a.startsWith("repos/")));
+    return args.includes("--paginate") ? jobs : [{ annotation_level: "failure", title: "gitleaks failed" }];
+  };
+  assert.deepEqual(attemptFailingChecks("o/r", "42", "2", { api }), ["lint-repo"]);
+  assert.deepEqual(attemptFailingChecks("o/r", "42", "2", { api, baseline: true }), []);
+  assert.deepEqual(calls.slice(0, 2), ["repos/o/r/actions/runs/42/attempts/2/jobs?per_page=100", "repos/o/r/check-runs/7/annotations?per_page=100"]);
 });
 
 const attempt = (n, conclusion, checks) => ({ attempt: n, conclusion, checks });

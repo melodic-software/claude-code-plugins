@@ -119,6 +119,8 @@ DEFAULT_SETTINGS = {
     "leaseTimeout": 600,
     "settleQuiet": QUIET_SECONDS,
     "settleBurst": BURST_SECONDS,
+    "frontierLock": "confirm",
+    "requireDepends": False,
 }
 SETTING_RULES = {
     "port": ("int", 0, 65535),
@@ -135,6 +137,8 @@ SETTING_RULES = {
     "leaseTimeout": ("int", 5, 3600),
     "settleQuiet": ("num", 0.5, 60),
     "settleBurst": ("num", 1, 120),
+    "frontierLock": ("enum", ("confirm", "hard", "off")),
+    "requireDepends": ("bool",),
 }
 REPO_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
 USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
@@ -304,7 +308,10 @@ def derive_states(doc, r):
     tie in round.py's effective(); a terminal decision and a recommendation change in the same
     second fall in `rev` order). A decision on a question that is not stale marks
     its direct dependents that hold a live decision stale; a decision on a stale question clears
-    it without re-staling its own dependents (that cascade is deferred). A recommendation change
+    it without re-staling its own dependents (that cascade is deferred). A decision event carrying
+    `outOfOrder` (the open prerequisites the user answered it ahead of) marks its question stale
+    when the first live decision on each of them replays, whatever its dependsOn says by then; a
+    newer decision on the question replaces that list. A recommendation change
     (a history line with `pageSeq`, placed after the events up to that seq) marks stale each
     question named in its `affects` and each direct dependent of the revised question that holds a
     live decision, and upstream_changed maps each such question to the revised ids that did it; a
@@ -371,7 +378,7 @@ def derive_states(doc, r):
     replay = [(i, 1, "", 0, e) for i, e in enumerate(events)]
     replay += [(slot(t["at"]), 0, t["at"], t["rev"], t) for t in terminal]
     replay += [(after(c["seq"]), 0, c["at"], c["rev"], c) for c in changes]
-    live, stale, changed = {}, set(), {}
+    live, stale, changed, ahead = {}, set(), {}, {}
     for *_, e in sorted(replay, key=lambda x: x[:4]):
         qid = e["id"]
         if e["kind"] == "rec":
@@ -386,8 +393,15 @@ def derive_states(doc, r):
         stale.discard(qid)
         changed.pop(qid, None)
         live[qid] = e["kind"] != "reopen"
+        ahead[qid] = set(e.get("outOfOrder") or []) if live[qid] else set()
         if live[qid] and not was_stale:
             stale.update(c for c in children.get(qid, []) if live.get(c))
+        if live[qid]:
+            for c, waited in ahead.items():
+                if qid in waited and c != qid:
+                    waited.discard(qid)
+                    if live.get(c):
+                        stale.add(c)
     archived = {q["id"] for q in qs if q.get("archived")}
     stale -= archived
 
@@ -697,27 +711,43 @@ def check_accept_audit(msg):
     return items
 
 
+def open_prereqs(doc, r, q):
+    """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived or
+    superseded) and held, or with no decision that counts. Call release_user_holds first."""
+    from exporters import latest_decision  # exporters imports server at module top
+
+    qs = {x.get("id"): x for x in doc.get("questions") or [] if isinstance(x, dict)}
+    out = []
+    for p in q.get("dependsOn") or []:
+        x = qs.get(p)
+        if not x or x.get("archived") or x.get("supersededBy") or p in out:
+            continue
+        if x.get("waiting") or not (
+            latest_decision(x, r.get("responses") or {}) or {}
+        ).get("decision"):
+            out.append(p)
+    return out
+
+
+def check_out_of_order(msg):
+    """ValueError (400) unless msg's `outOfOrder`, when present, is a list of question ids."""
+    ooo = msg.get("outOfOrder")
+    if ooo is not None and not (
+        isinstance(ooo, list) and all(isinstance(p, str) for p in ooo)
+    ):
+        raise ValueError("outOfOrder must be a list of question ids")
+    return ooo
+
+
 def split_accept_audit(doc, r, items):
     """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
     {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
-    `ineligible` is an unknown, closed, held or recommendation-less question, or one whose
-    prerequisite has no decision and is still on the path (an archived or superseded
-    prerequisite is met)."""
+    `ineligible` is an unknown, closed, held or recommendation-less question, or one with a
+    prerequisite still open (open_prereqs: an archived or superseded prerequisite is met)."""
     release_user_holds(doc, r)
     qs = {q.get("id"): q for q in doc.get("questions") or []}
     states = question_states(doc, r)
     seeded = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
-
-    def decided(qid):
-        """A prerequisite that is decided, or has left the path (archived or superseded)."""
-        p = qs.get(qid) or {}
-        return (
-            (r["responses"].get(qid) or {}).get("decision")
-            or (p.get("terminal") or {}).get("decision")
-            or p.get("archived")
-            or p.get("supersededBy")
-        )
-
     accepted, skipped = [], []
     for it in items:
         q = qs.get(it["id"])
@@ -729,7 +759,7 @@ def split_accept_audit(doc, r, items):
             or not q.get("recommendation")
             or q.get("waiting")
             or (seeded.get(it["id"]) or {}).get("status") == "superseded-by-plan"
-            or not all(decided(p) for p in q.get("dependsOn") or [])
+            or open_prereqs(doc, r, q)
         ):
             reason = "ineligible"
         else:
@@ -845,6 +875,11 @@ class Hub(LoopbackWatcher):
 
     def lease_timeout(self):
         return self.layers.resolve(self.dir, self.user_settings())[0]["leaseTimeout"][
+            "value"
+        ]
+
+    def frontier_lock(self):
+        return self.layers.resolve(self.dir, self.user_settings())[0]["frontierLock"][
             "value"
         ]
 
@@ -968,6 +1003,7 @@ class Hub(LoopbackWatcher):
         if kind == "hedged" and len(text) > LINE_CAP:
             raise ValueError(f"text too long: at most {LINE_CAP} characters")
         items = check_accept_audit(msg) if kind == "accept-audit" else None
+        ahead = check_out_of_order(msg)
         now = now_iso()
         extra = {}
         with self.cond:
@@ -1032,6 +1068,15 @@ class Hub(LoopbackWatcher):
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
             if kind in WITH_ALT and qid:
                 check_alt(qs[qid], kind, alt)
+            if kind in DECISIONS - {"reopen"}:
+                release_user_holds(doc, r)
+                waits = open_prereqs(doc, r, qs[qid])
+                if waits and self.frontier_lock() == "hard":
+                    raise Conflict({"error": "blocked", "waitsOn": waits})
+                # The page's Answer anyway names the open prerequisites; keep the ones still open.
+                ahead = [p for p in waits if p in (ahead or [])]
+                if ahead:
+                    event["outOfOrder"] = ahead
             dup = repeat_of(
                 r["events"], event, (qs.get(qid) or {}).get("commitsSinceSeq")
             )

@@ -52,6 +52,42 @@
       "next_due": "2026-10-20",
       "notes": "Run /instruction-placement:migrate cutover-check; the skill defines the graded conditions and prints the evidence for each. Also run it, independent of cadence, whenever /harness-ops:changelog reports a Claude Code release that touches AGENTS.md handling or instruction-file loading. Comment each run's per-condition output on the open [Maintenance] issue (#4281). When every condition reports met, shim removal (remove-shims, per repo, human-confirmed) is unblocked and this row can be retired. Standing refresh 2026-09-28 12:31 UTC re-graded the nine readable repositories: conditions 1, 2, and 4 [MET], condition 3 [UNREACH] (claude auth status loggedIn false; both canary legs exited 1). last_checked stays 2026-09-20 until every graded condition is [MET]. Do not close #4281 from a partial grade.",
       "close_previous": true
+    },
+    {
+      "id": "actionlint-self-repository-watch",
+      "title": "Check actionlint for a release that parses uses: $/...",
+      "cadence": "monthly",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-10-24",
+      "next_due": "2026-11-24",
+      "notes": "Check rhysd/actionlint releases after v1.7.12 (and actionlint issues #711/#732) for one that parses uses: $/... . None: comment unmet on the [Maintenance] issue, change nothing. One: file an issue to repin the ci-workflows actionlint action (pr-require-checks.yml), re-count the zizmor: ignore[self-repository] sites (137 on 2026-10-24), run zizmor --fix=safe --persona=regular -- ., delete every zizmor: ignore[self-repository] and the comment above the Run zizmor step in pr-require-checks.yml; accept when zizmor and actionlint both exit 0, never a repo-wide disable. Spec: #4130.",
+      "close_previous": true
+    },
+    {
+      "id": "model-fallback-targets-watch",
+      "title": "Check the model-config fallback targets against the model-adaptation chapters",
+      "cadence": "monthly",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-10-24",
+      "next_due": "2026-11-24",
+      "notes": "Re-read https://code.claude.com/docs/en/model-config#automatic-model-fallback. If it still names Opus 5, Opus 4.8 and Sonnet 5, change nothing. For each model no longer named, file an issue: remove plugins/playbooks/reference/model-adaptation/<model>.md, update fable-5 meta-rule 3 with the new read date, fable-5 evals, playbooks CHANGELOG and version, then sweep stale references (spec: #4349). Retire the row when the opus-5, opus-4-8 and sonnet-5 chapters are gone.",
+      "close_previous": true
+    },
+    {
+      "id": "ci-perf-target-watch",
+      "title": "Measure CI performance against the p50 and p95 targets",
+      "cadence": "monthly",
+      "area": [],
+      "category": "general",
+      "triggers": [],
+      "last_checked": "2026-10-24",
+      "next_due": "2026-11-24",
+      "notes": "Run github-iac eng/ci-perf snapshot.sh capture/compare read-only with --raw-root under .work/; append the scored rows to github-iac eng/ci-perf/GOAL.md's Run log; file an issue per row over target (targets p50 5 min, p95 12 min). Spec: #3932.",
+      "close_previous": true
     }
   ]
 }

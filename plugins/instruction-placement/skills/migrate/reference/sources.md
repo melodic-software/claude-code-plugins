@@ -103,7 +103,11 @@ Each row was re-derived on 2026-09-28 by resolving the tag to its commit and rea
 
 The check maps each pin to the CLI version that `base-action/action.yml` assigns to
 `CLAUDE_CODE_VERSION` at the pinned commit, in the shell step that installs Claude Code (line 150
-at all five commits), and reads the table above as that mapping.
+at all five commits). The table above is the offline cache of that mapping, not the only source: a
+pin the table lacks is resolved live by reading that file at the pinned ref
+(`cutover-check.sh --action-fetch` overrides how), so Dependabot moving the pins does not need a
+hand-edited row first. A failed fetch, or a file with no `CLAUDE_CODE_VERSION` assignment, leaves
+the pin unresolved.
 
 - **Pointer**: our derivation, `gh api repos/anthropics/claude-code-action/commits/<tag>` for the
   commit, then `gh api repos/anthropics/claude-code-action/contents/base-action/action.yml?ref=<tag>`,
