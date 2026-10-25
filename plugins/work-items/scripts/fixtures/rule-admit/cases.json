@@ -276,10 +276,34 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spending limit" }
     },
     {
-      "name": "model or eval spend with no billing term admits",
-      "source": "owner rule 2026-10-24: spend covered by the subscription or the fixed API credit is fine",
-      "issue": { "title": "Run claude plugin eval on the paid tier and report the cost", "body": "Spend the eval quota; pricing is per run." },
+      "name": "Claude eval cost and quota admit",
+      "source": "owner decision #9904: spend covered by the subscription or the fixed API credit is fine",
+      "issue": { "title": "Run claude plugin eval and report the Claude eval cost", "body": "The Claude eval quota covers each run." },
       "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "spend words not tied to Claude refuse even beside a Claude mention",
+      "source": "owner decision #9904: only spend on Claude itself is exempt",
+      "issue": { "title": "Run claude plugin eval on the paid tier and report the cost", "body": "Spend the eval quota; pricing is per run." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost, paid, pricing, quota, spend;" }
+    },
+    {
+      "name": "Datadog cost of Claude telemetry refuses",
+      "source": "owner decision #9904: an unlisted provider's charge waits",
+      "issue": { "title": "Report the Datadog cost of the Claude lane telemetry" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: cost;" }
+    },
+    {
+      "name": "Sentry quota for Claude errors refuses",
+      "source": "owner decision #9904: an unlisted provider's charge waits",
+      "issue": { "title": "Raise the Sentry quota for Claude lane errors" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: quota;" }
+    },
+    {
+      "name": "Claude Slack pricing refuses",
+      "source": "owner decision #9904: an unlisted provider's charge waits",
+      "issue": { "title": "Check the Claude Slack pricing for lane alerts" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: pricing;" }
     },
     {
       "name": "Claude API key spend for an eval admits",
