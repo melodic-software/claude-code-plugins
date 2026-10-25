@@ -118,6 +118,8 @@ enough that one skill no longer predicts its contents.
   generates one, and no vendored copy of the seam is needed for it to run. The seam's
   contract and per-adapter mechanics are documented in
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`.
+- **The `implementation` plugin.** A declared dependency, installed with this plugin:
+  `/work-items:ship run` dispatches its ready items through `/implementation:implement-dispatch`.
 - **The bound provider's client.** For the GitHub adapter that is the **`gh`
   CLI**, authenticated against the repository's host; the adapter is the only
   thing that leaves the machine.

@@ -17,6 +17,9 @@
     "triage",
     "orchestration"
   ],
+  "dependencies": [
+    "implementation"
+  ],
   "userConfig": {
     "decompose_container_publish": {
       "type": "boolean",

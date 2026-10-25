@@ -47,6 +47,8 @@ The green agents inherit the model and pin no effort; the workflow passes both f
   implement loop to `/implementation:implement`. Each is used when enabled and
   substituted with inline guidance or a manual handoff otherwise. No step blocks on a
   disabled or missing plugin.
+- **Declares `mutation-testing`.** It installs with this plugin, because the
+  `/testing:cleanup` mutation gate runs through `/mutation-testing:audit`.
 - **Self-contained.** Test-type tables, the E2E evidence contract, the non-UI
   smoke-test playbook, and diagnosis loops ship inside the plugin and are referenced
   via `${CLAUDE_PLUGIN_ROOT}`.

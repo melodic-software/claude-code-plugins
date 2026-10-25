@@ -99,5 +99,8 @@
     "completion-condition",
     "autonomous-goal",
     "skill"
+  ],
+  "dependencies": [
+    "work-items"
   ]
 }

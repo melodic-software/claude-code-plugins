@@ -8,6 +8,9 @@
   },
   "license": "MIT",
   "keywords": ["testing", "tdd", "test-plan", "e2e", "diagnose", "coverage", "skill"],
+  "dependencies": [
+    "mutation-testing"
+  ],
   "userConfig": {
     "test_guards_enabled": {
       "type": "boolean",

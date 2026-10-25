@@ -16,5 +16,8 @@
     "stryker",
     "pitest",
     "skill"
+  ],
+  "dependencies": [
+    "testing"
   ]
 }

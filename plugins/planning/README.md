@@ -59,6 +59,8 @@ themselves. Every skill also works standalone.
   (`tdd`), prototyping (`prototype`), decision recording (`architecture`), and
   session handoff (`session-flow`).
   Missing plugins get inline guidance; no step blocks.
+- **Declares `work-items`.** It installs with this plugin, because `/planning:wayfind`
+  reads and writes its decision map through the `/work-items:track` actions.
 - **Self-contained assets.** Templates and reference files ship inside the plugin;
   planning artifacts land in the self-ignoring memory slice
   `<memory_dir>/<topic-slug>/` (default `.work/`). Never in plugin-internal paths.
