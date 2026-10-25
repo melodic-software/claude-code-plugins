@@ -5,7 +5,7 @@
 # against a repository nobody has reviewed.
 #
 # WHAT IT IS FOR. Every value the file-name skills act on comes from
-# `.claude/docs-naming.json` and its two personal layers: which tree is scoped,
+# `<home>/docs-naming.yaml` and its two personal layers: which tree is scoped,
 # which names are legal, which references may be rewritten in which form, and
 # which shell command runs after a generated file moves. A malformed layer, a
 # regex that no grep accepts, or a regenerator whose command is not installed all
@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-config.sh"
 KNOWN_RULES=" lower-kebab "
 KNOWN_FORMS=" all links-and-paths none "
-GITIGNORE_LINE='.claude/**/*.local.*'
+GITIGNORE_LINE='*.local.*'
 
 FAILS=0
 
@@ -105,14 +105,27 @@ fi
 
 # --- layers ------------------------------------------------------------------
 
+TEAM_FILE="" TEAM_STATE="" OVERLAY_FILE="" OVERLAY_STATE=""
 layer_paths="$(resolver paths)" || die "cannot resolve the layer paths"
 while IFS="$(printf '\t')" read -r name path state; do
   [[ -n "$name" ]] || continue
   case "$state" in
   present) row PASS "layer $name" "$path" ;;
-  legacy) row WARN "layer $name" "$path is the retired docs-hygiene name; rename it to docs-naming (read for one release)" ;;
+  deprecated) row WARN "layer $name" "$path is the pre-YAML location; move its settings to the docs-naming YAML under the convention home (read for one release)" ;;
+  legacy)
+    if [[ "$name" == user-global ]]; then
+      row WARN "layer $name" "$path is the retired docs-hygiene name; rename it to docs-naming.json in the same directory (read for one release)"
+    else
+      row WARN "layer $name" "$path is the retired docs-hygiene name; move its settings to the docs-naming YAML under the convention home (read for one release)"
+    fi
+    ;;
   absent) row INFO "layer $name" "absent; the layer below it supplies these keys" ;;
   *) row INFO "layer $name" "$state" ;;
+  esac
+  case "$name" in
+  team) TEAM_FILE="$path" TEAM_STATE="$state" ;;
+  overlay) OVERLAY_FILE="$path" OVERLAY_STATE="$state" ;;
+  *) ;;
   esac
 done <<EOF
 $layer_paths
@@ -253,10 +266,14 @@ fi
 
 # --- tracked team layer, ignored overlay -------------------------------------
 
-TEAM_LAYER=".claude/docs-naming.json"
-OVERLAY_LAYER=".claude/docs-naming.local.json"
+TEAM_LAYER="${TEAM_FILE#"$ROOT"/}"
+OVERLAY_LAYER="${OVERLAY_FILE#"$ROOT"/}"
+team_read=0
+[[ "$TEAM_STATE" == present || "$TEAM_STATE" == deprecated ]] && team_read=1
+overlay_read=0
+[[ "$OVERLAY_STATE" == present || "$OVERLAY_STATE" == deprecated ]] && overlay_read=1
 
-if [[ "$HAVE_GIT" -eq 1 && -f "$ROOT/$TEAM_LAYER" ]]; then
+if [[ "$HAVE_GIT" -eq 1 && "$team_read" -eq 1 ]]; then
   if git -C "$ROOT" check-ignore -q "$TEAM_LAYER" 2>/dev/null; then
     row FAIL "team layer tracked" "$TEAM_LAYER is gitignored; an ignored team layer never reaches the team"
   elif git -C "$ROOT" ls-files --error-unmatch "$TEAM_LAYER" >/dev/null 2>&1; then
@@ -264,17 +281,17 @@ if [[ "$HAVE_GIT" -eq 1 && -f "$ROOT/$TEAM_LAYER" ]]; then
   else
     row WARN "team layer tracked" "$TEAM_LAYER is written but untracked; commit it to share it"
   fi
-elif [[ -f "$ROOT/.claude/docs-hygiene.json" && ! -f "$ROOT/$TEAM_LAYER" ]]; then
-  row INFO "team layer tracked" "the team layer is still at the retired name; git mv .claude/docs-hygiene.json $TEAM_LAYER"
-elif [[ ! -f "$ROOT/$TEAM_LAYER" ]]; then
+elif [[ "$TEAM_STATE" == legacy ]]; then
+  row INFO "team layer tracked" "the team layer is still at the retired name; run setup apply to seed the docs-naming YAML from it"
+elif [[ "$team_read" -eq 0 ]]; then
   row INFO "team layer tracked" "no team layer yet; run setup apply --defaults to write one"
 fi
 
-if [[ "$HAVE_GIT" -eq 1 && -f "$ROOT/$OVERLAY_LAYER" ]]; then
+if [[ "$HAVE_GIT" -eq 1 && "$overlay_read" -eq 1 ]]; then
   if git -C "$ROOT" check-ignore -q "$OVERLAY_LAYER" 2>/dev/null; then
     row PASS "overlay ignored" "$OVERLAY_LAYER is gitignored"
   else
-    row WARN "overlay ignored" "$OVERLAY_LAYER is not gitignored; the recommended line is $GITIGNORE_LINE"
+    row WARN "overlay ignored" "$OVERLAY_LAYER is not gitignored; the recommended line is ${OVERLAY_LAYER%/*}/$GITIGNORE_LINE"
   fi
 fi
 

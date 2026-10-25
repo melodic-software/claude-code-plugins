@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/docs-naming/schemas/docs-naming.schema.json",
+  "title": "Docs-naming team config",
+  "description": "Schema for a repository's docs/conventions/docs-naming.yaml, the team layer of the docs-naming plugin's settings, and for its personal sibling docs-naming.local.yaml. The keys are the file-name rules the audit, realign and gate-emitter skills act on. Keys, merge classes and resolution: plugins/docs-naming/reference/config.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "roots": {
+      "type": "array",
+      "description": "The trees the audit inventories and the gate enforces: git glob pathspecs relative to the repository root, or root objects that limit a root to some extensions and exempt paths inside it. A personal layer can only add roots.",
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "extensions": {
+                "type": "array",
+                "items": { "type": "string", "pattern": "^[A-Za-z0-9]+$" }
+              },
+              "exempt_paths": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        ]
+      }
+    },
+    "rule": {
+      "enum": ["lower-kebab"],
+      "default": "lower-kebab",
+      "description": "The transform that proposes a new name."
+    },
+    "regex": {
+      "type": "string",
+      "default": "^[a-z0-9]+([.-][a-z0-9]+)*\\.[a-z0-9]+$",
+      "description": "The extended regular expression a basename must match to be legal. It is inlined into an emitted gate, so it may not carry a single quote.",
+      "not": { "pattern": "'" }
+    },
+    "exempt_basenames": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Basenames that are never renamed, anywhere under a root."
+    },
+    "exempt_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pathspecs that are never renamed."
+    },
+    "exempt_extensions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Extensions whose casing belongs to their language, never to this rule."
+    },
+    "tiers": {
+      "type": "array",
+      "description": "How a reference is rewritten, by where it lives.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "paths", "forms"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "paths": { "type": "array", "items": { "type": "string" } },
+          "forms": { "enum": ["all", "links-and-paths", "none"] }
+        }
+      }
+    },
+    "sweep_exclude": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pathspecs the reference sweep never reads and never edits."
+    },
+    "sweep_exclude_sites": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "path:literal pairs the sweep never edits, for a site whose text matches by accident."
+    },
+    "generated": {
+      "type": "array",
+      "description": "Files produced by a command rather than edited. Team layer only: a personal layer that declares it is ignored.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "regenerate"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "regenerate": { "type": "string", "minLength": 1 },
+          "churn": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "redirect_map": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Reserved for a site generator's old-to-new map; no version writes one yet."
+    }
+  }
+}

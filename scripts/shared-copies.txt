@@ -494,6 +494,8 @@ lib/redact.py plugins/session-flow/skills/audit-sessions/scripts/redact.py
 lib/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/multi-agent/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.sh
+lib/yaml-subset.awk plugins/docs-naming/lib/yaml-subset.awk
 lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
 lib/lane-push.sh plugins/work-items/scripts/lane-push.sh
 lib/git-hooks/install.mjs plugins/typos-format/lib/git-hooks/install.mjs

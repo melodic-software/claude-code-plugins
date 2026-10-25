@@ -17,9 +17,9 @@
     {
       "id": 2,
       "name": "check-refuses-a-malformed-layer",
-      "prompt": "Run the docs-naming setup check. The team layer at .claude/docs-naming.json was hand-edited this morning and now reads `{\"file_names\": {\"regex\": \"^[a-z]+$\"}` with no closing brace.",
+      "prompt": "Run the docs-naming setup check. The team layer at docs/conventions/docs-naming.yaml was hand-edited this morning and now reads `roots: {path: docs}`, a flow mapping the YAML subset does not accept.",
       "narration": true,
-      "expected_output": "The check exits 1 with a FAIL on the resolve row naming .claude/docs-naming.json as invalid JSON. The response says the file must be fixed before any file-name skill runs, and does not offer to proceed with the bundled defaults instead.",
+      "expected_output": "The check exits 1 with a FAIL on the resolve row naming docs/conventions/docs-naming.yaml as invalid YAML and giving the line. The response says the file must be fixed before any file-name skill runs, and does not offer to proceed with the bundled defaults instead.",
       "expectations": [
         "The FAIL row and the named file are reported rather than a generic failure",
         "The run is reported as exit 1, not as a warning",
@@ -32,9 +32,9 @@
       "name": "apply-defaults-then-verify",
       "prompt": "Set up docs-naming for this repository with the bundled defaults.",
       "narration": true,
-      "expected_output": "Runs scripts/setup-check.sh, then scripts/setup-apply.sh --defaults, then setup-check.sh again, and reports the written path .claude/docs-naming.json, the values from the second table, and that the file is still untracked and needs committing to reach the team.",
+      "expected_output": "Runs scripts/setup-check.sh, then scripts/setup-apply.sh --defaults, then setup-check.sh again, and reports the written path docs/conventions/docs-naming.yaml, the values from the second table, and that the file is still untracked and needs committing to reach the team.",
       "expectations": [
-        "apply is run through the bundled setup-apply.sh, never by composing the JSON by hand",
+        "apply is run through the bundled setup-apply.sh, never by composing the YAML by hand",
         "The check is re-run after the write and the reported values come from that table",
         "The untracked WARN is surfaced as 'commit it to share it' rather than as success",
         "The consumer's .gitignore is not edited"
@@ -43,7 +43,7 @@
     {
       "id": 4,
       "name": "personal-layer-cannot-narrow-a-tier",
-      "prompt": "I put a `tiers` list in .claude/docs-naming.local.json that has only my own tier in it, but the released-changelog tier still shows up when I check. Is that a bug?",
+      "prompt": "I put a `tiers` list in docs/conventions/docs-naming.local.yaml that has only my own tier in it, but the released-changelog tier still shows up when I check. Is that a bug?",
       "narration": true,
       "expected_output": "Explains that tiers is a policy-floor key: a personal layer may add entries and never remove them, because a tier decides which references the realign will rewrite in which form, and narrowing one from a single machine would weaken a team decision. Points at the check's policy-floor row and at reference/config.md, and says the remedy is to change the team layer if the tier should really go.",
       "expectations": [
@@ -56,19 +56,19 @@
     {
       "id": 5,
       "name": "retired-team-config-name-detected-docs-naming-r001",
-      "prompt": "Run the docs-naming setup check. This repository still has .claude/docs-hygiene.json with a file_names block and no .claude/docs-naming.json.",
+      "prompt": "Run the docs-naming setup check. This repository still has .claude/docs-hygiene.json with a file_names block, and neither docs/conventions/docs-naming.yaml nor .claude/docs-naming.json.",
       "narration": true,
-      "expected_output": "Runs the retirement detection step beside the table and reports docs-naming-r001 as FAIL for .claude/docs-hygiene.json, saying the resolver still reads it for one release with a warning. The remedy is the rename (git mv .claude/docs-hygiene.json .claude/docs-naming.json), not apply with defaults. Changes no file.",
+      "expected_output": "Runs the retirement detection step beside the table and reports docs-naming-r001 as FAIL for .claude/docs-hygiene.json, saying the resolver still reads it for one release with a warning. The remedy is setup apply, which seeds docs/conventions/docs-naming.yaml from the old file so its settings carry over, not a fresh file of defaults beside it. Changes no file.",
       "expectations": [
         "check-retirements.sh is run against the plugin's retirements.yaml and its finding docs-naming-r001 is reported as FAIL",
-        "The remedy is renaming the file onto .claude/docs-naming.json, not writing a fresh file beside it",
+        "The remedy carries the old file's settings into docs/conventions/docs-naming.yaml, not a fresh file of defaults beside it",
         "No file is changed by check"
       ]
     },
     {
       "id": 6,
       "name": "apply-cleans-a-retired-overlay-docs-naming-r002",
-      "prompt": "/docs-naming:setup apply. Both .claude/docs-naming.local.json and the old .claude/docs-hygiene.local.json exist, and the old one has an exempt_paths entry the new one lacks.",
+      "prompt": "/docs-naming:setup apply. Both docs/conventions/docs-naming.local.yaml and the old .claude/docs-hygiene.local.json exist, and the old one has an exempt_paths entry the new one lacks.",
       "narration": true,
       "expected_output": "Re-runs retirement detection, reports docs-naming-r002, carries only the missing exempt_paths entry into the new overlay behind a confirmation, and after the operator confirms the result runs check-retirements.sh with --clean docs-naming-r002 --i-migrated. Re-runs detection last and reports the final state.",
       "expectations": [

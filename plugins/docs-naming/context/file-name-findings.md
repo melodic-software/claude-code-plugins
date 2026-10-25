@@ -141,7 +141,7 @@ memory root. A decline written only there is a judgment the next checkout never
 sees.
 
 The realign therefore OFFERS, and never takes, a second write: an entry under
-`file_names.exempt_paths` in the tracked `.claude/docs-naming.json`, which git
+`exempt_paths` in the tracked `docs/conventions/docs-naming.yaml`, which git
 carries to every checkout. `exempt_paths` already means "never renamed", so a
 decline that should outlive this branch has a home that needs no new mechanism.
 Declining one finding and agreeing never to be asked again are two decisions,

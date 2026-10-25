@@ -10,9 +10,12 @@
 - [What this surface does not cover](#what-this-surface-does-not-cover)
 - [Reading it from a script](#reading-it-from-a-script)
 
-Owner document for `.claude/docs-naming.json`, the consumer configuration the
-file-name skills read. `/docs-naming:setup` writes and verifies it; nothing
-else in the plugin writes it.
+Owner document for `docs/conventions/docs-naming.yaml`, the consumer configuration the
+file-name skills read, validated by
+[`schemas/docs-naming.schema.json`](../schemas/docs-naming.schema.json).
+`/docs-naming:setup` writes and verifies it; nothing else in the plugin writes it.
+The keys are top-level keys of the file. There is no `schema` or `file_names`
+wrapper, and a `#` comment is the way to annotate a value.
 
 The audit, realign, and gate-emitter skills resolve every repository-specific
 value from here, so the same skills run against a documentation tree whose
@@ -26,9 +29,24 @@ defaults:
 
 | Layer | Path | Git |
 |---|---|---|
-| User-global | `~/.claude/docs-naming.json` | the operator's machine |
-| Team | `<repo>/.claude/docs-naming.json` | committed, team-shared |
-| Personal overlay | `<repo>/.claude/docs-naming.local.json` | gitignored |
+| User-global | `docs-naming.json` under `~/.claude/` | the operator's machine |
+| Team | `<home>/docs-naming.yaml` | committed, team-shared |
+| Personal overlay | `<home>/docs-naming.local.yaml` | gitignored |
+
+`<home>` is the repository's convention home: the directory the pointer line in
+the marked region of `AGENTS.md` (else `CLAUDE.md`) names, `docs/conventions`
+when there is none. The `layers` and `paths` actions of the resolver report which
+layer supplied each key and which file each layer was read from. The user-global
+layer stays a JSON document (`"schema": 1` and a `file_names` object), because
+it is a machine-wide file outside any repository.
+
+For one release a team or overlay layer whose YAML is absent is read from the
+JSON file under `.claude/` it used to live in (`docs-naming.json` for the team,
+`docs-naming.local.json` for the overlay; same `"schema": 1` document). The
+resolver stays quiet on stderr, `paths` reports the state `deprecated`, and
+`/docs-naming:setup check` shows a WARN row. The YAML wins whenever it exists, and the two are never
+merged. `/docs-naming:setup apply` seeds the YAML from the old file on its first
+write.
 
 A layer whose file is absent under that name but present under the retired
 `docs-hygiene` name (`.claude/docs-hygiene.json`, `.claude/docs-hygiene.local.json`,
@@ -41,13 +59,21 @@ defaults are this marketplace's own values, except `generated`, which is empty. 
 the overlay is `.claude/**/*.local.*`; `/docs-naming:setup check` reports a
 missing one and never edits a consumer's `.gitignore`.
 
-Every layer declares `"schema": 1`. A layer that omits it, or names a schema
-this version does not implement, stops the run rather than being skipped: a
-silently ignored layer is a configuration the operator believes is in effect
-and is not.
+A JSON layer (the user-global file and the pre-YAML locations) declares
+`"schema": 1`. A layer that omits it, or names a schema this version does not
+implement, stops the run rather than being skipped: a silently ignored layer is a
+configuration the operator believes is in effect and is not. A YAML layer
+carries no schema number, and one the YAML-subset parser rejects stops the run
+the same way, with the file and line named.
 
-`_comment` is a free-text annotation at any level. It is never parsed, and it
-survives every merge `setup apply` performs.
+The YAML is the repository's YAML subset (`lib/yaml-subset.awk`): block
+mappings and sequences, plain and quoted scalars, and `#` comments. Flow
+mappings, anchors and block scalars are rejected, so quote a value that holds a
+colon followed by a space or starts with `*`. An empty list is written `key: []`, which stays a
+declared empty list rather than an absent key. `setup apply` keeps the comment
+block at the top of the file and drops comments between keys, because it
+rewrites the file from the merged document. A JSON layer's `_comment` is a
+free-text annotation that is never parsed.
 
 ## How layers merge
 
@@ -104,8 +130,14 @@ names any declaration it ignored.
 
 ### Root objects
 
-```json
-{ "path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**", "**/vendor/**"] }
+```yaml
+roots:
+  - path: "."
+    extensions:
+      - "md"
+    exempt_paths:
+      - "**/fixtures/**"
+      - "**/vendor/**"
 ```
 
 | Field | Default | What it decides |
@@ -133,8 +165,12 @@ real references too.
 
 A tier says which reference forms may be rewritten inside a set of paths:
 
-```json
-{ "name": "historical", "paths": ["docs/adr/**"], "forms": "links-and-paths" }
+```yaml
+tiers:
+  - name: "historical"
+    paths:
+      - "docs/adr/**"
+    forms: "links-and-paths"
 ```
 
 | Form | Rewrites |
@@ -155,12 +191,12 @@ at all.
 
 ## Generated files
 
-```json
-{
-  "path": "docs/architecture/landscape.json",
-  "regenerate": "bash tools/build-landscape.sh > docs/architecture/landscape.json",
-  "churn": ["generated_on"]
-}
+```yaml
+generated:
+  - path: "docs/architecture/landscape.json"
+    regenerate: "bash tools/build-landscape.sh > docs/architecture/landscape.json"
+    churn:
+      - "generated_on"
 ```
 
 A listed path is never edited by the reference sweep. After a move that touches
@@ -194,7 +230,10 @@ plugins/docs-naming/scripts/resolve-config.sh layers --root <repo>
 ```
 
 `resolve` prints the merged document; `layers` prints one `key<TAB>layers` line
-per key plus an `!inert:<key>` line for every ignored declaration. Both take
+per key plus an `!inert:<key>` line for every ignored declaration; `paths` prints
+one `layer<TAB>path<TAB>state` line per layer, the state being `present`,
+`absent`, `deprecated` (the pre-YAML location), `legacy` (the retired
+`docs-hygiene` name) or a not-applicable reason. All three take
 `--root`, which is the repository the team and overlay layers are read from, so
 a second worktree or a fixture is addressed explicitly rather than inherited
 from the environment. A `--root` that is the home directory (or an ancestor of

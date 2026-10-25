@@ -8,14 +8,24 @@
 # configured.
 #
 # LAYERS, per the config-cascade convention: user-global
-# (~/.claude/docs-naming.json), team (<root>/.claude/docs-naming.json), and a
-# gitignored personal overlay (<root>/.claude/docs-naming.local.json), applied
-# in that order over the bundled defaults. When --root is the home directory (or
-# an ancestor of it) or is not inside a git working tree, there is no team or
-# overlay layer, and `paths` reports both as not-applicable; a team or overlay
-# path that is the user-global file is likewise reported and read once.
+# (~/.claude/docs-naming.json), team (<home>/docs-naming.yaml), and a gitignored
+# personal overlay (<home>/docs-naming.local.yaml), applied in that order over the
+# bundled defaults. <home> is the repository's convention home (docs/conventions
+# unless AGENTS.md or CLAUDE.md binds another), and the YAML's keys are the
+# `file_names` keys, validated by schemas/docs-naming.schema.json. When --root is
+# the home directory (or an ancestor of it) or is not inside a git working tree,
+# there is no team or overlay layer, and `paths` reports both as not-applicable;
+# a team or overlay JSON path that is the user-global file is likewise reported
+# and read once.
 #
-# RETIRED NAME. A layer whose file is absent under `docs-naming` but present under
+# PRE-YAML LOCATION. For one release a team or overlay layer whose YAML is absent
+# is read from the JSON file it used to live in (<root>/.claude/docs-naming.json,
+# <root>/.claude/docs-naming.local.json); `paths` reports the state `deprecated`,
+# which `/docs-naming:setup check` turns into a WARN row. `resolve` stays quiet
+# about it, because skill scripts read its stderr as their own. The YAML wins
+# whenever it exists, and the two are never merged.
+#
+# RETIRED NAME. A layer with neither file under `docs-naming` but present under
 # the retired `docs-hygiene` name (`.claude/docs-hygiene.json`, `.local.json`, and
 # the user-global file) is read from there; `resolve` warns on stderr and `paths`
 # reports the state `legacy`. The new name wins whenever it exists.
@@ -58,7 +68,8 @@
 #   resolve  print the merged document (schema + file_names) on stdout
 #   layers   print `key<TAB>layers` lines, one per key, naming every layer that
 #            contributed, plus `!inert:<key>` lines for ignored declarations
-#   paths    print the three layer paths and whether each is present
+#   paths    print `layer<TAB>path<TAB>state` for the three layers; the state is
+#            present, absent, deprecated, legacy, or a not-applicable reason
 #
 #   --root   the repository root to resolve the team and overlay layers against.
 #            Default: `git rev-parse --show-toplevel` from the current directory,
@@ -76,6 +87,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$SCRIPT_DIR/../skills/setup/templates/docs-naming.json"
+# shellcheck source=../lib/layer-yaml.sh
+. "$SCRIPT_DIR/../lib/layer-yaml.sh"
 
 SCHEMA=1
 NEAREST_WINS=" rule regex redirect_map "
@@ -149,19 +162,29 @@ USER_LAYER=""
 # shellcheck source=../lib/config-root.sh
 . "$SCRIPT_DIR/../lib/config-root.sh"
 ROOT_CLASS="$(HOME="$USER_HOME_DIR" config_root_classify "$ROOT")"
+# The JSON paths are where the team and overlay layers lived before the YAML
+# (read for one release); the YAML paths are where they live now, under the
+# convention home. A non-repo or home root has neither.
 TEAM_LAYER="$ROOT/.claude/docs-naming.json"
 OVERLAY_LAYER="$ROOT/.claude/docs-naming.local.json"
+TEAM_YAML=""
+OVERLAY_YAML=""
 TEAM_SKIP=""
 OVERLAY_SKIP=""
+TEAM_JSON_SKIP=""
+OVERLAY_JSON_SKIP=""
 if [[ "$ROOT_CLASS" != repo ]]; then
   TEAM_SKIP="not-applicable: $ROOT_CLASS root"
   OVERLAY_SKIP="$TEAM_SKIP"
 else
-  config_root_paths_same "$TEAM_LAYER" "$USER_LAYER" && TEAM_SKIP="same file as the user-global layer"
-  config_root_paths_same "$OVERLAY_LAYER" "$USER_LAYER" && OVERLAY_SKIP="same file as the user-global layer"
+  CONVENTION_HOME="$(layer_yaml_home "$ROOT")"
+  TEAM_YAML="$ROOT/$CONVENTION_HOME/docs-naming.yaml"
+  OVERLAY_YAML="$ROOT/$CONVENTION_HOME/docs-naming.local.yaml"
+  config_root_paths_same "$TEAM_LAYER" "$USER_LAYER" && TEAM_JSON_SKIP="same file as the user-global layer"
+  config_root_paths_same "$OVERLAY_LAYER" "$USER_LAYER" && OVERLAY_JSON_SKIP="same file as the user-global layer"
 fi
-[[ -n "$TEAM_SKIP" ]] && TEAM_LAYER=""
-[[ -n "$OVERLAY_SKIP" ]] && OVERLAY_LAYER=""
+[[ -n "$TEAM_SKIP$TEAM_JSON_SKIP" ]] && TEAM_LAYER=""
+[[ -n "$OVERLAY_SKIP$OVERLAY_JSON_SKIP" ]] && OVERLAY_LAYER=""
 
 # Prints the retired-name file for layer path $1 (new basename $2, old basename
 # $3) when only that one exists.
@@ -174,42 +197,80 @@ USER_OLD="$(retired_layer "$USER_LAYER" docs-naming.json docs-hygiene.json)"
 TEAM_OLD="$(retired_layer "$TEAM_LAYER" docs-naming.json docs-hygiene.json)"
 OVERLAY_OLD="$(retired_layer "$OVERLAY_LAYER" docs-naming.local.json docs-hygiene.local.json)"
 
+# Pick the file a layer is read from, YAML first: sets <PREFIX>_PATH, <PREFIX>_KIND
+# (yaml, json or empty) and <PREFIX>_STATE (present, deprecated, legacy, absent).
+# $2 yaml path, $3 pre-YAML JSON path, $4 retired-name path.
+choose_layer() {
+  if [[ -n "$2" && -f "$2" ]]; then
+    printf -v "${1}_PATH" '%s' "$2"
+    printf -v "${1}_KIND" '%s' yaml
+    printf -v "${1}_STATE" '%s' present
+  elif [[ -n "$3" && -f "$3" ]]; then
+    printf -v "${1}_PATH" '%s' "$3"
+    printf -v "${1}_KIND" '%s' json
+    printf -v "${1}_STATE" '%s' deprecated
+  elif [[ -n "$4" ]]; then
+    printf -v "${1}_PATH" '%s' "$4"
+    printf -v "${1}_KIND" '%s' json
+    printf -v "${1}_STATE" '%s' legacy
+  else
+    printf -v "${1}_PATH" '%s' "${2:-$3}"
+    printf -v "${1}_KIND" '%s' ''
+    printf -v "${1}_STATE" '%s' absent
+  fi
+}
+TEAM_PATH="" TEAM_KIND="" TEAM_STATE=""
+OVERLAY_PATH="" OVERLAY_KIND="" OVERLAY_STATE=""
+choose_layer TEAM "$TEAM_YAML" "$TEAM_LAYER" "$TEAM_OLD"
+choose_layer OVERLAY "$OVERLAY_YAML" "$OVERLAY_LAYER" "$OVERLAY_OLD"
+
 if [[ "$ACTION" = paths ]]; then
-  for pair in "user-global:$USER_LAYER" "team:$TEAM_LAYER" "overlay:$OVERLAY_LAYER"; do
-    name="${pair%%:*}"
-    path="${pair#*:}"
-    case "$name" in
-    user-global) old="$USER_OLD" ;;
-    team) old="$TEAM_OLD" ;;
-    *) old="$OVERLAY_OLD" ;;
-    esac
-    if [[ -n "$old" ]]; then
-      printf '%s\t%s\tlegacy\n' "$name" "$old"
-    elif [[ "$name" = team && -n "$TEAM_SKIP" ]]; then
-      printf '%s\t-\t%s\n' "$name" "$TEAM_SKIP"
-    elif [[ "$name" = overlay && -n "$OVERLAY_SKIP" ]]; then
-      printf '%s\t-\t%s\n' "$name" "$OVERLAY_SKIP"
-    elif [[ -z "$path" ]]; then
-      printf '%s\t-\tno-home\n' "$name"
-    elif [[ -f "$path" ]]; then
-      printf '%s\t%s\tpresent\n' "$name" "$path"
+  if [[ -n "$USER_OLD" ]]; then
+    printf 'user-global\t%s\tlegacy\n' "$USER_OLD"
+  elif [[ -z "$USER_LAYER" ]]; then
+    printf 'user-global\t-\tno-home\n'
+  elif [[ -f "$USER_LAYER" ]]; then
+    printf 'user-global\t%s\tpresent\n' "$USER_LAYER"
+  else
+    printf 'user-global\t%s\tabsent\n' "$USER_LAYER"
+  fi
+  for name in team overlay; do
+    if [[ "$name" = team ]]; then
+      path="$TEAM_PATH" state="$TEAM_STATE" skip="$TEAM_SKIP" jskip="$TEAM_JSON_SKIP"
     else
-      printf '%s\t%s\tabsent\n' "$name" "$path"
+      path="$OVERLAY_PATH" state="$OVERLAY_STATE" skip="$OVERLAY_SKIP" jskip="$OVERLAY_JSON_SKIP"
+    fi
+    if [[ -n "$skip" ]]; then
+      printf '%s\t-\t%s\n' "$name" "$skip"
+    elif [[ "$state" = absent && -n "$jskip" ]]; then
+      printf '%s\t-\t%s\n' "$name" "$jskip"
+    else
+      printf '%s\t%s\t%s\n' "$name" "$path" "$state"
     fi
   done
   exit 0
 fi
 
 # Read one layer. Prints its JSON, or nothing when the file is absent.
-# A present file that does not parse, or whose schema is not this contract's, is
-# fatal: a silently skipped layer is a configuration the operator believes is in
-# effect and is not.
+# A present file that does not parse, or whose JSON schema is not this contract's,
+# is fatal: a silently skipped layer is a configuration the operator believes is
+# in effect and is not. A YAML layer carries no schema number; it is the
+# current contract by its location.
 read_layer() {
   layer_name="$1"
   layer_path="$2"
+  layer_kind="${3:-json}"
   [[ -n "$layer_path" ]] || return 0
   [[ -f "$layer_path" ]] || return 0
   [[ -r "$layer_path" ]] || die "$layer_name layer is not readable: $layer_path"
+  if [[ "$layer_kind" = yaml ]]; then
+    # On success the converter writes only the JSON; on failure only its message.
+    if ! layer_json="$(layer_yaml_to_json "$layer_path" 2>&1)"; then
+      die "$layer_name layer is not valid YAML ($layer_json): $layer_path"
+    fi
+    printf '%s' "$layer_json"
+    return 0
+  fi
   if ! layer_json="$(jqr -e . "$layer_path" 2>/dev/null)"; then
     die "$layer_name layer is not valid JSON: $layer_path"
   fi
@@ -222,8 +283,8 @@ read_layer() {
 
 BUNDLED_JSON="$(jqr -e . "$TEMPLATE" 2>/dev/null)" || die "bundled defaults are not valid JSON: $TEMPLATE"
 USER_JSON="$(read_layer user-global "${USER_OLD:-$USER_LAYER}")" || exit $?
-TEAM_JSON="$(read_layer team "${TEAM_OLD:-$TEAM_LAYER}")" || exit $?
-OVERLAY_JSON="$(read_layer overlay "${OVERLAY_OLD:-$OVERLAY_LAYER}")" || exit $?
+TEAM_JSON="$(read_layer team "$TEAM_PATH" "$TEAM_KIND")" || exit $?
+OVERLAY_JSON="$(read_layer overlay "$OVERLAY_PATH" "$OVERLAY_KIND")" || exit $?
 
 if [[ "$ACTION" = resolve ]]; then
   for old in "$USER_OLD" "$TEAM_OLD" "$OVERLAY_OLD"; do

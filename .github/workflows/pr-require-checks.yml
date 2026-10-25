@@ -368,6 +368,7 @@ jobs:
               **/*.bash
               plugins/docs-naming/skills/generate-file-name-gate/**
               .claude/docs-naming.json
+              docs/conventions/docs-naming.yaml
             python:
               .github/**
               scripts/**

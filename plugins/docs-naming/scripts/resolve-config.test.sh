@@ -205,8 +205,8 @@ assert_eq "a missing --root directory exits 2" "2" "$(
 root="$(new_root)"
 write_layer "$root/.claude/docs-naming.json" '{}'
 out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
-assert_contains "paths: the team layer is present" "$out" "team	$root/.claude/docs-naming.json	present"
-assert_contains "paths: the overlay is absent" "$out" "overlay	$root/.claude/docs-naming.local.json	absent"
+assert_contains "paths: the pre-YAML team layer is deprecated" "$out" "team	$root/.claude/docs-naming.json	deprecated"
+assert_contains "paths: the overlay is absent, at its YAML path" "$out" "overlay	$root/docs/conventions/docs-naming.local.yaml	absent"
 
 # 15. With no --root the resolver takes the git toplevel of the working
 #     directory, never the directory the script lives in.
@@ -303,6 +303,144 @@ write_layer "$root/.claude/docs-naming.json" '{"regex": "^current$"}'
 out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
 assert_eq "retired name: the new name wins when both exist" "^current$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
 assert_lacks "retired name: no warning for a layer that has a new-name file" "$(cat "$TEST_TMPDIR/err")" "docs-hygiene.json"
+
+# --- the YAML layers under the convention home --------------------------------
+
+new_repo() {
+  new_root
+}
+
+write_yaml() {
+  # write_yaml <path> <content>
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" >"$1"
+}
+
+# The team YAML supplies a nearest-wins key, and the resolver names the layer.
+root="$(new_repo)"
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^yaml-team$"'
+assert_eq "yaml team layer: regex overrides the default" "^yaml-team$" "$(resolve "$root" | jq -r '.file_names.regex')"
+assert_contains "yaml team layer: provenance names the team layer" "$(layers "$root")" "regex	bundled,team"
+assert_contains "yaml team layer: a key it does not set stays bundled" "$(layers "$root")" "rule	bundled
+"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
+assert_contains "yaml team layer: paths names the file and says present" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
+assert_eq "yaml team layer: resolve is quiet on stderr" "" "$(resolve "$root" 2>&1 >/dev/null)"
+
+# The YAML wins when both it and the pre-YAML file exist, and the two are never merged.
+root="$(new_repo)"
+write_layer "$root/.claude/docs-naming.json" '{"regex": "^old$", "sweep_exclude": ["docs/old/**"]}'
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^new$"'
+out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
+assert_eq "both exist: the YAML supplies the regex" "^new$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_lacks "both exist: nothing from the JSON is merged in" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" "docs/old/**"
+assert_eq "both exist: no warning, the JSON is not read" "" "$(cat "$TEST_TMPDIR/err")"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
+assert_contains "both exist: paths reports the YAML" "$out" "team	$root/docs/conventions/docs-naming.yaml	present"
+
+# The pre-YAML location is read when the YAML is absent, and paths says so.
+root="$(new_repo)"
+write_layer "$root/.claude/docs-naming.json" '{"regex": "^old$"}'
+write_layer "$root/.claude/docs-naming.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
+out="$(resolve "$root" 2>"$TEST_TMPDIR/err")"
+assert_eq "no YAML: the old team layer is read" "^old$" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
+assert_contains "no YAML: the old overlay is read" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" '"docs/mine/**"'
+assert_eq "no YAML: resolve stays quiet on stderr, which skill scripts pass through" "" "$(cat "$TEST_TMPDIR/err")"
+pout="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
+assert_contains "no YAML: paths reports the team layer as deprecated" "$pout" "team	$root/.claude/docs-naming.json	deprecated"
+assert_contains "no YAML: paths reports the overlay as deprecated" "$pout" "overlay	$root/.claude/docs-naming.local.json	deprecated"
+assert_contains "no YAML: provenance still names the team layer" "$(layers "$root")" "regex	bundled,team"
+
+# The resolver names the layer that supplied each value, across all three layers.
+root="$(new_repo)"
+write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"rule": "user-rule", "regex": "^user$", "exempt_extensions": ["rb"]}'
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^team$"
+exempt_basenames:
+  - "TEAM.md"'
+write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'exempt_basenames:
+  - "MINE.md"'
+lay="$(layers "$root")"
+assert_contains "provenance: a nearest-wins key lists user-global then team" "$lay" "regex	bundled,user-global,team"
+assert_contains "provenance: the user-global rule survives where the team sets none" "$lay" "rule	bundled,user-global"
+assert_contains "provenance: an additive key lists team then overlay" "$lay" "exempt_basenames	bundled,team,overlay"
+assert_contains "provenance: an additive key the user-global sets" "$lay" "exempt_extensions	bundled,user-global"
+assert_eq "provenance: the team basenames replace the default, the overlay adds" "TEAM.md MINE.md" "$(resolve "$root" | jq -r '.file_names.exempt_basenames | join(" ")')"
+
+# Value fidelity: root objects, tiers stamped with their layer, an explicit empty
+# list replacing a non-empty default, and a null redirect_map.
+root="$(new_repo)"
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'roots:
+  - "docs"
+  - path: "."
+    extensions:
+      - "md"
+    exempt_paths:
+      - "**/fixtures/**"
+sweep_exclude: []
+tiers:
+  - name: "frozen"
+    paths:
+      - "docs/adr/**"
+    forms: "none"
+generated:
+  - path: "out.json"
+    regenerate: "bash gen.sh --flag '"'"'a b'"'"' > out.json"
+    churn:
+      - "generated_on"
+redirect_map: null'
+out="$(resolve "$root")"
+assert_eq "yaml: a root object keeps its fields" '{"path":".","extensions":["md"],"exempt_paths":["**/fixtures/**"]}' "$(printf '%s' "$out" | jq -c '.file_names.roots[1]')"
+assert_eq "yaml: an explicit empty list replaces the non-empty default" "[]" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')"
+assert_eq "yaml: a tier is stamped with the team layer" "team" "$(printf '%s' "$out" | jq -r '.file_names.tiers[] | select(.name == "frozen") | ._layer')"
+assert_eq "yaml: the team tiers replace the bundled ones whole" "frozen" "$(printf '%s' "$out" | jq -r '[.file_names.tiers[].name] | join(" ")')"
+assert_eq "yaml: a regenerator with quotes survives" "bash gen.sh --flag 'a b' > out.json" "$(printf '%s' "$out" | jq -r '.file_names.generated[0].regenerate')"
+assert_eq "yaml: a nested list survives" "generated_on" "$(printf '%s' "$out" | jq -r '.file_names.generated[0].churn[0]')"
+assert_eq "yaml: redirect_map null is JSON null" "null" "$(printf '%s' "$out" | jq -c '.file_names.redirect_map')"
+
+# The overlay YAML is held to the same policy floor as the JSON overlay.
+root="$(new_repo)"
+write_yaml "$root/docs/conventions/docs-naming.local.yaml" 'generated:
+  - path: "x"
+    regenerate: "rm -rf /"
+sweep_exclude:
+  - "docs/mine/**"'
+out="$(resolve "$root")"
+assert_eq "yaml overlay: the regenerator is ignored" "[]" "$(printf '%s' "$out" | jq -c '.file_names.generated')"
+assert_contains "yaml overlay: the declaration is reported inert" "$(layers "$root")" "!inert:generated	overlay"
+assert_contains "yaml overlay: an addition is still made" "$(printf '%s' "$out" | jq -c '.file_names.sweep_exclude')" '"docs/mine/**"'
+
+# A YAML layer the parser rejects is fatal and names the file and the line.
+root="$(new_repo)"
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^ok$"
+roots: {path: docs}'
+err="$(resolve "$root" 2>&1 >/dev/null)"
+assert_eq "bad yaml: exits 2" "2" "$(
+  resolve "$root" >/dev/null 2>&1
+  printf '%s' "$?"
+)"
+assert_contains "bad yaml: the file is named" "$err" "$root/docs/conventions/docs-naming.yaml"
+assert_contains "bad yaml: the line is named" "$err" "line 2"
+
+# The team YAML sits under the convention home the repository binds.
+root="$(new_repo)"
+mkdir -p "$root/conf"
+cat >"$root/AGENTS.md" <<'EOF'
+<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `conf`, read the topic file there first.
+<!-- END GENERATED: convention-home -->
+EOF
+write_yaml "$root/conf/docs-naming.yaml" 'regex: "^bound-home$"'
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^default-home$"'
+assert_eq "convention home: the bound home supplies the team layer" "^bound-home$" "$(resolve "$root" | jq -r '.file_names.regex')"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
+assert_contains "convention home: paths names the bound file" "$out" "team	$root/conf/docs-naming.yaml	present"
+
+# A home root still has no team YAML.
+home="$TEST_TMPDIR/yroot/home"
+mkdir -p "$home/docs/conventions"
+write_yaml "$home/docs/conventions/docs-naming.yaml" 'regex: "^not-a-team-layer$"'
+out="$(bash "$SUT" resolve --root "$home" --home "$home")"
+assert_eq "yaml home root: the YAML under a home directory is not a team layer" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
 
 printf '\nPASS=%d FAIL=%d\n' "$((CASES - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]] || exit 1

@@ -1,14 +1,24 @@
 #!/usr/bin/env bash
 # setup-apply.sh — write the docs-naming team configuration layer.
 #
-# WRITES EXACTLY ONE FILE: `<root>/.claude/docs-naming.json`. Not the personal
-# layers, which are the operator's own files; not `.gitignore`, which is the
-# consumer's; not anything else. The setup contract scopes `apply` to the
-# artifact the plugin owns, and this script has no code path to any other.
+# WRITES EXACTLY ONE FILE: `<root>/<home>/docs-naming.yaml`, <home> being the
+# repository's convention home (docs/conventions unless AGENTS.md or CLAUDE.md
+# binds another). Not the personal layers, which are the operator's own files;
+# not `.gitignore`, which is the consumer's; not the pre-YAML JSON file, which
+# stays where it is until the operator removes it. The setup contract scopes
+# `apply` to the artifact the plugin owns, and this script has no code path to
+# any other.
 #
-# IDEMPOTENT. Values are merged per key and compared as parsed JSON, so a re-run
-# that changes nothing prints `already configured` and leaves the file's bytes
-# alone. Hand-written `_comment` text survives every merge.
+# IDEMPOTENT. Values are merged per key and compared as parsed documents, so a
+# re-run that changes nothing prints `already configured` and leaves the file's
+# bytes alone. The comment block at the top of an existing file survives every
+# merge; comments between keys do not, because the file is rewritten from the
+# merged document.
+#
+# MIGRATES. When the YAML is absent, the first write seeds it from the JSON team
+# layer the resolver reads in its place: the pre-YAML file, else the one at the
+# retired docs-hygiene name. A fresh YAML so never shadows the JSON it replaces
+# and drops its settings. The JSON is left in place.
 #
 # Every single-quoted `${...}` below is a jq program argument, substituted by jq
 # from --arg/--argjson, never by the shell.
@@ -21,19 +31,20 @@
 #
 #   --defaults    write the bundled document when no team layer exists, and
 #                 report the existing one untouched when it does
-#   <key>=<value> merge one key of `file_names` (the `file_names.` prefix is
-#                 optional). The value is parsed as JSON when it parses, and
+#   <key>=<value> merge one key (a leading `file_names.` is accepted and
+#                 dropped). The value is parsed as JSON when it parses, and
 #                 taken as a string when it does not, so
 #                 `roots=["docs","guide"]` sets a list and `rule=lower-kebab`
 #                 sets a scalar.
 #
-# Exit: 0 written or already configured, 2 usage error, an unwritable target, or a
-#       team layer still at the retired docs-hygiene name (rename it first).
+# Exit: 0 written or already configured, 2 usage error or an unwritable target.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$SCRIPT_DIR/../templates/docs-naming.json"
-TARGET_REL=".claude/docs-naming.json"
+# shellcheck source=../../../lib/layer-yaml.sh
+. "$SCRIPT_DIR/../../../lib/layer-yaml.sh"
+LEGACY_REL=".claude/docs-naming.json"
 
 die() {
   printf 'setup-apply: %s\n' "$1" >&2
@@ -90,20 +101,29 @@ if [[ -z "$ROOT" ]]; then
 fi
 [[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
 
+TARGET_REL="$(layer_yaml_home "$ROOT")/docs-naming.yaml"
 TARGET="$ROOT/$TARGET_REL"
+LEGACY="$ROOT/$LEGACY_REL"
+[[ -f "$LEGACY" ]] || LEGACY_REL=".claude/docs-hygiene.json" LEGACY="$ROOT/.claude/docs-hygiene.json"
 
-# A fresh docs-naming.json would shadow the retired-name file the resolver still
-# reads, silently dropping its settings.
-if [[ ! -f "$TARGET" && -f "$ROOT/.claude/docs-hygiene.json" ]]; then
-  die "$ROOT/.claude/docs-hygiene.json is the retired name of this layer; run: git mv .claude/docs-hygiene.json $TARGET_REL"
-fi
-
+header=""
 if [[ -f "$TARGET" ]]; then
-  current="$(jqr -e . "$TARGET" 2>/dev/null)" || die "the existing team layer is not valid JSON: $TARGET"
+  current="$(layer_yaml_to_json "$TARGET" 2>&1)" || die "the existing team layer is not valid YAML ($current): $TARGET"
+  # The leading comment block: every comment line before the first key.
+  header="$(tr -d '\r' <"$TARGET" | awk '/^[[:space:]]*#/ { print; next } /^[[:space:]]*$/ { next } { exit }')"
+elif [[ -f "$LEGACY" ]]; then
+  current="$(jqr -e . "$LEGACY" 2>/dev/null)" || die "the JSON team layer is not valid JSON: $LEGACY"
+  note="$(jqr -r '._comment // empty' <<<"$current")"
+  header="# Migrated from $LEGACY_REL by /docs-naming:setup apply."
+  [[ -z "$note" ]] || header="$header
+# $note"
+  current="$(jqr -c 'del(._comment) | .file_names |= (. // {})' <<<"$current")" || die "cannot read the pre-YAML team layer"
 else
   current="$(jqr -e . "$TEMPLATE" 2>/dev/null)" || die "bundled defaults are not valid JSON: $TEMPLATE"
-  [[ "$WANT_DEFAULTS" -eq 1 || -n "$PAIRS" ]] || exit 0
+  current="$(jqr -c 'del(._comment)' <<<"$current")" || die "cannot read the bundled defaults"
 fi
+[[ -n "$header" ]] || header="# docs-naming team layer: the file-name rules the docs-naming skills act on.
+# Keys, merge classes and the schema: reference/config.md in the docs-naming plugin."
 
 before="$current"
 
@@ -126,15 +146,17 @@ EOF
 
 current="$(jqr -c '.schema = 1' <<<"$current")" || die "cannot stamp the schema"
 
-# Compare as parsed JSON so formatting alone never rewrites the file.
+# Compare as parsed documents so formatting alone never rewrites the file.
 if [[ -f "$TARGET" ]] && jqr -e -n --argjson a "$before" --argjson b "$current" '$a == $b' >/dev/null 2>&1; then
   printf 'already configured: %s\n' "$TARGET_REL"
   exit 0
 fi
 
+body="$(layer_yaml_render "$(jqr -c '.file_names' <<<"$current")")" || die "cannot render the merged document"
+
 mkdir -p "$(dirname "$TARGET")" || die "cannot create $(dirname "$TARGET")"
 tmp="$TARGET.tmp.$$"
-if ! jqr --indent 2 . <<<"$current" >"$tmp"; then
+if ! printf '%s\n%s\n' "$header" "$body" >"$tmp"; then
   rm -f "$tmp"
   die "cannot render the merged document"
 fi
@@ -145,5 +167,6 @@ fi
 rm -f "$tmp"
 
 printf 'wrote: %s\n' "$TARGET_REL"
+[[ ! -f "$LEGACY" ]] || printf 'migrated: %s now supplies the team layer; %s is ignored and can be deleted.\n' "$TARGET_REL" "$LEGACY_REL"
 printf 'commit it: an uncommitted team layer has reached no other checkout yet.\n'
 exit 0
