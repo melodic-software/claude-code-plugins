@@ -12,6 +12,6 @@ expected_outcome: "The review reads .claude-lane/pr.diff through to its last fil
 
 REPO: acme/storefront
 PR NUMBER: 31
-FULL DIFF: the whole pull request's diff (41 files) is in .claude-lane/pr.diff. Read it to see every change; `gh pr diff` and the API can return only part of a large pull request.
+FULL DIFF: the whole pull request's diff (42 files) is in .claude-lane/pr.diff. Read it to see every change; `gh pr diff` and the API can return only part of a large pull request.
 
 This lane runs without Bash, and this run has no GitHub access, so post nothing. Put every finding in your final reply, each with its file and line and whether it is blocking, then a one-paragraph summary.
