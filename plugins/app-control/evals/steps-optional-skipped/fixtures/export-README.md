@@ -20,7 +20,7 @@ Delete `shop/data/invoices.db` and restart the app.
 
 ## Drive
 
-Run the steps in [steps.yaml](steps.yaml): open the billing page, accept the cookie banner when it
+Run the steps in `steps.yaml`: open the billing page, accept the cookie banner when it
 shows, press Export, check the download.
 
 ## Gotchas

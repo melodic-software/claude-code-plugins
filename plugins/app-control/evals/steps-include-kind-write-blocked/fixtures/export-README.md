@@ -21,7 +21,7 @@ Delete `shop/data/invoices.db` and restart the app.
 
 ## Drive
 
-Run the steps in [steps.yaml](steps.yaml): open the billing page, press Export, check the
+Run the steps in `steps.yaml`: open the billing page, press Export, check the
 download, then add a note to the export history.
 
 ## Gotchas

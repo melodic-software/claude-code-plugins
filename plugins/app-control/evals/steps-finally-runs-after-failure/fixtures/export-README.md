@@ -16,11 +16,11 @@ none
 
 ## Reset
 
-The finally steps from [reset.yaml](reset.yaml) clear the month filter the drive sets.
+The finally steps from `reset.yaml` clear the month filter the drive sets.
 
 ## Drive
 
-Run the steps in [steps.yaml](steps.yaml): set the month filter, export, check the file holds only that month.
+Run the steps in `steps.yaml`: set the month filter, export, check the file holds only that month.
 
 ## Gotchas
 

@@ -20,7 +20,7 @@ Delete `shop/data/invoices.db` and restart the app.
 
 ## Drive
 
-Run the steps in [steps.yaml](steps.yaml): open the billing page, pick the start month, pick the
+Run the steps in `steps.yaml`: open the billing page, pick the start month, pick the
 end month, then press Export.
 
 ## Gotchas
