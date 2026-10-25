@@ -279,7 +279,13 @@ def block($d):
            "Cache content: \($c.stale_content) \($installs) whose cache files disagree with their recorded gitCommitSha",
            ($c.stale[] | (if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end)
                          + (if .unreleased_changes == true then " (unreleased changes pending)" else "" end)),
-           (if ($c.unverifiable // 0) > 0 then "  (checked \($c.checked) \($installs): \($c.match) match, \($c.unverifiable) unverifiable; unverifiable is not a pass)" else empty end),
+           (if ($c.unverifiable // 0) > 0 or ($c.not_checked // 0) > 0 then
+              "  (of \($c.checked) \($installs): \($c.match) match"
+              + (if ($c.unverifiable // 0) > 0 then ", \($c.unverifiable) unverifiable" else "" end)
+              + (if ($c.not_checked // 0) > 0 then ", \($c.not_checked) not checked (recorded at an older commit)" else "" end)
+              + (if ($c.unverifiable // 0) > 0 then "; unverifiable is not a pass" else "" end)
+              + ")"
+            else empty end),
            (if any($c.stale[]; .unreleased_changes == true) then
               "  Unreleased changes pending: the marketplace holds changelog fragments for that plugin, so its files",
               "  changed without a version bump; its next release brings the cache up to date. Leave its cache alone."
@@ -288,8 +294,10 @@ def block($d):
               "  Remediation\(if any($c.stale[]; .unreleased_changes == true) then ", for the rows not marked unreleased" else "" end): remove that version's directory under the plugin cache, then re-run",
               "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
             else empty end)
-         elif ($c.unverifiable // 0) > 0 then
-           "Cache content: \($c.unverifiable) of \($c.checked) \($installs) unverifiable (recorded commit not in the local marketplace clone); no disagreement found among the rest"
+         elif ($c.unverifiable // 0) > 0 or ($c.not_checked // 0) > 0 then
+           "Cache content: \($c.match) of \($c.checked) \($installs) compared, no disagreement found"
+           + (if ($c.not_checked // 0) > 0 then "; \($c.not_checked) not checked (recorded at an older commit)" else "" end)
+           + (if ($c.unverifiable // 0) > 0 then "; \($c.unverifiable) unverifiable, which is not a pass" else "" end)
          else empty end),
 
       (if $t == null then "Timing: n/a"
