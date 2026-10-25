@@ -243,6 +243,7 @@ NEEDS_HUMAN = (
 )
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
+    "labels(first:100){totalCount nodes{name}} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
@@ -1279,7 +1280,11 @@ class Reader:
         takes from a pull request the lane opened, or None when it is: the
         gate's own rule (`merge_policy._linked_issue`, as `lane_eligibility`
         reads it), so one closing issue in this repository, or, with none,
-        the one issue its plain `Refs:` lines name. A failed read refuses."""
+        the one issue its plain `Refs:` lines name. Then the trust hold on that
+        issue as `eligibility` reads it (`merge_policy.trust_refusal`), so a
+        label naming untrusted work added after admission, or one a non-human
+        removed, refuses at arm time; its labels come with the link's read,
+        its timeline in one more. A failed read refuses."""
         try:
             pull = json_object(
                 self._graphql(CLOSING_QUERY, number, "closing issues").get(
@@ -1287,6 +1292,23 @@ class Reader:
                 )
             )
             issue, refusal = merge_policy._linked_issue(pull, self.repo)
+            if refusal is None:
+                owner, _, name = self.repo.partition("/")
+                permission = merge_policy.permission_reader(self.repo)
+                # No agent identity: the lanes App is a Bot, which is never
+                # human (`merge_policy.is_human`).
+                refusal = merge_policy.trust_refusal(
+                    owner,
+                    name,
+                    issue,
+                    lambda actor: merge_policy.is_human(
+                        actor,
+                        repo=self.repo,
+                        agent_identity=None,
+                        permission=permission,
+                    ),
+                    {},
+                )
         except (_Unreadable, merge_policy.PolicyReadError) as exc:
             return f"unreadable: {exc}"
         if refusal is None:
@@ -1861,8 +1883,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again on a listing of its own, as the gate does before it allows.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
-    pull request's issue link is one the pr-merge lane takes
-    (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
+    pull request's issue link is one the pr-merge lane takes and its issue
+    clears the trust hold (`Reader.link_refusal`), else why not, with refusal
+    `verify:ineligible`
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold

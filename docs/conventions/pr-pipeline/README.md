@@ -692,9 +692,10 @@ and `C2` or `C3` lets the authority merge. Neither authority reads a work class
 - `off` is the default. The first rung a repository adopts is `C2`, together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - No work class is read, and no class, missing class or diff shape caps the rung. The only
-  class-named check is the local babysit lane's untrusted-provenance hold: a pull request whose
-  linked issue carries `work-class: untrusted-provenance`, or had it removed by a non-human, waits
-  for a human. The pr-merge lane merges on the verifier verdict
+  class-named check is the untrusted-provenance hold: a pull request whose linked issue carries
+  `work-class: untrusted-provenance` (any label naming untrusted work), or had it removed by a
+  non-human, waits for a human, in the local babysit lane and when `enable-auto-merge` arms a
+  lanes App pull request. The pr-merge lane merges on the verifier verdict
   ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
@@ -1103,7 +1104,11 @@ gate's veto rule; a later comment lifts it), and whose head changes no path in t
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
-the one issue its plain `Refs: #<n>` lines name; a failed read refuses), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
+the one issue its plain `Refs: #<n>` lines name; a failed read refuses) and whose issue clears
+the trust hold (`babysit_merge_policy.trust_refusal`: its labels read whole, none naming untrusted
+work in any spelling, and none ever removed by a non-human or through an App, so a label added
+after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed-by-non-human` or
+`issue-labels-unreadable`, each a refusal a person clears), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
 heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):

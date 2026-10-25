@@ -1694,6 +1694,28 @@ def _untrusted_removed_by_non_human(
     )
 
 
+def trust_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why the trust hold refuses the linked `issue` (a node read with its
+    `labels`), or None: labels that cannot be read whole, a label naming
+    untrusted work (`_untrusted`), or one ever removed by a non-human
+    (`_untrusted_removed_by_non_human`). A failed timeline read raises
+    `PolicyReadError`."""
+    labels = _label_names(issue)
+    if labels is None:
+        return "issue-labels-unreadable"
+    if any(_untrusted(label) for label in labels):
+        return "untrusted-provenance"
+    if _untrusted_removed_by_non_human(owner, name, issue["number"], human, timelines):
+        return "untrusted-provenance-removed-by-non-human"
+    return None
+
+
 def _claimed_before(
     owner: str, name: str, issue: int, identity: str, created: datetime
 ) -> bool:
@@ -1970,18 +1992,14 @@ def eligibility(
         if linked:
             return Eligibility(False, linked)
         issue_number = issue["number"]
-        labels = _label_names(issue)
-        if labels is None:
-            return Eligibility(False, "issue-labels-unreadable")
-        if any(_untrusted(label) for label in labels):
-            return Eligibility(False, "untrusted-provenance")
-        if _untrusted_removed_by_non_human(owner, name, issue_number, human, timelines):
-            return Eligibility(False, "untrusted-provenance-removed-by-non-human")
+        untrusted = trust_refusal(owner, name, issue, human, timelines)
+        if untrusted:
+            return Eligibility(False, untrusted)
         vouch = _vouch_refusal(
             owner,
             name,
             issue,
-            labels,
+            _label_names(issue) or [],
             human,
             timelines,
             admission
