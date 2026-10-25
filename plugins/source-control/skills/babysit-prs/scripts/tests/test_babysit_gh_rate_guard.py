@@ -611,24 +611,31 @@ class TheJobStopFile(GuardCase):
         gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertEqual(len(self.sent), 1)
 
-    def make_stop_error(self, error: str) -> None:
-        """Build the condition under which reading the stop file fails with
-        `error`, as the shared vectors' `stop_file_errors` name it."""
-        if error == "EISDIR":
-            self.stop_file.mkdir(parents=True)
-        elif error == "ENOTDIR":
-            self.stop_file.parent.write_text("", encoding="utf-8")
-        elif error == "EACCES":
+    def make_stop_error(self, layout: str) -> None:
+        """Build a shared `stop_file_errors` vector's `layout`, as
+        rate-guard.test.mjs `makeStopFileError` builds it."""
+        budget = self.stop_file.parent
+        if layout == "api-budget-is-file":
+            budget.parent.mkdir(parents=True, exist_ok=True)
+            budget.write_text("", encoding="utf-8")
+            return
+        budget.mkdir(parents=True)
+        if layout == "stop-is-directory":
+            self.stop_file.mkdir()
+        elif layout in ("stop-unreadable", "api-budget-unsearchable"):
             if os.name == "nt" or os.geteuid() == 0:
-                self.skipTest("no unreadable file for this user")
-            self.write_stops("")
-            self.stop_file.chmod(0)
-        elif error != "ENOENT":
-            self.fail(f"no condition for {error}")
+                self.skipTest("this user reads past any file mode")
+            self.write_stops("core 1792751600\n")
+            if layout == "stop-unreadable":
+                self.stop_file.chmod(0)
+            else:
+                budget.chmod(0o600)
+        elif layout != "missing":
+            self.fail(f"no layout {layout}")
 
     def test_every_stop_file_error_vector_in_the_shared_file(self) -> None:
         table = json.loads(VECTORS.read_text(encoding="utf-8"))
-        self.assertGreaterEqual(len(table["stop_file_errors"]), 4)
+        self.assertGreaterEqual(len(table["stop_file_errors"]), 5)
         for vector in table["stop_file_errors"]:
             with (
                 self.subTest(vector["name"]),
@@ -638,11 +645,15 @@ class TheJobStopFile(GuardCase):
             ):
                 gh.reset_rate_guard()
                 self.stop_file = pathlib.Path(temp, "api-budget", "stop")
-                self.make_stop_error(vector["error"])
-                got = {
-                    pool: gh.stopped_until(pool, now=table["vector_now"])
-                    for pool in vector["until"]
-                }
+                self.make_stop_error(vector["layout"])
+                try:
+                    got = {
+                        pool: gh.stopped_until(pool, now=table["vector_now"])
+                        for pool in vector["until"]
+                    }
+                finally:
+                    if self.stop_file.parent.is_dir():
+                        self.stop_file.parent.chmod(0o755)
                 self.assertEqual(got, vector["until"])
                 errors = [
                     line
@@ -656,7 +667,7 @@ class TheJobStopFile(GuardCase):
                     self.assertIn(str(self.stop_file), errors[0])
 
     def test_a_stop_file_that_cannot_be_read_sends_nothing(self) -> None:
-        self.make_stop_error("EISDIR")
+        self.make_stop_error("stop-is-directory")
         for args in (
             ["api", "repos/o/r/pulls/1"],
             ["api", "graphql", "-f", "query=query{viewer{login}}"],

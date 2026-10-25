@@ -1670,11 +1670,15 @@ def _timeline(
     return timelines[number]
 
 
+UNTRUSTED = re.compile("untrusted", re.IGNORECASE | re.ASCII)
+
+
 def _untrusted(label: Any) -> bool:
     """`label` names untrusted work: any label holding "untrusted" in any
-    case, so a variant spelling of the untrusted-provenance label (another
-    separator, a dash variant, no prefix) still holds."""
-    return "untrusted" in str(label or "").casefold()
+    ASCII case, so a variant spelling of the untrusted-provenance label
+    (another separator, a dash variant, no prefix) still holds. ASCII-only,
+    as the merge queue's jq `ascii_downcase` matches it, so the two agree."""
+    return UNTRUSTED.search(str(label or "")) is not None
 
 
 def _untrusted_removed_by_non_human(
@@ -1695,6 +1699,28 @@ def _untrusted_removed_by_non_human(
         )
         for e in _timeline(owner, name, number, timelines)
     )
+
+
+def trust_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why the trust hold refuses the linked `issue` (a node read with its
+    `labels`), or None: labels that cannot be read whole, a label naming
+    untrusted work (`_untrusted`), or one ever removed by a non-human
+    (`_untrusted_removed_by_non_human`). A failed timeline read raises
+    `PolicyReadError`."""
+    labels = _label_names(issue)
+    if labels is None:
+        return "issue-labels-unreadable"
+    if any(_untrusted(label) for label in labels):
+        return "untrusted-provenance"
+    if _untrusted_removed_by_non_human(owner, name, issue["number"], human, timelines):
+        return "untrusted-provenance-removed-by-non-human"
+    return None
 
 
 def _claimed_before(
@@ -1973,18 +1999,14 @@ def eligibility(
         if linked:
             return Eligibility(False, linked)
         issue_number = issue["number"]
-        labels = _label_names(issue)
-        if labels is None:
-            return Eligibility(False, "issue-labels-unreadable")
-        if any(_untrusted(label) for label in labels):
-            return Eligibility(False, "untrusted-provenance")
-        if _untrusted_removed_by_non_human(owner, name, issue_number, human, timelines):
-            return Eligibility(False, "untrusted-provenance-removed-by-non-human")
+        untrusted = trust_refusal(owner, name, issue, human, timelines)
+        if untrusted:
+            return Eligibility(False, untrusted)
         vouch = _vouch_refusal(
             owner,
             name,
             issue,
-            labels,
+            _label_names(issue) or [],
             human,
             timelines,
             admission
@@ -2587,11 +2609,12 @@ def lane_eligibility(
     issue in this repository (`_linked_issue`; the verifier verdict binds to
     it), and a diff
     touching no `merge.diff-check.denied-paths`. Such a pull request is
-    class `LANE_CLASS`; no `work-class:` label is read.
+    class `LANE_CLASS`; no `work-class:` label is read, but the linked issue
+    must clear the trust hold (`trust_refusal`, as `eligibility` reads it,
+    a human judged with `agent_identity`, `self_logins` and `permission`).
     `pr` is the REST record, whose `changed_files` the file listing must
     reach. Holds (a hold label, a `Hold:` line) are the gate's, and
-    adoption's too.
-    `self_logins` and `permission` are unused: no human read remains."""
+    adoption's too."""
     owner, name = _split_repo(repo)
     issue_number = None
     adoption = None
@@ -2624,6 +2647,20 @@ def lane_eligibility(
         issue, refusal = _linked_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
+            permission = permission or permission_reader(repo)
+            refusal = trust_refusal(
+                owner,
+                name,
+                issue,
+                lambda actor: is_human(
+                    actor,
+                    repo=repo,
+                    agent_identity=agent_identity,
+                    self_logins=self_logins,
+                    permission=permission,
+                ),
+                {},
+            )
         # An adopted pull request closing no issue here is its own intent,
         # the verifier judging its title and body (owner decision 2026-10-22),
         # when a person or a script wrote them (`spec_from_body_ids`: the

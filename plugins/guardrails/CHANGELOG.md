@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.1] - 2026-10-25
+
+### Fixed
+
+- **block-root-delete-target:** a one-line `git commit -F - <<'EOF'` or `git tag -F - <<'EOF'` whose message names a root delete target is no longer refused: its quoted heredoc body is read as data, as for `cat` and `gh`. A git global option ahead of the subcommand (`git -c …`, `git -C …`), any other git subcommand or alias, `--file=-`, a `-F -` after `--` or in a prefix holding a quote or backslash, a pipe after the opener, and an opener on a later line are still scanned.
+
+## [0.59.0] - 2026-10-25
+
+### Added
+
+- **secret-pattern-detection:** `secret_pattern_detection_allowed_roots`, comma-separated absolute directories. A Write, Edit or NotebookEdit that holds a token is not blocked when its target's real path is strictly under one. An entry that is relative, empty, UNC, holds a glob character, a line break or a `..` component, is not an existing directory, or resolves to a filesystem root, a home directory or a directory holding one grants nothing, and with no usable home no entry grants. A link under a root that points outside it, a target spelled with a `.` or `..` segment, and a file with a second hard link are still scanned. Empty by default.
+- **secret-pattern-detection:** `secret_pattern_detection_skip_gitignored`, off by default. When `true`, a Write, Edit or NotebookEdit that holds a token is not blocked when the repository holding the target reports it ignored, asked from the target's nearest existing directory, so a session started at home is covered too. Tracked files, files in no repository and symlinks are still scanned.
+- With neither option set, the hook starts no extra process; with one set, the target is resolved only once the scan has found a token. Neither option applies to the GitHub MCP write lane or to the `pre-commit-content` git hook, which still judges a force-added file where that hook is installed.
+
+### Changed
+
+- `workflow-resilience-check`'s advisory also names `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS`, the variable that sets Claude Code's own 529 retry backoff ceiling, and links the [Tune retry behavior](https://code.claude.com/docs/en/errors#tune-retry-behavior) section for its default and range. It is offered beside wave caps and `agentRetry`, not in place of them: the docs do not say whether workflow subagents honor it ([#6756](https://github.com/melodic-software/claude-code-plugins/issues/6756)).
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.58.0] - 2026-10-25
 
 ### Added

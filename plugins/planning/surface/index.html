@@ -63,6 +63,7 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .notice span{overflow:hidden;text-overflow:ellipsis}
 #reBanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
 #reBanner[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
+#ledgerLine.synced{border-color:var(--line-strong);color:var(--muted);background:var(--panel)}
 .ctx{font:500 12.5px/1 var(--mono);font-variant-numeric:tabular-nums;padding:6px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);white-space:nowrap}
 abbr.term{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
 dl.terms{margin:8px 0}dl.terms dt{font-weight:600;margin-top:8px}dl.terms dd{margin:2px 0 0}
@@ -225,6 +226,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .sup-banner,.lockban{border-color:var(--wait);background:var(--wait-soft)}
 .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 section.blk{display:grid;gap:8px}
+section.roundrestate{border-left:3px solid var(--res);background:var(--res-soft);padding:9px 14px;border-radius:0 6px 6px 0;margin-bottom:10px}
 section.blk>h4,details.more>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
 details.more,details.src{display:grid;gap:12px}
 details.more>summary{cursor:pointer;padding:4px 0}
@@ -455,6 +457,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     <div class="hrow2">
       <span class="pill connecting" id="pill" aria-live="off">Connecting</span>
       <span class="ctx" id="ctxBadge" title="Context used" hidden></span>
+      <span class="ctx" id="ledgerLine" hidden></span>
       <button class="cline" id="claudeLine" aria-live="polite" title="Open the Activity panel (l)" hidden><span id="clText"></span><span class="age" id="clAge" aria-hidden="true"></span></button>
       <button class="cline wline" id="workLine" aria-live="polite" title="Open the Activity panel (l)" hidden></button>
       <div class="notice" id="notice" hidden></div>
@@ -557,8 +560,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30, frontierLock: "confirm", requireDepends: false};
   const RESTART = "Restart the server to enable this.";
   const NOT_LISTENING = "No session is listening; type next in the terminal";
-  const FIRST_WAKE = "Not listening: approve any prompt in the terminal, or type next";
-  const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
+  const FIRST_WAKE = "approve any prompt in the terminal, or type next"; // the header's instruction while no watcher has ever polled
+  const DEAF_AFTER = 30; // seconds with no watcher poll before the chips and the receipt line say no session is listening; the header does not wait on it
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
   const TEXT_MAX = 20000; // a note box's length: the lane's longest text (ops.schema.json markdown), inside the server's 64 KB body
   // The composer kit (question-shape.js) runs both note boxes: Ctrl or Cmd + Enter sends and Escape leaves (P5: the
@@ -607,6 +610,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const who = () => setting("displayName") || "You";
 
   // ---------- markdown subset (escape first) ----------
+  function roundRestateCard(q){ // the round's restate, pinned above the round's first question
+    const stage = q.stage || "", round = q.round || 1, r = (S.doc.rounds || []).find(x => (x.stage || "") === stage && x.round === round);
+    if (!r || !r.restate) return "";
+    const first = S.doc.questions.filter(x => (x.stage || "") === stage && (x.round || 1) === round).sort(byIdCmp)[0];
+    if (!first || first.id !== q.id) return "";
+    const list = (label, ids) => ids.length ? "<p><b>" + label + "</b> " + ids.map(refHtml).join(" ") + "</p>" : "";
+    return '<section class="blk roundrestate" id="roundRestate"><h4>Where round ' + esc(String(round)) + " starts</h4>" + md(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+  }
   function refHtml(id){ const q = Q[id]; return '<button type="button" class="ref" data-q="' + esc(id) + '"><b>' + esc(id) + '</b>' + esc(q ? (q.short || q.title) : "unknown") + '</button>'; }
   let termMemo = {key: null, re: null, defs: {}};
   function termMemoOf(){ // the glossary's terms as escaped text, longest first, so one pass wraps each defined term; rebuilt only when the glossary changes
@@ -737,6 +748,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return out;
   }
   const openAssumptions = () => commitRows().filter(r => !r.on).length;
+  const toConfirm = q => { const cf = confirmed(q); return (q.commits || []).filter((c, i) => !cf.has(String(i))).length; }; // commitments of q not yet ticked
+  function stateLabel(q){ // LABEL for q's state; an accepted question with unticked commitments says how many
+    const st = stateOf(q), n = st === "accept" ? toConfirm(q) : 0;
+    return LABEL[st] + (n ? ", " + n + " to confirm" : "");
+  }
   const talks = h => h.by === "claude" && (!!h.replyTo || ["reply", "rephrase", "note", "revise"].includes(h.kind)); // the asked, hold, supersede and confirm lines carry neither
   function unansweredReply(q){ // Claude answered your question and you have not responded since
     const h = historyOf(q).find(x => x.by !== "claude" || talks(x));
@@ -866,7 +882,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (d && d.decision) chips.push(d.aside ? '<span class="chip aside">Set aside</span>' : '<span class="chip plain">' + LABEL[d.decision] + "</span>");
     } else if (st === "open" && blocked(q)) chips.push(lockMode() === "off" ? '<span class="chip s-blocked" title="Waits on a question you have not answered">Blocked</span>'
       : '<span class="chip s-blocked lockchip" title="' + esc(lockText(q)) + '">' + LOCK_SVG + "Locked</span>");
-    else chips.push('<span class="chip s-' + esc(st) + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
+    else chips.push('<span class="chip s-' + esc(st) + '">' + stateLabel(q) + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">' + ((q.upstreamChanged || []).length ? "Upstream changed" : "Stale") + "</span>");
     if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
@@ -884,7 +900,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const met = p => '<span class="metmark" role="img" aria-label="' + (gone(p) ? "left the path" : "answered") + '" title="' + (gone(p) ? "Left the path" : "Answered") + '">\u2713</span>';
     const needs = upOf(q).length ? '<span class="needsrow">' + upOf(q).map(p => '<span class="needs' + (parentMet(p) ? " met" : " unmet") + '">needs ' + esc(p + gone(p)) + (parentMet(p) ? met(p) : "") + "</span>").join("") + "</span>" : "";
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
-    const ttl = String(q.short || q.title).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1"), name = q.id + ", " + ttl + ", " + (st === "open" && blocked(q) ? (lockMode() === "off" ? "open, blocked" : "open, locked") : LABEL[st]) + (dot ? ", updated" : ""); // the name is id, short title and state; the chips and preview are its description
+    const ttl = String(q.short || q.title).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1"), name = q.id + ", " + ttl + ", " + (st === "open" && blocked(q) ? (lockMode() === "off" ? "open, blocked" : "open, locked") : stateLabel(q)) + (dot ? ", updated" : ""); // the name is id, short title and state; the chips and preview are its description
     return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath ? " dim" : up ? " waiting" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '" aria-label="' + esc(name) + '" aria-describedby="qd-' + esc(q.id) + '">' +
       '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(ttl) + '</span><span class="qmore" id="qd-' + esc(q.id) + '">' + needs +
       '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") + "</span></span>" +
@@ -984,8 +1000,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!(l.waiters > 0) && (l.lease || l.state === "reading") && !stalled()) { // Claude holds the lease, or the bridge reports the session reading (its window after a delivery), no watcher waits, and no delivery has gone unhandled for 10 minutes
       return ["working", d ? "Claude is working on " + subject(d) : "Claude is working"];
     }
-    if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
-    return l.waiters > 0 ? ["listening", "Live"] : ["rest", "Idle"]; // Live needs a waiter; the lease alone no longer shows it
+    if (!(l.waiters > 0)) { // no waiter and no lease, or a stalled delivery: not listening from the first render, with no DEAF_AFTER grace (that grace is the chips' and the receipt line's)
+      const p = pending();
+      if (!p.length) return ["rest", "Idle"]; // only a waiting event needs Claude
+      const d = p.find(delivered), ids = [...new Set((d ? [d, ...p.filter(e => e !== d)] : p).map(subject))]; // the delivered one first, as the receipt line lists them
+      const who = ids.length > 3 ? ids.slice(0, 3).join(", ") + " and " + (ids.length - 3) + " more" : ids.join(", ");
+      return ["idle", "Not listening for " + who + ": " + (neverPolled() ? FIRST_WAKE : "type next")];
+    }
+    return ["listening", "Live"]; // Live needs a waiter; the lease alone no longer shows it
   }
   function working(){ // what Claude is doing with the user's events, else ""
     if (!S.online) return "";
@@ -1041,7 +1063,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const na = openAssumptions(), ac = $("assumeCount"), u = uState(), sure = !!(u && u.alt === "confirm"), unticked = na + (na === 1 ? " commitment" : " commitments");
     ac.hidden = !na; ac.classList.toggle("long", sure); // confirming the understanding ticks no commitment: say so, so the count does not read as a failed Confirm
     ac.textContent = sure ? "Understanding confirmed · " + unticked + " unticked; they become named risks unless ticked" : na + " to confirm";
-    ac.title = unticked + " unconfirmed: open the list";
+    const owed = S.doc.questions.filter(q => stateOf(q) === "accept" && toConfirm(q)).map(q => q.id + " " + stateLabel(q).toLowerCase());
+    ac.title = unticked + " unconfirmed: open the list" + (owed.length ? " (" + owed.join("; ") + ")" : "");
+    const ls = m.ledgerSync, ll = $("ledgerLine"), lrows = ls && Array.isArray(ls.rows) ? ls.rows : [];
+    ll.hidden = !ls; ll.classList.toggle("synced", !!ls && !lrows.length);
+    ll.textContent = !ls ? "" : lrows.length ? "Ledger: " + lrows.length + (lrows.length === 1 ? " row" : " rows") + " out of sync" : "Ledger in sync, rev " + ls.rev;
+    ll.title = lrows.length ? "The ledger and the page disagree on " + lrows.join(", ") + ". Run round.sh export-ledger --diff <ledger> to see how." : "The ledger matches the page, checked at rev " + (ls ? ls.rev : "");
     const wo = outstanding().length, wc = $("wrapChip");
     wc.hidden = !wo || wrapSent(); wc.textContent = wo + " before wrap-up";
     $("sumBtn").setAttribute("aria-pressed", String(S.sel === SUMMARY));
@@ -1228,9 +1255,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!q) { el.innerHTML = '<p class="empty">' + (S.loaded ? "Pick a question." : "Loading questions.") + "</p>"; renderAnswer(); return; }
     const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
     const marks = (S.doc.meta || {}).emojiMarkers === true;
-    let h = checkpointBanner();
+    let h = checkpointBanner() + roundRestateCard(q);
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + addedChip(q) + (g ? "<span>" + esc(g.title) + "</span>" : "") +
-      '<span class="chip s-' + esc(st) + '">' + LABEL[st] + '</span><span class="grow"></span>' +
+      '<span class="chip s-' + esc(st) + '">' + stateLabel(q) + '</span><span class="grow"></span>' +
       (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
       (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + (waitingReply(q) ? '<p class="youans"><span class="chip hot">Waiting for Claude\'s reply</span></p>' : "") + "</div>";
     const kids = S.doc.questions.filter(x => x.followUpOf === q.id).map(x => x.id);

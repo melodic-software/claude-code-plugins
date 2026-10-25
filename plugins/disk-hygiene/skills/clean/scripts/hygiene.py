@@ -215,6 +215,20 @@ PROTECTED_TARGET_HINT = (
 )
 
 
+MOUNT_POINT_TARGET_HINT = (
+    "Pass --root-children to list a mount point's immediate children read-only (a tmpfs /tmp, "
+    "for example). The mount is never walked; scan an admitted child directory as its own target."
+)
+
+
+MOUNT_POINT_CHILDREN_NOTE = (
+    "This target is a mount point, so the engine only lists its immediate children and never "
+    "walks it. Scan an admitted child directory as its own target; loose files are reported "
+    "here only. A mount-point target never yields a snapshot, so nothing under it can reach "
+    "preview or removal through this listing."
+)
+
+
 def emit(payload: dict[str, Any], code: int = 0) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
     return code
@@ -5565,8 +5579,21 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError(
                     "--root-children on an OS-managed target requires a volume-root target"
                 )
-            if mounted and not is_volume_root(target):
-                raise HygieneError("mount points are not valid audit targets")
+            mount_point_target = mounted and not volume_root
+            if mount_point_target and not root_children_mode:
+                return emit(
+                    {
+                        "status": "invalid-or-blocked",
+                        "error": "mount points are not valid audit targets",
+                        "hint": MOUNT_POINT_TARGET_HINT,
+                    },
+                    2,
+                )
+            if mount_point_target and selected_root_children:
+                raise HygieneError(
+                    "a mount-point target lists its immediate children only; "
+                    "scan an admitted child directory as its own target"
+                )
             policy = load_policy(
                 Path(args.policy).expanduser().absolute() if args.policy else None,
                 Path(args.project_dir).expanduser().absolute()
@@ -5599,8 +5626,43 @@ def main(argv: list[str] | None = None) -> int:
                     target,
                     policy,
                     known_mounts,
-                    strict_volume_root=volume_root,
+                    strict_volume_root=volume_root or mount_point_target,
                 )
+                if mount_point_target:
+                    listing = {
+                        "status": "root-children-selection-required",
+                        "target": str(target),
+                        "mount_point_target": True,
+                        "admitted_children": admitted,
+                        "skipped_children": skipped,
+                        "root_children_skipped": root_children_skipped_reason_counts(
+                            skipped
+                        ),
+                        "os_autoclean": advisory,
+                        "note": MOUNT_POINT_CHILDREN_NOTE,
+                    }
+                    if not args.quiet:
+                        return emit(listing, 0)
+                    # A busy /tmp lists tens of thousands of entries; the file
+                    # carries no snapshot schema, so preview refuses it.
+                    write_json(output_path, listing)
+                    kinds: dict[str, int] = {}
+                    for item in admitted:
+                        kind = str(item.get("kind", "unknown"))
+                        kinds[kind] = kinds.get(kind, 0) + 1
+                    summary = {
+                        key: value
+                        for key, value in listing.items()
+                        if key not in {"admitted_children", "skipped_children"}
+                    }
+                    return emit(
+                        {
+                            **summary,
+                            "admitted_kinds": dict(sorted(kinds.items())),
+                            "listing_path": str(output_path),
+                        },
+                        0,
+                    )
                 # This status and large-target-confirmation-required name the
                 # documented next step, so they exit 0 and `status` carries the
                 # distinction; non-zero exits stay reserved for failures.

@@ -68,6 +68,31 @@ OTHER_FAILURE = {
     "message": "failure-class=incomplete: no completed review was found on this head",
 }
 
+# publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
+# recorded it when the review's own post hit GitHub's API rate limit.
+PUBLISH_RATE_LIMIT = {
+    "path": ".github",
+    "annotation_level": "failure",
+    "title": "",
+    "message": "claude-review: failure-class=publish-failed: posting the review failed"
+    " (API rate limit exceeded for installation. If you reach out to GitHub Support"
+    " for help, please include the request ID 7819:37FE4F:2414D85:756EBF6:6ADCE2DA"
+    " and timestamp 2026-10-24 16:54:51 UTC. For more on scraping GitHub and how it"
+    " may affect your rights, please review our Terms of Service"
+    " (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service)"
+    " - https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api#rate-limiting)",
+}
+
+
+def publish_failed(detail: str) -> dict[str, Any]:
+    return {
+        "path": ".github",
+        "annotation_level": "failure",
+        "title": "",
+        "message": f"claude-review: failure-class=publish-failed: posting the review failed ({detail})",
+    }
+
+
 _ids = iter(range(1000, 10**6))
 
 
@@ -330,7 +355,6 @@ class LaneSourceTests(Base):
         for path in (
             ".github/workflows/pr-review-hosted.yml",
             ".github/workflows/pr-review-security-hosted.yml",
-            "plugins/review/skills/security-review/SKILL.md",
             ".claude/settings.json",
             "plugins/foo/.claude/rules/x.md",
             ".mcp.json",
@@ -358,6 +382,35 @@ class LaneSourceTests(Base):
         ):
             with self.subTest(path):
                 result = self.bound(path)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_review_plugin_change_binds_both_lanes(self) -> None:
+        # The reusable stages the review plugin from the default branch's
+        # tip, never the head (scripts/ci-review-plugin-source.test.sh pins
+        # the callers to that), so a pull request's copy feeds no review.
+        for path in (
+            "plugins/review/skills/security-review/SKILL.md",
+            "plugins/review/skills/code-review/SKILL.md",
+            "plugins/review/agents/lane-verifier.md",
+            "plugins/review/.claude-plugin/plugin.json",
+            "plugins/review",
+        ):
+            with self.subTest(path):
+                result = self.bound("app.py", path)
+                for lane in LANES:
+                    self.assertTrue(result[lane].bound, lane)
+
+    def test_a_review_plugin_change_beside_lane_source_still_unbinds(self) -> None:
+        for other in (
+            ".github/workflows/pr-review-hosted.yml",
+            "docs/standards/README.md",
+            ".claude-lane/pr-context.md",
+            "plugins/review/CLAUDE.md",
+            "plugins/review/.claude/settings.json",
+        ):
+            with self.subTest(other):
+                result = self.bound("plugins/review/skills/code-review/SKILL.md", other)
                 for lane in LANES:
                     self.assertUnbound(result[lane], "lane-source-changed")
 
@@ -510,6 +563,63 @@ class AttemptRuleTests(Base):
         first = attempt("claude-review", S, 1, [RATE_LIMIT], "failure")
         result = self.bind([self.lane_run(first, self.ok(2))])
         self.assertTrue(result["claude-review"].bound)
+
+    def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
+        first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_second_attempt_after_a_publish_secondary_rate_limit_failure(self) -> None:
+        limited = publish_failed(
+            "You have exceeded a secondary rate limit. Please wait a few minutes"
+            " before you try again."
+        )
+        first = attempt("claude-review", S, 1, [limited], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_second_attempt_after_another_publish_failure(self) -> None:
+        for detail in (
+            "Validation Failed",
+            "Not Found; the reviewer also logged API rate limit exceeded",
+            "the publish gate could not be loaded",
+        ):
+            with self.subTest(detail=detail):
+                first = attempt(
+                    "claude-review", S, 1, [publish_failed(detail)], "failure"
+                )
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_publish_rate_limit_line_below_the_first_line(self) -> None:
+        quoted = dict(
+            OTHER_FAILURE,
+            message="failure-class=incomplete: no review; the log quoted\n"
+            + PUBLISH_RATE_LIMIT["message"],
+        )
+        first = attempt("claude-review", S, 1, [quoted], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_publish_rate_limit_line_of_another_lane(self) -> None:
+        other_lane = dict(
+            PUBLISH_RATE_LIMIT,
+            message=PUBLISH_RATE_LIMIT["message"].replace(
+                "claude-review:", "claude-security-review:", 1
+            ),
+        )
+        first = attempt("claude-review", S, 1, [other_lane], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_rate_limit_text_outside_a_publish_failure_line(self) -> None:
+        other = dict(
+            OTHER_FAILURE,
+            message="failure-class=incomplete: no review (API rate limit exceeded)",
+        )
+        first = attempt("claude-review", S, 1, [other], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_rate_limit_annotation_on_a_successful_first_attempt(self) -> None:
         first = attempt("claude-review", S, 1, [RATE_LIMIT], "success")

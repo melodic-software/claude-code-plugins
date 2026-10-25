@@ -56,6 +56,33 @@ def question(qid, **extra):
     return q
 
 
+STOCK_RESTATE = {
+    "text": "Earlier rounds are settled. These branches are open. This round turns on them.",
+    "decided": [],
+    "open": [],
+}
+
+
+def with_restates(data):
+    """`data` (a round file or an ops file) with STOCK_RESTATE on every add-round that adds questions and names no `restate`."""
+    if not isinstance(data, dict):
+        return data
+    if data.get("questions") and "restate" not in data:
+        return {**data, "restate": STOCK_RESTATE}
+    if isinstance(data.get("ops"), list):
+        ops = [
+            {**op, "restate": STOCK_RESTATE}
+            if isinstance(op, dict)
+            and op.get("op") == "add-round"
+            and op.get("questions")
+            and "restate" not in op
+            else op
+            for op in data["ops"]
+        ]
+        return {**data, "ops": ops}
+    return data
+
+
 def base_doc():
     """A v2.1-shaped questions.json: no schemaVersion, two groups, three questions."""
     return {
@@ -115,6 +142,9 @@ class DirCase(unittest.TestCase):
         return run_round(self.dir, *args, env=env)
 
     def file(self, name, data):
+        """Write `data` as JSON; a round with questions and no `restate` gets a stock one, so
+        tests about other things post rounds as a real session would (G7)."""
+        data = with_restates(data)
         path = self.tmp / name
         path.write_text(json.dumps(data), encoding="utf-8")
         return str(path)
@@ -3971,6 +4001,107 @@ class TestSupersedeResolve(DirCase):
         self.assertEqual(list(self.tmp.glob("*.bak")), [])
 
 
+class TestLedgerCheck(DirCase):
+    """ledger-check, and wake.sh running it after apply, show ledger drift while the interview runs."""
+
+    def setUp(self):
+        super().setUp()
+        self.ledger = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        doc["meta"]["seededFrom"] = {
+            "ledger": str(self.ledger),
+            "at": "2026-01-01T00:00:00Z",
+            "rows": {},
+        }
+        self.write_doc(doc)
+
+    def drift_one_row(self):
+        text = self.ledger.read_text(encoding="utf-8")
+        row = next(x for x in text.splitlines() if x.startswith("- Q2 |"))
+        # Keep the status, round and title cells; the resolution cell is the last.
+        edited = "|".join(row.split("|")[:4]) + "| edited in the ledger"
+        self.ledger.write_text(text.replace(row, edited), encoding="utf-8")
+
+    def wake(self, *, ops=None):
+        """wake.sh copied beside a control script that runs round.py and a watch.sh that exits."""
+        scripts = self.tmp / "scripts"
+        scripts.mkdir(exist_ok=True)
+        shutil.copy(HERE / "wake.sh", scripts / "wake.sh")
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        (scripts / "session-bridge.conf").write_text(
+            conf.replace("CONTROL=round.sh", "CONTROL=ctl.sh"), encoding="utf-8"
+        )
+        (scripts / "ctl.sh").write_text(
+            f'exec "{sys.executable}" "{ROUND}" "$@"\n', encoding="utf-8"
+        )
+        (scripts / "watch.sh").write_text("exit 0\n", encoding="utf-8")
+        if ops:
+            (self.dir / "ops.json").write_text(json.dumps(ops), encoding="utf-8")
+        return subprocess.run(
+            ["bash", str(scripts / "wake.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def activity(self):
+        return [e["text"] for e in self.doc().get("activity", [])]
+
+    def test_the_conf_names_the_check(self):
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        self.assertIn("\nAFTER_APPLY=ledger-check\n", conf)
+
+    def test_matching_ledger_records_in_sync_and_logs_nothing(self):
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+        sync = self.doc()["meta"]["ledgerSync"]
+        self.assertEqual(sync, {"rev": self.doc()["rev"], "rows": []})
+        self.assertEqual(self.activity(), [])
+
+    def test_an_unchanged_result_writes_nothing(self):
+        self.rp("ledger-check")
+        before = self.raw()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.raw(), before)
+
+    def test_a_disagreeing_row_is_recorded_and_logged_once(self):
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
+        self.assertEqual(len(self.activity()), 1)
+        self.assertRegex(self.activity()[0], r"^Ledger out of sync, 1 row: Q2 ")
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(len(self.activity()), 1)
+
+    def test_a_page_without_a_ledger_is_not_checked(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_wake_logs_the_disagreeing_row_after_apply(self):
+        self.drift_one_row()
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        log = self.activity()
+        self.assertEqual(log[0], "Applied one op")
+        self.assertTrue(any(x.startswith("Ledger out of sync") and "Q2" in x for x in log), log)
+
+    def test_wake_with_a_matching_ledger_logs_no_drift(self):
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.activity(), ["Applied one op"])
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
+
+
 class TestConfirmationRecap(DirCase):
     """export-ledger --recap emits a recap that fits the restate cap on a long interview."""
 
@@ -4219,6 +4350,65 @@ class TestCliHygiene(DirCase):
 
         for op in r.OP_ARGS:
             self.assertIn(op, out)
+
+
+class TestRoundRestate(DirCase):
+    """G7: a round with questions opens with a restate, as R1 requires `commits`."""
+
+    def spec(self, **restate):
+        body = {"text": "Q1 is settled. Q4 is open. The round turns on Q4.", "decided": ["Q1"], "open": ["Q4"]}
+        body.update(restate)
+        return {"questions": [question("Q4", round=2)], "restate": body}
+
+    def post(self, spec, *extra):
+        path = self.tmp / "restate-round.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        return str(path)
+
+    def test_a_round_without_restate_is_refused_naming_the_field(self):
+        path = self.post({"questions": [question("Q4", round=2)]})
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("restate", out)
+
+    def test_more_than_three_sentences_is_refused(self):
+        path = self.post(self.spec(text="One. Two. Three. Four."))
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("restate", out)
+        self.assertIn("4 sentences", out)
+
+    def test_decided_and_open_must_name_known_questions(self):
+        path = self.post(self.spec(open=["Q99"]))
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("Q99", out)
+
+    def test_a_valid_restate_is_stored_on_the_round(self):
+        rc, out, err = self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual((entry["round"], entry["stage"]), (2, "interview"))
+        self.assertEqual(entry["restate"]["decided"], ["Q1"])
+        self.assertEqual(entry["restate"]["open"], ["Q4"])
+        self.assertIn("Q4 is open", entry["restate"]["text"])
+
+    def test_the_activity_feed_posts_a_needs_you_entry(self):
+        self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertTrue(self.doc()["activity"][-1].get("asks"))
+
+    def test_apply_refuses_a_round_without_restate(self):
+        path = self.post({"ops": [{"op": "add-round", "questions": [question("Q4")]}]})
+        out = self.assert_refused("apply", "--file", path)
+        self.assertIn("restate", out)
+
+    def test_a_round_without_questions_needs_no_restate(self):
+        path = self.post({"groups": [{"id": "g3", "title": "T"}]})
+        rc, out, err = self.rp("add-round", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("rounds", self.doc())
+
+    def test_a_file_without_rounds_still_validates(self):
+        self.assertNotIn("rounds", self.doc())
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
 
 
 if __name__ == "__main__":

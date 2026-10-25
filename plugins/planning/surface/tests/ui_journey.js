@@ -225,7 +225,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the header derives Round 2 · Interview", (await text("#roundLbl")) === "Round 2 · Interview", await text("#roundLbl"));
     await tap("#notice [data-go]", 300);
     ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText) && /retry count stay at three/.test(document.getElementById("fbody").innerText)));
-    ok("the notice moves on to the reply on Q3, not to Round 2 added, and Go names the question it opens", /replied on Q3/i.test(await text("#notice")) && !/Round 2 added/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q3", await text("#notice"));
+    ok("the notice moves on to Round 2 added, whose restate waits on you, and Go names the round's first question", /Round 2 added/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q6", await text("#notice"));
     // #7755: the timestamp and separator dot on Claude's blue note reach 4.5:1 in the light theme
     await page.emulateMedia({colorScheme: "light"}); await page.waitForTimeout(100);
     const noteRatios = await page.$$eval(".nmsg.claude .hl time, .nmsg.claude .hl .dot", els => els.map(el => {
@@ -246,6 +246,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.selectOption("#filter", "answered"); await page.waitForTimeout(200);
     const ansSecs = await page.$$eval(".rail-list .sec", els => els.map(el => ({c: el.dataset.collapsed, n: [...el.querySelectorAll(".qbtn")].filter(b => b.offsetParent).length})));
     ok("the Answered filter expands every group that holds a match and shows its questions", ansSecs.length > 0 && ansSecs.every(s => s.c === "false" && s.n > 0), JSON.stringify(ansSecs));
+    await tap("#notice [data-go]", 400);
+    ok("Go to Q6 opens the round's first question under its restate card", await sel() === "Q6" && /Where round 2 starts/.test(await text("#roundRestate")) && /green build ships on its own/.test(await text("#roundRestate")), await text("#roundRestate"));
+    ok("the notice then moves on to the reply on Q3, and Go names the question it opens", /replied on Q3/i.test(await text("#notice")) && !/Round 2 added/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q3", await text("#notice"));
     await page.selectOption("#filter", "open"); await page.waitForTimeout(200); // Open hides the answered Q3
     await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
@@ -276,9 +279,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     const all = (await state()).questions.activity;
     const panel = await page.evaluate(() => { const lis = [...document.querySelectorAll("#fbody .act-list li")]; return {open: document.getElementById("fly").classList.contains("open"), title: document.getElementById("flyTitle").textContent, first: lis.length ? lis[0].innerText : "", times: lis.filter(li => li.querySelector("time")).length, refs: document.querySelectorAll("#fbody .act-list .ref[data-q]").length, badge: document.getElementById("actBadge").hidden}; });
     ok("the Claude line opens Activity, newest first with times and question links, and clears the badge", panel.open && panel.title === "Activity" && panel.first.includes(all[all.length - 1].text) && panel.times === all.length && panel.refs > 0 && panel.badge, JSON.stringify(panel).slice(0, 200));
-    const split = await page.evaluate(() => { const log = document.getElementById("actLog"); return {needs: document.getElementById("actNeeds").textContent, log: log ? log.querySelector("summary").textContent : "", open: log ? log.open : null, inLog: log ? [...log.querySelectorAll("li")].map(li => li.textContent) : []}; });
+    const split = await page.evaluate(() => { const log = document.getElementById("actLog"); const nh = document.getElementById("actNeeds"), nl = nh.nextElementSibling; return {needs: nh.textContent, inNeeds: nl && nl.matches("ol") ? [...nl.querySelectorAll("li")].map(li => li.textContent) : [], log: log ? log.querySelector("summary").textContent : "", open: log ? log.open : null, inLog: log ? [...log.querySelectorAll("li")].map(li => li.textContent) : []}; });
     const nn = +/\((\d+)\)/.exec(split.needs)[1], nl = +/\((\d+)\)/.exec(split.log)[1];
-    ok("Activity splits Needs you from a collapsed Log that holds the ledger churn, the added round and the reply to your note", nn > 0 && nn + nl === all.length && split.open === false && split.inLog.some(t => /Added a retry note to Q1/.test(t)) && split.inLog.some(t => /Round 2 added/.test(t)) && split.inLog.some(t => /Note reply saved/.test(t)), JSON.stringify(split).slice(0, 240));
+    ok("Activity splits Needs you, which lists the added round (its restate waits on you), from a collapsed Log that holds the ledger churn and the reply to your note", nn > 0 && nn + nl === all.length && split.open === false && split.inNeeds.some(t => /Round 2 added/.test(t)) && !split.inLog.some(t => /Round 2 added/.test(t)) && split.inLog.some(t => /Added a retry note to Q1/.test(t)) && split.inLog.some(t => /Note reply saved/.test(t)), JSON.stringify(split).slice(0, 240));
     const seen = await page.evaluate(() => Object.keys(localStorage).filter(k => /:actSeen$/.test(k)).map(k => localStorage.getItem(k)).join(""));
     ok("the seen marker stores no entry text", seen.length > 0 && !seen.includes("Round 2 added"), seen.slice(0, 120));
     ok("the seen marker keys each entry by its seq", all.every(e => Number.isInteger(e.seq)) && all.every(e => JSON.parse(seen).includes("s" + e.seq)), seen.slice(0, 120));
@@ -452,8 +455,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     const calm = await until(() => document.getElementById("pill").textContent === "Idle", Math.max(40000, readLeft + 5000));
     ok("with nothing pending and no watcher the pill reads Idle, not an error", calm && await page.$eval("#pill", el => el.className === "pill rest" && el.getAttribute("aria-live") === "off"), await text("#pill"));
     await post({kind: "note", text: "Anything else?"});
-    const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
-    ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
+    const prompt = await until(() => document.getElementById("pill").textContent === "Not listening for your note: type next", 5000);
+    ok("once an event waits on Claude the pill names it: Not listening for your note: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
     await page.evaluate(b => { window.__badge7 = b; }, await badge());
   }
   if (PHASE === 14) { // the shell added Q9 and posted a Notes reply that asks; the user answers Q9 with their own text

@@ -51,9 +51,7 @@ LANES: dict[str, tuple[str, str]] = {
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
 # any workflow it adds can post a github-actions[bot] reviewed-head marker),
-# the review plugin path (the reusable stages it from main, so this is
-# caution against a caller that loads it from the checkout), Claude Code project config and instruction files at
-# any depth, the criteria the lane skills read from the checkout (REVIEW.md,
+# Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
 # untrusted-content contract), the lane's input directory .claude-lane/ (the
 # code lane falls back to a context file there), and .gitattributes, which can
@@ -61,10 +59,13 @@ LANES: dict[str, tuple[str, str]] = {
 # from a checkout of main and the reusable runs its composites from its own
 # repository, so the rest of .github/ feeds no review. A pull request that
 # changes any listed path may have changed its own review, so its records
-# prove no review by the default branch's lane.
+# prove no review by the default branch's lane. plugins/review/ is not listed:
+# the reusable pr-review-cli.yml stages the review plugin from
+# claude-code-plugins' default-branch tip, never the head, and
+# scripts/ci-review-plugin-source.test.sh fails if a caller stops calling it
+# pinned to a SHA or passes it a plugin path.
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
-    "plugins/review/",
     "docs/standards/",
     "docs/conventions/instruction-exception-register/",
     "docs/conventions/untrusted-content/",
@@ -94,8 +95,19 @@ RECORD_RE = re.compile(
 )
 SHA_RE = re.compile(rf"^{_SHA}$")
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-# The wrapper re-runs a review only after a usage-limit failure, once.
+# The reconciler re-runs any failed lane run once; attempt 2 binds only when
+# attempt 1 failed on a usage limit.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# Or when the review's own post hit GitHub's API rate limit: the message opens
+# with this lane's publish-review failure line (ci-workflows publish.cjs `fail`)
+# whose detail, the request error's message, opens with GitHub's primary or
+# secondary rate-limit text
+# (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+# Any other publish failure stays refused, so a re-run cannot hide one.
+PUBLISH_RATE_LIMIT_RE = re.compile(
+    r"(?P<lane>[\w-]+): failure-class=publish-failed: [^(\n]*"
+    r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
+)
 MARKER_AUTHOR = "github-actions[bot]"
 MARKER_RE = re.compile(
     rf"^<!-- claude-lane-reviewed-head lane=([\w-]+) sha=({_SHA}) -->$"
@@ -126,7 +138,7 @@ def _lane_comment(lane: str, login: object, body: str) -> bool:
 
 
 # The lane whose findings hold the merge only at its top tier, CRITICAL
-# (plugins/review/skills/security-review/SKILL.md, "Reporting"): each inline
+# (/review:security-review, "Reporting"): each inline
 # comment carries one `severity:` line, and the summary one
 # `critical-findings:` line counting its CRITICAL findings with no inline
 # comment. A comment or summary without exactly one readable line counts every
@@ -365,7 +377,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
         if first is None:
             raise Unbound("evidence-missing")
         if first.get("conclusion") != "failure" or not _rate_limited(
-            _lane_job(lane, newest["id"], first)
+            lane, _lane_job(lane, newest["id"], first)
         ):
             raise Unbound("rerun-not-allowed")
     job = _lane_job(lane, newest["id"], latest)
@@ -420,11 +432,17 @@ def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str
     return job
 
 
-def _rate_limited(job: Mapping[str, Any]) -> bool:
+def _rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
+    def limited(message: str) -> bool:
+        publish = PUBLISH_RATE_LIMIT_RE.match(message)
+        return bool(RATE_LIMIT_CLASS_RE.search(message)) or (
+            publish is not None and publish["lane"] == lane
+        )
+
     return any(
         isinstance(a, Mapping)
         and a.get("annotation_level") == "failure"
-        and RATE_LIMIT_CLASS_RE.search(str(a.get("message") or ""))
+        and limited(str(a.get("message") or ""))
         for a in job["annotations"]
     )
 

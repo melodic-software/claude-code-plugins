@@ -731,7 +731,8 @@ class TestFlowQuery(unittest.TestCase):
             ("var A=Array;A.prototype.includes=f;", ["write"]),
             ("(0,Array).prototype.includes=f;", ["write"]),
             ("globalThis.Array.prototype.includes=f;", ["write"]),
-            ('Array["proto"+"type"].includes=f;', ["write"]),
+            # A computed read whose key may be `require` may load node:vm.
+            ('Array["proto"+"type"].includes=f;', ["write", "unknown-load"]),
             ('Reflect.get(Array,"prototype").includes=f;', ["write"]),
             (
                 "var e={hasOwnProperty(o){o.includes=f}};e.hasOwnProperty.call(null,[].__proto__);",

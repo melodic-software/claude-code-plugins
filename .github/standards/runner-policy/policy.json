@@ -359,6 +359,32 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@215cec5c362f953f8b6196effb04451696c3f970": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "role": "intake",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version",
+        "claude-args",
+        "issue-number",
+        "allowed-author-ids",
+        "allowed-bot-sender-ids",
+        "role"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.INTAKE_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",

@@ -1157,10 +1157,20 @@ test("the merge job reads this run's report only when post-merge-dispatch keeps 
   // downloads nothing rather than failing the step.
   assert.match(read, /\n {10}pattern: pr-merge-post-merge-report\n {10}merge-multiple: true\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-kept\n/);
   assert.match(read, /\n {8}continue-on-error: true\n/);
-  assert.match(read, /steps\.mode\.outputs\.live == 'true'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)/);
+  assert.match(read, /steps\.mode\.outputs\.live == 'true'\n {10}&& needs\.post-merge-dispatch\.result != 'skipped'\n/);
   assert.doesNotMatch(read, /run-id|github-token|repository:/);
   const names = steps.map((s) => s.name);
   assert.equal(names.indexOf("Read this run's post-merge report") + 1, names.indexOf("Check earlier lane merges"));
+});
+
+// The merge job reads the report only after post-merge-dispatch has kept it.
+// !cancelled() keeps the job on pull_request_target, where that job is
+// skipped, and when it fails.
+test("the merge job waits for post-merge-dispatch and still runs when it is skipped or fails", () => {
+  const header = job.slice(0, job.indexOf("\n    steps:\n"));
+  assert.match(header, /\n {4}needs: \[post-merge-dispatch\]\n/);
+  assert.match(header, /\n {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'/);
+  assert.doesNotMatch(header, /needs\.post-merge-dispatch\.result == 'success'/);
 });
 
 test("the lane token request passes the resolved grant's actions, so an actions read grant is compared too", () => {

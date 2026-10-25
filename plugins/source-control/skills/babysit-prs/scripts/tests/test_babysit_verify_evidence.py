@@ -239,6 +239,12 @@ class FakeGitHub:
         # may name is: an issue's repository, or "PullRequest".
         self.body: str | None = None
         self.refs: dict[int, str] = {}
+        # Each issue's label names now, and a totalCount that cuts them.
+        self.labels: dict[int, list[str]] = {}
+        self.labels_total: dict[int, int] = {}
+        # Each issue's REST timeline events, and each login's permission.
+        self.timeline: dict[int, list[dict[str, Any]]] = {}
+        self.permissions: dict[str, str] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -306,6 +312,10 @@ class FakeGitHub:
             "number": n,
             "lastEditedAt": self.closing_edited.get(n),
             "repository": {"nameWithOwner": repo},
+            "labels": {
+                "totalCount": self.labels_total.get(n, len(self.labels.get(n, []))),
+                "nodes": [{"name": name} for name in self.labels.get(n, [])],
+            },
             "comments": {
                 "totalCount": self.comments_total.get(
                     n, len(self.closing_comments.get(n, []))
@@ -386,6 +396,16 @@ class FakeGitHub:
             return subprocess.CompletedProcess(args, 0, self.diffs[sha], "")
         if path.startswith(f"repos/{REPO}/contents/"):
             return ok(self.actors)
+        issues = f"repos/{REPO}/issues/"
+        if path.startswith(issues) and path.endswith("/timeline?per_page=100"):
+            n = int(path[len(issues) :].split("/")[0])
+            return ok([self.timeline.get(n, [])])
+        collaborators = f"repos/{REPO}/collaborators/"
+        if path.startswith(collaborators) and path.endswith("/permission"):
+            login = path[len(collaborators) :].split("/")[0]
+            if login not in self.permissions:
+                return missing()
+            return ok({"permission": self.permissions[login]})
         prefix = f"repos/{REPO}/actions/runs/"
         if path.startswith(prefix):
             run_id = int(path[len(prefix) :])
@@ -3325,6 +3345,8 @@ class LaneRequiresAVerdict(unattended.Unattended):
         reads = [
             ("_graphql", {"repository": {"pullRequest": node}}),
             ("_base_refusal", None),
+            # The trust hold's label history: no removal.
+            ("_timeline", []),
         ]
         if not real_denied_paths:
             reads.append(("_denied_path_refusal", None))
@@ -4401,6 +4423,98 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
             self.assertTrue(str(report["ineligible"]).startswith("unreadable: "))
             self.assertEqual(report["refusal"], ve.INELIGIBLE)
             self.assertEqual(listings(fake), 0)
+
+    def test_an_untrusted_label_on_the_issue_refuses_for_a_person(self) -> None:
+        # The label lands on the linked issue after admission, while the lane
+        # builds: the arm-time read sees it, on either link.
+        for fake in (passing(), self.refs("Refs: #7\n\n## Summary", n7=REPO)):
+            fake.labels[7] = ["agent-ready", policy.UNTRUSTED_PROVENANCE_LABEL]
+            report = self.cli(fake)
+            self.assertEqual(
+                (report["ineligible"], report["refusal"]),
+                ("untrusted-provenance", ve.INELIGIBLE),
+            )
+            self.assertEqual(listings(fake), 0)
+
+    def test_a_variant_spelling_of_the_label_refuses(self) -> None:
+        for label in (
+            "Work-Class: Untrusted-Provenance",
+            "work-class:untrusted_provenance",
+            "untrusted",
+            "work-class \u2013 UNTRUSTED provenance",
+        ):
+            with self.subTest(label=label):
+                fake = passing()
+                fake.labels[7] = [label]
+                self.assertEqual(self.cli(fake)["ineligible"], "untrusted-provenance")
+
+    def test_unreadable_labels_refuse(self) -> None:
+        fake = passing()
+        fake.labels[7], fake.labels_total[7] = ["agent-ready"], 101
+        report = self.cli(fake)
+        self.assertEqual(
+            (report["ineligible"], report["refusal"]),
+            ("issue-labels-unreadable", ve.INELIGIBLE),
+        )
+        self.assertEqual(listings(fake), 0)
+
+    def test_an_unreadable_timeline_refuses(self) -> None:
+        fake = passing()
+        fake.fail.add("timeline")
+        report = self.cli(fake)
+        self.assertTrue(str(report["ineligible"]).startswith("unreadable: "))
+        self.assertEqual(report["refusal"], ve.INELIGIBLE)
+
+    def test_the_label_removed_by_a_non_human_refuses(self) -> None:
+        def unlabeled(login: str, kind: str, app: Any = None) -> dict[str, Any]:
+            return {
+                "event": "unlabeled",
+                "label": {"name": policy.UNTRUSTED_PROVENANCE_LABEL},
+                "actor": {"login": login, "type": kind},
+                "performed_via_github_app": app,
+            }
+
+        for event in (
+            unlabeled("agent-lanes[bot]", "Bot"),
+            unlabeled("maintainer", "User", {"slug": "some-app"}),
+            unlabeled("reader", "User"),
+        ):
+            with self.subTest(event=event):
+                fake = passing()
+                fake.timeline[7] = [event]
+                fake.permissions = {"maintainer": "admin", "reader": "read"}
+                self.assertEqual(
+                    self.cli(fake)["ineligible"],
+                    "untrusted-provenance-removed-by-non-human",
+                )
+
+    def test_a_clean_or_person_cleared_issue_still_arms(self) -> None:
+        for labels, timeline in (
+            (["agent-ready", "type: bug"], []),
+            (
+                ["agent-ready"],
+                [
+                    {
+                        "event": "unlabeled",
+                        "label": {"name": policy.UNTRUSTED_PROVENANCE_LABEL},
+                        "actor": {"login": "maintainer", "type": "User"},
+                        "performed_via_github_app": None,
+                    }
+                ],
+            ),
+        ):
+            with self.subTest(labels=labels, timeline=timeline):
+                fake = passing()
+                fake.labels[7], fake.timeline[7] = labels, timeline
+                fake.permissions = {"maintainer": "write"}
+                report = self.cli(fake)
+                self.assertEqual(
+                    (report["ineligible"], report["refusal"]), (None, None)
+                )
+                # The labels ride the link's one GraphQL read; the timeline
+                # is one REST read.
+                timelines = [c for c in fake.calls if any("/timeline" in a for a in c)]
+                self.assertEqual(len(timelines), 1)
 
     def test_without_the_flag_no_link_is_read(self) -> None:
         fake = self.refs("Refs: #7\nRefs: #8\n")

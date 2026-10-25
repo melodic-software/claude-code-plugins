@@ -26,6 +26,8 @@ import {
   decide,
   liftedByPerson,
   READER_EVENTS,
+  refusalBody,
+  refusalWrites,
   main,
   pythonRoom,
   pythonVerify,
@@ -317,9 +319,54 @@ test("a risk hold is a lane's until its comment has stood an hour unchanged, the
   assert.deepEqual((await run([pull(1, { verdict: risk })], {}, { now })).notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(reason) } }]);
   assert.deepEqual((await run([at("2026-10-23T10:01:00Z")], {}, { now })).notes, []);
   assert.deepEqual((await run([at("2026-10-23T10:00:00Z")], {}, { now })).notes, [
-    { method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(reason) } },
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(reason) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
+});
+
+// An edit notifies no one and keeps the comment's old date, so an escalation
+// edited into a lane's comment would show only a bare label event.
+test("an escalation to a person posts a new comment, never an edit of the lane's", async () => {
+  const held = pull(1, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
+  const { notes } = await run([held]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  const posted = notes[0].body.body.split("\n");
+  assert.equal(posted[0], "<!-- work-items:escalation lane=pr-merge kind=escalated -->");
+  assert.equal(posted[1], "<!-- babysit-merge-risk -->");
+  assert.ok(posted.includes(HOLD_PATH_REASON));
+});
+
+test("a person's refusal at a new head posts a new comment too", async () => {
+  const earlier = refusalBody(true, HOLD_PATH_REASON, "c".repeat(40), "needs-human");
+  const held = pull(1, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(earlier)] } });
+  const { notes } = await run([held]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+});
+
+test("an unchanged person's refusal is not posted again", () => {
+  const writes = refusalWrites(
+    { headRefOid: HEAD },
+    [lanesSaid(personNote(HOLD_PATH_REASON))],
+    { clears: "person", reason: HOLD_PATH_REASON },
+    { bot: LANES.login, label: "needs-human", minutes: 60, now: Date.parse("2026-10-23T11:00:00Z") },
+  );
+  assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
+});
+
+test("a lane's refusal over a person's comment still edits it, with no label", () => {
+  const writes = refusalWrites(
+    { headRefOid: HEAD },
+    [lanesSaid(personNote(HOLD_PATH_REASON))],
+    { clears: "lane", reason: MISSING_REASON },
+    { bot: LANES.login, label: "needs-human", minutes: 60, now: Date.parse("2026-10-23T11:00:00Z") },
+  );
+  assert.deepEqual(writes, { body: laneNote(MISSING_REASON), commentId: 77, label: null });
 });
 
 test("an armed pull request, an event run and report-only write no refusal note", async () => {
@@ -1118,8 +1165,10 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
 // (babysit_merge_policy._linked_issue), GitHub's answers stubbed at gh and the
 // verdict a pass at the head, so only the link decides. Expected values are
 // docs/conventions/pr-pipeline/README.md "Eligibility": one closing issue, or
-// one plain `Refs: #<n>` issue; two `Refs:` issues refuse; a failed read refuses.
-test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs or a failed read", async () => {
+// one plain `Refs: #<n>` issue; two `Refs:` issues refuse; a failed read refuses;
+// and an issue carrying a label naming untrusted work, in any spelling, refuses
+// for a person, a label added after admission included.
+test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs, a failed read or an untrusted issue", async () => {
   const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-link-"));
   const wrapper = join(dir, "lane_link.py");
   writeFileSync(
@@ -1132,18 +1181,25 @@ import babysit_postmerge as postmerge
 import babysit_verify_evidence as ve
 
 PULLS = json.loads(os.environ["PULLS"])
+LABELS = json.loads(os.environ["LABELS"])
+
+def labels(n):
+    names = LABELS.get(str(n), [])
+    return {"totalCount": len(names), "nodes": [{"name": name} for name in names]}
 
 def gh(args, **_):
+    if args[1].endswith("/timeline?per_page=100"):
+        return subprocess.CompletedProcess(args, 0, "[[]]", "")
     n = next(a for a in args if a.startswith("n="))[2:]
     def ok(data):
         return subprocess.CompletedProcess(args, 0, json.dumps({"data": {"repository": data}}), "")
     if any("issueOrPullRequest" in a for a in args):
-        node = {"__typename": "Issue", "number": int(n), "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}}
+        node = {"__typename": "Issue", "number": int(n), "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}, "labels": labels(n)}
         return ok({"issueOrPullRequest": node})
     found = PULLS[n]
     if found.get("error"):
         return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
-    nodes = [{"number": c, "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}} for c in found["closing"]]
+    nodes = [{"number": c, "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}, "labels": labels(c)} for c in found["closing"]]
     return ok({"pullRequest": {"body": found["body"], "closingIssuesReferences": {"totalCount": len(nodes), "nodes": nodes}}})
 
 def passes(self, number, head, pr=None):
@@ -1162,11 +1218,18 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
     3: { body: body("Refs: #12\nRefs: #13"), closing: [] },
     4: { body: body("Refs: #12"), closing: [], error: true },
     5: { body: body("Refs: #12\nRefs: #13"), closing: [] },
+    6: { body: body("Closes #16"), closing: [16] },
+    7: { body: body("Closes #17"), closing: [17] },
+    8: { body: body("Refs: #18"), closing: [] },
   };
+  // Labeled after admission: 16 with the label, 17 (armed) and 18 with variants.
+  const issueLabels = { 11: ["agent-ready"], 16: ["agent-ready", "work-class: untrusted-provenance"], 17: ["Work-Class: Untrusted_Provenance"], 18: ["untrusted"] };
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const { github, writes } = world([1, 2, 3, 4].map((n) => pull(n, { body: pulls[n].body })).concat(pull(5, { body: pulls[5].body, autoMergeRequest: armed })));
+  const { github, writes, notes } = world(
+    [1, 2, 3, 4, 6, 8].map((n) => pull(n, { body: pulls[n].body })).concat([5, 7].map((n) => pull(n, { body: pulls[n].body, autoMergeRequest: armed }))),
+  );
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
-  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, PULLS: JSON.stringify(pulls), VERIFY_EVIDENCE_SCRIPT: wrapper };
+  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, PULLS: JSON.stringify(pulls), VERIFY_EVIDENCE_SCRIPT: wrapper, LABELS: JSON.stringify(issueLabels) };
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
@@ -1179,7 +1242,15 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
     { mutation: "arm", id: "PR_1", head: HEAD },
     { mutation: "arm", id: "PR_2", head: HEAD },
     { mutation: "disarm", id: "PR_5" },
+    { mutation: "disarm", id: "PR_7" },
   ]);
+  for (const n of [6, 7, 8]) {
+    assert.ok(lines.some((line) => line.endsWith(`#${n} ${n === 7 ? "disarmed" : "left"}: pr-merge's lane does not take its issue link (untrusted-provenance)`)), lines.join("\n"));
+    assert.ok(
+      notes.some((note) => note.path === `${ISSUES}/${n}/labels` && note.body.labels[0] === "needs-human"),
+      `#${n} is labeled for a person: ${JSON.stringify(notes)}`,
+    );
+  }
   assert.ok(lines.some((line) => /#3 left: pr-merge's lane does not take its issue link \(refs-issues:2\)/.test(line)), lines.join("\n"));
   assert.ok(lines.some((line) => /#4 left: pr-merge's lane does not take its issue link \(unreadable: /.test(line)), lines.join("\n"));
 });

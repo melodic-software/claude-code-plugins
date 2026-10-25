@@ -243,6 +243,7 @@ NEEDS_HUMAN = (
 )
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
+    "labels(first:100){totalCount nodes{name}} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
@@ -273,32 +274,40 @@ SPLIT_CHILD_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
     "parent{number repository{nameWithOwner} body lastEditedAt author{...actor} "
-    "editor{...actor} comments(first:100){totalCount nodes{body lastEditedAt "
-    "author{...actor} editor{...actor}}}}}}}"
+    "editor{...actor} comments(first:100){totalCount nodes{databaseId createdAt "
+    "updatedAt body lastEditedAt author{...actor} editor{...actor}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
 # Admission's rules, whose `task-list` is the prefix a split copies by.
 ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
-# admit.mjs SPLIT_CHILD_MARKER and the part line.
+# admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
+REFINE_MARKER = "<!-- intake-triage refinement -->"
 SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->"
 SPLIT_PART_RE = re.compile(r"Part ([1-9][0-9]?) of ([1-9][0-9]?) of #")
+SPLIT_SOURCE_RE = re.compile(
+    r"<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->"
+)
 # What JavaScript's trimStart strips: WhiteSpace and LineTerminator.
 JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
-def split_child_header(parent: int, part: int, parts: int) -> str:
+def split_child_header(
+    parent: int, part: int, parts: int, source: tuple[int, str] | None = None
+) -> str:
     """admit.mjs splitChildHeader: the fixed header of part `part` of
-    `parts` a size split files from issue `parent`."""
-    return "\n".join(
-        [
-            SPLIT_CHILD_MARKER,
-            f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
-            f"The done-when below is copied from #{parent} as written.",
-            "",
-            "## Done when",
-            "",
-        ]
-    )
+    `parts` a size split files from issue `parent`, with admit.mjs
+    splitSourceLine when `source` (id, updated_at) is given."""
+    also = " and intake's refinement comment on it" if source else ""
+    rows = [
+        SPLIT_CHILD_MARKER,
+        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
+        f"The done-when below is copied from #{parent}{also} as written.",
+    ]
+    if source:
+        rows.append(
+            f"<!-- size-split refinement={source[0]} updated_at={source[1]} -->"
+        )
+    return "\n".join([*rows, "", "## Done when", ""])
 
 
 def ticked_forms(line: str, task_list: str) -> list[str]:
@@ -321,14 +330,19 @@ def split_child_body(
     rule, whose one home is admit.mjs splitChildBody, read the way
     resolve-pr.mjs reads it (a parent in this repository with every comment
     read). The lanes App (`app_id`) wrote it, a listed human filed its native
-    parent, and it opens with `split_child_header` for that parent. Every
-    line after the header is one of the parent's trusted task-list lines (a
-    line of its listed-human text starting, after leading space, with
-    `task_list`, admission's `task-list`), and either nobody edited the body,
-    or a listed human last edited it and a line may also be one of those
-    lines with its box ticked (`ticked_forms`): GitHub names only the last
-    editor, so that edit vouches for ticked boxes, never for other text. A
-    missing or empty `task_list` counts nothing. Pure.
+    parent, and it opens with `split_child_header` for that parent. A header
+    with a source line names a refinement comment, which must still be the
+    lanes App's newest refinement on the parent, unedited, on a parent body
+    a listed human wrote, its updated_at its created_at or the recorded one;
+    otherwise the body counts nothing, whoever edited it since. Every line
+    after the header is one of the allowed lines: the parent's trusted
+    task-list lines (a line of its listed-human text starting, after leading
+    space, with `task_list`, admission's `task-list`) and, under a source
+    line, that refinement's task-list lines, never its other lines. Either
+    nobody edited the body, or a listed human last edited it and a line may
+    also be an allowed line with its box ticked (`ticked_forms`): GitHub
+    names only the last editor, so that edit vouches for ticked boxes, never
+    for other text. A missing or empty `task_list` counts nothing. Pure.
     split-child.vectors.json holds its cases."""
     issue = json_object(issue)
     parent = json_object(issue.get("parent"))
@@ -351,6 +365,7 @@ def split_child_body(
         or not isinstance(body, str)
     ):
         return None
+    nodes = [json_object(node) for node in nodes]
 
     def human(actor: Any) -> bool:
         actor = json_object(actor)
@@ -365,6 +380,13 @@ def split_child_body(
             item.get("lastEditedAt") is None or human(item.get("editor"))
         )
 
+    def task_lines(item: dict[str, Any]) -> list[str]:
+        return [
+            line
+            for line in str(item.get("body") or "").split("\n")
+            if line.lstrip(JS_SPACE).startswith(task_list)
+        ]
+
     edited = issue.get("lastEditedAt") is not None
     if not human(parent.get("author")) or (edited and not human(issue.get("editor"))):
         return None
@@ -372,17 +394,49 @@ def split_child_body(
     part = SPLIT_PART_RE.match(rows[1]) if len(rows) > 1 else None
     if part is None:
         return None
-    header = f"{split_child_header(number, int(part[1]), int(part[2]))}\n"
+    tag = SPLIT_SOURCE_RE.fullmatch(rows[2]) if len(rows) > 2 else None
+    # admit.mjs reads the id as a Number and writes it back into the header,
+    # so only an id a double holds exactly can match.
+    source = (
+        (int(tag[1]), tag[2]) if tag and int(float(tag[1])) == int(tag[1]) else None
+    )
+    header = f"{split_child_header(number, int(part[1]), int(part[2]), source)}\n"
     if not body.startswith(header):
         return None
-    # admit.mjs trustedTaskLines: the lanes App's refinement is left out.
+    refinement: list[str] = []
+    if source is not None:
+        # admit.mjs countedRefinement: the newest refinement, never an older
+        # one, only while unedited and on a parent body a listed human wrote.
+        newest = next(
+            (
+                c
+                for c in reversed(nodes)
+                if json_object(c.get("author")).get("__typename") == "Bot"
+                and json_object(c.get("author")).get("databaseId") == app_id
+                and str(c.get("body") or "").startswith(REFINE_MARKER)
+            ),
+            None,
+        )
+        if (
+            newest is None
+            or newest.get("lastEditedAt") is not None
+            or not written(parent)
+        ):
+            return None
+        updated = newest.get("updatedAt")
+        if (
+            type(newest.get("databaseId")) is not int
+            or newest["databaseId"] != source[0]
+            or not isinstance(updated, str)
+            or updated not in (newest.get("createdAt"), source[1])
+        ):
+            return None
+        refinement = task_lines(newest)
+    # admit.mjs trustedTaskLines, then the refinement's task-list lines.
     exact = {
-        line
-        for item in (parent, *map(json_object, nodes))
-        if written(item)
-        for line in str(item.get("body") or "").split("\n")
-        if line.lstrip(JS_SPACE).startswith(task_list)
+        line for item in (parent, *nodes) if written(item) for line in task_lines(item)
     }
+    exact.update(refinement)
     allowed = (
         exact | {form for line in exact for form in ticked_forms(line, task_list)}
         if edited
@@ -1076,11 +1130,16 @@ class Reader:
         return app_id if type(app_id) is int else None
 
     def _task_list(self) -> str | None:
-        """Admission's `task-list` at the branch, as resolve-pr.mjs reads it
-        from main's checkout, shared by the run's gate processes; None when
-        the rules hold no string there. A failed read raises `_Unreadable`."""
-        key = f"{self.repo}@{self.branch}"
+        """Admission's `task-list` at the repository's default branch, as
+        resolve-pr.mjs reads it from main's checkout whatever the pull
+        request's base, shared by the run's gate processes; None when the
+        rules hold no string there. A failed read raises `_Unreadable`."""
         if not self._task_list_read:
+            try:
+                default = merge_policy._default_branch(self.repo, shared=True)
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+            key = f"{self.repo}@{default}"
             shared = run_cache.get_dated("task-list", key, run_cache.MAX_AGE)
             if shared is not None:
                 self._task_list_value, at = shared
@@ -1092,7 +1151,7 @@ class Reader:
                             "api",
                             "-H",
                             "Accept: application/vnd.github.raw",
-                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={self.branch}",
+                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={default}",
                         ],
                         "admission rules",
                     )
@@ -1279,7 +1338,11 @@ class Reader:
         takes from a pull request the lane opened, or None when it is: the
         gate's own rule (`merge_policy._linked_issue`, as `lane_eligibility`
         reads it), so one closing issue in this repository, or, with none,
-        the one issue its plain `Refs:` lines name. A failed read refuses."""
+        the one issue its plain `Refs:` lines name. Then the trust hold on that
+        issue as `eligibility` reads it (`merge_policy.trust_refusal`), so a
+        label naming untrusted work added after admission, or one a non-human
+        removed, refuses at arm time; its labels come with the link's read,
+        its timeline in one more. A failed read refuses."""
         try:
             pull = json_object(
                 self._graphql(CLOSING_QUERY, number, "closing issues").get(
@@ -1287,6 +1350,23 @@ class Reader:
                 )
             )
             issue, refusal = merge_policy._linked_issue(pull, self.repo)
+            if refusal is None:
+                owner, _, name = self.repo.partition("/")
+                permission = merge_policy.permission_reader(self.repo)
+                # No agent identity: the lanes App is a Bot, which is never
+                # human (`merge_policy.is_human`).
+                refusal = merge_policy.trust_refusal(
+                    owner,
+                    name,
+                    issue,
+                    lambda actor: merge_policy.is_human(
+                        actor,
+                        repo=self.repo,
+                        agent_identity=None,
+                        permission=permission,
+                    ),
+                    {},
+                )
         except (_Unreadable, merge_policy.PolicyReadError) as exc:
             return f"unreadable: {exc}"
         if refusal is None:
@@ -1861,8 +1941,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again on a listing of its own, as the gate does before it allows.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
-    pull request's issue link is one the pr-merge lane takes
-    (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
+    pull request's issue link is one the pr-merge lane takes and its issue
+    clears the trust hold (`Reader.link_refusal`), else why not, with refusal
+    `verify:ineligible`
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
