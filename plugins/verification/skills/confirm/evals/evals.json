@@ -371,7 +371,7 @@
       "id": "lessons-01",
       "name": "lessons-listed-and-routed",
       "prompt": "/verification:confirm outcome. Stage 1 already passed this conversation and the live drive of weekly-timesheet-export through /app-control:drive is done. Two things came up while driving: the Export button stays disabled for about two seconds after the week loads, so the drive had to wait for it; and agents here keep staging the generated dist/ folder. Write the report.",
-      "expected_output": "The report lists both lessons with a scope and a route. The Export wait is a one-feature lesson routed to /app-control:map refresh weekly-timesheet-export; the dist/ lesson is routed to /corrections:codify. The ## Next names both commands. The skill edits no control skill file and names no instruction-placement or write-for-agents skill.",
+      "expected_output": "The report lists both lessons with a scope and a route. The Export wait is a one-feature lesson routed to /app-control:map refresh weekly-timesheet-export; the dist/ lesson is routed to /corrections:codify. The Lessons table names both routes. The skill edits no control skill file and names no instruction-placement or write-for-agents skill.",
       "files": [],
       "expectations": [
         "The report lists each lesson with its scope and route",
