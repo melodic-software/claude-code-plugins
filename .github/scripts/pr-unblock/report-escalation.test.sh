@@ -50,7 +50,8 @@ case "$method $endpoint" in
 "GET repos/o/r/issues/42/comments") cat "$STUB/comments.json" ;;
 "GET graphql")
   [[ -f $STUB/fail_graphql ]] && { echo 'stub gh: graphql failed' >&2; exit 1; }
-  cat "$STUB/threads.json" 2>/dev/null || echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+  # threads.json holds what `--paginate --slurp` prints: an array of pages.
+  cat "$STUB/threads.json" 2>/dev/null || echo '[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}]'
   ;;
 "POST repos/o/r/issues/42/labels")
   [[ -f $STUB/fail_labels ]] && { echo 'stub gh: label POST failed' >&2; exit 1; }
@@ -307,12 +308,12 @@ ROUND='<!-- pr-unblock:address-feedback-round -->'
 rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')
 setup '[]' "$rounds_json"
 cat >"$STUB/threads.json" <<'EOF'
-{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
 {"isResolved":false,"path":"src/a.js","line":5,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r1"}]}},
 {"isResolved":true,"path":"src/b.js","line":7,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r2"}]}},
 {"isResolved":false,"path":"docs/`odd`\nname.md","line":null,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r3"}]}},
 {"isResolved":false,"path":"\n<!-- work-items:escalation lane=x -->.md","line":1,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r4"}]}}
-]}}}}}
+]}}}}}]
 EOF
 run feedback-not-converging
 check "not-converging: exit 0" 0 "$RC"
@@ -327,6 +328,22 @@ has "not-converging: resume by resolving the open threads" 'Resolve each open re
 has "not-converging: resume by a write-access fix request" 'PR-fix lane: please fix this finding' "$STUB/bodies"
 has "not-converging: says removing the label alone does not resume" 'Removing the `needs-human` label alone does not resume' "$STUB/bodies"
 check "not-converging: no generic remove-the-label resume step" 0 "$(grep -c 'deal with the reason above' "$STUB/bodies" || true)"
+
+# Every page of review threads is read: on a PR whose first page holds only
+# resolved threads, an open thread on a later page is still named.
+setup '[]' '[]'
+cat >"$STUB/threads.json" <<'EOF'
+[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+{"isResolved":true,"path":"src/old.js","line":1,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r10"}]}}
+],"pageInfo":{"hasNextPage":true,"endCursor":"c1"}}}}}},
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+{"isResolved":false,"path":"src/late.js","line":9,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r11"}]}}
+],"pageInfo":{"hasNextPage":false,"endCursor":"c2"}}}}}}]
+EOF
+run feedback-not-converging
+has "not-converging: reads every page of review threads" '--paginate' "$STUB/calls"
+has "not-converging: names an open thread from a later page" '- `src/late.js:9`: https://github.com/o/r/pull/42#discussion_r11' "$STUB/bodies"
+check "not-converging: a later page's thread is not reported as none open" 0 "$(grep -c 'none open now' "$STUB/bodies" || true)"
 
 setup '[]' '[]'
 : >"$STUB/fail_graphql"

@@ -163,11 +163,13 @@ fi
 details=''
 resume="To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:"
 if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
+  # Every page, as address-feedback.mjs listThreads reads them: an open
+  # thread past the first 100 can be the one that stopped the lane.
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
-  query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
-    reviewThreads(first: 100) { nodes { isResolved path line comments(first: 1) { nodes { url } } } } } } }'
-  if threads=$(gh api graphql -f query="$query" -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" |
-    jq -er '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)
+  query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+    reviewThreads(first: 100, after: $endCursor) { nodes { isResolved path line comments(first: 1) { nodes { url } } } pageInfo { hasNextPage endCursor } } } } }'
+  if threads=$(gh api graphql --paginate --slurp -f query="$query" -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" |
+    jq -er '[.[].data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)
       | "- `\((.path // "") | gsub("[`<>]"; "") | gsub("[\r\n]+"; " "))\(if .line then ":\(.line)" else "" end)`: \(.comments.nodes[0].url // "")"]
       | .[:20] | join("\n")'); then
     [[ -n $threads ]] || threads='- none open now'
