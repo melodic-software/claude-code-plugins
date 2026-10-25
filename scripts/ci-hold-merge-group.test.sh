@@ -109,14 +109,17 @@ EOF
 printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
-# The lanes App's bot account, as ci-status's job-level LANES_APP_ID names it,
-# and another automation's.
-LANES="$(sed -nE 's/^      LANES_APP_ID: ([0-9]+)$/\1/p' "$WORKFLOW")" DEPENDABOT=49699333
-if [[ "$LANES" =~ ^[1-9][0-9]*$ ]]; then
-  ok "ci-status names the lanes App id once ($LANES)"
+# ci-status's job-level LANES_APP_ID comes from the AUTOMATION_LANES_APP_SENDER_ID
+# repository variable, set once, which no step overrides.
+pins="$(grep -nE '^ +LANES_APP_ID:' "$WORKFLOW")"
+if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"$ ]]; then
+  ok "ci-status names the lanes App id once, from the repository variable"
 else
-  fail "ci-status has no single job-level LANES_APP_ID: '$LANES'"
+  fail "LANES_APP_ID is not set once, at ci-status's job level, from vars.AUTOMATION_LANES_APP_SENDER_ID: '$pins'"
 fi
+# The lanes App's bot account the variable names (a stand-in id), and another
+# automation's.
+LANES=337595936 DEPENDABOT=49699333
 
 SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef

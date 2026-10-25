@@ -75,16 +75,20 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 # The step reads the lanes App's numeric id from ci-status's job-level
-# LANES_APP_ID; it must be the trusted-actor entry for pr-pipeline.yaml's
-# merge.agent-identity.
-identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
-want_id="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")"
-LANES_APP_ID="$(sed -nE 's/^      LANES_APP_ID: ([0-9]+)$/\1/p' "$WORKFLOW")"
-if [[ -n "$want_id" && "$LANES_APP_ID" == "$want_id" ]]; then
-  ok "ci-status's LANES_APP_ID is merge.agent-identity's ($identity, $want_id)"
+# LANES_APP_ID, whose one source is the AUTOMATION_LANES_APP_SENDER_ID
+# repository variable: the workflow names LANES_APP_ID once, as that variable,
+# and no step overrides it.
+pins="$(grep -nE '^ +LANES_APP_ID:' "$WORKFLOW")"
+if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"$ ]]; then
+  ok "ci-status's job-level LANES_APP_ID is the AUTOMATION_LANES_APP_SENDER_ID variable, set once"
 else
-  fail "ci-status's LANES_APP_ID '$LANES_APP_ID' is not $identity's trusted-actor id '$want_id'"
+  fail "LANES_APP_ID is not set once, at ci-status's job level, from vars.AUTOMATION_LANES_APP_SENDER_ID: '$pins'"
 fi
+# The runs below stand the variable in with merge.agent-identity's
+# trusted-actor id, the account the variable names.
+identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
+LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")"
+[[ "$LANES_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES_APP_ID'"
 
 # The stub logs its arguments. A pull read prints STUB_PULL. A contents read
 # of merge-holds.mjs prints the working tree's module, or answers 404 when

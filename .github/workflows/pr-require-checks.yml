@@ -3140,10 +3140,11 @@ jobs:
       # of status writes and the 90 s rerun wait, plus retry sleeps.
       GH_READ_JOB_SECONDS: 660
       GH_READ_MARGIN_SECONDS: 300
-      # The lanes App's bot account id, which the trust-hold and lanes-hold
-      # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
-      # checks it is merge.agent-identity's trusted-actor id).
-      LANES_APP_ID: 337595936
+      # The lanes App's bot account id, which the trust-hold, cost-hold and
+      # lanes-hold steps match a pull request author against. Its one source is
+      # the repository variable; each step that reads it fails closed or keeps
+      # its hold when it is not a numeric id.
+      LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
       # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
@@ -3734,7 +3735,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
