@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
 import { countFixRounds, logExcerpt, main, select } from "./fix-ci-context.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
@@ -248,6 +249,13 @@ test("only the lanes App's commits carrying the fix-ci trailer count as rounds",
     ),
     1,
   );
+});
+
+// The round cap is fix-ci's only stop, so the trailer it counts must be the one apply-patch writes.
+test("a commit apply-patch writes for fix-ci counts as a round", () => {
+  const row = rowFor(loadRules(join(import.meta.dirname, "../../..")), { prepare: "ci-context" });
+  const message = commitMessage(row, { ref: "feature", base: "main", lane: "pr-unblock", activity: "fix-ci", issue: "1" });
+  assert.equal(countFixRounds([{ sha: "e".repeat(40), author: { id: APP }, commit: { message } }], APP), 1);
 });
 
 test("a closed pull request is skipped", async () => {

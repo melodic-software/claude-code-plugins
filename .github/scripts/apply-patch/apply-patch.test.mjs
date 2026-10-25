@@ -1114,7 +1114,7 @@ for (const [why, reply] of [
   });
 }
 
-test("a fix pushed on one head escalates nothing; the next head's run that changes nothing escalates its check", (t) => {
+test("a written fix escalates nothing, and a run that writes no patch escalates its check", (t) => {
   const reply = "test-bash (2): escalated flaky passes on the unchanged head\n";
   const reportDir = scratch(t);
   writeFileSync(join(reportDir, "reply.txt"), `check-skills: fixed\n${reply}`);
