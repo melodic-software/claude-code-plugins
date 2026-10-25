@@ -2,10 +2,10 @@
 """Diff risk scorer for the unattended merge path.
 
 `score(RiskInput) -> RiskResult` is a pure function: no I/O, no GitHub calls.
-The caller reads the PR, its linked issue's class, the base-SHA config and the
-review-lane evidence, and hands them in; this module only judges them. A LOW
-score merges unattended, and so does a MED one whose every reason is a class,
-size or reported review-finding reason (`holds`); every other reason holds.
+The caller reads the PR, the base-SHA config and the review-lane evidence, and
+hands them in; this module only judges them. No work class is read. A LOW
+score merges unattended, and so does a MED one whose every reason is a size or
+reported review-finding reason (`holds`); every other reason holds.
 So every doubtful
 input rates a holding reason: missing or unrecognized data is a miss, never a
 pass, and it never raises: input it cannot read at all rates HIGH as
@@ -84,9 +84,8 @@ same set (plus `*` and whole `**` segments), read exactly as written, makes the
 configured HIGH set unreadable, and then only the floor is matched.
 Malformed values have no code of their own in the contract, so each maps to the
 nearest existing code: per-file data and the listing to `files-incomplete`, an
-unknown rung to `class-above-rung` (read as off), an unreadable line limit to
-`lines-over`, an unreadable configured HIGH set or file mode to `high-path:**`,
-and a blast radius other than LOW above C2 to `blast-radius-missing`.
+unreadable line limit to `lines-over`, and an unreadable configured HIGH set or
+file mode to `high-path:**`.
 """
 
 from __future__ import annotations
@@ -105,15 +104,6 @@ class Risk(enum.IntEnum):
     LOW = 0
     MED = 1
     HIGH = 2
-
-
-class Rung(enum.IntEnum):
-    """Order matches the `merge.rung` enum in pr-pipeline.schema.json. Each value
-    is the highest _CLASS_RANK the rung admits; OFF admits none."""
-
-    OFF = 0
-    C2 = 2
-    C3 = 3
 
 
 @dataclass(frozen=True)
@@ -159,18 +149,14 @@ class LaneEvidence:
 
 @dataclass(frozen=True)
 class RiskInput:
-    work_class: str | None  # class of the one linked issue (C1..C5)
-    rung: Rung  # effective rung
     files: tuple[ChangedFile, ...]
     files_complete: bool  # the listing was read to its end
     max_changed_lines: int | None  # merge.diff-check.max-changed-lines at the base SHA
     high_paths: tuple[str, ...]  # configured denied paths, joined to HIGH_FLOOR
     lanes: tuple[LaneEvidence, ...]
-    blast_radius: str | None  # consulted only above C2
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
-    c2_contradictions: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
     # The repository is public, where standard hosted runners are free; any
@@ -244,7 +230,6 @@ TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 STATUSES = frozenset(
     {"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
 )
-_STRUCTURAL = frozenset({"removed", "renamed", "copied", "changed"})
 
 UNSAFE_PATH_CODE = "high-path:**"
 
@@ -253,13 +238,6 @@ UNSAFE_PATH_CODE = "high-path:**"
 # on some filesystem, so it is unsafe rather than enumerated.
 _SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 _SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
-# The plan's blast-radius scale is LOW / MEDIUM / HIGH / CRITICAL; only LOW
-# can leave a class above C2 at LOW.
-_LOW_BLAST = "low"
-
-_CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5}
-_C1_RANK = _CLASS_RANK["C1"]
-_C2_RANK = _CLASS_RANK["C2"]
 
 _ABSENT_MODE = "000000"
 _TWO_SIDED = frozenset(
@@ -920,66 +898,6 @@ def _cost_reasons(
     return [Reason(COST_CODE, Risk.HIGH, detail)]
 
 
-def _c2_contradictions(files: list[_File]) -> list[str]:
-    """The diff contradicts C2 ("deterministic and trivially reversible")."""
-    found = []
-    structural = [
-        f.path
-        for f in files
-        if f.status in _STRUCTURAL or (len(f.paths) > 1 and f.paths[1] != f.paths[0])
-    ]
-    if structural:
-        found.append(f"removed, renamed, copied or changed: {', '.join(structural)}")
-    paths = [path for f in files for path in f.paths]
-    schemas = [path for path in paths if path.casefold().endswith(".schema.json")]
-    if schemas:
-        found.append(f"schema changed: {', '.join(schemas)}")
-    # Only `plugins` is folded: plugins/Foo and plugins/foo are two plugins.
-    plugins = {
-        parts[1]
-        for parts in (path.split("/") for path in paths)
-        if len(parts) >= 3 and parts[0].casefold() == "plugins"
-    }
-    if len(plugins) > 1:
-        found.append(f"more than one plugin: {', '.join(sorted(plugins))}")
-    return found
-
-
-def _class_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
-    rank = _CLASS_RANK.get(inp.work_class) if isinstance(inp.work_class, str) else None
-    if rank is None:
-        return [
-            Reason("class-missing", Risk.MED, f"work class {_show(inp.work_class)}")
-        ]
-    reasons = []
-    rung = inp.rung
-    known = isinstance(rung, int) and not isinstance(rung, bool) and rung in set(Rung)
-    if not known or rung == Rung.OFF or rank > rung:
-        shown = Rung(rung).name if known else f"{_show(rung)} (unknown)"
-        detail = f"{inp.work_class} above rung {shown}"
-        reasons.append(Reason("class-above-rung", Risk.MED, detail))
-    if rank <= _C2_RANK:
-        contradictions = (
-            _c2_contradictions(files) if inp.c2_contradictions is not False else []
-        )
-        if rank == _C1_RANK:
-            contradictions.insert(0, "C1 work produces no pull request")
-        if contradictions:
-            reasons.append(
-                Reason("class-contradicted", Risk.MED, "; ".join(contradictions))
-            )
-    blast = inp.blast_radius
-    if rank > _C2_RANK and not (
-        isinstance(blast, str) and blast.casefold() == _LOW_BLAST
-    ):
-        rated = isinstance(blast, str) and blast.strip()
-        detail = f"rated {_show(blast)}, not LOW" if rated else "has no rating"
-        reasons.append(
-            Reason("blast-radius-missing", Risk.MED, f"{inp.work_class} {detail}")
-        )
-    return reasons
-
-
 def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     reasons = []
     incomplete = []
@@ -1077,7 +995,6 @@ def _score(inp: RiskInput) -> RiskResult:
     # Each producer emits a code at most once, and the only code two of them
     # could share (high-path:**) is refused as a configured glob.
     reasons = [
-        *_class_reasons(inp, files or []),
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
@@ -1089,13 +1006,10 @@ def _score(inp: RiskInput) -> RiskResult:
     return RiskResult(Risk(worst), tuple(reasons))
 
 
-# MED reasons an unattended merge passes: the work class's own contradictions
-# and rating, the diff's size, and the review findings that are reported only.
-# `class-missing` and `class-above-rung` hold: the rung is the owner's cap.
+# MED reasons an unattended merge passes: the diff's size and the review
+# findings that are reported only.
 MERGEABLE_MED = frozenset(
     {
-        "class-contradicted",
-        "blast-radius-missing",
         "lines-over",
         "files-over",
         LANES["claude-review"][0],

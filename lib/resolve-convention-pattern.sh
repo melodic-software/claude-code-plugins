@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Resolve the ENFORCEMENT pattern for a source-control convention key
 # (`subject_pattern` / `pr_title_pattern`) to a POSIX-ERE regex a hook can hand
 # straight to `[[ =~ ]]` or `grep -E`, cross-platform.
@@ -11,6 +11,10 @@
 # dialect normalization once, so `block-noncanonical-commit`, the CC-layer
 # content gate, and the opt-in `commit-msg` hook all enforce the SAME pattern
 # the SAME way — no per-hook re-fork, no drift.
+#
+# POSIX sh, so the commit-msg hook runs it with `sh`, needs no bash beside that
+# sh, and never starts a bash by name: on Windows that can be System32's WSL
+# launcher. It runs the same under bash.
 #
 # ENFORCEMENT ≠ DRAFTING — the policy-floor contract:
 #   Enforcement reads the TEAM-TRACKED layer ONLY:
@@ -41,7 +45,8 @@
 #     0  a pattern was emitted (enforce it)
 #     1  no enforcement (unresolved, or non-ERE-expressible — stdout empty)
 #     2  usage error
-set -uo pipefail
+# shellcheck shell=sh
+set -u
 
 # The bundled Conventional Commits pattern — the ONE place the `Conventional
 # Commits` keyword expands, so the model's interpretation and every hook's regex
@@ -58,19 +63,23 @@ readonly PR_DEFERRAL='Same as `subject_pattern`.'
 # explicit pointer always overrides it; see the pointer-resolution block below.
 readonly WELL_KNOWN_NEUTRAL="docs/conventions/source-control/commit-convention.yml"
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+case "${1:-}" in
+--help | -h)
   # Stop at the first non-comment line rather than a fixed line number: the
   # header outgrew the hardcoded 40 and the banner silently lost its whole exit
   # status list. A blank-line terminator will not work here, because the header
-  # runs straight into `set -uo pipefail` with no blank line between them.
-  awk 'NR > 1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  # runs straight into `set -u` with no blank line between them. The linter's
+  # directive line is not for the reader, so it is skipped.
+  awk 'NR > 1 { if ($0 !~ /^#/) exit; if ($0 ~ /^# shellcheck /) next; sub(/^# ?/, ""); print }' "$0"
   exit 0
-fi
+  ;;
+*) ;;
+esac
 
 repo_root="${1:-}"
 key="${2:-}"
 
-if [[ -z "$repo_root" || -z "$key" ]]; then
+if [ -z "$repo_root" ] || [ -z "$key" ]; then
   echo "resolve-convention-pattern: usage: resolve-convention-pattern.sh <repo_root> <subject_pattern|pr_title_pattern>" >&2
   exit 2
 fi
@@ -94,14 +103,16 @@ readonly TEAM_FILE="$repo_root/.claude/source-control.md"
 # gitignored overlay must not redirect the gate), and a declared-but-broken
 # pointer FAILS CLOSED to no-enforcement with a diagnostic rather than silently
 # re-reading markdown values migration may have retired.
+#
+# POSIX sh has no `local`, so each function's working variables carry its own
+# prefix and every caller that keeps a result reads it through `$( )`.
 
-# First non-empty body line under `## <key>`, CR-stripped. Empty when the
-# section is absent or bodyless. Awk over sed: needs section-state, not a line
-# match.
+# h2_value <file> <key>: first non-empty body line under `## <key>`,
+# CR-stripped. Empty when the section is absent or bodyless. Awk over sed:
+# needs section-state, not a line match.
 h2_value() {
-  local file="$1" k="$2"
-  [[ -f "$file" ]] || return 0
-  awk -v key="$k" '
+  [ -f "$1" ] || return 0
+  awk -v key="$2" '
     BEGIN { in_section = 0 }
     /^##[[:space:]]/ {
       # A new H2 ends the target section.
@@ -115,28 +126,31 @@ h2_value() {
       sub(/^[[:space:]]+/, "", line); sub(/[[:space:]]+$/, "", line)
       print line; exit                            # first non-empty body line wins
     }
-  ' "$file"
+  ' "$1"
 }
 
-# First matching flat-scalar value for a key from the neutral YAML file:
-# `^<key>:` at column 0, CR-stripped, surrounding whitespace trimmed, ONE pair
-# of matching surrounding quotes ('…' or "…") removed. No YAML quote-escape
-# processing — the one-sed extraction contract other consumers rely on can't
-# either, so the seam doc tells authors to write patterns that need no escaping.
-# Full-line `#` comments never match the key anchor; trailing `#` text is NOT
-# stripped (a regex may legitimately contain `#`).
+# yaml_value <file> <key>: first matching flat-scalar value for a key from the
+# neutral YAML file: `^<key>:` at column 0, CR-stripped, surrounding whitespace
+# trimmed, ONE pair of matching surrounding quotes ('…' or "…") removed. No YAML
+# quote-escape processing — the one-sed extraction contract other consumers rely
+# on can't either, so the seam doc tells authors to write patterns that need no
+# escaping. Full-line `#` comments never match the key anchor; trailing `#` text
+# is NOT stripped (a regex may legitimately contain `#`).
 yaml_value() {
-  local file="$1" k="$2" line v
-  [[ -f "$file" ]] || return 0
-  line="$(grep -m1 -E "^${k}:" "$file" | tr -d '\r')"
-  [[ -n "$line" ]] || return 0
-  v="${line#"${k}":}"
-  v="${v#"${v%%[![:space:]]*}"}"
-  v="${v%"${v##*[![:space:]]}"}"
-  if [[ ${#v} -ge 2 && ("$v" == \'*\' || "$v" == \"*\") ]]; then
-    v="${v:1:${#v}-2}"
-  fi
-  printf '%s' "$v"
+  [ -f "$1" ] || return 0
+  yaml_line="$(grep -m1 -E "^${2}:" "$1" | tr -d '\r')"
+  [ -n "$yaml_line" ] || return 0
+  yaml_v="${yaml_line#"${2}":}"
+  yaml_v="${yaml_v#"${yaml_v%%[![:space:]]*}"}"
+  yaml_v="${yaml_v%"${yaml_v##*[![:space:]]}"}"
+  case "$yaml_v" in
+  \'*\' | \"*\")
+    yaml_v="${yaml_v#?}"
+    yaml_v="${yaml_v%?}"
+    ;;
+  *) ;;
+  esac
+  printf '%s' "$yaml_v"
 }
 
 # Resolve the optional neutral-file pointer. Sets NEUTRAL_FILE (empty when no
@@ -158,11 +172,11 @@ ptr="$(h2_value "$TEAM_FILE" "convention_source")"
 # override team policy (or, if malformed, disable enforcement) on one checkout.
 # git unavailable, or the file untracked -> skip this rung and fall through to
 # the markdown H2 (fail toward the prior behavior, never toward the hole).
-if [[ -z "$ptr" && -f "$repo_root/$WELL_KNOWN_NEUTRAL" ]] &&
+if [ -z "$ptr" ] && [ -f "$repo_root/$WELL_KNOWN_NEUTRAL" ] &&
   git -C "$repo_root" ls-files --error-unmatch -- "$WELL_KNOWN_NEUTRAL" >/dev/null 2>&1; then
   ptr="$WELL_KNOWN_NEUTRAL"
 fi
-if [[ -n "$ptr" ]]; then
+if [ -n "$ptr" ]; then
   case "$ptr" in
   /* | [A-Za-z]:* | *\\* | *..*)
     # Repo-relative forward-slash paths only: no absolute paths (POSIX or
@@ -174,7 +188,7 @@ if [[ -n "$ptr" ]]; then
   *) ;; # plain repo-relative path — proceed
   esac
   NEUTRAL_FILE="$repo_root/$ptr"
-  if [[ ! -f "$NEUTRAL_FILE" ]]; then
+  if [ ! -f "$NEUTRAL_FILE" ]; then
     printf '%s\n' "resolve-convention-pattern: convention_source declares '$ptr' but no such file exists under the repo root; enforcement disabled (fix the pointer or restore the file)." >&2
     exit 1
   fi
@@ -183,57 +197,57 @@ if [[ -n "$ptr" ]]; then
   # physical target is outside the repository, letting untracked external
   # content steer the gate. Require a REGULAR file whose physical directory
   # (pwd -P canonicalizes every symlinked path segment) stays under the
-  # physical repo root. Pure-bash on purpose — the vendored hook copy cannot
+  # physical repo root. Pure shell on purpose — the vendored hook copy cannot
   # assume realpath exists on every consumer machine.
-  if [[ -L "$NEUTRAL_FILE" ]]; then
+  if [ -L "$NEUTRAL_FILE" ]; then
     printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' is a symlink; the neutral file must be a regular tracked file — enforcement disabled." >&2
     exit 1
   fi
   canon_root="$(cd "$repo_root" 2>/dev/null && pwd -P)"
   canon_dir="$(cd "$(dirname "$NEUTRAL_FILE")" 2>/dev/null && pwd -P)"
-  # Pure string-prefix test, not a glob: a `!= "$canon_root/"*` match would let a
-  # glob metacharacter in the physical repo path (`[`, `*`, `?`) be interpreted
-  # rather than compared literally. Compare the leading bytes of "$canon_dir/"
-  # against "$canon_root/" directly.
+  # A literal prefix test, not a glob: the quoted "$canon_prefix" in the
+  # removal below matches its own bytes, so a glob metacharacter in the
+  # physical repo path (`[`, `*`, `?`) is compared, never interpreted. When
+  # "$canon_dir/" does not start with "$canon_prefix", nothing is removed.
   canon_prefix="$canon_root/"
   canon_dir_slash="$canon_dir/"
-  if [[ -z "$canon_root" || -z "$canon_dir" || "${canon_dir_slash:0:${#canon_prefix}}" != "$canon_prefix" ]]; then
+  if [ -z "$canon_root" ] || [ -z "$canon_dir" ] ||
+    [ "${canon_dir_slash#"$canon_prefix"}" = "$canon_dir_slash" ]; then
     printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' resolves outside the repository root (symlinked path segment); enforcement disabled." >&2
     exit 1
   fi
   dialect="$(yaml_value "$NEUTRAL_FILE" dialect)"
-  if [[ -n "$dialect" && "$dialect" != "posix-ere" ]]; then
+  if [ -n "$dialect" ] && [ "$dialect" != "posix-ere" ]; then
     printf '%s\n' "resolve-convention-pattern: convention_source file declares dialect '$dialect'; enforcement consumes posix-ere only — enforcement disabled." >&2
     exit 1
   fi
 fi
 
-# A key the neutral file CARRIES must hold a value. Present-but-empty
-# (`subject_pattern:` or `subject_pattern: ''`) is a configuration error, not
-# an omission — silently falling back to the markdown H2 would enforce a stale
-# pattern the migration meant to retire. Runs at top level (not inside a
-# command substitution) so the exit reaches the caller.
+# check_neutral_key <key>: a key the neutral file CARRIES must hold a value.
+# Present-but-empty (`subject_pattern:` or `subject_pattern: ''`) is a
+# configuration error, not an omission — silently falling back to the markdown
+# H2 would enforce a stale pattern the migration meant to retire. Runs at top
+# level (not inside a command substitution) so the exit reaches the caller.
 check_neutral_key() {
-  local k="$1"
-  [[ -n "$NEUTRAL_FILE" ]] || return 0
-  grep -q -E "^${k}:" "$NEUTRAL_FILE" || return 0
-  [[ -n "$(yaml_value "$NEUTRAL_FILE" "$k")" ]] && return 0
-  printf '%s\n' "resolve-convention-pattern: convention_source file carries '$k' with an empty value; a carried key must hold a value (delete the line to fall back to the markdown H2) — enforcement disabled." >&2
+  [ -n "$NEUTRAL_FILE" ] || return 0
+  grep -q -E "^${1}:" "$NEUTRAL_FILE" || return 0
+  [ -n "$(yaml_value "$NEUTRAL_FILE" "$1")" ] && return 0
+  printf '%s\n' "resolve-convention-pattern: convention_source file carries '$1' with an empty value; a carried key must hold a value (delete the line to fall back to the markdown H2) — enforcement disabled." >&2
   exit 1
 }
 
-# Team-layer value for a machine key: the neutral file when the pointer is
-# declared AND that file carries the key; the team markdown H2 otherwise.
+# team_value <key>: the team-layer value for a machine key: the neutral file
+# when the pointer is declared AND that file carries the key; the team markdown
+# H2 otherwise.
 team_value() {
-  local k="$1" v
-  if [[ -n "$NEUTRAL_FILE" ]]; then
-    v="$(yaml_value "$NEUTRAL_FILE" "$k")"
-    if [[ -n "$v" ]]; then
-      printf '%s' "$v"
+  if [ -n "$NEUTRAL_FILE" ]; then
+    team_v="$(yaml_value "$NEUTRAL_FILE" "$1")"
+    if [ -n "$team_v" ]; then
+      printf '%s' "$team_v"
       return 0
     fi
   fi
-  h2_value "$TEAM_FILE" "$k"
+  h2_value "$TEAM_FILE" "$1"
 }
 
 # Enforcement patterns are POSIX ERE, NOT PCRE. The resolver does not translate
@@ -244,31 +258,31 @@ team_value() {
 # the documented no-enforcement path instead of silently enforcing the wrong
 # thing. A team wanting a digit class writes `[0-9]`, not `\d`.
 is_non_ere() {
-  local p="$1"
+  case "$1" in
   # Any `(?...)` group — non-capturing `(?:`, lookaround `(?=`/`(?!`, named
   # `(?<`/`(?P<`. POSIX ERE has none of these.
-  [[ "$p" == *'(?'* ]] && return 0
+  *'(?'*) return 0 ;;
   # Any backslash followed by a letter or digit: the shorthand classes
   # \d \w \s \D \S \W, the anchors \A \Z \z \b \B, control escapes \t \n \r …,
   # and backreferences \1..\9. POSIX ERE reads each as the literal character.
   # A backslash before a metacharacter (`\.`, `\(`, `\+`) is valid ERE and stays
   # allowed.
-  [[ "$p" =~ \\[a-zA-Z0-9] ]] && return 0
-  return 1
+  *\\[a-zA-Z0-9]*) return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
-# Resolve one key's raw value from the team layer (neutral file first when the
-# pointer is declared — team_value), expanding the CC keyword. The keyword and
-# the deferral marker work identically on both surfaces: one literal each, no
-# per-surface variants to drift.
+# raw_value <key>: one key's raw value from the team layer (neutral file first
+# when the pointer is declared — team_value), expanding the CC keyword. The
+# keyword and the deferral marker work identically on both surfaces: one
+# literal each, no per-surface variants to drift.
 raw_value() {
-  local k="$1" v
-  v="$(team_value "$k")"
-  [[ -n "$v" ]] || return 0
-  if [[ "$v" == "Conventional Commits" ]]; then
+  raw_v="$(team_value "$1")"
+  [ -n "$raw_v" ] || return 0
+  if [ "$raw_v" = "Conventional Commits" ]; then
     printf '%s' "$CC_ERE"
   else
-    printf '%s' "$v"
+    printf '%s' "$raw_v"
   fi
 }
 
@@ -276,21 +290,23 @@ raw_value() {
 # the exit propagates; both keys checked for pr_title_pattern since its
 # deferral marker re-reads subject_pattern).
 check_neutral_key "$key"
-[[ "$key" == "pr_title_pattern" ]] && check_neutral_key "subject_pattern"
+if [ "$key" = "pr_title_pattern" ]; then
+  check_neutral_key "subject_pattern"
+fi
 
 value="$(raw_value "$key")"
 
 # pr_title_pattern deferral: `Same as `subject_pattern`.` enforces the effective
 # subject pattern. Resolve against the raw (pre-expansion) pr_title value.
-if [[ "$key" == "pr_title_pattern" ]]; then
+if [ "$key" = "pr_title_pattern" ]; then
   raw_pr="$(team_value "pr_title_pattern")"
-  if [[ "$raw_pr" == "$PR_DEFERRAL" ]]; then
+  if [ "$raw_pr" = "$PR_DEFERRAL" ]; then
     value="$(raw_value "subject_pattern")"
   fi
 fi
 
 # Unresolved -> no enforcement (exit 1, stdout empty). Never fall back to CC_ERE.
-[[ -n "$value" ]] || exit 1
+[ -n "$value" ] || exit 1
 
 if is_non_ere "$value"; then
   printf '%s\n' "resolve-convention-pattern: $key is not POSIX ERE (a PCRE-only construct: a (?...) group, or a backslash-letter/backslash-digit escape such as \\d \\A \\t \\1); enforcement disabled -- author the pattern in POSIX ERE (e.g. [0-9] not \\d) to enable the gate." >&2
@@ -301,8 +317,9 @@ fi
 # unbalanced `^[$`) so a bad config takes the no-enforcement path, never a hook
 # that would then error or wrongly block on it. grep -E exits >=2 on an invalid
 # expression, 0/1 on a valid one.
-grep -E -- "$value" </dev/null >/dev/null 2>&1
-if (($? >= 2)); then
+grep_rc=0
+grep -E -- "$value" </dev/null >/dev/null 2>&1 || grep_rc=$?
+if [ "$grep_rc" -ge 2 ]; then
   printf '%s\n' "resolve-convention-pattern: $key does not compile as POSIX ERE; enforcement disabled." >&2
   exit 1
 fi

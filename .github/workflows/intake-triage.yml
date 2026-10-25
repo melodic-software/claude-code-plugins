@@ -653,8 +653,8 @@ jobs:
           output-path: ${{ runner.temp }}/refine-models.json
 
       # Read under the data directory, plus the built-in reads in the working
-      # directory (the checkout), and WebFetch on the docs hosts resolve-issue
-      # reads; every other tool is denied, and dontAsk denies anything else
+      # directory (the checkout), and WebFetch on six official docs hosts;
+      # every other tool is denied, and dontAsk denies anything else
       # that would prompt. A rule path starting `//` is absolute.
       - name: Build the prompt and arguments
         id: prompt
