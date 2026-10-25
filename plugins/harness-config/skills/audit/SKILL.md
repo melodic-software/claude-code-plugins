@@ -253,8 +253,7 @@ It hashes three parts of the model-config page (the Levels column table, the lev
 level-guidance table, and the resolution-list item that states each model's default level),
 compares the hash with [reference/effort-table.baseline](reference/effort-table.baseline), and
 lists every effort pin: `effort:` frontmatter in agents and skills, lane configs (JSON `"effort"`
-keys in skill `context/` files), the lane launch lines, and Workflow literals in skill `context/`
-files and plugin `workflows/` scripts.
+keys in skill `context/` files), the lane launch lines, and Workflow literals in skill `context/` files and plugin `workflows/` scripts.
 Report its lines verbatim. It never edits a pin. Exit 0: unchanged, and every pin names a listed level. Exit 1: the page changed
 (`reason=table-changed` on every pin) or a pin names a level the page does not list
 (`reason=level-not-in-table`). Exit 3: the page was unread or reshaped, which supports no claim
