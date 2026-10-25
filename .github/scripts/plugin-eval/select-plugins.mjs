@@ -18,8 +18,9 @@
 //   there can be called by an unchanged hook, server or skill;
 // - a changed markdown file under skills/ or agents/ keeps, between --base
 //   and --head in the git repository --repo, every frontmatter key outside
-//   SAFE_KEYS (hooks, allowed-tools, shell and the rest) and adds or changes
-//   no `!` shell-preprocessing line. Without --repo it cannot be read, so it
+//   SAFE_KEYS (hooks, allowed-tools, shell and the rest), in a frontmatter
+//   shape frontmatter() can read and with no YAML alias in those keys, and
+//   adds or changes no `!` shell-preprocessing line. Without --repo it cannot be read, so it
 //   is refused;
 // - no path is one git quoted (a leading `"`), whose real name is unknown.
 //
@@ -60,28 +61,50 @@ export const selectPlugins = (paths) =>
     .sort()
     .map((name) => `plugins/${name}`);
 
+const FENCE = /^---[ \t]*$/;
+const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)/;
+// A YAML alias (*name) starting a value, list item or flow entry can pull in
+// an anchor set under another key.
+const ALIAS = /(?:^|[:[{,]|^[ \t]*-)[ \t]*\*[A-Za-z0-9_]/m;
+
 // Top-level frontmatter entries as key -> text (the key line and its
-// continuation lines). Text with no frontmatter has none.
+// continuation lines); text with no frontmatter has none. Only a plain shape
+// every YAML reader agrees on is read: `---` on the first line, a closing
+// `---`, each entry a `key:` at column 0 with indented, blank or comment
+// continuation lines. Anything else (an indented block, a `? key`, a flow
+// mapping, a quoted or repeated key, frontmatter after a blank line) returns
+// null, which refuses the file.
 export function frontmatter(text) {
-  const lines = String(text ?? "").split(/\r?\n/);
+  const lines = String(text ?? "")
+    .replace(/^﻿/, "")
+    .split(/\r?\n/);
   const entries = new Map();
-  if (lines[0]?.trim() !== "---") {
+  const first = lines.findIndex((line) => line.trim() !== "");
+  if (first === -1 || !lines[first].trimStart().startsWith("---")) {
     return entries;
+  }
+  if (first !== 0 || !FENCE.test(lines[0])) {
+    return null;
   }
   let key = null;
   for (const line of lines.slice(1)) {
-    if (line.trim() === "---") {
-      break;
+    if (FENCE.test(line)) {
+      return entries;
     }
-    const top = /^([^\s#:][^:]*):/.exec(line);
+    const top = KEY_LINE.exec(line);
     if (top) {
-      key = top[1].trim();
+      if (entries.has(top[1])) {
+        return null;
+      }
+      key = top[1];
       entries.set(key, line);
-    } else if (key !== null) {
+    } else if (key !== null && (/^[ \t]/.test(line) || /^\s*(?:#.*)?$/.test(line))) {
       entries.set(key, `${entries.get(key)}\n${line}`);
+    } else if (!/^\s*(?:#.*)?$/.test(line)) {
+      return null;
     }
   }
-  return entries;
+  return null;
 }
 
 const preprocessLines = (text) =>
@@ -97,12 +120,19 @@ export function proseRefusal(base, head) {
   if (head === null) {
     return null;
   }
-  const before = frontmatter(base);
   const after = frontmatter(head);
+  if (after === null) {
+    return "has frontmatter in a shape that cannot be checked";
+  }
+  const before = frontmatter(base) ?? new Map();
   const keys = [...new Set([...before.keys(), ...after.keys()])].filter((key) => !SAFE_KEYS.has(key));
   const changed = keys.filter((key) => before.get(key) !== after.get(key));
   if (changed.length) {
     return `changes frontmatter ${changed.join(", ")}`;
+  }
+  const aliased = keys.filter((key) => ALIAS.test(after.get(key)?.slice(key.length + 1) ?? ""));
+  if (aliased.length) {
+    return `uses a YAML alias in frontmatter ${aliased.join(", ")}`;
   }
   const known = preprocessLines(base);
   if ([...preprocessLines(head)].some((line) => !known.has(line))) {

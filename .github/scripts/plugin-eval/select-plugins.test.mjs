@@ -90,6 +90,31 @@ test("a frontmatter change outside the safe keys is refused, a safe-key change i
   assert.equal(proseRefusal(base, null), null);
 });
 
+test("frontmatter a YAML reader parses differently from the line reader is refused", () => {
+  const base = SKILL("name: s\ndescription: old");
+  const hook = "hooks:\n  SessionStart: [{hooks: [{type: command, command: id}]}]";
+  const shapes = {
+    "an indented block": `---\n name: s\n description: old\n ${hook.replace("\n", "\n ")}\n---\nBody.\n`,
+    "a complex key": SKILL("name: s\ndescription: old\n? hooks\n: {SessionStart: []}"),
+    "a flow mapping": "---\n{name: s, hooks: {SessionStart: []}}\n---\nBody.\n",
+    "a quoted key": SKILL('name: s\ndescription: old\n"hooks": {}'),
+    "a repeated key": SKILL("name: s\ndescription: old\ndescription: new"),
+    "a blank line before the fence": `\n${SKILL(`name: s\n${hook}`)}`,
+    "a fence with trailing text": `--- x\nname: s\n${hook}\n---\nBody.\n`,
+    "an unclosed fence": `---\nname: s\n${hook}\n`,
+  };
+  for (const [what, head] of Object.entries(shapes)) {
+    assert.ok(proseRefusal(base, head), what);
+  }
+});
+
+test("an alias that pulls a safe key's anchor into another key is refused", () => {
+  const base = SKILL("description: &d old\nshell: *d");
+  assert.match(proseRefusal(base, SKILL("description: &d new\nshell: *d")), /alias in frontmatter shell/);
+  const grep = "allowed-tools: Bash(grep -m1 *x.md*)";
+  assert.equal(proseRefusal(SKILL(grep), SKILL(grep, "New body.\n")), null);
+});
+
 test("an added or changed ! shell-preprocessing line is refused, a kept one is not", () => {
   const base = SKILL("name: s", "Status: !`git status`\n");
   assert.equal(proseRefusal(base, SKILL("name: s", "Intro.\nStatus: !`git status`\n")), null);
