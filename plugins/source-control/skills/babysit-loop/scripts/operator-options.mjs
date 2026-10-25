@@ -4,7 +4,8 @@
 // this install's own path. Nothing here reads the environment: a repository's settings env block
 // reaches every process the lane starts and carries no provenance, so CLAUDE_CONFIG_DIR, HOME,
 // %ProgramFiles% and the CLAUDE_PLUGIN_OPTION_* mirror are never consulted, and neither is any
-// file in the checkout (.claude/source-control.md, a project .claude/settings.json).
+// file in the checkout (docs/conventions/source-control.yaml, .claude/source-control.md, a project
+// .claude/settings.json).
 //
 // Sources, highest precedence first (managed settings page, "How Claude Code combines managed
 // sources" and "managed-settings.d", https://code.claude.com/docs/en/managed-settings, read

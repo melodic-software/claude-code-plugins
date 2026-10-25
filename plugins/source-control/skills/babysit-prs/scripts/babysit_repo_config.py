@@ -9,10 +9,16 @@ fallback, merged per key by the modes `merge_repo_config` documents. The review
 bot logins, settle minutes and trigger phrase stay `userConfig`-only: a
 repository declaration of any of them is ignored. The fetch and the merge are
 separate so the merge is unit-testable without a network seam.
+
+Four babysit-loop keys (`LOOP_KEYS`) resolve here too, from the same default
+branch: `docs/conventions/source-control.yaml` first, and for one release the
+`## <key>` section of `.claude/source-control.md` when the YAML lacks the key.
+`loop-keys OWNER/REPO` prints them with the layer that supplied each value.
 """
 
 from __future__ import annotations
 
+import argparse
 import base64
 import binascii
 import json
@@ -28,6 +34,7 @@ from babysit_gh import gh_capture, gh_http_status, is_owner_repo_pair
 from babysit_util import is_json_object
 
 CONFIG_PATH = ".claude/source-control.md"
+YAML_CONFIG_PATH = "docs/conventions/source-control.yaml"
 
 UNION_KEYS = (
     "babysit_merge_block_labels",
@@ -73,8 +80,36 @@ FLAG_DESTS = {
     "babysit_ci_gateway_context": "ci_gateway_context",
 }
 
+# The babysit-loop keys whose team value lives in `YAML_CONFIG_PATH`, each with
+# its accepted values; None is a positive whole number.
+LOOP_KEYS: dict[str, tuple[str, ...] | None] = {
+    "babysit_loop_stop_mode": ("standing", "drain"),
+    "babysit_loop_tier": ("safe", "worker", "autopilot"),
+    "babysit_loop_merge": (
+        "human-only",
+        "c2-mechanical",
+        "c3-autonomous",
+        "full-autonomy",
+    ),
+    "babysit_loop_grace_window_minutes": None,
+}
+LOOP_MERGE = "babysit_loop_merge"
+LOOP_PREFIX = "babysit_loop_"
+# The merge rung's default depends on tracked adoption (`resolve_loop_keys`).
+LOOP_DEFAULTS = {
+    "babysit_loop_stop_mode": "standing",
+    "babysit_loop_tier": "safe",
+    "babysit_loop_grace_window_minutes": "30",
+}
+# The layer names a resolved loop key reports, as config-resolution.md lists them.
+LEGACY_LAYER = f"{CONFIG_PATH} (legacy)"
+DEFAULT_LAYER = "default"
+
 GhRunner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 RepoLayer = dict[str, str | frozenset[str]]
+# Each key's values from a YAML document, or None when the shared reader
+# rejects the document.
+YamlReader = Callable[[str, list[tuple[str, bool]]], dict[str, list[str]] | None]
 
 
 class RepoConfigError(RuntimeError):
@@ -286,36 +321,36 @@ def _contents_readable(gh_runner: GhRunner, owner: str, name: str) -> bool:
         return False
 
 
-def fetch_repo_config(owner_repo: str, gh_runner: GhRunner | None = None) -> RepoLayer:
-    """The repository layer from the default branch; empty when the file is absent.
+def _fetch_file(
+    owner_repo: str, path: str, gh_runner: GhRunner | None = None
+) -> str | None:
+    """`path`'s text on the default branch, or None when the file is absent.
 
     A 404 that `gh` itself reported means "no file" only when the repository's
     root listing is readable: GitHub answers 404 for an existing private
     resource the token cannot read, so an unreadable root is a hidden file and
     raises. Every other failure (another status, no status, a timeout, a
-    missing gh, an unexpected payload, a parse error) raises `RepoConfigError`.
+    missing gh, an unexpected payload) raises `RepoConfigError`.
     """
     gh_runner = gh_runner or gh_capture
     owner, _, name = owner_repo.partition("/")
     if not is_owner_repo_pair(owner, name):
         raise RepoConfigError(f"not an owner/repo pair: {owner_repo!r}")
     try:
-        proc = gh_runner(["api", f"repos/{owner}/{name}/contents/{CONFIG_PATH}"])
+        proc = gh_runner(["api", f"repos/{owner}/{name}/contents/{path}"])
     except (RuntimeError, ValueError, OSError) as exc:
-        raise RepoConfigError(
-            f"{owner_repo}: {CONFIG_PATH} fetch failed: {exc}"
-        ) from exc
+        raise RepoConfigError(f"{owner_repo}: {path} fetch failed: {exc}") from exc
     if proc.returncode != 0:
         if gh_http_status(proc.stderr or "") == 404:
             if _contents_readable(gh_runner, owner, name):
-                return {}
+                return None
             raise RepoConfigError(
-                f"{owner_repo}: {CONFIG_PATH} answered 404 and the repository "
+                f"{owner_repo}: {path} answered 404 and the repository "
                 "contents are not readable, so the file may exist but be hidden "
                 "from this token"
             )
         detail = (proc.stderr or "").strip() or f"exit {proc.returncode}"
-        raise RepoConfigError(f"{owner_repo}: {CONFIG_PATH} fetch failed: {detail}")
+        raise RepoConfigError(f"{owner_repo}: {path} fetch failed: {detail}")
     try:
         payload = json.loads(proc.stdout)
         if not (
@@ -325,9 +360,20 @@ def fetch_repo_config(owner_repo: str, gh_runner: GhRunner | None = None) -> Rep
             and payload.get("content")
         ):
             raise ValueError("response is not a base64 file payload")
-        text = base64.b64decode(str(payload["content"])).decode("utf-8")
+        return base64.b64decode(str(payload["content"])).decode("utf-8")
     except (ValueError, binascii.Error) as exc:
-        raise RepoConfigError(f"{owner_repo}: {CONFIG_PATH} unreadable: {exc}") from exc
+        raise RepoConfigError(f"{owner_repo}: {path} unreadable: {exc}") from exc
+
+
+def fetch_repo_config(owner_repo: str, gh_runner: GhRunner | None = None) -> RepoLayer:
+    """The repository layer from the default branch; empty when the file is absent.
+
+    The fetch contract is `_fetch_file`'s; a parse error raises
+    `RepoConfigError` too.
+    """
+    text = _fetch_file(owner_repo, CONFIG_PATH, gh_runner)
+    if text is None:
+        return {}
     try:
         return parse_repo_config(text)
     except RepoConfigError as exc:
@@ -381,3 +427,166 @@ def resolve(
             f"each target repository's tracked {CONFIG_PATH} instead",
         )
     return effective
+
+
+@dataclass(frozen=True)
+class LoopConfig:
+    """The four loop keys of one target repository: each value, the layer that
+    supplied it, and whether its team layer carries any loop-lane key."""
+
+    values: Mapping[str, str]
+    sources: Mapping[str, str]
+    adopted: bool
+
+
+def parse_loop_sections(text: str) -> tuple[dict[str, str], bool]:
+    """The `LOOP_KEYS` values from a legacy markdown body of `## <key>` H2
+    sections, and whether any `## babysit_loop_*` H2 is present (tracked
+    adoption). Headings inside fences are ignored; a duplicate or empty
+    section raises `RepoConfigError`. Values are checked by the caller.
+    """
+    sections: dict[str, list[str]] = {}
+    current: list[str] | None = None
+    in_fence = False
+    adopted = False
+    for raw in text.removeprefix("﻿").replace("\r\n", "\n").split("\n"):
+        if FENCE_RE.match(raw):
+            in_fence = not in_fence
+            continue
+        heading = None if in_fence else HEADING_RE.match(raw)
+        if heading:
+            title = heading.group(1)
+            current = None
+            if raw.startswith(H2_PREFIX) and title.startswith(LOOP_PREFIX):
+                adopted = True
+                if title in LOOP_KEYS:
+                    if title in sections:
+                        raise RepoConfigError(f"duplicate `## {title}` section")
+                    current = sections[title] = []
+        elif current is not None and raw.strip():
+            current.append(raw.strip())
+    layer: dict[str, str] = {}
+    for key, lines in sections.items():
+        if not lines:
+            raise RepoConfigError(f"`## {key}` section has no value")
+        layer[key] = lines[0].strip("`").strip()
+    return layer, adopted
+
+
+def _loop_value(key: str, value: str, where: str) -> str:
+    allowed = LOOP_KEYS[key]
+    if allowed is None:
+        if not re.fullmatch(r"[1-9][0-9]*", value):
+            raise RepoConfigError(
+                f"{where}: {key} {value!r} is not a positive integer"
+            )
+    elif value not in allowed:
+        raise RepoConfigError(f"{where}: {key} {value!r} is not one of {allowed}")
+    return value
+
+
+def _shared_yaml_values(
+    text: str, keys: list[tuple[str, bool]]
+) -> dict[str, list[str]] | None:
+    """The keys' values through the shared YAML reader the merge gate runs."""
+    # The merge policy imports this module, so it is imported here, at call time.
+    import babysit_merge_policy as policy
+
+    try:
+        return policy._concern_values(text, keys)
+    except policy.PolicyReadError as exc:
+        raise RepoConfigError(str(exc)) from exc
+
+
+def resolve_loop_keys(
+    owner_repo: str,
+    gh_runner: GhRunner | None = None,
+    yaml_values: YamlReader | None = None,
+) -> LoopConfig:
+    """The four loop keys from the target repository's default branch.
+
+    Per key: `docs/conventions/source-control.yaml`, else the `## <key>`
+    section of `.claude/source-control.md` (the one-release compatibility
+    read), else the default. The merge rung's default is `c2-mechanical` once
+    either file carries a loop-lane key (tracked adoption) and `human-only`
+    before. A YAML the shared reader rejects, an invalid value in the layer
+    that supplies a key, and every fetch failure `_fetch_file` names raise
+    `RepoConfigError`: the caller treats the team layer as unreadable and
+    fails closed. Neither file is read from any working tree.
+    """
+    yaml_values = yaml_values or _shared_yaml_values
+    values: dict[str, str] = {}
+    sources: dict[str, str] = {}
+    yaml_text = _fetch_file(owner_repo, YAML_CONFIG_PATH, gh_runner)
+    if yaml_text is not None:
+        found = yaml_values(yaml_text, [(key, False) for key in LOOP_KEYS])
+        if found is None:
+            raise RepoConfigError(
+                f"{owner_repo}: {YAML_CONFIG_PATH}: the shared YAML reader rejects it"
+            )
+        where = f"{owner_repo}: {YAML_CONFIG_PATH}"
+        for key in LOOP_KEYS:
+            items = found.get(key) or []
+            if items:
+                values[key] = _loop_value(key, items[0], where)
+                sources[key] = YAML_CONFIG_PATH
+            elif re.search(rf"^{key}[ \t]*:", yaml_text, re.M):
+                # The reader prints nothing for an empty or non-scalar value,
+                # which must not fall through to the legacy file.
+                raise RepoConfigError(f"{where}: {key} is not a scalar value")
+    adopted = bool(values)
+    if len(values) < len(LOOP_KEYS):
+        legacy_text = _fetch_file(owner_repo, CONFIG_PATH, gh_runner)
+        if legacy_text is not None:
+            try:
+                legacy, legacy_adopted = parse_loop_sections(legacy_text)
+            except RepoConfigError as exc:
+                raise RepoConfigError(f"{owner_repo}: {CONFIG_PATH}: {exc}") from exc
+            adopted = adopted or legacy_adopted
+            for key, value in legacy.items():
+                if key not in values:
+                    where = f"{owner_repo}: {CONFIG_PATH}"
+                    values[key] = _loop_value(key, value, where)
+                    sources[key] = LEGACY_LAYER
+    defaults = {
+        **LOOP_DEFAULTS,
+        LOOP_MERGE: "c2-mechanical" if adopted else "human-only",
+    }
+    return LoopConfig(
+        values={key: values.get(key, defaults[key]) for key in LOOP_KEYS},
+        sources={key: sources.get(key, DEFAULT_LAYER) for key in LOOP_KEYS},
+        adopted=adopted,
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Resolve babysit configuration from a target repository's "
+        "default branch."
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    loop = commands.add_parser(
+        "loop-keys",
+        help="print the four babysit_loop_* keys as JSON, with the layer that "
+        f"supplied each: {YAML_CONFIG_PATH}, {LEGACY_LAYER} or {DEFAULT_LAYER}; "
+        "exit 1 when the repository's config cannot be read",
+    )
+    loop.add_argument("repo", metavar="OWNER/REPO")
+    args = parser.parse_args(argv)
+    try:
+        resolved = resolve_loop_keys(args.repo)
+    except RepoConfigError as exc:
+        print(f"babysit-prs: {exc}", file=sys.stderr)
+        return 1
+    report = {
+        "repository": args.repo,
+        "adopted": resolved.adopted,
+        "values": dict(resolved.values),
+        "sources": dict(resolved.sources),
+    }
+    print(json.dumps(report, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

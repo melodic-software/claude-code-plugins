@@ -51,6 +51,26 @@
         }
       ]
     },
+    "babysit_loop_stop_mode": {
+      "enum": ["standing", "drain"],
+      "default": "standing",
+      "description": "The /source-control:babysit-loop lane's stop shape: standing keeps watching, drain stops once the target repository has no open pull requests and no open issues (exclusions: the babysit-loop skill's Stop modes). An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_stop_mode section of .claude/source-control.md."
+    },
+    "babysit_loop_tier": {
+      "enum": ["safe", "worker", "autopilot"],
+      "default": "safe",
+      "description": "The babysit-prs tier the loop lane runs, the named preset over the autonomy dimensions. Never widens the merge dimension. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_tier section of .claude/source-control.md."
+    },
+    "babysit_loop_merge": {
+      "enum": ["human-only", "c2-mechanical", "c3-autonomous", "full-autonomy"],
+      "description": "The loop lane's standing merge rung, ordered human-only < c2-mechanical < c3-autonomous < full-autonomy. A raise binds from this team layer only; every other source may only lower it. Absent, it is human-only while the team layer carries no babysit_loop_* key and c2-mechanical once it does. For one release a key absent here is read from the ## babysit_loop_merge section of .claude/source-control.md. The unattended merge gate still reads only that section, so keep the two equal while the file exists."
+    },
+    "babysit_loop_grace_window_minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30,
+      "description": "The loop lane's concurrency-safety activity grace window, in minutes. An invocation argument overrides it. For one release a key absent here is read from the ## babysit_loop_grace_window_minutes section of .claude/source-control.md."
+    },
     "branch_issue_pattern": {
       "type": "string",
       "minLength": 1,

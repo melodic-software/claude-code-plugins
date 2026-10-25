@@ -12,9 +12,18 @@
 # authority; this key restates it so /source-control:pull-request drafts a body that conforms. Read
 # the composite at the SHA pr-require-checks.yml pins, not at its default branch, since that pin is
 # what actually runs. Re-read it before changing either.
+#
+# The babysit_loop_* keys are the /source-control:babysit-loop lane's repository policy: a standing
+# lane at the worker tier, merge authority up to the c2-mechanical rung, and a 30-minute activity
+# grace window. Landing them here is the lane's tracked adoption. .claude/source-control.md keeps
+# the same four values until the cleanup slice deletes it; change both while it exists.
 pr_open_state: ready
 pr_body_required_sections:
   - Summary
   - Fix
   - Verification
   - Related
+babysit_loop_stop_mode: standing
+babysit_loop_tier: worker
+babysit_loop_merge: c2-mechanical
+babysit_loop_grace_window_minutes: 30
