@@ -1564,8 +1564,8 @@ head:
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
-  admission's `task-list`, `- [ ] `, from `.github/actions/resolve-config/admission-rules.json` at
-  the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
+  admission's `task-list`, "- [ ] " with its trailing space, from
+  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
   listed human last edited it. On that edited path a line may also be a trusted line with its box
   ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
   `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
