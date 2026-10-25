@@ -2940,8 +2940,7 @@ class Assess(unittest.TestCase):
                     )
                     self.assertEqual(result.reason, reason)
                     self.assertIs(result.promoted, reason is None)
-                    # Unpromoted, the pull request's own queued entry leaves
-                    # the queue, as an unpromoted class's did.
+                    # The pull request's own refusal, so a queued entry leaves.
                     self.assertEqual(result.inputs["own_refusal"], reason)
 
     def test_an_unreadable_resolver_refuses(self) -> None:

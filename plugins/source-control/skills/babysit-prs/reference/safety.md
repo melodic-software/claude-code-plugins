@@ -1082,8 +1082,8 @@ refusal dequeues every entry the identity enqueued; a queued identity entry that
 (`do-not-merge` or the human-gated label, `needs-human` by default, a body hold, a blocking
 comment from an owner, member or collaborator, the opt-in label removed, or put back after the
 enqueue by anyone but a human in person) leaves the queue, as
-does the assessed pull request's own entry when this run finds it ineligible, unpromoted
-for the rung, on a base that is not the default branch, or scored MED or HIGH
+does the assessed pull request's own entry when this run finds it ineligible, unpromoted for its
+rung (`promotion-unqualified:<rung>`, an unreadable resolver included), on a base that is not the default branch, or scored MED or HIGH
 (`risk:<score>`); one failed dequeue does not stop the others. An eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. When the identity's comment read before this run already says the same (score,

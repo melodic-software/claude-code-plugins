@@ -4788,8 +4788,9 @@ def assess(
             "verifier-verdict-not-required",
         ),
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
-        # The rung's promotion cells, keyed by the rung, never by the pull
-        # request's work class.
+        # The rung's promotion cells (owner decision Q21 option b): keyed by
+        # the rung, never by the pull request's work class. Here, so an entry
+        # queued while promoted leaves the queue once it lapses.
         (not promoted, f"promotion-unqualified:{rung.rung}"),
     )
     inputs["own_refusal"] = next((text for refused, text in own if refused), None)
