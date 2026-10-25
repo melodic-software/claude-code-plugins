@@ -1261,6 +1261,79 @@ function loadedSpecifier(node) {
 
 const TYPEOF = ["undefined", "object", "boolean", "number", "bigint", "string", "symbol", "function"];
 
+// What a computed key in the module can be: `keyValues(node)` is the
+// strings it can evaluate to, NUMBER for any number, or null when unknown.
+// A variable counts only when every write to it is known; a cycle through
+// one (`s=s+x`) is unknown.
+function keyValuesOf(entry) {
+  const parents = parentsOf(entry);
+  const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
+  const seen = new Set();
+  const union = (...sets) => (sets.includes(null) ? null : new Set(sets.flatMap((s) => [...s])));
+  const keyValues = (node, depth = 0) => {
+    if (depth > 16) return null;
+    switch (node.type) {
+      case "Literal":
+        if (typeof node.value === "string") return new Set([node.value]);
+        if (typeof node.value === "number" || node.bigint !== undefined) return new Set([NUMBER]);
+        return node.value === null || typeof node.value === "boolean" ? new Set([String(node.value)]) : null;
+      case "TemplateLiteral":
+        return node.expressions.length === 0 ? new Set([node.quasis[0].value.cooked]) : null;
+      case "UpdateExpression":
+        return new Set([NUMBER]);
+      case "UnaryExpression":
+        if (["-", "+", "~"].includes(node.operator)) return new Set([NUMBER]);
+        if (node.operator === "!") return new Set(["true", "false"]);
+        if (node.operator === "void") return new Set(["undefined"]);
+        if (node.operator === "typeof") return new Set(TYPEOF);
+        return null;
+      case "BinaryExpression":
+        if (ARITHMETIC.has(node.operator)) return new Set([NUMBER]);
+        if (node.operator !== "+") return new Set(["true", "false"]);
+        {
+          const sides = union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
+          return sides !== null && [...sides].every((v) => v === NUMBER) ? sides : null;
+        }
+      case "ConditionalExpression":
+        return union(keyValues(node.consequent, depth + 1), keyValues(node.alternate, depth + 1));
+      case "LogicalExpression":
+        return union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
+      case "SequenceExpression":
+        return keyValues(node.expressions.at(-1), depth + 1);
+      case "AssignmentExpression":
+        if (node.operator === "=") return keyValues(node.right, depth + 1);
+        return ARITHMETIC.has(node.operator.slice(0, -1)) ? new Set([NUMBER]) : null;
+      case "Identifier": {
+        const v = variable(node);
+        if (!v || v.defs.length !== 1 || v.defs[0].type !== "Variable" || seen.has(v)) return null;
+        const def = v.defs[0];
+        if (def.node.id !== def.name || isLoop(parents.get(def.parent))) return null;
+        seen.add(v);
+        try {
+          // A `var` read before its initializer runs is undefined.
+          const sets = [def.parent.kind === "var" || def.node.init === null ? new Set(["undefined"]) : new Set()];
+          for (const r of v.references) {
+            if (!r.isWrite()) continue;
+            if (r.identifier === def.name) {
+              if (def.node.init !== null) sets.push(keyValues(def.node.init, depth + 1));
+              continue;
+            }
+            const w = parents.get(r.identifier);
+            if (w?.type === "UpdateExpression") sets.push(new Set([NUMBER]));
+            else if (w?.type === "AssignmentExpression" && w.left === r.identifier) sets.push(keyValues(w, depth + 1));
+            else return null;
+          }
+          return union(...sets);
+        } finally {
+          seen.delete(v);
+        }
+      }
+    }
+    return null;
+  };
+  return keyValues;
+}
+
 // `Object` or `Reflect`, as a name or a member (`globalThis.Object`); by
 // name, so a shadowing binding counts too.
 const isDefinerHome = (n) =>
@@ -1305,7 +1378,8 @@ function definerOf(n) {
 //   - a write to an undeclared (global) name that is one of the names;
 //   - code run from a string through node:vm: any load of the vm module
 //     except an import naming only `isContext`, and a vm runner's name
-//     (`runInThisContext`, `runInNewContext`, ...) read from any object.
+//     (`runInThisContext`, `runInNewContext`, ...) read from any object;
+//   - a load the scan cannot name (`unknownLoad`), which may load node:vm.
 //   A target is cleared only when it is provably a fresh object: a
 //   literal, a function, `this` in a class
 //   constructor, a variable only ever holding one of those, or the
@@ -1396,72 +1470,7 @@ function sinks(req) {
   for (const ref of entry.manager.globalScope.through) {
     if (ref.isWrite() && names.has(ref.identifier.name)) hit("global-write", ref.identifier.name, ref.identifier);
   }
-  // What a computed key can be: the strings it can evaluate to, NUMBER for
-  // any number, or null when unknown. A variable counts only when every
-  // write to it is known; a cycle through one (`s=s+x`) is unknown.
-  const seenKeys = new Set();
-  const union = (...sets) => (sets.includes(null) ? null : new Set(sets.flatMap((s) => [...s])));
-  const keyValues = (node, depth = 0) => {
-    if (depth > 16) return null;
-    switch (node.type) {
-      case "Literal":
-        if (typeof node.value === "string") return new Set([node.value]);
-        if (typeof node.value === "number" || node.bigint !== undefined) return new Set([NUMBER]);
-        return node.value === null || typeof node.value === "boolean" ? new Set([String(node.value)]) : null;
-      case "TemplateLiteral":
-        return node.expressions.length === 0 ? new Set([node.quasis[0].value.cooked]) : null;
-      case "UpdateExpression":
-        return new Set([NUMBER]);
-      case "UnaryExpression":
-        if (["-", "+", "~"].includes(node.operator)) return new Set([NUMBER]);
-        if (node.operator === "!") return new Set(["true", "false"]);
-        if (node.operator === "void") return new Set(["undefined"]);
-        if (node.operator === "typeof") return new Set(TYPEOF);
-        return null;
-      case "BinaryExpression":
-        if (ARITHMETIC.has(node.operator)) return new Set([NUMBER]);
-        if (node.operator !== "+") return new Set(["true", "false"]);
-        {
-          const sides = union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
-          return sides !== null && [...sides].every((v) => v === NUMBER) ? sides : null;
-        }
-      case "ConditionalExpression":
-        return union(keyValues(node.consequent, depth + 1), keyValues(node.alternate, depth + 1));
-      case "LogicalExpression":
-        return union(keyValues(node.left, depth + 1), keyValues(node.right, depth + 1));
-      case "SequenceExpression":
-        return keyValues(node.expressions.at(-1), depth + 1);
-      case "AssignmentExpression":
-        if (node.operator === "=") return keyValues(node.right, depth + 1);
-        return ARITHMETIC.has(node.operator.slice(0, -1)) ? new Set([NUMBER]) : null;
-      case "Identifier": {
-        const v = variable(node);
-        if (!v || v.defs.length !== 1 || v.defs[0].type !== "Variable" || seenKeys.has(v)) return null;
-        const def = v.defs[0];
-        if (def.node.id !== def.name || isLoop(parents.get(def.parent))) return null;
-        seenKeys.add(v);
-        try {
-          // A `var` read before its initializer runs is undefined.
-          const sets = [def.parent.kind === "var" || def.node.init === null ? new Set(["undefined"]) : new Set()];
-          for (const r of v.references) {
-            if (!r.isWrite()) continue;
-            if (r.identifier === def.name) {
-              if (def.node.init !== null) sets.push(keyValues(def.node.init, depth + 1));
-              continue;
-            }
-            const w = parents.get(r.identifier);
-            if (w?.type === "UpdateExpression") sets.push(new Set([NUMBER]));
-            else if (w?.type === "AssignmentExpression" && w.left === r.identifier) sets.push(keyValues(w, depth + 1));
-            else return null;
-          }
-          return union(...sets);
-        } finally {
-          seenKeys.delete(v);
-        }
-      }
-    }
-    return null;
-  };
+  const keyValues = keyValuesOf(entry);
   // The trusted names a computed `key` may spell, or null when it may spell any.
   const keyNames = (key) => {
     const values = keyValues(key);
@@ -1600,6 +1609,8 @@ function sinks(req) {
         node.specifiers.every((s) => s.type === "ImportSpecifier" && VM_HARMLESS.has(s.imported.name ?? s.imported.value));
       if (!harmless) hit("vm-string-code", null, node);
     }
+    // A load the scan cannot name may load node:vm.
+    if (unknownLoad(node, holder, keyValues)) hit("unknown-load", null, node);
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
     } else if (isDefinerHome(node) && !(holder?.type === "MemberExpression" && holder.property === node && !holder.computed)) {
@@ -1698,15 +1709,31 @@ function scanFor(req) {
 // `import.meta.require` or `x.require` used other than as the direct callee
 // of a call with a literal specifier (an alias, `.call`, `(0,require)`), a
 // `typeof` test, or `require.resolve`. A binding named `require` is no use.
-function unknownLoad(node, parent) {
+// A computed member or destructured key counts when `keyValues` (from
+// `keyValuesOf`) finds it unknown or able to spell `require`
+// (`module[k]`, `x["req"+"uire"]`, `{[k]:r}=globalThis`), except the
+// target of a plain `o[k]=v`; even a literal specifier does not name its file.
+function unknownLoad(node, parent, keyValues) {
   if (node.type === "ImportExpression") return literalString(node.source) === null;
   // `import.meta` other than read by name can hand out its `require`
   // (`var m=import.meta`, `{require:r}=import.meta`), and so can any
   // destructured `require` key.
   if (isImportMeta(node)) return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) !== null);
-  if (node.type === "Property" && parent?.type === "ObjectPattern") return keyName(node.key, node.computed) === "require";
-  const named = node.type === "Identifier" ? node.name === "require" : memberName(node) === "require";
-  if (!named) return false;
+  const mayRequire = (key) => {
+    const values = keyValues(key);
+    return values === null || values.has("require");
+  };
+  if (node.type === "Property" && parent?.type === "ObjectPattern") {
+    const key = keyName(node.key, node.computed);
+    return key === null ? mayRequire(node.key) : key === "require";
+  }
+  const computed = node.type === "MemberExpression" && memberName(node) === null;
+  if (computed) {
+    if (parent?.type === "AssignmentExpression" && parent.operator === "=" && parent.left === node) return false;
+    if (!mayRequire(node.property)) return false;
+  } else if ((node.type === "Identifier" ? node.name : memberName(node)) !== "require") {
+    return false;
+  }
   if (node.type === "Identifier") {
     const binding =
       (parent?.type === "MemberExpression" && parent.property === node && !parent.computed) ||
@@ -1716,11 +1743,13 @@ function unknownLoad(node, parent) {
       ["ImportSpecifier", "ImportDefaultSpecifier", "ImportNamespaceSpecifier", "ExportSpecifier", "LabeledStatement", "BreakStatement", "ContinueStatement"].includes(parent?.type);
     if (binding) return false;
   }
-  if (parent?.type === "CallExpression" && parent.callee === node) return literalString(parent.arguments[0]) === null;
+  if (parent?.type === "CallExpression" && parent.callee === node) return computed || literalString(parent.arguments[0]) === null;
   if (parent?.type === "UnaryExpression" && parent.operator === "typeof") return false;
   return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) === "resolve");
 }
 
+// `computed` is whether a computed key may load a module the scan cannot
+// name, which takes the scope analysis to tell (`computedLoad`).
 function scanOf(ast) {
   const keys = new Set();
   const loads = new Set();
@@ -1732,12 +1761,17 @@ function scanOf(ast) {
       if (name) imports.push([name.name ?? name.value, node.source.value]);
     }
   }
+  let computed = false;
+  const deferred = () => {
+    computed = true;
+    return new Set();
+  };
   const stack = [[ast, null]];
   while (stack.length) {
     const [node, parent] = stack.pop();
     const loaded = loadedFile(node);
     if (loaded !== null) loads.add(loaded);
-    if (unknownLoad(node, parent)) loads.add(UNKNOWN_FILE);
+    if (unknownLoad(node, parent, deferred)) loads.add(UNKNOWN_FILE);
     if (node.type === "MemberExpression") {
       const p = node.property;
       if (!node.computed) keys.add(p.name);
@@ -1757,7 +1791,26 @@ function scanOf(ast) {
       }
     }
   }
-  return { keys, loads, imports };
+  return { keys, loads, imports, computed };
+}
+
+// Whether a computed key in the module may load a module the scan cannot
+// name (`unknownLoad` with the key's provenance).
+function computedLoad(entry) {
+  const parents = parentsOf(entry);
+  const keyValues = keyValuesOf(entry);
+  const stack = [entry.ast];
+  while (stack.length) {
+    const node = stack.pop();
+    if (unknownLoad(node, parents.get(node), keyValues)) return true;
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      for (const c of Array.isArray(child) ? child : [child]) {
+        if (c && typeof c.type === "string" && c !== node) stack.push(c);
+      }
+    }
+  }
+  return false;
 }
 
 // {"op":"keys_used","module":key,"source"?:...,"names":[...]}
@@ -1780,7 +1833,14 @@ function loads(req) {
   if (typeof req.module !== "string") return { ok: false, error: "loads needs a string `module`" };
   const scan = scanFor(req);
   if (scan === undefined) return { ok: true, need_source: true };
-  return { ok: true, files: scan === null ? null : [...scan.loads].sort() };
+  if (scan === null) return { ok: true, files: null };
+  if (scan.computed && !scan.loads.has(UNKNOWN_FILE)) {
+    const entry = moduleFor(req);
+    if (entry === null) return { ok: true, need_source: true };
+    if (entry.error || computedLoad(entry)) scan.loads.add(UNKNOWN_FILE);
+    scan.computed = false;
+  }
+  return { ok: true, files: [...scan.loads].sort() };
 }
 
 // {"op":"imports","module":key,"source"?:...}
