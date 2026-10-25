@@ -860,14 +860,18 @@ test("feedback-not-landed, nothing posted: a VALID fix commit that does not chan
 
 // #8832: the thread sat on the skill's SKILL.md and the fix changed only that
 // skill's evals.
-test("a VALID fix on a SKILL.md thread lands when it changes any file in that skill's directory, not a sibling skill's", async () => {
+// A script the PR already changes passes the branch's scope check; only one in
+// the thread's skill directory is its fix.
+test("a VALID fix on a SKILL.md thread lands when it changes any file in that skill's directory, not a sibling skill's script", async () => {
   const S = "plugins/discipline/skills/script-the-deterministic-work";
-  const skillRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: `${S}/SKILL.md` }] });
+  const scripts = [`${S}/scripts/check.sh`, `${S}-x/scripts/check.sh`, "plugins/discipline/skills/sweep-all/scripts/check.sh"];
+  const skillRun = JSON.stringify({ ...RUN, pr_paths: scripts, threads: [{ ...RUN.threads[0], path: `${S}/SKILL.md` }] });
   for (const [filename, landed] of [
     [`${S}/evals/evals.json`, true],
     [`${S}/reference/notes.md`, true],
-    [`${S}-x/evals/evals.json`, false],
-    ["plugins/discipline/skills/sweep-all/evals/evals.json", false],
+    [scripts[0], true],
+    [scripts[1], false],
+    [scripts[2], false],
   ]) {
     const api = fakeApi({
       compare: { status: "ahead", commits: [fixCommit()], files: [{ filename }] },
@@ -878,7 +882,7 @@ test("a VALID fix on a SKILL.md thread lands when it changes any file in that sk
   }
 });
 
-test("a VALID fix on a thread that is not a SKILL.md still needs its exact path, even in the same directory", async () => {
+test("a VALID fix on a thread that is not a SKILL.md lands when it changes a non-code file in the thread's plugin", async () => {
   const S = "plugins/discipline/skills/script-the-deterministic-work";
   const refRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: `${S}/reference/a.md` }] });
   const api = fakeApi({
@@ -886,7 +890,64 @@ test("a VALID fix on a thread that is not a SKILL.md still needs its exact path,
     commits: { [FIX]: { files: [{ filename: `${S}/reference/b.md` }] } },
   });
   const result = await run(api, lines(reply({ disposition: "VALID" })), refRun);
+  assert.equal(result.escalationReason, "");
+});
+
+// #9965: the thread sat on research/context/dispatch.md; the fix the apply
+// step pushed changed two files of the thread's plugin the PR had not touched.
+test("a VALID fix the apply step was allowed to make in the thread's plugin lands, outside the PR's files", async () => {
+  const D = "plugins/discovery";
+  const fixed = [`${D}/reference/parent-contract.md`, `${D}/skills/setup/SKILL.md`, `${D}/skills/setup/evals/evals.json`].map((filename) => ({ filename, status: "modified" }));
+  const caseRun = JSON.stringify({
+    ...RUN,
+    pr_paths: [`${D}/skills/research/SKILL.md`, `${D}/skills/research/context/dispatch.md`],
+    threads: [{ ...RUN.threads[0], path: `${D}/skills/research/context/dispatch.md` }],
+  });
+  const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: fixed }, commits: { [FIX]: { files: fixed } } });
+  const result = await run(api, lines(reply({ disposition: "VALID" })), caseRun);
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.posted().length, 1);
+  assert.match(api.posted()[0][3], new RegExp(`^Fix: ${FIX}$`, "m"));
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
+
+test("a retry credits an earlier fix in the thread's plugin outside the PR's files", async () => {
+  const D = "plugins/discovery";
+  const contract = `${D}/reference/parent-contract.md`;
+  const runText = JSON.stringify({ ...RUN, threads: [{ id: "PRRT_a", path: `${D}/skills/research/context/dispatch.md`, comment_ids: [100] }] });
+  const repliesText = lines(reply({ disposition: "VALID", evidence: [`${contract}:3`] }));
+  for (const [filename, landed] of [[contract, true], ["plugins/other/reference/parent-contract.md", false]]) {
+    const api = retry([earlierFix()], [{ filename, patch: FIXED[0].patch }]);
+    const result = await publish({
+      api,
+      pr: 42,
+      headSha: NOW,
+      headRef: "feature",
+      appId: APP,
+      modelRun: "5000-1",
+      reviewerId: REVIEWER,
+      trustedHumans: new Set([HUMAN]),
+      readArtifact: () => ({ runText, repliesText }),
+      fileExists: (path) => path === contract,
+    });
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", filename);
+    assert.equal(api.posted().length, landed ? 1 : 0, filename);
+  }
+});
+
+test("a fix in one thread's plugin is not credited to a thread in another plugin", async () => {
+  const caseRun = JSON.stringify({
+    ...RUN,
+    threads: [
+      { ...RUN.threads[0], path: "plugins/p/reference/a.md" },
+      { ...RUN.threads[1], path: "plugins/q/reference/b.md" },
+    ],
+  });
+  const fixed = [{ filename: "plugins/q/reference/b.md" }, { filename: "plugins/q/reference/c.md" }];
+  const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: fixed }, commits: { [FIX]: { files: fixed } } });
+  const result = await run(api, lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", disposition: "VALID" })), caseRun);
   assert.equal(result.escalationReason, "feedback-not-landed");
+  assert.deepEqual(api.posted(), []);
 });
 
 test("feedback-not-landed with no VALID reply when the branch moved onto .github/ or another path", async () => {
