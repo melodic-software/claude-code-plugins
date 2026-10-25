@@ -34,7 +34,7 @@ fresh-session probe (isolated `claude -p --plugin-dir` runs with positive contro
 fact 5 was re-read on 2026-10-07 against 2.1.292.
 Rows 9-12 were measured on **Claude Code 2.1.283** by a sandbox probe on 2026-09-27 (fixture
 `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE` under a scratch directory, positive control of an
-empty plugin list before any write). Existing state is not evidence of its own correctness:
+empty plugin list before any write). Existing state is not evidence of its own correctness, so
 **recheck these facts** (triggers at the end of this doc) before extending the matrix or relying on
 a row in new work.
 

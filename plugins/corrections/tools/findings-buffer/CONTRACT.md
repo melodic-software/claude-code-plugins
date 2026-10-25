@@ -4,7 +4,7 @@ A findings buffer is an append-only pool of observations that unattended scanner
 fixes on sight. A person reads the grouped view of the pool later. The buffer stores rows and
 returns them; it does not interpret them.
 
-The seam follows the shape of the tracker seam
+This contract follows the shape of the tracker seam
 (`plugins/work-items/tools/work-item-tracker/CONTRACT.md`): two verbs per adapter, a
 `capabilities.json` handshake, and the same exit codes.
 
