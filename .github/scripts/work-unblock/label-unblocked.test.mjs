@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, loadRules, refusalText } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import {
   checkCloser,
@@ -108,6 +108,8 @@ function world({
   searchIncomplete = false,
   fieldValues = {},
   specs = {},
+  parents = {},
+  subIssues = {},
   failOn,
 } = {}) {
   const calls = [];
@@ -184,6 +186,12 @@ function world({
     }
     if ((match = route.match(/\/issues\/(\d+)\/dependencies\/blocked_by$/))) {
       return listed(blockedBy[match[1]] ?? []);
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/parent$/)) && parents[match[1]]) {
+      return parents[match[1]];
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/sub_issues$/))) {
+      return listed(subIssues[match[1]] ?? []);
     }
     if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/issue-field-values$/))) {
       return fieldValues[match[1]] ?? [];
@@ -2209,7 +2217,7 @@ function reopened({ issues = [fixIssue(30)], comments = [note(), recurrenceNote(
     comments: Object.fromEntries(issues.map((item) => [item.number, comments])),
     events: Object.fromEntries(issues.map((item) => [item.number, events])),
     timeline: Object.fromEntries(issues.map((item) => [item.number, pulls.map((pull) => crossRef(pull))])),
-    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, repository: { nameWithOwner: REPO } }))])),
+    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, state: "OPEN", repository: { nameWithOwner: REPO } }))])),
     pulls: Object.fromEntries([...pulls, ...closing].map((pull) => [pull.number, pull])),
     runs,
   });
@@ -2527,7 +2535,7 @@ const namingPull = (state, body = "Refs: #25") => ({
 
 test("the sweep keeps a deferred issue deferred while an open pull request is for it, and admits it once that closes", async (t) => {
   const log = t.mock.method(console, "log", () => {});
-  for (const facts of [{ timeline: [namingPull("open")] }, { closing: [{ number: 40, repository: { nameWithOwner: REPO } }] }]) {
+  for (const facts of [{ timeline: [namingPull("open")] }, { closing: [{ number: 40, state: "OPEN", repository: { nameWithOwner: REPO } }] }]) {
     log.mock.resetCalls();
     const open = deferredWorld(facts);
     assert.equal(await sweep({ github: open.github }, PAUSING), 0);
@@ -2535,9 +2543,11 @@ test("the sweep keeps a deferred issue deferred while an open pull request is fo
     const lines = log.mock.calls.map((call) => String(call.arguments[0]));
     assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 is for it"), lines.join("\n"));
   }
-  const closed = deferredWorld({ timeline: [namingPull("closed")] });
-  assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
-  assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)]);
+  for (const facts of [{ timeline: [namingPull("closed")] }, { closing: [{ number: 40, state: "MERGED", repository: { nameWithOwner: REPO } }] }]) {
+    const closed = deferredWorld(facts);
+    assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
+    assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)], JSON.stringify(facts));
+  }
 });
 
 test("the sweep admits a deferred issue an open pull request only mentions", async (t) => {
@@ -2686,7 +2696,7 @@ test("a person's mark whose criteria only the App wrote is refused; a text read 
 test("a person's mark waits, still deferred, while an open pull request closes or Refs it; one that only mentions it does not hold it", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const waiting = `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: open pull request #40 is for it.` })}`;
-  for (const facts of [{ closing: [{ number: 40, repository: { nameWithOwner: REPO } }] }, { timeline: [namingPull("open")] }]) {
+  for (const facts of [{ closing: [{ number: 40, state: "OPEN", repository: { nameWithOwner: REPO } }] }, { timeline: [namingPull("open")] }]) {
     log.mock.resetCalls();
     const open = markedWorld(facts);
     assert.equal(await sweep({ github: open.github, admission: admissionFor() }, PAUSING), 0);
@@ -2888,7 +2898,7 @@ test("a stranded issue with a listed human's open closing PR is left alone; an u
       comments: { 30: [note()] },
       events: { 30: [added("2026-10-16T08:00:00Z", OWNER)] },
       blobs: BLOBS,
-      closing: { 30: [{ number: 7950, repository: { nameWithOwner: REPO } }] },
+      closing: { 30: [{ number: 7950, state: "OPEN", repository: { nameWithOwner: REPO } }] },
       pulls: { 7950: { number: 7950, state: "open", user } },
     });
   const listed = humanPr(OWNER);
@@ -2957,4 +2967,90 @@ test("a stranded issue whose re-fired run failed again is re-fired on a backoff 
   const body = infraComment(KEY, "The work-resolve-issue run that `agent-ready` started failed or was cancelled before it reported, over 3 hours ago.", 2);
   assert.deepEqual(writes(calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body })}`, ...restarted(30)]);
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+});
+
+// Owner Q93: a size split's parent (30) closes as completed, by the App, once
+// every sub-issue (31 and 32) is closed by a listed human or a merge; the App
+// posted the split record listing them. Only that close by the App counts.
+const SPLIT_PARENT_URL = `${API}/repos/${REPO}/issues/30`;
+const splitRecordComment = (user = LANES_BOT) => ({
+  id: 77,
+  user,
+  body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}\nSplit at intake.`,
+  created_at: STAMP,
+});
+const subIssue = (number, overrides = {}) => ({ ...issue(number, { state: "closed" }), parent_issue_url: SPLIT_PARENT_URL, ...overrides });
+const closeParentWrites = [
+  `POST /repos/${REPO}/issues/30/comments`,
+  `PATCH /repos/${REPO}/issues/30 {"state":"closed","state_reason":"completed"}`,
+];
+function splitWorld({ second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) }), record = splitRecordComment() } = {}) {
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  return world({
+    closedList: [first],
+    issues: { 30: issue(30), 31: first, 32: second },
+    parents: { 31: issue(30) },
+    subIssues: { 30: [first, second] },
+    comments: { 30: record === null ? [] : [record] },
+  });
+}
+const writtenPaths = (calls) => writes(calls).map((call) => (call.includes("/comments ") ? call.slice(0, call.indexOf(" {")) : call));
+
+test("the last sub-issue closing by a listed human or a merge closes its split parent as completed, comment first", async () => {
+  const { github, calls } = splitWorld();
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), closeParentWrites);
+  const comment = JSON.parse(writes(calls)[0].slice(writes(calls)[0].indexOf(" {") + 1)).body;
+  assert.match(comment, /^<!-- work-unblock split parent closed -->\n/);
+  assert.match(comment, /#31, #32/);
+});
+
+test("a split parent stays open while a sub-issue is open, or closed by someone else, or with no split record from the App", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const setup of [
+    { second: subIssue(32, { state: "open", closed_by: null }) },
+    { second: subIssue(32, { closed_by: outsider }) },
+    { record: null },
+    { record: splitRecordComment(outsider) },
+  ]) {
+    const { github, calls } = splitWorld(setup);
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("the App's close of a split parent counts as done for what it blocks; without the split record it does not", async () => {
+  for (const [record, expected] of [
+    [splitRecordComment(), [labeled(20)]],
+    [null, []],
+  ]) {
+    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const { github, calls } = world({
+      closedList: [parent],
+      blockingOf: { 30: [issue(20)] },
+      issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+      blockedBy: { 20: [parent] },
+      subIssues: { 30: [subIssue(31), subIssue(32)] },
+      comments: { 20: [note()], 30: record === null ? [] : [record] },
+    });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), expected);
+  }
+});
+
+// main resolves the App as LANES_BOT_LOGIN; the split parent's close and its
+// record count under that login, not the default one.
+test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as done for what it blocks", async () => {
+  const app = { id: LANES_APP_ID, login: "other-lanes[bot]", type: "Bot" };
+  const parent = issue(30, { state: "closed", closer: app, at: "2026-10-16T11:30:00Z" });
+  const { github, calls } = world({
+    closedList: [parent],
+    blockingOf: { 30: [issue(20)] },
+    issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+    blockedBy: { 20: [parent] },
+    subIssues: { 30: [subIssue(31), subIssue(32)] },
+    comments: { 20: [note()], 30: [splitRecordComment(app)] },
+  });
+  assert.equal(await sweep({ github }, { LANES_BOT_LOGIN: app.login }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
 });

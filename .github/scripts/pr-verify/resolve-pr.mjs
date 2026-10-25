@@ -34,7 +34,7 @@
 
 import { appendFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   commitPulls,
@@ -44,7 +44,7 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { refinementSpec } from "../intake-triage/admit.mjs";
+import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -83,6 +83,18 @@ ${ACTOR}`;
 const REFS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issueOrPullRequest(number: $number) { __typename ... on Issue { ${ISSUE_FIELDS} } }
+  }
+}
+${ACTOR}`;
+
+// A size split's sub-issue's native parent, with the text admit.mjs specOf
+// reads, for splitChildBody.
+const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      parent { number repository { nameWithOwner } body lastEditedAt author { ...actor } editor { ...actor }
+        comments(first: 100) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } } }
+    }
   }
 }
 ${ACTOR}`;
@@ -274,12 +286,14 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // while unedited (admit.mjs refinementSpec) and created before the pull
 // request, so nothing the App posts once a lane run has the issue becomes
 // spec (`specText`). Other Bot and App text is left out even where
-// select-trusted-text keeps it.
+// select-trusted-text keeps it, except the body of a sub-issue the lanes App
+// filed in a size split, whose lines are its listed-human parent's task-list
+// lines, `taskList` being admission's `task-list` (admit.mjs splitChildBody).
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head.
-async function linkedIssues(github, readRefs, repository, number, humans, laneAppId) {
+async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
@@ -309,6 +323,19 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
       throw new Error(`#${issue.number}: the issue's comments could not be read`);
     }
   }
+  // The split sub-issues' bodies that count, by issue number.
+  const childBodies = new Map();
+  for (const issue of issues) {
+    if (laneAppId === undefined || issue.author?.__typename !== "Bot" || issue.author.databaseId !== laneAppId || !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
+      continue;
+    }
+    const parent = (await github("POST", "/graphql", { query: PARENT_QUERY, variables: { owner, name, number: issue.number } }))?.data?.repository?.issue?.parent;
+    const complete = parent?.repository?.nameWithOwner === repository && Array.isArray(parent.comments?.nodes) && parent.comments.totalCount === parent.comments.nodes.length;
+    const body = complete ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId: laneAppId } }, humans, taskList) : null;
+    if (body !== null) {
+      childBodies.set(issue.number, body);
+    }
+  }
   const pullRequest = data.data.repository.pullRequest;
   return {
     // Who last edited the pull request's own body: null when never edited.
@@ -335,14 +362,14 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
-        body: written(issue) && typeof issue.body === "string" ? issue.body : null,
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === refinement).map((comment) => String(comment.body ?? "")),
       };
     }),
   };
 }
 
-export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -401,7 +428,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     return skip("already-judged");
   }
   // This PR's FAIL is named with the issues it records, read only now.
-  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId);
+  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList);
   const issues = specRead.linkedIssues.map((issue) => issue.number);
   if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
     return skip("already-judged");
@@ -472,8 +499,12 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     // pr-verify.yml reads both from main's pr-pipeline.yaml; unset is `lane`.
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
-    // The lanes App's id: merge.agent-identity's entry on the trusted list.
-    laneAppId: trusted.logins.get(String(env.LANE_IDENTITY ?? "").toLowerCase()),
+    // The lanes App's id: merge.agent-identity's entry on the trusted list,
+    // with or without its [bot] suffix.
+    laneAppId: trusted.logins.get(`${loginKey(env.LANE_IDENTITY)}[bot]`),
+    // Admission's task-list marker, from the checkout this script runs from
+    // (main's, in pr-verify.yml): a split sub-issue counts only by it.
+    taskList: loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"],
     ownerIds: [...trusted.ids],
     specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
   });
