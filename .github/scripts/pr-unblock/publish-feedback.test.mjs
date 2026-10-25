@@ -967,6 +967,27 @@ test("a retry credits an earlier fix in the thread's scope at a cited line, not 
   }
 });
 
+// #10082 review: the earlier fix changed a file of the thread's scope and one
+// outside it, the reply cited both, and a later commit changed the scoped one.
+test("a retry does not credit an earlier fix whose scoped cited file a later commit changed", async () => {
+  const contract = "plugins/p/reference/contract.md";
+  const other = "plugins/q/reference/other.md";
+  const runText = JSON.stringify({ ...RUN, threads: [{ id: "PRRT_a", path: "plugins/p/reference/x.md", comment_ids: [100] }] });
+  const repliesText = lines(reply({ disposition: "VALID", evidence: [`${contract}:3`, `${other}:3`] }));
+  const LATER = "9".repeat(40);
+  for (const [laterFiles, landed] of [[[{ filename: "src/a.js" }], true], [[{ filename: contract }], false]]) {
+    const api = retry(
+      [earlierFix(), { sha: LATER, author: { id: HUMAN }, commit: { message: "tweak\n", committer: { date: "2026-10-22T12:00:00Z" } } }],
+      [contract, other].map((filename) => ({ filename, patch: FIXED[0].patch })),
+    );
+    const getCommit = api.getCommit;
+    api.getCommit = async (sha) => (sha === LATER ? { files: laterFiles } : getCommit(sha));
+    const result = await runWith(api, repliesText, runText, [contract, other]);
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", laterFiles[0].filename);
+    assert.equal(api.posted().length, landed ? 1 : 0, laterFiles[0].filename);
+  }
+});
+
 test("a fix in one thread's plugin is not credited to a thread in another plugin", async () => {
   const caseRun = JSON.stringify({
     ...RUN,

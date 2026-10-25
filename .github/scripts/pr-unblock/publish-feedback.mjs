@@ -278,7 +278,8 @@ const isLaneFix = (commit, appId) =>
 // a web-flow commit) after `after` (epoch ms), not in `claimed` (a commit a
 // lane reply already named as another thread's fix), whose files touch
 // `thread` (touchesThread), and in which one `evidence` path:line falls
-// inside a hunk of that path, a path no later PR commit changed, so the
+// inside a hunk of that path; both read only the commit's paths no later PR
+// commit changed, so what credits the fix still holds it at the head and the
 // head's line numbers are still that commit's; null for none. `filesOf`
 // reads a commit's files, each {filename, patch}.
 export async function earlierFixOf({ commits, appId, after, thread, evidence, claimed, filesOf }) {
@@ -288,18 +289,18 @@ export async function earlierFixOf({ commits, appId, after, thread, evidence, cl
     if (!isLaneFix(commit, appId) || claimed.has(commit.sha) || !(Date.parse(commit.commit?.committer?.date ?? "") > after)) {
       continue;
     }
-    const files = await filesOf(commit.sha);
-    const patches = new Map(files.map((file) => [file.filename, file.patch]));
-    if (!touchesThread(files.map((file) => file.filename), thread, citedFiles(evidence, patches, thread))) {
-      continue;
-    }
     const later = new Set();
     for (const next of commits.slice(i + 1)) {
       for (const file of await filesOf(next.sha)) {
         later.add(file.filename);
       }
     }
-    if (cites.some(([path, line]) => patches.has(path) && !later.has(path) && lineChanged(patches.get(path), line))) {
+    const current = (await filesOf(commit.sha)).filter((file) => !later.has(file.filename));
+    const patches = new Map(current.map((file) => [file.filename, file.patch]));
+    if (!touchesThread([...patches.keys()], thread, citedFiles(evidence, patches, thread))) {
+      continue;
+    }
+    if (cites.some(([path, line]) => patches.has(path) && lineChanged(patches.get(path), line))) {
       return commit.sha;
     }
   }
