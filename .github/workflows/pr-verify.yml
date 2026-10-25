@@ -113,6 +113,10 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -125,6 +129,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -155,6 +160,8 @@ jobs:
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
@@ -373,6 +380,14 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
       # A clean handoff or an empty key hands the judgment on; any other
       # run that passed the gates and left no verdict fails here.
       - name: Fail without a verdict
@@ -441,6 +456,10 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -453,6 +472,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -483,6 +503,8 @@ jobs:
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
@@ -676,6 +698,14 @@ jobs:
             jq '.summary |= gsub("`"; "'"'"'") | .notes |= map(gsub("`"; "'"'"'"))' "$VERDICT_FILE"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
       - name: Fail without a verdict
         if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success'
