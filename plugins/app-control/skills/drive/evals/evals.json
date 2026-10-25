@@ -253,6 +253,21 @@
         "Does NOT stop the run on the finding alone: it goes on to read features/checkout/README.md",
         "Asks the user no question"
       ]
+    },
+    {
+      "id": 19,
+      "name": "lone-plugin-control-skill-stops-without-app",
+      "prompt": "/app-control:drive --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds skills/control-claude-code/SKILL.md, the only control skill on disk. Nobody is available to answer questions.",
+      "expected_output": "Finds no repository control skill and one plugin control skill, harness-ops:control-claude-code. Because no <app> was named, it does not use it: it writes a blocked line naming harness-ops:control-claude-code in the report under ./evidence, launches nothing, runs no Ready command, invokes no control skill through the Skill tool, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes a blocked line in the report that names harness-ops:control-claude-code",
+        "Does NOT launch the app or run the control skill's Launch or Ready command",
+        "Does NOT invoke harness-ops:control-claude-code or any control-* skill through the Skill tool",
+        "Does NOT ask the user a question",
+        "Does NOT fall back to the run skill or a project-type recipe"
+      ]
     }
   ]
 }
