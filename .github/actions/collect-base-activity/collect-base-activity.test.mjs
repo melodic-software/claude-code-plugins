@@ -508,7 +508,7 @@ test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN
 const REPO = new URL("../../../", import.meta.url);
 const LANE_TOOLS = ["scripts/run-test-file.sh", "scripts/git-mv-rm.sh"];
 function withLaneTools() {
-  for (const file of [...LANE_TOOLS, "scripts/lib/checkout-path.sh"]) {
+  for (const file of [...LANE_TOOLS, "scripts/lib/checkout-path.sh", "scripts/lib/pytest-python.sh"]) {
     mkdirSync(path.join(base, path.dirname(file)), { recursive: true });
     writeFileSync(path.join(base, file), readFileSync(new URL(file, REPO)));
   }
@@ -650,7 +650,7 @@ test("run-test-file runs an in-checkout test file by its runner and prints the e
   assert.equal(node.status, 0, node.stderr);
   assert.match(node.stdout, /pass 1/);
   assert.match(node.stderr, /exit status: 0\n$/);
-  // pytest for test_*.py, through whichever python3 is on PATH.
+  // pytest for test_*.py, through python3 when no venv has pytest and setup-env is not staged.
   const shim = path.join(dir, "shim");
   mkdirSync(shim);
   writeFileSync(path.join(shim, "python3"), '#!/usr/bin/env bash\necho "python3 $*"\nexit 5\n', { mode: 0o755 });

@@ -3,7 +3,8 @@
 #
 #   scripts/run-test-file.sh <test file>
 #
-# test_*.py runs under python3 -m pytest, *.test.sh under bash, *.test.mjs
+# test_*.py runs under pytest with the interpreter scripts/lib/pytest-python.sh
+# picks (it may build the setup-env venv once), *.test.sh under bash, *.test.mjs
 # under node --test, and a *.test.js or *.test.ts file that imports vitest
 # under its package's locked vitest (npx --no-install vitest run, from the
 # nearest directory holding a package.json, within the checkout), after
@@ -17,6 +18,8 @@
 set -uo pipefail
 # shellcheck source=scripts/lib/checkout-path.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/checkout-path.sh"
+# shellcheck source=scripts/lib/pytest-python.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/pytest-python.sh"
 
 [[ "$#" -eq 1 ]] || {
   echo "usage: run-test-file.sh <test file>" >&2
@@ -27,7 +30,7 @@ checkout_path::require "$1"
 [[ -f "$1" ]] || checkout_path::refuse "'$1' is not a file"
 unset GH_TOKEN GITHUB_TOKEN
 case ${1##*/} in
-  test_*.py) PYTHONDONTWRITEBYTECODE=1 exec python3 -m pytest -q -p no:cacheprovider -- "$1" ;;
+  test_*.py) PYTHONDONTWRITEBYTECODE=1 exec "$(pytest_python::resolve)" -m pytest -q -p no:cacheprovider -- "$1" ;;
   *.test.sh) exec bash -- "$1" ;;
   *.test.mjs) exec node --test -- "$1" ;;
   *.test.js | *.test.ts)
