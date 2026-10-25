@@ -301,6 +301,18 @@ def split_child_header(parent: int, part: int, parts: int) -> str:
     )
 
 
+def ticked_forms(line: str, task_list: str) -> list[str]:
+    """admit.mjs tickedForms: `line`, a task-list line, with its box ticked,
+    the one `[ ]` in `task_list` written `[x]` or `[X]`, indent and text
+    unchanged. None when `task_list` does not hold exactly one `[ ]`."""
+    if task_list.count("[ ]") != 1:
+        return []
+    rest = line.lstrip(JS_SPACE)
+    indent = line[: len(line) - len(rest)]
+    text = rest[len(task_list) :]
+    return [indent + task_list.replace("[ ]", box, 1) + text for box in ("[x]", "[X]")]
+
+
 def split_child_body(
     issue: Any, repo: str, humans: frozenset[int], app_id: int | None, task_list: Any
 ) -> str | None:
@@ -309,13 +321,15 @@ def split_child_body(
     rule, whose one home is admit.mjs splitChildBody, read the way
     resolve-pr.mjs reads it (a parent in this repository with every comment
     read). The lanes App (`app_id`) wrote it, a listed human filed its native
-    parent, and it opens with `split_child_header` for that parent. Then
-    either nobody edited the body and every line after the header is one of
-    the parent's trusted task-list lines (a line of its listed-human text
-    starting, after leading space, with `task_list`, admission's
-    `task-list`), or a listed human last edited it. A missing or empty
-    `task_list` counts nothing. Pure. split-child.vectors.json holds its
-    cases."""
+    parent, and it opens with `split_child_header` for that parent. Every
+    line after the header is one of the parent's trusted task-list lines (a
+    line of its listed-human text starting, after leading space, with
+    `task_list`, admission's `task-list`), and either nobody edited the body,
+    or a listed human last edited it and a line may also be one of those
+    lines with its box ticked (`ticked_forms`): GitHub names only the last
+    editor, so that edit vouches for ticked boxes, never for other text. A
+    missing or empty `task_list` counts nothing. Pure.
+    split-child.vectors.json holds its cases."""
     issue = json_object(issue)
     parent = json_object(issue.get("parent"))
     author = json_object(issue.get("author"))
@@ -361,16 +375,19 @@ def split_child_body(
     header = f"{split_child_header(number, int(part[1]), int(part[2]))}\n"
     if not body.startswith(header):
         return None
-    if edited:
-        return body
     # admit.mjs trustedTaskLines: the lanes App's refinement is left out.
-    allowed = {
+    exact = {
         line
         for item in (parent, *map(json_object, nodes))
         if written(item)
         for line in str(item.get("body") or "").split("\n")
         if line.lstrip(JS_SPACE).startswith(task_list)
     }
+    allowed = (
+        exact | {form for line in exact for form in ticked_forms(line, task_list)}
+        if edited
+        else exact
+    )
     lines = body[len(header) :].split("\n")
     return body if all(line in allowed for line in lines) else None
 

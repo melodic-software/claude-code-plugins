@@ -1562,13 +1562,17 @@ head:
   list's humans, the pull request's author included, or is a sub-issue intake's size split filed
   whose body counts as its parent's text (otherwise `verify:untrusted-spec`). That sub-issue counts
   when the lanes App wrote it, a listed human filed its native parent in this repository, its body
-  opens with the split header for that parent, and either nobody edited it and every line after
-  the header is one of the parent's trusted task-list lines (a line of the parent's listed-human
-  body or comments that starts with admission's `task-list`, `- [ ] `, from
-  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty
-  `task-list` counts nothing), or a listed human last edited it. A parent with more than 100
-  comments leaves it untrusted, and a failed read of the sub-issue, its parent or the rules
-  refuses `verify:unreadable`. Otherwise a Bot or App, the lanes App among them, never counts. The model's spec text holds what such
+  opens with the split header for that parent, every line after the header is one of the parent's
+  trusted task-list lines (a line of the parent's listed-human body or comments that starts with
+  admission's `task-list`, `- [ ] `, from `.github/actions/resolve-config/admission-rules.json` at
+  the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
+  listed human last edited it. On that edited path a line may also be a trusted line with its box
+  ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
+  `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
+  so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than
+  100 comments leaves it untrusted, and a failed read of the sub-issue, its parent or the rules
+  refuses `verify:unreadable`. Otherwise a Bot or App, the lanes App among them, never counts. The
+  model's spec text holds what such
   accounts wrote and, on an issue whose body such an account wrote, intake triage's newest
   refinement comment (opening `<!-- intake-triage refinement -->`, by the lanes App's id from
   `merge.agent-identity` on the trusted-actor list) while unedited and posted before the pull

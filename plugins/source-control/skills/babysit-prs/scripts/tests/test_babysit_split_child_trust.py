@@ -170,7 +170,7 @@ class TheSharedVectorsHold(unittest.TestCase):
     def test_every_vector(self) -> None:
         data = json.loads(VECTORS.read_text(encoding="utf-8"))
         cases = data["cases"]
-        self.assertGreaterEqual(len(cases), 17)
+        self.assertGreaterEqual(len(cases), 21)
         for case in cases:
             with self.subTest(case["name"]):
                 app_id = case["app_id"] if "app_id" in case else data["app_id"]
@@ -182,6 +182,29 @@ class TheSharedVectorsHold(unittest.TestCase):
                 self.assertIs(
                     trusted, case["expect"]["trusted"], case["expect"]["reason"]
                 )
+
+
+class AnEditTicksOnly(unittest.TestCase):
+    """On the edited path a line may also be a trusted line with its one box
+    ticked; a `task-list` without exactly one `[ ]` takes exact lines only."""
+
+    def test_a_marker_without_a_box_takes_exact_lines_only(self) -> None:
+        data = json.loads(VECTORS.read_text(encoding="utf-8"))
+        case = next(c for c in data["cases"] if c["name"] == "edited by a listed human")
+        issue = graphql_issue(case, data["parents"])
+        header = issue["body"][: issue["body"].index("- [x]")]
+        issue["parent"]["body"] = "## Done when\n\n* Line 3.\n  * Line 4."
+
+        def counts(lines: list[str]) -> bool:
+            child = issue | {"body": header + "\n".join(lines)}
+            found = ve.split_child_body(
+                child, REPO, frozenset(data["humans"]), data["app_id"], "* "
+            )
+            return found is not None
+
+        self.assertTrue(counts(["* Line 3.", "  * Line 4."]))
+        self.assertFalse(counts(["* Line 3.", "* Line 4."]), "the indent counts")
+        self.assertFalse(counts(["* [x] Line 3."]), "no ticked form to derive")
 
 
 class AFailedReadRefuses(unittest.TestCase):
