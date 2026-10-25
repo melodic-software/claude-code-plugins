@@ -90,8 +90,8 @@ lib/parse-concern-value.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line
 # for the duplication audit: the parser sits beside each reader copy, plus
-# multi-agent's own resolver copy.
-lib/yaml-subset.awk -> plugins/*/skills/*/scripts/yaml-subset.awk plugins/*/skills/*/scripts/lib/yaml-subset.awk plugins/*/lib/yaml-subset.awk plugins/*/scripts/yaml-subset.awk
+# multi-agent's own resolver copy and the guardrails convention resolver's.
+lib/yaml-subset.awk -> plugins/*/skills/*/scripts/yaml-subset.awk plugins/*/skills/*/scripts/lib/yaml-subset.awk plugins/*/lib/yaml-subset.awk plugins/*/scripts/yaml-subset.awk plugins/*/hooks/yaml-subset.awk
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/yaml-subset.awk.

@@ -95,6 +95,21 @@ run "CC keyword: conforming feat: subject allowed" "$r" \
   $'git commit -F - <<\'EOF\'\nfeat: add thing\nEOF' 0
 run "CC keyword: violating subject blocked" "$r" "$BAD_COMMIT" 2
 
+# --- the team YAML outranks the legacy markdown --------------------------------
+r="$(newrepo "$CC")"
+mkdir -p "$r/docs/conventions"
+printf '%s\n' "subject_pattern: '^[A-Z]+-[0-9]+: .+'" $'pr_title_pattern: "Same as `subject_pattern`."' \
+  >"$r/docs/conventions/source-control.yaml"
+git -C "$r" add docs/conventions/source-control.yaml
+run "team yaml: conforming subject allowed" "$r" "$GOOD_COMMIT" 0
+run "team yaml: violating subject blocked" "$r" "$BAD_COMMIT" 2
+run "team yaml: a subject only the legacy markdown allows is blocked" "$r" \
+  $'git commit -F - <<\'EOF\'\nfeat: add thing\nEOF' 2
+run "team yaml: conforming PR title allowed" "$r" \
+  "gh pr create --title 'ABC-9: ship it' --body-file b.md" 0
+run "team yaml: violating PR title blocked" "$r" \
+  "gh pr create --title 'junk title' --body-file b.md" 2
+
 # --- exemption taxonomy (inherited from block-noncanonical-commit) ------------
 r="$(newrepo "$TICKET")"
 run "--amend exempt" "$r" "git commit --amend --no-edit" 0
@@ -425,6 +440,8 @@ assert_contains "cache: entry records the team file as present" "$(cat "$CACHE_F
   "DEP 1 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/.claude/source-control.md"
 assert_contains "cache: entry records the absent well-known file" "$(cat "$CACHE_FILE")" \
   "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control/commit-convention.yml"
+assert_contains "cache: entry records the absent team yaml" "$(cat "$CACHE_FILE")" \
+  "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control.yaml"
 
 # 3. A warm cache must not fork the resolver again. Counted through a shim ahead
 #    of the real bash on PATH, so this measures the spawn the change removes.
@@ -539,6 +556,22 @@ else
 fi
 cache_run "$r5" "$pd5" "$CONV_SUBJECT"
 assert_exit "cache: the appeared YAML's pattern is what is served warm" 0 "$CACHE_RC"
+
+# 9. The team YAML is a dependency too: once it appears, tracked, its pattern
+#    outranks the markdown H2 the cache was warmed with.
+r6="$(newrepo "$TICKET")"
+pd6="$TEST_TMPDIR/pdata-team-yaml"
+rm -rf "$pd6"
+cache_run "$r6" "$pd6" "$CONFORMING"
+assert_exit "cache: warmed with the markdown pattern before the team yaml exists" 0 "$CACHE_RC"
+mkdir -p "$r6/docs/conventions"
+printf 'subject_pattern: "^(feat|fix): .+"\n' >"$r6/docs/conventions/source-control.yaml"
+touch -d '1 minute ago' "$r6/docs/conventions/source-control.yaml"
+git -C "$r6" add docs/conventions/source-control.yaml
+cache_run "$r6" "$pd6" "$CONFORMING"
+assert_exit "cache: team yaml appeared -> its pattern now governs (ticket subject blocked)" 2 "$CACHE_RC"
+cache_run "$r6" "$pd6" "$CONV_SUBJECT"
+assert_exit "cache: the team yaml's pattern is what is served warm" 0 "$CACHE_RC"
 
 # --- resolver failure: fail open, and say so once ------------------------------
 # A copy of the hooks directory with a stub resolver, so the resolver's exit code

@@ -103,6 +103,19 @@ expect "Conventional Commits keyword: Revert without a quote still fails" 1 "$(m
 err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
 expect "the failure names the subject and how to fix it, never a skip" "yes|no" \
   "$(grep -q 'subject: junk subject' <<<"$err" && echo yes || echo no)|$(grep -qi 'no-verify' <<<"$err" && echo yes || echo no)"
+expect "the failure names the legacy file that holds the pattern" yes \
+  "$(grep -q 'subject_pattern in .claude/source-control.md' <<<"$err" && echo yes || echo no)"
+
+# The team YAML, tracked, outranks the legacy markdown pattern.
+new_repo "$TICKET"
+mkdir -p "$REPO/docs/conventions"
+printf '%s\n' "subject_pattern: '^(feat|fix): .+'" >"$REPO/docs/conventions/source-control.yaml"
+git -C "$REPO" add docs/conventions/source-control.yaml
+expect "team yaml pattern: a matching subject passes" 0 "$(msg "$REPO" "feat: add thing")"
+expect "team yaml pattern: the legacy markdown shape now fails" 1 "$(msg "$REPO" "ABC-1: legacy shape")"
+err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
+expect "the failure names the team yaml as the pattern's file" yes \
+  "$(grep -q 'subject_pattern in docs/conventions/source-control.yaml' <<<"$err" && echo yes || echo no)"
 
 # A copy with no resolver beside it and none in a plugin tree enforces nothing.
 mkdir -p "$WORK/lone"
@@ -156,12 +169,22 @@ status="$(node "$INSTALL" copy --scope local --entry commit-msg-convention --rep
 expect "the vendored installer installs the entry" '[{"entry":"commit-msg-convention","status":"installed"}]' "$status"
 expect "the resolver asset is installed beside the copy" yes \
   "$(cmp -s "$PLUGIN/hooks/resolve-convention-pattern.sh" "$REPO/.git/hooks/guardrails/resolve-convention-pattern.sh" && echo yes)"
+expect "the YAML parser asset is installed beside the copy" yes \
+  "$(cmp -s "$PLUGIN/hooks/yaml-subset.awk" "$REPO/.git/hooks/guardrails/yaml-subset.awk" && echo yes)"
 git -C "$REPO" commit -q --allow-empty -m "junk subject" 2>/dev/null
 expect "git commit runs the installed entry and refuses an off-convention subject" 1 "$?"
 git -C "$REPO" commit -q --allow-empty -m "#123 fix thing" 2>/dev/null
 expect "git commit -m refuses a subject that starts with #" 1 "$?"
 git -C "$REPO" commit -q --allow-empty -m "ABC-2: fine subject" 2>/dev/null
 expect "git commit with a matching subject succeeds" 0 "$?"
+# The installed copy reads the team YAML through the installed parser.
+mkdir -p "$REPO/docs/conventions"
+printf '%s\n' "subject_pattern: '^feat: .+'" >"$REPO/docs/conventions/source-control.yaml"
+git -C "$REPO" add docs/conventions/source-control.yaml
+git -C "$REPO" commit -q -m "feat: track the team yaml" 2>/dev/null
+expect "the installed entry accepts a subject the team yaml allows" 0 "$?"
+git -C "$REPO" commit -q --allow-empty -m "ABC-3: legacy shape" 2>/dev/null
+expect "the installed entry enforces the team yaml over the legacy markdown" 1 "$?"
 expect "verify reports the entry ok" "ok	commit-msg-convention" \
   "$(node "$INSTALL" verify --repo "$REPO" | grep 'commit-msg-convention')"
 

@@ -11,7 +11,7 @@
       "script": "commit-msg-convention.sh",
       "tools": [],
       "rewrites": false,
-      "assets": ["hooks/resolve-convention-pattern.sh"]
+      "assets": ["hooks/resolve-convention-pattern.sh", "hooks/yaml-subset.awk"]
     },
     {
       "name": "pre-commit-content",

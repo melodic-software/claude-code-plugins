@@ -8,8 +8,9 @@
 # guard sees only tool calls, while this git hook checks every commit in the
 # repository, from an editor, `git commit -F <file>`, an IDE or another agent.
 # It reads the team-tracked pattern (`subject_pattern` in
-# .claude/source-control.md) through the same resolver the guard uses,
-# installed beside this script as an entry asset.
+# docs/conventions/source-control.yaml, or for one release the legacy
+# .claude/source-control.md surfaces) through the same resolver the guard uses,
+# installed beside this script with its YAML parser as entry assets.
 #
 # Sentinel: the "guardrails-commit-msg-convention" marker on line 1 or 3 marks
 # this hook as derived FROM the tracked config, so convention-inference tooling
@@ -108,11 +109,14 @@ esac
 grep -Eq -- "$subject_ere" <<EOF && exit 0
 $subject
 EOF
+# The file that holds the pattern, asked for only now that the subject failed.
+layer="$(sh "$resolver" --layer "$repo_root" subject_pattern 2>/dev/null)" || layer=""
+[ -n "$layer" ] || layer="the team convention file"
 {
   echo "guardrails: the commit subject does not match the team convention."
   printf '  subject: %s\n' "$subject"
-  printf '  pattern: %s   (subject_pattern in .claude/source-control.md)\n' "$subject_ere"
+  printf '  pattern: %s   (subject_pattern in %s)\n' "$subject_ere" "$layer"
   echo "Rewrite the subject to match the pattern and commit again. If the pattern"
-  echo "itself is wrong, change it in .claude/source-control.md through a pull request."
+  printf 'itself is wrong, change it in %s through a pull request.\n' "$layer"
 } >&2
 exit 1

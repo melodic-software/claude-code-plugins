@@ -12,9 +12,18 @@
 # authority; this key restates it so /source-control:pull-request drafts a body that conforms. Read
 # the composite at the SHA pr-require-checks.yml pins, not at its default branch, since that pin is
 # what actually runs. Re-read it before changing either.
+#
+# subject_pattern is the commit-subject convention, enforced by the guardrails commit-msg hook and
+# block-convention-violation guard (docs/conventions/commit-convention/README.md). Its types are the
+# standards components/pr-convention-policy/policy.json `title.allowedTypes`, the scope is optional,
+# and git's own `Merge ...` and `Revert "..."` subjects pass. Single-quoted, with no single quote
+# inside, so every reader gets it unescaped. dialect: posix-ere is the only dialect enforcement reads.
 pr_open_state: ready
 pr_body_required_sections:
   - Summary
   - Fix
   - Verification
   - Related
+dialect: posix-ere
+subject_pattern: '^((build|chore|ci|docs|feat|fix|perf|refactor|revert|security|style|test)(\(.+\))?!?: .+|Merge .+|Revert ".+)'
+pr_title_pattern: "Same as `subject_pattern`."

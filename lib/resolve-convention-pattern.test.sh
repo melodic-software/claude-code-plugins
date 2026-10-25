@@ -383,9 +383,175 @@ addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^WKS-[0-9]+: .+\047'
 track "$r" "$WELL_KNOWN"
 assert_eq "well-known: omitted key -> markdown fallback" '^MDPR: .+' "$(run "$r" pr_title_pattern)"
 
+# =====================================================================
+# Team YAML (docs/conventions/source-control.yaml), ahead of the legacy
+# surfaces. Precedence, per key:
+#   1. docs/conventions/source-control.yaml   (git-tracked)
+#   2. the neutral file: convention_source pointer, else the well-known path
+#   3. markdown-H2 in .claude/source-control.md
+# =====================================================================
+
+TEAM_YAML="docs/conventions/source-control.yaml"
+layer() { "$SH" "$SCRIPT" --layer "$1" "${2:-subject_pattern}"; }
+# addyaml <repo> <body>: write the team YAML and track it.
+addyaml() {
+  addneutral "$1" "$TEAM_YAML" "$2"
+  track "$1" "$TEAM_YAML"
+}
+
+# --- the YAML wins over the folder form and the markdown H2 ---
+r="$(newrepo $'## subject_pattern\n^old-md: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^old-folder: .+\047'
+track "$r" "$WELL_KNOWN"
+addyaml "$r" $'pr_open_state: ready\nsubject_pattern: \047^yaml-wins: .+\047'
+assert_eq "team yaml: wins over the folder form and the markdown H2" '^yaml-wins: .+' "$(run "$r")"
+assert_eq "team yaml: bash resolves it the same" '^yaml-wins: .+' "$(bash "$SCRIPT" "$r" subject_pattern)"
+assert_eq "team yaml: --layer names the team yaml" "$TEAM_YAML" "$(layer "$r")"
+
+# --- the folder form is read when the YAML lacks the key ---
+r="$(newrepo $'## subject_pattern\n^old-md: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^folder: .+\047'
+track "$r" "$WELL_KNOWN"
+addyaml "$r" $'pr_open_state: ready'
+assert_eq "team yaml lacks the key: the folder form supplies it" '^folder: .+' "$(run "$r")"
+assert_eq "team yaml lacks the key: --layer names the folder form" "$WELL_KNOWN" "$(layer "$r")"
+
+# --- the old file is read when the YAML and the folder form both lack it ---
+r="$(newrepo $'## subject_pattern\n^md-last: .+')"
+addneutral "$r" "$WELL_KNOWN" $'pr_title_pattern: \047^PR: .+\047'
+track "$r" "$WELL_KNOWN"
+addyaml "$r" $'pr_open_state: ready'
+assert_eq "team yaml and folder form lack the key: the markdown H2 supplies it" '^md-last: .+' "$(run "$r")"
+assert_eq "team yaml and folder form lack the key: --layer names the markdown" ".claude/source-control.md" "$(layer "$r")"
+
+# --- POLICY FLOOR: an untracked YAML is not a layer ---
+r="$(newrepo $'## subject_pattern\n^tracked-md: .+')"
+addneutral "$r" "$TEAM_YAML" $'subject_pattern: \047^untracked-yaml: .+\047'
+git -C "$r" init -q 2>/dev/null || true # the repo exists, the YAML is NOT added
+assert_eq "team yaml: an untracked file is ignored" '^tracked-md: .+' "$(run "$r")"
+
+# --- the CC keyword and the deferral marker work in the YAML ---
+r="$(newrepo "")"
+addyaml "$r" $'subject_pattern: Conventional Commits\npr_title_pattern: "Same as `subject_pattern`."'
+assert_eq "team yaml: CC keyword -> CC_ERE" "$CC_ERE" "$(run "$r")"
+assert_eq "team yaml: pr deferral -> subject" "$CC_ERE" "$(run "$r" pr_title_pattern)"
+assert_eq "team yaml: --layer for a deferral names the file holding pr_title_pattern" "$TEAM_YAML" \
+  "$(layer "$r" pr_title_pattern)"
+
+# --- a YAML deferral resolves subject_pattern per key, from the legacy file ---
+r="$(newrepo $'## subject_pattern\n^MDS-[0-9]+: .+')"
+addyaml "$r" $'pr_title_pattern: "Same as `subject_pattern`."'
+assert_eq "team yaml: a deferral reads the legacy subject_pattern the yaml lacks" '^MDS-[0-9]+: .+' \
+  "$(run "$r" pr_title_pattern)"
+
+# --- a legacy key's deferral resolves subject_pattern from the YAML ---
+r="$(newrepo $'## pr_title_pattern\nSame as `subject_pattern`.')"
+addyaml "$r" $'subject_pattern: \047^YS-[0-9]+: .+\047'
+assert_eq "legacy deferral: the effective subject_pattern comes from the yaml" '^YS-[0-9]+: .+' \
+  "$(run "$r" pr_title_pattern)"
+
+# --- a broken legacy pointer never disables a key the YAML carries ---
+r="$(newrepo $'## convention_source\nmissing.yml')"
+addyaml "$r" $'subject_pattern: \047^Y-[0-9]+: .+\047'
+assert_eq "team yaml: a broken legacy pointer does not disable a key the yaml carries" '^Y-[0-9]+: .+' "$(run "$r")"
+run "$r" pr_title_pattern >/dev/null 2>&1
+assert_exit "team yaml lacks the key: the broken legacy pointer still fails closed" 1 $?
+
+# --- fail closed: a YAML the parser rejects, never a legacy fallback ---
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addyaml "$r" $'subject_pattern: \047^unclosed: .+'
+out="$(run "$r" 2>"$TEST_TMPDIR/yaml.err")"
+rc=$?
+assert_exit "team yaml: an unparsable file -> exit 1" 1 "$rc"
+assert_eq "team yaml: an unparsable file -> empty stdout (no stale fallback)" "" "$out"
+assert_eq "team yaml: the parse diagnostic names the file" yes \
+  "$(grep -q 'source-control.yaml does not parse (line 1' "$TEST_TMPDIR/yaml.err" && echo yes || echo no)"
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addyaml "$r" $'subject_pattern: \047^a: .+\047\nsubject_pattern: \047^b: .+\047'
+run "$r" >/dev/null 2>&1
+assert_exit "team yaml: a duplicate key -> exit 1" 1 $?
+
+# --- fail closed: a present-but-empty YAML key ---
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addyaml "$r" $'subject_pattern: \047\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "team yaml: empty quoted key -> exit 1" 1 "$rc"
+assert_eq "team yaml: empty quoted key -> empty stdout (no stale fallback)" "" "$out"
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addyaml "$r" $'pr_open_state: ready\nsubject_pattern:\n'
+run "$r" >/dev/null 2>&1
+assert_exit "team yaml: bare empty key -> exit 1" 1 $?
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addyaml "$r" $'pr_title_pattern: "Same as `subject_pattern`."\nsubject_pattern: \047\047'
+run "$r" pr_title_pattern >/dev/null 2>&1
+assert_exit "team yaml: an empty subject_pattern behind a deferral -> exit 1" 1 $?
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addyaml "$r" $'subject_pattern: [\047^a: .+\047, \047^b: .+\047]'
+out="$(run "$r")"
+rc=$?
+assert_exit "team yaml: a list where one value belongs -> exit 1" 1 "$rc"
+assert_eq "team yaml: a list where one value belongs -> empty stdout (no stale fallback)" "" "$out"
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addyaml "$r" $'pr_open_state: ready\n"subject_pattern":'
+run "$r" >/dev/null 2>&1
+assert_exit "team yaml: a quoted bare key -> exit 1" 1 $?
+
+# --- fail closed: a dialect other than posix-ere ---
+r="$(newrepo "")"
+addyaml "$r" $'dialect: pcre\nsubject_pattern: \047^D-[0-9]+: .+\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "team yaml: dialect pcre -> exit 1" 1 "$rc"
+assert_eq "team yaml: dialect pcre -> empty stdout" "" "$out"
+r="$(newrepo "")"
+addyaml "$r" $'dialect: posix-ere\nsubject_pattern: \047^D-[0-9]+: .+\047'
+assert_eq "team yaml: dialect posix-ere resolves" '^D-[0-9]+: .+' "$(run "$r")"
+
+# --- a PCRE pattern in the YAML is non-enforceable, as on every surface ---
+r="$(newrepo "")"
+addyaml "$r" $'subject_pattern: \047^(?:feat|fix): .+\047'
+run "$r" >/dev/null 2>&1
+assert_exit "team yaml: (?: non-capturing group -> exit 1" 1 $?
+
+# --- fail closed: the parser is not beside the resolver ---
+mkdir -p "$TEST_TMPDIR/lone"
+cp "$SCRIPT" "$TEST_TMPDIR/lone/resolve-convention-pattern.sh"
+r="$(newrepo "")"
+addyaml "$r" $'subject_pattern: \047^X-[0-9]+: .+\047'
+out="$("$SH" "$TEST_TMPDIR/lone/resolve-convention-pattern.sh" "$r" subject_pattern 2>"$TEST_TMPDIR/lone.err")"
+rc=$?
+assert_exit "team yaml: no parser beside the resolver -> exit 1" 1 "$rc"
+assert_eq "team yaml: no parser beside the resolver -> a diagnostic, not silence" yes \
+  "$(grep -q 'yaml-subset.awk' "$TEST_TMPDIR/lone.err" && echo yes || echo no)"
+
+# --- a symlinked YAML is rejected (skipped where ln -s can't make symlinks) ---
+printf '%s\n' "subject_pattern: '^outside-yaml: .+'" >"$TEST_TMPDIR/outside-team.yaml"
+r="$(newrepo "")"
+mkdir -p "$r/docs/conventions"
+ln -s "$TEST_TMPDIR/outside-team.yaml" "$r/$TEAM_YAML" 2>/dev/null
+if [[ -L "$r/$TEAM_YAML" ]]; then
+  track "$r" "$TEAM_YAML"
+  out="$(run "$r")"
+  rc=$?
+  assert_exit "team yaml: a symlinked file -> exit 1" 1 "$rc"
+  assert_eq "team yaml: a symlinked file -> empty stdout" "" "$out"
+else
+  echo "SKIP: symlinked team yaml (ln -s unavailable on this filesystem)"
+fi
+
+# --- --layer prints nothing when nothing is enforced ---
+r="$(newrepo "")"
+out="$(layer "$r")"
+rc=$?
+assert_exit "--layer, no tracked pattern -> exit 1" 1 "$rc"
+assert_eq "--layer, no tracked pattern -> empty stdout" "" "$out"
+
 # --- usage / invalid key ---
 "$SH" "$SCRIPT" >/dev/null 2>&1
 assert_exit "no args -> exit 2" 2 $?
+"$SH" "$SCRIPT" --layer >/dev/null 2>&1
+assert_exit "--layer with no args -> exit 2" 2 $?
 "$SH" "$SCRIPT" "$TEST_TMPDIR" bogus_key >/dev/null 2>&1
 assert_exit "invalid key -> exit 2" 2 $?
 

@@ -211,6 +211,10 @@ reads the file itself, through a script where the key names one below.
   `userConfig` option declares `ready` as its default, so a substituted `ready` is reported as the
   default level (the two give the same result) and a substituted `draft` as the `userConfig`
   level.
+- `dialect`: the regex dialect `subject_pattern` and `pr_title_pattern` are written in, default
+  `posix-ere`. No skill here reads it. The guardrails enforcement resolver does, and any other value
+  turns its enforcement off with a diagnostic; see the
+  [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md).
 - `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
   `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
   and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
@@ -619,7 +623,8 @@ no `type_list` in any layer resolves to the bundled 11-type list.
 This document owns **drafting** resolution: how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title, reading all three layers with the per-key merge above. A separate
 concern owns **enforcement**: how a zero-dependency guardrails hook decides whether an
-*already-formed* subject/title is allowed. The two read the same `.claude/source-control.md` file but
+*already-formed* subject/title is allowed. The two read the same team values
+(`docs/conventions/source-control.yaml`, then for one release the legacy files) but
 differ deliberately: enforcement reads the **team-tracked layer only** (a gitignored `*.local.md`
 must never weaken a blocking gate), resolves to **POSIX ERE only**, and treats an unresolved key as
 **no enforcement**, never the bundled Conventional Commits default. That contract, the regex-dialect
