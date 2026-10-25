@@ -35,13 +35,18 @@ async page => {
     await page.goto(base);
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
-    await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); })); // every text the pill shows from load on
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
+    // The pill's history is recorded on a second tab, closed after: an init script runs in every frame, and Chrome logs each run it blocks in this page's sandboxed visual frames as a console error (AC37).
+    const fresh = await page.context().newPage();
+    await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); })); // every text the pill shows from load on
+    await fresh.goto(base); await fresh.waitForSelector(".qbtn", {state: "attached"});
 
     // AC26: no watcher has ever polled and every event is handled, so the calm Idle shows at once and the pill never reads Live (phase 6 covers a waiting event)
     const rung5 = await page.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
     ok("AC26: with no watcher and nothing pending the pill reads Idle within 5 s of load", rung5 && await page.$eval("#pill", el => el.className === "pill rest"), await page.textContent("#pill"));
-    ok("a fresh load with no watcher never reads Live", await page.evaluate(() => Array.isArray(window.__pills) && window.__pills.length > 0 && !window.__pills.includes("Live")), await page.evaluate(() => String(window.__pills)));
+    await fresh.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
+    ok("a fresh load with no watcher never reads Live", await fresh.evaluate(() => Array.isArray(window.__pills) && window.__pills.length > 0 && !window.__pills.includes("Live")), await fresh.evaluate(() => String(window.__pills)));
+    await fresh.close();
 
     // AC17: number order within a group, whatever the insertion order
     const order = await page.$$eval('.sec[data-key="g:base"] .qbtn', els => els.map(e => e.dataset.q));
