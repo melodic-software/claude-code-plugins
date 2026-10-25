@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.1] - 2026-10-25
+
+### Changed
+
+- The babysit-loop promotion-evidence references and `publish-promotion-evidence.mjs`, and `babysit_review_evidence.py` in babysit-prs, cite the autonomy plugin's setup skill and checker through `/autonomy:setup` and the security review through `/review:security-review`, instead of by paths or URLs into those plugins' `skills/` folders.
+
 ## [3.2.0] - 2026-10-25
 
 ### Added

@@ -1107,8 +1107,10 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
 // (babysit_merge_policy._linked_issue), GitHub's answers stubbed at gh and the
 // verdict a pass at the head, so only the link decides. Expected values are
 // docs/conventions/pr-pipeline/README.md "Eligibility": one closing issue, or
-// one plain `Refs: #<n>` issue; two `Refs:` issues refuse; a failed read refuses.
-test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs or a failed read", async () => {
+// one plain `Refs: #<n>` issue; two `Refs:` issues refuse; a failed read refuses;
+// and an issue carrying a label naming untrusted work, in any spelling, refuses
+// for a person, a label added after admission included.
+test("the gate's link rule arms a Closes or one plain Refs pull request, not two Refs, a failed read or an untrusted issue", async () => {
   const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-link-"));
   const wrapper = join(dir, "lane_link.py");
   writeFileSync(
@@ -1121,18 +1123,25 @@ import babysit_postmerge as postmerge
 import babysit_verify_evidence as ve
 
 PULLS = json.loads(os.environ["PULLS"])
+LABELS = json.loads(os.environ["LABELS"])
+
+def labels(n):
+    names = LABELS.get(str(n), [])
+    return {"totalCount": len(names), "nodes": [{"name": name} for name in names]}
 
 def gh(args, **_):
+    if args[1].endswith("/timeline?per_page=100"):
+        return subprocess.CompletedProcess(args, 0, "[[]]", "")
     n = next(a for a in args if a.startswith("n="))[2:]
     def ok(data):
         return subprocess.CompletedProcess(args, 0, json.dumps({"data": {"repository": data}}), "")
     if any("issueOrPullRequest" in a for a in args):
-        node = {"__typename": "Issue", "number": int(n), "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}}
+        node = {"__typename": "Issue", "number": int(n), "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}, "labels": labels(n)}
         return ok({"issueOrPullRequest": node})
     found = PULLS[n]
     if found.get("error"):
         return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
-    nodes = [{"number": c, "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}} for c in found["closing"]]
+    nodes = [{"number": c, "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}, "labels": labels(c)} for c in found["closing"]]
     return ok({"pullRequest": {"body": found["body"], "closingIssuesReferences": {"totalCount": len(nodes), "nodes": nodes}}})
 
 def passes(self, number, head, pr=None):
@@ -1151,11 +1160,18 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
     3: { body: body("Refs: #12\nRefs: #13"), closing: [] },
     4: { body: body("Refs: #12"), closing: [], error: true },
     5: { body: body("Refs: #12\nRefs: #13"), closing: [] },
+    6: { body: body("Closes #16"), closing: [16] },
+    7: { body: body("Closes #17"), closing: [17] },
+    8: { body: body("Refs: #18"), closing: [] },
   };
+  // Labeled after admission: 16 with the label, 17 (armed) and 18 with variants.
+  const issueLabels = { 11: ["agent-ready"], 16: ["agent-ready", "work-class: untrusted-provenance"], 17: ["Work-Class: Untrusted_Provenance"], 18: ["untrusted"] };
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const { github, writes } = world([1, 2, 3, 4].map((n) => pull(n, { body: pulls[n].body })).concat(pull(5, { body: pulls[5].body, autoMergeRequest: armed })));
+  const { github, writes, notes } = world(
+    [1, 2, 3, 4, 6, 8].map((n) => pull(n, { body: pulls[n].body })).concat([5, 7].map((n) => pull(n, { body: pulls[n].body, autoMergeRequest: armed }))),
+  );
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
-  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, PULLS: JSON.stringify(pulls), VERIFY_EVIDENCE_SCRIPT: wrapper };
+  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, PULLS: JSON.stringify(pulls), VERIFY_EVIDENCE_SCRIPT: wrapper, LABELS: JSON.stringify(issueLabels) };
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
@@ -1168,7 +1184,15 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
     { mutation: "arm", id: "PR_1", head: HEAD },
     { mutation: "arm", id: "PR_2", head: HEAD },
     { mutation: "disarm", id: "PR_5" },
+    { mutation: "disarm", id: "PR_7" },
   ]);
+  for (const n of [6, 7, 8]) {
+    assert.ok(lines.some((line) => line.endsWith(`#${n} ${n === 7 ? "disarmed" : "left"}: pr-merge's lane does not take its issue link (untrusted-provenance)`)), lines.join("\n"));
+    assert.ok(
+      notes.some((note) => note.path === `${ISSUES}/${n}/labels` && note.body.labels[0] === "needs-human"),
+      `#${n} is labeled for a person: ${JSON.stringify(notes)}`,
+    );
+  }
   assert.ok(lines.some((line) => /#3 left: pr-merge's lane does not take its issue link \(refs-issues:2\)/.test(line)), lines.join("\n"));
   assert.ok(lines.some((line) => /#4 left: pr-merge's lane does not take its issue link \(unreadable: /.test(line)), lines.join("\n"));
 });

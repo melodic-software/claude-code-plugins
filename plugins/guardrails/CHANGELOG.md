@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.1] - 2026-10-25
+
+### Fixed
+
+- **block-root-delete-target:** a one-line `git commit -F - <<'EOF'` or `git tag -F - <<'EOF'` whose message names a root delete target is no longer refused: its quoted heredoc body is read as data, as for `cat` and `gh`. A git global option ahead of the subcommand (`git -c …`, `git -C …`), any other git subcommand or alias, `--file=-`, a `-F -` after `--` or in a prefix holding a quote or backslash, a pipe after the opener, and an opener on a later line are still scanned.
+
 ## [0.59.0] - 2026-10-25
 
 ### Added

@@ -1099,3 +1099,73 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// The per-head cap is the loop's hard end, so it is shown: one warning on the
+// run that records the head, and none from the runs that skip it on the record.
+test("a head at the resolve-conflicts cap is warned about once, as it is recorded; a head done for another reason is not", async () => {
+  const capped = pr(61);
+  const done = pr(62);
+  // Three failures then a success: done, not capped.
+  const resolved = pr(63);
+  const failed = failedRun("2026-10-17T10:00:00Z", null);
+  const state = () => ({
+    pages: [[capped, done, resolved]],
+    checked: new Map([
+      [capped.headRefOid, [failed, HELD_SKIP, failed]],
+      [done.headRefOid, [SUCCESS_RUN]],
+      [resolved.headRefOid, [failed, failed, failed, SUCCESS_RUN]],
+    ]),
+  });
+  const warning = `::warning::#61: head ${capped.headRefOid}'s ${CHECK_NAME} failed or was skipped while held 3 time(s), the most one head gets; no resolve-conflicts until a new push`;
+  const record = emptyRecord();
+  const first = harness(state(), { record });
+  await first.run();
+  assert.deepEqual(first.lines.filter((line) => line.startsWith("::warning::")), [warning]);
+  assert.deepEqual([...record.handled.get(CHECK_NAME)].sort(), [capped.headRefOid, done.headRefOid, resolved.headRefOid]);
+
+  const second = harness(state(), { record: parseRecord(serializeRecord(record)) });
+  await second.run();
+  assert.deepEqual(second.lines.filter((line) => line.startsWith("::warning::")), []);
+  assert.deepEqual([second.api.calls.checks, second.api.calls.timeline, second.api.calls.runs], [[], [], []]);
+});
+
+test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns once, and reads nothing for it on the next run", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-record-"));
+  const output = join(dir, "output");
+  const path = join(dir, "record.json");
+  const env = {
+    GITHUB_TOKEN: "t0ken",
+    GITHUB_REPOSITORY: "octo/repo",
+    GITHUB_RUN_ID: "4242",
+    GITHUB_OUTPUT: output,
+    APP_SENDER_ID: String(LANES_APP),
+    DISPATCH_RECORD: path,
+  };
+  const fixCi = ciFixPull(151);
+  const notApplicable = { name: "pr-unblock / fix-ci", status: "completed", conclusion: "neutral", output: { title: "Skipped: not-applicable" }, completed_at: "2026-10-17T10:00:00Z" };
+  const once = () => {
+    const api = fakeApi({
+      pages: [[{ ...fixCi, mergeable: "MERGEABLE" }]],
+      ciFixPulls: [fixCi],
+      checked: new Map([[fixCi.headRefOid, [notApplicable, notApplicable, notApplicable]]]),
+    });
+    const lines = [];
+    return { api, lines, options: { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) } };
+  };
+  const warning = `::warning::#151: head ${fixCi.headRefOid}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`;
+  try {
+    writeFileSync(output, "");
+    const first = once();
+    assert.equal(await main(env, first.options), 0);
+    assert.deepEqual(first.api.calls.dispatch, []);
+    assert.deepEqual(first.lines.filter((line) => line.startsWith("::warning::#151")), [warning]);
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")).handled, { "pr-unblock / fix-ci": [fixCi.headRefOid] });
+
+    const second = once();
+    assert.equal(await main(env, second.options), 0);
+    assert.deepEqual(second.lines.filter((line) => line.startsWith("::warning::#151")), []);
+    assert.deepEqual([second.api.calls.checks, second.api.calls.timeline, second.api.calls.runs], [[], [], []]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
