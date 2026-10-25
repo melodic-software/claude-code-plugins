@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
+import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
 
@@ -272,27 +273,62 @@ test("a new base dispatches a failed or not-applicable head again, within the pe
 // GitHub's rollup lists only a check name's newest run, so the head's earlier
 // fix-ci runs are in the REST listing alone. A head context skips each time
 // (no failing check it counts) on a base that moves before every dispatcher
-// run is dispatched three times, then held at the cap.
-test("a head fix-ci-context skips after every base move is dispatched three times, not once per move", async () => {
+// run is dispatched three times, then stopped at the cap: one warning on the
+// run that finds the cap, and the dispatch record (carried from run to run)
+// keeps every later run from reading the head at all.
+test("a head fix-ci-context skips after every base move is dispatched three times, then warned about once and never read again", async () => {
   const head = "9".padStart(40, "a");
   const history = [];
-  let dispatches = 0;
-  let lines = [];
+  const record = emptyRecord();
+  const warning = "::warning::#9: head " + head + "'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push";
+  const cycles = [];
   for (let hour = 1; hour <= 8; hour += 1) {
     const at = (minute) => `2026-10-22T${String(hour).padStart(2, "0")}:${minute}:00Z`;
     const newest = history.length === 0 ? [] : [check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt: history.at(-1).completed_at })];
-    ({ lines } = await run({
-      pages: [[pr(9, { checks: [lanes("FAILURE"), ...newest] })]],
-      history: new Map([[head, [...history]]]),
-      baseCommittedAt: at("00"),
-    }));
-    if (lines.some((line) => line.startsWith("dispatched fix-ci #9 "))) {
-      dispatches += 1;
+    const { api, lines } = await run(
+      {
+        pages: [[pr(9, { checks: [lanes("FAILURE"), ...newest] })]],
+        history: new Map([[head, [...history]]]),
+        baseCommittedAt: at("00"),
+      },
+      { record },
+    );
+    const dispatched = lines.some((line) => line.startsWith("dispatched fix-ci #9 "));
+    if (dispatched) {
       history.push({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "neutral", output: { title: "Skipped: not-applicable" }, completed_at: at("30") });
     }
+    cycles.push({ dispatched, warned: lines.filter((line) => line === warning).length, calls: api.calls });
   }
-  assert.equal(dispatches, 3);
-  assert.ok(lines.includes("skip fix-ci #9: head's pr-unblock / fix-ci ran 3 time(s), the most one head gets"), lines.join("\n"));
+  assert.deepEqual(cycles.map((cycle) => cycle.dispatched), [true, true, true, false, false, false, false, false]);
+  assert.deepEqual(cycles.map((cycle) => cycle.warned), [0, 0, 0, 1, 0, 0, 0, 0]);
+  assert.ok(isHandled(record, "pr-unblock / fix-ci", head), "the capped head is recorded");
+  // Run 4 read the head's runs and stopped before its required run; runs 5-8
+  // make no read past the listing.
+  assert.deepEqual([cycles[3].calls.history, cycles[3].calls.jobs], [[head], []]);
+  for (const { calls } of cycles.slice(4)) {
+    assert.deepEqual({ runs: calls.runs, timeline: calls.timeline, history: calls.history, jobs: calls.jobs }, { runs: 0, timeline: [], history: [], jobs: [] });
+  }
+});
+
+test("a head whose fix-ci runs include a run that is not retryable is not capped, and an untrusted-trigger skip does not count", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const rest = (conclusion, title = null) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion, output: { title }, completed_at: "2026-10-22T10:00:00Z" });
+  const record = emptyRecord();
+  const { lines } = await run(
+    {
+      pages: [[pr(1), pr(2), pr(3)]],
+      history: new Map([
+        [head(1), [rest("failure"), rest("failure"), rest("failure")]],
+        [head(2), [rest("failure"), rest("failure"), rest("success")]],
+        [head(3), [rest("failure"), rest("failure"), rest("neutral", "Skipped: untrusted-trigger")]],
+      ]),
+    },
+    { record, maxDispatch: 5, restarts: 5 },
+  );
+  assert.deepEqual(lines.filter((line) => line.startsWith("::warning::")), [
+    "::warning::#1: head " + head(1) + "'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push",
+  ]);
+  assert.deepEqual([1, 2, 3].map((number) => isHandled(record, "pr-unblock / fix-ci", head(number))), [true, false, false]);
 });
 
 test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit waits, any other error fails", async () => {
