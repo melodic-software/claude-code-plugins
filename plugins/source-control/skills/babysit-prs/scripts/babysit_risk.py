@@ -15,10 +15,12 @@ that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here, never read from
-configuration. The floor is empty (owner direction 2026-10-24): no path rates
+configuration. The floor is narrow (owner decision Q-FLOOR (B)): the code
+main runs to mint and scope lane tokens and judge triggers, code owners and
+submodules, and it holds whatever the floor switch says. No other path rates
 HIGH for being trusted alone, and the two review lanes, which are the gate,
 judge it, except the cost and trusted-actor holds below. The configured
-`merge.diff-check.denied-paths` rate HIGH. Every glob matches
+`merge.diff-check.denied-paths` are joined to the floor. Every glob matches
 case-insensitively, because a lane host on a case-insensitive filesystem
 treats `Codeowners` as `CODEOWNERS`.
 With the floor switch on (`high_floor`), a
@@ -179,9 +181,22 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
-# No path holds for being trusted alone (owner direction 2026-10-24): the
-# review lanes judge it, and the trust gate holds a trusted-actor widening.
-HIGH_FLOOR: tuple[str, ...] = ()
+# What a lane pull request must not change unattended (owner decision
+# Q-FLOOR (B)): resolve-config, whose code the token broker runs from main in
+# its signer process, request-lane-token, which mints and hands out the lanes
+# App token, check-trusted-trigger and the rate guard it sends every call
+# through, check-kill-switch, whose writeOutputs both of those actions write
+# their verdicts through, code owners and submodules. merge-holds.mjs
+# HOLD_PATH_FLOOR is the same list (test_merge_holds_sync.py).
+HIGH_FLOOR: tuple[str, ...] = (
+    ".github/actions/check-trusted-trigger/**",
+    "**/CODEOWNERS",
+    "**/.gitmodules",
+    ".github/actions/resolve-config/**",
+    ".github/actions/check-kill-switch/**",
+    ".github/actions/request-lane-token/**",
+    ".github/actions/log-api-budget/rate-guard.mjs",
+)
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
@@ -531,7 +546,7 @@ def _high_path_reasons(
     paths = [
         path for f in files for path in f.paths if path and path not in inp.floor_exempt
     ]
-    for pattern in dict.fromkeys((*(HIGH_FLOOR if on else ()), *configured)):
+    for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))

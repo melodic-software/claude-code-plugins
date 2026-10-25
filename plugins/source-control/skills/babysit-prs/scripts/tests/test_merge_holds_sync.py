@@ -9,9 +9,11 @@ at most actions), so no lanes App push changes a workflow file. That covers
 lanes App pushes only: another identity with write access can still push a
 workflow change after auto-merge is armed.
 
-- No floor: `babysit_risk.HIGH_FLOOR` is empty, and `pathHold` holds a path
-  only for a configured glob, matched as `glob_match` matches it, case
-  variants included.
+- The floor (owner decision Q-FLOOR (B)): `HOLD_PATH_FLOOR` is
+  `babysit_risk.HIGH_FLOOR`, and `pathHold` holds, with no configured glob,
+  exactly the paths `glob_match` matches over it, case variants included;
+  a trusted path off the floor holds only for a configured glob. Every module
+  the floor actions load is on it.
 - The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
   paths matched (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
@@ -26,6 +28,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -40,18 +43,42 @@ import babysit_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
+# The floor actions' entry points: every module they load is code main runs
+# with their verdict, so the floor holds it too.
+FLOOR_ENTRIES = (
+    ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
+    ".github/actions/resolve-config/resolve-config.mjs",
+)
+IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']""")
+
+
+def import_closure(entries: tuple[str, ...]) -> list[str]:
+    seen: set[str] = set()
+    todo = [ROOT / entry for entry in entries]
+    while todo:
+        file = todo.pop().resolve()
+        name = file.relative_to(ROOT).as_posix()
+        if name in seen:
+            continue
+        seen.add(name)
+        for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
+            todo.append(file.parent / spec)
+    return sorted(seen)
+
+
 NODE = """
-import { COST_PATHS, costHold, pathHold } from %s;
+import { COST_PATHS, HOLD_PATH_FLOOR, costHold, pathHold } from %s;
 const [paths, globs] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
   costPaths: COST_PATHS,
+  floor: HOLD_PATH_FLOOR,
   cost: paths.map((path) => costHold([path], null) !== null),
   held: paths.map((path) => pathHold([path], []) !== null),
   configured: paths.map((path) => pathHold([path], globs) !== null),
 }));
 """
 # A configured denied-paths list, for the presence case.
-CONFIGURED = ["**/CODEOWNERS", ".github/actions/resolve-config/**"]
+CONFIGURED = ["Docs/Conventions/PR-Pipeline.yaml", ".github/workflows/**"]
 PATHS = [
     "plugins/multi-agent/reference/defaults.yaml",
     "Plugins/Multi-Agent/Reference/Defaults.YAML",
@@ -79,6 +106,14 @@ PATHS = [
 FLOOR_PATHS = [
     ".github/actions/resolve-config/resolve.mjs",
     ".github/actions/Resolve-Config/resolve.mjs",
+    ".github/actions/request-lane-token/action.yml",
+    ".github/actions/Request-Lane-Token/index.mjs",
+    ".github/actions/check-kill-switch/check-kill-switch.mjs",
+    ".github/actions/CHECK-KILL-SWITCH/action.yml",
+    ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/Rate-Guard.MJS",
+    ".github/actions/log-api-budget/action.yml",
+    ".github/actions/log-api-budget/rate-guard.test.mjs",
     ".github/CODEOWNERS",
     ".github/codeowners",
     "CODEOWNERS",
@@ -121,17 +156,34 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(True, answer["cost"])
         self.assertIn(False, answer["cost"])
 
-    def test_no_trusted_path_holds_on_either_side(self) -> None:
+    def test_the_floor_is_the_same_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(risk.HIGH_FLOOR, ())
-        self.assertNotIn(True, answer["held"])
-        for path, held in zip(FLOOR_PATHS, answer["configured"], strict=True):
+        self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
+        self.assertEqual(len(risk.HIGH_FLOOR), 7)
+        for path, held, configured in zip(
+            FLOOR_PATHS, answer["held"], answer["configured"], strict=True
+        ):
             with self.subTest(path):
+                on_floor = any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                self.assertEqual(held, on_floor)
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in CONFIGURED)
+                    configured,
+                    on_floor or any(risk.glob_match(g, path) for g in CONFIGURED),
                 )
-        self.assertIn(True, answer["configured"])
+        self.assertIn(True, answer["held"])
+        self.assertIn(False, answer["held"])
         self.assertIn(False, answer["configured"])
+        self.assertNotEqual(answer["held"], answer["configured"])
+
+    def test_the_floor_holds_what_its_actions_load(self) -> None:
+        files = import_closure(FLOOR_ENTRIES)
+        self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
+        self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
+        answer = module(files)
+        for path, held in zip(files, answer["held"], strict=True):
+            with self.subTest(path):
+                self.assertTrue(held)
+                self.assertTrue(any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR))
 
 
 NODE_ACTORS = """

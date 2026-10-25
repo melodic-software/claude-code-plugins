@@ -17,8 +17,9 @@
 //   after arming stops the merge queue rather than waiting for this job's
 //   next run.
 // - Its head changes no hold path: the merge lane's denied paths
-//   (report-outcome.readHoldPaths), read against the files, renamed-from paths
-//   included, that the head changes now, since a push after report-outcome
+//   (report-outcome.readHoldPaths) or the path floor (merge-holds.mjs
+//   HOLD_PATH_FLOOR, this base copy's constant), read against the files,
+//   renamed-from paths included, that the head changes now, since a push after report-outcome
 //   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
 //   ci-status also runs on every lanes App pull request event and merge
 //   group, so a push after arming is held without waiting for this job. A
@@ -79,8 +80,9 @@
 // left alone while the reason and head are unchanged (refusalWrites). The
 // comment is the record; only a cause a person must clear (owner direction
 // 2026-10-24: untrusted provenance, a security finding, a trusted-actor
-// widening or a real charge, see verifyClears; and a configured denied path,
-// which only a trusted approval lifts) also gets the human-gated
+// widening or a real charge, see verifyClears; and a hold path, a configured
+// denied path or the floor, which only a trusted approval lifts) also gets
+// the human-gated
 // label, put back while the comment stands unless a person removed it
 // since. clear-escalations takes the label off once the head moves, and
 // this run labels the new head again only if its cause still holds. Holds a

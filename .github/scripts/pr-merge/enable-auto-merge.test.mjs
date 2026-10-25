@@ -288,6 +288,34 @@ test("a refusal a person must clear, a cost path or a configured denied path, is
   ]);
 });
 
+// Owner decision Q-FLOOR (B): a floor path holds with no configured glob
+// naming it, as a cause a person must clear, so it gets the label; a trusted
+// path off the floor arms.
+test("a floor path no configured glob names is commented on and labeled human-gated; a trusted path off it arms", async () => {
+  const floor = [
+    ".github/actions/resolve-config/resolve.mjs",
+    ".github/actions/request-lane-token/action.yml",
+    ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
+    ".github/actions/check-kill-switch/check-kill-switch.mjs",
+    ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/CODEOWNERS",
+    "vendor/.gitmodules",
+  ];
+  const { code, writes, notes } = await run([
+    ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
+    pull(9, { files: [{ filename: ".github/scripts/pr-merge/merge-holds.mjs" }] }),
+  ]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_9", head: HEAD }]);
+  assert.deepEqual(
+    notes,
+    floor.flatMap((filename, index) => [
+      { method: "POST", path: `${ISSUES}/${index + 1}/comments`, body: { body: personNote(`it changes ${filename}, a hold path`) } },
+      { method: "POST", path: `${ISSUES}/${index + 1}/labels`, body: { labels: ["needs-human"] } },
+    ]),
+  );
+});
+
 test("an untrusted spec and the repeated-FAIL round cap are a person's verifier refusals; the rest are a lane's", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
@@ -964,15 +992,16 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
     return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8" });
   };
   assert.equal(cli([["docs/a.md"]], ["docs/held.md"]).status, 0);
-  // No trusted path or manifest holds unless the config lists it.
-  assert.equal(cli([[".github/actions/resolve-config/.x.mjs"]], []).status, 0);
-  assert.match(cli([[".github/actions/resolve-config/.x.mjs"]], [".github/actions/**"]).stdout, /it changes \.github\/actions\/resolve-config\/\.x\.mjs, a hold path/);
+  // A floor path holds with no configured glob (owner decision Q-FLOOR (B));
+  // no other trusted path or manifest holds unless the config lists it.
+  assert.match(cli([[".github/actions/resolve-config/.x.mjs"]], []).stdout, /it changes \.github\/actions\/resolve-config\/\.x\.mjs, a hold path/);
+  assert.equal(cli([[".github/actions/check-wip-cap/x.mjs"]], []).status, 0);
+  assert.match(cli([[".github/actions/check-wip-cap/x.mjs"]], [".github/actions/**"]).stdout, /it changes \.github\/actions\/check-wip-cap\/x\.mjs, a hold path/);
   assert.equal(cli([[".github/workflows/x.yml"]], []).status, 0);
   assert.equal(cli([{ filename: "plugins/a/.claude-plugin/plugin.json", status: "modified" }], []).status, 0);
   assert.match(cli([["plugins/a/.hidden"]], ["plugins/**"]).stdout, /it changes plugins\/a\/\.hidden, a hold path/);
   assert.equal(cli([["plugins/a/x.md"]], ["plugins/*.md"]).status, 0);
-  assert.equal(cli([["docs/a.md", ".github/actions/check-trusted-trigger/a.md"]], []).status, 0);
-  const renamed = cli([["docs/a.md", ".github/actions/check-trusted-trigger/a.md"]], [".github/actions/check-trusted-trigger/**"]);
+  const renamed = cli([["docs/a.md", ".github/actions/check-trusted-trigger/a.md"]], []);
   assert.equal(renamed.status, 1);
   assert.match(renamed.stdout, /it changes \.github\/actions\/check-trusted-trigger\/a\.md, a hold path/);
   assert.match(cli([["docs/held.md"]], ["docs/held.md"]).stdout, /it changes docs\/held\.md, a hold path/);

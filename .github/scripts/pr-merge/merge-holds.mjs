@@ -16,10 +16,11 @@
 //   (babysit_merge.HUMAN_MERGE_VETO_RE). A later one by the same person
 //   lifts it; an item with no text lifts nothing.
 // - A hold path: a changed file, or a renamed file's old path, matching the
-//   config's merge.diff-check.denied-paths. A person on the trusted-actor
-//   list lifts it by approving the head: their newest review of the head that
-//   approves, requests changes or was dismissed must approve. No path is held
-//   for being trusted alone: the review lanes judge it.
+//   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR. A person on
+//   the trusted-actor list lifts it by approving the head: their newest
+//   review of the head that approves, requests changes or was dismissed must
+//   approve. No other path is held for being trusted alone: the review lanes
+//   judge it.
 // - A trusted-actor list widening (actorsHold, the rule of
 //   babysit_risk._actors_widened): TRUSTED_ACTORS_PATH read at the base commit
 //   (BASE_SHA) and the head and compared; only removing entries passes. The
@@ -211,8 +212,25 @@ export const fromRest = (row) => ({
 const undot = (text) => String(text).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001");
 export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), undot(glob));
 
-// Why the head's changed `files` hold it, or null. Null `holdPaths` or
-// `files` (unreadable) holds it.
+// The narrow floor every hold path check adds to the configured globs (owner
+// decision Q-FLOOR (B)): the code main runs to mint and scope lane tokens
+// and judge triggers (resolve-config, request-lane-token,
+// check-trusted-trigger, check-kill-switch, the rate guard), code owners and
+// submodules. babysit_risk.HIGH_FLOOR, which test_merge_holds_sync.py checks
+// this equals. A constant of the module ci-status and enable-auto-merge run
+// from the base commit, so a pull request cannot rewrite it.
+export const HOLD_PATH_FLOOR = Object.freeze([
+  ".github/actions/check-trusted-trigger/**",
+  "**/CODEOWNERS",
+  "**/.gitmodules",
+  ".github/actions/resolve-config/**",
+  ".github/actions/check-kill-switch/**",
+  ".github/actions/request-lane-token/**",
+  ".github/actions/log-api-budget/rate-guard.mjs",
+]);
+
+// Why the head's changed `files` hold it, or null: one matching `holdPaths`
+// or HOLD_PATH_FLOOR. Null `holdPaths` or `files` (unreadable) holds it.
 export function pathHold(files, holdPaths) {
   if (!Array.isArray(holdPaths)) {
     return "the hold paths could not be read";
@@ -223,7 +241,8 @@ export function pathHold(files, holdPaths) {
   if (typeof posix.matchesGlob !== "function") {
     return "this Node has no path.matchesGlob, so its hold paths cannot be checked";
   }
-  const held = files.find((path) => holdPaths.some((glob) => matchesHoldPath(path, glob)));
+  const globs = [...holdPaths, ...HOLD_PATH_FLOOR];
+  const held = files.find((path) => globs.some((glob) => matchesHoldPath(path, glob)));
   return held === undefined ? null : `it changes ${held}, a hold path`;
 }
 
@@ -651,7 +670,8 @@ const fetchGitHub = (env) => async (method, path, body) => {
   return json;
 };
 
-// The config's denied paths, or null unless a list of strings.
+// The config's denied paths, or null unless a list of strings; pathHold adds
+// the floor.
 export function holdPathsOf(denied) {
   return Array.isArray(denied) && denied.every((glob) => typeof glob === "string") ? denied : null;
 }

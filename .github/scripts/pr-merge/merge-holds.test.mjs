@@ -291,26 +291,56 @@ const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "
 
 // Owner direction 2026-10-24: a trusted path alone holds nothing, and a
 // manifest change is the security lane's finding, not a hold; a configured
-// denied path still holds.
-test("ci-status holds no trusted path or manifest change, only a configured denied path", async () => {
+// denied path still holds. Owner decision Q-FLOOR (B) keeps a narrow floor:
+// resolve-config, request-lane-token, check-trusted-trigger,
+// check-kill-switch, the rate guard, CODEOWNERS and .gitmodules hold with no
+// configured glob, and a trusted person's approval of the head lifts them as
+// it lifts a configured one.
+const FLOOR_FILES = [
+  ".github/actions/resolve-config/resolve.mjs",
+  ".github/actions/Resolve-Config/lane-rules.json",
+  ".github/actions/request-lane-token/action.yml",
+  ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
+  ".github/actions/check-kill-switch/check-kill-switch.mjs",
+  ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/CODEOWNERS",
+  "plugins/foo/codeowners",
+  ".gitmodules",
+  "vendor/sub/.gitmodules",
+];
+test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
+  for (const path of FLOOR_FILES) {
+    const held = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(held.code, 1, `${path}: ${held.out}`);
+    assert.ok(held.out.includes(`it changes ${path}, a hold path`), `${path}: ${held.out}`);
+    const approved = await ci([{ filename: path, status: "modified" }], { reviews: [approve] });
+    assert.equal(approved.code, 0, `${path}: ${approved.out}`);
+    assert.match(approved.out, /owner-person approved this head, which lifts its hold path/);
+  }
+  const renamed = await ci([["docs/x.md", ".github/actions/check-kill-switch/action.yml", "renamed"]]);
+  assert.equal(renamed.code, 1, renamed.out);
+});
+
+test("ci-status holds no other trusted path or manifest change, only a configured denied path", async () => {
   for (const path of [
     "plugins/foo/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     "docs/conventions/pr-pipeline.yaml",
     ".github/standards/trusted-actors/README.md",
     ".github/standards/trusted-actors/trusted-actors.schema.json",
-    ".github/actions/resolve-config/resolve.mjs",
-    ".github/actions/request-lane-token/action.yml",
-    ".github/CODEOWNERS",
-    ".gitmodules",
+    ".github/actions/log-api-budget/action.yml",
+    ".github/actions/log-api-budget/rate-guard.test.mjs",
+    ".github/actions/check-trusted-trigger-x/a.mjs",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    "docs/CODEOWNERS.md",
   ]) {
     const passed = await ci([{ filename: path, status: "modified" }]);
     assert.equal(passed.code, 0, `${path}: ${passed.out}`);
     assert.match(passed.out, /no body hold, no member veto and no hold path\./);
   }
-  const held = await ci([{ filename: ".gitmodules", status: "modified" }], { denied: ["**/.gitmodules"] });
+  const held = await ci([{ filename: "docs/held.md", status: "modified" }], { denied: ["docs/held.md"] });
   assert.equal(held.code, 1);
-  assert.match(held.out, /it changes \.gitmodules, a hold path/);
+  assert.match(held.out, /it changes docs\/held\.md, a hold path/);
 });
 
 // The trust gate (babysit_risk._actors_widened, owner direction 2026-10-24):

@@ -960,9 +960,12 @@ merge:
   dependabot:
     mode: enforce
     majors: review
-  # No path is held for being trusted (owner direction 2026-10-24): the HIGH
-  # path floor (babysit_risk.py HIGH_FLOOR) is empty, and `high-path-floor:
-  # false` also turns off the manifest review, which the security lane flags
+  # No path is held for being trusted alone (owner direction 2026-10-24)
+  # except the narrow HIGH path floor (babysit_risk.py HIGH_FLOOR, owner
+  # decision Q-FLOOR (B)): resolve-config, request-lane-token,
+  # check-trusted-trigger, check-kill-switch, the rate guard, CODEOWNERS and
+  # .gitmodules, which holds whatever `high-path-floor` says. `high-path-floor:
+  # false` turns off the manifest review, which the security lane flags
   # instead. The trusted-actor widening and cost holds stay on either way. The
   # verifier verdict, both AI review lanes, ci-status and the post-merge
   # revert breaker still gate every lane PR.

@@ -4692,9 +4692,10 @@ class ForeignPaths(unittest.TestCase):
                     policy.foreign_paths(REPO, owner_pr(), changed), frozenset(expected)
                 )
 
-    def test_every_path_its_own_commits_touched_is_the_authors_own(self) -> None:
-        # The HIGH path floor is empty (owner direction 2026-10-24), so no
-        # path is withheld from a trusted author whose every commit is its own.
+    def test_some_paths_are_never_the_authors_own(self) -> None:
+        # The HIGH path floor (owner decision Q-FLOOR (B)) always scores, even
+        # in a standards-sync PR whose every commit is its own; everything
+        # else, the trusted-actor list included, is the author's own.
         changed = frozenset(
             {
                 ".github/workflows/pr-merge.yml",
@@ -4718,7 +4719,13 @@ class ForeignPaths(unittest.TestCase):
                 ".github/scripts/pr-verify/resolve-pr.mjs",
             }
         )
-        own = changed
+        own = changed - {
+            ".github/actions/check-trusted-trigger/action.yml",
+            ".github/actions/resolve-config/resolve.mjs",
+            "CODEOWNERS",
+            "docs/CODEOWNERS",
+            ".gitmodules",
+        }
         for user in (
             {"login": "melodic-standards-sync[bot]", "id": 300666570, "type": "Bot"},
             {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"},

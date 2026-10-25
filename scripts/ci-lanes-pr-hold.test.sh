@@ -291,12 +291,23 @@ STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1'
 expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
 STUB_FILES='[["docs/guide.md"],["docs/held/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held/.x.mjs, a hold path"
-# Owner direction 2026-10-24: no path holds for being trusted alone, and a
-# manifest change is the security lane's finding. The lanes App's token never
-# carries the workflows permission, so no lanes App push changes a workflow.
-for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/standards/trusted-actors/README.md \
-  .github/actions/resolve-config/resolve.mjs .github/actions/check-trusted-trigger/.x.mjs docs/conventions/pr-pipeline.yaml \
-  plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-merge/merge-holds.mjs .github/actions/other/action.yml; do
+# Owner decision Q-FLOOR (B): the narrow floor holds with no denied path
+# configured, a dot-prefixed file and a renamed-from path included.
+for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-config/resolve.mjs \
+  .github/actions/check-trusted-trigger/.x.mjs .github/actions/request-lane-token/action.yml \
+  .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/log-api-budget/rate-guard.mjs; do
+  STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
+  expect "the floor holds $path" 1 3 "it changes $path, a hold path"
+done
+STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
+# Owner direction 2026-10-24: no other path holds for being trusted alone, and
+# a manifest change is the security lane's finding. The lanes App's token
+# never carries the workflows permission, so no lanes App push changes a
+# workflow.
+for path in .github/standards/trusted-actors/README.md docs/conventions/pr-pipeline.yaml \
+  plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-merge/merge-holds.mjs .github/actions/other/action.yml \
+  .github/actions/log-api-budget/action.yml docs/CODEOWNERS.md; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "$path is no hold path" 0 3 "no hold path"
 done

@@ -581,10 +581,11 @@ Every row refuses `.github/workflows/**` in any case and through any `..` segmen
 token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or in `docs/`,
 `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
 The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
-`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: no path
-is held for being trusted ([merge authority](#merge-authority)), so the security lane judges the
-trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
-whose code the token broker runs from main. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: only the
+narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
+main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
+`CODEOWNERS` and `.gitmodules`) waits for a person, and the security lane judges the rest, the
+trusted-actor list included. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
@@ -779,10 +780,16 @@ and its queued entries leave; two different identities, or an unreadable head co
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **No path floor.** A path is never held for being trusted (owner direction 2026-10-24): the
-  trusted-actor list, the trusted-trigger check, code owners, submodules, resolve-config, the
-  pipeline config and every other path merge on the review lanes, which judge them. Only
-  `merge.diff-check.denied-paths`, empty here, holds a path, matched case-insensitively. A
+- **Narrow path floor.** A fixed set of paths in the wrapper's code (`babysit_risk.HIGH_FLOOR`,
+  owner decision Q-FLOOR (B)), joined with `merge.diff-check.denied-paths` (empty here) and
+  matched case-insensitively, scores HIGH whatever `high-path-floor` says and is never merged
+  unattended: `.github/actions/resolve-config/**`, whose code the token broker runs from main in
+  its signer process, `.github/actions/request-lane-token/**`, which mints the lanes App token,
+  `.github/actions/check-trusted-trigger/**` and the rate guard it sends every call through
+  (`.github/actions/log-api-budget/rate-guard.mjs`), `.github/actions/check-kill-switch/**`,
+  whose output writer both actions use, `**/CODEOWNERS` and `**/.gitmodules`. No other path is
+  held for being trusted (owner direction 2026-10-24): the trusted-actor list, the pipeline config
+  and every other path merge on the review lanes, which judge them. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
   installs or runs something new is a security-review finding, not a hold; where
   `high-path-floor` is on, the gate still scores it HIGH as `manifest-review-required`, and this
@@ -956,13 +963,13 @@ except six:
   reports and sets `false` to let it merge.
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
-  `high-path-floor` (true scores the scorer's fixed HIGH path set, now empty, and the manifest
-  review HIGH),
+  `high-path-floor` (true scores the manifest review HIGH; the fixed HIGH path floor scores
+  either way),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
   `high-path-floor: false` (owner direction 2026-10-24); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
-  2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor and both
-  caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
+  2026-10-17). The local babysit lane ignores these switches and keeps the manifest review and
+  both caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
   The schema still accepts it so existing configs validate, and a gate report whose config sets it
   carries a `configNotes` entry saying so. The review evidence, the security lane's CRITICAL findings, the
   cost hold and the trusted-actor widening hold still count.
@@ -1096,7 +1103,9 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 (the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
-`merge.diff-check.denied-paths`, read on the files the head changes at each run, and whose
+`merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
+`HOLD_PATH_FLOOR`, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
+run, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
@@ -1157,7 +1166,8 @@ hold paths, so one added after arming stops the merge without waiting for this j
 `Fail a lanes App pull request its body or a member holds` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
-`merge.diff-check.denied-paths`, with no path added, and holds a trusted-actor list change that
+`merge.diff-check.denied-paths` plus the path floor (`HOLD_PATH_FLOOR`, a constant of the module
+main has, so a pull request cannot rewrite it), and holds a trusted-actor list change that
 adds or widens an entry, both sides read at `BASE_SHA` and the head (`actorsHold`), on each pull
 request event and in the merge queue, where a red group removes the pull request. A push that
 adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list

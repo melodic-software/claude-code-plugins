@@ -3193,7 +3193,7 @@ def score_unattended(
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps HIGH_FLOOR and both caps.
+    # keeps the manifest review and both caps. HIGH_FLOOR holds in both.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,

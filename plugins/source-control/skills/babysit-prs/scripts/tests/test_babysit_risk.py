@@ -270,20 +270,53 @@ class HighReasonTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(_codes(result), ("security-finding",))
 
-    def test_trusted_paths_hold_only_when_configured(self):
-        # Owner direction 2026-10-24: a trusted-path match alone holds nothing.
+    def test_floor_paths_are_high_whatever_the_switch(self):
+        # Owner decision Q-FLOOR (B): the narrow floor holds with
+        # high-path-floor off too.
+        self.assertEqual(
+            babysit_risk.HIGH_FLOOR,
+            (
+                ".github/actions/check-trusted-trigger/**",
+                "**/CODEOWNERS",
+                "**/.gitmodules",
+                ".github/actions/resolve-config/**",
+                ".github/actions/check-kill-switch/**",
+                ".github/actions/request-lane-token/**",
+                ".github/actions/log-api-budget/rate-guard.mjs",
+            ),
+        )
         cases = [
             (".gitmodules", "**/.gitmodules"),
+            ("vendor/.GitModules", "**/.gitmodules"),
             (".github/CODEOWNERS", "**/CODEOWNERS"),
-            (".github/actions/check-trusted-trigger/action.yml", ".github/actions/**"),
-            (".github/actions/resolve-config/resolve.mjs", ".github/actions/**"),
-        ]
-        self.assertEqual(babysit_risk.HIGH_FLOOR, ())
+            (".github/actions/check-trusted-trigger/action.yml", ".github/actions/check-trusted-trigger/**"),
+            (".github/actions/resolve-config/resolve.mjs", ".github/actions/resolve-config/**"),
+            (".github/actions/check-kill-switch/check-kill-switch.mjs", ".github/actions/check-kill-switch/**"),
+            (".github/actions/request-lane-token/action.yml", ".github/actions/request-lane-token/**"),
+            (".github/actions/log-api-budget/rate-guard.mjs", ".github/actions/log-api-budget/rate-guard.mjs"),
+        ]  # fmt: skip
         for path, glob in cases:
-            with self.subTest(path):
-                self.assertEqual(score(_input(files=(_file(path),))).score, Risk.LOW)
-                result = score(_input(files=(_file(path),), high_paths=(glob,)))
-                self.assertEqual(_codes(result), (f"high-path:{glob}",))
+            for on in (True, False):
+                with self.subTest(path, high_floor=on):
+                    result = score(_input(files=(_file(path),), high_floor=on))
+                    self.assertEqual(result.score, Risk.HIGH)
+                    self.assertEqual(_codes(result), (f"high-path:{glob}",))
+
+    def test_trusted_paths_off_the_floor_hold_only_when_configured(self):
+        # Owner direction 2026-10-24: a trusted-path match alone holds nothing.
+        for path in (
+            ".github/actions/log-api-budget/action.yml",
+            ".github/actions/check-trusted-trigger-x/a.mjs",
+            ".github/scripts/pr-merge/merge-holds.mjs",
+            "docs/CODEOWNERS.md",
+        ):
+            for on in (True, False):
+                with self.subTest(path, high_floor=on):
+                    result = score(_input(files=(_file(path),), high_floor=on))
+                    self.assertEqual(result.score, Risk.LOW, _codes(result))
+            with self.subTest(path, configured=True):
+                result = score(_input(files=(_file(path),), high_paths=(path,)))
+                self.assertEqual(_codes(result), (f"high-path:{path}",))
 
     def test_paths_off_the_floor_take_no_path_code(self):
         # Owner direction 2026-10-23: only a takeover path waits for the owner.
@@ -881,16 +914,17 @@ class MalformedInputTests(unittest.TestCase):
 
 
 class LaneSwitchTests(unittest.TestCase):
-    """Owner decision Q624: in the pr-merge lane the HIGH path floor, the
+    """Owner decision Q624: in the pr-merge lane the manifest review, the
     file and line caps and the C2 contradictions are each a setting the
-    caller turns off. Off, the same diff that scored above LOW is LOW."""
+    caller turns off. Off, the same diff that scored above LOW is LOW. The
+    HIGH path floor is not one (owner decision Q-FLOOR (B))."""
 
-    def test_the_floor_leaves_trusted_paths_low_either_way(self):
+    def test_the_floor_holds_either_way(self):
         files = (_file(".gitmodules"),)
         for on in (True, False):
             with self.subTest(high_floor=on):
                 result = score(_input(files=files, high_floor=on))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
+                self.assertEqual(_codes(result), ("high-path:**/.gitmodules",))
 
     def test_the_floor_off_still_honors_configured_paths(self):
         files = (_file(".github/workflows/x.yml"),)
@@ -1081,20 +1115,34 @@ def _lane_input(files):
 
 
 class LanePathFloorTests(unittest.TestCase):
-    """The live pr-merge config holds no path for being trusted (owner
-    direction 2026-10-24); the trust gate still holds the trusted-actor
-    list."""
+    """The live pr-merge config holds no path for being trusted alone (owner
+    direction 2026-10-24) except the narrow floor (owner decision Q-FLOOR
+    (B)); the trust gate still holds the trusted-actor list."""
 
     def test_the_live_config_has_the_floor_off(self):
         self.assertIs(_lane_config().high_path_floor, False)
 
-    def test_trusted_paths_merge(self):
+    def test_the_floor_holds_with_the_switch_off(self):
         for path in (
             ".gitmodules",
             ".github/CODEOWNERS",
             ".github/actions/check-trusted-trigger/action.yml",
             ".github/actions/resolve-config/lane-rules.json",
             ".github/actions/resolve-config/resolve.mjs",
+            ".github/actions/check-kill-switch/action.yml",
+            ".github/actions/request-lane-token/action.yml",
+            ".github/actions/log-api-budget/rate-guard.mjs",
+        ):
+            with self.subTest(path):
+                result = score(_lane_input((_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH, result.reasons)
+
+    def test_trusted_paths_off_the_floor_merge(self):
+        for path in (
+            ".github/scripts/pr-merge/merge-holds.mjs",
+            ".github/scripts/pr-merge/enable-auto-merge.mjs",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            ".github/actions/log-api-budget/action.yml",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))

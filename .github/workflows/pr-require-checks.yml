@@ -4369,9 +4369,10 @@ jobs:
       # on the holds that gate honors: a body hold, a member's veto comment,
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
-      # has it), so a push after arming is held on its own pull request
-      # event; a person on the trusted-actor list (as main has it) lifts it by
-      # approving the head, then re-runs ci-status. A trusted-actor list
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after
+      # arming is held on its own pull request event; a person on the
+      # trusted-actor list (as main has it) lifts it by approving the head,
+      # then re-runs ci-status. A trusted-actor list
       # change that adds or widens an entry (merge-holds.mjs actorsHold, both
       # sides read at BASE_SHA and the head) holds too, lifted the same way.
       # A changed cost path (merge-holds.mjs COST_PATHS) also holds,
