@@ -275,10 +275,59 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("check run errors: FAIL", proc.stdout)
         self.assertIn("check session started: PASS", proc.stdout)
 
+    def test_a_zero_turn_run_whose_trace_ends_in_an_error_is_reported_once(self):
+        trace = self.dir / "errored.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"result","subtype":"error_during_execution","is_error":true}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][0]["arms"]["with"][0].update(tracePath=str(trace), turns=0)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("its trace ends in an error", proc.stdout)
+        self.assertIn("check session started: PASS", proc.stdout)
+
+    def test_a_mention_of_the_sandbox_failure_outside_a_failed_bash_result_passes(self):
+        text = "Sandbox is required but failed to initialize"
+        trace = self.dir / "mentions.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            + json.dumps(
+                {"type": "assistant", "message": {"content": [
+                    {"type": "text", "text": "The gate looks for '%s'." % text},
+                    {"type": "tool_use", "id": "r1", "name": "Read",
+                     "input": {"file_path": "/x/run-validity.py"}},
+                    {"type": "tool_use", "id": "b1", "name": "Bash",
+                     "input": {"command": "grep -n '%s' run-validity.py" % text}},
+                ]}}
+            )
+            + "\n"
+            + json.dumps(
+                {"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "r1", "content": text},
+                    {"type": "tool_result", "tool_use_id": "b1", "content": text},
+                ]}}
+            )
+            + '\n{"type":"result","subtype":"success","is_error":false,"num_turns":3}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=3)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertIn("check session started: PASS", proc.stdout)
+
     def test_a_trace_showing_the_sandbox_failing_to_start_is_invalid(self):
         trace = self.dir / "no-sandbox.jsonl"
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1",'
+            '"name":"Bash","input":{"command":"ls"}}]}}\n'
             '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1",'
             '"is_error":true,"content":"Sandbox is required but failed to initialize:'
             ' Failed to create bridge sockets after 5 attempts."}]}}\n'
