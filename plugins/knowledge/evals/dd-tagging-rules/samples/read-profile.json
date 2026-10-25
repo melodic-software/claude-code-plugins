@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "source/blog-post.md"
+          }
+        }
+      ],
+      "why": "tagged without reading the profile"
+    }
+  ]
+}

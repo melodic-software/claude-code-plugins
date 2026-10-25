@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R8 | cc-applicable | none | event-hooks.md:9 states it."
+    },
+    {
+      "answer": "**ROW R8** | `cc-applicable` | none | corpus/harness/event-hooks.md line 9."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R8 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | event-hooks.md:9.",
+      "why": "marker on a documented assertion"
+    },
+    {
+      "answer": "ROW R8 | mixed | none | event-hooks.md:9.",
+      "why": "wrong tag"
+    }
+  ]
+}
