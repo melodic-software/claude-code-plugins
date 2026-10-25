@@ -2479,6 +2479,7 @@ SHAPE3_SECTIONS = [
     "Pending commands",
     "Environment to re-establish",
     "Decisions in force",
+    "Suggested skills",
     "This session",
     "Prior sessions",
     "Standing preferences",
@@ -2501,6 +2502,7 @@ SHAPE3_VALUES = {
     "commands": "None. No command waits on the user.",
     "environment": "Branch `main`, clean tree; nothing to recreate.",
     "decisions": "- The thing over the other thing.",
+    "skills": "None. Remaining work runs inline.",
     "did": "did the thing",
     "left": "the rest",
     "rescan": "the re-scan read the lossless on-disk transcript",
@@ -3030,7 +3032,10 @@ def test_shape3_after_a_shape1_predecessor_points_at_its_root_and_validates(tmp_
     ("old", "new"),
     [
         (f"chain_root: {HOP1}", "chain_root: ../../../escaped.md"),
-        (f"chain_root: {HOP1}", "chain_root: 20260901T100000Z-handoff-x/../../../../escaped.md"),
+        (
+            f"chain_root: {HOP1}",
+            "chain_root: 20260901T100000Z-handoff-x/../../../../escaped.md",
+        ),
     ],
 )
 def test_shape3_new_refuses_a_chain_root_that_leaves_the_archive(tmp_path, old, new):
@@ -3058,7 +3063,9 @@ def test_shape3_a_retired_rule_id_is_never_offered_again(tmp_path):
     hop1 = s3_hop(repo, tmp_path)
     made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     hop2 = Path(out(made).strip())
-    hop2.write_text(shape3_fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
+    hop2.write_text(
+        shape3_fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
     edit(hop2, "- [R2] Never push to main.\n", "")
     assert strict(hop2).returncode == 0, out(strict(hop2))
     hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")

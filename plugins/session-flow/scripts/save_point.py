@@ -108,6 +108,7 @@ SECTIONS_3 = (
     "Pending commands",
     "Environment to re-establish",
     "Decisions in force",
+    "Suggested skills",
     "This session",
     "Prior sessions",
     "Standing preferences",
@@ -2577,6 +2578,7 @@ def build_skeleton_3(
             "decisions",
             "the decisions the remaining actions depend on, one line each with its reason; settled history stays in the archive",
         ),
+        ("Suggested skills", *REWRITTEN["Suggested skills"]),
     ):
         section(title, [slot(name, instruction)])
 
