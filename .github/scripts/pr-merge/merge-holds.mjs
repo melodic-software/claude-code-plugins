@@ -63,6 +63,9 @@ import { pathToFileURL } from "node:url";
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
 export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+// The lanes App's bot login. A `Hold:` line on its own pull request holds the
+// merge, not a fix pushed to it (apply-patch.mjs's held()).
+export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 
 // babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
 // the one issue the visible `Refs: #<n>` lines of a pull request body name,

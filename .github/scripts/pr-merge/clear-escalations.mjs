@@ -84,8 +84,8 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
 
-const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
 // babysit_merge.py's verifier-refusal escalation, reasons comment, shared-copy
