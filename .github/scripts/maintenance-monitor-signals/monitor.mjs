@@ -21,6 +21,11 @@ import { pathToFileURL } from "node:url";
 import { collect, listFiled } from "./collect.mjs";
 import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf, unreadSignals } from "./issues.mjs";
 import { detect } from "./signals.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+
+// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
+// is read at call time, so a test's stub is guarded too.
+const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 // No needs-triage: a rolling issue is a status record the lane rewrites, not
 // an intake item.
@@ -94,7 +99,7 @@ function client(env) {
   const call = async (method, path, body) => {
     if (used >= budget) throw new Error(`call budget of ${budget} spent`);
     used += 1;
-    const response = await fetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
+    const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
       method,
       headers: {
         accept: "application/vnd.github+json",
