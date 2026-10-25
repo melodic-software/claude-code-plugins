@@ -3724,6 +3724,20 @@ class LaneEligibility(unittest.TestCase):
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, "untrusted-provenance")
 
+    def test_the_label_match_agrees_with_the_queue_step(self) -> None:
+        # The shared table scripts/ci-hold-merge-group.test.sh runs through the
+        # merge-queue step's jq `ascii_downcase`: an ASCII-only match, so a
+        # letter that folds to an ASCII one ("ſ", "ﬆ") holds in neither.
+        table = json.loads(
+            (pathlib.Path(__file__).parent / "fixtures/untrusted-labels.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        for want, labels in ((True, table["holds"]), (False, table["passes"])):
+            for label in labels:
+                with self.subTest(label=label):
+                    self.assertIs(policy._untrusted(label), want)
+
     def test_the_trust_label_removed_by_a_non_human_refuses(self) -> None:
         def unlabeled(actor: dict[str, str], via: Any = None) -> dict[str, Any]:
             return {

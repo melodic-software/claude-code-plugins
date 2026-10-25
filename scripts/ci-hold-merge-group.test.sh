@@ -176,11 +176,11 @@ export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed without a call" 1 0 - "$QUEUE" "" 0 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA
 
-# The trust hold. link <author type> <closing issue JSON nodes> [body]: the
-# link read's answer for the queued pull request.
+# The trust hold. link <author type> <closing issue JSON nodes> [body]
+# [author id]: the link read's answer for the queued pull request.
 link() {
-  jq -nc --arg author "$1" --argjson nodes "$2" --arg body "${3:-}" \
-    '{data: {repository: {pullRequest: {author: {__typename: $author}, body: $body,
+  jq -nc --arg author "$1" --argjson nodes "$2" --arg body "${3:-}" --argjson id "${4:-null}" \
+    '{data: {repository: {pullRequest: {author: {__typename: $author, databaseId: $id}, body: $body,
       closingIssuesReferences: {totalCount: ($nodes | length), nodes: $nodes}}}}}'
 }
 issue() {
@@ -205,6 +205,8 @@ trust() {
   fi
 }
 UNTRUSTED='work-class: untrusted-provenance'
+# The lanes App's bot account, as the step matches it, and another automation's.
+LANES=337595936 DEPENDABOT=49699333
 
 # Exported once and emptied, never unset, so each assignment reaches the step.
 export STUB_LINK='' STUB_LINK_FAIL='' STUB_TIMELINE='' STUB_TIMELINE_FAIL='' STUB_ISSUE_LABELS='' STUB_ACTORS=''
@@ -249,8 +251,49 @@ trust "the one Refs issue is read and holds" 1 2 "issue #18, which #6419 links, 
 STUB_ISSUE_LABELS=agent-ready
 trust "a clean Refs issue passes" 0 3 "carries no label naming untrusted work" refs
 STUB_LINK="$(link Bot '[]' 'Refs: #18
-Refs: #19')"
-trust "two Refs issues link none" 0 1 "links no issue in this repository"
+Refs: #19' "$DEPENDABOT")"
+trust "another automation's two Refs issues link none" 0 1 "links no issue in this repository"
+STUB_LINK="$(link Bot '[]' '' "$DEPENDABOT")"
+trust "another automation's pull request linking nothing passes" 0 1 "links no issue in this repository"
 STUB_LINK='' STUB_ISSUE_LABELS=''
+
+# The lanes App's pull request must link exactly one issue here, as the gate's
+# _linked_issue takes it: a link dropped after arming fails, it does not pass.
+STUB_LINK="$(link Bot '[]' 'Refs: #18
+Refs: #19' "$LANES")"
+trust "the lanes App's two Refs issues fail the run" 1 1 "its Refs: lines name no single issue"
+STUB_LINK="$(link Bot '[]' '' "$LANES")"
+trust "the lanes App's pull request linking nothing fails the run" 1 1 "its Refs: lines name no single issue"
+STUB_LINK="$(link Bot "[$(issue 16 '[]' other/repo)]" '' "$LANES")"
+trust "the lanes App's issue in another repository fails the run" 1 1 "it closes 1 issue(s), none or more than one here"
+STUB_LINK="$(link Bot "[$(issue 16 '[]'),$(issue 17 '[]')]" '' "$LANES")"
+trust "the lanes App's two closing issues fail the run" 1 1 "it closes 2 issue(s), none or more than one here"
+STUB_LINK="$(link Bot "[$(issue 16 '[]'),$(issue 17 '[]' other/repo)]" '' "$LANES")"
+trust "the lanes App's second closing issue elsewhere fails the run" 1 1 "it closes 2 issue(s), none or more than one here"
+STUB_LINK="$(link Bot "[$(issue 16 '[]')]" '' "$LANES")"
+trust "the lanes App's one clean closing issue passes" 0 2 "carries no label naming untrusted work"
+STUB_LINK="$(link Bot '[]' 'Refs: #18' "$LANES")" STUB_ISSUE_LABELS=agent-ready
+trust "the lanes App's one clean Refs issue passes" 0 3 "carries no label naming untrusted work" refs
+STUB_LINK='' STUB_ISSUE_LABELS=''
+
+# A jq error is neither a match nor a miss: it fails closed.
+STUB_LINK="$(link Bot "[$(issue 16 '[null]')]")"
+trust "a label that is not a string fails closed" 1 1 "could not be matched"
+STUB_LINK="$(link Bot "[$(issue 16 '[]')]")" STUB_TIMELINE='{not json'
+trust "a timeline that does not parse fails closed" 1 2 "could not be matched"
+STUB_LINK='' STUB_TIMELINE=''
+
+# The shared table test_babysit_merge_policy.py reads too: Python's _untrusted
+# and this step's jq hold the same labels.
+TABLE="$ROOT/plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/untrusted-labels.json"
+while IFS=$'\t' read -r want label; do
+  STUB_LINK="$(link Bot "[$(issue 16 "$(jq -nc --arg l "$label" '[$l]')")]")"
+  if [[ "$want" == holds ]]; then
+    trust "the shared table's '$label' holds" 1 1 "(untrusted-provenance)"
+  else
+    trust "the shared table's '$label' passes" 0 2 "carries no label naming untrusted work"
+  fi
+done < <(jq -r '(.holds[] | "holds\t\(.)"), (.passes[] | "passes\t\(.)")' "$TABLE")
+STUB_LINK=''
 
 test_harness::report

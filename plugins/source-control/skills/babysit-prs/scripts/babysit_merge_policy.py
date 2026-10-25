@@ -1667,11 +1667,15 @@ def _timeline(
     return timelines[number]
 
 
+UNTRUSTED = re.compile("untrusted", re.IGNORECASE | re.ASCII)
+
+
 def _untrusted(label: Any) -> bool:
     """`label` names untrusted work: any label holding "untrusted" in any
-    case, so a variant spelling of the untrusted-provenance label (another
-    separator, a dash variant, no prefix) still holds."""
-    return "untrusted" in str(label or "").casefold()
+    ASCII case, so a variant spelling of the untrusted-provenance label
+    (another separator, a dash variant, no prefix) still holds. ASCII-only,
+    as the merge queue's jq `ascii_downcase` matches it, so the two agree."""
+    return UNTRUSTED.search(str(label or "")) is not None
 
 
 def _untrusted_removed_by_non_human(

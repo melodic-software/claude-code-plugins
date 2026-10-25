@@ -4378,7 +4378,11 @@ jobs:
           # base's merge-holds.mjs refsIssue) carries no label naming untrusted
           # work, and none was ever removed other than by a person on the base's
           # trusted-actor list, not through an App (_untrusted,
-          # _untrusted_removed_by_non_human).
+          # _untrusted_removed_by_non_human). The lanes App's pull request
+          # must link exactly one issue here, as _linked_issue refuses
+          # otherwise, so a link dropped after arming fails; another
+          # automation's (Dependabot, standards-sync, a plugin release) that
+          # links none passes. A jq error fails closed.
           # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
           read3() {
             local attempt
@@ -4389,7 +4393,7 @@ jobs:
             done
           }
           # shellcheck disable=SC2016 # GraphQL variables, not shell
-          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){author{__typename} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
+          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
             -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
             echo "::error::could not read the issue link of #$pr; re-run this run."
             exit 1
@@ -4402,6 +4406,8 @@ jobs:
             echo "#$pr is a person's pull request, which the trust hold does not read."
             exit 0
           fi
+          # The lanes App's bot account, as the lanes App step below matches it.
+          lanes=$(jq -r '.data.repository.pullRequest.author | .__typename == "Bot" and .databaseId == 337595936' <<<"$link")
           closing=$(jq -ec '.data.repository.pullRequest.closingIssuesReferences | objects | select(.totalCount == (.nodes | length))' <<<"$link") || {
             echo "::error::the closing issues of #$pr could not all be read; a person merges it."
             exit 1
@@ -4410,7 +4416,8 @@ jobs:
           issues=$(jq -r --arg repo "$GITHUB_REPOSITORY" '.nodes[]
             | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase))
             | "\(.number) \(if .labels.totalCount == (.labels.nodes | length) then [.labels.nodes[].name] | tojson else "null" end)"' <<<"$closing")
-          if [ "$(jq -r .totalCount <<<"$closing")" = 0 ]; then
+          total=$(jq -r .totalCount <<<"$closing")
+          if [ "$total" = 0 ]; then
             jq -r '.data.repository.pullRequest.body // ""' <<<"$link" >"$RUNNER_TEMP/queued-body.txt"
             # shellcheck disable=SC2016 # JavaScript, not shell
             refs=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
@@ -4429,6 +4436,12 @@ jobs:
               issues="$refs $(jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$names")"
             fi
           fi
+          if [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
+            why="its Refs: lines name no single issue"
+            [ "$total" -eq 0 ] || why="it closes $total issue(s), none or more than one here"
+            echo "::error::#$pr is the lanes App's and does not link exactly one issue in this repository, as pr-merge's lane takes it: $why; a person merges it."
+            exit 1
+          fi
           if [ -z "$issues" ]; then
             echo "#$pr links no issue in this repository for the trust hold to read."
             exit 0
@@ -4444,7 +4457,14 @@ jobs:
               echo "::error::the labels of issue #$number, which #$pr links, could not all be read (issue-labels-unreadable); a person merges it."
               continue
             fi
-            if jq -e 'any(.[]; ascii_downcase | contains("untrusted"))' <<<"$names" >/dev/null; then
+            rc=0
+            jq -e 'any(.[]; ascii_downcase | contains("untrusted"))' <<<"$names" >/dev/null || rc=$?
+            if [ "$rc" -gt 1 ]; then
+              held=1
+              echo "::error::the labels of issue #$number, which #$pr links, could not be matched (jq exit $rc); a person merges it."
+              continue
+            fi
+            if [ "$rc" -eq 0 ]; then
               held=1
               echo "::error::issue #$number, which #$pr links, carries a label naming untrusted work (untrusted-provenance); the merge queue removes #$pr. A person on the trusted-actor list removing the label lifts it; re-queue to merge."
               continue
@@ -4453,10 +4473,15 @@ jobs:
               echo "::error::could not read the timeline of issue #$number, which #$pr links; re-run this run."
               exit 1
             }
-            if jq -se --argjson humans "$humans" 'any(.[]; (.label.name // "" | ascii_downcase | contains("untrusted"))
-              and (.actor.type != "User" or .performed_via_github_app != null or (.actor.id as $id | any($humans[]; . == $id) | not)))' <<<"$events" >/dev/null; then
+            rc=0
+            jq -se --argjson humans "$humans" 'any(.[]; (.label.name // "" | ascii_downcase | contains("untrusted"))
+              and (.actor.type != "User" or .performed_via_github_app != null or (.actor.id as $id | any($humans[]; . == $id) | not)))' <<<"$events" >/dev/null || rc=$?
+            if [ "$rc" -gt 1 ]; then
               held=1
-              echo "::error::a label naming untrusted work was removed from issue #$number, which #$pr links, by someone not on the trusted-actor list or through an App (untrusted-provenance-removed-by-non-human); a person merges it."
+              echo "::error::the label removals on issue #$number, which #$pr links, could not be matched (jq exit $rc); a person merges it."
+            elif [ "$rc" -eq 0 ]; then
+              held=1
+              echo "::error::a label naming untrusted work was removed from issue #$number, which #$pr links, by someone not on the trusted-actor list or through an App (untrusted-provenance-removed-by-non-human). No label change on that issue lifts it; a new issue a person files, and a new pull request linking it, does."
             fi
           done <<<"$issues"
           [ "$held" -eq 0 ] || exit 1

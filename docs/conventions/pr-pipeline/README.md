@@ -1110,7 +1110,8 @@ the one issue its plain `Refs: #<n>` lines name; a failed read refuses) and whos
 the trust hold (`babysit_merge_policy.trust_refusal`: its labels read whole, none naming untrusted
 work in any spelling, and none ever removed by a non-human or through an App, so a label added
 after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed-by-non-human` or
-`issue-labels-unreadable`, each a refusal a person clears), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
+`issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
+issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
 heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
@@ -1206,11 +1207,19 @@ through `evidence --lane-link`. In the merge queue, `ci-status`'s step `Fail a q
 carrying a hold label` reads the queued pull request's linked issue when an automation opened the
 pull request. The linked issue is its closing issues here, or with none, the one issue its plain
 `Refs:` lines name, by the base's `refsIssue`. The step fails when that issue carries a label
-containing `untrusted` in any case, or had one removed by anyone other than a person on the base's
-trusted-actor list, or through an App. An unreadable link, label list, timeline or trusted-actor
-list fails closed. So a label added after the pull request opened, while it waits to be armed or
-sits in the queue, stops the merge, and a person on that list lifts it by removing the label and
-re-queuing. A person's own pull request is not read.
+containing `untrusted` in any ASCII case (as `babysit_merge_policy._untrusted` matches it), or had
+one removed by anyone other than a person on the base's trusted-actor list, or through an App. A
+lanes App pull request that does not link exactly one issue here also fails, so dropping the link
+after arming does not skip the check; another automation's pull request that links none passes. An
+unreadable link, label list, timeline or trusted-actor list fails closed. So a label added after
+the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a
+person on that list lifts it by removing the label and re-queuing. A person's own pull request is
+not read.
+
+A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
+issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
+label still holds. The way out is a new issue a person files for the work, and a new pull request
+linking it.
 
 ### Dependabot pull requests
 
