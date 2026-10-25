@@ -752,7 +752,9 @@ test("main identifies the lanes App by merge.agent-identity's id on the trusted 
     }
     return JSON.parse(readFileSync(files.text, "utf8"))[0].comments;
   };
+  // loginKey strips a trailing [bot], so both spellings of the identity resolve.
   assert.deepEqual(await run(LANE), [body]);
+  assert.deepEqual(await run("melodic-automation-lanes"), [body]);
 });
 
 test("a pass judged before the spec last changed is judged again at the same head", async () => {
