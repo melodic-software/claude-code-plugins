@@ -121,7 +121,13 @@ if grep -qE 'inWaves|inWavesPipeline|agentRetry' < <(printf '%s' "$SCRIPT"); the
 fi
 
 # Fan-out with zero resilience primitives → advisory (never blocks the run).
-FINDING="This Workflow script fans out with parallel()/pipeline() with no wave cap or retry wrapper (none of inWaves, inWavesPipeline, agentRetry); a wide fan-out can hit 529 overload errors. The workflow-authoring skill covers caps and retries."
+# The overloaded-retry backoff variable is named, never its default or range:
+# pointer https://code.claude.com/docs/en/errors#tune-retry-behavior, as of
+# 2026-10-25; recheck when that table drops or renames the variable, or when a
+# docs page or #6756 settles whether workflow subagents honor it. As of
+# 2026-10-25 neither that section nor the env-vars page says, so the text
+# offers it beside the caps and retries, not in place of them.
+FINDING="This Workflow script fans out with parallel()/pipeline() with no wave cap or retry wrapper (none of inWaves, inWavesPipeline, agentRetry); a wide fan-out can hit 529 overload errors. The workflow-authoring skill covers caps and retries. Claude Code's own 529 retry backoff ceiling is set by CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS; use it beside caps and retries, not in place of them. Its default and range are at https://code.claude.com/docs/en/errors#tune-retry-behavior"
 hook::emit_channels PreToolUse "$FINDING" ""
 FINDINGS_JSON=$(jq -n --arg f "$FINDING" '[$f]' 2>/dev/null) || FINDINGS_JSON='[]'
 emit_tel "$FINDINGS_JSON"

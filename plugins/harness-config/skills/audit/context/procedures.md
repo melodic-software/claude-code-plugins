@@ -62,7 +62,7 @@ built-in `update-config` skill when it resolves in this session, and directly wh
 (`.mcp.json` is always edited directly), except orphan-`false` plugin removal, which stays on
 `scripts/fix-plugin-drift.sh --yes` for its lower-precedence-scope check. In auto mode it needs the
 `[Self-Modification]` handshake: the classifier asks, and the user's explicit approval of that fix
-is the consent. Two operations are refused in auto mode: writing `.claude/audit-pass.md`
+is the consent. Two operations are refused in auto mode: writing the team suppression record
 (`[Instruction Poisoning]`) and re-running `scripts/audit-engine.sh` for the after-fix summary
 (`[Self-Modification]`). The fallback for each is the operator applying the edit or running the
 re-run and pasting the output back; never retry around the refusal. The verification record for the
@@ -105,9 +105,12 @@ audit scans. A judgment finding the model adds takes the same shape with `"tier"
 its anchor and id with the engine's `anchor` and `finding-id` subcommands rather than by hand, so
 two runs agree on the identity.
 
-The same identity keys the consumer's suppression record, `.claude/audit-pass.md`, layered per the
-config-cascade convention. The engine reads the team layer, the user-global layer, and the local
-overlay; only the team layer suppresses, a personal-only entry is reported as `personal-only, not
+The same identity keys the consumer's suppression record, layered per the config-cascade
+convention. The engine reads the team layer (the `suppressions` mapping of
+`<home>/harness-config.yaml`, `<home>` being the convention home the repository binds, default
+`docs/conventions`), the user-global layer, and the local overlay, and lists each in
+`suppressions.layers` with the file read and its state; every applied entry names its layer and
+file. Only the team layer suppresses, a personal-only entry is reported as `personal-only, not
 applied`, and an entry whose constituents do not hash to its key, or that lacks a required key, is
 reported `malformed` and never suppresses. The `--table` output prints a `suppress:` line under every
 finding with the id, surface, and anchor, so an operator who decides to keep a finding copies that

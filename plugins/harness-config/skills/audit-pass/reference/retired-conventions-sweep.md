@@ -117,7 +117,7 @@ So a `--fix` run records every sweep finding with its remediation and applies no
 ## Repeated declines
 
 An operator who has judged a leftover and decided to keep it records that decision in the target's
-`.claude/audit-pass.md` per [suppression.md](suppression.md), keyed by the finding's identity above.
+team `harness-config.yaml` per [suppression.md](suppression.md), keyed by the finding's identity above.
 No new consumer-side file, no marker in the leftover itself, and the same four dispositions apply:
 a suppressed leftover that is later cleaned closes as a fix; one whose record is demoted to
 `report-only` is still emitted (at `info`) and its entry still matches, because the identity does not

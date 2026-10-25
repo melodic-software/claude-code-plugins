@@ -216,8 +216,10 @@ whether in place of a `CLAUDE.md` or alongside one) / `.claude/rules/` for proje
 additional required permission patterns, documented reasons for disabled MCP servers, and a custom
 enforcement hierarchy. Nothing project-specific is baked into the plugin.
 
-`audit` and `audit-pass` read one tracked consumer-project file: the suppression record at
-`.claude/audit-pass.md`, layered per the marketplace's
+`audit` and `audit-pass` read one tracked consumer-project file: the suppression record, the
+`suppressions` mapping of `docs/conventions/harness-config.yaml` (the convention home the repository
+binds, when it binds another; schema [`schemas/harness-config.schema.json`](schemas/harness-config.schema.json)),
+layered per the marketplace's
 [config-cascade](../../docs/conventions/config-cascade/README.md) contract, with its keys owned by
 [finding-suppression](../../docs/conventions/finding-suppression/README.md). All layers absent is a
 valid state. That record is also how a consumer declares session posture to `audit`: a baseline

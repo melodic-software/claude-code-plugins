@@ -56,7 +56,7 @@ presence-gated with its fallback stated:
   appends each row of that document through `guarded-append` **unchanged**, adding only the
   `attempt` id; a row is never re-derived, re-hashed, or re-severed here. Engine rows are
   derived-tier; the rows the audit's model adds for its judgment categories are judged-tier, and
-  the document marks each. Its own suppression handling reads the same `.claude/audit-pass.md`
+  the document marks each. Its own suppression handling reads the same `harness-config.yaml`
   record this pass reads, so a finding the audit reports as suppressed is carried into the
   `suppressed` section with its reason, never raised twice.
 - **`/harness-memory:audit`**: invoke when the `harness-memory` plugin is installed; it owns

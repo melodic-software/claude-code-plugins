@@ -414,7 +414,9 @@ gets nothing from either mod and the shape below does not arise:
 - **When.** One line per boundary crossing, one per approach margin (a set number of points before
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
   mid-session, or a `/clear`, only when the verdict is past the quiet one. Nothing on a call where
-  no boundary moved.
+  no boundary moved. `rate-limit-guard` also sends one line when the signed-in account changes or
+  a window's reset time moves earlier while a window is past quiet or a line is due, saying earlier lines no longer apply,
+  with the current reading (owner decision on #6445, 2026-10-18).
 - **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
   claims no authority and gives no order. `context-guard`'s boundary lines add that continuing is
   the user's call, and may be followed by the dumb-zone save note or an operator-configured

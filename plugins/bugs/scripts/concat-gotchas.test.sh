@@ -69,6 +69,33 @@ lanes: []
 # shellcheck disable=SC2016  # backticks are the literal markdown code span in the expected fixture, not substitution
 run_case "team-only layer" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Team lane: skip the billing sandbox.\n' "$CLAUDE_PROJECT_DIR/.claude/bugs.md")"
 
+HOME="${FIXTURES}/home-k"
+CLAUDE_PROJECT_DIR="${FIXTURES}/repo-k"
+mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
+layer "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" '# bugs
+
+Why the lanes are what they are.
+
+## Gotchas
+
+- Team: the docs home holds the team gotchas.
+'
+# shellcheck disable=SC2016  # backticks are the literal markdown code span in the expected fixture, not substitution
+run_case "team layer from docs/conventions/bugs.md" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Team: the docs home holds the team gotchas.\n' "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md")"
+
+layer "$CLAUDE_PROJECT_DIR/.claude/bugs.md" '## Gotchas
+
+- Old team file: shadowed by the docs home.
+'
+# shellcheck disable=SC2016  # backticks are the literal markdown code span in the expected fixture, not substitution
+run_case "docs/conventions/bugs.md shadows .claude/bugs.md" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Team: the docs home holds the team gotchas.\n' "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md")"
+
+layer "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" '# bugs
+
+No gotchas yet.
+'
+run_case "a docs/conventions/bugs.md without Gotchas still shadows .claude/bugs.md" $'(none)'
+
 HOME="${FIXTURES}/home-b"
 CLAUDE_PROJECT_DIR="${FIXTURES}/repo-b"
 mkdir -p "$HOME/.claude" "$CLAUDE_PROJECT_DIR/.claude"

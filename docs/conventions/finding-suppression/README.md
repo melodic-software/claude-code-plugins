@@ -21,15 +21,20 @@ silence (there is no expiry key, per the trade recorded at the bottom).
 
 ## Where the record lives
 
-`.claude/<surface-name>.md` in the consuming repository, layered across the three cascade layers. The
-consuming plugin names its own surface. The first adopter, `harness-config`'s `audit-pass` skill,
-uses `audit-pass.md`, giving:
+`.claude/<surface-name>.md` in the consuming repository, layered across the three cascade layers, or,
+for the team layer, the `suppressions` mapping of the consuming plugin's concern file
+`<home>/<concern>.yaml` ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)).
+The consuming plugin names its own surface. The first adopter, `harness-config`'s `audit` and
+`audit-pass` skills, uses:
 
 | Order | Layer | Path |
 |---|---|---|
 | 1 | user-global | `~/.claude/audit-pass.md` |
-| 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/audit-pass.md` |
-| 3 | local overlay (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/audit-pass.local.md` |
+| 2 | team (tracked) | `<home>/harness-config.yaml` (`<home>` from the convention-home pointer line, default `docs/conventions`); `.claude/audit-pass.md` only while that file is absent, for one release |
+| 3 | local overlay (gitignored) | `.claude/audit-pass.local.md` |
+
+In a YAML concern file the `suppressions` mapping sits at the root with the entry shape below; a
+reader that uses the shared YAML-subset parser needs the `"anchor/v1":` key quoted.
 
 All three layers absent is a valid state: no suppressions.
 

@@ -1,5 +1,42 @@
 # Changelog for the PR pipeline convention
 
+## [5.9.5] - 2026-10-25
+
+### Fixed
+
+- pr-unblock's publish-feedback step loads again. It runs from a copy of `.github/scripts/pr-unblock/` alone, and the adjudicator module it imports had started loading `request-budget.mjs`, whose `.github/actions` imports do not resolve from that copy, so every address-feedback run failed at publish with `ERR_MODULE_NOT_FOUND`. `adjudicate-feedback.mjs` now loads `request-budget.mjs` only in its `prepare` command, which runs from the full base checkout.
+
+## [5.9.4] - 2026-10-25
+
+### Fixed
+
+- The adjudicator of a disputed review finding now reads the whole review comment and the files and lines it cites, beside the locations the fixing lane cited, instead of only the comment's first paragraph and the lane's locations (`.github/scripts/pr-unblock/adjudicate-feedback.mjs`).
+- A disputed code-review finding carrying `severity: CRITICAL`, and a disputed pr-verify verifier note, go to a person again instead of to the adjudicator: resolving a verifier note's thread left its FAIL holding the merge with nothing to say so.
+- pr-unblock's `adjudicate-feedback` job runs only when the answering leg's replies hold an `INCORRECT` reply; a round with none no longer checks out, sets up and stages for nothing. Its contents reads are logged in the job's api-budget notice.
+- The monitoring lane's rolling issues render each finding's summary inside a text fence, in the body and the change comment, so a mention, link or tag in run or job text no longer works.
+
+## [5.9.3] - 2026-10-25
+
+### Changed
+
+- The pr-pipeline README describes how pr-merge's gate counts a size-split sub-issue the lanes App filed as trusted spec. It does so on the same rule pr-verify applies: every line after the header must be a trusted task-list line of its native parent, or on the edited path that line with its box ticked. A failed read is `verify:unreadable`, and a cut comment page counts nothing.
+
+### Fixed
+
+- work-unblock tells a run the token broker refused for the lanes kill switch, at broker-check or at a lane token request, from other failures by reading the refused job's log (one per run, at most 1 MiB, only the failed step's last line). Such a breaker trip is re-fired an hour after it ended with a record of its own, and past `limits.limit-stops-per-issue` trips on the stranded backoff; it no longer spends the once-per-version re-fire, counts toward the failed-mint bound, or posts the "fault in the lanes" backoff comment. A refusal for another reason, or a log it cannot read, is classed as before (`.github/scripts/work-unblock/label-unblocked.mjs`).
+
+## [5.9.2] - 2026-10-25
+
+### Fixed
+
+- Intake apply-verdict no longer stops the whole verdict when GitHub answers a blocked-by edge read or write with 403, 429 or 5xx: that edge is missed and named in the step summary and a run annotation, and the verdict's other labels still land. Admission and work-unblock read blockers only from the native edges, so the edges that run wrote are deleted again, and a ready verdict with a missed edge lands without `status: ready` and is not admitted; the hourly triage sweep runs intake again on it, and after two runs that leave it so hands it to a maintainer. A 403 fails the job after every write, since no re-run fixes a missing permission (`.github/scripts/intake-triage/edges.mjs`, `.github/scripts/intake-triage/apply-verdict.mjs`).
+- Intake refinement no longer lifts the lanes App's `status: needs-decision`, on an exact refinement or a split, while the App's verdict comment lists a security or cost flag or records that whether an earlier verdict flagged is unknown, so an earlier flag a later triage omitted can no longer clear through a refinement and the re-triage after it (`.github/scripts/intake-triage/refine.mjs`).
+
+### Security
+
+- A size-split sub-issue a listed human last edited counts as that human's text only when every line after its header is one of its parent's trusted task-list lines or that line with its box ticked. GitHub names only the last editor, so a listed human ticking a box after another account's edit no longer makes that account's text trusted.
+- pr-verify stops, writing no verdict, when a split sub-issue's native parent cannot be read or has more comments than the page it reads, instead of judging the pull request without the sub-issue's criteria. Before, an outsider could pad the parent past the page during a run and delete the padding before the merge gate counted the sub-issue.
+
 ## [5.9.1] - 2026-10-25
 
 ### Changed

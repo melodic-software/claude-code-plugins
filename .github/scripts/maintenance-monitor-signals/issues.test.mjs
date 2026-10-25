@@ -257,3 +257,15 @@ test("a main-red family closed as completed reopens when main fails after the cl
     [30],
   );
 });
+
+// The post-hoc review of #9772: a finding's summary carries run, job and URL
+// text, and rendered outside a fence a mention, link or tag in it worked.
+test("each finding's summary renders inside a text fence, in the body and the comment", () => {
+  const hostile = { ...findingFor([1]), summary: "job @someone [x](https://e.example) <img src=x> #12 failed" };
+  for (const text of [renderBody(family([hostile]), runUrl), renderComment(family([hostile]), runUrl)]) {
+    assert.ok(text.includes("```text\njob @someone [x](https://e.example) <img src=x> #12 failed\n```"), text);
+    assert.equal(text.split("@someone").length, 2, "only the fenced copy");
+  }
+  const ticks = { ...findingFor([1]), summary: "a ``` b" };
+  assert.ok(renderBody(family([ticks]), runUrl).includes("````text\na ``` b\n````"), "the fence outgrows a backtick run");
+});

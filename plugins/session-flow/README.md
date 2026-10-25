@@ -238,7 +238,8 @@ numbers from 0.46.0 on are lower than earlier retros' for the same kind of sessi
 
 Cross-session audit: a stdlib collector reads every transcript under `~/.claude/projects` into a
 durable local store (one redacted record per session, incremental, retention-bounded), and a sweep
-reports per-session metrics against this machine's own thresholds, flags transcript-format drift
+reports per-session metrics against a shipped reference baseline, shows this store's p90 beside
+each threshold and marks a stale baseline, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
 applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
 preferences two or more sessions show, and hands each one you confirm to `retro codify` for a

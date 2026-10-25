@@ -520,15 +520,16 @@ against the recorded commit in the marketplace clone, which is the only check th
 state from a healthy one. It reports and never repairs; see
 [stale-records-cache-content.md](stale-records-cache-content.md).
 
-**A marketplace clone has been observed shallow, so most installs are unverifiable most of the time.** The clone
+**A marketplace clone has been observed shallow, so most installs are not checked most of the time.** The clone
 under `installLocation` carried a `.git/shallow` file when this was measured, and Claude Code
 re-clones the marketplace on update (see
 [Host and maintain a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md); read
-2026-10-18; the page states the re-clone and says nothing about shallowness or clone depth, so the
-shallow shape is our observation, not the page's). Only an install recorded at a
-commit inside the clone can be compared; any other record has no object to compare against, so most
-installs read `sha-not-local` (unverifiable) right after a refresh, on a fleet with nothing wrong
-with it. Observed 2026-10-04 (#5941): 84 of 86 installs unverifiable right after a refresh. That is the steady state, not an edge case, and it caps how much any single
+2026-10-25; the page states the re-clone and says nothing about shallowness or clone depth, so the
+shallow shape is our observation, not the page's). An install recorded at an older commit usually
+has no object in the clone to compare against, so the check compares only installs recorded at the
+clone's HEAD and reports the rest as `not-at-head`, counted `not checked (recorded at an older
+commit)` rather than unverifiable, on a fleet with nothing wrong with it. Observed 2026-10-04
+(#5941): 84 of 86 installs read `sha-not-local`, the verdict the check then gave a record whose commit the clone did not hold, right after a refresh. That is the steady state, not an edge case, and it caps how much any single
 run of the check can establish. The check never fetches the missing commit: a fetch is a network
 mutation, and it would repair the condition being reported. **Recheck trigger:** a change to the
 host-marketplace page's update or clone description, or to how Claude Code clones a marketplace.
