@@ -1163,6 +1163,78 @@ class IssueVouch(unittest.TestCase):
         gh.rest[self.TIMELINE][-1]["created_at"] = "2026-10-11T08:00:00Z"
         self.assertTrue(eligibility().eligible)
 
+    def test_a_human_issue_retitled_by_a_non_human_is_refused(self) -> None:
+        # A title edit leaves `lastEditedAt` empty, so the author vouch reads
+        # the timeline's `renamed` events too.
+        gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
+        renamed = {
+            "event": "renamed",
+            "actor": {"login": "agent-lanes[bot]", "type": "Bot"},
+            "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+            "created_at": "2026-10-11T10:00:00Z",
+        }
+        gh.rest[self.TIMELINE] = [renamed]
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        # Through an App, or with no actor recorded, it is not a person's.
+        gh.rest[self.TIMELINE] = [
+            renamed
+            | {
+                "actor": {"login": OPERATOR, "type": "User"},
+                "performed_via_github_app": {"slug": "agent"},
+            }
+        ]
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        gh.rest[self.TIMELINE] = [renamed | {"actor": None}]
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        # A write-access human retitling in person keeps the vouch.
+        gh.rest[self.TIMELINE] = [
+            renamed | {"actor": {"login": OPERATOR, "type": "User"}}
+        ]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+
+    def test_a_human_relabel_after_a_non_human_retitle_vouches(self) -> None:
+        gh = eligibility_fake(
+            self,
+            issue={"labels": {"totalCount": 1, "nodes": [{"name": "agent-ready"}]}},
+        )
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "renamed",
+                "actor": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+                "created_at": "2026-10-11T10:00:00Z",
+            },
+            {
+                "event": "labeled",
+                "label": {"name": "agent-ready"},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T11:00:00Z",
+            },
+        ]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        # A label applied before the retitle did not see it.
+        gh.rest[self.TIMELINE][1]["created_at"] = "2026-10-11T09:00:00Z"
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+
+    def test_an_admission_label_with_no_labeled_event_is_refused(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE] = []
+        self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
+        # Past a provenance read that passes, an empty timeline still refuses
+        # rather than raising out of the rename check.
+        with mock.patch.object(policy, "_label_provenance", return_value=None):
+            self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
+
     def tracker(self, gh: GhFake, text: str) -> None:
         gh.rest[f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"] = {
             "type": "file",

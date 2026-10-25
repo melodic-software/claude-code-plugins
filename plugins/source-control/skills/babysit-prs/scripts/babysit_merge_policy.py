@@ -1779,33 +1779,57 @@ def _vouch_refusal(
     label: Callable[[], str],
 ) -> str | None:
     """Why no human vouched for the linked issue, or None: a human with write
-    access wrote it and no non-human edited its body since (`_edits_refusal`
-    over the `DEMOTION_RECORD` read), or a human applied the admission label
+    access wrote it and no non-human edited its body or title since
+    (`_author_vouch_refusal`), or a human applied the admission label
     in person with no body edit or title change after it
     (`_label_provenance`, `renamed` timeline events). Either suffices; when
     neither does, the author path's reason wins for a human-authored issue
     with no admission label."""
     authored: str | None = None
     if human(issue.get("author")):
-        if not issue.get("lastEditedAt"):
+        authored = _author_vouch_refusal(owner, name, issue, human, timelines)
+        if authored is None:
             return None
-        number = issue["number"]
-        data = _graphql(DEMOTION_RECORD, f"issue #{number}", o=owner, r=name, n=number)
-        record = json_object(json_object(data.get("repository")).get("issue"))
-        if not record:
-            raise PolicyReadError(f"issue #{number}: the edit history is unreadable")
-        edited = _edits_refusal(record, human)
-        if not edited:
-            return None
-        authored = "issue-not-vouched:" + (
-            "body-edited-by-non-human" if edited == "edited-by-non-human" else edited
-        )
     wanted = label().casefold()
     applied = next((n for n in labels if n.casefold() == wanted), None)
     if applied is None:
         return authored or "issue-not-vouched:no-human-author-or-admission-label"
     vouched = _label_vouch_refusal(owner, name, issue, applied, human, timelines)
     return (authored or vouched) if vouched else None
+
+
+def _author_vouch_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why a human author's issue is no longer theirs, or None: a non-human,
+    or anyone through an App, renamed it (a title edit leaves `lastEditedAt`
+    empty), or a non-human edited its body."""
+    number = issue["number"]
+    if any(
+        e.get("event") == "renamed"
+        and (
+            not human(_rest_actor(e.get("actor")))
+            or e.get("performed_via_github_app") is not None
+        )
+        for e in _timeline(owner, name, number, timelines)
+    ):
+        return "issue-not-vouched:title-edited-by-non-human"
+    if not issue.get("lastEditedAt"):
+        return None
+    data = _graphql(DEMOTION_RECORD, f"issue #{number}", o=owner, r=name, n=number)
+    record = json_object(json_object(data.get("repository")).get("issue"))
+    if not record:
+        raise PolicyReadError(f"issue #{number}: the edit history is unreadable")
+    edited = _edits_refusal(record, human)
+    if not edited:
+        return None
+    return "issue-not-vouched:" + (
+        "body-edited-by-non-human" if edited == "edited-by-non-human" else edited
+    )
 
 
 def _label_vouch_refusal(
