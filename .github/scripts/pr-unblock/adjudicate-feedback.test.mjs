@@ -55,7 +55,7 @@ test("disputes takes each INCORRECT reply's whole review comment and both sides'
 });
 
 // The post-hoc review of #9565: the judge saw the lane's cited files but only
-// the review comment's first paragraph, so the inputs favoured the lane.
+// the review comment's first paragraph, so the inputs favored the lane.
 const CITING = [
   "**The lock is read before it is written.**",
   "",
