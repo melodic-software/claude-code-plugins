@@ -1963,7 +1963,7 @@ timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-d
 work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
 then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
 its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
-timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
+timeout is 40 minutes. The launcher's leg gets the timeout less 15 minutes, for the steps around it. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
@@ -2000,7 +2000,10 @@ leg hands off (`run-claude-cli`'s `handoff` output: a credit stop, or class `aut
 401 or 402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent`
 runs on the key, and `check-intent-subscription` runs on the token, on a new runner, only after
 `check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
-`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. The read runner's callers
+do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
+and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). Each lane's workflow names
 its role as a literal, and the runner policy admits it. A lane on pr-run-activity-write.yml passes
 its role as the `role` input, and the lane record names that role's token as the run's credential.
 

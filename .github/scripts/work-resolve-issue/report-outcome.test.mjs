@@ -24,6 +24,7 @@ import {
   readChecks,
   readOutcome,
   readTurnCap,
+  RESUMABLE,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
@@ -1429,9 +1430,30 @@ test("lane.json's max-turns class is the turn-cap record; any other class is non
     [{ branch: "", class: "max-turns", "max-turns": "75" }, { cap: 75 }],
     [{ branch: "", class: "max-turns", "max-turns": "75; rm" }, { cap: null }],
     [{ branch: "", class: "rate-limit", "max-turns": "75" }, null],
+    [{ branch: "", class: "timeout", "max-turns": "75" }, { cap: null, timeout: true }],
+    [{ branch: "", class: "other", "max-turns": "75" }, null],
   ]) {
     withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readTurnCap(dir), expected, JSON.stringify(lane)));
   }
+});
+
+// A leg run-claude-cli stopped at its timeout (class timeout) ran out of time
+// like a turn cap: with a restart left it keeps agent-ready, so work-unblock
+// restarts it and the next run resumes its branch (turn-cap is RESUMABLE);
+// it never hands back as stopped while a restart is left.
+test("a leg timeout with no outcome of its own restarts from its branch like a turn cap, naming the time", () => {
+  const timedOut = withDir({ "lane.json": JSON.stringify({ branch: "", class: "timeout", "max-turns": "75" }) }, (dir) => readTurnCap(dir));
+  const plan = capped({ turnCap: timedOut });
+  assert.equal(plan.action, "turn-cap");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap run=555 -->\n"), plan.comment);
+  assert.match(plan.comment, /its time ran out \(the launcher's leg timeout\)/);
+  assert.ok(plan.comment.includes(BRANCH));
+  assert.equal(parseOutcomeMarker(plan.comment).outcome, "turn-cap");
+  assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome), "the next run resumes the branch");
+  const spent = capped({ turnCap: timedOut, turnCapRestarts: 1 });
+  assert.equal(spent.action, "hand-back", "with its restarts used it goes to a person");
 });
 
 test("restarts count the App's turn-cap markers since a person last added agent-ready, not this run's", () => {

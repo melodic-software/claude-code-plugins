@@ -8,6 +8,10 @@ name: work-resolve-issue
 #
 # resolve-issue runs /work-items:work on the issue in pr-run-activity-read.yml,
 # with no write token, and leaves its change as a patch, or stops and says why.
+# It runs on run-claude-cli with the issue lane's API key; when that call hands
+# off (an empty key, a credit stop, or a 401 or 402), resolve-issue-handoff
+# reads so from this run's jobs and resolve-issue-subscription runs the
+# activity again on the OAuth token. Every later job takes the call that ran.
 # apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
 # to a new branch. report-outcome then opens a ready PR from that branch, or
 # comments on the issue and labels it needs-human; an issue its dimensions
@@ -145,7 +149,7 @@ jobs:
       # the base config (models.issue-dimensions). The run job takes the same
       # dimensions for its turn cap rather than reading the fields again, so a
       # field set while it waits in its slot cannot outgrow the timeout.
-      # Without issue-dimensions the timeout is 25 minutes. A config that
+      # Without issue-dimensions the timeout is 40 minutes, a 25-minute leg. A config that
       # cannot be resolved, or an option it does not map, fails this job.
       - name: Resolve the issue dimensions' timeout
         id: dimensions
@@ -183,7 +187,8 @@ jobs:
     # The read runner's run job, which runs the model, holds contents and
     # pull-requests read only; checks: write is its report job's (posting
     # nothing in issue mode) and id-token: write its broker-check job's,
-    # which runs only default-branch-tip code.
+    # which runs only default-branch-tip code. The first call holds the API
+    # key alone.
     permissions:
       contents: read
       pull-requests: read
@@ -198,7 +203,80 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
+      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
+      issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
+    secrets:
+      claude-api-key: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether resolve-issue handed off, read from this run's jobs through the
+  # Actions API by the default branch tip's handoff-evidence.sh, never from a
+  # resolve-issue output. A call handed off when its broker-allowed job
+  # succeeded, its run job succeeded, and its scan job never ran: the read
+  # runner skips the scan job only on its run job's handed-off output (a run
+  # that stopped on stale workflow files, an earlier run's work or a reuse
+  # still runs it). Every one of those is a job conclusion, which the jobs
+  # listing returns as the job ends. That output comes from the key-presence
+  # step, which runs before any model turn, and run-claude-cli's handoff,
+  # which it sets after restoring the step files, but the run job runs the
+  # model's commands and could still forge it, so a forged handoff starts one
+  # subscription run at most. A failed read fails this job and starts no
+  # second call; report-outcome then reports the first call, which uploaded
+  # no outcome.
+  resolve-issue-handoff:
+    needs: resolve-issue
+    if: ${{ !cancelled() && needs.resolve-issue.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether resolve-issue handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-issue
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+  # The subscription fallback, a second call on new VMs in the same slot: it
+  # runs only on resolve-issue-handoff's read, holds the OAuth token alone,
+  # and passes fallback handoff, the one fact that read attests.
+  resolve-issue-subscription:
+    needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff]
+    if: >-
+      ${{ !cancelled() && github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
+      && needs.pick-slot.outputs.capped != 'true' && needs.resolve-issue-handoff.outputs.handed-off == 'true' }}
+    concurrency:
+      group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
+      queue: max
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      lane: work-resolve-issue
+      role: issue-lane
+      activity: resolve-issue
+      fallback: handoff
+      issue-number: ${{ format('{0}', github.event.issue.number) }}
+      trusted-base: default-tip
+      app-label: agent-ready
+      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
@@ -240,10 +318,10 @@ jobs:
   # work-resolve-issue/issue-<n>-<run id>-<attempt> branch. One per issue at a
   # time, the rest queued.
   apply-issue-patch:
-    needs: resolve-issue
+    needs: [resolve-issue, resolve-issue-subscription]
     if: >-
-      ${{ !cancelled() && needs.resolve-issue.outputs.scan-issue-run-started == 'true'
-      && needs.resolve-issue.outputs.scan-patch-state == 'written' }}
+      ${{ !cancelled() && (needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
+      && (needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '') == 'written' }}
     permissions:
       contents: read
       pull-requests: read
@@ -261,23 +339,23 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      patch-state: ${{ needs.resolve-issue.outputs.scan-patch-state }}
-      patch-sha256: ${{ needs.resolve-issue.outputs.scan-patch-sha256 }}
-      patch-attempt: ${{ needs.resolve-issue.outputs.scan-patch-attempt }}
+      patch-state: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-sha256 || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-attempt || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-attempt || '' }}
       patch-activity: resolve-issue
-      patch-base-sha: ${{ needs.resolve-issue.outputs.scan-base-sha }}
-      patch-resume-tip: ${{ needs.resolve-issue.outputs.scan-resume-tip }}
-      reply-attempt: ${{ needs.resolve-issue.outputs.scan-reply-attempt }}
+      patch-base-sha: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-base-sha || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-base-sha || '' }}
+      patch-resume-tip: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-tip || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-tip || '' }}
+      reply-attempt: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reply-attempt || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reply-attempt || '' }}
 
   # One `pipeline/<activity>` commit status per lane step on the lane branch's
   # head (post-statuses.mjs). No step is skipped on them; a failing one holds
   # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
   # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
   report-statuses:
-    needs: [resolve-issue, apply-issue-patch, run-checks, report-outcome]
+    needs: [resolve-issue, resolve-issue-subscription, apply-issue-patch, run-checks, report-outcome]
     if: >-
-      ${{ !cancelled() && (needs.resolve-issue.outputs.scan-issue-run-started == 'true'
-      || needs.resolve-issue.outputs.scan-reuse-branch != '') }}
+      ${{ !cancelled() && ((needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
+      || (needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -310,10 +388,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
-          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.scan-reuse-branch }}
-          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.scan-resume-branch }}
+          REUSE_BRANCH: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
+          RESUME_BRANCH: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-branch || '' }}
           RUNNER_CHECKS: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
-          RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
+          RESOLVE_RESULT: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.result || needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
 
@@ -330,11 +408,11 @@ jobs:
   # them only when this job succeeded, and stops a done run whose checks
   # failed, did not run, or ran on another tip.
   run-checks:
-    needs: [resolve-issue, apply-issue-patch]
+    needs: [resolve-issue, resolve-issue-subscription, apply-issue-patch]
     if: >-
-      ${{ !cancelled() && ((needs.resolve-issue.outputs.scan-issue-run-started == 'true'
-      && needs.resolve-issue.outputs.scan-outcome-uploaded == 'true')
-      || needs.resolve-issue.outputs.scan-reuse-branch != '') }}
+      ${{ !cancelled() && ((needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
+      && (needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-outcome-uploaded || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-outcome-uploaded || '') == 'true'
+      || (needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -368,7 +446,7 @@ jobs:
       # For lane.json, which names the branch. A skill run reaches this job
       # only when the scan uploaded the outcome; a reuse may have none.
       - name: Download the issue outcome
-        continue-on-error: ${{ needs.resolve-issue.outputs.scan-reuse-branch != '' }}
+        continue-on-error: ${{ (needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: work-outcome-${{ github.event.issue.number }}
@@ -382,8 +460,8 @@ jobs:
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           RUN_ID: ${{ github.run_id }}
-          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.scan-reuse-branch }}
-          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.scan-resume-branch }}
+          REUSE_BRANCH: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
+          RESUME_BRANCH: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-branch || '' }}
           LANE_FILE: ${{ runner.temp }}/work-outcome/lane.json
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $RUN_ID =~ ^[1-9][0-9]*$ ]] || exit 1
@@ -483,7 +561,7 @@ jobs:
           echo "checks=$record" >>"$GITHUB_OUTPUT"
 
   report-outcome:
-    needs: [resolve-issue, apply-issue-patch, run-checks]
+    needs: [resolve-issue, resolve-issue-subscription, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
     # any model turn, once the run chose to run the skill, and reaches this
     # file through the read runner's issue-fields job, which checks it and
@@ -496,8 +574,8 @@ jobs:
     # Needing resolve-issue waits for every job of that call, the summary job
     # included; !cancelled() runs this whether that job failed or skipped.
     if: >-
-      ${{ !cancelled() && (needs.resolve-issue.outputs.scan-issue-run-started == 'true'
-      || needs.resolve-issue.outputs.scan-reuse-branch != '') }}
+      ${{ !cancelled() && ((needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
+      || (needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -512,7 +590,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      reuse-branch: ${{ needs.resolve-issue.outputs.scan-reuse-branch }}
+      reuse-branch: ${{ needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
       # Why apply-issue-patch committed nothing, so the hand-back names it.
       escalation-reason: ${{ needs.apply-issue-patch.outputs.escalation-reason }}
