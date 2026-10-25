@@ -72,10 +72,12 @@ work on secret values or settings. A fix round reads a
 something deserves a human's attention, out-of-scope work included.
 Return `pass` only when nothing blocks and you have nothing to add. When part of the diff is too
 large or unreadable to judge with confidence, judge the rest, and name the parts you could not
-judge with a suggested split. Return `fail` when any of those parts is executable: a workflow
-(`.github/workflows/`), an action (`.github/actions/`), a script, a hook or a binary, or when any
-of them is in the takeover set above, whatever its type. When every part you could not judge is
-other prose or data, return `pass-notes`, unless what you did read blocks.
+judge with a suggested split. Return `fail` when any of those parts is executable (a workflow
+in `.github/workflows/`, an action in `.github/actions/`, a script, a hook or a binary) or acts
+like code (a package or plugin manifest, a lockfile, or agent or skill instructions that steer
+the review or verify lanes), or when any of them is in the takeover set above, whatever its type.
+When every part you could not judge is other prose or data, return `pass-notes`, unless what you
+did read blocks.
 
 Put a short reason in `summary`, naming the issue and the deciding facts. Put each finding in
 `notes` as one line that starts with its file path, as `path` or `path:line`, when it has one;

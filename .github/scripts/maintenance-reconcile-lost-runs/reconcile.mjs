@@ -238,6 +238,8 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
     ),
   );
 
+const NOT_STARTED = "before any of its jobs started";
+
 // Why the run's first attempt must not be re-run, or undefined when it may be:
 // no job started any step. An unreadable listing throws.
 async function holdReason(call, repo, runId) {
@@ -261,7 +263,7 @@ async function holdReason(call, repo, runId) {
   if (cut.some((job) => job.steps?.some((s) => s?.name === JUDGE_PREDECESSOR || s?.name === JUDGE_STEP))) {
     return "after its judge step may have started";
   }
-  return started.length === 0 ? "before any of its jobs started" : undefined;
+  return started.length === 0 ? NOT_STARTED : undefined;
 }
 
 // The start times of the runs that uploaded the PR's unexpired pr-verify
@@ -540,7 +542,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
         try {
           const held = await holdReason(call, repo, r.id);
           if (held) {
-            say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}; a newer run judges the head, so it is not re-run`);
+            const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
+            say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
           } else {
             unpublished.push(r);
           }
