@@ -212,7 +212,7 @@ async page => {
     // an imported superseded-by-plan row says the plan displaced the answer, and its buttons record accept or the `was` alternative
     await page.click('.rail-list .tree .qbtn[data-q="S1"]'); await page.waitForTimeout(200);
     const planBan = await page.textContent("#planban").catch(() => "");
-    ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /The plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
+    ok("a superseded-by-plan import shows the banner with both values", await sel() === "S1" && /\/planning:plan changed your answer\. Was: SQLite\. Plan proposes: Postgres\. Reconfirm the proposal or keep yours\./.test(planBan), planBan);
     await page.locator("#choices .choice", {hasText: "(was)"}).click();
     await page.click("[data-save]"); await page.waitForTimeout(700);
     let se = (await events()).filter(e => e.id === "S1").pop();
