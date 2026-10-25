@@ -473,9 +473,26 @@ export function liftedByPerson(timeline, label, since) {
   );
 }
 
+// A reader child's exit when babysit_gh's rate guard stopped it
+// (RATE_LIMIT_EXIT). Its stop is in the job's stop file, which this process's
+// latch read before the child wrote it, so the run itself stops calling.
+export const READER_RATE_LIMIT_EXIT = 75;
+const GUARD_ERROR = "::error title=GitHub rate limit::";
+
+// A reader stopped on a rate limit; `line` is its guard's ::error.
+export class ReaderRateLimited extends Error {
+  constructor(what, stderr) {
+    const line = String(stderr ?? "")
+      .split("\n")
+      .find((text) => text.startsWith(GUARD_ERROR));
+    super(`${what} stopped on a GitHub rate limit: ${line ? line.slice(GUARD_ERROR.length) : `it exited ${READER_RATE_LIMIT_EXIT}`}`);
+    this.name = "ReaderRateLimited";
+  }
+}
+
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
-export function pythonVerify(env) {
+export function pythonVerify(env, spawn = spawnSync) {
   // `rung`: the lane room's effective rung, which the gate scores at.
   const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
     if (!SHA.test(String(base))) {
@@ -486,7 +503,10 @@ export function pythonVerify(env) {
     if (typeof rung === "string") {
       args.push("--rung", rung);
     }
-    const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    if (done.status === READER_RATE_LIMIT_EXIT) {
+      throw new ReaderRateLimited(`#${number}'s verifier read`, done.stderr);
+    }
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
     }
@@ -508,6 +528,9 @@ export function pythonRoom(env, spawn = spawnSync) {
     const token = env.BABYSIT_VERIFY_GH_TOKEN;
     const roomEnv = token ? { ...env, GH_TOKEN: token, API_BUDGET_TOKEN: "github-token" } : env;
     const done = spawn("python3", args, { encoding: "utf8", env: roomEnv, timeout: LANE_ROOM_TIMEOUT_MS });
+    if (done.status === READER_RATE_LIMIT_EXIT) {
+      throw new ReaderRateLimited("the lane-room read", done.stderr);
+    }
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py lane-room exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
     }
@@ -650,6 +673,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       try {
         lane = readRoom(await (room ?? pythonRoom(env))());
       } catch (error) {
+        // An unread room would disarm lane pull requests: no call goes out.
+        if (error instanceof ReaderRateLimited) {
+          console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(error.message)}; no pull request is read, armed or disarmed this run`);
+          return 1;
+        }
         lane = readRoom(null);
         lane.unreadable = describe(error);
       }
@@ -687,6 +715,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     let networkArms = 0;
     let unexplainedArms = 0;
     const skippedArms = [];
+    let stopped = null;
     const minutes = riskEscalationMinutes(env.RESOLVED_CONFIG ?? "");
     // A reader run's per pull request refusal (a hold path or cost hold, or
     // the gate's verdict or risk score) goes on the pull request itself:
@@ -770,6 +799,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         try {
           evidence = await verify(pull, lane?.rung);
         } catch (error) {
+          // Before decide and note: this pull request's note writes too.
+          if (error instanceof ReaderRateLimited) {
+            stopped = error;
+            break;
+          }
           console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
         }
         ({ action, reason, clears } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
@@ -882,6 +916,10 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     }
     for (const [level, text] of lines) {
       console.log(`::${level} title=enable-auto-merge::${text}`);
+    }
+    if (stopped !== null) {
+      failed += 1;
+      console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no later pull request is read or armed this run`);
     }
     if (lines.length > 0 && env.GITHUB_STEP_SUMMARY) {
       try {

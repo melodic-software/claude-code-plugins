@@ -28,6 +28,7 @@ import {
   READER_EVENTS,
   main,
   pythonRoom,
+  pythonVerify,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
   readRoom,
@@ -1385,6 +1386,88 @@ test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a k
   assert.deepEqual(seen, [8 * 60_000]);
   assert.equal(LANE_ROOM_TIMEOUT_MS, 8 * 60_000);
   assert.equal(VERIFY_TIMEOUT_MS, 4 * 60_000);
+});
+
+// A reader child that exits 75 stopped on a GitHub rate limit
+// (babysit_gh.RATE_LIMIT_EXIT); a later child would call GitHub again before
+// the reset, so the run sends nothing more and fails red naming the pool.
+const BABYSIT_SCRIPTS = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+
+// The gate's real exhausted-pool exit: the guard's ::error, then its call count.
+function stoppedReader(dir) {
+  const script = join(dir, "stopped.py");
+  writeFileSync(
+    script,
+    `import sys
+sys.path.insert(0, ${JSON.stringify(BABYSIT_SCRIPTS)})
+import babysit_gh as gh
+raise gh.RateLimitExhausted("core", 4102444800, "x-ratelimit-reset reset, HTTP 403")
+`,
+  );
+  return script;
+}
+
+test("a gate reader stopped on a rate limit ends the run: no later pull request is read", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-stopped-"));
+  const env = { ...ENV, PATH: process.env.PATH, RUNNER_TEMP: "", VERIFY_EVIDENCE_SCRIPT: stoppedReader(dir) };
+  const pulls = [pull(1), pull(2)];
+  const { github, writes, calls, notes } = world(pulls);
+  const spawned = [];
+  let callsAtSpawn = null;
+  const spawn = (...args) => {
+    spawned.push(args[1].at(-2));
+    callsAtSpawn = calls.length;
+    return spawnSync(...args);
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env, github, verify: pythonVerify(env, spawn), room: room(), sleep: async () => {} });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(code, 1);
+  assert.deepEqual(spawned, ["1"]);
+  // Nothing after the stopped child: no detail read, verify or arm for #2.
+  assert.equal(calls.length, callsAtSpawn);
+  assert.deepEqual(writes(), []);
+  assert.deepEqual(notes, []);
+  const errors = lines.filter((line) => String(line).startsWith("::error title=GitHub rate limit::"));
+  assert.equal(errors.length, 1, lines.join("\n"));
+  assert.match(errors[0], /the core pool is exhausted/);
+  assert.match(errors[0], /2100-01-01T00:00:00Z/);
+});
+
+test("a lane-room reader stopped on a rate limit ends the run before any pull request", async () => {
+  const stderr =
+    "::error title=GitHub rate limit::every pool is exhausted (retry-after reset, HTTP 429); no GitHub call is sent before 2100-01-01T00:00:00Z\n" +
+    'babysit-gh-calls {"total": 1}';
+  const stopped = () => ({ status: 75, signal: null, stdout: "", stderr });
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
+  const { github, writes, calls, notes, verified } = world([armed, pull(2)]);
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env: ENV, github, verify: world([]).verify, room: pythonRoom({ GITHUB_REPOSITORY: REPO }, stopped), sleep: async () => {} });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(code, 1);
+  // Only the listing was read; an unread room would have disarmed #1.
+  assert.deepEqual(
+    calls.map(({ body }) => body?.query === PULLS_QUERY),
+    [true],
+  );
+  assert.deepEqual(writes(), []);
+  assert.deepEqual(notes, []);
+  assert.deepEqual(verified, []);
+  const errors = lines.filter((line) => String(line).startsWith("::error title=GitHub rate limit::"));
+  assert.equal(errors.length, 1, lines.join("\n"));
+  assert.match(errors[0], /every pool is exhausted/);
 });
 
 // The gate holds on the security lane's open CRITICAL findings

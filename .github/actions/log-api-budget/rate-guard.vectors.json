@@ -236,5 +236,65 @@
       },
       "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792748040, "pool": "search" }
     }
-  ]
+  ],
+  "stop_file": {
+    "now": 1792748000,
+    "cases": [
+      {
+        "name": "an empty file holds no stop",
+        "text": "",
+        "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+      },
+      {
+        "name": "a stop ahead holds its pool and no other",
+        "text": "core 1792751600\n",
+        "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+      },
+      {
+        "name": "a stop already past holds nothing",
+        "text": "core 1792740000\n",
+        "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+      },
+      {
+        "name": "a stop whose reset is now holds nothing",
+        "text": "core 1792748000\n",
+        "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+      },
+      {
+        "name": "a * stop holds every pool",
+        "text": "* 1792751600\n",
+        "until": { "core": 1792751600, "graphql": 1792751600, "search": 1792751600, "code_search": 1792751600 }
+      },
+      {
+        "name": "a later, lower line does not shorten a stop",
+        "text": "core 1792751600\ncore 1792740000\n",
+        "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+      },
+      {
+        "name": "a past * stop leaves a pool's own stop",
+        "text": "* 1792740000\ncore 1792751600\n",
+        "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+      },
+      {
+        "name": "search and code search are separate pools",
+        "text": "search 1792751600\n",
+        "until": { "core": null, "graphql": null, "search": 1792751600, "code_search": null }
+      },
+      {
+        "name": "CRLF line endings still read",
+        "text": "graphql 1792751600\r\ncore 1792751600\r\n",
+        "until": { "core": 1792751600, "graphql": 1792751600, "search": null, "code_search": null }
+      },
+      {
+        "name": "a U+2028 line separator ends a line",
+        "text": "core 1792751600\u2028graphql 1792751600",
+        "until": { "core": 1792751600, "graphql": 1792751600, "search": null, "code_search": null }
+      },
+      {
+        "name": "malformed lines are skipped and well-formed ones kept",
+        "text": "core 1.5\n core 1792751600\nCore 1792751600\ncore  1792751600\ncore 1792751600 \ncore 1234567890123\ncore \u0661\u0667\u0669\u0662\u0667\u0665\u0661\u0666\u0660\u0660\nsearch 1792751600",
+        "until": { "core": null, "graphql": null, "search": 1792751600, "code_search": null }
+      }
+    ]
+  }
 }

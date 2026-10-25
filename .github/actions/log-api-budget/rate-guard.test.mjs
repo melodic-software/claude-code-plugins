@@ -249,6 +249,31 @@ test("a stop is written to the job's stop file, and a later latch refuses from i
     assert.equal(gh.sent.length, 1);
   }));
 
+// The stop file's reading, pinned for every port by the shared vectors.
+const POOL_URLS = {
+  core: "https://api.github.com/repos/o/r/pulls/1",
+  graphql: "https://api.github.com/graphql",
+  search: "https://api.github.com/search/issues?q=x",
+  code_search: "https://api.github.com/search/code?q=x",
+};
+for (const vector of VECTORS.stop_file.cases) {
+  test(`stop file vector: ${vector.name}`, () =>
+    withDir((dir) => {
+      const stopFile = join(dir, "stop");
+      writeFileSync(stopFile, vector.text);
+      const latch = createRateLimitLatch({ now: () => VECTORS.stop_file.now * 1000, log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+      const until = Object.fromEntries(Object.entries(POOL_URLS).map(([pool, url]) => [pool, latch.until(url)]));
+      assert.deepEqual(until, vector.until);
+    }));
+}
+
+// An unreadable stop file holds no stop; the Python port reads it the same way.
+test("a stop file that cannot be read holds no stop", () =>
+  withDir((dir) => {
+    const latch = createRateLimitLatch({ now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: dir });
+    assert.equal(latch.until(URL_A), null);
+  }));
+
 // No lane script calls fetch outside the guard, except the files below, each
 // for its stated reason. A new raw fetch fails here until it is guarded or
 // listed.

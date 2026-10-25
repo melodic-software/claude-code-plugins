@@ -83,6 +83,11 @@ class GuardCase(unittest.TestCase):
         self.addCleanup(gh.reset_rate_guard)
         self.sent: list[list[str]] = []
         self.answers: list[tuple[int, str, str]] = []
+        # A job's real RUNNER_TEMP must never take a test's stop.
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.runner_temp = temp.name
+        self.stop_file = pathlib.Path(temp.name, "api-budget", "stop")
 
         def fake(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
             self.sent.append(argv)
@@ -93,7 +98,11 @@ class GuardCase(unittest.TestCase):
             mock.patch.object(gh, "run_command", fake),
             mock.patch.dict(
                 os.environ,
-                {"API_BUDGET_TOKEN": "", "GITHUB_ACTIONS": "true"},
+                {
+                    "API_BUDGET_TOKEN": "",
+                    "GITHUB_ACTIONS": "true",
+                    "RUNNER_TEMP": self.runner_temp,
+                },
             ),
         ):
             patcher.start()
@@ -292,7 +301,9 @@ class NoRepoConfig(GuardCase):
             (403, "API rate limit exceeded for user ID 1."),
             (429, "You have exceeded a secondary rate limit."),
         ):
+            # Each case is its own job: the last one's stop file goes too.
             gh.reset_rate_guard()
+            self.stop_file.unlink(missing_ok=True)
             self.sent.clear()
             self.answer(
                 1,
@@ -349,12 +360,19 @@ class FailClosed(GuardCase):
 
 
 class TheProcessExitsRed(unittest.TestCase):
-    def run_python(self, body: str) -> subprocess.CompletedProcess[str]:
+    def run_python(
+        self, body: str, runner_temp: str = ""
+    ) -> subprocess.CompletedProcess[str]:
         code = f"import sys; sys.path.insert(0, {str(SCRIPTS)!r})\n" + textwrap.dedent(
             body
         )
+        env = {**os.environ, "RUNNER_TEMP": runner_temp}
         return subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True, check=False
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
         )
 
     def test_an_uncaught_trip_prints_one_error_naming_the_reset(self) -> None:
@@ -387,6 +405,142 @@ class TheProcessExitsRed(unittest.TestCase):
         self.assertEqual(proc.returncode, 75)
         self.assertIn("2026-10-24T17:35:30Z", proc.stderr)
         self.assertIn("graphql", proc.stderr)
+
+    def test_a_later_process_sends_nothing_while_the_job_stop_holds(self) -> None:
+        # One process per pull request (enable-auto-merge's reader): the
+        # stop an earlier one recorded holds in the next, before any call.
+        with tempfile.TemporaryDirectory() as temp:
+            stop = pathlib.Path(temp, "api-budget", "stop")
+            stop.parent.mkdir()
+            stop.write_text("core 4102444800\n", encoding="utf-8")
+            proc = self.run_python(
+                """
+                import babysit_gh as gh
+                sent = []
+                gh.run_command = lambda argv, **_: sent.append(argv)
+                try:
+                    gh.gh_capture(["api", "repos/o/r/pulls/1"])
+                finally:
+                    print(f"sent={len(sent)}", flush=True)
+                """,
+                runner_temp=temp,
+            )
+            self.assertEqual(stop.read_text(encoding="utf-8"), "core 4102444800\n")
+        self.assertEqual(proc.returncode, 75, proc.stderr)
+        self.assertIn("sent=0", proc.stdout)
+        errors = [
+            line for line in proc.stderr.splitlines() if line.startswith("::error")
+        ]
+        self.assertEqual(len(errors), 1, proc.stderr)
+        self.assertIn("the core pool", errors[0])
+        self.assertIn("2100-01-01T00:00:00Z", errors[0])
+
+
+class TheJobStopFile(GuardCase):
+    """The stop file rate-guard.mjs and api-budget.bash share: lines
+    `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop."""
+
+    def write_stops(self, text: str) -> None:
+        self.stop_file.parent.mkdir(parents=True, exist_ok=True)
+        self.stop_file.write_bytes(text.encode("utf-8"))
+
+    def test_every_stop_file_vector_in_the_shared_file(self) -> None:
+        table = json.loads(VECTORS.read_text(encoding="utf-8"))["stop_file"]
+        self.assertGreaterEqual(len(table["cases"]), 11)
+        for vector in table["cases"]:
+            with self.subTest(vector["name"]):
+                gh.reset_rate_guard()
+                self.write_stops(vector["text"])
+                got = {
+                    pool: gh.stopped_until(pool, now=table["now"])
+                    for pool in vector["until"]
+                }
+                self.assertEqual(got, vector["until"])
+
+    def test_a_recorded_stop_refuses_its_pool_before_any_call(self) -> None:
+        self.write_stops("core 4102444800\n")
+        with self.assertRaises(gh.RateLimitExhausted) as raised:
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertEqual(
+            (raised.exception.pool, raised.exception.reset), ("core", 4102444800)
+        )
+        self.assertEqual(self.sent, [])
+        # Its refusal is no new stop: the file is unchanged.
+        self.assertEqual(
+            self.stop_file.read_text(encoding="utf-8"), "core 4102444800\n"
+        )
+
+    def test_a_recorded_stop_leaves_the_other_pools_open(self) -> None:
+        self.write_stops("core 4102444800\n")
+        self.answer(0, head(200) + "{}")
+        gh.gh_capture(["api", "graphql", "-f", "query=query{viewer{login}}"])
+        self.assertEqual(len(self.sent), 1)
+
+    def test_a_recorded_secondary_stop_refuses_every_pool(self) -> None:
+        self.write_stops("* 4102444800\n")
+        for args in (
+            ["api", "repos/o/r/pulls/1"],
+            ["api", "graphql", "-f", "query=query{viewer{login}}"],
+            ["pr", "view", "1", "--json", "number"],
+        ):
+            with self.assertRaises(gh.RateLimitExhausted):
+                gh.gh_capture(args)
+        self.assertEqual(self.sent, [])
+
+    def test_a_past_stop_lets_the_call_go(self) -> None:
+        self.write_stops("core 1000000000\n")
+        self.answer(0, head(200, **core(4000)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertEqual(len(self.sent), 1)
+
+    def test_an_unreadable_stop_file_holds_no_stop(self) -> None:
+        # As rate-guard.mjs readStops: a file that cannot be read is empty.
+        self.stop_file.mkdir(parents=True)
+        self.answer(0, head(200, **core(4000)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertEqual(len(self.sent), 1)
+
+    def test_a_latch_appends_its_stop_as_the_js_guard_writes_it(self) -> None:
+        self.answer(
+            1,
+            head(403, **core(0))
+            + '{"message":"API rate limit exceeded for user ID 1."}',
+            "gh: API rate limit exceeded for user ID 1. (HTTP 403)",
+        )
+        with self.assertRaises(gh.RateLimitExhausted):
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertEqual(
+            self.stop_file.read_text(encoding="utf-8"), "core 4102444800\n"
+        )
+
+    def test_a_secondary_latch_appends_a_stop_for_every_pool(self) -> None:
+        self.write_stops("graphql 4102444800\n")
+        self.answer(
+            1,
+            head(429, **core(4000, Retry_After="60"))
+            + '{"message":"You have exceeded a secondary rate limit."}',
+            "gh: You have exceeded a secondary rate limit. (HTTP 429)",
+        )
+        with (
+            mock.patch.object(gh.time, "time", return_value=1792748000.5),
+            self.assertRaises(gh.RateLimitExhausted),
+        ):
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertEqual(
+            self.stop_file.read_text(encoding="utf-8"),
+            "graphql 4102444800\n* 1792748060\n",
+        )
+
+    def test_with_no_runner_temp_nothing_is_written_and_the_latch_still_holds(
+        self,
+    ) -> None:
+        self.answer(0, head(200, **core(0)) + "{}")
+        with mock.patch.dict(os.environ, {"RUNNER_TEMP": ""}):
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
+            with self.assertRaises(gh.RateLimitExhausted):
+                gh.gh_capture(["api", "repos/o/r/pulls/2"])
+        self.assertFalse(self.stop_file.parent.exists())
+        self.assertEqual(len(self.sent), 1)
 
 
 if __name__ == "__main__":

@@ -247,7 +247,10 @@ def _run_gh(
 # refuses every call. With no pr-pipeline.yaml at all (an installed plugin, a
 # consumer repo) there are no margins, and the signals alone still latch. `evaluate_rate_response` is the shared decision table's
 # port: .github/actions/log-api-budget/rate-guard.vectors.json tests it here
-# and in the JavaScript client.
+# and in the JavaScript client. In a job (RUNNER_TEMP set), each stop also goes
+# in the job's stop file that rate-guard.mjs and api-budget.bash share, and a
+# stop recorded there holds in this process too, so one stop holds for every
+# step and every process of the job; the same vectors file pins its reading.
 #   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
 #   and <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api>
 #   As-of: 2026-10-24.
@@ -327,15 +330,68 @@ _tripped: dict[str, RateLimitExhausted] = {}
 _headroom: dict[str, tuple[int, int]] = {}
 _limits: dict[str, dict[str, float]] = {}
 _trip_reported = False
+# The job's stop file, read once before the first call; None until then.
+_job_stops: dict[str, int] | None = None
+# One line of it, as rate-guard.mjs reads one: `<pool> <reset epoch>`, ASCII
+# digits only, split where a JavaScript `m`-flag `$` ends a line.
+_STOP_LINE = re.compile(r"([a-z_]+|\*) ([0-9]{1,12})")
+_STOP_LINE_BREAK = re.compile("[\n\r\u2028\u2029]")
 
 
 def reset_rate_guard() -> None:
-    """Forget every trip, reading and loaded share (tests)."""
-    global _trip_reported
+    """Forget every trip, reading, loaded share and job stop (tests)."""
+    global _trip_reported, _job_stops
     _tripped.clear()
     _headroom.clear()
     _limits.clear()
     _trip_reported = False
+    _job_stops = None
+
+
+def _stop_file() -> str | None:
+    temp = os.environ.get("RUNNER_TEMP")
+    return os.path.join(temp, "api-budget", "stop") if temp else None
+
+
+def _read_job_stops() -> dict[str, int]:
+    """Each pool's latest reset in the job's stop file. A file that cannot be
+    read holds no stop and a malformed line is skipped, as rate-guard.mjs
+    `readStops` reads them."""
+    path = _stop_file()
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace") if path else ""
+    except OSError:
+        text = ""
+    stops: dict[str, int] = {}
+    for line in _STOP_LINE_BREAK.split(text):
+        match = _STOP_LINE.fullmatch(line)
+        if match:
+            stops[match[1]] = max(stops.get(match[1], 0), int(match[2]))
+    return stops
+
+
+def stopped_until(pool: str, *, now: float | None = None) -> int | None:
+    """The epoch second the job's stop file holds `pool` until, or None: the
+    later of its own stop and a `*` stop, while still ahead of `now`."""
+    global _job_stops
+    if _job_stops is None:
+        _job_stops = _read_job_stops()
+    at = max(_job_stops.get(ALL_POOLS, 0), _job_stops.get(pool, 0))
+    return at if at > (time.time() if now is None else now) else None
+
+
+def _record_stop(pool: str, reset: float) -> None:
+    """Append a stop to the job's stop file, as rate-guard.mjs writes one.
+    Never raises: the in-process trip still holds."""
+    path = _stop_file()
+    if path is None:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(f"{pool} {int(reset)}\n")
+    except OSError:
+        pass
 
 
 def _int_header(headers: Mapping[str, Any], name: str) -> int | None:
@@ -514,6 +570,11 @@ def _refuse_if_exhausted(pool: str | None, limits_pool: str) -> None:
             del _tripped[name]
             continue
         raise RateLimitExhausted(trip.pool, trip.reset, trip.reason)
+    for name in pools:
+        at = stopped_until(name)
+        if at is not None:
+            held = name if (_job_stops or {}).get(name) == at else ALL_POOLS
+            raise _trip(held, at, "a stop this job recorded")
     limits = pool_limits(limits_pool)
     if isinstance(limits, str):
         raise RateLimitExhausted(ALL_POOLS, None, f"fail closed: {limits}")
@@ -586,6 +647,7 @@ def _guard_response(
         reading["reset"],
         f"{reading['reset_source']} reset, HTTP {status if status is not None else 'error'}",
     )
+    _record_stop(reading["pool"], reading["reset"])
     if proc.returncode != 0:
         raise trip
 
