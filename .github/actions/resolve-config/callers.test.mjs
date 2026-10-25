@@ -3290,6 +3290,52 @@ test("scan job: an issue run's outcome files round-trip sealed with every payloa
   assert.ok(runSteps().indexOf(collect) < runSteps().findIndex((s) => s.id === "carry"), "collected before it is carried");
 });
 
+// Run 40208736808 (#6377): write-issue refused because the issue changed after
+// agent-ready, and lane.json carried no class, so report-outcome could say
+// only that no outcome file was read.
+test("the collect step classes a run whose issue file was not written, ahead of the launcher's class", () => {
+  const steps = runSteps();
+  const collect = steps.find((s) => s.name === "Collect the issue outcome");
+  const write = steps.find((s) => s.name === "Write the issue for the skill");
+  assert.equal(write.id, "write-issue");
+  assert.ok(steps.indexOf(write) < steps.indexOf(collect));
+  const at = (context) =>
+    evaluate(collect.env.LANE_CLASS, {
+      "steps.write-issue.outputs.refused": "",
+      "steps.write-issue.outcome": "success",
+      "steps.act-key.outputs.lane-class": "",
+      "steps.act-token.outputs.lane-class": "",
+      ...context,
+    });
+  assert.equal(at({ "steps.write-issue.outputs.refused": "edited", "steps.write-issue.outcome": "failure" }), "issue-edited");
+  assert.equal(at({ "steps.write-issue.outcome": "failure" }), "issue-file");
+  assert.equal(at({ "steps.act-key.outputs.lane-class": "max-turns" }), "max-turns");
+  assert.equal(at({ "steps.act-token.outputs.lane-class": "rate-limit" }), "rate-limit");
+  assert.equal(at({}), "");
+});
+
+// In that run the carry step then failed: the sealer copy runs after
+// write-issue and, with no status function, only while every step before it
+// succeeded, so `cp -R "$SEAL_DIR"` found nothing and the scan job refused the
+// unsealed lane.json. With the copy run after a failure, that lane.json
+// publishes like any other.
+test("a run whose issue file was not written still seals and publishes its lane.json", async (t) => {
+  const steps = runSteps();
+  const write = steps.findIndex((s) => s.id === "write-issue");
+  const copy = steps.findIndex((s) => s.name === "Copy the patch collector and the output sealer from the base");
+  const carried = steps.findIndex((s) => s.id === "carry");
+  assert.ok(write < copy && copy < carried, "the sealer copy sits between write-issue and the carry step");
+  // A step whose if names no status function runs only after every earlier step succeeded.
+  assert.match(steps[copy].if, /^always\(\) && /);
+  const lane = JSON.stringify({ branch: "", class: "issue-edited", resets: "", "max-turns": "75", resume: "", failed: "false", "api-error-status": "", "error-text": "" });
+  const outputs = { ...runOutputsAfterCarry(t, { "work-outcome/lane.json": lane }, { issue: true }), "act-outcome": "skipped", "patch-collected": "" };
+  const open = openStep(t, outputs);
+  assert.equal(open.status, 0, open.log);
+  const { failed, files } = await decode(t, decodeEnv(outputs, { "issue-number": "7" }, open, { "issue-run-started": "true", "resume-branch": "" }));
+  assert.equal(failed, null);
+  assert.equal(JSON.parse(files["lane.json"]).class, "issue-edited");
+});
+
 test("scan job: a credential in the issue outcome blocks every upload", async (t) => {
   const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "work-outcome.json"), `{"summary": "${KEY}"}\n`));
   assert.equal(clean, "false");

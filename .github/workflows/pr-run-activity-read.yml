@@ -1036,6 +1036,7 @@ jobs:
       # changed since fails the step. Runs from the base copy, with the job's
       # read-only token, before the checkout below replaces it.
       - name: Write the issue for the skill
+        id: write-issue
         if: >-
           steps.go.outputs.run == 'true' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'skill'
@@ -1093,9 +1094,11 @@ jobs:
       # clean otherwise; the mode check reads each launcher leg. The sealer and its public key go with it: the head
       # checkout replaces .base, and the head's own key file is the PR's.
       # Head code can rewrite either copy, as it can the collector's; a
-      # forged sealer gains nothing the model job does not already hold.
+      # forged sealer gains nothing the model job does not already hold. It
+      # runs after a failed earlier step too (a write-issue refusal), so the
+      # carry step can still seal lane.json naming why the run never started.
       - name: Copy the patch collector and the output sealer from the base
-        if: steps.go.outputs.run == 'true'
+        if: always() && steps.go.outputs.run == 'true'
         env:
           DEST: ${{ runner.temp }}/read-patch
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
@@ -1751,7 +1754,13 @@ jobs:
         env:
           SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
-          LANE_CLASS: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
+          # A run whose issue file was not written never started: issue-edited
+          # when the issue changed after its label (write-issue's refused
+          # output), issue-file for any other cause, so report-outcome names it.
+          LANE_CLASS: >-
+            ${{ steps.write-issue.outputs.refused == 'edited' && 'issue-edited'
+            || steps.write-issue.outcome == 'failure' && 'issue-file'
+            || steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
           LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets }}
           # The run's turn cap, so a turn-cap stop names it.
           LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}

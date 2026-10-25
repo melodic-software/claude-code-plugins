@@ -23,6 +23,7 @@ import {
   readHoldPaths,
   readFunding,
   readChecks,
+  readIssueStop,
   readOutcome,
   readTurnCap,
   RESUMABLE,
@@ -720,6 +721,20 @@ test("main with no outcome files comments stopped and adds needs-human", async (
     assert.deepEqual(calls.find((c) => c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
     assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/comments")));
     assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
+  });
+});
+
+test("main on a run whose issue changed after agent-ready comments that reason, not a missing outcome file", async () => {
+  await withDir({ "lane.json": JSON.stringify({ branch: "", class: "issue-edited" }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.match(comment, /the issue's title or body changed after `agent-ready` was added/);
+    assert.doesNotMatch(comment, /no readable outcome file/);
   });
 });
 
@@ -1424,6 +1439,55 @@ test("the turn-cap marker reads back with its run", () => {
     run: "555",
     onResumed: false,
   });
+});
+
+// Run 40208736808 (#6377): write-issue refused with "the issue title or body
+// changed after agent-ready was added; no issue file written", so no model
+// ran, and the hand-back said only that no outcome file was read.
+test("lane.json's issue-file classes name why the run never started; any other class is none", () => {
+  for (const [lane, expected] of [
+    [{ branch: "", class: "issue-edited" }, /the issue's title or body changed after `agent-ready` was added/],
+    [{ branch: "", class: "issue-file" }, /could not write the issue file/],
+    [{ branch: "", class: "max-turns" }, null],
+    [{ branch: "", class: "" }, null],
+  ]) {
+    const reason = withDir({ "lane.json": JSON.stringify(lane) }, (dir) => readIssueStop(dir));
+    if (expected === null) {
+      assert.equal(reason, null, JSON.stringify(lane));
+    } else {
+      assert.match(reason, expected, JSON.stringify(lane));
+    }
+  }
+  assert.equal(withDir({}, (dir) => readIssueStop(dir)), null, "no lane.json");
+});
+
+test("a run whose issue changed after agent-ready hands back naming that, not a missing outcome file", () => {
+  const issueStop = withDir({ "lane.json": JSON.stringify({ branch: "", class: "issue-edited" }) }, (dir) => readIssueStop(dir));
+  const plan = decide({
+    outcome: readOutcome("/nonexistent/work-outcome.json"),
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    issueStop,
+  });
+  assert.equal(plan.action, "hand-back");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.match(plan.comment, /the issue's title or body changed after `agent-ready` was added/);
+  assert.doesNotMatch(plan.comment, /no readable outcome file/);
+});
+
+test("an issue-file record never replaces an outcome the run reported", () => {
+  const plan = decide({
+    outcome: { exit: "stopped", reason: "The tests cannot run here.", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    issueStop: "The run did not start.",
+  });
+  assert.match(plan.comment, /The tests cannot run here\./);
+  assert.doesNotMatch(plan.comment, /The run did not start\./);
 });
 
 test("lane.json's max-turns class is the turn-cap record; any other class is none", () => {

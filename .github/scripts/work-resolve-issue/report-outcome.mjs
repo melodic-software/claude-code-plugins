@@ -23,7 +23,8 @@
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
-//             invalid outcome file is stopped.
+//             invalid outcome file is stopped; when lane.json's class says the
+//             issue file was never written (readIssueStop), it names why.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
 //             limit before it could report): comments once with the
@@ -660,6 +661,7 @@ export function decide({
   turnCap = null,
   turnCapRestarts = 0,
   funding = null,
+  issueStop = null,
   limits = LIMIT_DEFAULTS,
   now = Date.now(),
   runId = "",
@@ -668,6 +670,10 @@ export function decide({
   escalation = "",
 }) {
   outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
+  // A run that never started left no outcome; its record names why.
+  if (issueStop && outcome.unread) {
+    outcome = { ...outcome, reason: issueStop };
+  }
   const onResumed = !branch && resumed !== "";
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
@@ -1014,6 +1020,25 @@ export function readLimit(dir) {
   }
 }
 
+// Why the run never started, from lane.json's class, or null: the runner set
+// issue-edited when write-issue refused because the issue's title or body
+// changed after the label, and issue-file when it wrote no issue file for
+// another reason. Either way no model ran.
+export function readIssueStop(dir) {
+  try {
+    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+    if (lane?.class === "issue-edited") {
+      return "The run did not start: the issue's title or body changed after `agent-ready` was added, so the runner wrote no issue file for the skill and no model ran.";
+    }
+    if (lane?.class === "issue-file") {
+      return "The run did not start: the runner could not write the issue file for the skill, so no model ran. The run job's `Write the issue for the skill` step names the reason.";
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // The runner's funding record in lane.json: {regain} (epoch ms, or null when
 // no date is readable) when the run failed on a spend limit or zero balance
 // (api_error_status 400 with "regain access on <date>") or a disabled key
@@ -1312,6 +1337,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const limit = readLimit(dir);
     const turnCap = readTurnCap(dir);
     const funding = readFunding(dir);
+    const issueStop = readIssueStop(dir);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
     const unreported = reuse && (outcome === null || outcome.unread);
     // The summary counts only while the branch is still at the tip it read; a
@@ -1427,6 +1453,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           turnCap,
           turnCapRestarts,
           funding,
+          issueStop,
           limits: readLimits(resolvedPath),
           now,
           runId,

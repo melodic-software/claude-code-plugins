@@ -1952,7 +1952,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   limit) whose permission mode checked out, so partial work reaches a branch a resumed run
   continues. A failed leg fails the job after its outcome and patch are carried; a turn cap is
   class `max-turns` in `lane.json`, a usage limit class `rate-limit` with run-claude-cli's
-  `lane-resets`. The skill's `work-outcome.json` and
+  `lane-resets`. A run whose issue file was not written never starts the skill: class
+  `issue-edited` when write-issue refused because the issue's title or body changed after its
+  label (its `refused=edited` output), else `issue-file`. The skill's `work-outcome.json` and
   the runner's `lane.json` (no branch yet, and on a resume the resumed branch) are uploaded as the
   `work-outcome-<n>` artifact by the scan job, sealed to it like the patch. The runner keeps at
   most the first 48 KiB of `work-outcome.json`: a longer file is cut, no longer parses, and

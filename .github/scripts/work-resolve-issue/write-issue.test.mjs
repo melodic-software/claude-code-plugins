@@ -105,7 +105,9 @@ afterEach(() => {
 async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00:00:00Z", extraEnv = {} } = {}) {
   const file = path.join(dir, "issue.json");
   const logged = [];
+  const outputs = [];
   const code = await main({
+    write: (values) => outputs.push(values),
     env: {
       ISSUE_NUMBER: "6825",
       GITHUB_REPOSITORY: REPO,
@@ -120,7 +122,7 @@ async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00
     github,
     log: (line) => logged.push(line),
   });
-  return { code, issue: existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null, logged };
+  return { code, issue: existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null, logged, outputs };
 }
 
 const summary = (issue) => issue.comments.map((kept) => [kept.author_login, kept.author_kind, kept.decision]);
@@ -222,9 +224,11 @@ test("a body or title changed after the label was added writes no file, for a hu
   for (const labeler of [OWNER, LANES_BOT]) {
     const options = { sender: String(labeler.id) };
     for (const issueEdits of [{ lastEditedAt: "2026-10-14T00:00:00Z" }, { renamedAt: "2026-10-14T00:00:00Z" }]) {
-      const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(labeler, 13)] }), options);
+      const { code, issue, outputs } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(labeler, 13)] }), options);
       assert.equal(code, 1);
       assert.equal(issue, null);
+      // report-outcome names this refusal from the step output (run 40208736808).
+      assert.deepEqual(outputs, [{ refused: "edited" }]);
     }
     const { code } = await run(
       fakeGitHub({
@@ -329,9 +333,11 @@ test("an App re-fire whose payload update time predates its label event admits, 
 // text, so it must come from the App or a listed human.
 test("an App re-fire that restarts an unlisted account's label writes no file", async () => {
   const restart = [labeled(OWNER, 10), unlabeled(STRANGER, 12), labeled(STRANGER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
-  const { code, issue } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
+  const { code, issue, outputs } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
   assert.equal(code, 1);
   assert.equal(issue, null);
+  // Only an edit after the label is reported as one.
+  assert.deepEqual(outputs, []);
 });
 
 test("a change in the same second as the label counts as after it", async () => {

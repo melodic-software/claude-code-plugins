@@ -36,10 +36,13 @@
 //                         run's outcome, or empty when the run resumes nothing
 //   BASE_SHA              the trusted base the comparison starts from
 //   GITHUB_API_URL
+//   GITHUB_OUTPUT         receives refused=edited when the title or body
+//                         changed after the label, which report-outcome names
 import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { REFINE_MARKER } from "../intake-triage/admit.mjs";
@@ -140,7 +143,7 @@ async function readResume(github, env) {
   };
 }
 
-export async function main({ env = process.env, github, log = console.log } = {}) {
+export async function main({ env = process.env, github, log = console.log, write = (outputs) => env.GITHUB_OUTPUT && writeOutputs(outputs, env.GITHUB_OUTPUT) } = {}) {
   const file = env.ISSUE_FILE;
   try {
     if (!file) {
@@ -180,7 +183,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
     // NaN compares false, so an unparsable time is a change.
     const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
     if (!edits.every((time) => time == null || timeOf(time) < frozenAt)) {
-      throw new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`);
+      throw Object.assign(new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`), { refused: "edited" });
     }
 
     const comments = [];
@@ -233,6 +236,9 @@ export async function main({ env = process.env, github, log = console.log } = {}
     }
     const detail = error?.name === "GitHubError" ? error.message : (error?.message ?? "error");
     log(`::error title=write-issue::${String(detail).replaceAll(/[\r\n%]/g, " ")}; no issue file written`);
+    if (error?.refused) {
+      write({ refused: error.refused });
+    }
     return 1;
   }
 }
