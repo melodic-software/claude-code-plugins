@@ -116,3 +116,16 @@ run, local-to-shared migration, which install command to run, and acting on drif
 
 Recheck when a Claude Code release changes `PostToolBatch`, the "hook modified <file>" note, `if`
 matching, or hook `ask` handling in auto mode.
+
+## Addendum (2026-10-25): blocking placements and the model behind the probes
+
+- **A check placed where it blocks meets the blocking precision bar.** A git-hook entry that exits
+  1 on a finding blocks the commit or push, so it ships at 0 effective false positives
+  ([ADR 0080](0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md)),
+  not at the advisory ceiling, whatever precision it was measured at as a report-only check. An
+  existing guard keeps its recorded justification until it is graded (ADR 0080).
+- **The rubric's rule 4 carries a model recheck.** Its evidence ran on Sonnet: the per-edit
+  probes on Sonnet 5.5 (Context above), and the typos-format pilot, which could not separate the
+  timing of the report from its wording
+  ([confound note](../conventions/check-placement/README.md#typos-format-pilot-2026-10-15)).
+  Recheck rule 4 when sessions move off Sonnet 5.5.

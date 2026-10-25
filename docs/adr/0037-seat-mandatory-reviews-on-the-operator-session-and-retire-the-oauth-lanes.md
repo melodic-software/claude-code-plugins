@@ -9,6 +9,11 @@
   (2026-10-11): the Context's premise that the operator cannot use API keys no longer holds.
 - Superseded in part by the 2026-09-24 removal addendum below: the evidence system of decisions
   1, 3, 4, 5, 6 and 8 is removed. Decision 7 and the ready step's merge-then-flip shape stand.
+- Narrowed by the review venue (recorded 2026-10-25): prep's review and the ready step's code and
+  security reviews run only for a lane the repository's CI review lanes do not cover healthily
+  (`/source-control:pull-request`, review venue). This repository sets `pr_open_state: ready`
+  (`docs/conventions/source-control.yaml`), so create opens the draft and runs the ready step on
+  it in the same run.
 - Supersedes, for this repository: the lane wiring, the skip-actor exception, and the once-per-PR
   trigger set recorded in ADR 0002. ADR 0002's posture of advisory before blocking and earned
   promotion still stands and this record applies it.

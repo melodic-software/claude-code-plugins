@@ -139,6 +139,26 @@ sufficient one. Specifically:
 - `docs/conventions/hook-precision/README.md` owns the over-fire discipline for a guard
   already in the tree. This ADR is the pre-ship counterpart and defers to it thereafter.
 
+## Addendum (2026-10-25): agent readers, the post-ship check, and the reference guard
+
+- **When an agent reads a check's output, precision is the owner's adjudication of each finding**
+  on the corpus sweep (a finding the check's owner would not fix,
+  [ADR 0080](0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md)),
+  never how often the agent acted on it. ADR 0080's in-use reading, a finding the author does not
+  act on, does not apply when the author is an agent, because what an agent does with a finding is
+  no verdict on it: in the typos-format pilot's control runs the model allow-listed seeded
+  misspellings, true findings, instead of fixing them
+  ([check-placement](../conventions/check-placement/README.md#typos-format-pilot-2026-10-15)).
+- **Until #3756 grades guards in use, the only post-ship check is hook-precision's discipline**:
+  each filed production false positive becomes a repro-first stay-quiet regression test
+  ([hook-precision](../conventions/hook-precision/README.md#the-discipline)). No signal measures a
+  shipped guard's precision.
+- **The reference guard now blocks where it is installed.** `skill-reference-verify` shipped as an
+  advisory guard at 57% precision (Context above), and fails the push in a clone that installed
+  guardrails' `reference-verify` pre-push entry (`plugins/guardrails/README.md`). ADR 0080 holds
+  a blocking check to 0 effective false positives and keeps a guard's recorded justification until
+  it is graded on its own evidence. This guard has not been graded at its blocking placement.
+
 ## Sources
 
 - #1270 (scoping, amended twice), #1284 (the two-guard PR, closed), #1319 (the shipped

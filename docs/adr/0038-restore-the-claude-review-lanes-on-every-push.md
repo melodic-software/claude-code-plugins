@@ -14,17 +14,21 @@ not mean a review blocks a merge.
 
 This rule is the operator's. Anthropic does not document review on every pull request as a
 requirement. Its launch post says it runs Code Review "on nearly every PR at Anthropic"
-(correlate with <https://claude.com/blog/code-review>, fetched 2026-09-24); the product docs set no default
-trigger, leaving an Owner to pick once, every push, or manual per repository
-(<https://code.claude.com/docs/en/code-review>, fetched 2026-09-24); and Boris Cherny's Steps of
+(correlate with <https://claude.com/blog/code-review>, fetched 2026-09-24); the managed product
+leaves the trigger to each repository, where an Owner picks once after pull request creation,
+after every push, or manual, and a newly added repository starts at after every push
+(<https://code.claude.com/docs/en/code-review-setup#set-when-reviews-run>, fetched 2026-10-25;
+background only, since this repository's lanes are its own CI callers and the managed product's
+setting decides nothing here); and Boris Cherny's Steps of
 AI Adoption says "Automated code review and security review are on by default"
 (<https://claude.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf>, fetched 2026-09-24).
-Recheck these three when the Code Review docs name a default trigger or Anthropic states review on
-every pull request as a requirement.
+Recheck these three when the Code Review docs change a new repository's starting trigger or
+Anthropic states review on every pull request as a requirement.
 What Anthropic does document is that its reviews do not gate a merge:
 
 - The managed Code Review check run "always completes with a neutral conclusion so it never
-  blocks merging through branch protection rules" (code-review page above).
+  blocks merging through branch protection rules" (<https://code.claude.com/docs/en/code-review>,
+  fetched 2026-09-24).
 - `anthropics/claude-code-security-review` never fails its job on findings: its `action.yml`
   exits non-zero only when the API key is missing, downgrades a scanner failure to a warning,
   and reports findings as a count and PR comments
@@ -95,6 +99,11 @@ pull-request skill; ADR 0037 records that pull requests opened any other way rec
   `synchronize` on one lane, and record which.
 - The autonomy security-review policy's floors change so that a class below C3 must not run the
   security lane → reintroduce `paths-file`, and record why.
+- Rounds-to-pass (the address-feedback rounds a pull request takes before its review threads
+  clear), once it is measured, shows pull requests regularly reaching the round cap
+  (`loop.review-rounds`, 3 in `docs/conventions/pr-pipeline.yaml`; pr-pipeline "Loop caps") →
+  check whether per-push review finds new defects or re-reports old ones, narrow the per-push
+  scope, and record which.
 
 ## Addendum (2026-09-24): the security lane runs on every pull request
 
@@ -220,3 +229,16 @@ Revisit when a defect lands that an incremental review missed and a whole review
 request would have flagged: set `incremental-review: false` on both caller components in
 melodic-software/standards (its runner-policy contracts for these reusables allow that input),
 let the sync carry it here, and record why.
+
+## Addendum (2026-10-25): the org per-push reasoning this record departs from
+
+The ci-perf program dropped `synchronize` from both lanes on the reasoning that a per-push review
+"only ever earned its cost against a gate certifying execution against the latest head"
+([ADR 0002](0002-default-on-ai-review-advisory-with-earned-promotion.md#addendum-2026-09-07-once-per-pull-request-drafts-filtered-reviews-queued),
+2026-09-07 addendum, which names github-iac ADR 0011 as the org record of advisory review). This
+record restored the per-push trigger on local evidence instead: a pull request that conflicted
+with its base when it opened lost its only review trigger (Context above). That reasoning's
+condition now holds here as well. No ruleset requires a review check, but `ci-status` fails on a
+ready pull request unless both lanes reviewed its head
+([pr-pipeline](../conventions/pr-pipeline/README.md), the paragraph citing github-iac ADR 0017),
+which is a gate certifying execution against the latest head.

@@ -11,6 +11,7 @@
 - [Addendum (2026-08-04): operator decision: Branch A ratified, four actors](#addendum-2026-08-04-operator-decision-branch-a-ratified-four-actors)
 - [Addendum (2026-09-07): once per pull request, drafts filtered, reviews queued](#addendum-2026-09-07-once-per-pull-request-drafts-filtered-reviews-queued)
 - [Addendum (2026-09-24): skip-actors list file and evidence guards removed](#addendum-2026-09-24-skip-actors-list-file-and-evidence-guards-removed)
+- [Addendum (2026-10-25): what already holds a merge on the lanes](#addendum-2026-10-25-what-already-holds-a-merge-on-the-lanes)
 - [Revisit triggers](#revisit-triggers)
 
 - Status: accepted. The required-check addenda (2026-07-21 onward) are superseded as of
@@ -409,6 +410,24 @@ the skip-actor exception is stated, not which actors it covers.
   exception.
 
 The `skip-actors` revisit trigger below still applies to the inline list while it exists.
+
+## Addendum (2026-10-25): what already holds a merge on the lanes
+
+No ruleset requires a lane check, yet two mechanisms already hold a merge on the lanes:
+
+- **Thread resolution.** The `base` ruleset requires `required_review_thread_resolution: true`
+  (2026-08-03 addendum above), and each lane posts its findings as inline review comments, so an
+  open finding holds the merge until its thread is resolved. Read the live rules rather than this
+  line: `gh api repos/melodic-software/claude-code-plugins/rules/branches/main` (not re-read for
+  this addendum; recheck when that endpoint stops listing `required_review_thread_resolution`).
+- **`ci-status`.** The one required check fails on a ready pull request unless both lanes reviewed
+  its head, and fails while a lane's hold label stands until a trusted person lifts it
+  ([pr-pipeline](../conventions/pr-pipeline/README.md), the paragraph citing github-iac ADR 0017;
+  `.github/workflows/pr-require-checks.yml`, `Require both review lanes on this head`).
+
+So a lane's run and its hold already gate a merge through `ci-status`, and its findings gate it as
+unresolved threads. Decision 2's promotion path and the revisit triggers below predate that
+enforcement and are not re-decided here.
 
 ## Revisit triggers
 
