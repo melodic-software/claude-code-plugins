@@ -151,7 +151,8 @@ class ApiBudgetTests(unittest.TestCase):
 
     def test_without_a_token_name_or_for_a_non_api_call_nothing_is_read(self) -> None:
         # Every `api` call but a paginated one still runs with -i, for the
-        # guard; only a named token writes a reading.
+        # guard, and a `--paginate --slurp` read goes page by page with -i
+        # (`_run_pages`); only a named token writes a reading.
         self.run_gh(
             "{}", ["api", "x"], env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": ""}
         )
@@ -175,7 +176,7 @@ class ApiBudgetTests(unittest.TestCase):
             [
                 ["gh", "api", "-i", "x"],
                 ["gh", "pr", "view", "1"],
-                ["gh", "api", "x", "--slurp", "--paginate"],
+                ["gh", "api", "-i", "x"],
                 ["gh", "api", "x", "--paginate", "--jq", "."],
             ],
         )

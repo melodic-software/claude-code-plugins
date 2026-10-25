@@ -198,7 +198,92 @@ def _run_gh(
     `GH_TOKEN` other than the process's; `binary` keeps stdout as bytes. Every
     call is counted before it runs, so a failed or timed-out call is counted
     too, and the process prints the counts to stderr on exit
-    (`gh_call_summary`)."""
+    (`gh_call_summary`). A REST `api <endpoint> --paginate --slurp` read goes
+    one guarded page at a time (`_run_pages`)."""
+    if not binary and _is_paged_read(args):
+        proc = _run_pages(
+            args, timeout_seconds=timeout_seconds, env_overrides=env_overrides
+        )
+    else:
+        proc, _ = _send(
+            args,
+            timeout_seconds=timeout_seconds,
+            env_overrides=env_overrides,
+            binary=binary,
+        )
+    if check and proc.returncode != 0:
+        detail = proc.stderr.strip() or ("" if binary else proc.stdout.strip())
+        raise RuntimeError(f"{' '.join(['gh', *args])} failed: {detail}")
+    return proc
+
+
+# A `Link` header's next page (GitHub's REST pagination), and the API origin
+# gh adds back to the path it is given.
+_LINK_NEXT = re.compile(r'<([^<>\s]+)>;\s*rel="next"')
+_API_ORIGIN = re.compile(r"^https://[^/]+/(api/v3/)?")
+
+
+def _is_paged_read(args: list[str]) -> bool:
+    """Whether a call is the REST `api <endpoint> --paginate --slurp` read the
+    babysit scripts make; gh would send its later pages unseen by the guard."""
+    return (
+        len(args) == 4
+        and args[0] == "api"
+        and sorted(args[2:]) == ["--paginate", "--slurp"]
+        and not args[1].startswith("-")
+        and _call_pool(args) != "graphql"
+    )
+
+
+def _run_pages(
+    args: list[str],
+    *,
+    timeout_seconds: float | None,
+    env_overrides: Mapping[str, str] | None,
+) -> subprocess.CompletedProcess[Any]:
+    """`gh api --paginate --slurp` rebuilt from guarded single-page calls
+    following `Link: rel="next"`, so each page's headers can stop the next
+    page and every later call. Returns the `--slurp` shape, a JSON array of
+    the page bodies, or the first failed page's answer. The pages share the
+    one timeout a single call would get."""
+    total = _default_timeout_seconds if timeout_seconds is None else timeout_seconds
+    deadline = time.monotonic() + total
+    endpoint, bodies = args[1], []
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise RuntimeError(f"{' '.join(['gh', *args])} timed out after {total:g}s")
+        proc, headers = _send(
+            ["api", endpoint],
+            timeout_seconds=left,
+            env_overrides=env_overrides,
+            binary=False,
+        )
+        if proc.returncode != 0:
+            return proc
+        try:
+            bodies.append(json.loads(proc.stdout))
+        except ValueError:
+            return subprocess.CompletedProcess(
+                proc.args, 1, proc.stdout, f"page {len(bodies) + 1} is not JSON"
+            )
+        following = _LINK_NEXT.search(headers.get("link", ""))
+        if following is None:
+            return subprocess.CompletedProcess(
+                proc.args, 0, json.dumps(bodies), proc.stderr
+            )
+        endpoint = _API_ORIGIN.sub("", following[1])
+
+
+def _send(
+    args: list[str],
+    *,
+    timeout_seconds: float | None,
+    env_overrides: Mapping[str, str] | None,
+    binary: bool,
+) -> tuple[subprocess.CompletedProcess[Any], dict[str, str]]:
+    """One guarded gh invocation and its response headers (empty unless the
+    call ran with -i)."""
     guarded = bool(args) and args[0] not in _LOCAL_SUBCOMMANDS
     pool = _call_pool(args)
     limits_pool = _limits_pool(args, env_overrides)
@@ -230,10 +315,7 @@ def _run_gh(
             _api_budget_write(token, status, headers)
     if guarded:
         _guard_response(limits_pool, args, proc, status, headers, binary=binary)
-    if check and proc.returncode != 0:
-        detail = proc.stderr.strip() or ("" if binary else proc.stdout.strip())
-        raise RuntimeError(f"{' '.join(['gh', *args])} failed: {detail}")
-    return proc
+    return proc, headers
 
 
 # The rate-limit guard. GitHub: "Continuing to make requests while you are rate
@@ -738,7 +820,8 @@ atexit.register(_emit_gh_call_summary)
 # carries its own), the block also becomes one reading line in
 # $RUNNER_TEMP/api-budget/<token>.
 # --paginate prints a header block per page, which could not be told from
-# body text that looks like one, so such a call runs as it is.
+# body text that looks like one, so such a call runs as it is; the scripts'
+# own `--paginate --slurp` reads never reach gh so (`_run_pages`).
 _API_BUDGET_SKIP_FLAGS = frozenset(
     {"-i", "--include", "--silent", "--slurp", "--paginate"}
 )

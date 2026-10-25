@@ -194,6 +194,55 @@ class TheLatchTripsOnEachSignal(GuardCase):
         self.assertEqual(len(self.sent), 2)
 
 
+class PaginatedReads(GuardCase):
+    """`gh api --paginate --slurp` reads go one guarded page at a time, so
+    each page's headers can stop the next page and every later call."""
+
+    NEXT = (
+        '<https://api.github.com/repositories/1/pulls?per_page=100&page=2>; rel="next"'
+    )
+
+    def test_a_page_that_spends_the_pool_stops_the_next_call(self) -> None:
+        self.answer(0, head(200, **core(1, Link=self.NEXT)) + '[{"n":1}]')
+        self.answer(0, head(200, **core(0)) + '[{"n":2}]')
+        rows = gh.fetch_paginated_api("repos/o/r/pulls?per_page=100", "pulls")
+        self.assertEqual(rows, [{"n": 1}, {"n": 2}])
+        with self.assertRaises(gh.RateLimitExhausted):
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(
+            self.sent[1][-1],
+            "repositories/1/pulls?per_page=100&page=2",
+        )
+
+    def test_a_page_that_spends_the_pool_stops_the_pages_after_it(self) -> None:
+        self.answer(0, head(200, **core(0, Link=self.NEXT)) + "[]")
+        with self.assertRaises(gh.RateLimitExhausted):
+            gh.fetch_paginated_api("repos/o/r/pulls?per_page=100", "pulls")
+        self.assertEqual(len(self.sent), 1)
+
+    def test_the_pages_come_back_in_the_slurp_shape(self) -> None:
+        self.answer(
+            0, head(200, **core(4000, Link=self.NEXT)) + '{"total_count":2,"items":[1]}'
+        )
+        self.answer(0, head(200, **core(3999)) + '{"total_count":2,"items":[2]}')
+        proc = gh.gh_capture(["api", "search/issues?q=x", "--paginate", "--slurp"])
+        self.assertEqual(
+            json.loads(proc.stdout),
+            [{"total_count": 2, "items": [1]}, {"total_count": 2, "items": [2]}],
+        )
+
+    def test_a_failed_page_fails_the_read_with_its_own_answer(self) -> None:
+        self.answer(0, head(200, **core(4000, Link=self.NEXT)) + "[1]")
+        self.answer(
+            1, head(404) + '{"message":"Not Found"}', "gh: Not Found (HTTP 404)"
+        )
+        with self.assertRaises(RuntimeError) as raised:
+            gh.fetch_paginated_api("repos/o/r/pulls?per_page=100", "pulls")
+        self.assertIn("(HTTP 404)", str(raised.exception))
+        self.assertIn("--paginate", str(raised.exception))
+
+
 class WhatIsNotARateLimit(GuardCase):
     def test_a_403_that_is_not_a_rate_limit_is_not_latched(self) -> None:
         self.answer(

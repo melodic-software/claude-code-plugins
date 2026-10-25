@@ -972,9 +972,7 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
         # Failed as a slice of one issue, then relinked to close a different
         # issue on the same diff.
-        self.assertEqual(
-            read(self.closing_another(8)).refusal, "verify:earlier-fail"
-        )
+        self.assertEqual(read(self.closing_another(8)).refusal, "verify:earlier-fail")
 
     def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
         self.assertEqual(
@@ -1887,8 +1885,12 @@ class TheNewestPassDecides(unittest.TestCase):
         # Run 1 created first but re-attempted after the edit; run 2 created
         # later but started before it. The later start judged the live spec.
         fake = self.fake(second=True)
-        fake.runs[1] = run(1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z")
-        fake.runs[2] = run(2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z")
+        fake.runs[1] = run(
+            1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z"
+        )
+        fake.runs[2] = run(
+            2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z"
+        )
         self.assertIsNone(read(fake).refusal)
 
     def test_every_pass_decides_when_a_start_time_is_missing(self) -> None:
@@ -4108,11 +4110,36 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
 
         def answer(cmd: list[str], **kwargs: Any) -> Any:
             # The fake answers without headers, so the guard's `-i` is dropped.
-            return fake(
-                [a for i, a in enumerate(cmd[1:]) if (i, a) != (1, "-i")],
+            args = [a for i, a in enumerate(cmd[1:]) if (i, a) != (1, "-i")]
+            base, _, number = (args[1] if args[:1] == ["api"] else "").partition(
+                "&page="
+            )
+            proc = fake(
+                ["api", base, "--paginate", "--slurp"]
+                if number or base in paged
+                else args,
                 env_overrides=kwargs.get("env_overrides"),
                 binary=kwargs.get("binary"),
             )
+            if not (number or base in paged) or proc.returncode != 0:
+                return proc
+            # A paged read goes page by page: serve the fake's slurped pages
+            # one at a time, linked as GitHub links them.
+            pages, at = json.loads(proc.stdout), int(number or 1)
+            link = (
+                f'Link: <https://api.github.com/{base}&page={at + 1}>; rel="next"\r\n'
+                if at < len(pages)
+                else ""
+            )
+            body = json.dumps(pages[at - 1])
+            return subprocess.CompletedProcess(
+                cmd, 0, f"HTTP/2.0 200 OK\r\n{link}\r\n{body}", ""
+            )
+
+        paged = {
+            f"repos/{REPO}/actions/artifacts?per_page=100",
+            f"repos/{REPO}/pulls/{PR}/commits?per_page=100",
+        }
 
         gh.reset_gh_call_counts()
         with mock.patch.object(gh, "run_command", side_effect=answer):
