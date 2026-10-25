@@ -5,7 +5,7 @@ bump: major
 ### Removed
 
 - `/testing:map-features`, `/testing:refresh-feature-map` and the plugin's `reference/feature-map.md`. An app's feature map is now its control skill, which `/app-control:map` writes (`create`), checks (`check`) and keeps current (`refresh`).
-- The `feature_map_dir` key. `/testing:run-e2e` no longer resolves it, `/testing:setup apply` drops the line when it rewrites `docs/conventions/testing.yaml`, and the schema no longer lists it. A leftover line still never stops a test scan.
+- The `feature_map_dir` key. `/testing:run-e2e` no longer resolves it, `/testing:setup apply` drops the line when it rewrites `docs/conventions/testing.yaml` and names the dropped value with the conversion command, and the schema no longer lists it. A leftover line still never stops a test scan.
 
 ### Changed
 

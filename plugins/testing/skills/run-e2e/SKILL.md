@@ -225,11 +225,13 @@ subagent reads its hub and index and:
 
 1. Runs the hub's `## Ready` command before the first drive. A Ready that fails is an environment
    failure: report it with its output, and drive nothing.
-2. Maps each changed file to the features whose parts it touches, and drives every entry point
+2. Maps each changed file to the features whose index `sources` globs match it, and drives every entry point
    those features list, not only the one the scenario names. The scenario still adds whatever it
    names on top.
-3. Drives with the hub's driving tool unless the session prompt names another; a hub marked
-   `Attended runs only.` stops an `unattended` run with the gap report.
+3. Drives with the hub's driving tool unless the session prompt names another: as that `e2e_driver`
+   value when the tool is one, otherwise through the tool or the hub's `cli/` commands. A hub marked
+   `Attended runs only.`, or naming a driver that runs the person's own signed-in browser, stops an
+   `unattended` run with the gap report.
 4. Reports one line per listed entry point of each touched feature:
    `<feature> | <entry point> | passed | failed | not driven (<reason>)`.
 

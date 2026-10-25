@@ -119,7 +119,8 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 
 When the app has a control skill (`/app-control:map` writes it), the driving tool its hub names
 sits between the session prompt and every `e2e_driver` layer: a session instruction wins, then that
-driving tool, then the resolved `e2e_driver`. Changing `e2e_driver` later does not change the hub;
+driving tool (an `e2e_driver` value when it names one, else that tool or the hub's `cli/`), then
+the resolved `e2e_driver`. Changing `e2e_driver` later does not change the hub;
 `/app-control:map refresh` or an edit to the hub does.
 
 The highest layer that sets a key decides it. A value outside the key's list is named with its file
