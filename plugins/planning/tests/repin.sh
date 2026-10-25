@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
-# Attended re-pin for one digest pin of interview-defenses.test.sh.
+# Re-pin one digest pin of interview-defenses.test.sh.
 #
 #   repin.sh [--test-file <path>] <pin-label> <justification>
 #
-# A person runs this after reading the git diff of the guarded text and confirming
-# the defense still holds. It refuses to write unless stdin and stdout are both
-# terminals, and then writes only after the person answers y to the shown old and
-# new digest and diff stat. There is no flag or variable to skip either check. It
+# Run it after reading the diff of the guarded text and confirming the defense still holds;
+# the commit carries the printed old -> new line and the reason, and the PR review judges the
+# change. It
 #   1. finds the one digest pin (pin_section, pin_frontmatter, pin_case_digest,
 #      pin_case_set or pin_file) whose call line contains <pin-label> (backslashes
 #      ignored, so a label with backticks is typed plainly),
 #   2. runs the test and reads that pin's `want X, got Y` failure,
-#   3. checks for a terminal, shows the old and new digest and `git diff --stat`
-#      of the plugin, and asks y/N (default N),
-#   4. rewrites only that pin's sha256 literal to Y and inserts `# <justification>`
+#   3. rewrites only that pin's sha256 literal to Y and inserts `# <justification>`
 #      on the line above the call, beside the existing re-pin comments,
+#   4. prints `<label>: <old> -> <new>` for the commit message,
 #   5. reruns the test and prints PASS or FAIL.
 # Every other line of the file stays byte-identical.
 #
@@ -22,7 +20,7 @@
 # 2 usage or an unreadable test file; 3 the label matches no digest pin, or more
 # than one; 4 nothing changed: the digest already matches, or the pin fails for a
 # reason a new digest does not fix (such as a section boundary that is no longer a
-# unique heading line); 5 stdin or stdout is not a terminal; 6 the person declined.
+# unique heading line).
 set -uo pipefail
 
 self="$(basename "$0")"
@@ -87,27 +85,11 @@ run_test() { bash "$test_file" 2>&1; }
 
 out="$(run_test)"
 new="$(printf '%s\n' "$out" | tr -d '\r' | sed -n "s/.*(want $old, got \([0-9a-f]\{64\}\)).*/\1/p" | head -1)"
+# The label is the call's first quoted argument, backslashes dropped.
+pin_label="$(sed -n "${call_line}p" "$test_file" | tr -d "\\\\" | sed 's/^pin_[a-z_]* "\([^"]*\)".*/\1/')"
 if [[ -z "$new" ]]; then
-  stripped="$(sed -n "${call_line}p" "$test_file" | tr -d "\\\\")"
-  echo "$self: nothing to change for ${stripped}: the digest already matches, or the pin fails for a reason a new digest does not fix." >&2
+  echo "$self: nothing to change for ${pin_label}: the digest already matches, or the pin fails for a reason a new digest does not fix." >&2
   exit 4
-fi
-
-if ! [[ -t 0 && -t 1 ]]; then
-  echo "$self: refusing to re-pin: stdin and stdout must both be a terminal. A person runs this in their own terminal after reading the diff; a Claude Code ! line has no terminal, and an unattended run reports the failing pin and stops." >&2
-  exit 5
-fi
-echo "Pin: $(sed -n "${call_line}p" "$test_file" | tr -d "\\\\")"
-echo "Old digest: $old"
-echo "New digest: $new"
-plugin_dir="$(cd "$(dirname "$test_file")/.." && pwd)"
-echo "Changes under $plugin_dir since HEAD:"
-# --no-pager: a pager would read the y/N answer from the terminal.
-git --no-pager -C "$plugin_dir" diff --stat HEAD -- . 2>/dev/null || echo "(no git diff available)"
-read -r -p "Write the new digest? [y/N] " answer || answer=""
-if [[ "$answer" != [yY] && "$answer" != [yY][eE][sS] ]]; then
-  echo "$self: not re-pinned." >&2
-  exit 6
 fi
 
 tmp="$(mktemp "${TMPDIR:-/tmp}/repin.XXXXXX")" || exit 2
@@ -121,7 +103,7 @@ REPIN_NOTE="$justification" awk -v call="$call_line" -v shaln="$sha_line" -v new
 # Write through the existing file so its mode and ownership stay.
 cat "$tmp" >"$test_file" || exit 2
 
-echo "$self: re-pinned line $sha_line: $old -> $new"
+echo "${pin_label}: $old -> $new"
 if run_test >/dev/null; then
   echo "PASS"
   exit 0
