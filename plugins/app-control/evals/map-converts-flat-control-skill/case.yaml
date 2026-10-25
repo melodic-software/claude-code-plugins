@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: map-converts-flat-control-skill
+description: Refresh of a control skill with flat feature files converts each to a feature folder in the same upkeep pull request, moving a States section into Reset
+tags: [map, refresh, migration, invented]
+expected_outcome: "The reply reads the control skill and plans to convert features/start-a-timer.md and features/approve-timesheet.md in place to features/start-a-timer/README.md and features/approve-timesheet/README.md, moved with git mv, with start-a-timer's States content under Reset and no States section left, and the hub's index lines pointing at the new paths. The conversion is committed on control-skill-upkeep/control-clockwork and goes out in that one upkeep pull request, the outcome is changed although the passes found no other difference, and nothing is written in this session."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-clockwork. Read the files under that directory, but do not drive the app, write, move or commit anything in this session. Treat the source wave and the live pass as already run: both match every entry point, each driven through playwright. Tell me which files the refresh would write and move, what happens to each section of each feature file, the branch, what goes in which pull request, and the outcome, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 400
+graders:
+  - name: reads-hub
+    type: tool_used
+    tool: Read
+    input_match: 'control-clockwork/SKILL\.md'
+    min: 1
+    arm: both
+  - name: names-folder-feature
+    type: regex
+    pattern: 'features/start-a-timer/README\.md'
+    arm: both
+  - name: converts-in-upkeep-pull-request
+    type: llm
+    criteria: "PASS only if the reply (1) plans to convert both flat files, features/start-a-timer.md and features/approve-timesheet.md, to features/start-a-timer/README.md and features/approve-timesheet/README.md, moving them rather than leaving a copy at the flat path, (2) moves start-a-timer's States content (the Website refresh project and no running timer) into its Reset section and keeps no States section, (3) updates the hub's index lines to the new paths, (4) commits the conversion on control-skill-upkeep/control-clockwork and sends it out in that one upkeep pull request, and (5) calls the outcome changed even though the passes found no other difference. FAIL if it leaves either feature file flat, keeps a States section, opens a separate pull request or branch for the conversion, calls the outcome clean or skipped, or plans any edit outside .claude/skills/control-clockwork/."
