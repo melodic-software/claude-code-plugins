@@ -2930,3 +2930,20 @@ test("the App's close of a split parent counts as done for what it blocks; witho
     assert.deepEqual(writes(calls), expected);
   }
 });
+
+// main resolves the App as LANES_BOT_LOGIN; the split parent's close and its
+// record count under that login, not the default one.
+test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as done for what it blocks", async () => {
+  const app = { id: LANES_APP_ID, login: "other-lanes[bot]", type: "Bot" };
+  const parent = issue(30, { state: "closed", closer: app, at: "2026-10-16T11:30:00Z" });
+  const { github, calls } = world({
+    closedList: [parent],
+    blockingOf: { 30: [issue(20)] },
+    issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+    blockedBy: { 20: [parent] },
+    subIssues: { 30: [subIssue(31), subIssue(32)] },
+    comments: { 20: [note()], 30: [splitRecordComment(app)] },
+  });
+  assert.equal(await sweep({ github }, { LANES_BOT_LOGIN: app.login }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});

@@ -296,7 +296,7 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
     }
   }
   for (const blocker of pending === 0 ? issues : []) {
-    const read = trustedClose({ github, repo, where: blocker.where, number: blocker.number, humans, closes });
+    const read = trustedClose({ github, repo, where: blocker.where, number: blocker.number, humans, closes, bot });
     if (!(await (blocker.here ? read : read.catch(() => false)))) {
       pending += 1;
     }
@@ -329,14 +329,14 @@ async function closedSince(github, repo, since) {
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents. `where` is the
 // blocker's repository: outside `repo`, only a listed human's close counts.
-function trustedClose({ github, repo, where = repo, number, humans, closes }) {
+function trustedClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
   const key = `${where.toLowerCase()}#${number}`;
   if (!closes.has(key)) {
     closes.set(
       key,
       (async () => {
         const closed = await github("GET", `/repos/${where}/issues/${number}`);
-        return where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, closed, humans) : humans.has(closed?.closed_by?.id);
+        return where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, closed, humans, bot) : humans.has(closed?.closed_by?.id);
       })(),
     );
   }
@@ -493,7 +493,7 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     rules,
     humans,
     appId,
-    isTrusted: (blocker) => trustedClose({ github, repo, number: blocker, humans, closes }),
+    isTrusted: (blocker) => trustedClose({ github, repo, number: blocker, humans, closes, bot }),
   });
   const decision = trusted(READY)
     ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts })
@@ -535,7 +535,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }
   for (const source of closed) {
     let blocked;
     try {
-      if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes }))) {
+      if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes, bot }))) {
         console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
         continue;
       }
@@ -1237,9 +1237,9 @@ const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 // A close that counts as done: by a listed human or a merge, or the lanes
 // App's close of a size split's parent once each sub-issue's close counts
 // (admit.mjs splitParentClosed, owner Q93).
-async function isTrustedClose(github, repo, issue, humans) {
-  const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans);
-  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === DEFAULT_BOT, trusted });
+async function isTrustedClose(github, repo, issue, humans, bot) {
+  const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
+  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, trusted });
 }
 
 // For each issue in `closed` (on the sweep, only one a listed human or a
@@ -1263,7 +1263,7 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
 // split filed issue `number` under, once every sub-issue is closed by a
 // listed human or a merge (owner Q93). Its body is never edited.
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
-  if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes })))) {
+  if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
     return;
   }
   const parent = await github("GET", `/repos/${repo}/issues/${number}/parent`);
@@ -1277,7 +1277,7 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   }
   const children = await paginate(github, `${base}/sub_issues`);
   for (const child of children) {
-    if (child?.state !== "closed" || !NUMBER.test(String(child.number)) || !(await trustedClose({ github, repo, number: Number(child.number), humans, closes }))) {
+    if (child?.state !== "closed" || !NUMBER.test(String(child.number)) || !(await trustedClose({ github, repo, number: Number(child.number), humans, closes, bot }))) {
       console.log(`label-unblocked: split parent #${parent.number} stays open: sub-issue #${child?.number} is not closed by a listed human or a merge`);
       return;
     }
