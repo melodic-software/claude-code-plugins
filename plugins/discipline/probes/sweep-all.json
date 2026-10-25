@@ -10,13 +10,6 @@
     "session-flow:orchestrate",
     "discipline:use-your-skills"
   ],
-  "competitor_dirs": {
-    "discipline:do-your-research": "plugins/discipline/skills/do-your-research",
-    "discipline:tighten-your-output": "plugins/discipline/skills/tighten-your-output",
-    "session-flow:show-options": "plugins/session-flow/skills/show-options",
-    "session-flow:orchestrate": "plugins/session-flow/skills/orchestrate",
-    "discipline:use-your-skills": "plugins/discipline/skills/use-your-skills"
-  },
   "queries": [
     {
       "id": "pos-train-01",
