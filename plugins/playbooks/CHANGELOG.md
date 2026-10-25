@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.5] - 2026-10-25
+
+### Changed
+
+- **The Sonnet 5.5 adaptation points at posture P12 through `/harness-config:audit-prompting-postures`.** The pointer names the posture and the skill that owns it instead of a URL into that plugin's skill folder.
+
 ## [0.24.4] - 2026-10-25
 
 ### Changed
