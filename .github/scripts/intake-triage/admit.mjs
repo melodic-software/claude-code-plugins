@@ -39,10 +39,7 @@
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
 //   is room. With room, an issue still waits behind an older open issue in
-//   `admission-deferred`, so admission takes the oldest first (owner Q95),
-//   unless a blocker it rests on is one the sweep does not count yet
-//   (sweepCounts): such an issue is admitted with room and, with none,
-//   waits with a comment instead of `admission-deferred`.
+//   `admission-deferred`, so admission takes the oldest first (owner Q95).
 //
 // A refusal a person must settle swaps `status: ready` for
 // `status: needs-decision`; a blocker or an open pull request keeps
@@ -89,10 +86,51 @@ export function loadRules(path) {
   return rules;
 }
 
+// The issues and pull requests GitHub lists as blocking the issue at `base`
+// (`/repos/<owner>/<repo>/issues/<n>`). Admission, work-unblock, the issue
+// lane's gate and the queued count all read blockers here, and judge them
+// with blockerDone or stillBlocking.
+export const blockersOf = (github, base) => paginate(github, `${base}/dependencies/blocked_by`);
+
 const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
+
+const BLOCKER_NUMBER = /^[1-9][0-9]{0,9}$/;
+
+// The one definition of a blocker that no longer blocks: a pull request
+// merged in this repository, or an issue closed, for any reason, with a
+// trusted close (`trusted(blocker)`, sync). Anyone may close their own issue,
+// so the close must be a listed human's or, in this repository only, a merge
+// or commit; another repository's merge carries no trust check.
+export const blockerDone = (blocker, repository, trusted) =>
+  blocker?.state === "closed" &&
+  (blocker.pull_request
+    ? here(blocker.repository_url, repository) && Boolean(blocker.pull_request.merged_at)
+    : BLOCKER_NUMBER.test(String(blocker.number)) && Boolean(trusted(blocker)));
+
+// Those of `blockers` that still block by blockerDone. `isTrusted(number)`
+// (async) reads a close in this repository, `elsewhere(blocker)` (async, by
+// default false) one in another repository (trustedElsewhere); they are asked
+// only when every blocker is otherwise done, so a blocker that still blocks by
+// its state costs no read.
+export async function stillBlocking(blockers, repository, isTrusted, elsewhere = async () => false) {
+  const pending = blockers.filter((blocker) => !blockerDone(blocker, repository, () => true));
+  if (pending.length > 0) {
+    return pending;
+  }
+  const untrusted = [];
+  for (const blocker of blockers) {
+    if (blocker.pull_request) {
+      continue;
+    }
+    if (!(await (here(blocker.repository_url, repository) ? isTrusted(Number(blocker.number)) : elsewhere(blocker)))) {
+      untrusted.push(blocker);
+    }
+  }
+  return untrusted;
+}
 
 // The open pull requests in `repository` for issue `number`: those `closing`
 // (closedByPullRequestsReferences nodes) lists in this repository, and those
@@ -255,6 +293,16 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
+// Whether UNTRUSTED holds the issue: the label is on it, or its newest add or
+// removal of the label is a removal by neither a listed human (`humans`, ids)
+// nor the lanes App (`isApp(actor)`). Admission and the issue lane's gate
+// both judge provenance here. Pure.
+export function untrustedHold({ labels, events, humans, isApp }) {
+  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
+  const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
+  return names(labels).includes(UNTRUSTED) || removedByOther;
+}
+
 // Whether events[a] happened before events[b]: by created_at when both have
 // one and they differ, else by their order as listed.
 const before = (events, a, b) => {
@@ -319,11 +367,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
   }
-  // The hold also stands when its newest event is a removal by neither a
-  // listed human nor the lanes App.
-  const untrustedEvent = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
-  const removedByOther = untrustedEvent?.event === "unlabeled" && !humans.has(untrustedEvent.actor?.id) && !(appId !== undefined && untrustedEvent.actor?.id === appId);
-  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
+  if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
   }
   // Reasons the owner already settled without a person: they park the issue
@@ -368,13 +412,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
 
   const wait = [];
   for (const blocker of blockers) {
-    const done =
-      blocker.state === "closed" &&
-      // A merge counts only here: another repository's merge carries no trust check.
-      (blocker.pull_request
-        ? here(blocker.repository_url, repository) && Boolean(blocker.pull_request.merged_at)
-        : trustedCloses.has(blockerKey(blocker, repository)));
-    if (!done) {
+    if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
       const name = here(blocker.repository_url, repository) ? `#${blocker.number}` : blockerKey(blocker, repository);
       wait.push(`blocker ${name} is not closed by a listed human or a merge`);
     }
@@ -400,7 +438,7 @@ export const blockerKey = (blocker, repository) =>
 // human, read fresh from that repository. A commit or merge there carries no
 // trust check, as for a pull-request blocker. A read that fails leaves it
 // blocking.
-async function trustedElsewhere(github, blocker, humans) {
+export async function trustedElsewhere(github, blocker, humans) {
   const repo = repoOf(blocker.repository_url);
   if (repo === null || !/^[1-9][0-9]{0,9}$/.test(String(blocker.number))) {
     return false;
@@ -539,7 +577,7 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 // default it reads the blocker fresh.
 export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted }) {
   const base = `/repos/${repository}/issues/${number}`;
-  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
+  const blockers = await blockersOf(github, base);
   // Anyone may close their own issue, so a blocking issue counts only with a
   // trusted close, read fresh from the issue; one closed as not planned or a
   // duplicate counts too, since nothing is left to wait for. `isTrusted`
@@ -548,7 +586,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans));
   const trustedCloses = new Set();
   for (const blocker of blockers) {
-    if (!blocker.pull_request && blocker.state === "closed") {
+    if (!blocker.pull_request && blockerDone(blocker, repository, () => true)) {
       const ok = here(blocker.repository_url, repository) ? await trusted(blocker.number) : await trustedElsewhere(github, blocker, humans);
       if (ok) {
         trustedCloses.add(blockerKey(blocker, repository));
@@ -591,19 +629,6 @@ async function deferredAhead(github, repository, issue) {
     return true;
   }
 }
-
-// Whether work-unblock's sweep (label-unblocked.mjs readiness) counts every
-// blocker as decide() does: a merged pull request or an issue closed as
-// completed, in this repository. It drops the deferral of an issue with any
-// other blocker without admitting it, so such an issue is never deferred:
-// with room it is admitted, and with none it waits with a comment. Pure.
-const sweepCounts = (blockers, repository) =>
-  blockers.every(
-    (blocker) =>
-      blocker.state === "closed" &&
-      here(blocker.repository_url, repository) &&
-      (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : blocker.state_reason === "completed"),
-  );
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. Returns {outcome, reasons}.
@@ -653,22 +678,12 @@ export async function admit({ github, repository, number, verdict, rules, humans
   }
   const s = await status();
   const full = s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0;
-  const counted = sweepCounts(facts.blockers, repository);
-  if (full || (counted && (await deferredAhead(github, repository, issue)))) {
+  if (full || (await deferredAhead(github, repository, issue))) {
     const why = !full
       ? `an older ${DEFERRED} issue is ahead of it`
       : s.paused
         ? `the lane is paused (${s.pause_reason})`
         : `admissions are closed (${s.admission_reason})`;
-    if (!counted) {
-      // The sweep would drop the deferral without admitting it: say so
-      // instead of deferring.
-      await undefer();
-      const reason = `${why}, and the hourly sweep cannot admit it, since it counts only blockers closed as completed or merged in this repository`;
-      await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reason}.`);
-      log(`admit: #${number} waits (${reason})`);
-      return { outcome: "waiting", reasons: [reason] };
-    }
     await github("POST", `${base}/labels`, { labels: [DEFERRED] });
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };

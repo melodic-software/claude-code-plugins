@@ -20,7 +20,8 @@
 // WIP_STATE; with none it fails open.
 //
 // Queued work is the agent-ready issues no open lane PR names, on its first
-// body line or else by its lane branch, plus the held lane PRs. At or over the queued cap,
+// body line or else by its lane branch, and no blocker still blocks (at most
+// BLOCKER_READS blocker reads), plus the held lane PRs. At or over the queued cap,
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
 // x wip.merge-rate-window-hours, on or after wip.pause-from, new admissions
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
@@ -33,7 +34,7 @@
 // read that succeeded wrote its status to WIP_STATE), and the status to the
 // step summary and log.
 // Environment:
-//   GITHUB_TOKEN        the job's own token (pull-requests: read)
+//   GITHUB_TOKEN        the job's own token (pull-requests: read, issues: read)
 //   GITHUB_REPOSITORY   owner/repo
 //   GITHUB_API_URL
 //   BASE_PATH           the default-branch checkout whose pr-pipeline.yaml
@@ -47,6 +48,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { blockersOf, stillBlocking } from "../../scripts/intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS, resolveAdmission, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
 import { laneBranchIssue } from "../../scripts/work-resolve-issue/report-outcome.mjs";
 
@@ -61,6 +63,8 @@ const NAMES_ISSUE = /^(?:Closes|Refs:) #([1-9][0-9]*)$/;
 // The search API returns at most 1000 results, 100 per page.
 const PAGE = 100;
 const MAX_PAGES = 10;
+// The most blocker-list reads one check makes for queued issues.
+export const BLOCKER_READS = 30;
 
 export const isHeld = (pr) =>
   (pr?.labels ?? []).some((label) => HOLD_LABELS.has(label?.name)) ||
@@ -151,14 +155,32 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
       );
     }
   }
-  return { open, merged, admitted, queued: queued?.items ?? null, queuedUnlisted: queued?.unlisted ?? null, searchIncomplete };
+  // An agent-ready issue a blocker still blocks never runs (check-blockers.mjs),
+  // so it is not queued work. One blocker-list read per queued issue no lane PR
+  // names, at most BLOCKER_READS; past that, or on a failed read, the issue
+  // counts as queued. A closed issue blocker, here or in another repository,
+  // counts as done without reading who closed it: an untrusted close the lane
+  // would still wait on is counted as queued, which only slows admissions.
+  const named = new Set(open?.map((pr) => pr.issue) ?? []);
+  const blocked = [];
+  const unnamed = open === null ? [] : (queued?.items ?? []).filter((number) => !named.has(number) && Number.isSafeInteger(number) && number > 0);
+  for (const number of unnamed.slice(0, BLOCKER_READS)) {
+    try {
+      if ((await stillBlocking(await blockersOf(github, `/repos/${repo}/issues/${number}`), repo, async () => true, async () => true)).length > 0) {
+        blocked.push(number);
+      }
+    } catch {
+      // Counted as queued.
+    }
+  }
+  return { open, merged, admitted, queued: queued?.items ?? null, queuedUnlisted: queued?.unlisted ?? null, blocked, searchIncomplete };
 }
 
 const round = (value, places) => (value === null ? null : Number(value.toFixed(places)));
 
 // The status as one flat object; the field names are a published contract
 // (README.md, WIP cap).
-export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0, searchIncomplete = false }, { limits, wip, now }) {
+export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0, blocked = [], searchIncomplete = false }, { limits, wip, now }) {
   const window = wip["merge-rate-window-hours"];
   const held = open?.filter((pr) => pr.held) ?? null;
   const ages = held?.map((pr) => (now - pr.createdAt) / HOUR_MS).filter(Number.isFinite) ?? [];
@@ -182,7 +204,9 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
   // Issues the search counted past its listing count as queued, and a count
   // cut short that way never admits.
   const truncated = (queuedUnlisted ?? 0) > 0;
-  const queuedIssues = queued === null || open === null ? null : queued.filter((number) => !named.has(number)).length + (queuedUnlisted ?? 0);
+  const waiting = new Set(blocked);
+  const queuedIssues =
+    queued === null || open === null ? null : queued.filter((number) => !named.has(number) && !waiting.has(number)).length + (queuedUnlisted ?? 0);
   const queuedTotal = queuedIssues === null ? null : queuedIssues + heldCount;
   const queuedOver = queuedTotal !== null && (truncated || queuedTotal >= queuedCap - 1e-9);
   // Admissions left before the cap; null when nothing gates them. An
