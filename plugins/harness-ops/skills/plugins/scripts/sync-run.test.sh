@@ -192,7 +192,7 @@ case "$verb" in
   [[ "$disabled" == "false" ]] || printf '%400s\n' 'install progress'
   if [[ -n "${CLAUDE_STUB_INSTALL_FAIL_ID:-}" && "${3:-}" == "$CLAUDE_STUB_INSTALL_FAIL_ID" ]]; then
     echo "✘ Failed to install plugin \"${3:-}\""
-    [[ "$json" == "false" ]] || result install failed "${3:-}" "Plugin install failed" '{"failureCode":"error"}'
+    [[ "$json" == "false" ]] || result install failed "${3:-}" "Plugin install failed" '{"failureCode":"error"}' | jq -c 'del(.pluginId)'
     exit 1
   fi
   # The CLI's message: the install line, then the disabled-by-default sentence
@@ -1282,6 +1282,38 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0 CC_STUB_
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
 assert_eq "text result: the update line still yields an Updated row" "alpha@market1 0.1.0 0.2.0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated[0] | "\(.id) \(.old) \(.new)"' <<<"$out")"
+
+# --- the stub's result lines keep the recorded shape ----------------------------
+# fixtures/cli-json-results.jsonl holds result lines an attended probe captured
+# from Claude Code 2.1.310. Each stub line must carry the same keys and
+# updateOutcome as its recording, so a stub drifting from the CLI fails here.
+stub_line() { # stub_line <env...> -- <args...>: the stub's last stdout line
+  local -a vars=()
+  while [[ "$1" != -- ]]; do vars+=("$1"); shift; done
+  shift
+  env CLAUDE_STUB_LOG="$case_dir/claude.log" CLAUDE_STUB_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    "${vars[@]}" bash "$case_dir/stubs/claude" "$@" </dev/null 2>/dev/null | tail -n 1
+}
+recorded_shape() {
+  jq -c --arg p "$1" 'select(.probe == $p) | .result | [(keys | sort), .updateOutcome]' "$SCRIPT_DIR/fixtures/cli-json-results.jsonl"
+}
+stub_shape() { jq -c '[(keys | sort), .updateOutcome]' <<<"$1"; }
+assert_eq "recorded shape: an applied update" "$(recorded_shape update-bump)" \
+  "$(stub_shape "$(stub_line CLAUDE_STUB_NEW_VERSION=0.3.0 -- plugin update alpha@market1 -s user --json)")"
+assert_eq "recorded shape: an up-to-date update" "$(recorded_shape update-noop)" \
+  "$(stub_shape "$(stub_line CLAUDE_STUB_NOOP_ID=alpha@market1 -- plugin update alpha@market1 -s user --json)")"
+assert_eq "recorded shape: a failed update" "$(recorded_shape update-missing)" \
+  "$(stub_shape "$(stub_line CLAUDE_STUB_UPDATE_FAIL_ID=alpha@market1 -- plugin update alpha@market1 -s user --json)")"
+assert_eq "recorded shape: an install" "$(recorded_shape install)" \
+  "$(stub_shape "$(stub_line -- plugin install beta@market1 -s user --json)")"
+assert_eq "recorded shape: a failed install" "$(recorded_shape install-missing)" \
+  "$(stub_shape "$(stub_line CLAUDE_STUB_INSTALL_FAIL_ID=beta@market1 -- plugin install beta@market1 -s user --json)")"
+assert_contains "recorded shape: the disabled-by-default sentence the stub copies" \
+  "$(jq -r 'select(.probe == "install-defaultdisabled") | .result.message' "$SCRIPT_DIR/fixtures/cli-json-results.jsonl")" \
+  "This plugin is disabled by default"
+assert_contains "recorded shape: the unset-options sentence the stub copies" \
+  "$(jq -r 'select(.probe == "install") | .result.message' "$SCRIPT_DIR/fixtures/cli-json-results.jsonl")" \
+  "2 userConfig options not yet set (1 required)"
 
 # --- an id the CLI calls current while the snapshots show it moved -------------
 # The stub prints "already at the latest version (X)" for alpha after something
