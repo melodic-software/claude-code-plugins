@@ -22,6 +22,11 @@ import {
   renderDigestComment,
   validateFinding,
 } from "./findings.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+
+// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
+// is read at call time, so a test's stub is guarded too.
+const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export const FILER_LOGIN = "github-actions[bot]";
 // No needs-triage: the digest is a status record the sweep rewrites daily,
@@ -181,13 +186,25 @@ export async function writeDigest({ plan, call, repo, labels, runUrl, wait = () 
   return done;
 }
 
+// The issues earlier sweeps filed: github-actions[bot]'s, any state, holding
+// the digest marker or a finding fingerprint, at most ten pages.
+export async function listSweepIssues({ call, repo }) {
+  const existing = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const batch = await call("GET", `/repos/${repo}/issues?creator=${encodeURIComponent(FILER_LOGIN)}&state=all&per_page=100&page=${page}`);
+    existing.push(...batch.filter((i) => !i.pull_request && (isDigest(i.body) || readFingerprint(i.body))));
+    if (batch.length < 100) break;
+  }
+  return existing;
+}
+
 async function main() {
   const env = process.env;
   const repo = env.REPOSITORY;
   const budget = createBudget(Number(env.CALL_BUDGET ?? 50));
   const call = async (method, path, body) => {
     budget.spend();
-    const response = await fetch(`${env.GITHUB_API_URL}${path}`, {
+    const response = await guardedFetch(`${env.GITHUB_API_URL}${path}`, {
       method,
       headers: {
         accept: "application/vnd.github+json",
@@ -208,15 +225,7 @@ async function main() {
     unitsDir: env.UNITS_DIR,
     statusPath: env.COLLECT_STATUS_PATH,
   });
-  const existing = [];
-  for (let page = 1; page <= 10; page += 1) {
-    const batch = await call(
-      "GET",
-      `/repos/${repo}/issues?creator=${encodeURIComponent(FILER_LOGIN)}&state=all&per_page=100&page=${page}`,
-    );
-    existing.push(...batch.filter((i) => !i.pull_request && (isDigest(i.body) || readFingerprint(i.body))));
-    if (batch.length < 100) break;
-  }
+  const existing = await listSweepIssues({ call, repo });
   const openItems = JSON.parse(readFileSync(env.OPEN_ITEMS_PATH, "utf8"));
   const plan = planDigest({
     items,

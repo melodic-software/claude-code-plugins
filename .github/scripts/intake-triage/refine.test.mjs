@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitRecord } from "./admit.mjs";
+import { applySizeSplit, partitionProblem, sizeSplitPending } from "./refine.mjs";
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
-import { MARKER } from "./apply-verdict.mjs";
+import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, splitSource, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
@@ -26,6 +29,12 @@ const appComment = (body) => ({ id: 11, user: { login: "melodic-automation-lanes
 // The lanes App's refinement of the issue body `body`.
 const refined = (body, text = "old") => ({ ...appComment(`${REFINE_MARKER}\n${bodyVersion(body)}\n${text}`), id: 12 });
 const splitComment = (body, from) => refined(body, `${splitSource(from)}\nold`);
+// The lanes App's apply-verdict reasons comment listing `reasons`.
+const EARLIER = "(an earlier verdict)";
+const verdictComment = (...reasons) => ({
+  ...appComment([VERDICT_MARKER, `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`, "", ...reasons].join("\n")),
+  id: 13,
+});
 
 describe("isThin", () => {
   test("an intent flag is thin", () => {
@@ -317,6 +326,30 @@ describe("applyRefinement", () => {
     assert.ok(writes(fake.calls)[2].body.body.startsWith(`${REFINE_MARKER}\n${bodyVersion(issueOf().body)}\n`), "it names the body it refined");
   });
 
+  for (const [name, comments] of [
+    ["an earlier security flag", [laneComment(), verdictComment("- flagged: intent", `- flagged: security ${EARLIER}`)]],
+    ["a cost flag", [laneComment(), verdictComment("- flagged: intent, cost")]],
+    ["that whether an earlier verdict flagged is unknown", [laneComment(), verdictComment("- flagged: intent", `- ${UNRECORDED}`)]],
+  ]) {
+    test(`an exact refinement keeps the App's needs-decision when its verdict comment lists ${name}, and asks for no re-triage`, async () => {
+      const fake = fakeGitHub({ issue: issueOf(), comments, events: labeledBy(APP), spec: CONFIRMED });
+      const result = await apply(fake, EXACT);
+      assert.equal(result.redispatch, false);
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+        "the comment only",
+      );
+    });
+  }
+
+  test("an exact refinement lifts the App's needs-decision when its verdict comment lists only intent", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment(), verdictComment("- flagged: intent")], events: labeledBy(APP), spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, true);
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path.endsWith("/labels/status%3A%20needs-decision")));
+  });
+
   test("an exact refinement keeps a needs-decision a person set, and asks for no re-triage", async () => {
     const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(HUMAN) });
     const result = await apply(fake, EXACT);
@@ -516,6 +549,20 @@ describe("split", () => {
     assert.match(result.reason, /person set/);
   });
 
+  test("does not split an issue whose App verdict comment lists an earlier security flag", async () => {
+    const comments = [...heldComments, verdictComment(`- flagged: security ${EARLIER}`)];
+    const result = await select(fakeGitHub({ issue: held(), comments, events: labeledBy(APP) }));
+    assert.equal(result.refine, false);
+    assert.match(result.reason, /flagged: security/);
+  });
+
+  test("does not split an issue whose App verdict comment records that an earlier flag is unknown", async () => {
+    const comments = [...heldComments, verdictComment(`- ${UNRECORDED}`)];
+    const result = await select(fakeGitHub({ issue: held(), comments, events: labeledBy(APP) }));
+    assert.equal(result.refine, false);
+    assert.match(result.reason, /unknown/);
+  });
+
   test("leaves an issue with no unrunnable item untouched", async () => {
     const fake = fakeGitHub({ issue: held({ body: "- [ ] Line 3 says nineteen.\n- [ ] Tests pass." }), comments: heldComments, events: labeledBy(APP) });
     const result = await select(fake);
@@ -646,6 +693,7 @@ describe("split", () => {
     for (const setup of [
       { issue: held(), comments: heldComments, events: labeledBy(HUMAN) },
       { issue: held({ labels: [] }), comments: heldComments, events: labeledBy(APP) },
+      { issue: held(), comments: [...heldComments, verdictComment(`- ${UNRECORDED}`)], events: labeledBy(APP) },
     ]) {
       const fake = fakeGitHub(setup);
       assert.equal((await apply(fake)).outcome, "skipped");
@@ -722,5 +770,237 @@ describe("split", () => {
       ["POST /repos/o/r/issues/7/comments"],
       "no label change or body edit",
     );
+  });
+});
+
+// Owner Q93: an issue admission parked as Size Large is split at intake into
+// sub-issues from the model's item numbers alone, never mid-run, and its body
+// is never edited (owner N1a).
+describe("size split", () => {
+  const PENDING = "Size large: the split into sub-issues at intake is pending (owner Q93)";
+  const LINES = ["- [ ] L1", "- [ ] L2", "  - [ ] L3"];
+  const BODY = ["## Done when", "", ...LINES].join("\n");
+  const parked = (reasons = PENDING) => appComment(`${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${reasons}.`);
+  const sizeIssue = (overrides = {}) => issueOf({ id: 700, title: "Big work", body: BODY, type: { name: "Task" }, labels: [{ name: "status: ready" }], ...overrides });
+  const record = (filed = []) => ({ ...appComment(`${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: linesDigest(LINES), parts: [[1, 2], [3]], order: [[1, 2]], filed })}`), id: 900 });
+
+  test("sizeSplitPending reads only the lanes App's wait naming the pending split", () => {
+    assert.equal(sizeSplitPending([parked()], APP), true);
+    assert.equal(sizeSplitPending([parked(`blocker #3 is not closed; ${PENDING}`)], APP), true);
+    assert.equal(sizeSplitPending([appComment(`${ADMIT_MARKER}\nNot admitted to the issue lane: ${PENDING}.`)], APP), false);
+    assert.equal(sizeSplitPending([{ ...parked(), user: { id: OUTSIDER } }], APP), false);
+    assert.equal(sizeSplitPending([parked("Size medium is fine")], APP), false);
+  });
+
+  test("partitionProblem accepts only a partition of every item into 2 or more parts with an acyclic order", () => {
+    assert.equal(partitionProblem({ parts: [[1, 3], [2]], order: [[1, 2]] }, 3), null);
+    assert.equal(partitionProblem({ parts: [[1], [2], [3]], order: [] }, 3), null);
+    const bad = {
+      "an item left out": [{ parts: [[1], [2]], order: [] }, 3],
+      "an item twice": [{ parts: [[1, 2], [2, 3]], order: [] }, 3],
+      "one part": [{ parts: [[1, 2, 3]], order: [] }, 3],
+      "no parts": [{ parts: [], order: [] }, 3],
+      "an empty part": [{ parts: [[1, 2, 3], []], order: [] }, 3],
+      "a number past the items": [{ parts: [[1], [4]], order: [] }, 2],
+      "an order naming no part": [{ parts: [[1], [2]], order: [[1, 3]] }, 2],
+      "a cycle": [{ parts: [[1], [2], [3]], order: [[1, 2], [2, 3], [3, 1]] }, 3],
+      "a part waiting on itself": [{ parts: [[1], [2]], order: [[2, 2]] }, 2],
+      "a key beyond parts and order": [{ parts: [[1], [2]], order: [], exact: true }, 2],
+      "a fraction": [{ parts: [[1.5], [2]], order: [] }, 2],
+    };
+    for (const [name, [output, count]] of Object.entries(bad)) {
+      assert.notEqual(partitionProblem(output, count), null, name);
+    }
+  });
+
+  const select = (fake, notes = []) =>
+    selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }), note: (text) => notes.push(text) });
+
+  test("selects a parked Size Large issue with its trusted task-list lines numbered for the model", async () => {
+    const fake = fakeGitHub({ issue: sizeIssue(), comments: [laneComment("none"), parked()], spec: specOf(BODY) });
+    const result = await select(fake);
+    assert.equal(result.refine, true);
+    assert.deepEqual(result.context.size_split.items, [
+      { n: 1, text: "- [ ] L1" },
+      { n: 2, text: "- [ ] L2" },
+      { n: 3, text: "  - [ ] L3" },
+    ]);
+    assert.deepEqual(writes(fake.calls), []);
+  });
+
+  // The lane comment flags intent, so each issue is thin: only the parked
+  // split keeps it from a refinement.
+  test("a parked issue that cannot split is not refined any other way, and the summary says why", async () => {
+    const cases = {
+      "the lanes App filed it": [sizeIssue({ user: { id: APP } }), [laneComment(), parked()], specOf(BODY)],
+      "it is a sub-issue": [sizeIssue({ body: `${SPLIT_CHILD_MARKER}\n${BODY}` }), [laneComment(), parked()], specOf(BODY)],
+      "it is already split": [sizeIssue(), [laneComment(), parked(), record([71, 72])], specOf(BODY)],
+      "one trusted line": [sizeIssue({ body: "- [ ] L1" }), [laneComment(), parked()], specOf("- [ ] L1")],
+      "no lane comment from this run": [sizeIssue(), [laneComment("intent", BEFORE), parked()], specOf(BODY)],
+    };
+    for (const [name, [issue, comments, spec]] of Object.entries(cases)) {
+      const notes = [];
+      const result = await select(fakeGitHub({ issue, comments, spec }), notes);
+      assert.equal(result.refine, false, name);
+      assert.equal(notes.length, 1, name);
+      assert.match(notes[0], /^#7 stays parked for its size split: /, name);
+    }
+  });
+
+  // GitHub as the split writes to it: each new issue gets the next number and
+  // its REST id is 100 times that; `issues` and edge lists by number.
+  function splitFake({ issue = sizeIssue(), comments = [], spec = specOf(BODY), subIssues = [], blockedBy = {}, blocking = {}, next = 71, refuse = () => false } = {}) {
+    const calls = [];
+    const github = async (method, path, body) => {
+      calls.push({ method, path, body });
+      const route = path.replace(/\?.*$/, "");
+      let match;
+      if (method === "POST" && path === "/graphql") {
+        return { data: { repository: { issue: spec } } };
+      }
+      if (method === "POST" && route === "/repos/o/r/issues") {
+        const number = next++;
+        return { number, id: number * 100, type: body.type ? { name: body.type } : null };
+      }
+      if (refuse(method, route)) {
+        throw new GitHubError(422, `${method} ${route}`);
+      }
+      if (method === "POST" && route === "/repos/o/r/issues/7/comments") {
+        return { id: 900 };
+      }
+      if (method !== "GET") {
+        return null;
+      }
+      if (route === "/repos/o/r/issues/7") {
+        return issue;
+      }
+      if (route === "/repos/o/r/issues/7/comments") {
+        return comments;
+      }
+      if (route === "/repos/o/r/issues/7/timeline") {
+        return [];
+      }
+      if (route === "/repos/o/r/issues/7/sub_issues") {
+        return subIssues;
+      }
+      if ((match = /^\/repos\/o\/r\/issues\/(\d+)\/dependencies\/blocked_by$/.exec(route))) {
+        return blockedBy[match[1]] ?? [];
+      }
+      if ((match = /^\/repos\/o\/r\/issues\/(\d+)\/dependencies\/blocking$/.exec(route))) {
+        return blocking[match[1]] ?? [];
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    };
+    return { github, calls };
+  }
+  const context = { issue: { number: 7, title: "Big work", body: BODY }, size_split: { digest: linesDigest(LINES) } };
+  const splitRules = { ...rules, types: ["Bug", "Task"], "types-under-parent": [], "types-parent-if-present": ["Feature"] };
+  const run = (fake, output, notes = []) =>
+    applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output, context, log: () => {}, note: (text) => notes.push(text) });
+  const CHILD_1 = [
+    "<!-- intake-triage size-split child -->",
+    "Part 1 of 2 of #7, split at intake (owner Q93). The done-when below is copied from #7 as written.",
+    "",
+    "## Done when",
+    "",
+    "- [ ] L1",
+    "- [ ] L2",
+  ].join("\n");
+  const CHILD_2 = CHILD_1.replace("Part 1 of 2", "Part 2 of 2").replace("- [ ] L1\n- [ ] L2", "  - [ ] L3");
+  const repoUrl = "https://api.github.com/repos/o/r";
+
+  test("files each part as a sub-issue with its lines as written, writes the order and moves the issue's edges, and never edits its body", async () => {
+    const fake = splitFake({
+      blockedBy: { 7: [{ number: 40, id: 4000, state: "open" }, { number: 41, id: 4100, state: "closed" }] },
+      blocking: { 7: [{ number: 50, id: 5000, repository_url: repoUrl }] },
+    });
+    const result = await run(fake, { parts: [[1, 2], [3]], order: [[1, 2]] });
+    assert.deepEqual(result, { outcome: "split", children: [71, 72] });
+    const w = writes(fake.calls);
+    assert.deepEqual(
+      w.map(({ method, path }) => `${method} ${path}`),
+      [
+        "POST /repos/o/r/issues/7/comments",
+        "POST /repos/o/r/issues",
+        "POST /repos/o/r/issues/7/sub_issues",
+        "POST /repos/o/r/issues",
+        "POST /repos/o/r/issues/7/sub_issues",
+        "POST /repos/o/r/issues/72/dependencies/blocked_by",
+        "POST /repos/o/r/issues/71/dependencies/blocked_by",
+        "POST /repos/o/r/issues/50/dependencies/blocked_by",
+        "DELETE /repos/o/r/issues/50/dependencies/blocked_by/700",
+        "PATCH /repos/o/r/issues/comments/900",
+      ],
+    );
+    assert.deepEqual([w[1].body.body, w[3].body.body], [CHILD_1, CHILD_2]);
+    // Admission refuses an issue with no Issue Type, so each part takes the issue's.
+    assert.deepEqual([w[1].body.type, w[3].body.type], ["Task", "Task"]);
+    assert.ok(w.every(({ body }) => !body?.labels), "no label on any sub-issue");
+    assert.deepEqual(w[2].body, { sub_issue_id: 7100 });
+    assert.deepEqual(w[5].body, { issue_id: 7100 }, "part 2 waits on part 1");
+    assert.deepEqual(w[6].body, { issue_id: 4000 }, "the open blocker holds part 1");
+    assert.deepEqual(w[7].body, { issue_id: 7200 }, "#50 waits on the last part instead");
+    assert.deepEqual(splitRecord(w[0].body.body), { items: linesDigest(LINES), parts: [[1, 2], [3]], order: [[1, 2]], filed: [] });
+    assert.deepEqual(splitRecord(w[9].body.body).filed, [71, 72]);
+    assert.ok(!w.some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/7"));
+  });
+
+  test("each part takes a Feature issue's type, and an issue with no admissible type files nothing", async () => {
+    const feature = splitFake({ issue: sizeIssue({ type: { name: "Feature" } }) });
+    await run(feature, { parts: [[1, 2], [3]], order: [] });
+    assert.deepEqual(writes(feature.calls).filter(({ path }) => path === "/repos/o/r/issues").map(({ body }) => body.type), ["Feature", "Feature"]);
+    for (const type of [null, { name: "Epic" }]) {
+      const fake = splitFake({ issue: sizeIssue({ type }) });
+      const notes = [];
+      assert.deepEqual(await run(fake, { parts: [[1, 2], [3]], order: [] }, notes), { outcome: "skipped", children: [] });
+      assert.deepEqual(writes(fake.calls), [], JSON.stringify(type));
+      assert.match(notes[0], /Issue Type/);
+    }
+  });
+
+  // A refused replacement must not cost the dependent its edge to the issue,
+  // and the split stays unfiled so the next triage retries.
+  test("a refused replacement edge keeps the dependent's edge to the issue and leaves the split unfinished", async () => {
+    const fake = splitFake({ blocking: { 7: [{ number: 50, id: 5000, repository_url: repoUrl }] }, refuse: (method, route) => method === "POST" && route === "/repos/o/r/issues/50/dependencies/blocked_by" });
+    const notes = [];
+    const result = await run(fake, { parts: [[1, 2], [3]], order: [[1, 2]] }, notes);
+    assert.deepEqual(result, { outcome: "incomplete", children: [] });
+    const w = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
+    assert.ok(!w.includes("DELETE /repos/o/r/issues/50/dependencies/blocked_by/700"), "the original edge stays");
+    assert.ok(!w.includes("PATCH /repos/o/r/issues/comments/900"), "the record stays unfiled");
+    assert.match(notes[0], /refused 1 blocked-by edge/);
+  });
+
+  test("a refused order edge between parts leaves the split unfinished", async () => {
+    const fake = splitFake({ refuse: (method, route) => method === "POST" && route === "/repos/o/r/issues/72/dependencies/blocked_by" });
+    assert.deepEqual(await run(fake, { parts: [[1, 2], [3]], order: [[1, 2]] }), { outcome: "incomplete", children: [] });
+    assert.ok(!writes(fake.calls).some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/900"));
+  });
+
+  test("a model output that is no partition writes nothing and leaves the issue parked", async () => {
+    for (const output of [{ parts: [[1], [2]], order: [] }, { parts: [], order: [] }, null, { parts: [[1], [2, 3]], order: [[1, 2], [2, 1]] }]) {
+      const fake = splitFake();
+      const notes = [];
+      assert.deepEqual(await run(fake, output, notes), { outcome: "skipped", children: [] });
+      assert.deepEqual(writes(fake.calls), [], JSON.stringify(output));
+      assert.match(notes[0], /^#7 stays parked for its size split: the model's split is not one: /);
+    }
+  });
+
+  test("a retry finishes the recorded split and files no part twice", async () => {
+    const filed = { number: 71, id: 7100, user: { id: APP }, repository_url: repoUrl, body: CHILD_1 };
+    const fake = splitFake({ comments: [record()], subIssues: [filed], next: 72 });
+    // The recorded partition wins over a new output.
+    const result = await run(fake, { parts: [[1], [2], [3]], order: [] });
+    assert.deepEqual(result, { outcome: "split", children: [71, 72] });
+    const w = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
+    assert.deepEqual(w, ["POST /repos/o/r/issues", "POST /repos/o/r/issues/7/sub_issues", "POST /repos/o/r/issues/72/dependencies/blocked_by", "PATCH /repos/o/r/issues/comments/900"]);
+  });
+
+  test("an issue whose trusted lines changed while the model ran, or already split, gets nothing", async () => {
+    for (const fake of [splitFake({ spec: specOf(BODY.replace("L3", "L9")) }), splitFake({ comments: [record([71, 72])] })]) {
+      assert.equal((await run(fake, { parts: [[1, 2], [3]], order: [] })).outcome, "skipped");
+      assert.deepEqual(writes(fake.calls), []);
+    }
   });
 });

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R7 | cc-applicable | none | config-keys.md:7 states it; the prose word is not the verbosity request parameter, so not mixed."
+    },
+    {
+      "answer": "**ROW R7** | `cc-applicable` | none | config-keys.md:5, config-keys.md:7."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ROW R7 | mixed | none | Names verbosity, a request parameter (verbosity.md:3); the harness setting is config-keys.md:5.",
+      "why": "prose lever word read as the API request parameter"
+    },
+    {
+      "answer": "ROW R7 | api-only | none | verbosity.md:3.",
+      "why": "wrong tag"
+    }
+  ]
+}

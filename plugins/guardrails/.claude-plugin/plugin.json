@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "Thirteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.",
+  "description": "Fifteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Tracks identity domains. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -23,6 +23,18 @@
       "title": "Secret-pattern-detection guard",
       "description": "Blocks writes containing high-confidence secret or credential patterns. On by default.",
       "default": true
+    },
+    "secret_pattern_detection_allowed_roots": {
+      "type": "string",
+      "title": "Secret-pattern-detection allowed roots",
+      "description": "Comma-separated absolute directories; a Write, Edit or NotebookEdit whose real path is strictly under one is not scanned for secrets. Empty by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details.",
+      "default": ""
+    },
+    "secret_pattern_detection_skip_gitignored": {
+      "type": "boolean",
+      "title": "Secret-pattern-detection skips gitignored files",
+      "description": "When true, a Write, Edit or NotebookEdit to a file its own repository ignores is not scanned for secrets. Off by default. A commit is still checked only in clones where /guardrails:setup apply install-git-hooks ran. Limits: README Option details.",
+      "default": false
     },
     "hardcoded_path_check_enabled": {
       "type": "boolean",
@@ -66,6 +78,12 @@
       "description": "Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read. Empty, the default, blocks all.",
       "default": ""
     },
+    "block_cross_domain_enabled": {
+      "type": "boolean",
+      "title": "Block-cross-domain guard",
+      "description": "Reads a machine-local identity-domain map, identity-domains.json in the plugin data directory, classifies the session directory and each Bash or PowerShell command against it, and reports the result to telemetry; it denies nothing. With no map it does nothing. On by default.",
+      "default": true
+    },
     "block_unresolved_pr_merge_enabled": {
       "type": "boolean",
       "title": "Block-unresolved-PR-merge guard",
@@ -99,13 +117,19 @@
     "block_root_delete_target_enabled": {
       "type": "boolean",
       "title": "Block-root-delete-target guard",
-      "description": "Blocks a recursive delete (rm, Remove-Item, rd /s) whose target is a filesystem, home, drive or UNC share root, an empty or bare-variable operand, or a path outside the repo not under a temp root, the scratchpad or an allowed root. On by default. Full rules in the README's Option details.",
+      "description": "Blocks a recursive delete (rm, Remove-Item, rd /s) of a filesystem, home, drive or UNC root, an empty or bare-variable operand, a protected tree (.git, repo or worktree root, ~/.claude, other sessions' scratchpads), or a path outside the repo, temp, the scratchpad and allowed roots. On by default.",
       "default": true
     },
     "block_root_delete_target_allowed_roots": {
       "type": "string",
       "title": "Block-root-delete-target allowed roots",
       "description": "Comma-separated absolute directories; a recursive delete passes when its real path is strictly under one. An entry like D:/worktrees/.tmp-* allows only direct children whose name extends that prefix. Empty by default; adds to the temp roots and scratchpad. Limits: README Option details.",
+      "default": ""
+    },
+    "block_root_delete_target_protected_trees": {
+      "type": "string",
+      "title": "Block-root-delete-target protected trees",
+      "description": "Comma-separated absolute directories a recursive delete never removes, even under the repo or an allowed root: the directory, anything under it, and a directory holding it are refused. Empty by default; adds to the built-in protected trees. Limits: README Option details.",
       "default": ""
     },
     "block_noncanonical_commit_enabled": {
@@ -152,5 +176,5 @@
       "min": 1
     }
   },
-  "version": "0.56.1"
+  "version": "0.58.0"
 }

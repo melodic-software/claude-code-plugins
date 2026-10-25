@@ -12,13 +12,18 @@ this page owns the keys.
 |---|---|
 | Bundled | `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml` |
 | User-global | `~/.claude/multi-agent.yaml` |
-| Team | the ```` ```yaml config ```` block in `docs/conventions/multi-agent.md`, else `.claude/multi-agent.yaml` |
+| Team | `<home>/multi-agent.yaml`, `<home>` being the convention home the repository binds, else `docs/conventions` |
 | Personal overlay | `.claude/multi-agent.local.yaml` (gitignored) |
 
 Later layers win per key. Team and overlay are read only when the root is a
 repository that is neither `$HOME` nor an ancestor of it
-(`lib/config-root.sh`). When both team files exist the docs block wins and the
-resolver names both. Every layer declares `schema: 1`; a layer that does not
+(`lib/config-root.sh`). The team file is validated by
+[`schemas/multi-agent.schema.json`](../schemas/multi-agent.schema.json). For
+one release the resolver still reads the old team locations, the
+```` ```yaml config ```` block in `docs/conventions/multi-agent.md` and then
+`.claude/multi-agent.yaml`, and only when the team YAML is absent; when
+several exist the first of the three wins and the resolver names each one it
+ignored. Every layer declares `schema: 1`; a layer that does not
 parse or names another schema is skipped and named in `notes`, and the layers
 around it still apply. The format is a YAML subset: nested mappings, scalars,
 comments. No lists. `/multi-agent:setup apply` writes a layer after a preview
@@ -133,15 +138,15 @@ Setting `fanout.frontier_guard: false` is an explicit opt-in to frontier
 fan-outs. Set it on the layer whose scope you mean: the overlay for one
 checkout, the user-global file for every repository on one machine.
 
-## Example team block
+## Example team file
 
-This block raises the worker's effort and declares a `deep` workload, which a
-caller selects with `/multi-agent:route worker deep`. A consumer maps its own
-labels (an issue's complexity, say) onto workloads in its own convention; the
-plugin ships no such mapping.
+This `docs/conventions/multi-agent.yaml` raises the worker's effort and
+declares a `deep` workload, which a caller selects with
+`/multi-agent:route worker deep`. A consumer maps its own labels (an issue's
+complexity, say) onto workloads in its own convention; the plugin ships no
+such mapping.
 
-````markdown
-```yaml config
+```yaml
 schema: 1
 workloads:
   deep: true
@@ -155,4 +160,3 @@ roles:
 fanout:
   frontier_guard: true
 ```
-````

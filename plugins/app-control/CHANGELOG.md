@@ -3,6 +3,20 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-25
+
+### Added
+
+- `/app-control:map check` reports where a control skill breaks the contract and edits nothing. A bundled script prints one `<rule> | <path> | <detail>` line per structural finding: an index line that names no feature file, is dead, duplicated or missing, or miscounts its entry points, a source glob that matches no file or leaves the project root, a feature README whose sections are missing, extra or out of order, an entry point with no `driven` marker or a `not driven` with no reason, a relative link that resolves to nothing, and a `shared/` item used by fewer than two features or lacking its `Why shared:` line. The model then reports any section that copies a recipe instead of naming it. The report carries no verdict word.
+- The control-skill contract gains a "Shared items" section: `shared/` holds only what two or more features use, each item a direct child of `shared/` that a feature uses by naming `shared/<item>`, with a `Why shared: <reason>` line in its `README.md` or in the file itself.
+
+## [0.6.0] - 2026-10-24
+
+### Added
+
+- `/app-control:map create` generates a project's control skill: it walks fixed discovery rows over the repository before asking anything, asks only what discovery left open (through `/planning:interview` when installed), writes the hub, feature folders, config, driver CLI and one pointer in the repository's source instruction file, then proves it once through `/app-control:drive` and checks the evidence survived and no process it started is alive. The control skill is written only to `.claude/skills/control-<slug>/`, where drive finds it, with every path's real location checked inside the repository. `--unattended` is a dry run that writes nothing and never guesses a safety answer. Reauthored from the create-and-prove flow of pstack's `create-verification-skill` ([cursor/plugins](https://github.com/cursor/plugins), MIT).
+- The control-skill contract gains three sections: writing the driver CLI (through `/developer-experience:build-cli` when installed, else a documented script), config layered from committed `config/defaults.json` through `config/local.json`, environment variables and flags with each value's layer reported, and safety floors that ship safe (an empty recipient allowlist, one sign-in attempt per account per run, read-only production, no unattended writes), loosen only in config committed at HEAD, and are enforced by the generated driver CLI (all but the per-run sign-in count, which the caller keeps), which refuses a loosening from any other layer with exit 4. Credentials always come from environment variables and are reported by variable name and set or unset, never by value.
+
 ## [0.5.0] - 2026-10-24
 
 ### Changed

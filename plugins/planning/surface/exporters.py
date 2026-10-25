@@ -10,7 +10,10 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
                  restatement rev (without one, each Problem field reads `unknown` and each Work
                  size field `not assessed`; with no confirmed Constraints it lists the page's
-                 recorded constraints and the ledger's `## Constraint ledger` rows), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
+                 recorded constraints and the ledger's `## Constraint ledger` rows), as do a
+                 Decisions section from its decisions recap and the Deferred questions entries
+                 from its deferred and planningOwned bullets, and the TLDR's `Restatement:` line
+                 stamps it confirmed or UNCONFIRMED
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
@@ -880,6 +883,23 @@ def bullets(text):
     ]
 
 
+LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
+
+
+def restated_deferred(sections, rows):
+    """The restated `deferred`, then `planningOwned`, bullets as Deferred questions entries, each
+    as written (the restatement leads one with its source Q<N> where it has one) and tagged
+    ARBITER_PLAN, or ARBITER_USER when its lead Q<N> is a user-reserved row or it says
+    USER-RESERVED itself."""
+    reserved = {r["n"] for r in rows if r["reserved"]}
+    out = []
+    for b in bullets(sections.get("deferred")) + bullets(sections.get("planningOwned")):
+        lead = LEAD_QN.match(b[2:])
+        user = (lead and f"Q{lead.group(1)}" in reserved) or "USER-RESERVED" in b
+        out.append(f"{b}; {ARBITER_USER if user else ARBITER_PLAN}")
+    return out
+
+
 CONSTRAINT_ROW = re.compile(r"^\s*[-*+]\s+(C[0-9]+)\s*\|(.*)$")
 
 
@@ -1023,6 +1043,9 @@ def export_brief(d, text=None):
             for r in answered
         ),
     ] or ["- none recorded"]
+    decisions = bullets(sections.get("decisions"))
+    if decisions:
+        out += ["", "### Decisions", "", *decisions]
     criteria = bullets(sections.get("acceptance"))
     out += ["", "### Acceptance criteria", ""]
     out += (
@@ -1056,7 +1079,9 @@ def export_brief(d, text=None):
         out.append(
             f"- {brief_label(r)}: {clean(r['q'].get('title'))}, defer until {until}; {arbiter}"
         )
-    if not retired:
+    restated_rows = restated_deferred(sections, rows)
+    out += restated_rows
+    if not retired and not restated_rows:
         out.append("- none")
     out += ["", "## Plan", ""]
     return "\n".join(out)

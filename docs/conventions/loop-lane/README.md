@@ -46,11 +46,11 @@ attended queue. No lane crosses into another's authority.
 ### Autonomy ladder (merge authority)
 
 Merge authority is a configurable ladder with the safest rung shipped by default: **human merge for
-every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
-authorship test. A PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
-human, or a worker authored it; bot authorship alone is never sufficient. C3 and unclassified items
-stay human-gated regardless of author, by default. **No rung, no tracked config, and no invocation
-argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
+every PR except gate-proven C2-mechanical ones**. In the babysit loop's partition the exception is
+a *work-class* test, not an authorship test. There a PR qualifies only when the item classifies C2
+(mechanical), whether a bot, a human, or a worker authored it; bot authorship alone is never
+sufficient. C3 and unclassified items stay human-gated there regardless of author, by default. **In the babysit loop's partition, no rung, no
+tracked config, and no invocation argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
 promotion contract, under which they never promote: "No merge rung reaches these cells, and no
 evidence predicate exists for them"
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#suggested-default-predicates)).
@@ -58,6 +58,12 @@ The pr-merge lane reads no class: it merges a pull request the lanes App opened 
 issue on the verifier verdict at its head, and refuses fork pull requests, so C5 stays human there
 too ([the pr-merge lane](../pr-pipeline/README.md#the-pr-merge-lane),
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
+The unattended merge gate (`/source-control:babysit-prs`, `--unattended`) reads no class either,
+by [owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9668#issuecomment-6386299330):
+no class caps its rung, its promotion evidence is read by rung, not class (C2 needs
+`C2-auto-merge`, C3 every C3 cell), and its one class-named
+check is the trust hold, which refuses a pull request whose linked issue carries `work-class:
+untrusted-provenance` or had it removed by a non-human. Its rung and rung cap remain pacing caps.
 Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
 conflicts, answer review comments, and drive a PR to merge, and they are bounded by that C4/C5 floor
 regardless of rung name.

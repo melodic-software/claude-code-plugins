@@ -94,11 +94,11 @@
       "files": [],
       "expectations": [
         "An Original goal section is present and quotes the user's goal in their own words — a paraphrase, a condensation, or the process framing ('finish phase 3') does not satisfy it",
-        "Because this continues a prior handoff, `save_point.py new` is run with `--previous <that file>` (never `--no-previous`, never an auto-picked newest file), so the prior file is READ FROM DISK this turn and its goal quote, amendments, cumulative `[hN]` entries, and Prior sessions rows are copied unchanged rather than reconstructed from the conversation",
+        "Because this continues a prior handoff, `save_point.py new` is run with `--previous <that file>` (never `--no-previous`, never an auto-picked newest file), so the prior file is READ FROM DISK this turn: its goal quote and amendments are copied unchanged, and its other sections land verbatim in the hop file `new` writes under `handoffs/archive/`, rather than any of it being reconstructed from the conversation",
         "The goal is not amended — an amendment requires an explicit statement from whoever set the goal, recorded with its date",
         "Completion criteria are stated as goal-states that each still name the command or diff that settles them, rather than solely as process steps",
         "Milestones like 'phase 3 done' or 'the bundles merged' appear under the subordinate Process milestones sub-heading, not as completion criteria",
-        "The drift-check sentence tying the next action back to the goal is answered",
+        "A `## Direction changes` section records the chain's direction, one `[h<k>]` line per change with its cause, and flags any remaining action that serves no recorded goal or detour as drift",
         "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
       ]
     },
@@ -119,9 +119,12 @@
     {
       "id": 9,
       "name": "purpose-argument-tailors-emphasis-only",
-      "prompt": "/handoff file api-refactor the next session will be used to review the new endpoint design with the platform team before any more code is written",
-      "expected_output": "The trailing free text after the topic token is parsed as the purpose argument — no quoting needed. It tailors emphasis only: the Resumption brief leads with the design-review purpose, Suggested skills are selected for that review use, and Remaining actions are ordered to put the review-relevant items first where ordering is otherwise free. Every mandatory body section is still present in the structure doc's order, and the resume prompt between the rails keeps its standard shape (Read directive, Prior session line, Handoff origin line) — purpose changes what is emphasized, never what is emitted.",
-      "files": [],
+      "prompt": "Earlier in this session I worked on the api-refactor task. That work is recorded in evals/fixtures/api-refactor-session-state.md (relative to the skill directory): the goal in my words, what is done, the decisions, the uncommitted change, the open questions and the remaining work. The draft it produced is evals/fixtures/api-refactor-endpoint-design.md. Treat that record as this session's history. If the current working directory is not inside a git work tree, use `.work` in the current working directory as the memory dir. Now run exactly: /session-flow:handoff file api-refactor the next session will be used to review the new endpoint design with the platform team before any more code is written",
+      "expected_output": "The session's prior work comes from the fixture record, so the handoff summarizes it rather than refusing for lack of history. The trailing free text after the topic token is parsed as the purpose argument — no quoting needed. It tailors emphasis only: the Resumption brief leads with the design-review purpose, Suggested skills are selected for that review use, and Remaining actions are ordered to put the review-relevant items first where ordering is otherwise free. Every mandatory body section is still present in the structure doc's order, and the resume prompt between the rails keeps its standard shape (Read directive, Prior session line, Handoff origin line) — purpose changes what is emphasized, never what is emitted.",
+      "files": [
+        "evals/fixtures/api-refactor-session-state.md",
+        "evals/fixtures/api-refactor-endpoint-design.md"
+      ],
       "expectations": [
         "Everything after the topic token (api-refactor) is read as natural-language purpose text without quoting or new syntax",
         "The Resumption brief leads with the stated purpose — the framing opens from what the next session is for",
@@ -222,12 +225,12 @@
       "id": 16,
       "name": "skeleton-comes-from-new-and-slots-are-filled-in-one-call",
       "prompt": "Handoff. This is the first save-point of this task; python3 is on PATH.",
-      "expected_output": "The full path runs the shape-2 procedure: memory_dir resolved from the declared root or the .work default, the guards run, then `save_point.py new --topic <slug> --memory-dir <root> --no-previous` invoked through the interpreter ladder with `-X utf8`. The path `new` prints is reused for every later step. The model writes ONE JSON object holding the values for the `<!-- FILL: … -->` slots that skeleton actually carries, leaving the optional ones (goal-first, goal-after, below-rail, <section>-new) that do not apply out of it, and applies them all with a single `save_point.py fill <file> --slots <json>` call, so every deterministic field (frontmatter, chain, the 17 headings, the rails block minus `Next:`) stays exactly as written. `save_point.py validate` exits 0, the outcome is quoted in the checklist, and the rails block on screen is the `save_point.py emit` output pasted verbatim.",
+      "expected_output": "The full path runs the shape-3 procedure: memory_dir resolved from the declared root or the .work default, the guards run, then `save_point.py new --topic <slug> --memory-dir <root> --no-previous` invoked through the interpreter ladder with `-X utf8`. The path `new` prints is reused for every later step. The model writes ONE JSON object holding the values for the `<!-- FILL: … -->` slots that skeleton actually carries, leaving the optional ones (goal-first, goal-after, below-rail, <section>-new) that do not apply out of it, and applies them all with a single `save_point.py fill <file> --slots <json>` call, so every deterministic field (frontmatter, chain position, the 17 headings, the hop file, the rails block minus `Next:`) stays exactly as written. `save_point.py validate` exits 0, the outcome is quoted in the checklist, and the rails block on screen is the `save_point.py emit` output pasted verbatim.",
       "files": [],
       "expectations": [
         "`save_point.py new` is invoked (with `--no-previous`, since no prior handoff of this task exists) rather than the file being written from scratch by Write or Edit",
         "The absolute path `new` printed is the one path used for `fill`, `validate`, `emit`, and the directive, never recomputed or re-derived in bash",
-        "The slots are applied by one `save_point.py fill <file> --slots <json>` call over a JSON object written beside the handoff, not by a run of Edit calls; deterministic fields such as `handoff_shape`, `session_id`, `transcript`, `chain:`, the heading scaffold, `Prior session:`, and `Handoff origin:` are left as the script wrote them",
+        "The slots are applied by one `save_point.py fill <file> --slots <json>` call over a JSON object written beside the handoff, not by a run of Edit calls; deterministic fields such as `handoff_shape`, `session_id`, `transcript`, `chain_root` and `hop`, the heading scaffold, the hop file under `handoffs/archive/`, `Prior session:`, and `Handoff origin:` are left as the script wrote them",
         "The slot names come from the skeleton `new` just wrote rather than a remembered template, optional slots that do not apply are left OUT of the object so `fill` deletes their lines, `fill` exits 0 so no `FILL` text remains, and `validate` is run and reported as `validate: exit 0` before the rails are printed",
         "The on-screen rails block is the `emit` output pasted verbatim, and the `Next:` line carries one to five plain headline lines with no bullets"
       ]
@@ -250,12 +253,12 @@
       "id": 18,
       "name": "shape-1-predecessor-is-copied-forward-not-rewritten",
       "prompt": "Handoff. This continues the handoff I resumed from this morning, which an older version of the skill wrote: its frontmatter has no handoff_shape key and it has no This session line.",
-      "expected_output": "`save_point.py new` is run with `--previous <that file>`. The predecessor is read, never rewritten: the chain becomes [predecessor, self], its Original goal quote and amendments are copied off disk, cumulative sections it has are carried with `[h1]` tags while any section it lacks reads `None. (shape-1 predecessor had no <section>)`, the `Opening ask:` line is the pointer with `(shape-1 root, no verbatim ask recorded)`, and its `## Prior sessions` row carries `UNVERIFIED (shape-1 predecessor; brief: <first line of its Resumption brief>)` as the did/left cell. `validate` passes with the shape-1 predecessor WARN noted, and the rails are the `emit` output.",
+      "expected_output": "`save_point.py new` is run with `--previous <that file>`. The predecessor is read, never rewritten: the new hot file's frontmatter carries `previous_handoff` (the bare predecessor filename), `chain_root` naming the predecessor and `hop: 2`; its Original goal quote and amendments are copied off disk, with `Opening ask:` the pointer to the root plus `(shape-1 root, no verbatim ask recorded)`; the predecessor's other sections are moved verbatim into this hop's archive file `archive/<chain-root-stem>/h2-<session8>.md`; and the `## Prior sessions` row carries `UNVERIFIED (shape-1 predecessor; brief: <first line of its Resumption brief>)` as the did/left cell. `validate` passes and the rails are the `emit` output.",
       "files": [],
       "expectations": [
         "`new` is invoked with `--previous` naming the shape-1 file, and that file is left byte-unchanged on disk",
-        "The successor's `chain:` is exactly the predecessor's filename followed by its own, and `previous_handoff` is the bare filename with no directory prefix",
-        "Cumulative entries carried from the predecessor are tagged `[h1]`; a section the predecessor did not have reads `None. (shape-1 predecessor had no <section>)` rather than being invented",
+        "The successor's frontmatter names the predecessor's filename as both `previous_handoff` (a bare filename with no directory prefix) and `chain_root`, with `hop: 2`",
+        "The predecessor's sections other than Original goal and Resume prompt are moved verbatim into the hop file `new` wrote under `archive/`, not retyped or summarized there, and a rule the work still follows is restated under Current rules with a `[R<n>]` id rather than invented",
         "The `Opening ask:` line is the pointer to the root file with the `(shape-1 root, no verbatim ask recorded)` suffix, and the Prior sessions row's did/left cell is the `UNVERIFIED (shape-1 predecessor; brief: …)` form",
         "If the predecessor recorded no Original goal, the RECONSTRUCTED goal slot is settled with the user before `validate` is expected to pass, never filled with a paraphrase of the process"
       ]

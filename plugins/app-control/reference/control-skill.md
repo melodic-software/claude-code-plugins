@@ -12,6 +12,7 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 - Hub
 - Writing the Capture section
 - Feature files
+- Shared items
 - Driver commands
 - Writing the driver CLI
 - Config
@@ -39,7 +40,7 @@ Below them, an index with one line per feature file, in this form:
 ```
 
 `<n>` is the number of lines under the feature's `## Entry points`; `sources` names the globs of
-the files that implement the feature. A feature with no module drops that folder:
+the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
 
 ## Writing the Capture section
@@ -124,6 +125,14 @@ A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module 
 resolves an id, relative to the skill's base directory, to `features/<id>/README.md`, then to the
 legacy `features/<id>.md`. The legacy
 file keeps working as written, with its `## States` section, until someone regroups it.
+
+## Shared items
+
+`shared/` holds what two or more features use, such as sign-in steps every journey starts with.
+Each direct child of `shared/`, a folder or a file, is one item. A feature uses an item when its
+feature file names `shared/<item>`; an item fewer than two features use belongs in that feature's
+own folder, and `/app-control:map check` reports it. Each item says why it is shared on a line
+`Why shared: <reason>`, in its `README.md` for a folder or in the file itself.
 
 ## Driver commands
 

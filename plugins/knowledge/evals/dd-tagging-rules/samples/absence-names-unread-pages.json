@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "ROW R3 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | blog-only.\nABSENCE | R1b, R2, R3, R5 | No match in corpus/harness (4 of 5 indexed pages read; workspaces.md is listed but missing) or corpus/platform (2 of 3 read; citations.md is listed but missing)."
+    },
+    {
+      "answer": "ABSENCE | R3 | Not stated in the readable corpus/harness pages; workspaces.md could not be read.\nABSENCE | R3 | Not stated in the readable corpus/platform pages; citations.md could not be read."
+    },
+    {
+      "answer": "**ABSENCE** | R2 | No platform page among the readable ones states it (Citations page unreadable); no harness page either (Workspaces page unreadable)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ABSENCE | R1b, R2, R3, R5 | No page in either corpus states these clauses.",
+      "why": "absence not scoped to the pages read; the unread pages are not named"
+    },
+    {
+      "answer": "ABSENCE | R3 | Not in corpus/harness; workspaces.md was not readable.\nABSENCE | R3 | Not in corpus/platform (all pages searched).",
+      "why": "the platform statement omits the unread citations.md"
+    },
+    {
+      "answer": "ABSENCE | R3 | Not in corpus/harness (workspaces.md unread) or corpus/platform (citations.md unread).\nABSENCE | R5 | No docs page states that subagents inherit history.",
+      "why": "a second absence statement is unscoped"
+    },
+    {
+      "answer": "ROW R3 | cc-applicable | vendor-claimed (blog, 2026-10-20 fetch) | no docs page states it.",
+      "why": "no absence line at all"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: map-source-wave-capped-at-six
+description: Refresh dispatches the read-only source wave in waves of at most six subagents, starting the next wave only when the one before has returned
+tags: [map, refresh, source-wave, invented]
+expected_outcome: "The reply reads the control skill's eight feature folders and plans two source waves: a first of six read-only subagents, one per feature, and a second of the remaining two, started only after every subagent of the first has returned. No wave holds more than six, each subagent is limited to Read, Grep and Glob, and nothing is dispatched or written in this session."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-shop. Read the control skill, but do not dispatch any subagent, drive the app or write any file in this session. Tell me exactly how you would dispatch the source wave for this control skill, wave by wave, naming the features in each wave and when each wave starts, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 400
+graders:
+  - name: reads-hub
+    type: tool_used
+    tool: Read
+    input_match: 'control-shop/SKILL\.md'
+    min: 1
+    arm: both
+  - name: waves-of-six
+    type: llm
+    criteria: "PASS only if the reply plans one read-only subagent per feature for all eight features (cart, checkout, coupons, wishlist, search, reviews, returns, invoices), split into waves of at most six at once: six in the first wave and the other two in a second, which starts only after every subagent in the first has returned. FAIL if it plans all eight at once, any wave larger than six, a second wave that starts before the first has returned, skips a feature, or lets a subagent edit or run commands."
