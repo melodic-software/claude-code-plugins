@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: rename-scoped-shell-array
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'renamed-all'
+    type: 'regex'
+    pattern: '\bROLE_NOTES\b'
+    match: 'count:5'
+    target: { source: file, path: scripts/resolve-roles.sh }
+  - name: 'old-name-gone'
+    type: 'regex'
+    pattern: '\bNOTES\b'
+    match: 'not_contains'
+    target: { source: file, path: scripts/resolve-roles.sh }
+  - name: 'notes-json-kept'
+    type: 'regex'
+    pattern: '\bnotes_json\b'
+    match: 'count:4'
+    target: { source: file, path: scripts/resolve-roles.sh }
+  - name: 'json-key-kept'
+    type: 'regex'
+    pattern: '"notes":\[%s\]'
+    target: { source: file, path: scripts/resolve-roles.sh }
+  - name: 'route-untouched'
+    type: 'regex'
+    pattern: '\bNOTES\b'
+    match: 'count:4'
+    target: { source: file, path: scripts/route.sh }
