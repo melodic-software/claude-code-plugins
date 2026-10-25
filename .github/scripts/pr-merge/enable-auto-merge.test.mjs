@@ -310,6 +310,11 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
     ".github/workflows/pr-require-checks.yml",
     "docs/conventions/pr-pipeline.yaml",
+    ".github/scripts/pr-unblock/address-feedback.mjs",
+    ".github/scripts/pr-unblock/gate-source.mjs",
+    ".github/scripts/pr-unblock/thread-scope.mjs",
+    ".github/scripts/work-resolve-issue/report-outcome.mjs",
+    ".github/scripts/work-resolve-issue/limits.mjs",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),

@@ -302,7 +302,9 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs \
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
   plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py .github/workflows/pr-require-checks.yml \
-  docs/conventions/pr-pipeline.yaml; do
+  docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/address-feedback.mjs \
+  .github/scripts/pr-unblock/gate-source.mjs .github/scripts/pr-unblock/thread-scope.mjs \
+  .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/limits.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the floor holds $path" 1 3 "it changes $path, a hold path"
 done

@@ -794,7 +794,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   enforce the floor: `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`,
   `superseded.mjs` and `clear-escalations.mjs` there,
   `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
-  `.github/workflows/pr-require-checks.yml` and `docs/conventions/pr-pipeline.yaml`. No other path
+  `.github/workflows/pr-require-checks.yml`, `docs/conventions/pr-pipeline.yaml`, and every module
+  those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
+  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
+  which `test_merge_holds_sync.py` derives from their imports and requires on the floor. No other path
   is held for being trusted (owner direction 2026-10-24): the trusted-actor list and every other
   path merge on the review lanes, which judge them. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that

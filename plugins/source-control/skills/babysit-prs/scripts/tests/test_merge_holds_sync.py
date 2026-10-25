@@ -43,11 +43,16 @@ import babysit_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
-# The floor actions' entry points: every module they load is code main runs
-# with their verdict, so the floor holds it too.
+# The floor actions' entry points and the floored scripts that enforce the
+# floor (owner decision Q-ENFORCE (A)): every module they load is code main
+# runs with their verdict, so the floor holds it too.
 FLOOR_ENTRIES = (
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/resolve-config/resolve-config.mjs",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
 )
 IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']""")
 
@@ -159,7 +164,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_floor_is_the_same_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
-        self.assertEqual(len(risk.HIGH_FLOOR), 14)
+        self.assertEqual(len(risk.HIGH_FLOOR), 19)
         for path, held, configured in zip(
             FLOOR_PATHS, answer["held"], answer["configured"], strict=True
         ):

@@ -219,11 +219,12 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // check-trusted-trigger, check-kill-switch, the rate guard), code owners and
 // submodules; and the files that enforce the floor (owner decision
 // Q-ENFORCE (A)): this module, enable-auto-merge, superseded,
-// clear-escalations, babysit_risk.py, the ci-status workflow and the
-// pipeline config. babysit_risk.HIGH_FLOOR, which test_merge_holds_sync.py
-// checks this equals. A constant of the module ci-status and
-// enable-auto-merge run from the base commit, so a pull request cannot
-// rewrite it.
+// clear-escalations, babysit_risk.py, the ci-status workflow, the pipeline
+// config, and every module those scripts import (test_merge_holds_sync.py
+// derives the closure and requires it here). babysit_risk.HIGH_FLOOR, which
+// test_merge_holds_sync.py checks this equals. A constant of the module
+// ci-status and enable-auto-merge run from the base commit, so a pull
+// request cannot rewrite it.
 export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/actions/check-trusted-trigger/**",
   "**/CODEOWNERS",
@@ -239,6 +240,11 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
   ".github/workflows/pr-require-checks.yml",
   "docs/conventions/pr-pipeline.yaml",
+  ".github/scripts/pr-unblock/address-feedback.mjs",
+  ".github/scripts/pr-unblock/gate-source.mjs",
+  ".github/scripts/pr-unblock/thread-scope.mjs",
+  ".github/scripts/work-resolve-issue/report-outcome.mjs",
+  ".github/scripts/work-resolve-issue/limits.mjs",
 ]);
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`

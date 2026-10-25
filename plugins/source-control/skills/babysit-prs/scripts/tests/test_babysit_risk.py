@@ -290,6 +290,11 @@ class HighReasonTests(unittest.TestCase):
                 "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
                 ".github/workflows/pr-require-checks.yml",
                 "docs/conventions/pr-pipeline.yaml",
+                ".github/scripts/pr-unblock/address-feedback.mjs",
+                ".github/scripts/pr-unblock/gate-source.mjs",
+                ".github/scripts/pr-unblock/thread-scope.mjs",
+                ".github/scripts/work-resolve-issue/report-outcome.mjs",
+                ".github/scripts/work-resolve-issue/limits.mjs",
             ),
         )
         cases = [
@@ -309,6 +314,11 @@ class HighReasonTests(unittest.TestCase):
             (".github/workflows/pr-require-checks.yml", ".github/workflows/pr-require-checks.yml"),
             ("docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             ("Docs/Conventions/PR-Pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
+            (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
+            (".github/scripts/pr-unblock/gate-source.mjs", ".github/scripts/pr-unblock/gate-source.mjs"),
+            (".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/thread-scope.mjs"),
+            (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
+            (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
         ]  # fmt: skip
         for path, glob in cases:
             for on in (True, False):
@@ -1155,6 +1165,11 @@ class LanePathFloorTests(unittest.TestCase):
             "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
             ".github/workflows/pr-require-checks.yml",
             "docs/conventions/pr-pipeline.yaml",
+            ".github/scripts/pr-unblock/address-feedback.mjs",
+            ".github/scripts/pr-unblock/gate-source.mjs",
+            ".github/scripts/pr-unblock/thread-scope.mjs",
+            ".github/scripts/work-resolve-issue/report-outcome.mjs",
+            ".github/scripts/work-resolve-issue/limits.mjs",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))

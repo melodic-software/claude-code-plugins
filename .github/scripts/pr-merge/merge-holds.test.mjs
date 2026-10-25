@@ -315,6 +315,11 @@ const FLOOR_FILES = [
   "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
   ".github/workflows/pr-require-checks.yml",
   "docs/conventions/pr-pipeline.yaml",
+  ".github/scripts/pr-unblock/address-feedback.mjs",
+  ".github/scripts/pr-unblock/gate-source.mjs",
+  ".github/scripts/pr-unblock/thread-scope.mjs",
+  ".github/scripts/work-resolve-issue/report-outcome.mjs",
+  ".github/scripts/work-resolve-issue/limits.mjs",
 ];
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {
