@@ -3862,8 +3862,8 @@ def unattended_writes(
                 and (hold := judge(n))
             }
             # This run's own read of a queued entry also counts: the pull
-            # request it just found ineligible, on another base or held by
-            # its score leaves the queue.
+            # request it just found ineligible, unpromoted for its rung, on
+            # another base or held by its score leaves the queue.
             own = inputs.get("own_refusal") or (
                 f"risk:{risk.score.name}"
                 if risk is not None and babysit_risk.holds(risk)

@@ -2854,7 +2854,8 @@ class Assess(unittest.TestCase):
                     )
                     self.assertEqual(result.reason, reason)
                     self.assertIs(result.promoted, reason is None)
-                    self.assertIsNone(result.inputs["own_refusal"])
+                    # The pull request's own refusal, so a queued entry leaves.
+                    self.assertEqual(result.inputs["own_refusal"], reason)
 
     def test_an_unreadable_resolver_refuses(self) -> None:
         self.readable()

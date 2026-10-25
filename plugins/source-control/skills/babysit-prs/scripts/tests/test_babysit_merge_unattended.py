@@ -1063,6 +1063,9 @@ class Unattended(unittest.TestCase):
                 side_effect=lambda *a, **k: self.opt_in_recheck,
             ),
             mock.patch.object(
+                merge, "_checkout", return_value=pathlib.Path("/checkout")
+            ),
+            mock.patch.object(
                 postmerge, "identity_queue", return_value=(self.queued, 0)
             ),
             mock.patch.object(postmerge, "dequeue_identity_entries", self.dequeue),
@@ -2983,6 +2986,31 @@ class OneUnattendedMergeInFlight(Unattended):
             out["unattended"]["writes"]["holds"],
             {str(PR): "ineligible:untrusted-provenance"},
         )
+
+    def test_a_queued_entry_whose_rung_lost_promotion_dequeues_itself(
+        self,
+    ) -> None:
+        # The rung's cells stop qualifying after the enqueue (a demotion
+        # restarted the window, or the resolver became unreadable): the armed
+        # entry leaves the queue instead of merging without evidence.
+        for promotion, hold in (
+            (
+                policy.Promotion(
+                    dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
+                ),
+                "promotion-unqualified:C2",
+            ),
+            (policy.Promotion(None, "resolver-failed"), "promotion-unqualified:C2"),
+        ):
+            with self.subTest(hold=hold, cells=promotion.cells):
+                self.log = []
+                self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+                self.queued = [PR]
+                self.promotion = promotion
+                code, out = self.run_main()
+                self.assert_no_merge(code)
+                self.assertEqual(self.log, [f"dequeue:[{PR}]"])
+                self.assertEqual(out["unattended"]["writes"]["holds"], {str(PR): hold})
 
     def test_a_queued_entry_whose_issue_was_relabeled_structural_stays(
         self,
