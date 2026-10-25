@@ -518,7 +518,7 @@ new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '-([0-9]+)$'
 layer "${CASE_REPO}/.claude/source-control.local.md" '^[^/]+/([0-9]+)-'
 run_explain "the personal overlay still beats the team YAML" "feat/12-add-widget-1234" "12" \
-  'source-control\.local\.md$'
+  '\.claude/source-control\.local\.md$'
 
 new_case
 yaml_layer "${CASE_REPO}/docs/conventions/source-control.yaml" '(['
