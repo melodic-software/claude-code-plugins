@@ -75,8 +75,9 @@ as `--map`. `skip unchanged since the last clean pass` means a clean pass was re
 this host; `skip no commit within 24h and no state on this host` means no record here and an older
 newest commit (`--since <N>h|<N>d` widens it). A line starting `run` means there is work.
 
-A pending conversion, a feature id or a handed-in lesson runs whatever the line says. Otherwise, on `skip` an unattended pass stops and
-reports the line; an attended pass reports it and stops unless the person asked for a pass anyway.
+A pending conversion, a feature id or a handed-in lesson runs whatever the line says. Otherwise, on
+`skip` an unattended pass stops and reports the line; an attended pass reports it and stops unless
+the person asked for a pass anyway.
 Exit 2 is **blocked**, with the script's stderr line as the blocker.
 
 ## 3. Refuse an attended-only skill when unattended
@@ -133,10 +134,10 @@ report names each changed path, and nothing is reverted, written or opened.
 
 ## 5. Live pass
 
-Drive every feature once (or the one feature a feature id names), whatever the source wave found, through `/app-control:drive` invoked with
-the Skill tool, in a new temporary `--out` directory outside the checkout, passing `--unattended`
-on every call when the pass is unattended and the candidates as hints on where a handle may have
-moved. Three invariants hold for the whole pass:
+Drive every feature once (or the one feature a feature id names), whatever the source wave found,
+through `/app-control:drive` invoked with the Skill tool, in a new temporary `--out` directory
+outside the checkout, passing `--unattended` on every call when the pass is unattended and the
+candidates as hints on where a handle may have moved. Three invariants hold for the whole pass:
 
 1. **Ready first.** Run `/app-control:drive ready <slug> --out <dir>` before the first drive, and
    again after any failed drive, before that failure counts against the app.
