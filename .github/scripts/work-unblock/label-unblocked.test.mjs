@@ -2217,7 +2217,7 @@ function reopened({ issues = [fixIssue(30)], comments = [note(), recurrenceNote(
     comments: Object.fromEntries(issues.map((item) => [item.number, comments])),
     events: Object.fromEntries(issues.map((item) => [item.number, events])),
     timeline: Object.fromEntries(issues.map((item) => [item.number, pulls.map((pull) => crossRef(pull))])),
-    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, repository: { nameWithOwner: REPO } }))])),
+    closing: Object.fromEntries(issues.map((item) => [item.number, closing.map((pull) => ({ number: pull.number, state: "OPEN", repository: { nameWithOwner: REPO } }))])),
     pulls: Object.fromEntries([...pulls, ...closing].map((pull) => [pull.number, pull])),
     runs,
   });
@@ -2535,7 +2535,7 @@ const namingPull = (state, body = "Refs: #25") => ({
 
 test("the sweep keeps a deferred issue deferred while an open pull request is for it, and admits it once that closes", async (t) => {
   const log = t.mock.method(console, "log", () => {});
-  for (const facts of [{ timeline: [namingPull("open")] }, { closing: [{ number: 40, repository: { nameWithOwner: REPO } }] }]) {
+  for (const facts of [{ timeline: [namingPull("open")] }, { closing: [{ number: 40, state: "OPEN", repository: { nameWithOwner: REPO } }] }]) {
     log.mock.resetCalls();
     const open = deferredWorld(facts);
     assert.equal(await sweep({ github: open.github }, PAUSING), 0);
@@ -2543,9 +2543,11 @@ test("the sweep keeps a deferred issue deferred while an open pull request is fo
     const lines = log.mock.calls.map((call) => String(call.arguments[0]));
     assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 is for it"), lines.join("\n"));
   }
-  const closed = deferredWorld({ timeline: [namingPull("closed")] });
-  assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
-  assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)]);
+  for (const facts of [{ timeline: [namingPull("closed")] }, { closing: [{ number: 40, state: "MERGED", repository: { nameWithOwner: REPO } }] }]) {
+    const closed = deferredWorld(facts);
+    assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
+    assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)], JSON.stringify(facts));
+  }
 });
 
 test("the sweep admits a deferred issue an open pull request only mentions", async (t) => {
@@ -2694,7 +2696,7 @@ test("a person's mark whose criteria only the App wrote is refused; a text read 
 test("a person's mark waits, still deferred, while an open pull request closes or Refs it; one that only mentions it does not hold it", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const waiting = `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: open pull request #40 is for it.` })}`;
-  for (const facts of [{ closing: [{ number: 40, repository: { nameWithOwner: REPO } }] }, { timeline: [namingPull("open")] }]) {
+  for (const facts of [{ closing: [{ number: 40, state: "OPEN", repository: { nameWithOwner: REPO } }] }, { timeline: [namingPull("open")] }]) {
     log.mock.resetCalls();
     const open = markedWorld(facts);
     assert.equal(await sweep({ github: open.github, admission: admissionFor() }, PAUSING), 0);
@@ -2896,7 +2898,7 @@ test("a stranded issue with a listed human's open closing PR is left alone; an u
       comments: { 30: [note()] },
       events: { 30: [added("2026-10-16T08:00:00Z", OWNER)] },
       blobs: BLOBS,
-      closing: { 30: [{ number: 7950, repository: { nameWithOwner: REPO } }] },
+      closing: { 30: [{ number: 7950, state: "OPEN", repository: { nameWithOwner: REPO } }] },
       pulls: { 7950: { number: 7950, state: "open", user } },
     });
   const listed = humanPr(OWNER);
