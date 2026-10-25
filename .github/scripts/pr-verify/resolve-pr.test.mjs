@@ -18,6 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { main, resolvePull } from "./resolve-pr.mjs";
+import { loadRules } from "../intake-triage/admit.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
@@ -915,8 +916,9 @@ const withParent = (setup, parent) => {
   return async (method, apiPath, body) =>
     apiPath === "/graphql" && body.query.includes("parent {") ? { data: { repository: { issue: { parent } } } } : github(method, apiPath, body);
 };
-const resolveChild = (child, parent, appId = { laneAppId: VECTORS.app_id }) =>
-  resolvePull({ github: withParent({ issues: [child] }, parent), repository: REPO, upstreamRunId: String(RUN), humans: new Set(VECTORS.humans), laneIdentity: LANE, ...appId });
+const TASK_LIST = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
+const resolveChild = (child, parent, options = { laneAppId: VECTORS.app_id }) =>
+  resolvePull({ github: withParent({ issues: [child] }, parent), repository: REPO, upstreamRunId: String(RUN), humans: new Set(VECTORS.humans), laneIdentity: LANE, taskList: TASK_LIST, ...options });
 const specBody = async (...args) => (await resolveChild(...args)).specText.map(({ number, body }) => [number, body]);
 
 for (const vector of VECTORS.cases) {
@@ -926,3 +928,10 @@ for (const vector of VECTORS.cases) {
     assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
   });
 }
+
+test("with no task-list marker, even the trusted split child is not spec", async () => {
+  const vector = VECTORS.cases.find((item) => item.name === "the trusted child");
+  for (const taskList of [undefined, ""]) {
+    assert.deepEqual(await specBody(childNode(vector), parentNode(vector), { laneAppId: VECTORS.app_id, taskList }), [[8, null]], JSON.stringify(taskList));
+  }
+});

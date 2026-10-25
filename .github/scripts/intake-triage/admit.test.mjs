@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildHeader } from "./admit.mjs";
+import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
@@ -1038,6 +1038,14 @@ describe("size split sub-issues", () => {
       }
     });
   }
+
+  test("splitChildBody counts nothing without a task-list marker", () => {
+    const spec = vectorSpec(VECTORS.cases.find((item) => item.name === "the trusted child"));
+    assert.notEqual(splitChildBody(spec, humans, RULES["task-list"]), null);
+    for (const taskList of [undefined, ""]) {
+      assert.equal(splitChildBody(spec, humans, taskList), null, JSON.stringify(taskList));
+    }
+  });
 
   test("an issue waits while a sub-issue is open, and not for a closed one", () => {
     const subIssues = [

@@ -20,8 +20,8 @@
 //   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
 //   (refinementSpec); and the body of a sub-issue a size split filed, while
-//   unedited and copying that human's lines verbatim or last edited by a
-//   listed human (splitChildBody). Nothing else the lanes App wrote counts,
+//   unedited and copying only that human's task-list lines verbatim, or last
+//   edited by a listed human (splitChildBody). Nothing else the lanes App wrote counts,
 //   an App-filed issue included, and an issue with more comments than the
 //   100 pr-verify reads is refused, since pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request in this
@@ -365,7 +365,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const refuse = [];
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
-  if (splitChildBody(spec, humans) !== null && !rules.sizes.includes("large")) {
+  if (splitChildBody(spec, humans, rules["task-list"]) !== null && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
   const author = issue.user?.id;
@@ -404,7 +404,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  const lines = trustedSpecTexts(spec, humans, appId).flatMap((text) => text.split("\n"));
+  const lines = trustedSpecTexts(spec, humans, appId, rules["task-list"]).flatMap((text) => text.split("\n"));
   if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
@@ -551,15 +551,15 @@ export function refinementSpec(comments, appId) {
 // such text, the lanes App's refinement (refinementSpec)
 // (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). No other Bot or
 // App text counts, except the body of a sub-issue a size split filed
-// (splitChildBody). Pure.
-export function trustedSpecTexts(spec, humans, appId) {
+// (splitChildBody, which reads `taskList`, the rules' `task-list`). Pure.
+export function trustedSpecTexts(spec, humans, appId, taskList) {
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
   if (!spec) {
     return [];
   }
   const refinement = written(spec) ? refinementSpec(spec.comments, appId) : undefined;
-  const own = (item) => written(item) || item === refinement || (item === spec && splitChildBody(spec, humans) !== null);
+  const own = (item) => written(item) || item === refinement || (item === spec && splitChildBody(spec, humans, taskList) !== null);
   return [spec, ...(spec.comments ?? [])].filter(own).map((item) => String(item.body ?? ""));
 }
 
@@ -570,13 +570,13 @@ const hasTaskLine = (text, taskList) =>
 
 // Whether that text holds a `taskList` line: criterion 7. Pure.
 export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
-  trustedSpecTexts(spec, humans, appId).some((text) => hasTaskLine(text, taskList));
+  trustedSpecTexts(spec, humans, appId, taskList).some((text) => hasTaskLine(text, taskList));
 
 // The task-list lines a listed human wrote on an issue, as written, in order:
 // the items a size split partitions. The lanes App's refinement is left out,
 // so a split copies only a listed human's lines (splitChildBody). Pure.
 export const trustedTaskLines = (spec, humans, taskList) =>
-  trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n").filter((line) => line.trimStart().startsWith(taskList)));
+  trustedSpecTexts(spec, humans, undefined, taskList).flatMap((text) => text.split("\n").filter((line) => line.trimStart().startsWith(taskList)));
 
 // The fixed header of part `part` of `parts` that a size split files from
 // issue `parent`; the copied task lines follow it, one per line.
@@ -590,14 +590,16 @@ export const splitChildHeader = (parent, part, parts) =>
 // parent link (admissionFacts, resolve-pr.mjs). It counts when the lanes App
 // wrote the body, the parent was filed by a listed human, the body opens
 // with splitChildHeader for that parent, and either nobody edited it since
-// and every line after the header is a line of the parent's trusted text, or
-// a listed human last edited it (ticking a task box is an edit), which makes
-// it that human's text as trustedSpecTexts reads any body. An edit by anyone
-// else, the App included, leaves it untrusted. Pure.
-export function splitChildBody(spec, humans) {
+// and every line after the header is one of the parent's trusted task-list
+// lines (trustedTaskLines with `taskList`, the rules' `task-list`; owner
+// decision on #9906), or a listed human last edited it (ticking a task box
+// is an edit), which makes it that human's text as trustedSpecTexts reads
+// any body. An edit by anyone else, the App included, leaves it untrusted,
+// and so does a missing or empty `taskList`. Pure.
+export function splitChildBody(spec, humans, taskList) {
   const parent = spec?.splitParent;
   const author = spec?.author;
-  if (parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId) {
+  if (typeof taskList !== "string" || taskList === "" || parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId) {
     return null;
   }
   const human = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
@@ -614,7 +616,7 @@ export function splitChildBody(spec, humans) {
   if (edited) {
     return body;
   }
-  const allowed = new Set(trustedSpecTexts(parent.spec, humans).flatMap((text) => text.split("\n")));
+  const allowed = new Set(trustedTaskLines(parent.spec, humans, taskList));
   const lines = body.slice(header.length).split("\n");
   return lines.every((line) => allowed.has(line)) ? body : null;
 }
