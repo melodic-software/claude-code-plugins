@@ -23,8 +23,10 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
   ranking.
-- Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
-  via `--root-children` with an explicit child selection), user shell-folder roots,
+- Filesystem roots, mount targets (a non-root mount such as a tmpfs `/tmp` can only have its
+  immediate children listed, read-only, with `--root-children`), OS-managed roots on every Windows
+  volume (unless addressed only via `--root-children` with an explicit child selection), user
+  shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
   predicates cannot be disabled by policy. The sole VCS exception is the evidence mode for an
