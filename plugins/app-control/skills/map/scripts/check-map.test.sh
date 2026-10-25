@@ -235,6 +235,16 @@ assert_equals "index-form: exit 0" "$?" "0"
 assert_equals "index-form" "$out" "index-form | SKILL.md | - Bad || features/x/README.md | entry points: 1 | sources: src/cart/**/*.py
 link | features/cart/README.md | ../billing/exports/README.md does not resolve"
 
+# An index line whose second field is mistyped or empty is still read, and is an index-form finding.
+new_case
+printf -- '- Cart | feature/cart/README.md | entry points: 2 | sources: src/cart/**/*.py\n' >>"$SKILL/SKILL.md"
+assert_equals "index-form: mistyped feature path" "$(run_check)" \
+  "index-form | SKILL.md | - Cart | feature/cart/README.md | entry points: 2 | sources: src/cart/**/*.py"
+new_case
+printf -- '- Refunds | | entry points: 1 | sources: shop/refunds.py\n' >>"$SKILL/SKILL.md"
+assert_equals "index-form: empty feature path" "$(run_check)" \
+  "index-form | SKILL.md | - Refunds | | entry points: 1 | sources: shop/refunds.py"
+
 # A single-use item moved into its feature's folder is not a feature.
 new_case
 mkdir -p "$SKILL/features/cart/sign-in"

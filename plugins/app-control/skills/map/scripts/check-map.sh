@@ -128,11 +128,11 @@ for f in "${!features[@]}"; do
 done
 while IFS= read -r f; do features["$f"]=legacy; done < <(cd "$dir" && find features -mindepth 1 -maxdepth 1 -type f -name '*.md' 2>/dev/null | LC_ALL=C sort)
 
-# Index lines, in hub order.
+# Index lines, in hub order: a bullet with a field that names a feature file or an entry count.
 while IFS= read -r line; do
   IFS='|' read -r -a fields <<<"$line"
   path="$(trim "${fields[1]:-}")"
-  if [[ -z "$path" ]]; then
+  if [[ "$path" != features/?* ]]; then
     finding index-form SKILL.md "$line"
     continue
   fi
@@ -179,7 +179,7 @@ while IFS= read -r line; do
     )"
     [[ "$hits" != 0 ]] || finding index-glob SKILL.md "$path: $glob matches no file"
   done
-done < <(unfenced "$dir/SKILL.md" | { grep -E '^- .*\|[[:space:]]*features/' || true; })
+done < <(unfenced "$dir/SKILL.md" | { grep -E '^- .*\|[[:space:]]*(features/|entry points:)' || true; })
 
 mapfile -t feature_list < <(printf '%s\n' "${!features[@]}" | LC_ALL=C sort)
 for f in "${feature_list[@]}"; do
