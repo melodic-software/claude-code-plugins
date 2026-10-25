@@ -4,7 +4,9 @@
 // was never edited or last edited by a listed id), from the trusted-actor
 // list's kinds (only a `human` entry can record a decision), and from the
 // label-only admission rule (the issue is admitted as it stood when the
-// account that applied the label last added it). Ids and logins are the shared
+// account that applied the label last added it, and the App's restart, a
+// removal no trusted `status: ready` followed, admits nothing new; admit.mjs
+// removalStands). Ids and logins are the shared
 // trusted-actors fixture's.
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -330,6 +332,29 @@ test("an App re-fire whose payload update time predates its label event admits, 
 test("an App re-fire that restarts an unlisted account's label writes no file", async () => {
   const restart = [labeled(OWNER, 10), unlabeled(STRANGER, 12), labeled(STRANGER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
   const { code, issue } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+});
+
+// #6377: the App removed agent-ready on a pushback, a listed human edited the
+// body and added `status: ready`, and the App admitted it again days later.
+// That admission is fresh, not a restart, so it is the anchor.
+test("the App's admission after a pushback and a trusted status: ready is its own anchor", async () => {
+  const readmitted = [labeled(OWNER, 10), unlabeled(LANES_BOT, 12), labeled(OWNER, 15, "status: ready"), labeled(LANES_BOT, 20)];
+  const app = { sender: String(LANES_BOT.id) };
+  const between = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: readmitted }), app);
+  assert.equal(between.code, 0);
+  assert.equal(between.issue.number, 6825);
+  const after = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-22T00:00:00Z" }, events: readmitted }), app);
+  assert.equal(after.code, 1);
+  assert.equal(after.issue, null);
+});
+
+test("an unlisted account's status: ready never turns the App's restart into an admission", async () => {
+  const restart = [labeled(OWNER, 10), unlabeled(LANES_BOT, 20), labeled(STRANGER, 20, "status: ready"), labeled(LANES_BOT, 20)];
+  const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: restart }), {
+    sender: String(LANES_BOT.id),
+  });
   assert.equal(code, 1);
   assert.equal(issue, null);
 });
