@@ -270,8 +270,7 @@ launched.
   records nothing and changes no decision: the verdict is computed and emitted before the record is
   attempted, and the write path raises nothing.
 - **Not a replacement for telemetry.** A configured `HOOK_TELEMETRY_SINK` keeps receiving exactly
-  what it received before. The local record is the floor beneath it, for the ordinary case where no
-  sink exists.
+  what it received before. The local record covers the ordinary case where no sink exists.
 - **What is not recorded.** The plugin-level defer, the branch this hook takes for every Bash
   command that does not name the engine, writes nothing, which is what keeps the always-on path
   free. The watchdog's expiry path also writes nothing: that callback runs while the main thread is
