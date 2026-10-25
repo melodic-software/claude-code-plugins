@@ -803,7 +803,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
   installs or runs something new is a security-review finding, not a hold; where
   `high-path-floor` is on, the gate still scores it HIGH as `manifest-review-required`, and this
-  repository sets it off.
+  repository sets it off. Here the security review is the only control on such a change: no
+  deterministic check holds it, and the review's CRITICAL rating of an added `hooks`,
+  `mcpServers`, `lspServers` or `monitors` key, or a marketplace entry added, removed or
+  repointed, is what holds it ([owner decision Q-FLOOR (B)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6399729716)).
 - **Trusted-actor widening.** A change that adds or widens an entry in
   `.github/standards/trusted-actors/trusted-actors.json` scores HIGH as
   `trust-gate:trusted-actors` in both lanes and waits for the owner, whatever `high-path-floor`
