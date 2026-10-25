@@ -48,6 +48,9 @@ jobs:
       contents: write # list branches, compare, delete a branch ref
       issues: read # read linked issues
       pull-requests: read # read each branch's pull requests
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

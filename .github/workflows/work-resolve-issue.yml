@@ -135,6 +135,8 @@ jobs:
       pull-requests: read # count the lanes App's open pull requests
       issues: read # read the issue's Size, Complexity and Uncertainty fields
     env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
       # At most this many resolve-issue runs at once. The one place to change it.
       SLOTS: 3
       ISSUE_NUMBER: ${{ github.event.issue.number }}
