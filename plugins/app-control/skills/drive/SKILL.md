@@ -50,11 +50,14 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    starts with `control-`). Drop a match inside a submodule or a dependency folder such as
    `node_modules` or `vendor`, and a main-checkout file at a path this checkout also holds. Its
    source is `project`.
-2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports,
-   session-only ones included, take its folder (`readFromFolder` when given, else `installPath`),
-   look in its `skills/*/SKILL.md` and `commands/**/*.md`, and keep matches by step 1's rule. A
-   `control-<app>` its manifest defines inline, with no file: `blocked: control skill <name> has no
-   file to read`. Its source is `plugin` and its full name `<plugin>:control-<app>`.
+2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
+   its folder (`readFromFolder` when given, else `installPath`), look in its `skills/*/SKILL.md` and
+   `commands/**/*.md`, and keep matches by step 1's rule. Its source is `plugin` and its full name
+   `<plugin>:control-<app>`. Session-only plugins are not read (see the plugin list below). Each of
+   these records a `blocked:` line and stops the run there: a `control-<app>` a manifest defines
+   inline, with no file (`control skill <name> has no file to read`), and a `*:control-*` name this
+   session shows whose `<plugin>` matches no row of the list (`control skill <name> is from a
+   session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
    Never invoke a control skill through the Skill tool: loading one runs its dynamic-context
    commands, `allowed-tools` and `hooks` before drive can read it. A repository file for an `<app>`
@@ -84,9 +87,10 @@ The bundled `run` skill and how it defers to a project skill:
 <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
 that section changes what `run` does or how it picks a project skill). What loading a skill applies
 or runs: <https://code.claude.com/docs/en/skills#frontmatter-reference>,
-<https://code.claude.com/docs/en/skills#inject-dynamic-context>. The plugin list and its folder
-fields: <https://code.claude.com/docs/en/plugins/cli-reference#plugin-list>; plugin skills and
-commands: <https://code.claude.com/docs/en/plugins/components#skills>,
+<https://code.claude.com/docs/en/skills#inject-dynamic-context>. The plugin list, its folder
+fields and what it shows from inside a session:
+<https://code.claude.com/docs/en/plugins/cli-reference#plugin-list>; plugin skills and commands:
+<https://code.claude.com/docs/en/plugins/components#skills>,
 <https://code.claude.com/docs/en/plugins/components#commands>; a worktree session's repository
 plugins: <https://code.claude.com/docs/en/plugins/loading#check-why-a-repository-plugin-didnt-load>;
 Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>. All
