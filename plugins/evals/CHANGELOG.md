@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.10.5] - 2026-10-25
+
+### Fixed
+
+- `/evals:plugin-eval` says what an unset `grader_run_twice` setting means where it decides whether to pass `--grader-agreement`: an unexpanded, empty or other value means `true`, the manifest default, so an unset key no longer reads as neither true nor false.
+
+## [0.10.4] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.10.3] - 2026-10-23
 
 ### Changed

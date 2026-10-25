@@ -160,8 +160,8 @@ the next session's intended work (the producer's `[file|prompt] [topic] [purpose
 surface, parsed from `$ARGUMENTS`). When present, purpose tailors **emphasis only**, in exactly
 three places:
 
-- The **Resumption brief** leads with it: the brief's framing opens from what the next session is
-  for, still inside its six-line cap.
+- The **Resumption brief** leads with it: `new --purpose <text>` writes it as the brief's first
+  line, `Purpose: <text>`, and the brief's framing opens from it, still inside its six-line cap.
 - **Suggested skills** are selected for it: the skills recommended are the ones serving that use,
   each still tied to a concrete remaining item.
 - **Remaining actions** are ordered by it, among actions whose order is otherwise free; a genuine
@@ -210,7 +210,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
 - `save_point.py memory-root` is read-only and prints the memory root `new` uses when
   `--memory-dir` is omitted: `.work` under the git top level; outside a git work tree,
   `<plugin data>/artifacts`. When neither exists, `new` refuses and asks for `--memory-dir`.
-- `save_point.py new --topic <slug> [--memory-dir <root>] (--previous <file> | --no-previous)`
+- `save_point.py new --topic <slug> [--memory-dir <root>] [--purpose <text>] (--previous <file> | --no-previous)`
   writes the skeleton with every deterministic field filled (filename and `date:`, `session_id`
   from `CLAUDE_CODE_SESSION_ID`, the resolved `transcript:`, `previous_handoff` and the chain
   position keys, the headings in order, the Original goal, current rules, standing preferences
