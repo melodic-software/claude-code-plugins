@@ -13,9 +13,9 @@
 //   carries one, as a lane re-run does.
 // - Infra: the same run when it ended failure and every failure is one an
 //   outside outage explains (infra-failure.mjs). Only its failed jobs are
-//   re-run, through rerun-failed-jobs, at attempts 1 and 2 only, each
+//   re-run, through rerun-failed-jobs, once, at attempt 1 only,
 //   INFRA_BACKOFF_MINUTES after the attempt ended, and only while npm's and
-//   GitHub's status pages show indicator none.
+//   GitHub's status pages show indicator none. At attempt 2 fix-ci takes it.
 // - Flake: the same run when it ended failure on anything else, at attempt 1
 //   only: its failed jobs are re-run once, at the next half-hourly run, so a
 //   flaky test the diff did not cause can pass. pr-unblock's fix-ci does not
@@ -172,7 +172,7 @@ const isLostLane = (r, since) => r.event === "workflow_run" && r.head_branch ===
 const isPassedChecks = (r) =>
   RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
-const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES[r.run_attempt - 1] * 60_000;
+const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES * 60_000;
 const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;

@@ -193,7 +193,7 @@ export function failureCause(required, now = Date.now()) {
     if (bad !== undefined) {
       return `infra failure, run field ${bad} unreadable`;
     }
-    return run.run_attempt === 1 && reconcilerRetries(run, now)
+    return reconcilerRetries(run, now)
       ? `infra failure at attempt 1, no re-run within ${RERUN_DUE_MINUTES} min`
       : `infra failure at attempt ${run.run_attempt}`;
   }

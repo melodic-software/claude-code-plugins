@@ -28,10 +28,10 @@ export const AGGREGATE_JOBS = new Set(["ci-status"]);
 export const INSTALL_STEP = /^(Install |Set up (job|Node|Python)$)/;
 export const FAILED = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
 const STOPPED = new Set(["cancelled", "timed_out"]);
-// Minutes after attempt N of an infra-only run ended before the reconciler
-// re-runs its failed jobs; past the last entry it is left red, and fix-ci takes
-// it. Two re-runs per head at most.
-export const INFRA_BACKOFF_MINUTES = [15, 30];
+// Minutes after attempt 1 of an infra-only run ended before the reconciler
+// re-runs its failed jobs. One re-run per head: at attempt 2 it is left red,
+// and fix-ci takes it.
+export const INFRA_BACKOFF_MINUTES = 15;
 // An outage loss is re-run within a day; an older one is left to a person (judgment).
 export const LOOKBACK_HOURS = 24;
 
@@ -41,9 +41,7 @@ export const LOOKBACK_HOURS = 24;
 export const reconcilerRetries = (run, now) =>
   run?.status === "completed" &&
   run.conclusion === "failure" &&
-  Number.isInteger(run.run_attempt) &&
-  run.run_attempt >= 1 &&
-  run.run_attempt <= INFRA_BACKOFF_MINUTES.length &&
+  run.run_attempt === 1 &&
   Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
 
 // True for a failed run at attempt 1 inside the lookback with a failed lane
@@ -63,10 +61,10 @@ export const firstFailure = (run, jobs, now) =>
 // Run statuses that mean a run, or a re-run of it, is queued or going.
 const IN_FLIGHT = new Set(["queued", "in_progress", "waiting", "requested", "pending"]);
 // Minutes after an infra-only run's first attempt ended that fix-ci waits for
-// the reconciler's re-run: its first backoff plus two of its half-hourly ticks,
+// the reconciler's one re-run: its backoff plus two of its half-hourly ticks,
 // since a scheduled run starts late and can defer a head at MAX_IN_FLIGHT
 // (judgment). Past it, fix-ci takes the head instead of waiting in silence.
-export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES[0] + 2 * 30;
+export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES + 2 * 30;
 
 // Why fix-ci waits on a tested run ({ run, jobs } from testedRun), or "" when
 // it may take the head: a re-run of the run is queued or going, or an
@@ -87,7 +85,7 @@ export function reconcilerOwns({ run, jobs }, now) {
   if (stepsUnread(jobs)) {
     return "its failed jobs' steps did not list, re-run job reads them again";
   }
-  return run.run_attempt === 1 && infraOnly(jobs) ? "infra failure, re-run job re-runs it once" : "";
+  return infraOnly(jobs) ? "infra failure, re-run job re-runs it once" : "";
 }
 
 // True when the job's step list shows what ran: empty for a job no runner
