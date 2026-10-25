@@ -334,7 +334,9 @@ def _send(
 # stop recorded there holds in this process too, so one stop holds for every
 # step and every process of the job; the same vectors file's `stop_files`
 # pins its reading. A stop the file cannot take is reported, naming the pool,
-# and the in-process trip still holds.
+# and the in-process trip still holds. A stop file that is missing holds no
+# stop; one that exists but cannot be read holds every pool until MAX_RESET,
+# with an `::error` naming it (the vectors file's `stop_file_errors`).
 #   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
 #   and <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api>
 #   As-of: 2026-10-24.
@@ -372,6 +374,14 @@ LIMITS_FIELDS = ("writer-pause", "read-floor")
 # The shares with no repo config: no margin, so only a signal stops a call.
 NO_MARGINS = dict.fromkeys(LIMITS_FIELDS, 0.0)
 TOKEN_POOLS = frozenset({"github-token", "lanes-app", "owner-token"})
+# GITHUB_TOKEN's documented ceiling, whatever x-ratelimit-limit reports: "The
+# rate limit for GITHUB_TOKEN is 1,000 requests per hour per repository." The
+# read floor counts against min(header limit, this); the writer pause and the
+# exhausted stop keep the header's own numbers.
+#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
+#   As-of: 2026-10-25.
+#   Recheck trigger: that page changes the GITHUB_TOKEN figure.
+GITHUB_TOKEN_LIMIT_CAP = 1000
 # The YAML reader's runner, bound at import: a test that fakes `gh` through
 # `run_command` still reads the real limits.
 _reader_run = run_command
@@ -394,11 +404,17 @@ class RateLimitExhausted(BaseException):
 
     def error_line(self) -> str:
         pool = "every" if self.pool == ALL_POOLS else f"the {self.pool}"
-        reset = (
-            "unknown"
-            if self.reset is None
-            else datetime.fromtimestamp(self.reset, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        )
+        try:
+            reset = (
+                "unknown"
+                if self.reset is None
+                else datetime.fromtimestamp(self.reset, UTC).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+            )
+        except (OverflowError, OSError, ValueError):
+            # MAX_RESET is past the year 9999 datetime can show.
+            reset = f"epoch second {int(self.reset)}"
         return (
             f"::error title=GitHub rate limit::{pool} pool is exhausted "
             f"({self.reason}); no GitHub call is sent before {reset}"
@@ -419,19 +435,24 @@ _limits: dict[str, dict[str, float]] = {}
 _trip_reported = False
 # The job's stop file, read once before the first call; None until then.
 _job_stops: dict[str, int] | None = None
+# Why the job's stop file exists but could not be read; None when it was read
+# or is missing.
+_job_stops_error: str | None = None
 # One line of it, as rate-guard.mjs reads one: `<pool> <reset epoch>`, ASCII
-# digits only. Lines split on \n alone, so a line holding a \r is skipped.
+# digits only. Lines split on \n alone, so a line holding a \r is skipped, and
+# the piece after the last \n is no line.
 _STOP_LINE = re.compile(r"([a-z_]+|\*) ([0-9]{1,12})")
 
 
 def reset_rate_guard() -> None:
     """Forget every trip, reading, loaded share and job stop (tests)."""
-    global _trip_reported, _job_stops
+    global _trip_reported, _job_stops, _job_stops_error
     _tripped.clear()
     _headroom.clear()
     _limits.clear()
     _trip_reported = False
     _job_stops = None
+    _job_stops_error = None
 
 
 def _stop_file() -> str | None:
@@ -440,17 +461,30 @@ def _stop_file() -> str | None:
 
 
 def _read_job_stops() -> dict[str, int]:
-    """Each pool's latest reset in the job's stop file. A file that cannot be
-    read holds no stop and a malformed line is skipped, as rate-guard.mjs
-    `readStops` reads them."""
+    """Each pool's latest reset in the job's stop file. A missing file holds no
+    stop and a malformed line is skipped, as rate-guard.mjs `readStops` reads
+    them; any other read error holds every pool until MAX_RESET, reported
+    once with an `::error` naming the file."""
+    global _job_stops_error
     path = _stop_file()
     try:
         # Bytes, not read_text: universal newlines would turn \r into \n.
         text = Path(path).read_bytes().decode("utf-8", "replace") if path else ""
-    except OSError:
+    except FileNotFoundError:
         text = ""
+    except OSError as exc:
+        _job_stops_error = (
+            f"the job's stop file {path} cannot be read ({exc.strerror or exc})"
+        )
+        print(
+            f"::error title=GitHub rate limit::{_job_stops_error}, so every "
+            "GitHub API pool counts as stopped",
+            file=sys.stderr,
+            flush=True,
+        )
+        return {ALL_POOLS: MAX_RESET}
     stops: dict[str, int] = {}
-    for line in text.split("\n"):
+    for line in text.split("\n")[:-1]:
         match = _STOP_LINE.fullmatch(line)
         if match:
             stops[match[1]] = max(stops.get(match[1], 0), int(match[2]))
@@ -669,7 +703,7 @@ def _refuse_if_exhausted(pool: str | None, limits_pool: str) -> None:
         at = stopped_until(name)
         if at is not None:
             held = name if (_job_stops or {}).get(name) == at else ALL_POOLS
-            raise _trip(held, at, "a stop this job recorded")
+            raise _trip(held, at, _job_stops_error or "a stop this job recorded")
     limits = pool_limits(limits_pool)
     if isinstance(limits, str):
         raise RateLimitExhausted(ALL_POOLS, None, f"fail closed: {limits}")
@@ -754,15 +788,27 @@ def _below(pool: str | None, field: str) -> bool:
         if isinstance(limits, str):
             return True
         reading = _headroom.get(name)
-        if reading and reading[0] < limits[field] * reading[1]:
+        if not reading:
+            continue
+        remaining, limit = reading
+        cap = _limit_cap(name) if field == "read-floor" else None
+        if cap is not None and cap < limit:
+            remaining, limit = max(0, cap - (limit - remaining)), cap
+        if remaining < limits[field] * limit:
             return True
     return False
 
 
+def _limit_cap(pool: str) -> int | None:
+    """The absolute ceiling under a pool's header limit, or None."""
+    return GITHUB_TOKEN_LIMIT_CAP if pool == "github-token" else None
+
+
 def low_headroom(pool: str | None = None) -> bool:
     """Whether `pool` (any pool read so far, when None) last read below its
-    `read-floor` share, or its limits are unreadable. Report-only reads are
-    skipped then."""
+    `read-floor` share (for `github-token`, of `GITHUB_TOKEN_LIMIT_CAP` when
+    the header reports more), or its limits are unreadable. Report-only reads
+    are skipped then."""
     return _below(pool, "read-floor")
 
 

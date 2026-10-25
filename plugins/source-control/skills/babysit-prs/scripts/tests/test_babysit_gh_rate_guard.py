@@ -306,10 +306,41 @@ class HeadroomShares(GuardCase):
         reader.fail_summary.assert_not_called()
 
     def test_at_the_read_floor_the_read_runs(self) -> None:
-        floor = self.shares("github-token")["read-floor"]
+        os.environ["API_BUDGET_TOKEN"] = "lanes-app"
+        floor = self.shares("lanes-app")["read-floor"]
         self.answer(0, head(200, **core(int(floor * 5000))) + "{}")
         gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertFalse(gh.low_headroom())
+
+    def test_github_token_read_floor_counts_against_the_per_repo_cap(self) -> None:
+        # GitHub documents GITHUB_TOKEN at 1,000 requests an hour per
+        # repository, whatever x-ratelimit-limit reports; the floor is a share
+        # of that, and the calls spent so far (limit - remaining) count.
+        cap = 1000  # rate-limits-for-the-rest-api, "GITHUB_TOKEN" section
+        floor = self.shares("github-token")["read-floor"]
+        at_floor = 5000 - cap + int(floor * cap)
+        for remaining, low in ((at_floor, False), (at_floor - 1, True)):
+            with self.subTest(remaining=remaining):
+                gh.reset_rate_guard()
+                self.answer(0, head(200, **core(remaining)) + "{}")
+                gh.gh_capture(["api", "repos/o/r/pulls/1"])
+                self.assertEqual(gh.low_headroom("github-token"), low)
+                # The writer pause still reads the header's own numbers.
+                self.assertFalse(gh.writes_paused("github-token"))
+
+    def test_the_cap_is_github_token_only(self) -> None:
+        cap = 1000
+        floor = self.shares("lanes-app")["read-floor"]
+        os.environ["API_BUDGET_TOKEN"] = "lanes-app"
+        self.answer(0, head(200, **core(5000 - cap + int(floor * cap) - 1)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertFalse(gh.low_headroom("lanes-app"))
+
+    def test_a_header_limit_under_the_cap_is_used_as_is(self) -> None:
+        floor = self.shares("github-token")["read-floor"]
+        self.answer(0, head(200, **core(int(floor * 500), limit=500)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertFalse(gh.low_headroom("github-token"))
 
     def test_below_the_writer_pause_a_write_is_not_sent(self) -> None:
         pause = self.shares("github-token")["writer-pause"]
@@ -528,15 +559,19 @@ class TheJobStopFile(GuardCase):
             gh.gh_capture(["api", "repos/o/r/pulls/2"])
         self.assertEqual(len(self.sent), 1)
 
+    # The read happens before the first call and finds no file; the path then
+    # breaks, so only the append fails.
     def test_a_stop_the_file_cannot_take_is_reported_and_the_latch_holds(
         self,
     ) -> None:
+        self.assertIsNone(gh.stopped_until("core"))
         self.stop_file.mkdir(parents=True)
         self.assert_unrecorded_stop_reported_and_latched()
 
     def test_a_stop_dir_that_cannot_be_made_is_reported_and_the_latch_holds(
         self,
     ) -> None:
+        self.assertIsNone(gh.stopped_until("core"))
         self.stop_file.parent.write_text("", encoding="utf-8")
         self.assert_unrecorded_stop_reported_and_latched()
 
@@ -576,12 +611,67 @@ class TheJobStopFile(GuardCase):
         gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertEqual(len(self.sent), 1)
 
-    def test_an_unreadable_stop_file_holds_no_stop(self) -> None:
-        # As rate-guard.mjs readStops: a file that cannot be read is empty.
-        self.stop_file.mkdir(parents=True)
-        self.answer(0, head(200, **core(4000)) + "{}")
-        gh.gh_capture(["api", "repos/o/r/pulls/1"])
-        self.assertEqual(len(self.sent), 1)
+    def make_stop_error(self, error: str) -> None:
+        """Build the condition under which reading the stop file fails with
+        `error`, as the shared vectors' `stop_file_errors` name it."""
+        if error == "EISDIR":
+            self.stop_file.mkdir(parents=True)
+        elif error == "ENOTDIR":
+            self.stop_file.parent.write_text("", encoding="utf-8")
+        elif error == "EACCES":
+            if os.name == "nt" or os.geteuid() == 0:
+                self.skipTest("no unreadable file for this user")
+            self.write_stops("")
+            self.stop_file.chmod(0)
+        elif error != "ENOENT":
+            self.fail(f"no condition for {error}")
+
+    def test_every_stop_file_error_vector_in_the_shared_file(self) -> None:
+        table = json.loads(VECTORS.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(table["stop_file_errors"]), 4)
+        for vector in table["stop_file_errors"]:
+            with (
+                self.subTest(vector["name"]),
+                tempfile.TemporaryDirectory() as temp,
+                mock.patch.dict(os.environ, {"RUNNER_TEMP": temp}),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as err,
+            ):
+                gh.reset_rate_guard()
+                self.stop_file = pathlib.Path(temp, "api-budget", "stop")
+                self.make_stop_error(vector["error"])
+                got = {
+                    pool: gh.stopped_until(pool, now=table["vector_now"])
+                    for pool in vector["until"]
+                }
+                self.assertEqual(got, vector["until"])
+                errors = [
+                    line
+                    for line in err.getvalue().splitlines()
+                    if line.startswith("::error")
+                ]
+                if vector["error"] == "ENOENT":
+                    self.assertEqual(errors, [])
+                else:
+                    self.assertEqual(len(errors), 1, err.getvalue())
+                    self.assertIn(str(self.stop_file), errors[0])
+
+    def test_a_stop_file_that_cannot_be_read_sends_nothing(self) -> None:
+        self.make_stop_error("EISDIR")
+        for args in (
+            ["api", "repos/o/r/pulls/1"],
+            ["api", "graphql", "-f", "query=query{viewer{login}}"],
+            ["pr", "view", "1", "--json", "number"],
+        ):
+            with (
+                mock.patch("sys.stderr", new_callable=io.StringIO),
+                self.assertRaises(gh.RateLimitExhausted) as got,
+            ):
+                gh.gh_capture(args)
+            self.assertEqual(got.exception.pool, gh.ALL_POOLS)
+            self.assertIn("cannot be read", got.exception.reason)
+            # The reset is past datetime's range; the line still prints.
+            self.assertIn(str(self.stop_file), got.exception.error_line())
+        self.assertEqual(self.sent, [])
 
     def test_a_latch_appends_its_stop_as_the_js_guard_writes_it(self) -> None:
         self.answer(
