@@ -46,14 +46,19 @@ jobs:
   # Anyone else's label, on an issue anyone can open, starts nothing past
   # this job. It runs check-trusted-trigger from the default branch tip with
   # a read-only token and no secret; the read runner checks the trigger again.
+  # A trusted label proceeds no further (check-blockers.mjs, admission's rules)
+  # on an issue untrusted provenance holds, for good, or one a blocker still
+  # blocks, or whose labels, events or blockers cannot be read: agent-ready
+  # stays, and work-unblock's sweep re-fires the last two once they clear.
   admit:
     if: github.event.label.name == 'agent-ready'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
+      issues: read # list the issue's blocked_by dependencies
     outputs:
-      proceed: ${{ steps.gate.outputs.proceed }}
+      proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}
     steps:
       # The gate cannot match an unset lanes App id, so the App's own
       # labels would read as a stranger's and its exception would never hold.
@@ -95,6 +100,22 @@ jobs:
           require-pr: "false"
           require-kind: human
           app-label: agent-ready
+
+      - name: Wait for open blockers
+        id: blockers
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: node .base/.github/scripts/work-resolve-issue/check-blockers.mjs
+
+      # The mark work-unblock's sweep reads: a run that stopped here is never
+      # re-fired.
+      - name: Stop on untrusted provenance
+        if: steps.blockers.outputs.untrusted == 'true'
+        run: echo "untrusted provenance holds this issue; a person decides it"
 
   # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
   # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow

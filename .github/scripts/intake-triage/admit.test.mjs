@@ -4,7 +4,7 @@ import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildHeader } from "./admit.
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
@@ -802,35 +802,25 @@ describe("admit", () => {
     assert.equal(q, "repo:o/r is:issue is:open label:admission-deferred created:<2026-10-20T08:00:00+00:00");
   });
 
-  // Until work-unblock's sweep counts these blockers, it would drop the
-  // deferral without admitting the issue, leaving it with neither label.
-  test("an issue resting on a not planned, duplicate or other repository's blocker is admitted, not deferred behind an older one", async () => {
+  // work-unblock's sweep counts these blockers as decide() does, so such an
+  // issue defers like any other and the sweep admits it oldest first.
+  test("an issue resting on a not planned, duplicate or other repository's blocker defers behind an older one", async () => {
     const here = (reason) => ({ number: 5, state: "closed", state_reason: reason, repository_url: "https://api.github.com/repos/o/r" });
-    for (const reason of ["not_planned", "duplicate"]) {
+    for (const reason of ["not_planned", "duplicate", "completed"]) {
       const fake = fakeGitHub({ blockers: [here(reason)], closed: { 5: { ...here(reason), closed_by: { id: HUMAN } } }, older: 1 });
-      assert.equal((await go(fake)).outcome, "admitted", reason);
-      assert.ok(!fake.calls.some((call) => call.path.startsWith("/search/issues?")));
+      assert.equal((await go(fake)).outcome, "deferred", reason);
     }
     const other = { ...here("completed"), repository_url: "https://api.github.com/repos/o/other" };
     const elsewhere = fakeGitHub({ blockers: [other], elsewhere: { "/repos/o/other/issues/5": { ...other, closed_by: { id: HUMAN } } }, older: 1 });
-    assert.equal((await go(elsewhere)).outcome, "admitted");
-    const completed = fakeGitHub({ blockers: [here("completed")], closed: { 5: { ...here("completed"), closed_by: { id: HUMAN } } }, older: 1 });
-    assert.equal((await go(completed)).outcome, "deferred");
+    assert.equal((await go(elsewhere)).outcome, "deferred");
   });
 
-  test("with the lane full, an issue resting on a blocker the sweep does not count waits with a comment, never admission-deferred", async () => {
+  test("with the lane full, an issue resting on a not planned blocker gets admission-deferred", async () => {
     const blocker = { number: 5, state: "closed", state_reason: "not_planned", repository_url: "https://api.github.com/repos/o/r" };
-    const fake = fakeGitHub({
-      issue: issueOf({ labels: [{ name: READY }, { name: DEFERRED }] }),
-      blockers: [blocker],
-      closed: { 5: { ...blocker, closed_by: { id: HUMAN } } },
-    });
+    const fake = fakeGitHub({ blockers: [blocker], closed: { 5: { ...blocker, closed_by: { id: HUMAN } } } });
     const result = await go(fake, { status: { ...open, paused: true, pause_reason: "held-cap" } });
-    assert.equal(result.outcome, "waiting");
-    const done = writes(fake.calls);
-    assert.equal(done.length, 2, done.join("\n"));
-    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/admission-deferred/);
-    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*the lane is paused \(held-cap\), and the hourly sweep cannot admit it/);
+    assert.equal(result.outcome, "deferred");
+    assert.deepEqual(writes(fake.calls), ['POST /repos/o/r/issues/7/labels {"labels":["admission-deferred"]}']);
   });
 
   test("an incomplete or failed older-deferred search defers rather than admits", async () => {
@@ -1113,5 +1103,25 @@ describe("size split sub-issues", () => {
       });
       assert.equal((await go(fake)).outcome, expected);
     }
+  });
+});
+
+describe("untrustedHold", () => {
+  const LABEL = "work-class: untrusted-provenance";
+  const humans = new Set([1]);
+  const isApp = (actor) => actor?.id === 9;
+  const event = (kind, id, name = LABEL) => ({ event: kind, label: { name }, actor: { id } });
+  test("the label on the issue holds it", () => {
+    assert.equal(untrustedHold({ labels: [{ name: LABEL }], events: [], humans, isApp }), true);
+    assert.equal(untrustedHold({ labels: [LABEL], events: [], humans, isApp }), true);
+  });
+  test("a newest removal by neither a listed human nor the App still holds it; theirs lifts it", () => {
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 5)], humans, isApp }), true);
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 1)], humans, isApp }), false);
+    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 9)], humans, isApp }), false);
+    assert.equal(untrustedHold({ labels: [], events: [event("unlabeled", 5), event("labeled", 1, "other")], humans, isApp }), true);
+  });
+  test("an issue never labeled is not held", () => {
+    assert.equal(untrustedHold({ labels: [{ name: "agent-ready" }], events: [event("labeled", 5, "agent-ready")], humans, isApp }), false);
   });
 });
