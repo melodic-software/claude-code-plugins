@@ -1778,16 +1778,17 @@ def _vouch_refusal(
     label: Callable[[], str],
 ) -> str | None:
     """Why no human vouched for the linked issue, or None: a human with write
-    access wrote it and no non-human edited its body or title since
-    (`_author_vouch_refusal`), or a human applied the admission label
-    in person with no body edit or title change after it
+    access wrote it, no non-human edited its body since (`_edits_refusal`
+    over the `DEMOTION_RECORD` read) and none retitled it (`renamed`
+    timeline events by a non-human or through an App), or a human applied
+    the admission label in person with no body edit or title change after it
     (`_label_provenance`, `renamed` timeline events). Either suffices; when
     neither does, the author path's reason wins for a human-authored issue
     with no admission label."""
     authored: str | None = None
     if human(issue.get("author")):
         authored = _author_vouch_refusal(owner, name, issue, human, timelines)
-        if authored is None:
+        if not authored:
             return None
     wanted = label().casefold()
     applied = next((n for n in labels if n.casefold() == wanted), None)
@@ -1804,9 +1805,9 @@ def _author_vouch_refusal(
     human: Callable[[Any], bool],
     timelines: dict[int, list[dict[str, Any]]],
 ) -> str | None:
-    """Why a human author's issue is no longer theirs, or None: a non-human,
-    or anyone through an App, renamed it (a title edit leaves `lastEditedAt`
-    empty), or a non-human edited its body."""
+    """Why a write-access human's issue no longer carries their vouch, or
+    None: a non-human, or anyone through an App, retitled it or edited its
+    body."""
     number = issue["number"]
     if any(
         e.get("event") == "renamed"

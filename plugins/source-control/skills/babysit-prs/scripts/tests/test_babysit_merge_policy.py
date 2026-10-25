@@ -1163,41 +1163,21 @@ class IssueVouch(unittest.TestCase):
         gh.rest[self.TIMELINE][-1]["created_at"] = "2026-10-11T08:00:00Z"
         self.assertTrue(eligibility().eligible)
 
-    def test_a_human_issue_retitled_by_a_non_human_is_refused(self) -> None:
-        # A title edit leaves `lastEditedAt` empty, so the author vouch reads
-        # the timeline's `renamed` events too.
+    def test_a_retitle_with_no_recorded_actor_is_refused(self) -> None:
+        # A title edit leaves `lastEditedAt` empty, and a `renamed` event
+        # with no actor is not shown to be a person's.
         gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
-        renamed = {
-            "event": "renamed",
-            "actor": {"login": "agent-lanes[bot]", "type": "Bot"},
-            "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
-            "created_at": "2026-10-11T10:00:00Z",
-        }
-        gh.rest[self.TIMELINE] = [renamed]
-        self.assertEqual(
-            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
-        )
-        # Through an App, or with no actor recorded, it is not a person's.
         gh.rest[self.TIMELINE] = [
-            renamed
-            | {
-                "actor": {"login": OPERATOR, "type": "User"},
-                "performed_via_github_app": {"slug": "agent"},
+            {
+                "event": "renamed",
+                "actor": None,
+                "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+                "created_at": "2026-10-11T10:00:00Z",
             }
         ]
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
         )
-        gh.rest[self.TIMELINE] = [renamed | {"actor": None}]
-        self.assertEqual(
-            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
-        )
-        # A write-access human retitling in person keeps the vouch.
-        gh.rest[self.TIMELINE] = [
-            renamed | {"actor": {"login": OPERATOR, "type": "User"}}
-        ]
-        result = eligibility()
-        self.assertTrue(result.eligible, result.reason)
 
     def test_a_human_relabel_after_a_non_human_retitle_vouches(self) -> None:
         gh = eligibility_fake(
@@ -1314,6 +1294,29 @@ class IssueVouch(unittest.TestCase):
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
         )
+
+    def test_a_human_issue_retitled_by_a_non_human_is_refused(self) -> None:
+        # A title edit leaves the body history alone, so the author path reads
+        # the `renamed` events too: only a human in person may retitle.
+        gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
+        rename = {
+            "event": "renamed",
+            "actor": {"login": IDENTITY, "type": "Bot"},
+            "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+            "created_at": "2026-10-11T10:00:00Z",
+        }
+        gh.rest[self.TIMELINE] = [rename]
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        rename["actor"] = {"login": OPERATOR, "type": "User"}
+        rename["performed_via_github_app"] = {"slug": "agent"}
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        del rename["performed_via_github_app"]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
 
     def test_a_human_relabel_after_a_lane_rewrite_vouches(self) -> None:
         # Either vouch suffices: a human who re-applies the admission label in
