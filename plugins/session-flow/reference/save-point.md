@@ -255,6 +255,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
   says so) or a file that still carries a `FILL` slot (an unfinished skeleton is never emitted).
+  A shape-3 file over the Read page cap still emits, with a `FAIL:` notice on stderr.
   When the stored `Read @` path is not the file's own real path (a file preserved out of a removed
   worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
   rewritten.

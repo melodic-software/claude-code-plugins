@@ -1720,7 +1720,14 @@ def cmd_emit(args: argparse.Namespace) -> int:
         return _die(1, f"'## Resume prompt' section absent: {_posix(path)}")
     if doc.shape == 3:
         size, core = _cap_state(doc)
-        if size > HOT_FILE_MAX_BYTES and core > HOT_FILE_MAX_BYTES:
+        if size > READ_CAP_BYTES:
+            # The prompt is never withheld (save-point.md, "Three failed attempts
+            # do not withhold the rails"); the notice says validate fails it.
+            print(
+                f"FAIL: this hot file holds {size} bytes, over the {READ_CAP_BYTES}-byte Read page cap; `validate` fails it and one Read cannot hold it; the prompt is emitted",
+                file=sys.stderr,
+            )
+        elif size > HOT_FILE_MAX_BYTES and core > HOT_FILE_MAX_BYTES:
             print(
                 f"UNVALIDATED: this hot file's core holds {core} bytes, over the {HOT_FILE_MAX_BYTES}-byte cap; the prompt is emitted, the file was not validated",
                 file=sys.stderr,

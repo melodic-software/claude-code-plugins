@@ -2683,6 +2683,11 @@ def test_shape3_hot_file_over_the_read_cap_fails_even_when_its_core_is_too_large
     assert f"FAIL: size: {len(hop1.read_bytes())} bytes" in out(result), out(result)
     assert f"{READ_CAP}-byte Read page cap" in out(result), out(result)
     assert "UNVALIDATED" not in out(result), out(result)
+    emitted = run("emit", str(hop1))
+    assert emitted.returncode == 0, err(emitted)
+    assert out(emitted) == _section_body(hop1, "Resume prompt")
+    assert "FAIL:" in err(emitted) and f"{READ_CAP}-byte Read page cap" in err(emitted)
+    assert "UNVALIDATED" not in err(emitted), err(emitted)
 
 
 def test_shape3_goal_must_start_with_the_predecessors_section_byte_for_byte(tmp_path):

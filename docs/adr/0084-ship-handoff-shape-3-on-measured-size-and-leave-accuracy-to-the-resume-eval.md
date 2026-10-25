@@ -42,6 +42,17 @@ plugin eval cannot read a Codex session or a native `/compact`.
    an accuracy comparison against today's handoff. Shape-1 and shape-2 files still read and
    validate, so a revert restores the old writer without touching existing chains. The instruction
    trims and the interview emoji fix stay deferred.
+5. **Commit the harness as an owner exception.** AGENTS.md says to commit a harness only when
+   something re-runs it (a CI lane, a schedule, a skill action), and nothing automated runs
+   `resume_eval.py`. The owner decided on 2026-10-24 to commit it anyway, because it is re-run
+   by hand: on the re-run trigger under Consequences, and for the owner-approved accuracy check.
+6. **Leave the core's growth unbounded for now.** Original goal and Direction changes carry forward
+   verbatim and never move to the archive, so the hot file grows by one trail line per change of
+   direction. A hot file over the Read page cap (25,000 tokens' worth) fails `validate` whatever
+   its core holds, so a long enough chain would fail with nothing the writer may move out. The
+   56-hop `hop_chain.py --budget` projection stays at 16.4 KB, under the 24.6 KB hot-file cap. The
+   owner decided on 2026-10-24 to defer a bound, such as keeping only the last trail lines in the
+   hot file, to the pending accuracy runs.
 
 ## Alternatives considered
 
@@ -83,5 +94,6 @@ plugin eval cannot read a Codex session or a native `/compact`.
   directory and reads of the plugin copy, and the same fence applies to every arm. The before
   handoff skill tried to write `.work/.gitignore` one directory above its working directory in 12
   skill-eval runs, a candidate memory-directory defect for the redesign to check.
+- Open follow-up: decide the core-growth bound (decision 6) with the accuracy runs.
 - Re-run the eval on any change to how session-flow writes or reads a handoff, and on a Claude
   Code release that changes compaction, Read or context behavior.
