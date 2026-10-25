@@ -369,6 +369,10 @@ test("api_budget_is_content judges a gh call as rate-guard.mjs's isContentWrite 
     "api -XPATCH repos/o/r/issues/7",
     "api --method=PATCH repos/o/r/issues/7",
     "api repos/o/r/issues/7/labels --field=labels[]=x",
+    'api -H "Accept: x" repos/o/r/issues/7/comments -f body=x',
+    "api --hostname h repos/o/r/issues/7/comments -f body=x",
+    "api -p x repos/o/r/issues/7/comments -f body=x",
+    "api -X=POST repos/o/r/issues/7/comments",
     "issue comment 7 --body x",
     "pr edit 7 --add-label x",
   ];

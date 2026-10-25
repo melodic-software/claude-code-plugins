@@ -8,8 +8,8 @@ import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const TIMEOUT_MS = 20_000;
 
-export function createJobLogReader({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, latch = rateLimitLatch, timeoutMs = TIMEOUT_MS }) {
-  const send = latch.guard(fetchImpl);
+export function createJobLogReader({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, latch = rateLimitLatch, timeoutMs = TIMEOUT_MS, budgetToken }) {
+  const send = latch.guard(fetchImpl, { token: budgetToken });
   return async function jobLog(repo, jobId, { maxBytes }) {
     const what = `GET /repos/${repo}/actions/jobs/${jobId}/logs`;
     const response = await send(`${apiUrl}/repos/${repo}/actions/jobs/${jobId}/logs`, {

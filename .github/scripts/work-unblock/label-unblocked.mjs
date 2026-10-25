@@ -1538,7 +1538,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       actions ??= env.ACTIONS_TOKEN
         ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, budgetToken: "github-token" })
         : null;
-      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, budgetToken: "github-token" }) : null;
     }
     const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];

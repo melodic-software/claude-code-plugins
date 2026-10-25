@@ -3413,7 +3413,7 @@ jobs:
             if [[ -z $prev ]]; then
               case $arg in
                 --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
-                -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} ;;
+                -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} arg=${arg#=} ;;
                 *) ;;
               esac
             fi
@@ -3421,9 +3421,10 @@ jobs:
               -X | --method) method=${arg^^} ;;
               -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
               --input) fields=1 ;;
+              -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) ;;
               *) [[ $arg == -* || -n $path ]] || path=$arg ;;
             esac
-            case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache) prev=$arg ;; *) prev= ;; esac
+            case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) prev=$arg ;; *) prev= ;; esac
           done
           [[ -n $method ]] || { [[ -n $fields ]] && method=POST; } || method=GET
           [[ $method == POST || $method == PATCH || $method == PUT ]] || return 1
