@@ -45,7 +45,7 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
 - Binds 127.0.0.1 only. `Host` must be `127.0.0.1:<port>` or `localhost:<port>`, and `Origin`, when
   sent, must match.
 - A per-run token from `secrets.token_urlsafe(32)` rides only in the `X-<Name>-Token` header; every
-  POST and `/api/wait` needs it. Every POST must be `application/json`, 1 to `max_body` bytes, a
+  POST needs it, and so does `/api/wait` unless the app sets a `watch_token`. Every POST must be `application/json`, 1 to `max_body` bytes, a
   JSON object. An app may set a separate `watch_token` on its hub: it then alone gates `/api/wait` and
   the lease release, is written to the env file as `WATCH_TOKEN` and to the session json as
   `watchToken`, and is never served to the page (without one, the page token gates them too).
@@ -53,8 +53,9 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
   process's argv, which other local users can read on Linux without `hidepid` and on macOS.
 - On Windows the listener refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`, so no other
   local process can bind the same port and receive requests that carry the token.
-- `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt) and
-  `.<name>-session.env` (`PID`, `PORT`, `TOKEN`, `NONCE`) to the data dir, mode 0600.
+- `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt, and
+  `watchToken` when the app sets one) and `.<name>-session.env` (`PID`, `PORT`, `TOKEN`,
+  `WATCH_TOKEN` when set, `NONCE`) to the data dir, mode 0600.
 - `GET /events` streams `state` frames on every change and a `ping` every 15 s when idle; at most 8
   streams run at once (one more gets 503).
 - `GET /api/wait?after=handled&replayed=<n>&timeout=<s>&watcher=<id>&pid=<pid>` blocks until the
