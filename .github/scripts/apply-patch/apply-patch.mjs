@@ -436,7 +436,10 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   if (names.length !== 1 || names[0] !== "patch.diff" || patchProblem(join(patchDir, "patch.diff"), patchSha256)) {
     return decide(false, "awaiting-human", reasonFor(row, "invalid"));
   }
-  return decide(true, "", escalated ? reasonFor(row, "escalated") : "");
+  // A written patch pushes a new head, and the report's escalations are about
+  // the old one: the new head's CI decides. A red new head gets its own run,
+  // which escalates what it cannot fix, and the round cap ends the rounds.
+  return decide(true, "", "");
 }
 
 // git with an allowlisted environment, so nothing the job's env or the

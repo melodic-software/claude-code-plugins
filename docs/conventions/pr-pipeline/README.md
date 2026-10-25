@@ -295,16 +295,18 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 `.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
-exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
-`not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
+unappliable patch goes to `report-escalation`, as does a run that changed nothing and escalated a
+check. A patch that pushed escalates nothing, whatever the model escalated beside it: the new
+head's CI decides, and a red new head gets its own run. The one exception: a run at
+`model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 `fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
-without a retry. The same
+pushes and `ci-status` stays red. In a run that changed nothing, `protected-path`,
+`weaken-required` and `flaky` go to a person without a retry; beside a pushed patch, the new
+head's CI decides for them too. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
@@ -685,16 +687,17 @@ run by the local babysit lane (loop-lane), or `pr-merge`. When it is absent the 
 `pr-merge`, the meaning a rung had before this key existed. The babysit wrapper merges only when it
 reads the authority the wrapper runs as: `local-babysit` by default, `pr-merge` under
 `--authority pr-merge` (below). `merge.report-only: true` makes that authority report each
-decision and write nothing. `merge.rung` is the highest work class that authority merges without a
-human. Work classes are defined in
-[`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md).
+decision and write nothing. `merge.rung` is a pacing cap: `off` merges nothing without a human,
+and `C2` or `C3` lets the authority merge. Neither authority reads a work class
+([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 
 - `off` is the default. The first rung a repository adopts is `C2`, together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
-- The work class comes from the linked issue's label and is re-checked against the diff. No class,
-  or a class the diff contradicts, means no lane merge.
-- No rung reaches C4 or C5: `merge.rung` stops at `C3`, and C5 always needs a human. The pr-merge
-  lane reads no class and merges on the verifier verdict instead ([The pr-merge lane](#the-pr-merge-lane)).
+- No work class is read, and no class, missing class or diff shape caps the rung. The only
+  class-named check is the local babysit lane's untrusted-provenance hold: a pull request whose
+  linked issue carries `work-class: untrusted-provenance`, or had it removed by a non-human, waits
+  for a human. The pr-merge lane merges on the verifier verdict
+  ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
@@ -733,10 +736,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   or no `authority`, the wrapper merges nothing.
 - **Same repository.** The pull request's head is in this repository, never a fork.
 - **Risk score.** A diff the risk scorer rates LOW merges, and so does a MEDIUM one whose every
-  reason is a class, size or reported-finding reason (`class-contradicted`, `blast-radius-missing`,
-  `lines-over`, `files-over`, `no-patch:*`, `findings:claude-review`,
-  `findings:claude-security-review`). Every other MEDIUM reason (unbound or missing review
-  evidence, an unread file listing, the rung) and every HIGH one refuse.
+  reason is a size or reported-finding reason (`lines-over`, `files-over`, `no-patch:*`,
+  `findings:claude-review`, `findings:claude-security-review`). Every other MEDIUM reason
+  (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
 - **Review flags.** A review flag holds only for a cost increase (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
@@ -960,14 +962,14 @@ except six:
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the scorer's fixed HIGH path set and the manifest review HIGH),
-  `c2-contradictions` (true
-  scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
   `high-path-floor: true`, so a lane pull request on the floor waits for a human; the non-author verifier
   verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
-  2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor, both
-  caps and the C2 contradictions. The review evidence, the security lane's CRITICAL findings, the
+  2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor and both
+  caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
+  The schema still accepts it so existing configs validate, and a gate report whose config sets it
+  carries a `configNotes` entry saying so. The review evidence, the security lane's CRITICAL findings, the
   cost hold and the trusted-actor widening hold still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the
