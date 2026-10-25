@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { apiLimits, classify, createRateLimitLatch, entryOf, poolOf, RateLimitStop } from "./rate-guard.mjs";
 
@@ -254,7 +254,8 @@ test("a stop is written to the job's stop file, and a later latch refuses from i
 test("a stop the stop file cannot take is reported in the error line, and the latch still holds", async () =>
   withDir(async (dir) => {
     const stopFile = join(dir, "api-budget", "stop");
-    mkdirSync(stopFile, { recursive: true });
+    mkdirSync(dirname(stopFile));
+    chmodSync(dirname(stopFile), 0o555);
     const lines = [];
     const gh = fakeGitHub([PRIMARY, [200]]);
     const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile });
@@ -262,9 +263,10 @@ test("a stop the stop file cannot take is reported in the error line, and the la
     await fetch(URL_A);
     const error = lines.find((line) => line.startsWith("::error::"));
     assert.match(error, /core API rate limit/);
-    assert.match(error, /the stop could not be recorded in the job's stop file \(EISDIR\)/);
+    assert.match(error, /the stop could not be recorded in the job's stop file \(EACCES\)/);
     await assert.rejects(fetch(URL_B), RateLimitStop);
     assert.equal(gh.sent.length, 1);
+    chmodSync(dirname(stopFile), 0o755);
   }));
 
 // The stop-file reader every port shares: rate-guard.vectors.json's
@@ -283,6 +285,44 @@ for (const vector of VECTORS.stop_files) {
       writeFileSync(stopFile, vector.text);
       const latch = createRateLimitLatch({ now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
       assert.deepEqual(Object.fromEntries(Object.entries(POOL_URLS).map(([pool, url]) => [pool, latch.until(url)])), vector.until);
+    }));
+}
+
+// A stop file that exists but cannot be read holds every pool, with an error
+// naming it; a missing one holds nothing (rate-guard.vectors.json's
+// stop_file_errors).
+function makeStopFileError(dir, error) {
+  const stop = join(dir, "api-budget", "stop");
+  mkdirSync(join(dir, "api-budget"));
+  if (error === "EACCES") {
+    writeFileSync(stop, "core 1792751600\n");
+    chmodSync(stop, 0o000);
+  } else if (error === "EISDIR") {
+    mkdirSync(stop);
+  } else if (error === "ENOTDIR") {
+    rmSync(join(dir, "api-budget"), { recursive: true });
+    writeFileSync(join(dir, "api-budget"), "");
+  }
+  return stop;
+}
+
+for (const vector of VECTORS.stop_file_errors) {
+  test(`stop file error: ${vector.name}`, { skip: vector.error === "EACCES" && process.getuid?.() === 0 && "root reads any file" }, () =>
+    withDir((dir) => {
+      const stopFile = makeStopFileError(dir, vector.error);
+      const lines = [];
+      const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile });
+      assert.deepEqual(Object.fromEntries(Object.entries(POOL_URLS).map(([pool, url]) => [pool, latch.until(url)])), vector.until);
+      const errors = lines.filter((line) => line.startsWith("::error::"));
+      if (vector.error === "ENOENT") {
+        assert.deepEqual(errors, []);
+      } else {
+        assert.equal(errors.length, 1);
+        assert.ok(errors[0].includes(`stop file ${stopFile} cannot be read (${vector.error})`), errors[0]);
+      }
+      if (vector.error === "EACCES") {
+        chmodSync(stopFile, 0o644);
+      }
     }));
 }
 

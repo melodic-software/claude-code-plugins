@@ -3176,8 +3176,10 @@ jobs:
         # cannot be recorded, which ends the step first (below). Its stops are
         # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
         # it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
-        # shaped `^([a-z_]+|\*) [0-9]{1,12}$`, as rate-guard.mjs does, so a fragment
-        # a short write left spoils only the line it runs into.
+        # shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
+        # rate-guard.mjs does, so a fragment a short write left spoils only the line
+        # it runs into. A missing stop file holds no stop; one that exists but cannot
+        # be read holds every pool until 999999999999, with an error naming it.
         #
         # Most calls run in $(...) subshells, whose variables never reach the shell
         # that started them, so the file is what carries a stop from one call to the
@@ -3324,10 +3326,24 @@ jobs:
         }
 
         api_budget_stop_until() {
-          local file=${RUNNER_TEMP:-/tmp}/api-budget/stop
-          [[ -s $file ]] || return 0
-          awk -v pool="$1" -v now="$(date +%s)" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && ($1 == pool || $1 == "*" || pool == "any") && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
-            END { if (max) print max }' "$file"
+          local file=${RUNNER_TEMP:-/tmp}/api-budget/stop up
+          if [[ ! -e $file ]]; then
+            # Missing (ENOENT) unless a path part above it is not a directory (ENOTDIR).
+            up=$file
+            while [[ $up == */* ]]; do
+              up=${up%/*}
+              [[ -z $up || -e $up ]] && break
+            done
+            [[ -z $up || -d $up || ! -e $up ]] && return 0
+          fi
+          if [[ -d $file ]] || ! { : <"$file"; } 2>/dev/null; then
+            echo "::error::the rate guard's stop file $file cannot be read, so every GitHub API pool counts as stopped" >&2
+            echo 999999999999
+            return 0
+          fi
+          # The x ends an unterminated last line in a non-digit, so it never matches.
+          { cat -- "$file"; printf x; } | awk -v pool="$1" -v now="$(date +%s)" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && ($1 == pool || $1 == "*" || pool == "any") && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
+            END { if (max) print max }'
         }
 
         api_budget_guessed() {

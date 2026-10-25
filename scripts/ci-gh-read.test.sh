@@ -238,7 +238,8 @@ check "a caller's three-attempt loop sends the paginated read once" 0 1 "5 5 5" 
 # gh_read holds gh's stderr in a file until gh returns, and a stop the rate
 # guard cannot record ends the step first: the errors still reach its log.
 fresh
-: >"$TMP_ROOT/api-budget"
+mkdir "$TMP_ROOT/api-budget"
+chmod 555 "$TMP_ROOT/api-budget"
 STUB_SCRIPT="$LIMITED
 ok never" run 'gh_read repos/o/r/pulls/1 >/dev/null || true; echo reached'
 check "a stop the rate guard cannot record ends the step, its errors in the step's log" 143 1 "" \
@@ -248,6 +249,7 @@ if [[ "$out" == *"::error::GitHub's core API stop could not be recorded"* ]]; th
 else
   fail "the unrecorded-stop error is missing from the step's log: '$out'"
 fi
+chmod 755 "$TMP_ROOT/api-budget"
 
 fresh
 STUB_SCRIPT='fail 502 Bad Gateway' run 'api_budget_stop_until() { echo 12x; }; gh_read repos/o/r/pulls/1 || echo "rc=$?"'
