@@ -1,5 +1,6 @@
 {
   "meta": {"repo": "o/r"},
+  "restate": {"text": "The earlier groups are settled. Two new branches open here. This round turns on whether the first new thing happens.", "decided": [], "open": ["N1", "N2", "N3"]},
   "groups": [
     {"id": "g9", "title": "New group", "summary": "Two new questions.", "dependsOn": ["judged"]},
     {"id": "g10", "title": "Later group", "summary": "Opens after New group.", "dependsOn": ["g9"]}

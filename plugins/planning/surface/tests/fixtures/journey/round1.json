@@ -1,4 +1,5 @@
 {
+  "restate": {"text": "Nothing is decided yet. The job start and the build are both open. This round turns on whether the job starts on every push.", "decided": [], "open": ["Q1", "Q2", "Q3", "Q4", "Q5"]},
   "groups": [
     {"id": "g1", "title": "Setup", "summary": "How the job starts."},
     {"id": "g2", "title": "Build", "summary": "How the job builds."}

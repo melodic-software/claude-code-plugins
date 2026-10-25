@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.102.1] - 2026-10-25
+
+### Fixed
+
+- `round.sh export-brief` no longer writes a decision twice or exports a replaced one ([#9901](https://github.com/melodic-software/claude-code-plugins/issues/9901)). An answered row gets no Constraints line of its own when a line of the confirmed restatement's constraints or decisions recap names its `Q<N>` and holds its whole current answer; a recap line cut short, or taken before the answer changed, keeps the row's own line. A row a newer question superseded stays in the ledger and is no longer exported to Out-of-scope, which `/planning:plan` treats as approved, nor its commitments to Captured assumptions. The decisions line the replacing row leads ends `; replaces Q<N>`.
+
+## [0.102.0] - 2026-10-25
+
+### Added
+
+- The interview page shows drift between the ledger and the page while the interview runs ([#9719](https://github.com/melodic-software/claude-code-plugins/issues/9719)). `round.sh ledger-check [--ledger L]` compares the page with the ledger `import-ledger` seeded it from, as `export-ledger --diff` does, writes `meta.ledgerSync` (`{rev, rows}`) and adds an Activity Log line naming the first difference when the rows that disagree change; `wake.sh` runs it after each `apply` (`AFTER_APPLY=ledger-check` in `surface/session-bridge.conf`). The header reads `Ledger: N rows out of sync` or `Ledger in sync, rev N` and shows nothing for a data dir without the field. An accepted row with unticked commitments reads `Accepted, N to confirm` on the rail and the question's chip, and the meter's to-confirm count names each such row. `context/surface.md` and `surface/README.md` document the command, the field and the conf key.
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+### Fixed
+
+- The `/planning:interview` page header no longer reads `Idle` for up to 30 seconds while an event waits and no watcher is waiting or holding the lease. It now names the waiting question or event at once, as in `Not listening for Q3: type next` (or `Not listening for Q3: approve any prompt in the terminal, or type next` while no watcher has ever polled). A delivery left unhandled for ten minutes is named the same way. The question chips and the receipt line keep their 30-second grace ([#8170](https://github.com/melodic-software/claude-code-plugins/issues/8170)).
+
+- The session bridge now reports why its page server failed to start: `ensure-running` keeps the server's stderr in `.<name>-server.log` in the data dir, prints its last lines and exits non-zero.
+- `stop` ends the watcher whose command line names the full data-dir path, not one that shares the data dir's last path component, so it no longer stops another topic's watcher.
+
 ## [0.101.1] - 2026-10-25
 
 ### Fixed

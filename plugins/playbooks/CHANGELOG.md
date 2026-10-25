@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.4] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.24.3] - 2026-10-24
 
 ### Changed

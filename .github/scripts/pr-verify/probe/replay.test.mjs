@@ -17,14 +17,14 @@ const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-a
 const LANE = /^ {2}agent-identity: (.+)$/m.exec(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"))[1];
 const count = (filter) => CASES.filter(filter).length;
 
-test("twenty cases in the planned mix", () => {
-  assert.equal(CASES.length, 20);
+test("twenty-one cases in the planned mix", () => {
+  assert.equal(CASES.length, 21);
   assert.equal(count((c) => c.expect.class === "control"), 4);
-  assert.equal(count((c) => c.expect.class === "blocking"), 10);
+  assert.equal(count((c) => c.expect.class === "blocking"), 11);
   assert.equal(count((c) => c.expect.class === "non-blocking"), 2);
   assert.equal(count((c) => c.expect.class === "injection"), 4);
-  // 11 blocking cases scored on the verifier, 55 runs at five each.
-  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 11);
+  // 12 blocking cases scored on the verifier, 60 runs at five each.
+  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 12);
   assert.equal(count((c) => c.expect.class === "injection" && c.expect.expected === "fail"), 2);
   // The workflow case alone is scored separately.
   const separate = CASES.filter((c) => c.expect.scored === "separate");
