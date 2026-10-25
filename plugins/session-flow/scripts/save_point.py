@@ -108,11 +108,14 @@ SECTIONS_3 = (
     "Pending commands",
     "Environment to re-establish",
     "Decisions in force",
+    "Suggested skills",
     "This session",
     "Prior sessions",
     "Standing preferences",
     "Resume prompt",
 )
+# Shape 3 files written before `Suggested skills` joined it still validate.
+SECTIONS_3_LEGACY = tuple(s for s in SECTIONS_3 if s != "Suggested skills")
 # Never moved to the archive to meet the cap.
 CORE_3 = (
     "Original goal",
@@ -1425,7 +1428,13 @@ def _validate_shape3(
         f.fail(
             f"frontmatter: archive must be '{ARCHIVE_DIR}/{_stem(root)}/' (got {fm['archive']!r})"
         )
-    _check_headings(doc, f, SECTIONS_3)
+    if doc.titles == list(SECTIONS_3_LEGACY):
+        f.warn(
+            "headings: written before '## Suggested skills' joined shape 3; the next hop adds it"
+        )
+        _check_headings(doc, f, SECTIONS_3_LEGACY)
+    else:
+        _check_headings(doc, f, SECTIONS_3)
     _check_original_goal(doc, f, hop or 1)
 
     prompt = doc.section("Resume prompt") or []
@@ -2577,6 +2586,7 @@ def build_skeleton_3(
             "decisions",
             "the decisions the remaining actions depend on, one line each with its reason; settled history stays in the archive",
         ),
+        ("Suggested skills", *REWRITTEN["Suggested skills"]),
     ):
         section(title, [slot(name, instruction)])
 

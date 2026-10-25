@@ -1,5 +1,65 @@
 # Changelog for the PR pipeline convention
 
+## [5.9.2] - 2026-10-25
+
+### Fixed
+
+- Intake apply-verdict no longer stops the whole verdict when GitHub answers a blocked-by edge read or write with 403, 429 or 5xx: that edge is missed and named in the step summary and a run annotation, and the verdict's other labels still land. Admission and work-unblock read blockers only from the native edges, so the edges that run wrote are deleted again, and a ready verdict with a missed edge lands without `status: ready` and is not admitted; the hourly triage sweep runs intake again on it, and after two runs that leave it so hands it to a maintainer. A 403 fails the job after every write, since no re-run fixes a missing permission (`.github/scripts/intake-triage/edges.mjs`, `.github/scripts/intake-triage/apply-verdict.mjs`).
+- Intake refinement no longer lifts the lanes App's `status: needs-decision`, on an exact refinement or a split, while the App's verdict comment lists a security or cost flag or records that whether an earlier verdict flagged is unknown, so an earlier flag a later triage omitted can no longer clear through a refinement and the re-triage after it (`.github/scripts/intake-triage/refine.mjs`).
+
+### Security
+
+- A size-split sub-issue a listed human last edited counts as that human's text only when every line after its header is one of its parent's trusted task-list lines or that line with its box ticked. GitHub names only the last editor, so a listed human ticking a box after another account's edit no longer makes that account's text trusted.
+- pr-verify stops, writing no verdict, when a split sub-issue's native parent cannot be read or has more comments than the page it reads, instead of judging the pull request without the sub-issue's criteria. Before, an outsider could pad the parent past the page during a run and delete the padding before the merge gate counted the sub-issue.
+
+## [5.9.1] - 2026-10-25
+
+### Changed
+
+- The hourly work-unblock sweep reads closes from 15 minutes before the last scheduled run whose labeling step succeeded (at most 3 hours back; the full 3 hours when that run cannot be read or did not sweep, as under the kill switch or a lane the config turns off) instead of always the last 3 hours. Metric: sweep passes per closed issue. Baseline: about 3 (hub measurement). Expected: about 1.
+
+- enable-auto-merge logs each verifier read's cost, `enable-auto-merge: #<n> calls=<total> github-token=<n> paginated=<n> ms=<elapsed>`, read from the reader's `babysit-gh-calls` stderr line, and adds the same rows to the step summary even on a run that raised nothing. `calls` counts gh invocations; a paginated one (the artifact listing) made one request per page. A reader that exits non-zero is now reported by its last error line, not by the calls line (`.github/scripts/pr-merge/enable-auto-merge.mjs`).
+- pr-merge's merge job records each gate candidate's gh invocations as `calls` in its summary row (`.github/workflows/pr-merge.yml`).
+
+## [5.9.0] - 2026-10-25
+
+### Added
+
+- Intake splits an issue admission parked as Size Large into native sub-issues before any run takes it (owner Q93). The refine model returns only item numbers: the parts over the issue's task-list lines and the order between them. Each part becomes a sub-issue holding those lines as written and taking the issue's Issue Type, the order becomes native blocked-by edges (a refused edge leaves the split unfinished for the next triage to retry), and intake triages each sub-issue. An invalid split leaves the issue parked, with the reason in the step summary.
+- Admission and pr-verify count the body of such a sub-issue as the text of the listed human who filed its parent when every line after its header is one of the parent's trusted task-list lines and nobody edited it, or when a listed human last edited it (ticking a task box is an edit). An edit by any other account makes it untrusted. Admission does not park or refuse such a sub-issue for Size Large, since it never splits again.
+- Admission waits on an issue while any of its sub-issues is open, and work-unblock closes a split issue as completed once every sub-issue is closed by a listed human or a merge.
+
+### Security
+
+- collect-base-activity makes the base marketplace copy read-only (`chmod -R a-w`) once it is staged, and a write skill's `--disallowedTools` carries `Edit(/$RUNNER_TEMP/base-marketplace/**)`, so neither the skill's file tools nor a process it starts can rewrite the plugin hooks and scripts that load in place from that copy ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+## [5.8.1] - 2026-10-25
+
+### Fixed
+
+- An issue's closing pull requests count only the open ones: GitHub lists a merged pull request in `closedByPullRequestsReferences` despite `includeClosedPrs: false`, so admission and the work-unblock sweep waited on a merged closer forever and find-prior stopped the issue lane for one (`.github/scripts/work-resolve-issue/report-outcome.mjs`).
+
+## [5.8.0] - 2026-10-25
+
+### Added
+
+- `limits.api` sets GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the limit the pool's `x-ratelimit-limit` header reports: `plan` (0.7), `writer-pause` (0.4), `breaker` (0.2) and `read-floor` (0.1); `content-creation` adds `per-minute` (80) and `per-hour` (500). The defaults live only in the schema. The rate guard reads only `read-floor`; the other fields are thresholds meant for the hub's limits sampler, not enforced here. resolve-config passes the block through as set.
+
+### Changed
+
+- Every lane GitHub call made through createGitHub, the dispatchers' budgetedFetch or the ci-status gh wrapper goes through one rate guard (`.github/actions/log-api-budget/rate-guard.mjs` and its shell port in `api-budget.bash`). A response that shows a pool exhausted (remaining 0, any 429, a 403 naming a rate limit or abuse detection, retry-after, or a GraphQL answer of any status with a `RATE_LIMITED` error or an error naming a rate limit) stops that pool, or every pool for a secondary limit or a 429, until its reset for the rest of the job: later calls are refused without a request, a call GitHub refused fails (one it answered with a 2xx keeps its answer and status, so no write is resent), and a Node step fails red with an error naming the reset. With no usable reset header, a secondary limit stops for a minute and any other limit for an hour; a paginated `gh api` call, whose headers the wrapper cannot see, gets the same from its error text. Under `read-floor` left it warns once and calls continue; ci-status sets the gh wrapper's floor to the schema default. ci-status's gh_read no longer sends a probe request while limited, and waits only for a reset a header gave, never a guessed one. A rate limit on check-born-triaged's read sets its new `rate-limited` output, which stops intake-triage and the needs-triage label. The check-born-triaged read, post-statuses and the maintenance, branch-cleanup and post-merge-demotion-alert scripts' raw API calls go through it too.
+- intake-label-needs-triage reads the org and repository kill switches, as intake-triage does; either one stops its API reads and its label.
+
+### Fixed
+
+- The issue lane no longer runs an agent-ready issue that a `blocked_by` issue or pull request still blocks (owner decision Q95). A blocker stops blocking only as admission judges it: a pull request merged in this repository, or an issue closed, for any reason, by a listed human or, in this repository only, a merge; another repository's issue is read there. Admission, work-unblock, the lane's gate and the queued count now share that one rule (`admit.mjs` `blockerDone` and `stillBlocking`).
+  - The admit job checks the blockers after the trusted-trigger check. A blocker that still blocks, or blockers it cannot read, skip the run with a notice or warning. The skip takes no model turn, adds no `needs-human`, and leaves `agent-ready` on.
+  - work-unblock's sweep never re-fires, strands or hands to a person an agent-ready issue that a blocker still blocks. Once no blocker blocks, it re-fires a run the gate skipped.
+  - The same admit step applies admission's provenance rule (`admit.mjs` `untrustedHold`) to a label added by hand. An issue carrying `work-class: untrusted-provenance`, or whose newest removal of it was by neither a listed human nor the lanes App, stops for good with a notice. The sweep never re-fires it and adds no `needs-human`. Labels or events it cannot read skip with a warning, and the sweep retries.
+  - Admission no longer keeps an issue out of `admission-deferred` because work-unblock's sweep would not count its blockers: the sweep now counts them by the same rule, so the issue defers and waits its turn oldest first like any other.
+  - The WIP cap's queued count leaves out agent-ready issues that a blocker still blocks. It makes at most 30 blocker reads per check.
+  - Files: `.github/workflows/work-resolve-issue.yml`, `.github/scripts/work-resolve-issue/check-blockers.mjs`, `.github/scripts/work-unblock/label-unblocked.mjs`, `.github/actions/check-wip-cap/check-wip-cap.mjs`.
+
 ## [5.7.0] - 2026-10-25
 
 ### Changed

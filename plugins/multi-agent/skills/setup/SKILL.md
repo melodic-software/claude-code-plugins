@@ -49,9 +49,8 @@ It modifies nothing.
 2. Settle the layer with the user, recommendation first:
    - `local` (`.claude/multi-agent.local.yaml`): this checkout only, for this
      person. The default for a personal preference.
-   - `team`: the `yaml config` block of `docs/conventions/multi-agent.md`,
-     else `.claude/multi-agent.yaml` when that file is already in use. Shared
-     with everyone who clones the repository.
+   - `team`: `docs/conventions/multi-agent.yaml` (under the convention home the
+     repository binds). Shared with everyone who clones the repository.
    - `user` (`~/.claude/multi-agent.yaml`): every repository on this machine.
 
    `team` and `local` are refused at a home or non-repository root.
@@ -119,14 +118,14 @@ Prints the map the next workflow reads from `args.roles`.
 
 ## Gotchas
 
-- A file layer is rewritten whole, so its comments are not kept; the preview
-  says so when the file has any. A docs block has only its body replaced, and
-  the prose around it stays.
+- A layer file is rewritten whole, so its comments are not kept; the preview
+  says so when the file has any.
 - An existing layer that does not parse stops `apply` with the line and the
   reason. Fix or remove the file first; setup never overwrites content it could
   not read.
-- When both `docs/conventions/multi-agent.md` (with a block) and
-  `.claude/multi-agent.yaml` exist, the docs block is the team layer and the
-  `.claude` file is ignored. `check` names both in `notes`.
+- The first `team` write creates the YAML. A team file from an earlier release
+  that the resolver still reads while the YAML is absent seeds its keys, and
+  stays as it was; once the YAML exists the resolver ignores it and `check`
+  names it in `notes`.
 - Team and local layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.

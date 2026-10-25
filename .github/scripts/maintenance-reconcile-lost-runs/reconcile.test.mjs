@@ -748,8 +748,8 @@ test("act says why it exits 1 when the plan recorded listing failures", async (t
 });
 
 // A failed CI run whose failures are infra only: its failed jobs are re-run,
-// at most twice per head, 15 then 30 minutes after the attempt ended, while
-// npm and GitHub both report indicator none.
+// once per head, 15 minutes after attempt 1 ended, while npm and GitHub both
+// report indicator none.
 const failed = (id, head, { jobs = INFRA_JOBS, attempt = 1, updated = "2026-10-19T19:30:00Z", ...opts } = {}) =>
   run(id, head, { conclusion: "failure", jobs, attempt, updated, ...opts });
 
@@ -789,21 +789,24 @@ test("a failed run at attempt 2 whose failed job's steps did not list is not re-
   }
 });
 
-test("a failed run at attempt 2 whose cut job lost its runner is re-run as infra, from the job's annotations", async () => {
+test("a failed run whose cut job lost its runner is re-run as infra, from the job's annotations", async () => {
   const steps = [
     { name: "Set up job", status: "completed", conclusion: "success" },
     { name: "Run the suites", status: "in_progress", conclusion: null },
   ];
   const lost = { id: 77, name: "lint-repo", status: "completed", conclusion: "failure", runner_id: 7, steps };
   const message = "The hosted runner: GitHub Actions 7 lost communication with the server.";
+  // npm down holds an infra re-run back, not a flake re-run, so it tells the two apart.
+  const upstream = { [NPM_STATUS_URL]: NPM_DOWN, [GITHUB_STATUS_URL]: GITHUB_OK };
   const { failedJobReruns, calls } = await reconcile({
     pulls: [pr(1)],
-    runs: [failed(101, sha(1), { jobs: [{ ...lost, notes: [{ annotation_level: "failure", message }] }], attempt: 2, updated: "2026-10-19T19:00:00Z" })],
+    runs: [failed(101, sha(1), { jobs: [{ ...lost, notes: [{ annotation_level: "failure", message }] }], updated: "2026-10-19T19:00:00Z" })],
+    upstream,
   });
-  assert.deepEqual(failedJobReruns, [101]);
+  assert.deepEqual(failedJobReruns, []);
   assert.ok(calls.includes(`GET /repos/${REPO}/check-runs/77/annotations?per_page=100`));
-  const { calls: plain } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: [lost], attempt: 2, updated: "2026-10-19T19:00:00Z" })] });
-  assert.deepEqual(plain.filter((c) => c.startsWith("POST ")), []);
+  const { failedJobReruns: plain } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: [lost], updated: "2026-10-19T19:00:00Z" })], upstream });
+  assert.deepEqual(plain, [101]);
 });
 
 test("a run where only ci-status failed is not re-run", async () => {
@@ -820,21 +823,21 @@ test("a run with a real failure re-run since the listing is left alone", async (
   assert.deepEqual(failedJobReruns, []);
 });
 
-test("an infra-only run already at attempt 3 is not re-run again", async () => {
-  const { calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { attempt: 3 })] });
-  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+test("an infra-only run already at attempt 2 is not re-run again", async () => {
+  for (const attempt of [2, 3]) {
+    const { calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { attempt, updated: "2026-10-19T19:00:00Z" })] });
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), [], `attempt ${attempt}`);
+  }
 });
 
-test("an infra-only run waits 15 minutes after attempt 1 and 30 after attempt 2", async () => {
+test("an infra-only run waits 15 minutes after attempt 1", async () => {
   const cases = [
-    [1, "2026-10-19T19:50:00Z", []],
-    [1, "2026-10-19T19:44:00Z", [101]],
-    [2, "2026-10-19T19:40:00Z", []],
-    [2, "2026-10-19T19:29:00Z", [101]],
+    ["2026-10-19T19:50:00Z", []],
+    ["2026-10-19T19:44:00Z", [101]],
   ];
-  for (const [attempt, updated, expected] of cases) {
-    const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { attempt, updated })] });
-    assert.deepEqual(failedJobReruns, expected, `attempt ${attempt} ended ${updated}`);
+  for (const [updated, expected] of cases) {
+    const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { updated })] });
+    assert.deepEqual(failedJobReruns, expected, `attempt 1 ended ${updated}`);
   }
 });
 
@@ -931,13 +934,11 @@ test("each re-run that makes attempt 2 of pr-require-checks is recorded before i
   assert.deepEqual(failedJobReruns, [102, 103]);
 });
 
-test("a pr-test-windows re-run and an infra re-run to attempt 3 are not recorded", async () => {
-  const runs = [run(101, sha(1), { path: WINDOWS }), failed(102, sha(2), { attempt: 2 })];
-  const { code, outputs, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2)], runs });
+test("a pr-test-windows re-run is not recorded", async () => {
+  const { code, outputs, reruns } = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1), { path: WINDOWS })] });
   assert.equal(code, 0);
   assert.deepEqual(records(outputs), ["", "", ""]);
   assert.deepEqual(reruns, [101]);
-  assert.deepEqual(failedJobReruns, [102]);
 });
 
 test("a PR's CI set carries one record, so the cap of 3 bounds the records at 3", async () => {
