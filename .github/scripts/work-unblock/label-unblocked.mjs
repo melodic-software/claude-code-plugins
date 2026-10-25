@@ -41,6 +41,15 @@
 // edited in place; it never gets needs-human. All share
 // limits.restarts-per-run.
 //
+// The lane skips an issue a blocker still blocks and keeps agent-ready on
+// (check-blockers.mjs), so the close path above, which leaves an agent-ready
+// issue alone, never re-runs it. The sweep does: an agent-ready issue a
+// blocker still blocks is never re-fired, stranded or handed to a person, and
+// a run the blocker gate skipped is re-fired like a run that did no work once
+// none blocks. A run the gate stopped on untrusted provenance, or an issue
+// whose untrusted-provenance label someone unlisted removed, is never
+// re-fired and gets no needs-human: admission's refusal reaches a person.
+//
 // On `schedule` it sweeps instead: every issue closed since the last
 // successful scheduled run began (less SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS
 // back; the full window when that run cannot be read) goes through the same rules, so an issue a bot closed (a
@@ -143,7 +152,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -162,6 +171,11 @@ const MINT_STEP = "Request the lane token";
 // The read runner's step a run stops at, green, when its lane workflow files
 // differ from main's: no model ran and no outcome marker follows.
 const STALE_STEP = "Stop on stale workflow files";
+// The admit job's step that skips a run while the issue has an open blocker,
+// or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
+const BLOCKER_STEP = "Wait for open blockers";
+// The admit job's step a run stops at for good on untrusted provenance.
+const UNTRUSTED_STEP = "Stop on untrusted provenance";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -272,37 +286,21 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
-  // A blocker counts once closed, for any reason, by a listed human or a
-  // merge in this repository; a pull request counts only once merged here.
-  // Anyone can close their own issue, so a blocking issue needs a trusted
-  // close (trustedClose), read fresh from the issue in its own repository.
-  // Another repository's blocker counts only by a listed human's close there,
-  // and a read that fails there leaves it blocking: people the trusted list
-  // does not cover merge in other repositories.
-  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  const issues = [];
-  let pending = 0;
-  for (const blocker of blockers) {
-    const where = /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(blocker.repository_url ?? ""))?.[1];
-    const here = where?.toLowerCase() === repo.toLowerCase();
-    if (blocker.state !== "closed" || !where) {
-      pending += 1;
-    } else if (blocker.pull_request) {
-      pending += blocker.pull_request.merged_at && here ? 0 : 1;
-    } else if (!NUMBER.test(String(blocker.number))) {
-      pending += 1;
-    } else {
-      issues.push({ where, here, number: Number(blocker.number) });
-    }
-  }
-  for (const blocker of pending === 0 ? issues : []) {
-    const read = trustedClose({ github, repo, where: blocker.where, number: blocker.number, humans, closes });
-    if (!(await (blocker.here ? read : read.catch(() => false)))) {
-      pending += 1;
-    }
-  }
-  if (pending > 0) {
-    return `${pending} blocker(s) not closed by a listed human or a merge`;
+  // admit.mjs blockerDone: a blocker counts once closed, for any reason, by a
+  // listed human or a merge in this repository; a pull request counts only
+  // once merged here. Anyone can close their own issue, so a blocking issue
+  // needs a trusted close (trustedClose), read fresh from the issue in its own
+  // repository. Another repository's blocker counts only by a listed human's
+  // close there, and a read that fails there leaves it blocking: people the
+  // trusted list does not cover merge in other repositories.
+  const pending = await stillBlocking(
+    await blockersOf(github, base),
+    repo,
+    (number) => trustedClose({ github, repo, number, humans, closes }),
+    closedElsewhere({ github, repo, humans, closes }),
+  );
+  if (pending.length > 0) {
+    return `${pending.length} blocker(s) not closed by a listed human or a merge`;
   }
   // Removing the label by hand stops the lane until a person adds it back,
   // or the App or a listed human marks the issue `status: ready` again.
@@ -371,6 +369,13 @@ function trustedClose({ github, repo, where = repo, number, humans, closes }) {
   }
   return closes.get(key);
 }
+
+// stillBlocking's reader for another repository's blocker: trustedClose
+// there, and a read that fails leaves it blocking.
+const closedElsewhere = (args) => (blocker) => {
+  const where = /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(blocker.repository_url ?? ""))?.[1];
+  return where ? trustedClose({ ...args, where, number: Number(blocker.number) }).catch(() => false) : false;
+};
 
 
 // The admission pace for one run: `take()` answers whether one more issue may
@@ -670,9 +675,11 @@ async function laneRuns(actions, repo, number, addedAt) {
 // How every one of `runs` (completed) did no work in its latest attempt, or
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step fail (`mint-failed`, which
-// wins) or was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
-// did not). A run another gate stopped before its mint (an open closing PR, a
-// reused branch) is neither, so it is never re-fired here.
+// wins), was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
+// did not), or was skipped by the admit job's blocker gate (`blocked`: its
+// BLOCKER_STEP ran and pick-slot did not). A run another gate stopped before
+// its mint (an open closing PR, a reused branch) is none of these, so it is
+// never re-fired here.
 async function didNoWork(jobsOf, runs) {
   let stalled = null;
   for (const run of runs) {
@@ -689,10 +696,15 @@ async function didNoWork(jobsOf, runs) {
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
       named("resolve-issue").every((job) => job.conclusion === "skipped");
+    const blocked =
+      named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
+      named("pick-slot").every((job) => job.conclusion === "skipped");
     if (mints.some((step) => step.conclusion === "failure")) {
       stalled = "mint-failed";
     } else if (capped) {
       stalled ??= "capped";
+    } else if (blocked) {
+      stalled ??= "blocked";
     }
   }
   return stalled;
@@ -719,6 +731,17 @@ function jobLister(actions, repo) {
 }
 
 const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+
+// Whether one of `runs` stopped at the admit job's provenance stop.
+async function stoppedUntrusted(jobsOf, runs) {
+  for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
+    const admit = namedJobs(await jobsOf(run), "admit");
+    if (admit.some((job) => (job?.steps ?? []).some((step) => step?.name === UNTRUSTED_STEP && step.conclusion === "success"))) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // Whether one of `runs` ended green at the read runner's stale-workflow stop.
 async function stoppedStale(jobsOf, runs) {
@@ -925,6 +948,25 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
+  // The lane stops for good on an issue untrusted provenance holds
+  // (check-blockers.mjs), so one is never re-fired or handed to a person here:
+  // admission's refusal path takes it to a person. The label itself is a hold
+  // above; this is the removal by someone unlisted.
+  if (untrustedHold({ labels: [], events, humans, isApp: (actor) => actor?.login === bot })) {
+    return { reason: `${UNTRUSTED} was last removed by neither a listed human nor the lanes App` };
+  }
+  // The lane skips an issue a blocker still blocks (check-blockers.mjs), so
+  // one is never re-fired or handed to a person while one does.
+  const closes = new Map();
+  const pending = await stillBlocking(
+    await blockersOf(github, `/repos/${repo}/issues/${number}`),
+    repo,
+    (blocker) => trustedClose({ github, repo, number: blocker, humans, closes }),
+    closedElsewhere({ github, repo, humans, closes }),
+  );
+  if (pending.length > 0) {
+    return { reason: `waiting on ${pending.length} blocker(s) not closed by a listed human or a merge` };
+  }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
   }
@@ -982,6 +1024,9 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   // When the newest of its runs ended: every clock below starts there.
   const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
   const jobsOf = jobLister(actions, repo);
+  if (await stoppedUntrusted(jobsOf, runs)) {
+    return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
+  }
   const stalled = await didNoWork(jobsOf, runs);
   if (stalled) {
     const due = ended + limits["reset-clamp-min"] * HOUR_MS;
