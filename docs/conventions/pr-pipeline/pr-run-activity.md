@@ -379,7 +379,9 @@ set), with its `settings-json` as the action's `settings`
 ([README.md, Models](README.md#models)). The
 plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
 directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
-it the skill cannot read its own reference files. Commits go through the API, signed
+it the skill cannot read its own reference files. The plugin's hooks run from that copy, so it is
+read-only to every process the skill starts (`chmod -R a-w`), and a write skill's
+`--disallowedTools` also carries `Edit(/$RUNNER_TEMP/base-marketplace/**)`. Commits go through the API, signed
 (`use_commit_signing`), on a lane branch (`CLAUDE_BRANCH`) the job makes at the gated head SHA
 when the grant can commit.
 
