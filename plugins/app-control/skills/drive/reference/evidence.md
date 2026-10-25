@@ -36,7 +36,7 @@ For a job. One object with these fields:
 | Field | Holds |
 |---|---|
 | `app` | The app's name |
-| `control_skill` | The control skill used, or `null` |
+| `control_skill` | The control skill used, by full name and source, such as `control-shop (project: .claude/skills/control-shop/SKILL.md)`, or `harness-ops:control-claude-code (plugin: <folder>/skills/control-claude-code/SKILL.md)`, or `null` |
 | `fallback` | What drive used when `control_skill` is `null`, else `null` |
 | `mode` | `interactive` or `unattended` |
 | `launch` | The process this run launched: `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included), or `null` when the run launched nothing |
