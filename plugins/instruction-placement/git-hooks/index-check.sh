@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # instruction-placement pre-commit check: fail when the generated rules index no
 # longer matches .claude/rules/.
 #
@@ -13,15 +13,20 @@
 # with no index block has not adopted an index and is never failed. This check
 # needs no external tool; render-index.sh and discover.sh sit beside this script
 # in an installed copy.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 here="$(cd "$here" && pwd)" || exit 1
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 
 renderer="$here/render-index.sh"
 [[ -f "$renderer" ]] || renderer="$here/../scripts/render-index.sh"
@@ -66,7 +71,7 @@ done < <(
 
 # check exits 0 in sync, 1 drifted, 3 with no index block (not adopted); any
 # other status is no verdict, and no verdict blocks.
-verdict="$(bash "$renderer" check --file "$src/$target" --root "$src" 2>"$CHECKS_TMP/render.err")"
+verdict="$(checks_bash_run "$renderer" check --file "$src/$target" --root "$src" 2>"$CHECKS_TMP/render.err")"
 rc=$?
 ((rc == 0 || rc == 3)) && exit 0
 if [[ $rc -ne 1 || "$verdict" != DRIFTED* ]]; then

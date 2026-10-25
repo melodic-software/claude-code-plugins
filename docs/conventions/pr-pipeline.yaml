@@ -319,15 +319,14 @@ activities:
       - scripts/new-changelog-fragment.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (a documented default on a vendor docs page) instead of trusting the
-    # issue's quote. It may search the web and fetch the official docs for
-    # what this repository builds on: Claude Code, the Claude platform,
-    # GitHub, Node.js and Python. It lists each page it read in its report.
-    # A list, not `any`, keeps WebFetch off hosts anyone can write to and
-    # keeps the curl-based docs scripts denied. A page can try to steer the
-    # run, so a person still reviews every PR the run opens.
+    # issue's quote. It may search the web, fetch any page and run the
+    # research skills; it lists each page it read in its report. The
+    # launcher stages no curl-based docs script, so pages arrive through
+    # WebFetch alone. The job holds no write token (#8691) and a page can try
+    # to steer the run, so every PR the run opens is reviewed.
     web-access:
       enabled: true
-      domains: [code.claude.com, platform.claude.com, docs.anthropic.com, docs.github.com, nodejs.org, docs.python.org]
+      domains: any
     # Runs model-chosen commands, so no write token: the change leaves as a
     # patch, and the run's outcome file goes to report-outcome.
     effect: read
@@ -446,7 +445,9 @@ activities:
     # with no report, for three hours, and no open PR of the lanes App's or a
     # listed human's for it) once per version of the lane workflow files, then
     # on a backoff (three hours doubling, at most 24) with one comment it
-    # edits, never needs-human; and it hands an agent-ready issue whose
+    # edits, never needs-human (a run the token broker refused for the lanes
+    # kill switch re-fires on its own count and never spends that once); and
+    # it hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged back to intake
     # triage (`status: ready` and agent-ready off, which the hourly triage
     # sweep dispatches intake for), lifting only the needs-human
@@ -454,7 +455,9 @@ activities:
     # script, no model.
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/label-unblocked.mjs
-    # Labels, unlabels and comments on issues; nothing else.
+    # Labels, unlabels and comments on issues, and closes as completed the
+    # parent of a size split (owner Q93) once every sub-issue is closed by a
+    # listed human or a merge, a close it then counts as done; nothing else.
     effect: mutate-tracker
     gating: advisory
     # Reads issue comments for the lanes App's outcome markers.
@@ -466,7 +469,12 @@ activities:
     # label, the Size, Complexity and Uncertainty issue fields, and
     # `status: ready` or `status: needs-decision`, read from the lane comment
     # the triage run posted, with a blocked-by edge for each open issue its
-    # `Blocked by:` line names. Only needs-human, a person's hold, the triage
+    # `Blocked by:` line names; an edge GitHub answers 403, 429 or 5xx for is
+    # missed, and the edges the run wrote are deleted, so work-unblock never
+    # reads a partial set: a ready verdict then lands without `status: ready`
+    # and is not admitted, so the hourly triage sweep runs intake again, and a
+    # 403 fails the job after every write.
+    # Only needs-human, a person's hold, the triage
     # run's own escalation, an untrusted setter, a hold set after an earlier
     # flagged verdict or with no readable earlier verdict, or the verdict
     # itself holds the issue, and the reasons
@@ -498,7 +506,10 @@ activities:
     # cannot perform, a split the model judges sound lists those items in the
     # refinement comment as checks a person runs, rewrites the issue body's
     # done-when to the rest plus a line pointing at that comment, lifts
-    # needs-decision and triages once more. One refinement per body version.
+    # needs-decision and triages once more. Neither lifts while the App's
+    # verdict comment lists a flag other than intent or records that an
+    # earlier flag is unknown; that hold stays for a person. One refinement
+    # per body version.
     # Never agent-ready or needs-human, and no new issue. A script, no model.
     # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/refine.mjs
@@ -507,6 +518,19 @@ activities:
     gating: advisory
     # Reads the model's output, written while it read issue and web text.
     reads-untrusted: true
+    # A Size Large issue a listed human filed, which admission parks with
+    # "the split into sub-issues at intake is pending" (owner Q93), gets a
+    # size split instead: the model returns only item numbers, `parts` over
+    # the issue's trusted task-list lines and `order` pairs; an invalid
+    # partition leaves it parked, with why in the step summary. The script
+    # files each part as a native sub-issue whose body is a fixed header and
+    # that part's lines as written, which admission and pr-verify count as
+    # the listed human's text; writes the order as native blocked-by edges
+    # (owner Q94); puts the issue's open blockers on the first parts and moves
+    # what the issue blocks onto the last parts; records the split in one
+    # comment; and dispatches intake for each sub-issue. No hold label, a
+    # sub-issue never splits again, and the issue's body is never edited.
+    # Admission waits on an issue while a sub-issue is open.
     inputs: [issue]
 
 lanes:
@@ -942,10 +966,11 @@ merge:
   # would instead make the PR ineligible. The verifier verdict, both AI
   # review lanes, ci-status and the post-merge revert breaker still gate every
   # lane PR.
-  # Owner decision Q624 still holds for the rest: no denied path, size cap or
-  # C2 contradiction check. Each comes back by setting it here: list
-  # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
-  # or `max-changed-lines` (the earlier 8 and 400).
+  # Owner decision Q624 still holds for the rest: no denied path or size cap.
+  # Each comes back by setting it here: list denied-paths, or set
+  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+  # `c2-contradictions` is deprecated and has no effect; set, it adds a
+  # `configNotes` entry to the gate report.
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs off the HIGH floor merge on the
   # verifier verdict.

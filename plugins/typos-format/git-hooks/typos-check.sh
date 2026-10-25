@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # typos-format pre-commit check: report typos on the lines this commit adds.
 #
 #   typos-check.sh               the staged changes (git runs it as pre-commit)
@@ -12,14 +12,19 @@
 # staged, from the index. Missing typos follows the
 # check-placement contract: checks.skipmissing, else fail for an agent and a
 # notice for a person.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 
 # The plugin's bundled typos config, passed with -c so SHA-shaped hex is not read
 # as a misspelling: beside an installed copy (an entry asset), or under config/

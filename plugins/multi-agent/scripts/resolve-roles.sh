@@ -4,9 +4,11 @@
 # LAYERS, bottom to top, each overriding per key:
 #   bundled      reference/defaults.yaml
 #   user-global  <home>/.claude/multi-agent.yaml
-#   team         the ```yaml config block of <root>/docs/conventions/multi-agent.md,
-#                else <root>/.claude/multi-agent.yaml (the docs block wins when
-#                both exist, with a note naming both)
+#   team         <home>/multi-agent.yaml (<home> is the convention home the
+#                repository binds, else docs/conventions); only when it is absent,
+#                the ```yaml config block of <root>/docs/conventions/multi-agent.md,
+#                else <root>/.claude/multi-agent.yaml, for one release (the
+#                first that exists wins, with a note naming each one ignored)
 #   overlay      <root>/.claude/multi-agent.local.yaml
 # Team and overlay apply only when lib/config-root.sh classifies <root> as
 # `repo`; a team or overlay path that is the user-global file is read once.
@@ -199,6 +201,9 @@ valid_value() { # valid_value <field> <value>
   frontier_guard | declared) [[ "$2" == true || "$2" == false ]] ;;
   frontier)
     local a parts=()
+    # read drops one trailing empty field, so a trailing comma is refused here,
+    # as the schema's pattern refuses it.
+    [[ "$2" != *, ]] || return 1
     IFS=',' read -ra parts <<<"$2"
     ((${#parts[@]})) || return 1
     for a in "${parts[@]}"; do [[ "$ALIASES" == *" $a "* ]] || return 1; done
@@ -295,11 +300,18 @@ else
   layer_state user-global "$USER_LAYER" absent
 fi
 
+# The convention home is the one the repository binds in AGENTS.md or CLAUDE.md
+# (lib/resolve-convention-home.sh); docs/conventions when it binds none.
+CONVENTION_HOME="docs/conventions"
+if [[ -f "$SCRIPT_DIR/../lib/resolve-convention-home.sh" ]]; then
+  home_out="$(bash "$SCRIPT_DIR/../lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" && CONVENTION_HOME="$home_out"
+fi
+TEAM_CONCERN="$ROOT/$CONVENTION_HOME/multi-agent.yaml"
 TEAM_DOCS="$ROOT/docs/conventions/multi-agent.md"
 TEAM_YAML="$ROOT/.claude/multi-agent.yaml"
 OVERLAY="$ROOT/.claude/multi-agent.local.yaml"
 if [[ "$ROOT_CLASS" != repo ]]; then
-  layer_state team "$TEAM_DOCS" "not-applicable ($ROOT_CLASS root)"
+  layer_state team "$TEAM_CONCERN" "not-applicable ($ROOT_CLASS root)"
   layer_state overlay "$OVERLAY" "not-applicable ($ROOT_CLASS root)"
 else
   docs_block=0
@@ -309,7 +321,12 @@ else
     docs_records="$(parse "$TEAM_DOCS" block)"
     [[ "$docs_records" == block$'\t'* ]] && docs_block=1
   fi
-  if ((docs_block)); then
+  if [[ -f "$TEAM_CONCERN" ]]; then
+    # The legacy locations are read only when this file is absent.
+    ((docs_block)) && NOTES+=("team: $TEAM_CONCERN and the config block of $TEAM_DOCS both exist; using the YAML file, ignoring the block")
+    [[ -f "$TEAM_YAML" ]] && NOTES+=("team: $TEAM_CONCERN and $TEAM_YAML both exist; using the YAML file, ignoring the .claude file")
+    read_layer team "$TEAM_CONCERN"
+  elif ((docs_block)); then
     [[ -f "$TEAM_YAML" ]] && NOTES+=("team: $TEAM_DOCS and $TEAM_YAML both exist; using the docs block, ignoring the .claude file")
     read_layer team "$TEAM_DOCS" block
   elif [[ -f "$TEAM_YAML" ]] && ! config_root_paths_same "$TEAM_YAML" "$USER_LAYER"; then

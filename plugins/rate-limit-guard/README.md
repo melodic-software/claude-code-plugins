@@ -49,9 +49,18 @@ of a prompt; a crossing seen when a turn ends reaches Claude with the next promp
 | The window resets (its reset time passes, or it leaves the reading) after reaching the threshold | once; the approach and threshold lines can then fire again |
 | After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for each window at or above the approach mark, once; nothing when none is |
 | After `/clear`, and when the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict for each window at or above the threshold, once; nothing when none is |
+| The signed-in account changes while a window is past quiet or a line is still due | once, that earlier lines no longer apply, with each window's current reading, or "No reading yet for this account" before the new account's first response |
+| A window's reset time reads more than a minute earlier than the recorded one while that window is past quiet or a line about it is still due | once, that earlier lines for that window no longer apply, with its current reading |
 
 Use only rises within a window, so a reading that dips below a mark sends nothing and does not
-re-arm that mark's line. No other tool call or prompt carries a line. Each window gets its own
+re-arm that mark's line. A restatement states the current reading, and none is made while that
+reading is below the restated mark. The account is the one in `.claude.json`, keyed on
+`.oauthAccount.accountUuid`, or on `.oauthAccount.emailAddress` when no UUID is there. When it
+changes, or a window's reset time moves earlier (which catches a switch the state file does not
+show, when the new account's window resets sooner), the module drops what it latched for the old account or window: levels, lines
+not yet sent, suggestions not yet handed to Claude, and toasts not yet shown. The reading held at
+an account change is the old account's, so it sets no level; the next reading that differs does.
+No other tool call or prompt carries a line. Each window gets its own
 line, for example `rate-limit-guard: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC`.
 A line states the window, the threshold crossed, and the use and reset time the line data selects.
 After the approach and threshold lines at a carrier comes one options line:

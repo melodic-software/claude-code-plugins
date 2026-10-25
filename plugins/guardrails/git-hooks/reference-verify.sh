@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # guardrails pre-push check: CLI flags, /plugin:skill references and cited
 # repository paths in the lines the pushed commits add.
 #
@@ -30,15 +30,20 @@
 # A finding prints as "<path>:<line>: <message>" on stderr, the line being the
 # file's first added line, and exits 1. Missing jq follows the check-placement
 # contract: checks.skipmissing, else fail for an agent and a notice for a person.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 here="$(cd "$here" && pwd)"
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 
 checks_init pre-push "$@" || exit 0
 checks_require_tool jq "https://jqlang.org/download/"
@@ -172,7 +177,7 @@ check_range() {
         '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}')"
     fi
     ctx="$(printf '%s' "$payload" |
-      CLAUDE_PLUGIN_ROOT="$root" bash "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh 2>/dev/null |
+      CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh 2>/dev/null |
       jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
     [[ -n "$ctx" ]] || continue
     line="$(first_line "$f")"

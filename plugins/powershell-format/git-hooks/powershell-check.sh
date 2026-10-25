@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # powershell-format pre-commit check: rewrite the staged PowerShell files, then
 # report what PSScriptAnalyzer still finds on the lines this commit adds.
 #
@@ -35,14 +35,19 @@
 # checks.skipmissing, else fail for an agent and a notice for a person. A
 # missing PSScriptAnalyzer module is handled the same way under the name
 # PSScriptAnalyzer.
-set -uo pipefail
-
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+#
+# POSIX sh until check-lib.sh, sourced first, has it running under bash.
+# shellcheck shell=bash
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 lib="$here/check-lib.sh"
-[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck disable=SC2292 # still POSIX sh: no [[ ]]
+[ -f "$lib" ] || lib="$here/../lib/git-hooks/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
+set -uo pipefail
 
 checks_init pre-commit "$@" || exit 0
 

@@ -173,6 +173,19 @@ expect "--worktree: a tracked gitignored file is judged" 1 "$(rc_of "$REPO" --wo
 git -C "$REPO" rm -q --cached .env
 expect "--worktree: an untracked gitignored file is not judged" "0|" "$(check "$REPO" --worktree)"
 
+# secret-pattern-detection's path options exempt a Write, never a commit: an
+# ignored file under an allowed root, force-added, still blocks with both set.
+new_repo
+mkdir -p "$REPO/notes"
+printf 'notes/\n' >"$REPO/.gitignore"
+printf 'token=%s\n' "$FAKE_GHP" >"$REPO/notes/keys.md"
+git -C "$REPO" add .gitignore
+git -C "$REPO" add -f notes/keys.md
+expect "the Write-time path options do not exempt a commit" 1 \
+  "$(cd "$REPO" && env CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ALLOWED_ROOTS="$REPO/notes" \
+    CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED=true bash "$CHECK" >/dev/null 2>&1
+  printf '%s' "$?")"
+
 new_repo
 ln -s "token=$FAKE_GHP" "$REPO/link.txt"
 git -C "$REPO" add link.txt

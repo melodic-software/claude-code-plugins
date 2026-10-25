@@ -3,19 +3,20 @@
 # repository and merges these jobs. Each script lives under the repository root's .lefthook/, where
 # lefthook looks up a remote's scripts, and runs with the consumer repository as its working
 # directory. Job names differ from the shared-copy jobs (guardrails-<entry>) so the two never merge.
+# The runner is sh, never bash: on Windows a bash looked up by name can be System32's WSL launcher.
 commit-msg:
   jobs:
     - name: guardrails-remote-commit-msg-convention
       script: guardrails-commit-msg-convention.sh
-      runner: bash
+      runner: sh
 pre-commit:
   jobs:
     - name: guardrails-remote-pre-commit-content
       script: guardrails-pre-commit-content.sh
-      runner: bash
+      runner: sh
 pre-push:
   jobs:
     - name: guardrails-remote-reference-verify
       script: guardrails-reference-verify.sh
-      runner: bash
+      runner: sh
       use_stdin: true

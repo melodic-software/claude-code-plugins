@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { claimOf, collect, disputes, MAX_THREADS, main, parseVerdicts, prepare, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { adjudicationReply, collect, disputes, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
 import { noteComments } from "./verify-notes.mjs";
 
 const HEAD = "a".repeat(40);
@@ -32,46 +32,117 @@ const SECURITY = [
   "claude-lane: claude-security-review",
 ].join("\n");
 
-test("claimOf keeps the first paragraph and the severity line, never the rationale, the fix or the footer", () => {
-  assert.deepEqual(claimOf(REVIEW), { severity: null, claim: "**A column-0 comment inside `remotes:` hides every entry after it.**" });
-  assert.deepEqual(claimOf(SECURITY), {
-    severity: "severity: IMPORTANT",
-    claim: "This `remote` block writes `ref: main` with a 24h refetch into each consumer's `lefthook.yml`.",
-  });
-  assert.deepEqual(claimOf("severity: HIGH\nThe guard is missing.\n\nWhy: x"), { severity: "severity: HIGH", claim: "The guard is missing." });
-  assert.equal(claimOf("x".repeat(3000)).claim.length, 2000);
-  assert.deepEqual(claimOf(""), { severity: null, claim: "" });
-  assert.deepEqual(claimOf("<!-- some marker -->\nThe guard is missing.\n\nWhy: x"), { severity: null, claim: "The guard is missing." });
-});
-
-test("claimOf keeps a verifier note's quoted finding, not just its introduction", () => {
-  const [note] = noteComments({ head: HEAD, summary: "the install step skips the lockfile", notes: ["lib/install.mjs:4 reads no lockfile"], files: ["lib/install.mjs"] });
-  const { claim } = claimOf(note.body);
-  assert.doesNotMatch(claim, /<!--/);
-  assert.match(claim, /^The pr-verify verifier failed head/);
-  assert.match(claim, /Summary: the install step skips the lockfile/);
-  assert.match(claim, /lib\/install\.mjs:4 reads no lockfile/);
-});
-
 const thread = (id, comments = [{ id: 1, author: "reviewer", lane: "claude-review", body: REVIEW }], path = "lib/install.mjs") => ({ id, path, line: 579, comments });
 const fileOf = (...threads) => ({ version: 1, head_sha: HEAD, threads });
 const incorrect = (id, fields = {}) => JSON.stringify({ thread: id, disposition: "INCORRECT", evidence: ["lib/install.mjs:12", "lib/other.mjs:3"], fix_sha: "", note: "The lane's argument.", ...fields });
 
-test("disputes takes each INCORRECT reply's claim and cited locations, never the lane's note", () => {
+test("disputes takes each INCORRECT reply's whole review comment and both sides' cited locations, never the lane's note", () => {
   const { slots, over } = disputes(fileOf(thread("PRRT_a"), thread("PRRT_b")), [incorrect("PRRT_a"), JSON.stringify({ thread: "PRRT_b", disposition: "VALID", evidence: ["a:1"] })].join("\n"));
   assert.deepEqual(over, []);
   assert.deepEqual(slots, [
     {
       thread: "PRRT_a",
-      finding: { path: "lib/install.mjs", line: 579, severity: null, claim: "**A column-0 comment inside `remotes:` hides every entry after it.**" },
+      finding: { path: "lib/install.mjs", line: 579, comment: REVIEW },
       evidence: [
         { path: "lib/install.mjs", line: 12 },
         { path: "lib/other.mjs", line: 3 },
       ],
+      cited: [],
       paths: ["lib/install.mjs", "lib/other.mjs"],
     },
   ]);
   assert.doesNotMatch(JSON.stringify(slots), /argument/);
+});
+
+// The post-hoc review of #9565: the judge saw the lane's cited files but only
+// the review comment's first paragraph, so the inputs favored the lane.
+const CITING = [
+  "**The lock is read before it is written.**",
+  "",
+  "`lib/lock.mjs:40` reads it, and lib/write.mjs:7 writes it later; see also",
+  `https://github.com/o/r/blob/${"c".repeat(40)}/lib/order.mjs#L9 and https://github.com/x/y/blob/${"c".repeat(40)}/lib/other-repo.mjs#L1.`,
+  "Not paths: https://example.com:443/a, severity:1, ../etc/passwd:1, a/./b:2.",
+  "",
+  "claude-lane: claude-review",
+].join("\n");
+
+test("reviewerEvidence takes the review comment's path:line tokens and this repository's permalinks, each safe path once, at most ten", () => {
+  assert.deepEqual(reviewerEvidence(CITING, "o/r"), [
+    { path: "lib/lock.mjs", line: 40 },
+    { path: "lib/write.mjs", line: 7 },
+    { path: "lib/order.mjs", line: 9 },
+  ]);
+  assert.deepEqual(reviewerEvidence(CITING, ""), [
+    { path: "lib/lock.mjs", line: 40 },
+    { path: "lib/write.mjs", line: 7 },
+  ], "no repository, no permalink");
+  assert.deepEqual(reviewerEvidence("lib/a.mjs:1 and lib/a.mjs:1 again", "o/r"), [{ path: "lib/a.mjs", line: 1 }]);
+  const many = Array.from({ length: 50 }, (_, i) => `lib/f${i}.mjs:1`).join(" ");
+  assert.equal(reviewerEvidence(many, "o/r").length, 10);
+});
+
+test("disputes stages the files the reviewer cited beside the lane's, and keeps the two sides apart", () => {
+  const citing = thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-review", body: CITING }]);
+  const [slot] = disputes(fileOf(citing), incorrect("PRRT_a"), "o/r").slots;
+  assert.deepEqual(slot.evidence, [
+    { path: "lib/install.mjs", line: 12 },
+    { path: "lib/other.mjs", line: 3 },
+  ]);
+  assert.deepEqual(slot.cited, [
+    { path: "lib/lock.mjs", line: 40 },
+    { path: "lib/write.mjs", line: 7 },
+    { path: "lib/order.mjs", line: 9 },
+  ]);
+  assert.deepEqual(slot.paths, ["lib/install.mjs", "lib/other.mjs", "lib/lock.mjs", "lib/write.mjs", "lib/order.mjs"]);
+  assert.equal(slot.finding.comment, CITING);
+});
+
+// A CRITICAL finding, which the code-review lane reports for security where
+// no security lane runs, goes to a person: no slot, and any verdict ignored.
+const CRITICAL_REVIEW = ["**The token reaches the log.**", "", "Repro: run the job.", "", "Severity: critical", "claude-lane: claude-review"].join("\n");
+const criticalThread = (id) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-review", body: CRITICAL_REVIEW }]);
+// A pr-verify verifier note: a lane verdict would resolve the thread while
+// the FAIL still holds the merge, and nothing re-judges that head.
+const verifierThread = (id) => {
+  const [note] = noteComments({ head: HEAD, summary: "s", notes: ["lib/install.mjs:4 x"], files: ["lib/install.mjs"] });
+  return thread(id, [{ id: 1, author: "verifier", body: note.body }]);
+};
+
+test("disputes never adjudicates a CRITICAL code-review finding or a verifier note, and they take no slot", () => {
+  const { slots } = disputes(fileOf(criticalThread("PRRT_c"), verifierThread("PRRT_v"), thread("PRRT_a")), [incorrect("PRRT_c"), incorrect("PRRT_v"), incorrect("PRRT_a")].join("\n"));
+  assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_a"]);
+  // A severity line other than CRITICAL is adjudicable as before.
+  const important = thread("PRRT_i", [{ id: 1, author: "reviewer", lane: "claude-review", body: "x\n\nseverity: IMPORTANT\nclaude-lane: claude-review" }]);
+  assert.deepEqual(disputes(fileOf(important), incorrect("PRRT_i")).slots.map((slot) => slot.thread), ["PRRT_i"]);
+});
+
+test("settleDisputes sends an INCORRECT reply on a CRITICAL code-review finding or a verifier note to a person, whatever verdict arrived", async () => {
+  const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
+  for (const now of [new Map([["PRRT_a", criticalThread("PRRT_a")]]), new Map([["PRRT_a", verifierThread("PRRT_a")]])]) {
+    const result = await settleDisputes({
+      api,
+      pr: 42,
+      adjudicatedSha: HEAD,
+      posted: [{ thread: "PRRT_a", disposition: "INCORRECT" }],
+      replies: [],
+      shown: new Map([["PRRT_a", { comment_ids: [1, 2] }]]),
+      now,
+      verdicts: new Map([["PRRT_a", { verdict: "lane", question: "none" }]]),
+      pushed: false,
+      headMoved: async () => false,
+      resolveAfterReply: async () => assert.fail("not resolved"),
+      escalationReason: "",
+      log: () => {},
+    });
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
+  }
+});
+
+test("the adjudication reply says what the adjudicator read: the review comment, not the lane's reasoning", () => {
+  const reply = adjudicationReply("lane", ["a.js:1"], HEAD);
+  assert.match(reply, /read the review comment, the locations both sides cited and the code at/);
+  assert.match(reply, /without the fixing lane's reasoning/);
+  assert.doesNotMatch(reply, /either side/);
 });
 
 test("disputes skips a thread whose finding already stood, a thread the select job did not keep, and unsafe paths", () => {
@@ -153,8 +224,6 @@ test("disputes never adjudicates a security-review finding or one of unknown lan
   const { slots, over } = disputes(file, ids.map((id) => incorrect(id)).join("\n"));
   assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_a", "PRRT_b", "PRRT_c"]);
   assert.deepEqual(over, ["PRRT_d"]);
-  const [note] = noteComments({ head: HEAD, summary: "s", notes: ["lib/install.mjs:4 x"], files: ["lib/install.mjs"] });
-  assert.deepEqual(disputes(fileOf(thread("PRRT_v", [{ id: 1, author: "verifier", body: note.body }])), incorrect("PRRT_v")).slots.map((slot) => slot.thread), ["PRRT_v"]);
 });
 
 test("settleDisputes sends an INCORRECT reply on a security-review or unknown-lane thread to a person, whatever verdict arrived", async () => {
@@ -205,6 +274,23 @@ test("prepare writes one slot per dispute with the files at the head, and refuse
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "index.json"), "utf8")), { version: 1, head_sha: HEAD, slots: [{ slot: 0, thread: "PRRT_a" }], over: [] });
 
   await assert.rejects(prepare({ threadsText: JSON.stringify({ ...fileOf(), head_sha: "b".repeat(40) }), repliesText: "", headSha: HEAD, outDir: dir, getText }), /head/);
+});
+
+test("prepare stages the whole review comment and the reviewer's cited files, recorded apart from the lane's", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const citing = thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-review", body: CITING }]);
+  const files = { "lib/install.mjs": "a\n", "lib/lock.mjs": "lock\n", "lib/order.mjs": "order\n" };
+  const result = await prepare({ threadsText: JSON.stringify(fileOf(citing)), repliesText: incorrect("PRRT_a", { evidence: ["lib/install.mjs:1"] }), headSha: HEAD, outDir: dir, repository: "o/r", getText: async (path) => files[path] ?? null });
+  assert.equal(result.count, 1);
+  assert.equal(JSON.parse(readFileSync(join(dir, "0", "finding.json"), "utf8")).comment, CITING);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "0", "evidence.json"), "utf8")), [{ location: "lib/install.mjs:1", file: "present" }]);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "0", "review-evidence.json"), "utf8")), [
+    { location: "lib/lock.mjs:40", file: "present" },
+    { location: "lib/write.mjs:7", file: "absent" },
+    { location: "lib/order.mjs:9", file: "present" },
+  ]);
+  assert.equal(readFileSync(join(dir, "0", "files", "lib", "order.mjs.txt"), "utf8"), "order\n");
 });
 
 test("prepare writes an empty index into an output directory that does not exist yet, as the workflow passes it", async (t) => {

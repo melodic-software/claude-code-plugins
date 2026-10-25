@@ -414,7 +414,68 @@ from the two together (see
   plugin with no key here stays off; an operator who wants one turns it on with `/plugin enable`.
   One off-by-default plugin bundles an MCP server that needs a `userConfig` credential this
   environment has no reason to hold: `miro` (`miro_api_token`, no key here), set with
-  `/plugin configure`.
+  `/plugin configure`. The cloud bootstrap does not install it, so in a cloud session Miro is
+  reachable only as a claude.ai connector, when the account has connected one (see
+  [Documentation and search connectors](#documentation-and-search-connectors)), not through the
+  `miro` plugin's server. The off-by-default `dometrain` plugin ships no server: the user-scope
+  `dometrain` server it reads from stays off in cloud sessions, because user-scope MCP servers
+  live in `~/.claude.json` and do not reach a cloud session
+  ([What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)).
+  No lane stage calls Miro or Dometrain.
+
+### Documentation and search connectors
+
+Context7, Ref, Firecrawl and Perplexity reach cloud sessions as OAuth claude.ai connectors, added
+once per account at
+[claude.ai/customize/connectors](https://claude.ai/customize/connectors) by the account owner
+([#7006](https://github.com/melodic-software/claude-code-plugins/issues/7006)). Agents do not
+add them.
+
+- **Endpoints.** Context7: `https://mcp.context7.com/mcp/oauth`, the OAuth endpoint on
+  [Set Up OAuth](https://context7.com/docs/howto/oauth). Ref: `https://api.ref.tools/mcp` with no
+  key, which starts OAuth sign-in; an account in more than one Ref team appends
+  `?scope=<team_id>` ([Ref install](https://docs.ref.tools/install)). Firecrawl:
+  `https://mcp.firecrawl.dev/v2/mcp-oauth`, the OAuth URL on
+  [Firecrawl MCP Server](https://docs.firecrawl.dev/mcp-server).
+- **Delivery.** The cloud host passes the account's connectors into every cloud session, under
+  the controls in
+  [How connectors reach Claude Code](https://code.claude.com/docs/en/mcp#how-connectors-reach-claude-code).
+  A routine (a scheduled task, in research preview) includes every connected connector unless it
+  is removed, and a run can use each one it includes, writes too
+  ([Connectors](https://code.claude.com/docs/en/routines#connectors)); trim each routine to what
+  it needs. When a run stops for approval is in
+  [Permission prompts during a run](https://code.claude.com/docs/en/routines#permission-prompts-during-a-run).
+- **Cost rule.** A connector is allowed only on a vendor plan with a set cost and no automatic
+  overage or automatic top-up, so that more usage happens only when the account owner buys it by
+  hand. A plan that bills usage past its included amount on its own does not qualify until that
+  billing is off. Read the vendor's page for the plan terms, never a copy here:
+  [Context7 plans](https://context7.com/plans), [Ref pricing](https://docs.ref.tools/usage/pricing),
+  [Firecrawl pricing](https://www.firecrawl.dev/pricing).
+  The owner confirmed on 2026-10-24 that this fleet's Context7 and Ref accounts meet the rule
+  ([recorded on #7006](https://github.com/melodic-software/claude-code-plugins/issues/7006#issuecomment-6395023400)),
+  and later that its Firecrawl account does
+  ([recorded on #7006](https://github.com/melodic-software/claude-code-plugins/issues/7006#issuecomment-6398682964)).
+  The Perplexity account is not yet confirmed; the account owner adds it only after confirming it
+  meets the rule.
+- **Perplexity.** Its connector bills tool calls to the API organization chosen at sign-in, not a
+  consumer subscription ([Perplexity MCP server](https://docs.perplexity.ai/guides/mcp-server));
+  the same cost rule applies to that organization's billing.
+- **No repository route.** The repository adds no `.mcp.json` and no `claude mcp add` in
+  `.claude/cloud-bootstrap.sh`.
+- **Untrusted input.** Stages that read untrusted input do not run on a cloud host: the lanes
+  launcher refuses every cloud host for them, because the no-connector check has no deterministic
+  form yet
+  ([Untrusted-input stages](conventions/execution-target/README.md#untrusted-input-stages)).
+- **Local sessions.** The connectors also load in local CLI sessions. A local Context7 server at
+  another URL appears beside the connector; the
+  [Disable claude.ai connectors](https://code.claude.com/docs/en/mcp#disable-claude-ai-connectors)
+  `/mcp` toggle turns one off per project.
+
+**As of:** 2026-10-25.
+
+**Recheck:** a vendor page above moves its OAuth endpoint or billing terms, or
+[How connectors reach Claude Code](https://code.claude.com/docs/en/mcp#how-connectors-reach-claude-code)
+changes what governs connectors in cloud sessions.
 
 ### GitHub MCP tools vs the gh CLI
 

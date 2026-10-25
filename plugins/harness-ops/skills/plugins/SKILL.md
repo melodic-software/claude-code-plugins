@@ -118,7 +118,8 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
    token. Pass the WORD, never the token: a placeholder inside a command is a shell substitution
    error, not a policy. Any other value is treated as `ask` and named back in the digest's
-   `install_new_invalid` so the report can flag it.
+   `install_new_invalid` so the report can flag it, on the first pass and on an `--only-install`
+   re-entry alike.
 
 2. **Read the output.** The first line is one compact JSON digest, also written to
    `<run_dir>/digest.json`; after a blank line comes the rendered report, also written to
@@ -224,8 +225,15 @@ reproduces it from a run directory later. Every section, conditional row, annota
 `Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
 scope from being misstated between the run and the report: the `Marketplace:` line with its
 three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it; `unreadable` for a
-`null`, never rendered as off), whose status reads `source checkout behind <upstream>` instead of
-`current` when a `directory` source's git checkout is behind its upstream; the `source:` row under
+`null`, never rendered as off), whose status reads `needs update` only for refresh, update and
+failure state (a failed refresh or CLI call, or an error; in `audit`, an update, install or enable `sync`
+would make), `source checkout behind <upstream>` when a `directory` source's git checkout is behind
+its upstream, and `current` otherwise, followed by `, N action(s) pending` when work is left to a
+person (an install declined, skipped by policy or held for the `ask` prompt, an unfilled or project-scope enable, an
+install left not enabled, a delisted plugin, a withheld downgrade), so
+`current, 1 action(s) pending` is a fleet with nothing to update and one such action. Each pending
+action is an `Action needed` bullet, except `audit`'s withheld downgrades, counted once as their
+`Would withhold:` row; the `source:` row under
 it for a `directory` source (branch, upstream, ahead/behind as of the checkout's last fetch, modified
 tracked files, or why freshness was not checked; the run never fetches or pulls the checkout); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
@@ -235,7 +243,8 @@ whose update call the CLI answered "already at the latest version" while the run
 their version changed, which the run did not do and does not attribute; with a `Not verified:` row
 for already-current answers the snapshots could not confirm); `Catalog regression:`; `Installed:` with the policy-`all`
 recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
-when a root resolved; the self-update note when this plugin's install record moved during the run; the stale project
+when a root resolved, with one sub-line per project path naming its record count and up to three
+ids (`+K more` past that); the self-update note when this plugin's install record moved during the run; the stale project
 records and user-scope cache content sections; the `Timing:` row (the marketplace total, its slowest step,
 and the seconds outside the named steps, with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,

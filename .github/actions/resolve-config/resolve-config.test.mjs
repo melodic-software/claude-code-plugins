@@ -1041,7 +1041,6 @@ test("MODEL_RUNG empty, 0 or 1 resolves; any other value is refused as invalid-r
 });
 
 test("issueLaneWebHostsFromBase: resolve-issue's web-access domains from the base config, none when it reads no web", () => {
-  const live = issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../..") });
-  assert.ok(Array.isArray(live) && live.includes("code.claude.com"), JSON.stringify(live));
+  assert.equal(issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../..") }), "any");
   assert.deepEqual(issueLaneWebHostsFromBase(workspace().env), []);
 });
