@@ -1772,7 +1772,10 @@ def _vouch_refusal(
     access wrote it and no non-human edited its body since (`_edits_refusal`
     over the `DEMOTION_RECORD` read), or a human applied the admission label
     in person with no body edit or title change after it
-    (`_label_provenance`, `renamed` timeline events)."""
+    (`_label_provenance`, `renamed` timeline events). Either suffices; when
+    neither does, the author path's reason wins for a human-authored issue
+    with no admission label."""
+    authored: str | None = None
     if human(issue.get("author")):
         if not issue.get("lastEditedAt"):
             return None
@@ -1782,13 +1785,28 @@ def _vouch_refusal(
         if not record:
             raise PolicyReadError(f"issue #{number}: the edit history is unreadable")
         edited = _edits_refusal(record, human)
-        if edited == "edited-by-non-human":
-            return "issue-not-vouched:body-edited-by-non-human"
-        return f"issue-not-vouched:{edited}" if edited else None
+        if not edited:
+            return None
+        authored = "issue-not-vouched:" + (
+            "body-edited-by-non-human" if edited == "edited-by-non-human" else edited
+        )
     wanted = label().casefold()
     applied = next((n for n in labels if n.casefold() == wanted), None)
     if applied is None:
-        return "issue-not-vouched:no-human-author-or-admission-label"
+        return authored or "issue-not-vouched:no-human-author-or-admission-label"
+    vouched = _label_vouch_refusal(owner, name, issue, applied, human, timelines)
+    return (authored or vouched) if vouched else None
+
+
+def _label_vouch_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    applied: str,
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why the admission label `applied` does not vouch for `issue`, or None."""
     untrusted = _label_provenance(
         owner,
         name,
@@ -1802,11 +1820,16 @@ def _vouch_refusal(
         return f"issue-not-vouched:{untrusted}"
     events = _timeline(owner, name, issue["number"], timelines)
     labeled = max(
-        _time(e.get("created_at"))
-        for e in events
-        if e.get("event") == "labeled"
-        and json_object(e.get("label")).get("name") == applied
+        (
+            _time(e.get("created_at"))
+            for e in events
+            if e.get("event") == "labeled"
+            and json_object(e.get("label")).get("name") == applied
+        ),
+        default=None,
     )
+    if labeled is None:
+        return "issue-not-vouched:no-labeled-event"
     if any(
         e.get("event") == "renamed" and _time(e.get("created_at")) > labeled
         for e in events

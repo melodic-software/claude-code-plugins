@@ -103,8 +103,8 @@ another. It reads no class and no promotion evidence; its rung is a pacing cap. 
 reads by a class name is a trust hold: it refuses a change request whose linked item carries
 `work-class: untrusted-provenance`, or had that label removed by a non-human, and it needs the
 linked item vouched for by a human (written by one with write access, or given the admission
-label by one in person with no body edit after). This marketplace defines it in
-`plugins/source-control/skills/babysit-prs/reference/safety.md`, section "Unattended Merge Path".
+label by one in person with no body edit after). That skill's safety reference defines it, section
+"Unattended Merge Path".
 
 ## Promotion and demotion
 

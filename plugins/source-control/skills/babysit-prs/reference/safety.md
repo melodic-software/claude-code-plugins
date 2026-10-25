@@ -1050,7 +1050,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
    or one applied the tracker's admission label (`agent-ready` unless `.work-item-tracker.json`
    maps the `autonomous-eligible` role, read at the base branch) in person with no body edit or
-   title change after (`title-edited-after-label`). So an issue the lanes App both filed and
+   title change after (`title-edited-after-label`). Either suffices, so a human's issue a
+   non-human edited is vouched for again once a person re-applies the label after the edit. An issue the lanes App both filed and
    admitted refuses as `issue-not-vouched:labeler-not-human` until a person re-adds the label;
    this fails closed, and the pr-merge lane is unaffected. A LOW score merges, and so does a MED one whose
    every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT

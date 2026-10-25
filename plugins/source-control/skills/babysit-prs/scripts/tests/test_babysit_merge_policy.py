@@ -1242,6 +1242,31 @@ class IssueVouch(unittest.TestCase):
             eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
         )
 
+    def test_a_human_relabel_after_a_lane_rewrite_vouches(self) -> None:
+        # Either vouch suffices: a human who re-applies the admission label in
+        # person after the lane's edit vouches for the edited body.
+        gh = self.edited_issue(bot("agent-lanes"))
+        issue = gh.graphql["PolicyEligibility"]["repository"]["pullRequest"][
+            "closingIssuesReferences"
+        ]["nodes"][0]
+        issue["labels"] = {"totalCount": 1, "nodes": [{"name": "agent-ready"}]}
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "labeled",
+                "label": {"name": "agent-ready"},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T11:00:00Z",
+            }
+        ]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        # A label applied before the rewrite did not see it: the author
+        # path's reason stands.
+        gh.rest[self.TIMELINE][0]["created_at"] = "2026-10-11T09:00:00Z"
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
+        )
+
     def test_a_human_issue_edited_only_by_its_author_passes(self) -> None:
         self.edited_issue(user(OPERATOR))
         result = eligibility()

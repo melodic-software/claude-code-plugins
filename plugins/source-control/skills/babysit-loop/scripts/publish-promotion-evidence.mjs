@@ -49,7 +49,7 @@
 //
 // What counts (judgment where the contract names no GitHub source):
 // - A merged PR's work class is the highest `work-class:` label (the label set
-//   plugins/work-items/reference/work-class-labels.md defines) on the issues it linked
+//   the work-items plugin's work-class label reference defines) on the issues it linked
 //   at merge and on the PR, each label set rebuilt as of merged_at by undoing later
 //   labeled/unlabeled events, so relabeling after the merge changes nothing. The linked set is
 //   closingIssuesReferences with later ConnectedEvent/DisconnectedEvent undone; when the PR body
