@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: rt-call-matches-callers
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-tool-used'
+    type: 'regex'
+    pattern: '\bgrade_tool_used\b'
+    target: 'last_message'
+  - name: 'names-tool-order'
+    type: 'regex'
+    pattern: '\bgrade_tool_order\b'
+    target: 'last_message'
+  - name: 'no-indirect-callers'
+    type: 'regex'
+    pattern: '\b(?:run_samples|check_samples|check_js_engine|grade_regex|grade_file_exists|analyze_case)\b|^[ \t]*[-*]?[ \t]*`?first(?:\(\))?`?[ \t]*$'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
