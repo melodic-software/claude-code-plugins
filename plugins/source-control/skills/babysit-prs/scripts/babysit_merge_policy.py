@@ -2600,7 +2600,7 @@ def requeued_by_person(
     ejected: Any,
     *,
     human_ids: Collection[int],
-    head_first_seen: Callable[[], Any],
+    head_last_seen: Callable[[], Any],
     queued_at_head: Callable[[], bool],
     quiet_since: Callable[[datetime], bool],
 ) -> bool:
@@ -2610,11 +2610,12 @@ def requeued_by_person(
     change since; its actor and its enqueuer are both a kind human id on the
     trusted list (`human_ids`; never a login or a GitHub type, since GitHub
     types an App's enqueuer a User); no other enqueue followed but the lane's
-    own entry at this head (`queued_at_head`); GitHub first saw the head
-    (`head_first_seen`, `_head_first_seen`) no later than that enqueue, so it
-    is the head the person queued; and no person has spoken since the removal
-    (`quiet_since`, `_quiet_since`), so a request to wait keeps the idle
-    rule. Anything unreadable is False."""
+    own entry at this head (`queued_at_head`); GitHub had seen this head on
+    the branch by the enqueue and not since (`head_last_seen`,
+    `_head_last_seen`), so it is the head the person queued; and no person has
+    spoken since the enqueue (`quiet_since`, `_quiet_since`), so a request to
+    wait, made before or after the run failed, keeps the idle rule. Anything
+    unreadable is False."""
     item = json_object(ejected)
     enqueue = json_object(item.get("enqueue"))
     ids = [
@@ -2626,19 +2627,19 @@ def requeued_by_person(
     if requeued is not False and not (requeued is True and queued_at_head()):
         return False
     try:
-        removed = _time(item.get("removedAt"))
-        return _time(head_first_seen()) <= _time(
-            enqueue.get("createdAt")
-        ) and quiet_since(removed)
+        _time(item.get("removedAt"))  # a removal with no readable time refuses
+        enqueued = _time(enqueue.get("createdAt"))
+        return _time(head_last_seen()) <= enqueued and quiet_since(enqueued)
     except PolicyReadError:
         return False
 
 
-def _head_first_seen(owner: str, name: str, pr: Mapping[str, Any]) -> str:
-    """When GitHub first saw the pull request's head commit on its head
-    branch: the earliest `created_at` of GitHub Actions' check suites for that
-    commit whose `head_branch` is the pull request's. GitHub sets it when the
-    push arrives, unlike a commit's dates, which the pusher sets. No such
+def _head_last_seen(owner: str, name: str, pr: Mapping[str, Any]) -> str:
+    """When GitHub last saw the pull request's head commit arrive on its head
+    branch: the newest `created_at` of GitHub Actions' check suites for that
+    commit whose `head_branch` is the pull request's. GitHub sets it when a
+    push arrives, unlike a commit's dates, which the pusher sets, and a head
+    pushed again (reset away and pushed back) gets a newer suite. No such
     suite, a listing past one page, or an unreadable one raises."""
     head = json_object(pr.get("head"))
     sha, ref = str(head.get("sha") or ""), head.get("ref")
@@ -2659,7 +2660,7 @@ def _head_first_seen(owner: str, name: str, pr: Mapping[str, Any]) -> str:
     ]
     if not seen:
         raise PolicyReadError(f"head {sha} has no check suite on {ref}")
-    return min(seen, key=_time)
+    return max(seen, key=_time)
 
 
 def _discussion(owner: str, name: str, number: int) -> list[dict[str, Any]]:
@@ -2760,7 +2761,7 @@ def lane_eligibility(
             if not_adopted in FRESH_REFUSALS and requeued_by_person(
                 ejected_enqueue(),
                 human_ids=adoption_human_ids,
-                head_first_seen=lambda: _head_first_seen(owner, name, pr),
+                head_last_seen=lambda: _head_last_seen(owner, name, pr),
                 queued_at_head=queued_at_head,
                 quiet_since=lambda since: _quiet_since(
                     owner, name, number, str(agent_identity or ""), since

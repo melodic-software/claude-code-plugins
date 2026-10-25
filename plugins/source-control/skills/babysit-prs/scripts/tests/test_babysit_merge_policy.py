@@ -4590,7 +4590,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def requeued(self, ejected: Any, **kwargs: Any) -> bool:
         args: dict[str, Any] = {
             "human_ids": (OWNER_ID,),
-            "head_first_seen": lambda: SEEN,
+            "head_last_seen": lambda: SEEN,
             "queued_at_head": lambda: False,
             "quiet_since": lambda when: True,
         }
@@ -4631,16 +4631,17 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 ejected = self.ejected(enqueue=enqueue)
                 self.assertFalse(self.requeued(ejected, human_ids=humans))
 
-    def test_a_head_first_pushed_after_the_enqueue_does_not_requeue(self) -> None:
-        # The server's first check suite on the head, never a commit date
-        # (a backdated commit fast-forwarded after the removal).
-        self.assertFalse(self.requeued(self.ejected(), head_first_seen=lambda: NOW_ISH))
-        self.assertTrue(self.requeued(self.ejected(), head_first_seen=lambda: FRESH))
+    def test_a_head_pushed_after_the_enqueue_does_not_requeue(self) -> None:
+        # The server's newest check suite on the head, never a commit date: a
+        # backdated commit fast-forwarded after the removal, or a head staged
+        # before, reset away and pushed back, has a suite after the enqueue.
+        self.assertFalse(self.requeued(self.ejected(), head_last_seen=lambda: NOW_ISH))
+        self.assertTrue(self.requeued(self.ejected(), head_last_seen=lambda: FRESH))
 
         def unreadable() -> str:
             raise policy.PolicyReadError("502")
 
-        self.assertFalse(self.requeued(self.ejected(), head_first_seen=unreadable))
+        self.assertFalse(self.requeued(self.ejected(), head_last_seen=unreadable))
         self.assertFalse(self.requeued(self.ejected(enqueue={"createdAt": None})))
 
     def test_a_word_after_the_removal_stops_the_requeue(self) -> None:
@@ -4651,7 +4652,9 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             return False
 
         self.assertFalse(self.requeued(self.ejected(), quiet_since=quiet))
-        self.assertEqual(seen, [policy._time(REMOVED)])
+        # From the enqueue: a request to wait made then, before the run
+        # failed, still holds.
+        self.assertEqual(seen, [policy._time(FRESH)])
 
         def unreadable(when: Any) -> bool:
             raise policy.PolicyReadError("502")
@@ -4757,14 +4760,14 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         }
         return gh
 
-    def test_the_head_is_first_seen_at_its_earliest_check_suite_here(self) -> None:
+    def test_the_head_is_last_seen_at_its_newest_check_suite_here(self) -> None:
         pr = owner_pr(head={"sha": HEAD, "ref": "feat/x"})
         mine = {"head_branch": "feat/x", "created_at": "2026-10-11T12:40:00Z"}
         later = {"head_branch": "feat/x", "created_at": "2026-10-11T12:55:00Z"}
         elsewhere = {"head_branch": "other", "created_at": "2026-10-11T09:00:00Z"}
-        self.suites(later, mine, elsewhere)
+        self.suites(mine, later, elsewhere)
         self.assertEqual(
-            policy._head_first_seen("owner", "repo", pr), "2026-10-11T12:40:00Z"
+            policy._head_last_seen("owner", "repo", pr), "2026-10-11T12:55:00Z"
         )
         for label, gh_setup in (
             ("no suite on its branch", lambda: self.suites(elsewhere)),
@@ -4777,7 +4780,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             with self.subTest(label):
                 gh_setup()
                 with self.assertRaises(policy.PolicyReadError):
-                    policy._head_first_seen("owner", "repo", pr)
+                    policy._head_last_seen("owner", "repo", pr)
 
     def test_no_ejected_enqueue_does_not_requeue(self) -> None:
         for ejected in (None, {}, [], {"enqueue": None, "requeued": False}):
@@ -4848,6 +4851,39 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         )
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
         self.assertIsNone(result.adoption)
+
+    def test_a_wait_comment_before_the_run_failed_keeps_the_idle_rule(self) -> None:
+        # "Wait for me if this fails", posted after the enqueue and before the
+        # removal, still holds.
+        wait = {
+            "user": {"login": OWNER_LOGIN, "type": "User"},
+            "body": "wait for me if this fails",
+            "created_at": "2026-10-11T13:15:00Z",
+            "updated_at": "2026-10-11T13:15:00Z",
+        }
+        self.requeue_fake(comments=[wait])
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_a_check_suite_after_the_enqueue_keeps_the_idle_rule(self) -> None:
+        # The head staged before the enqueue, reset away, and pushed back
+        # after the removal: its newest suite is after the enqueue.
+        gh = self.requeue_fake()
+        gh.rest[self.SUITES] = {
+            "total_count": 2,
+            "check_suites": [
+                {"head_branch": "feat/x", "created_at": SEEN},
+                {"head_branch": "feat/x", "created_at": NOW_ISH},
+            ],
+        }
+        pr = owner_pr(updated_at=FRESH, head={"sha": HEAD, "ref": "feat/x"})
+        result = self.eligibility(
+            pr, adoption_human_ids=(OWNER_ID,), ejected_enqueue=self.ejected
+        )
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
     def test_a_hold_or_an_idle_pr_never_reads_the_queue(self) -> None:
         def unread() -> Any:

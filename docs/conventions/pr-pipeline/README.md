@@ -2255,12 +2255,15 @@ these hold:
 - the `AddedToMergeQueueEvent` that queued the removed entry has an `actor` and an `enqueuer`
   whose ids are both `kind: human` on the trusted-actor list. Logins and GitHub types are not
   read, because GitHub types an App's enqueuer as a `User`;
-- GitHub first saw the head no later than that enqueue. That time is the earliest `created_at`
-  of GitHub Actions' check suites for the head commit on the PR's head branch. GitHub sets it when
-  the push arrives, so a commit dated in the past but pushed after the removal does not pass;
-- no person has commented, reviewed or commented inline since the removal, counting a comment
-  edited since then. The lanes App and bots do not count. A request to wait therefore keeps the
-  idle rule, as a comment after the lane's pin does for its own queued entry.
+- GitHub had seen this head on the branch by the enqueue, and not since. That check reads the
+  newest `created_at` of GitHub Actions' check suites for the head commit on the PR's head
+  branch, which must be no later than the enqueue. GitHub sets it when a push arrives. A commit
+  dated in the past but pushed after the removal therefore does not pass, and neither does a head
+  that was reset away and pushed back;
+- no person has commented, reviewed or commented inline since the enqueue, counting a comment
+  edited since then. The lanes App and bots do not count. A request to wait, made before or after
+  the run failed, therefore keeps the idle rule, as a comment after the lane's pin does for its
+  own queued entry.
 
 The only newer queue event allowed is the lane's own entry at this head, as described in
 [The pr-merge lane](#the-pr-merge-lane). Anything else, or anything unreadable, falls back to the
