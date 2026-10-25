@@ -1463,8 +1463,8 @@ Changes to workflows, CI, hooks, scripts, agent instructions and package manifes
 like any other code; a change to the takeover set (the merge gate's HIGH floor) is read with extra
 care and fails only when it lets someone outside the organization gain trust or weakens a check
 beyond what the spec asks. A diff too large to judge whole fails when a part not judged is a
-workflow, action, script, hook or binary, and passes with notes naming the parts not judged when
-they are all prose or data. `any` judges every author's. Any other
+workflow, action, script, hook or binary, or a takeover-set file of any type, and passes with
+notes naming the parts not judged when they are all other prose or data. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
