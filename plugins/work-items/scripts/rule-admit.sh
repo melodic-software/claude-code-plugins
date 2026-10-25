@@ -161,7 +161,10 @@ SHA="$(sha_of "$BINDING" | cut -c1-12)"
 # shellcheck disable=SC2016 # jq program, not shell expansion
 EVAL='
 def deny: "(\\.github|\\b(hooks?|guard(rail)?s?|permissions?|(allow|deny)[- ]?lists?|workflows?|rulesets?|codeowners|secrets?|tokens?|credentials?|pins?|pinned|pinning|sha(s|1|256)?|checksums?|admission|work-class(es)?|label-provenance|autonomy|security|merg(e|es|ed|ing)|sandbox(es|ed|ing)?|auto[- ]mode|bindings?|trust(ed|s|ing)?|ci)\\b)";
-def cost: "\\b(costs?|billing|billed|spend(ing)?|pricing|paid|subscriptions?|skus?|quotas?|retention|(larger|hosted|self-hosted)[- ]runners?|macos minutes)\\b";
+def cost: "\\b(billing|billed|spending[- ]limits?|subscriptions?|skus?|retention|(larger|hosted|self-hosted)[- ]runners?|macos minutes|seats?|codespaces|paid (plans?|seats?)|top[- ]?ups?|auto[- ]?(renew(al|ed|ing)?s?|reload)|extra usage)\\b";
+def spend: "\\b(costs?|spend(ing)?|pricing|paid|quotas?)\\b";
+def claude_spend: "\\b(claude|anthropic)([ -](code|api|keys?|max|usage|credits?|evals?|models?|plugin|runs?)){0,3} (spend(ing)?|costs?|pricing|quotas?)\\b";
+def other_charge: "\\b(github|azure|aws|amazon|gcp|google|cloudflare|openai|gemini|bedrock|vertex|vercel|netlify|heroku|digitalocean|stripe|actions|copilot|lfs|storage|runners?|hosting|domains?|advanced security|providers?|vendors?|services?|plans?)\\b";
 def row($verdict; $rule; $proposed; $reason):
   {issue: $n, verdict: $verdict, rule: ($rule.id // null), work_class: ($rule.work_class // null),
    constraint: (if $rule == null then null else "human-merge" end),
@@ -174,7 +177,12 @@ def trusted: . == "OWNER" or . == "MEMBER";
 | ((($lc.body // "") | split("\n") | .[1] // "") as $line
    | ($line | capture("^Proposed work class: (?<c>work-class: [a-z0-9-]+)$").c? // "")) as $proposed
 | ((($issue.title // "") + "\n" + ($issue.body // "")) | [match(deny; "gi").string | ascii_downcase] | unique) as $hits
-| ((($issue.title // "") + "\n" + ($issue.body // "")) | [match(cost; "gi").string | ascii_downcase] | unique) as $cost_hits
+| (($issue.title // "") + "\n" + ($issue.body // "")) as $text
+| ($text | [match(cost; "gi").string | ascii_downcase] | unique) as $charge_hits
+| ($text | [match(spend; "gi").string | ascii_downcase] | unique) as $spend_hits
+| (if ($text | test(other_charge; "i")) then $text else ($text | gsub(claude_spend; ""; "i")) end) as $unclaimed
+| ($unclaimed | [match(spend; "gi").string | ascii_downcase] | unique) as $unclaimed_hits
+| (if ($charge_hits | length) > 0 then $charge_hits elif ($unclaimed_hits | length) > 0 then $spend_hits else [] end) as $cost_hits
 | ([$labels[] | select(. == "provenance: signal" or . == "area: security" or . == "do-not-merge" or . == "work-map"
      or startswith("status:") or startswith("wayfind:"))]) as $owner_step
 | if $issue.pull_request != null then refuse("not an issue")

@@ -278,7 +278,7 @@ test("the round marker is posted once, as the first line, numbered after the App
   await run(api, lines(reply()));
   assert.equal(api.markers().length, 1);
   assert.equal(api.markers()[0][1], 42);
-  assert.equal(api.markers()[0][2], `${ROUND}\n${MODEL_RUN}\npr-unblock / address-feedback finished round 2 of 2 on ${NOW}.`);
+  assert.equal(api.markers()[0][2], `${ROUND}\n${MODEL_RUN}\npr-unblock / address-feedback finished round 2 of max 3 on ${NOW}.`);
 });
 
 test("the round marker names the configured cap", async () => {
@@ -295,15 +295,15 @@ test("the round marker names the configured cap", async () => {
     readArtifact: () => ({ runText: runFor(lines(reply())), repliesText: lines(reply()) }),
     fileExists: exists,
   });
-  assert.match(api.markers()[0][2], /finished round 1 of 3 on/);
+  assert.match(api.markers()[0][2], /finished round 1 of max 4 on/);
 });
 
-test("a round past the cap is marked as past it", async () => {
+test("the fresh fixer's round, past the cap, is the last of the max", async () => {
   const api = fakeApi({
     issueComments: [1, 2].map((n) => ({ id: n + 1, user: { id: APP }, body: `${ROUND}\nround ${n}` })),
   });
   await run(api, lines(reply()));
-  assert.match(api.markers()[0][2], /finished round 3, past the cap of 2, on /);
+  assert.match(api.markers()[0][2], /finished round 3 of max 3 on /);
 });
 
 // #7545: a re-run of the reply job alone reuses the model run's artifact, so
@@ -1035,7 +1035,7 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
   const noAttempt = fakeApi({ issueComments: [{ id: 2, user: { id: APP }, body: `${ROUND}\nround 1` }] });
   await main({ ...env, MODEL_RUN_ATTEMPT: "" }, { api: noAttempt, log: () => {} });
   assert.equal(noAttempt.markers().length, 1);
-  assert.match(noAttempt.markers()[0][2], /^<!-- pr-unblock:address-feedback-round -->\npr-unblock \/ address-feedback finished round 2 of 2/);
+  assert.match(noAttempt.markers()[0][2], /^<!-- pr-unblock:address-feedback-round -->\npr-unblock \/ address-feedback finished round 2 of max 3/);
 
   // A run.json other than the bytes the select job hashed is refused.
   for (const sha of ["0".repeat(64), ""]) {

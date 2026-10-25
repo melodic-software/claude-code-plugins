@@ -2012,8 +2012,13 @@ write-access trusted person's fix request on a thread after the newest round run
 on the requested threads only. With no such request, a security lane finding, a pr-verify note (an
 intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold
 hands the PR to a person; any other
-finding goes to one fresh fixer round, a new session like every round, and after it the PR skips
-`cost-gated` with no label until the next fix request. The default is 2; this
+finding goes to one fresh fixer round, a new session like every round. That is the last automatic
+round: once it has run, no sweep, schedule or dispatch starts another, and the next select hands
+the PR to a person as `feedback-not-converging`, a comment that names the open threads (a review
+that does not converge is an intent question). Removing the label alone does not resume it, since
+the rounds already run still count: a person resolves the open threads, or a write-access fix
+request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
+<M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 2; this
 repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
