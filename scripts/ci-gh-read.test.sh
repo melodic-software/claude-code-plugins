@@ -235,6 +235,27 @@ ok never
 ok never" run 'for attempt in 1 2 3; do gh_read repos/o/r/pulls --paginate >/dev/null && break; sleep 5; done; echo "attempts=$attempt"'
 check "a caller's three-attempt loop sends the paginated read once" 0 1 "5 5 5" "attempts=3"
 
+# gh_read holds gh's stderr in a file until gh returns, and a stop the rate
+# guard cannot record ends the step first: the errors still reach its log.
+# Root writes past a read-only directory, so the case skips there.
+if [[ $(id -u) == 0 ]]; then
+  ok "skipped as root: an unrecorded stop needs a directory root cannot write past"
+else
+  fresh
+  mkdir "$TMP_ROOT/api-budget"
+  chmod 555 "$TMP_ROOT/api-budget"
+  STUB_SCRIPT="$LIMITED
+ok never" run 'gh_read repos/o/r/pulls/1 >/dev/null || true; echo reached'
+  check "a stop the rate guard cannot record ends the step, its errors in the step's log" 143 1 "" \
+    "::error::'gh api repos/o/r/pulls/1' hit GitHub's core API rate limit" "reached"
+  if [[ "$out" == *"::error::GitHub's core API stop could not be recorded"* ]]; then
+    ok "the step's log names the stop it could not record"
+  else
+    fail "the unrecorded-stop error is missing from the step's log: '$out'"
+  fi
+  chmod 755 "$TMP_ROOT/api-budget"
+fi
+
 fresh
 STUB_SCRIPT='fail 502 Bad Gateway' run 'api_budget_stop_until() { echo 12x; }; gh_read repos/o/r/pulls/1 || echo "rc=$?"'
 check "a stop time that is not a number is not waited on" 0 0 "" "rc=1" "too great"

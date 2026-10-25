@@ -10,13 +10,6 @@
     "docs-hygiene:extract-ssot",
     "discipline:follow-our-standards"
   ],
-  "competitor_dirs": {
-    "discipline:point-dont-copy": "plugins/discipline/skills/point-dont-copy",
-    "coupling:reduce": "plugins/coupling/skills/reduce",
-    "code-tidying:tidy": "plugins/code-tidying/skills/tidy",
-    "docs-hygiene:extract-ssot": "plugins/docs-hygiene/skills/extract-ssot",
-    "discipline:follow-our-standards": "plugins/discipline/skills/follow-our-standards"
-  },
   "queries": [
     {
       "id": "pos-train-01",

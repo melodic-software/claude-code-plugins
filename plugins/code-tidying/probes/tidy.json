@@ -9,12 +9,6 @@
     "code-tidying:batch-simplify",
     "code-tidying:dissolve-comments"
   ],
-  "competitor_dirs": {
-    "code-tidying:audit-comment-residue": "plugins/code-tidying/skills/audit-comment-residue",
-    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
-    "code-tidying:batch-simplify": "plugins/code-tidying/skills/batch-simplify",
-    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments"
-  },
   "queries": [
     {
       "id": "pos-train-01",
