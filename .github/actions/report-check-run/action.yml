@@ -43,6 +43,12 @@ inputs:
       no verdict. Empty for every run job's report.
     required: false
     default: ""
+  not-run-detail:
+    description: >
+      With not-run-reason, a line added to the neutral check's summary: only
+      `round <N> of max <M>` is shown, any other text is left out.
+    required: false
+    default: ""
   gate-reason:
     description: >
       The run job's gate stop reason output, from its gate steps; empty when
@@ -127,6 +133,7 @@ runs:
         ACT_OUTCOME: ${{ inputs.act-outcome }}
         RUN_FAILURE: ${{ inputs.run-failure }}
         NOT_RUN_REASON: ${{ inputs.not-run-reason }}
+        NOT_RUN_DETAIL: ${{ inputs.not-run-detail }}
         GATE_REASON: ${{ inputs.gate-reason }}
         HEAD_SHA: ${{ inputs.head-sha }}
         PR_HEAD_SHA: ${{ inputs.pr-head-sha }}
