@@ -1291,11 +1291,18 @@ describe("run", () => {
     assert.ok(result.summary.includes("- Blocked by: #12 written; #13 skipped (not open)"), result.summary);
   });
 
-  for (const status of [403, 429, 500]) {
-    test(`a ${status} on an edge write misses the edge; the labels and admission still follow`, async () => {
+  for (const [status, labels, own] of [
+    [403, [], []],
+    [429, [], []],
+    [500, [], []],
+    [500, [{ name: READY }], [{ id: 51, body: `${VERDICT_MARKER}\nold`, user: { id: LANES_APP, type: "Bot" } }]],
+  ]) {
+    test(`a ${status} on an edge write misses the edge: the other labels land, but not ${READY}, and no admission runs${labels.length ? " (it was already ready)" : ""}`, async () => {
       const fake = fakeGitHub({
+        issue: { labels },
         comments: [
           laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12"] })),
+          ...own,
         ],
         blockers: { 12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" } },
       });
@@ -1313,14 +1320,22 @@ describe("run", () => {
         fieldSetters: noSetters,
         admitIssue: async () => {
           admitted = true;
-          return { outcome: "waiting", reasons: [] };
+          return { outcome: "admitted", reasons: [] };
         },
         log: () => {},
       });
       assert.deepEqual(result.missed, [{ number: 12, status }]);
-      assert.ok(fake.calls.some(({ method, path, body }) => method === "POST" && path.endsWith("/labels") && body.labels.includes(READY)));
-      assert.ok(admitted);
+      assert.ok(!admitted, "admission reads blockers from native edges only, so it waits");
+      const added = fake.calls.filter(({ method, path }) => method === "POST" && path.endsWith("/labels")).flatMap(({ body }) => body.labels);
+      assert.ok(added.includes("work-class: scoped"), added.join(", "));
+      assert.ok(!added.includes(READY), added.join(", "));
+      assert.ok(fake.calls.some(({ method, path }) => method === "DELETE" && path.endsWith(`/labels/${encodeURIComponent(READY)}`)));
       assert.ok(result.summary.includes(`- Blocked by: #12 not written (GitHub answered ${status})`), result.summary);
+      assert.match(result.summary, /- Status: none: admission waits for intake to run again, since a blocked-by edge is missing/);
+      const said = fake.calls.find(({ method, path }) => (method === "POST" && path.endsWith("/comments")) || (method === "PATCH" && path.endsWith("/comments/51")));
+      assert.ok(said?.body.body.startsWith(`${VERDICT_MARKER}\n`), said?.body.body);
+      assert.ok(!said.body.body.includes(`is at \`${READY}\``), said.body.body);
+      assert.match(said.body.body, /blocked-by edge is missing/);
     });
   }
 
@@ -1329,7 +1344,7 @@ describe("run", () => {
     assert.equal(missedAnnotation(undefined), null, "a skipped or stopped run carries no missed list");
     assert.deepEqual(missedAnnotation([{ number: 12, status: 502 }]), {
       fail: false,
-      line: "::warning title=apply-verdict::blocked-by edges not written: #12 not written (GitHub answered 502); a re-run writes them",
+      line: "::warning title=apply-verdict::blocked-by edges not written: #12 not written (GitHub answered 502); the verdict's labels are written without status: ready, and admission waits until the hourly triage sweep runs intake again, which writes them",
     });
     const forbidden = missedAnnotation([
       { number: 12, status: 502 },

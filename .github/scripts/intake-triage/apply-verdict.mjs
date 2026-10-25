@@ -41,8 +41,10 @@
 // it applied a class it rewrites the comment's "a maintainer confirms" lines.
 // It writes a native blocked-by edge for each open issue of this repository
 // the verdict names; an edge GitHub answers 403, 429 or 5xx for is missed,
-// named in the summary and an annotation, and holds nothing (a 403 also fails
-// the job after every write). Then on `status: ready` it hands the verdict to admit.mjs,
+// named in the summary and an annotation, and a ready verdict then lands
+// without `status: ready` and is not admitted, so the hourly triage sweep runs
+// intake again (a 403 also fails the job after every write). Then on
+// `status: ready` it hands the verdict to admit.mjs,
 // which adds `agent-ready` when the admission rules, the blockers and the caps
 // allow. Otherwise, when a done-when item is one the lane cannot perform,
 // admit.mjs's noteUnrunnable posts the split it recommends. An option GitHub
@@ -312,7 +314,7 @@ export function planWrites(
 }
 
 // The lanes App's own earlier verdict comment, if any.
-const ownVerdict = (comments, appId) =>
+export const ownVerdict = (comments, appId) =>
   comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
 
 // The flags the lanes App's earlier verdict comment listed: only known flags
@@ -458,9 +460,16 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       );
     }
   }
-  // Before any label, so admission reads them. A missed edge holds nothing:
-  // it is named in the summary, and a re-run skips the edges written.
+  // Before any label, so admission reads them. Admission reads blockers only
+  // from the native edges, so a missed one would be invisible to it: a ready
+  // verdict then lands without `status: ready` and is not admitted, and the
+  // hourly triage sweep (maintenance-audit-lane-runs/triage-sweep.mjs), which
+  // dispatches intake on an issue with no `status:` label, runs it again. A
+  // re-run skips the edges written.
   const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
+  const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
+  const add = waits ? plan.add.filter((name) => name !== READY) : plan.add;
+  const remove = waits ? [...plan.remove, READY] : plan.remove;
   // A held verdict's reasons comment goes before its labels, so a hold never
   // lands without the record of whether it was flagged (earlierFlags): when
   // the comment write fails, no hold, class or floor label changes and the
@@ -480,11 +489,11 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     await say(null);
   }
   const labeled = reasonsError === null;
-  const unready = plan.remove.filter((name) => name === READY);
+  const unready = remove.filter((name) => name === READY);
   if (labeled) {
-    const floor = plan.remove.filter((name) => name === NEEDS_TRIAGE);
-    await removeLabels(github, base, plan.remove.filter((name) => name !== NEEDS_TRIAGE));
-    await addLabels(github, base, plan.add);
+    const floor = remove.filter((name) => name === NEEDS_TRIAGE);
+    await removeLabels(github, base, remove.filter((name) => name !== NEEDS_TRIAGE));
+    await addLabels(github, base, add);
     await removeLabels(github, base, floor);
   } else {
     await removeLabels(github, base, unready);
@@ -493,8 +502,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller
   // fails the job on it.
-  let admission = null;
-  if (plan.ready && admitIssue) {
+  let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
+  if (plan.ready && admitIssue && !waits) {
     try {
       admission = await admitIssue({ ...verdict, dimensions: plan.dimensions });
     } catch (error) {
@@ -526,7 +535,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Work class: ${verdict.workClass ?? "none"}${plan.classApplied ? "" : " (not applied)"}`,
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     labeled
-      ? `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`
+      ? `- Labels added: ${add.join(", ") || "none"}; removed: ${remove.join(", ") || "none"}`
       : `- Labels added: none, since the reasons comment was not written; removed: ${unready.join(", ") || "none"}`,
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
@@ -561,6 +570,7 @@ const missedEdges = (missed) => missed.map(({ number, status }) => `#${number} n
 
 // The annotation for missed edges, or null. A 403 is a missing permission,
 // which no re-run fixes, or a rate limit: it fails the job, after every write.
+// Either way a ready verdict waits without `status: ready` for the sweep.
 export function missedAnnotation(missed = []) {
   if (missed.length === 0) {
     return null;
@@ -569,15 +579,28 @@ export function missedAnnotation(missed = []) {
   return missed.some(({ status }) => status === 403)
     ? {
         fail: true,
-        line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; the lanes App may lack the issues dependencies permission, or a rate limit answered. The verdict's labels are written`,
+        line: `::error title=apply-verdict::blocked-by edges not written: ${edges}; the lanes App may lack the issues dependencies permission, or a rate limit answered. The verdict's labels are written without ${READY}, and admission waits for intake to run again`,
       }
-    : { fail: false, line: `::warning title=apply-verdict::blocked-by edges not written: ${edges}; a re-run writes them` };
+    : {
+        fail: false,
+        line: `::warning title=apply-verdict::blocked-by edges not written: ${edges}; the verdict's labels are written without ${READY}, and admission waits until the hourly triage sweep runs intake again, which writes them`,
+      };
 }
+
+// Admission's stand-in outcome when a blocked-by edge was missed.
+const EDGE_MISSING = "waits for a blocked-by edge";
+const WAITS = "none: admission waits for intake to run again, since a blocked-by edge is missing";
 
 // Where a ready verdict leaves the issue after admission, when admission
 // moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
-  admission?.outcome === "refused" ? NEEDS_DECISION : admission?.outcome === "error" ? "not settled: admission did not finish" : null;
+  admission?.outcome === "refused"
+    ? NEEDS_DECISION
+    : admission?.outcome === "error"
+      ? "not settled: admission did not finish"
+      : admission?.outcome === EDGE_MISSING
+        ? WAITS
+        : null;
 
 // One lanes App comment, edited in place, says why the verdict holds the
 // issue; a later ready verdict marks it settled, naming the status admission
@@ -593,8 +616,10 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
         after === NEEDS_DECISION
           ? `admission moved the issue to \`${NEEDS_DECISION}\`; its comment says why.`
-          : after
-            ? "admission did not finish, so the issue's status is not settled."
+          : after === WAITS
+            ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.`
+            : after
+              ? "admission did not finish, so the issue's status is not settled."
             : `the issue is at \`${READY}\`.`
       }`
     : [
