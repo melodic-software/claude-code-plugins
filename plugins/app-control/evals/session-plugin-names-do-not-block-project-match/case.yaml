@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: session-plugin-names-do-not-block-project-match
-description: Two plugins kept in the skills folder, whose manifest names differ from their folders, show shopkit:control-shop and otherkit:control-other; the repository control-shop wins for shop and the unrelated control-other does not stop the run
+description: Guards against a wrong stop, not the session-only stop itself. Two plugins kept in the skills folder (manifest names shopkit and otherkit) ship control-shop and an unrelated control-other; drive uses the repository control-shop for shop and writes no session-only blocked line. The eval sandbox loads no session-only plugin, so the stop itself is proven by the headless --plugin-dir check in PR #9615
 tags: [drive, control-skill, unattended, regression-guard]
 expected_outcome: "Drive reads .claude/skills/shop-tools/skills/control-shop/SKILL.md from disk as the repository control skill for shop, never loads a control skill through the Skill tool, writes a report under evidence/ with no session-only blocked line for shopkit:control-shop or otherkit:control-other, and asks nothing."
 context:
