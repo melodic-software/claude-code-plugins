@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## [5.9.1] - 2026-10-25
+
+### Changed
+
+- The hourly work-unblock sweep reads closes from 15 minutes before the last scheduled run whose labeling step succeeded (at most 3 hours back; the full 3 hours when that run cannot be read or did not sweep, as under the kill switch or a lane the config turns off) instead of always the last 3 hours. Metric: sweep passes per closed issue. Baseline: about 3 (hub measurement). Expected: about 1.
+
+- enable-auto-merge logs each verifier read's cost, `enable-auto-merge: #<n> calls=<total> github-token=<n> paginated=<n> ms=<elapsed>`, read from the reader's `babysit-gh-calls` stderr line, and adds the same rows to the step summary even on a run that raised nothing. `calls` counts gh invocations; a paginated one (the artifact listing) made one request per page. A reader that exits non-zero is now reported by its last error line, not by the calls line (`.github/scripts/pr-merge/enable-auto-merge.mjs`).
+- pr-merge's merge job records each gate candidate's gh invocations as `calls` in its summary row (`.github/workflows/pr-merge.yml`).
+
 ## [5.9.0] - 2026-10-25
 
 ### Added
