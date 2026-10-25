@@ -4,7 +4,7 @@ import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader 
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 
@@ -339,6 +339,40 @@ describe("decide", () => {
     const text = refusalText("Size large is not one of small, medium");
     assert.match(text, /^Not admitted to the issue lane: Size large is not one of small, medium\. /);
     assert.doesNotMatch(text, /agent-ready/);
+  });
+
+  // A standing recurring item links to its schedule row by `[Maintenance] {title}`.
+  describe("a recurring item whose schedule row needs an operator", () => {
+    const row = (id, precondition) => ({ id, title: "Re-run the ablation", cadence: "quarterly", ...(precondition && { precondition }) });
+    const recurring = issueOf({ title: "[Maintenance] Re-run the ablation", labels: [{ name: READY }, { name: "recurring" }] });
+    const CONFIRM = "its recurring schedule row ablation needs an operator's confirmation (requires_operator_confirmation)";
+
+    test("is refused when its row sets requires_operator_confirmation", () => {
+      const schedule = { items: [row("ablation", { id: "frontier-release-since-last-checked", requires_operator_confirmation: true })] };
+      assert.deepEqual(decide(facts({ issue: recurring, schedule })), { verdict: "refuse", reasons: [CONFIRM] });
+    });
+
+    test("is admitted when its row has no such flag, or no row matches its title", () => {
+      for (const items of [[row("ablation")], [row("ablation", { id: "x", requires_operator_confirmation: false })], [{ ...row("other"), title: "Something else" }], []]) {
+        assert.deepEqual(decide(facts({ issue: recurring, schedule: { items } })), { verdict: "admit", reasons: [] }, JSON.stringify(items));
+      }
+    });
+
+    test("is refused when the schedule could not be read", () => {
+      for (const schedule of [null, undefined, { rows: [] }]) {
+        const result = decide(facts({ issue: recurring, schedule }));
+        assert.equal(result.verdict, "refuse", String(schedule));
+        assert.match(result.reasons.join(), /recurring-schedule\.json could not be read/);
+      }
+      // Without the recurring label nothing is read.
+      assert.deepEqual(decide(facts({ schedule: null })), { verdict: "admit", reasons: [] });
+    });
+
+    test("readSchedule answers null for a missing or malformed file and reads the default branch's schedule", () => {
+      assert.equal(readSchedule(fileURLToPath(new URL("./no-such-schedule.json", import.meta.url))), null);
+      assert.equal(readSchedule(fileURLToPath(new URL("./admit.mjs", import.meta.url))), null);
+      assert.ok(Array.isArray(readSchedule().items));
+    });
   });
 
   test("skips an issue already agent-ready, or without status: ready", () => {
