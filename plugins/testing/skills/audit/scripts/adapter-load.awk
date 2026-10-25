@@ -74,10 +74,11 @@
 # rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
 # or rule-<slug> and prints as rules.<slug>, or is test-weaken-block, the
 # test-weaken hook's deny switch. A glob starting with * must be single-quoted.
-# The top-level run-e2e keys e2e_driver, reuse_running_instance,
-# feature_map_dir and browser_driver, and the write keys tdd_refactor_step and
-# first_test, are skipped unread, whatever their value; a nested value skips
-# with its indented lines and draws one stderr warning naming the file and line.
+# The top-level run-e2e keys e2e_driver, reuse_running_instance and
+# browser_driver, the write keys tdd_refactor_step and first_test, and the
+# retired feature_map_dir (so a leftover line never stops a scan) are skipped
+# unread, whatever their value; a nested value skips with its indented lines
+# and draws one stderr warning naming the file and line.
 # pixel_tolerance (check-visual-parity's map) skips with its indented lines and
 # no warning, since a map is its expected shape.
 
@@ -309,6 +310,7 @@ FNR == 1 {
   key = substr(body, 1, RLENGTH - 1)
   # run-e2e's and write's keys share the config file; scripts/resolve-config.sh
   # e2e and write read them, so the scan neither parses nor checks their values.
+  # feature_map_dir is retired and read by nothing.
   if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir|browser_driver|tdd_refactor_step|first_test|pixel_tolerance)$/) {
     sp = 0
     E2E_KEY = key; E2E_WARNED = (key == "pixel_tolerance")
