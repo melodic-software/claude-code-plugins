@@ -37,6 +37,8 @@ import {
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
   readRoom,
+  TRUST_REFUSALS,
+  verifyClears,
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -806,6 +808,25 @@ test("the body hold agrees with the gate's BODY_MERGE_HOLD_RE", () => {
     expected,
   );
   assert.ok(expected.includes(true) && expected.includes(false));
+});
+
+test("TRUST_REFUSALS are the reasons the gate's trust_refusal returns, and each goes to a person", () => {
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const python = spawnSync(
+    "python3",
+    [
+      "-c",
+      "import ast,inspect,json\nfrom babysit_merge_policy import trust_refusal as f\n" +
+        "print(json.dumps(sorted({n.value.value for n in ast.walk(ast.parse(inspect.getsource(f))) if isinstance(n, ast.Return) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)})))",
+    ],
+    { cwd: scripts, encoding: "utf8" },
+  );
+  assert.equal(python.status, 0, python.stderr);
+  assert.deepEqual([...TRUST_REFUSALS].sort(), JSON.parse(python.stdout));
+  for (const reason of TRUST_REFUSALS) {
+    assert.equal(verifyClears({ head: "a".repeat(40), ineligible: reason }, "a".repeat(40)), "person", reason);
+  }
+  assert.equal(verifyClears({ head: "a".repeat(40), ineligible: "refs-issues:2" }, "a".repeat(40)), "lane");
 });
 
 // The body the issue lane opens its pull request with (report-outcome.mjs
