@@ -5,11 +5,11 @@ user has approved the plan, and the status-tag grammar that file carries from th
 PLAN.md *file* shape; the plan *body* template scaled by task size is a different artifact, at
 [`../context/plan-template.md`](../context/plan-template.md).
 
-**PLAN.md anatomy.** PLAN holds Brief + Design + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
+**PLAN.md anatomy.** PLAN holds Brief + Design + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`). The Brief is the spec: what to build and how to tell it is done. Design and Plan say how, each value has one section, and a later section points at an earlier one rather than restating it:
 
 ```markdown
 ## Brief
-<the Brief `/planning:interview` writes, in its Brief template's shape, kept as written. With no interview: a minimal Brief (Problem, Goal with its three lines, Out-of-scope) or one line `No Brief: <reason>`, per plan Step 1>
+<the Brief `/planning:interview` writes, in its Brief template's shape, kept as written. It owns the Goal, the acceptance criteria and the open questions (`### Deferred questions`). With no interview: a minimal Brief (Problem, Goal with its three lines, Acceptance criteria, Out-of-scope) or one line `No Brief: <reason>`, per plan Step 1>
 
 ## Design
 <written by /planning:design-handoff when the design gate passes; /planning:plan keeps it as written. Omit for work with no design stage>
@@ -29,9 +29,6 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 ## Plan
 
 Citations checked at: <the full commit SHA check-plan-citations.sh printed as `commit=` at Step 4.7; every `path:line` in this file resolves at it>
-
-### Goal
-<which Brief Problem it serves, What / Why / Done when, and the Brief's three Goal lines quoted verbatim>
 
 ### Load-bearing assumptions
 <Assumption | Source | Falsifying check | Response if false: one row per Brief Captured assumption written `<assumption>: revisit if <trigger>` (not the Quality bar, Variation intent or override lines) and per assumption the plan adds; the check names a phase Sanity Check; the response is Minor, Moderate or Major>
@@ -58,10 +55,7 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed as `c
 <Step 4 output, or "Skipped: blast radius LOW, no triggers matched">
 
 ## Execution shape
-<Step 4.5 output — Wave A/B shape with ALLOWED/FORBIDDEN scope-fencing tables + cost note, OR "fully sequential — phase X gates phase Y" one-liner, PLUS the per-phase routing table (Phase | Surface | Model | Basis), Model one of sonnet / opus / frontier. Skipped for single-phase plans>
-
-## Open questions
-<anything unresolved at approval time>
+<Step 4.5 output, the only section that records it, each choice tagged `[EXEC-SHAPE]` per Step 4.6: the four-dimension table; Wave A/B shape with agent rosters, ALLOWED/FORBIDDEN scope-fencing tables, cost note and sequential fallback, OR "fully sequential — phase X gates phase Y" one-liner; any sub-topic promotion; PLUS the per-phase routing table (Phase | Surface | Model | Attempts | Basis), Model one of sonnet / opus / frontier. Skipped for single-phase plans>
 
 ## Handoff to implementation
 
@@ -70,14 +64,13 @@ Approval: <attended: approved by <who> on <date>; unattended: standing mandate <
 ### User-approval gates
 <actions implementation MUST surface for confirmation before executing: any [FALLBACK] tags, any scope-expansion proposals, any mid-flight pivots that change acceptance criteria. At each gate, ask or stop + flag. An empty section is valid — small tasks may have zero gates beyond the initial plan approval>
 
-### Execution shape ([EXEC-SHAPE] tagged)
-<orchestration choices /planning:plan made: parallel waves OR sequential, the per-phase routing table, agent rosters, ALLOWED/FORBIDDEN scope-fencing tables, sub-topic promotion, sanity-check criteria per phase>
-
 ### Mechanical work
-<commit boundaries, verification checkpoints, sequential fallback path (when parallel recommended). Standard implementation boilerplate — rarely needs user-specific override>
+<commit boundaries and verification checkpoints. Standard implementation boilerplate — rarely needs user-specific override>
 ```
 
-The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps Goal, and keeps the assumptions table whenever the Brief captured any.
+The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps the assumptions table whenever the Brief captured any.
+
+PLAN.md has no open-questions section of its own. A question the plan raises is an Open Decision settled before the plan body (plan Step 1); a deferred question stays in the Brief's `### Deferred questions`: the plan resolves an `arbiter: /planning:plan` one with a "Decisions made (gate-passed)" row, and Step 5 asks the user to resolve each open `USER-RESERVED` one.
 
 An early-exit design (`design-resolution.md`) writes `## Design` as one line naming the early
 exit and its reason; a Tier B early exit adds a `### Contracts` subsection quoting its type sketch. `## Design` is how the design decisions reach a cleared session, a dispatched

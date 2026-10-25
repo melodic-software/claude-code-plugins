@@ -168,7 +168,7 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
   from human judgment, mark per capability whether a sub-step is script-, hook-, agent-, or
   human-owned; a trivial early-exit records "no deterministic sub-steps"
 - **Uncovered dimensions**. The dimensions the coverage table read as `none`, listed verbatim, so
-  `/planning:plan` can hold them as open questions. Record "none" when all six are covered
+  `/planning:plan` can raise them as Step 1 Open Decisions. Record "none" when all six are covered
 
 Emit a resume prompt so a fresh cleared session can pick up at `/planning:plan` reading only the
 persisted artifacts. The resume prompt carries the uncovered dimensions verbatim; the coverage

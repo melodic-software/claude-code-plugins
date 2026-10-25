@@ -1,6 +1,6 @@
 # Tag unilateral decisions (Step 4.6)
 
-Full taxonomy for `/planning:plan` Step 4.6. Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief. Five categories:
+Full taxonomy for `/planning:plan` Step 4.6. Before Step 5 approval, walk the PLAN body + Execution shape + Handoff sections and classify every decision NOT explicit in the brief. Five categories:
 
 | Category | Definition | Tag |
 |---|---|---|

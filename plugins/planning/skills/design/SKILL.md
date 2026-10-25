@@ -173,8 +173,9 @@ Open these threads when their trigger holds:
   reuse an existing seam before adding one, put any new seam as high in the stack as it can go, and
   aim for the fewest seams that cover the surface. The change→test-type mapping lives in
   `/testing:plan`'s classification table; cite it when the `testing` plugin is enabled, otherwise
-  apply standard test-design judgment. Confirm the seam sketch with the user before design output
-  is finalized.
+  apply standard test-design judgment. The sketch is input, not the decision: `/planning:plan`'s
+  Test strategy names the test boundaries from it and its Step 5 approval settles them; a seam the
+  design needs as a contract still goes in Contracts.
 
 **Variation-point pass.** Always for `integration`, `module`, and `system`; for `library` and
 `data`, when the design touches an external system or a domain category. List every variation

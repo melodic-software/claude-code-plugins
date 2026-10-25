@@ -23,20 +23,10 @@ Scale to the task. Not every section is needed for every plan. A trivial fix nee
 
 ## Full Template
 
-These sections sit under PLAN.md's `## Plan`, before the first phase ([plan-md-anatomy.md](../templates/plan-md-anatomy.md)).
+These sections sit under PLAN.md's `## Plan`, before the first phase ([plan-md-anatomy.md](../templates/plan-md-anatomy.md)). The `## Brief` above them is the spec: its Problem, Goal, Acceptance criteria and Out-of-scope are what the plan builds to, so `## Plan` restates none of them and writes no Goal of its own.
 
 ```markdown
 Citations checked at: <the full commit SHA check-plan-citations.sh printed at Step 4.7>
-
-### Goal
-
-**Serves**: <the Brief's `### Problem`, in one line, so a reader can check this Goal against it>
-**What**: <1-2 sentences: what is being changed>
-**Why**: <1-2 sentences: the motivation, not just "because we need to">
-**Done when**: <the observable finish line, e.g. "every caller reads the new setting and the build is green">
-- Intent (why, in the user's words): <quoted verbatim from the Brief's `### Goal`>
-- Vision (where this heads): <quoted verbatim from the Brief's `### Goal`>
-- When goals conflict, prefer: <quoted verbatim from the Brief's `### Goal`>
 
 ### Load-bearing assumptions
 
@@ -117,7 +107,7 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 > **Invoke `/tdd:principles` via the Skill tool (if enabled) when writing this section.** It provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Which test type each changed file needs (unit / integration / e2e / architecture / analyzer) is classified by `/testing:plan`'s test-type table when the `testing` plugin is enabled; cite it rather than restating, and otherwise apply standard test-design judgment. Test-first (Red-Green-Refactor) is the default; specify test-after only when genuinely impractical.
 
 - <How to verify the changes work: specific test types, not just "write tests">
-- <Test boundaries: the public interfaces the tests drive, each marked existing or newly introduced. Approval of this plan settles them, and a boundary implementation picks that is not named here is a deviation>
+- <Test boundaries: the public interfaces the tests drive, each marked existing or newly introduced (rules: SKILL.md Step 2, "Test strategy")>
 - <TDD approach: which tests get written first, what assertions prove the behavior>
 - <Bug fixes: name the regression test that fails pre-fix, or document an explicit carve-out with rationale>
 - <Edge cases to cover>
@@ -133,16 +123,10 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 
 ## Abbreviated Template (for trivial/small tasks)
 
+The Brief above it still carries the Goal and the finish line (its Acceptance criteria), or the `No Brief` line's `Goal:` line does (SKILL.md Step 1); the abbreviated plan restates neither.
+
 ```markdown
 ## Plan: <title>
-
-**Goal**: <what and why in one line>; serves <the Brief's Problem in one line>. When the Brief has them, quote verbatim:
-
-- Intent (why, in the user's words): <quoted>
-- Vision (where this heads): <quoted>
-- When goals conflict, prefer: <quoted>
-
-**Done when**: <the observable finish line>
 
 **Steps**:
 1. <step>
@@ -240,7 +224,7 @@ Step 4.5 loads this section. For plans with ≥2 phases. Single-phase plans and 
 8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
 9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Attempts | Basis`), with `Attempts` blank (one attempt) or `multi-shape` per "Per-phase routing table" below: main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" below: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in "Composition risks" below); otherwise fall back to sub-agent workers or sequential
 
-**Output:** PLAN.md's `## Execution shape` section (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
+**Output:** PLAN.md's `## Execution shape` section, the one place the shape is written: the four-dimension table, the parallelism shape, the per-phase routing table, the scope-fencing tables and the sequential fallback. The user approves the shape at Step 5.
 
 ### Phase file-overlap matrix
 
@@ -333,7 +317,7 @@ This split is our routing rule. Two built-in levers sit beside it and are not pa
 
 ### Composition risks
 
-- Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md "Handoff to implementation"
+- Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md's `## Execution shape`
 - PLAN.md edits stay main-session-only (status updates would race if agents edited PLAN); agents report back instead
 - **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; disjoint file ownership is mandatory, not optional. Pointer: <https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts>; as of 2026-10-19; recheck when that section is renamed or moved. For whether agent teams are available and how they are turned on, pointer: <https://code.claude.com/docs/en/agent-teams#enable-agent-teams>; as of 2026-10-19; recheck when that section is renamed, or a release note names agent teams. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
 - The user's commit policy is unchanged. Staging/commits happen per the consuming project's own rules, never silently by parallel agents

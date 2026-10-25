@@ -49,14 +49,6 @@ Every new photo reaches cloud storage within a day.
 
 ## Plan
 
-### Goal
-**Serves**: photos are lost when a laptop fails.
-**What**: a nightly job that batch-uploads new photos.
-**Done when**: the nightly job uploads every new photo and the tests pass.
-- Intent (why, in the user's words): "we never lose a client's photos again"
-- Vision (where this heads): one backup job that also covers documents later
-- When goals conflict, prefer: finishing every upload over speed
-
 ### Load-bearing assumptions
 | Assumption | Source | Falsifying check | Response if false |
 |---|---|---|---|

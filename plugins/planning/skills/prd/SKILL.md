@@ -186,7 +186,7 @@ Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
 **Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals are answered by the ledger instead of relitigated. Create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
-Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern; it happens in `/planning:design` as a design thread.
+Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern; `/planning:design` sketches it as a design thread and `/planning:plan`'s Test strategy decides the boundaries.
 
 Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 
