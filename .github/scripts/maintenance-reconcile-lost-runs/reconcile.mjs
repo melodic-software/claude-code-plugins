@@ -76,9 +76,10 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { headRefDigest } from "../pr-verify/write-verdict.mjs";
+import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
 import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, lostRunnerNoted, reconcilerRetries, stepsKnown, testedRun } from "./infra-failure.mjs";
 
-const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
+const STATUS_URL = ACTIONS.url;
 // A failed run's failed jobs are re-run only while both pages show indicator none.
 export const NPM_STATUS_URL = "https://status.npmjs.org/api/v2/status.json";
 export const GITHUB_STATUS_URL = "https://www.githubstatus.com/api/v2/status.json";
@@ -145,17 +146,8 @@ class RateLimited extends Error {}
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-async function fetchStatus(url) {
-  const response = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
-  if (!response.ok) {
-    throw new Error(`the status page answered ${response.status}`);
-  }
-  return response.json();
-}
-
 // The Actions component's status, or undefined when the page has none.
-export const actionsStatus = (page) =>
-  Array.isArray(page?.components) ? page.components.find((c) => c?.name === "Actions" && c.group !== true)?.status : undefined;
+export const actionsStatus = (page) => componentStatus(page, ACTIONS.name);
 
 const newerFirst = (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id;
 
