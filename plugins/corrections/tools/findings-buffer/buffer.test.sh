@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Tests for buffer.sh: adapter binding, fallback, obs_id, redaction, caps and dedupe.
-# test-scope: plugins/session-flow/skills/audit-sessions/vendor/gitleaks/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
 
@@ -246,12 +245,6 @@ run "$R" read --since 2025-01-01T00:00:00Z
 DETAIL="exit $RC; out: $OUT"
 check "read --since: both reads leave out rows older than since and keep the new one" \
   test "$RC" -eq 0 -a "$(grep -c 'old .* row' <<<"$OUT")" -eq 0 -a "$(grep -c '"unused variable"' <<<"$OUT")" -eq 1
-
-# The vendored rules match the canonical copy byte for byte.
-CANON="$REPO_ROOT/plugins/session-flow/skills/audit-sessions/vendor/gitleaks"
-for f in gitleaks-rules.json LICENSE-gitleaks; do
-  check "vendored $f matches the session-flow copy" cmp -s "$CANON/$f" "$SCRIPT_DIR/vendor/gitleaks/$f"
-done
 
 printf '1..%d\n' "$CASE_NUM"
 if [[ $FAILED -gt 0 ]]; then

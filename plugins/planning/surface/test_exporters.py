@@ -30,7 +30,12 @@ from server import rebuild_responses  # noqa: E402
 
 ROUND = HERE / "round.py"
 CHECK = HERE.parent / "scripts" / "check-open-questions.sh"
+REPO = HERE.parents[2]
 BASH = shutil.which("bash")
+# The repository's locked install, else one on PATH; None when neither resolves.
+MARKDOWNLINT = shutil.which(
+    str(REPO / "node_modules" / ".bin" / "markdownlint-cli2")
+) or shutil.which("markdownlint-cli2")
 AT = "2026-09-24T10:00:00Z"
 
 
@@ -345,6 +350,129 @@ class TestExportBrief(SessionCase):
         self.assertNotIn("Brief is missing the section", out)
         self.assertIn("procedure=ok", out)
         self.assertEqual(rc, 0, out)
+
+    PLAN_HEAD = "# Plan: export test\n\nNotes above the Brief stay as written.\n\n"
+    STALE = "## Brief\n\n### TLDR\n\n- a stale hand-merged Brief\n\n"
+    PLAN_TAIL = (
+        "## Plan\n\n1. First step.\n\n"
+        "```markdown\n## Brief\n\nA fenced heading is not the Brief.\n```\n"
+    )
+
+    def merged_plan(self, text):
+        """(ledger, PLAN.md) after `export-brief --ledger --into` ran on a PLAN.md holding text."""
+        self.deferred_session()
+        ledger = self.export("ledger")
+        plan = self.tmp / "PLAN.md"
+        plan.write_bytes(text.encode("utf-8"))
+        rc, out = self.rp("export-brief", "--ledger", str(ledger), "--into", str(plan))
+        self.assertEqual(rc, 0, out)
+        return ledger, plan
+
+    def brief_section(self, ledger, nl="\n"):
+        """The `## Brief` section of the --out export, as --into writes it before a heading."""
+        out = self.tmp / "brief-section.md"
+        rc, text = self.rp("export-brief", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        full = out.read_text(encoding="utf-8")
+        brief = full[: full.rindex("\n## Plan\n")].rstrip("\n")
+        self.assertTrue(brief.startswith("## Brief\n"), brief)
+        return brief.replace("\n", nl) + nl + nl
+
+    def test_into_replaces_the_brief_section_and_keeps_every_other_byte(self):
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
+        merged = plan.read_bytes().decode("utf-8")
+        self.assertNotIn("stale hand-merged", merged)
+        self.assertEqual(
+            merged, self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL
+        )
+        rc, out = self.check("--ledger", ledger, "--brief", plan, "--procedure")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+    def test_into_keeps_a_crlf_file_crlf(self):
+        head, stale, tail = (
+            x.replace("\n", "\r\n") for x in (self.PLAN_HEAD, self.STALE, self.PLAN_TAIL)
+        )
+        ledger, plan = self.merged_plan(head + stale + tail)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            head + self.brief_section(ledger, "\r\n") + tail,
+        )
+
+    def test_into_a_brief_at_the_end_of_the_file_ends_with_one_newline(self):
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + self.STALE)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + self.brief_section(ledger)[:-1],
+        )
+
+    def test_into_keeps_a_scope_change_note_above_the_first_subheading(self):
+        heading = "## Brief\n\n"
+        note = "> 2026-10-25 scope change: started fresh because the goal moved.\n\n"
+        stale = heading + note + self.STALE[len(heading) :]
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + stale + self.PLAN_TAIL)
+        fresh = self.brief_section(ledger)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + heading + note + fresh[len(heading) :] + self.PLAN_TAIL,
+        )
+
+    def test_into_reads_fences_as_the_gate_does(self):
+        # A four-backtick fence quoting a three-backtick one and a tilde line: the fenced
+        # `## Plan` is content, and the section ends at the real one.
+        nested = "## Brief\n\n### TLDR\n\n````markdown\n```\n## Plan\n```\n~~~\n````\n\n"
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + nested + self.PLAN_TAIL)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL,
+        )
+
+    def test_into_refuses_a_plan_with_no_brief_heading_or_two(self):
+        self.deferred_session()
+        plan = self.tmp / "PLAN.md"
+        for text, why in (
+            (self.PLAN_HEAD + self.PLAN_TAIL, "no `## Brief` heading"),
+            (
+                self.PLAN_HEAD + self.STALE + self.STALE + self.PLAN_TAIL,
+                "2 `## Brief` headings",
+            ),
+            (
+                self.PLAN_HEAD + "## Brief\n\n```\nnever closed\n\n## Plan\n\n1. First step.\n",
+                "a fenced block that never closes",
+            ),
+        ):
+            with self.subTest(why=why):
+                plan.write_bytes(text.encode("utf-8"))
+                rc, out = self.rp("export-brief", "--into", str(plan))
+                self.assertEqual(rc, 1, out)
+                self.assertIn(why, out)
+                self.assertNotIn("Traceback", out)
+                self.assertEqual(plan.read_bytes().decode("utf-8"), text)
+
+    def test_into_a_missing_file_writes_the_whole_export(self):
+        self.deferred_session()
+        plan = self.tmp / "new" / "PLAN.md"
+        rc, out = self.rp("export-brief", "--into", str(plan))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            plan.read_text(encoding="utf-8"),
+            self.export("brief").read_text(encoding="utf-8"),
+        )
+
+    def test_merged_plan_passes_markdownlint(self):
+        if not MARKDOWNLINT:
+            self.skipTest("markdownlint-cli2 not installed; `npm ci` at the repository root")
+        _, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
+        # markdownlint-cli2 reads its config from its working directory.
+        shutil.copy(REPO / ".markdownlint-cli2.jsonc", self.tmp)
+        p = subprocess.run(
+            [MARKDOWNLINT, plan.name],
+            cwd=self.tmp,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
     def acceptance_section(self, acceptance, verdicts=("confirm",)):
         self.session(

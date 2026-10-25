@@ -6,9 +6,6 @@
   "competitors": [
     "adhd:shape"
   ],
-  "competitor_dirs": {
-    "adhd:shape": "plugins/adhd/skills/shape"
-  },
   "queries": [
     {
       "id": "pos-train-01",
