@@ -524,3 +524,6 @@ lib/git-hooks/git-hook-decisions.md plugins/markdown-format/skills/setup/referen
 lib/git-hooks/git-hook-decisions.md plugins/powershell-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/actionlint/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/instruction-placement/skills/setup/reference/git-hook-decisions.md
+lib/parse-concern-value.sh plugins/ai-slop/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/ai-slop/lib/yaml-subset.awk
+lib/resolve-convention-home.sh plugins/ai-slop/lib/resolve-convention-home.sh

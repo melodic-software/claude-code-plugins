@@ -1458,17 +1458,22 @@ is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-chec
 judges a person's pull request at each ready head, before it is idle. A pull request closing no
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
-problem, changes what the code is for, or loosens a hold the owner keeps; then it fails the
+problem, changes what the code is for, or loosens a hold the owner keeps (a hold on a real
+charge, not subscription spend such as a model, effort or schedule change); then it fails the
 verdict, as does unasked-for work on secret values or organization or repository settings.
 Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are judged
-like any other code; a change to the takeover set (the merge gate's HIGH floor) fails whatever
-the spec says. `any` judges every author's. Any other
+like any other code; a change to the takeover set (the merge gate's HIGH floor) is read with extra
+care and fails only when it lets someone outside the organization gain trust or weakens a check
+beyond what the spec asks. A diff too large to judge whole fails when a part not judged is a
+workflow, action, script, hook or binary, or a takeover-set file of any type, and passes with
+notes naming the parts not judged when they are all other prose or data. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
-parent's task-list lines (below), so a lane pull request never supplies its own spec.
+parent's task-list lines or those of intake's refinement on it (below), so a lane pull request
+never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -1567,8 +1572,14 @@ head:
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
   admission's `task-list`, "- [ ] " with its trailing space, from
-  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
-  listed human last edited it. On that edited path a line may also be a trusted line with its box
+  `.github/actions/resolve-config/admission-rules.json` at the default branch, as resolve-pr reads it from main's checkout, whatever the pull request's base; a missing or empty `task-list` counts nothing), and either nobody edited it or a
+  listed human last edited it. A header whose third line is
+  `<!-- size-split refinement=<id> updated_at=<time> -->` also allows that refinement comment's
+  task-list lines, never its prose, heading or marker lines, and counts only while that comment is
+  still the lanes App's newest refinement on the parent, never edited, with `updated_at` equal to
+  its `created_at` or to the recorded time, on a parent body a listed human wrote, and last edited
+  if ever; a deleted, edited or superseded refinement leaves it untrusted, whoever edited the
+  sub-issue since. On the edited path a line may also be a trusted line with its box
   ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
   `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
   so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than
@@ -1684,13 +1695,10 @@ and any change holds. An attended gate run reads both fresh. Without the variabl
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
 `hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
 status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
-comment when the review returns a hold, or when a changed file (or a renamed file's old path)
-matches a hold path, which holds as `trust-gate` whatever the review says:
-
-- `.github/standards/trusted-actors/**`
-- `.github/actions/check-trusted-trigger/**`
-- `**/CODEOWNERS`
-- `**/.gitmodules`
+comment when the review returns a hold: `cost` (only for a real charge, as the wrapper's prompt
+defines it) or `critical-security`. `hold-paths` only flags the files it names for extra security
+scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
+what it gates, and only a CRITICAL finding there holds.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -1714,8 +1722,9 @@ them on every `pull_request` run, contract-only runs included:
   fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
-  author id, except that their PR fails when a changed file (or a renamed file's old path) matches
-  a hold path, since no lane reviews it to hold it; a person merges it. A draft is exempt.
+  author id, except that their PR fails when a changed file (or a renamed file's old path) is
+  under `.github/standards/trusted-actors/`, `.github/actions/check-trusted-trigger/`, or is a
+  `CODEOWNERS` or `.gitmodules` file, since no lane reviews it; a person merges it. A draft is exempt.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head

@@ -3747,8 +3747,10 @@ jobs:
       #   run whose head changes either review-lane workflow from the base (or
       #   whose comparison lists 300 files, the API's cap) could forge that
       #   notice, and keeps the hold.
-      # - No lanes App comment was written and no comment was deleted in it: a
-      #   lanes App escalation adds no label event to a label already on.
+      # - No lanes App escalation comment (a `<!-- work-items:escalation`
+      #   marker) was written or edited and no comment was deleted in it: a
+      #   lanes App escalation adds no label event to a label already on. Its
+      #   other comments (review replies, fix notes) keep nothing.
       # - The pull request body, outside HTML comments, links a decision comment
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
@@ -3984,7 +3986,8 @@ jobs:
             | if ($holds | length) == 0 then "no review lane recorded a hold since a trusted person last removed the label"
               elif any($holds[]; .criteria != "cost") then "a review-lane hold since then is not cost-only"
               elif any($added[]; (.created_at | t) as $at | any($holds[]; .at >= $at and .at - $at <= 600) | not) then "a label was added with no held review after it"
-              elif any($comments[][]; .user.id == $app and ([.created_at, .updated_at] | map(t) | max) > $since) then "the lanes App commented since then"
+              elif any($comments[][]; .user.id == $app and (.body // "" | contains("<!-- work-items:escalation"))
+                and ([.created_at, .updated_at] | map(t) | max) > $since) then "the lanes App escalated since then"
               elif ($gone | type) != "object" or $gone.filteredCount > ($gone.nodes | length)
                 or any($gone.nodes[]; (.createdAt | t) > $since) then "a comment was deleted since then"
               else "cost" end' 2>/dev/null) || keep "the events, holds or comments do not parse"
@@ -4189,8 +4192,8 @@ jobs:
       # Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
-      # (or a renamed file's old path) matches the callers' hold-paths, since
-      # no lane is there to hold it as trust-gate; a person merges it. A draft is exempt
+      # (or a renamed file's old path) is a trust-gate path, since no security
+      # lane reads it; a person merges it. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
@@ -4238,7 +4241,7 @@ jobs:
             done
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
-            # The callers' hold-paths, as bash patterns (`*` crosses `/`).
+            # The trust-gate paths, as bash patterns (`*` crosses `/`).
             hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."

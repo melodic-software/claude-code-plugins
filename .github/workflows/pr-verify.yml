@@ -98,12 +98,15 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # The run fails, so the lost-run reconciler re-runs it once the switch
+      # is off and the head is judged then.
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
         run: |
-          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
+          exit 1
 
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list.
@@ -422,12 +425,15 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # The run fails, so the lost-run reconciler re-runs it once the switch
+      # is off and the head is judged then.
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
         run: |
-          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict"
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
+          exit 1
 
       # The upstream run's actors, the re-runner and the PR author must all be
       # on the trusted-actor list. A re-run github-actions[bot] started passes

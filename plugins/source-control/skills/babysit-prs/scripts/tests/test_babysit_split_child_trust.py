@@ -57,6 +57,9 @@ def graphql_issue(case: dict[str, Any], parents: dict[str, Any]) -> dict[str, An
         text = parents[case["parent"]]
         comments = [
             {
+                "databaseId": c["id"],
+                "createdAt": c["created_at"],
+                "updatedAt": c["updated_at"],
                 "body": c["body"],
                 "lastEditedAt": c["last_edited_at"],
                 "author": actor(c["author"]),
@@ -115,8 +118,10 @@ class FakeGitHub:
         self.actors = {"version": 1, "actors": actors}
         self.rules = {} if task_list is None else {"task-list": task_list}
         self.issue = issue
+        self.default_branch = "main"
         self.fail = False
         self.rules_fail = False
+        self.default_fail = False
         self.calls: list[tuple[list[str], Any]] = []
 
     def graphql_calls(self) -> int:
@@ -129,10 +134,23 @@ class FakeGitHub:
             if any(ve.ADMISSION_RULES_PATH in a for a in args)
         )
 
+    def rules_refs(self) -> list[str]:
+        return [
+            a.rpartition("?ref=")[2]
+            for args, _ in self.calls
+            for a in args
+            if ve.ADMISSION_RULES_PATH in a
+        ]
+
     def __call__(
         self, args: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[str]:
         self.calls.append((args, kwargs.get("env_overrides")))
+        if args == ["api", f"repos/{REPO}"]:
+            if self.default_fail:
+                return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+            answer = {"default_branch": self.default_branch}
+            return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
         if args[:2] == ["api", "graphql"]:
             assert any(a == f"query={ve.SPLIT_CHILD_QUERY}" for a in args), args
             if self.fail:
@@ -160,6 +178,7 @@ def judge(
     with (
         mock.patch.dict("os.environ", {}, clear=False) as env,
         mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
     ):
         env.pop("BABYSIT_RUN_CACHE", None)
         found = ve.Reader(REPO, "main", agent_identity=identity, **reader)
@@ -170,7 +189,7 @@ class TheSharedVectorsHold(unittest.TestCase):
     def test_every_vector(self) -> None:
         data = json.loads(VECTORS.read_text(encoding="utf-8"))
         cases = data["cases"]
-        self.assertGreaterEqual(len(cases), 21)
+        self.assertGreaterEqual(len(cases), 43)
         for case in cases:
             with self.subTest(case["name"]):
                 app_id = case["app_id"] if "app_id" in case else data["app_id"]
@@ -207,6 +226,41 @@ class AnEditTicksOnly(unittest.TestCase):
         self.assertFalse(counts(["* [x] Line 3."]), "no ticked form to derive")
 
 
+class ASourceIdRoundTrips(unittest.TestCase):
+    """admit.mjs reads the source line's id as a Number and writes it back
+    into the header it compares, so an id a double cannot hold exactly never
+    matches, even when the refinement carries it."""
+
+    def test_an_id_past_double_precision_counts_nothing(self) -> None:
+        data = json.loads(VECTORS.read_text(encoding="utf-8"))
+        case = next(c for c in data["cases"] if c["name"] == "a refinement-only child")
+        issue = graphql_issue(case, data["parents"])
+
+        def counts(comment_id: int) -> bool:
+            child = issue | {
+                "body": issue["body"].replace(
+                    "refinement=901", f"refinement={comment_id}"
+                ),
+                "parent": issue["parent"]
+                | {
+                    "comments": {
+                        "totalCount": 1,
+                        "nodes": [
+                            issue["parent"]["comments"]["nodes"][0]
+                            | {"databaseId": comment_id}
+                        ],
+                    }
+                },
+            }
+            found = ve.split_child_body(
+                child, REPO, frozenset(data["humans"]), data["app_id"], TASK_LIST
+            )
+            return found is not None
+
+        self.assertTrue(counts(2**53))
+        self.assertFalse(counts(2**53 + 1))
+
+
 class AFailedReadRefuses(unittest.TestCase):
     """The trusted child, with a read failing (`verify:unreadable`, as
     resolve-pr.mjs fails), its parent's comments cut, or no `task-list` in
@@ -237,6 +291,12 @@ class AFailedReadRefuses(unittest.TestCase):
         with self.assertRaises(ve._Unreadable):
             judge(fake, linked(self.case["child"]), LANES_LOGIN)
 
+    def test_an_unreadable_default_branch_is_unreadable(self) -> None:
+        fake = self.fake()
+        fake.default_fail = True
+        with self.assertRaises(ve._Unreadable):
+            judge(fake, linked(self.case["child"]), LANES_LOGIN)
+
     def test_unreadable_comments(self) -> None:
         # More comments than the first 100 the query reads.
         fake = self.fake()
@@ -248,6 +308,30 @@ class AFailedReadRefuses(unittest.TestCase):
             with self.subTest(task_list=task_list):
                 fake = self.fake(task_list=task_list)
                 self.assertFalse(judge(fake, linked(self.case["child"]), LANES_LOGIN))
+
+
+class TheRulesComeFromTheDefaultBranch(unittest.TestCase):
+    """resolve-pr.mjs reads admission's rules from main's checkout, so the
+    gate reads them at the default branch whatever the pull request's base."""
+
+    def test_a_feature_base_reads_the_rules_at_the_default_branch(self) -> None:
+        data = json.loads(VECTORS.read_text(encoding="utf-8"))
+        case = next(c for c in data["cases"] if c["name"] == "the trusted child")
+        fake = FakeGitHub(
+            data["humans"], data["app_id"], graphql_issue(case, data["parents"])
+        )
+        fake.default_branch = "trunk"
+        with (
+            mock.patch.dict("os.environ", {}, clear=False) as env,
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+        ):
+            env.pop("BABYSIT_RUN_CACHE", None)
+            reader = ve.Reader(REPO, "feature-x", agent_identity=LANES_LOGIN)
+            self.assertTrue(
+                reader._trusted_spec({"linked_issues": [linked(case["child"])]})
+            )
+        self.assertEqual(fake.rules_refs(), ["trunk"])
 
 
 class OneReadPerChild(unittest.TestCase):
@@ -265,6 +349,7 @@ class OneReadPerChild(unittest.TestCase):
         with (
             mock.patch.dict("os.environ", {}, clear=False) as env,
             mock.patch.object(postmerge, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=self.fake),
         ):
             env.pop("BABYSIT_RUN_CACHE", None)
             reader = ve.Reader(
@@ -285,6 +370,7 @@ class OneReadPerChild(unittest.TestCase):
         with (
             mock.patch.dict("os.environ", {}, clear=False) as env,
             mock.patch.object(postmerge, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=self.fake),
             mock.patch.object(ve.run_cache, "now", side_effect=lambda: next(ticks)),
         ):
             env.pop("BABYSIT_RUN_CACHE", None)

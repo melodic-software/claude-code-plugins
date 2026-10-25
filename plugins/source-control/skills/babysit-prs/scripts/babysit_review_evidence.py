@@ -51,9 +51,7 @@ LANES: dict[str, tuple[str, str]] = {
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
 # any workflow it adds can post a github-actions[bot] reviewed-head marker),
-# the review plugin path (the reusable stages it from main, so this is
-# caution against a caller that loads it from the checkout), Claude Code project config and instruction files at
-# any depth, the criteria the lane skills read from the checkout (REVIEW.md,
+# Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
 # untrusted-content contract), the lane's input directory .claude-lane/ (the
 # code lane falls back to a context file there), and .gitattributes, which can
@@ -61,10 +59,13 @@ LANES: dict[str, tuple[str, str]] = {
 # from a checkout of main and the reusable runs its composites from its own
 # repository, so the rest of .github/ feeds no review. A pull request that
 # changes any listed path may have changed its own review, so its records
-# prove no review by the default branch's lane.
+# prove no review by the default branch's lane. plugins/review/ is not listed:
+# the reusable pr-review-cli.yml stages the review plugin from
+# claude-code-plugins' default-branch tip, never the head, and
+# scripts/ci-review-plugin-source.test.sh fails if a caller stops calling it
+# pinned to a SHA or passes it a plugin path.
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
-    "plugins/review/",
     "docs/standards/",
     "docs/conventions/instruction-exception-register/",
     "docs/conventions/untrusted-content/",
