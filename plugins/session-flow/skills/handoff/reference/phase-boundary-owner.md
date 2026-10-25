@@ -9,7 +9,7 @@ Option A: one owner. Dual-owner (handoff writes the artifact; dispatch owns cont
   does not write a handoff. Teaching handoff a resident / no-stop argument so dispatch can call
   it without ending the turn is unpaid and parked.
 - **Basis:** Issue [#3952](https://github.com/melodic-software/claude-code-plugins/issues/3952).
-  Origin/main `plugins/implementation/skills/implement-dispatch/SKILL.md` "The ritual scales with
+  `/implementation:implement-dispatch` (as on the default branch), "The ritual scales with
   residency" and "Resident-vs-clear at phase boundaries": a resident boundary runs plan marks, a
   deviations entry, and the commit; the handoff entry exists for a session that restarts cold.
   This skill's "Hard rule. Handoff terminates the current execution" keeps STOP as the default.

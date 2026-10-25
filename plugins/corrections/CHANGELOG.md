@@ -3,6 +3,18 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-10-25
+
+### Changed
+
+- The findings buffer's `lib/redact.py` is now generated from the repository's shared `lib/redact.py` rather than from a file inside the session-flow plugin's skill folder; only its generated-file header changed.
+
+## [0.6.1] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.6.0] - 2026-10-22
 
 ### Added

@@ -11,14 +11,6 @@
     "improvement:find",
     "code-metrics:audit-complexity"
   ],
-  "competitor_dirs": {
-    "performance:go-faster": "plugins/performance/skills/go-faster",
-    "performance:goal": "plugins/performance/skills/goal",
-    "debugging:debug": "plugins/debugging/skills/debug",
-    "debugging:analyze-profile": "plugins/debugging/skills/analyze-profile",
-    "improvement:find": "plugins/improvement/skills/find",
-    "code-metrics:audit-complexity": "plugins/code-metrics/skills/audit-complexity"
-  },
   "queries": [
     {
       "id": "pos-train-01",

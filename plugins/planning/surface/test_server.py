@@ -356,6 +356,11 @@ class TestApi(ServerCase):
         spec.write_text(
             json.dumps(
                 {
+                    "restate": {
+                        "text": "Earlier rounds are settled. Two new branches open. This round turns on N1.",
+                        "decided": [],
+                        "open": ["N1", "N2"],
+                    },
                     "groups": [
                         {"id": "g9", "title": "New group", "dependsOn": ["wrap"]}
                     ],
@@ -400,6 +405,7 @@ class TestApi(ServerCase):
         bad.write_text(
             json.dumps(
                 {
+                    "restate": {"text": "Nothing yet.", "decided": [], "open": []},
                     "questions": [
                         {"id": "N3", "short": "x", "title": "x"},
                         {"id": "N4", "short": "y", "title": "y", "dependsOn": ["NOPE"]},

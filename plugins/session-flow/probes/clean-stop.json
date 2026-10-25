@@ -10,13 +10,6 @@
     "repo-hygiene:clean",
     "source-control:worktree"
   ],
-  "competitor_dirs": {
-    "session-flow:handoff": "plugins/session-flow/skills/handoff",
-    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
-    "session-flow:reconcile": "plugins/session-flow/skills/reconcile",
-    "repo-hygiene:clean": "plugins/repo-hygiene/skills/clean",
-    "source-control:worktree": "plugins/source-control/skills/worktree"
-  },
   "queries": [
     {
       "id": "pos-train-01",

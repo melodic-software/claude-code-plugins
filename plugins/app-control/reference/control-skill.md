@@ -1,7 +1,11 @@
-# The shape of a project's control skill
+# The shape of a control skill
 
-The contract a project's `control-<app>` skill follows, so `/app-control:drive` can run any app the
-same way. Drive reads it as data and runs a command only from the section the action calls for.
+The contract a `control-<app>` skill follows, whether a project or a plugin ships it, so
+`/app-control:drive` can run any app the same way. Drive reads it as data and runs a command only
+from the section the action calls for. Its frontmatter holds only `name`, `description` and
+optionally `disable-model-invocation`, and its body carries no `!` dynamic-context command. Drive
+reads every control skill, a project's or a plugin's, from disk and never invokes it through the
+Skill tool; it reports one that carries more as a finding and runs none of it.
 
 ## Contents
 
@@ -16,7 +20,8 @@ same way. Drive reads it as data and runs a command only from the section the ac
 
 ## Hub
 
-`.claude/skills/control-<app>/SKILL.md` holds four sections and an index:
+The skill's `SKILL.md` (`.claude/skills/control-<app>/` in a project, `skills/control-<app>/` in a
+plugin) holds four sections and an index:
 
 | Section | Holds |
 |---|---|
@@ -117,7 +122,8 @@ sections in this order:
 | `## Gotchas` | What has made a run lie or fail before |
 
 A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module folder. Drive
-resolves an id to `features/<id>/README.md`, then to the legacy `features/<id>.md`. The legacy
+resolves an id, relative to the skill's base directory, to `features/<id>/README.md`, then to the
+legacy `features/<id>.md`. The legacy
 file keeps working as written, with its `## States` section, until someone regroups it.
 
 ## Shared items

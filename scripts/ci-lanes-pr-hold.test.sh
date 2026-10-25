@@ -74,14 +74,16 @@ if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$a
 else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
-# The step names the lanes App by numeric id; it must be the trusted-actor
-# entry for pr-pipeline.yaml's merge.agent-identity.
+# The step reads the lanes App's numeric id from ci-status's job-level
+# LANES_APP_ID; it must be the trusted-actor entry for pr-pipeline.yaml's
+# merge.agent-identity.
 identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
 want_id="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")"
-if [[ -n "$want_id" && "$(grep -c "lanes_app_id=$want_id\$" "$TMP_ROOT/body.sh")" -eq 1 ]]; then
-  ok "step's lanes App id is merge.agent-identity's ($identity, $want_id)"
+LANES_APP_ID="$(sed -nE 's/^      LANES_APP_ID: ([0-9]+)$/\1/p' "$WORKFLOW")"
+if [[ -n "$want_id" && "$LANES_APP_ID" == "$want_id" ]]; then
+  ok "ci-status's LANES_APP_ID is merge.agent-identity's ($identity, $want_id)"
 else
-  fail "step's lanes App id is not $identity's trusted-actor id '$want_id'"
+  fail "ci-status's LANES_APP_ID '$LANES_APP_ID' is not $identity's trusted-actor id '$want_id'"
 fi
 
 # The stub logs its arguments. A pull read prints STUB_PULL. A contents read
@@ -193,7 +195,7 @@ expect() {
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL=http://127.0.0.1:9 RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
-    LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -530,5 +532,8 @@ STUB_PULL="$(pull 'Closes #1')"
 export PR_NUMBER='7; rm -rf /'
 expect "a pull request number that is not a number fails closed" 1 0 "is not a number"
 unset PR_NUMBER
+export STUB_APP_ID=''
+expect "a missing LANES_APP_ID fails closed without a call" 1 0 "::error::the job's LANES_APP_ID is not a numeric id"
+unset STUB_APP_ID
 
 test_harness::report

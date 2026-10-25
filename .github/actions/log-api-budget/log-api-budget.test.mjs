@@ -5,8 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading } from "./api-budget.mjs";
-import { apiLimits, poolOf } from "./rate-guard.mjs";
+import { apiLimits, createRateLimitLatch, poolOf } from "./rate-guard.mjs";
 
+// Root reads and writes past any file mode, so the permission cases skip.
+const ROOT = process.getuid?.() === 0;
 const LIB = new URL("./api-budget.bash", import.meta.url).pathname;
 const ACTION = readFileSync(new URL("./action.yml", import.meta.url), "utf8");
 const CI = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
@@ -44,7 +46,7 @@ function bash(dir, script, { input = "", env = {}, path = process.env.PATH } = {
     encoding: "utf8",
     env: { PATH: path, RUNNER_TEMP: dir, ...RUNNER, ...env },
   });
-  return { stdout: result.stdout, stderr: result.stderr, status: result.status };
+  return { stdout: result.stdout, stderr: result.stderr, status: result.status, signal: result.signal };
 }
 
 const state = (dir, token) => readFileSync(join(dir, "api-budget", token), "utf8");
@@ -337,6 +339,171 @@ test("gh guard: a stop-file line whose reset is not a number stops nothing", () 
     assert.equal(out.calls.length, 1);
   }));
 
+// A stop the wrapper cannot record would leave every later call, in this
+// shell or a $(...) subshell, free to reach the exhausted pool: the step ends
+// after the one refused call, whichever shell made it, and no call follows
+// from a retry loop in a capture around it. Its two errors reach the step's
+// stderr once each, also when the caller holds the subshell's stderr in a
+// file it reads only after the call, as gh_read does. Node gives the step a
+// socket for stderr, which /proc/$$/fd/2 cannot open.
+test("gh guard: a stop it cannot record ends the step after one call, naming the pool", { skip: ROOT && "root writes past any file mode" }, () =>
+  withDir((dir) => {
+    const main = "gh api repos/o/r >/dev/null || true\ngh api repos/o/r/pulls >/dev/null || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
+    const sub = "x=$(gh api repos/o/r) || true\ny=$(gh api repos/o/r/pulls) || true\ngh api graphql -f query=x >/dev/null || true\necho reached";
+    const retry = "sleep() { :; }\nx=$(for a in 1 2 3; do y=$(gh api repos/o/r) && break; sleep 5; done) || true\necho reached";
+    const held = 'err=$(mktemp)\nx=$(gh api repos/o/r 2>"$err") || true\ncat "$err" >&2\ngh api repos/o/r/pulls >/dev/null || true\necho reached';
+    // Readable but not writable: a stop file that cannot be read stops every
+    // pool before any call (stop_file_errors).
+    const unwritable = {
+      "a read-only api-budget directory": () => {
+        mkdirSync(join(dir, "api-budget"));
+        chmodSync(join(dir, "api-budget"), 0o555);
+      },
+      "a read-only stop file": () => {
+        mkdirSync(join(dir, "api-budget"));
+        writeFileSync(join(dir, "api-budget", "stop"), "");
+        chmodSync(join(dir, "api-budget", "stop"), 0o444);
+      },
+    };
+    for (const [how, make] of Object.entries(unwritable)) {
+      for (const [shell, script] of Object.entries({ main, sub, retry, "held-stderr": held })) {
+        unlock(dir);
+        make();
+        const out = guarded(dir, ['403 0 - {"message":"API rate limit exceeded"}', "200 4000 - {}", "200 4000 - {}"], script);
+        const label = `${how}, ${shell} shell`;
+        const { stderr } = out;
+        assert.equal(out.calls.length, 1, label);
+        assert.notEqual(out.status, 0, label);
+        assert.doesNotMatch(out.stdout, /reached/, label);
+        assert.match(stderr, /::error::'gh api repos\/o\/r' hit GitHub's core API rate limit[^\n]*\n(?:.*\n)*::error::GitHub's core API stop could not be recorded/, label);
+        assert.equal(stderr.match(/::error::/g)?.length, 2, `${label}: ${stderr}`);
+      }
+    }
+    unlock(dir);
+  }));
+
+// Removes $RUNNER_TEMP/api-budget, read-only or not.
+function unlock(dir) {
+  const budget = join(dir, "api-budget");
+  if (existsSync(budget)) {
+    chmodSync(budget, 0o755);
+  }
+  rmSync(budget, { recursive: true, force: true });
+}
+
+// The stop file is read alike by every port: each stop_files vector, and the
+// stops each writer leaves, give the same stop per pool to the shell and the
+// Node reader.
+const POOL_URLS = {
+  core: "https://api.github.com/repos/o/r",
+  graphql: "https://api.github.com/graphql",
+  search: "https://api.github.com/search/issues?q=x",
+  code_search: "https://api.github.com/search/code?q=x",
+};
+
+function readBoth(dir, now) {
+  const script = `date() { echo ${now}; }\nfor p in ${Object.keys(POOL_URLS).join(" ")}; do echo "$p $(api_budget_stop_until "$p")"; done`;
+  const shell = Object.fromEntries(
+    bash(dir, script)
+      .stdout.trim()
+      .split("\n")
+      .map((line) => line.split(" "))
+      .map(([pool, at]) => [pool, at ? Number(at) : null]),
+  );
+  const latch = createRateLimitLatch({ now: () => now * 1000, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: join(dir, "api-budget", "stop") });
+  const node = Object.fromEntries(Object.entries(POOL_URLS).map(([pool, url]) => [pool, latch.until(url)]));
+  return { shell, node };
+}
+
+test("the stop file reads the same in the shell and in Node: every stop_files vector", () => {
+  const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
+  for (const vector of vectors.stop_files) {
+    withDir((dir) => {
+      mkdirSync(join(dir, "api-budget"));
+      writeFileSync(join(dir, "api-budget", "stop"), vector.text);
+      const { shell, node } = readBoth(dir, vectors.vector_now);
+      assert.deepEqual(shell, vector.until, `shell: ${vector.name}`);
+      assert.deepEqual(node, vector.until, `node: ${vector.name}`);
+    });
+  }
+});
+
+// stop_file_errors: a stop file that exists but cannot be read holds every
+// pool in both readers, with an error naming it; a missing one holds nothing.
+test("the stop file reads the same in the shell and in Node: every stop_file_errors vector", () => {
+  const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
+  for (const vector of vectors.stop_file_errors) {
+    if (vector.error === "EACCES" && ROOT) {
+      continue;
+    }
+    withDir((dir) => {
+      const budget = join(dir, "api-budget");
+      const stop = join(budget, "stop");
+      if (vector.layout === "api-budget-is-file") {
+        writeFileSync(budget, "");
+      } else {
+        mkdirSync(budget);
+      }
+      if (vector.layout === "stop-unreadable") {
+        writeFileSync(stop, "core 1792751600\n");
+        chmodSync(stop, 0o000);
+      } else if (vector.layout === "stop-is-directory") {
+        mkdirSync(stop);
+      } else if (vector.layout === "api-budget-unsearchable") {
+        writeFileSync(stop, "core 1792751600\n");
+        chmodSync(budget, 0o600);
+      }
+      const lines = [];
+      const latch = createRateLimitLatch({ now: () => vectors.vector_now * 1000, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile: stop });
+      const node = Object.fromEntries(Object.entries(POOL_URLS).map(([pool, url]) => [pool, latch.until(url)]));
+      const out = bash(dir, `date() { echo ${vectors.vector_now}; }\nfor p in ${Object.keys(POOL_URLS).join(" ")}; do echo "$p $(api_budget_stop_until "$p")"; done`);
+      const shell = Object.fromEntries(
+        out.stdout
+          .trim()
+          .split("\n")
+          .map((line) => line.split(" "))
+          .map(([pool, at]) => [pool, at ? Number(at) : null]),
+      );
+      assert.deepEqual(shell, vector.until, `shell: ${vector.name}`);
+      assert.deepEqual(node, vector.until, `node: ${vector.name}`);
+      const named = `the rate guard's stop file ${stop} cannot be read`;
+      const shellErrors = out.stderr.split("\n").filter((line) => line.startsWith("::error::"));
+      const nodeErrors = lines.filter((line) => line.startsWith("::error::"));
+      if (vector.error === "ENOENT") {
+        assert.deepEqual([shellErrors, nodeErrors], [[], []], vector.name);
+      } else {
+        assert.ok(shellErrors.length === 4 && shellErrors.every((line) => line.includes(named)), `shell: ${vector.name}: ${out.stderr}`);
+        assert.ok(nodeErrors.length === 1 && nodeErrors[0].includes(named), `node: ${vector.name}: ${lines}`);
+      }
+      if (vector.layout === "api-budget-unsearchable") {
+        chmodSync(budget, 0o755);
+      }
+    });
+  }
+});
+
+test("the stop file reads the same in the shell and in Node: the stops each writer leaves", async () => {
+  const now = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8")).vector_now;
+  const until = { core: now + 3600, graphql: now + 60, search: now + 60, code_search: now + 60 };
+  withDir((dir) => {
+    bash(dir, `api_budget_stop core ${now + 3600} x-ratelimit-reset one || :\napi_budget_stop '*' ${now + 60} retry-after two || :`);
+    assert.deepEqual(readBoth(dir, now), { shell: until, node: until });
+  });
+  const dir = mkdtempSync(join(tmpdir(), "api-budget-"));
+  try {
+    const answers = [
+      new Response("{}", { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(now + 3600), "x-ratelimit-resource": "core" } }),
+      new Response('{"message":"You have exceeded a secondary rate limit."}', { status: 403, headers: { "retry-after": "60" } }),
+    ];
+    const options = { now: () => now * 1000, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: join(dir, "api-budget", "stop") };
+    await createRateLimitLatch(options).observe(POOL_URLS.core, answers[0]);
+    await createRateLimitLatch(options).observe(POOL_URLS.graphql, answers[1]);
+    assert.deepEqual(readBoth(dir, now), { shell: until, node: until });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("gh guard: a 403 Resource not accessible is passed on as before, with no stop", () =>
   withDir((dir) => {
     const out = guarded(dir, ['403 4000 - {"message":"Resource not accessible by integration"}', "200 4000 - {}"], 'gh api repos/o/r >/dev/null || echo "first=$?"\ngh api repos/o/r >/dev/null && echo "second=sent"');
@@ -399,6 +566,36 @@ test("pr-feedback-dispatch.yml: each job that calls the API ends by logging its 
     );
   }
 });
+
+// The wrapper keeps a copy of the stderr it is set up under, so a setup line
+// that sends its own stderr to /dev/null would swallow the unrecorded-stop errors.
+test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an unrecorded stop's errors", { skip: ROOT && "root writes past any file mode" }, () =>
+  withDir((dir) => {
+    const setups = readFileSync(FEEDBACK, "utf8")
+      .split("\n")
+      .filter((line) => line.includes("api_budget_wrap_gh github-token"))
+      .map((line) => line.trim());
+    assert.ok(setups.length > 0);
+    mkdirSync(join(dir, ".base/.github/actions/log-api-budget"), { recursive: true });
+    copyFileSync(LIB, join(dir, ".base/.github/actions/log-api-budget/api-budget.bash"));
+    stubGh(dir);
+    for (const setup of new Set(setups)) {
+      writeFileSync(join(dir, "answers"), '403 0 - {"message":"API rate limit exceeded"}\n200 4000 - {}\n');
+      writeFileSync(join(dir, "calls"), "");
+      unlock(dir);
+      mkdirSync(join(dir, "api-budget"));
+      chmodSync(join(dir, "api-budget"), 0o555);
+      const result = spawnSync("bash", ["-c", `${setup}\nx=$(gh api repos/o/r) || true\ngh api repos/o/r >/dev/null || true\necho reached`], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir },
+      });
+      assert.equal(readFileSync(join(dir, "calls"), "utf8").split("\n").filter(Boolean).length, 1, setup);
+      assert.doesNotMatch(result.stdout, /reached/, setup);
+      assert.match(result.stderr, /::error::'gh api repos\/o\/r' hit GitHub's core API rate limit[^\n]*\n(?:.*\n)*::error::GitHub's core API stop could not be recorded/, setup);
+    }
+    unlock(dir);
+  }));
 
 test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artifact listing and decides as before", () =>
   withDir((dir) => {

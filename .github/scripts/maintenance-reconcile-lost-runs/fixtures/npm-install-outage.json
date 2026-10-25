@@ -1,0 +1,21 @@
+{
+  "page": {
+    "id": "wyvgptkd90hm",
+    "name": "npm",
+    "url": "https://status.npmjs.org",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-10-22T03:20:37.515Z"
+  },
+  "status": {
+    "indicator": "minor",
+    "description": "Minor Service Outage"
+  },
+  "components": [
+    { "id": "mvm98gtxvb9b", "name": "www.npmjs.com website", "status": "operational", "group": false, "group_id": null },
+    { "id": "k1wj10x6gmph", "name": "Package installation", "status": "major_outage", "group": false, "group_id": null },
+    { "id": "fvjvqll59f1x", "name": "Package publishing", "status": "operational", "group": false, "group_id": null },
+    { "id": "8mzc4ncc0r6m", "name": "Package search", "status": "operational", "group": false, "group_id": null },
+    { "id": "4nj1xcbwf28g", "name": "Security Audit", "status": "operational", "group": false, "group_id": null },
+    { "id": "c567bg7rqjmc", "name": "Replication Feed", "status": "operational", "group": false, "group_id": null }
+  ]
+}

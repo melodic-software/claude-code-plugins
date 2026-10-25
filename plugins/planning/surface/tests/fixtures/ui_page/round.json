@@ -1,4 +1,5 @@
 {
+  "restate": {"text": "Nothing is decided yet. The release day, the build chain and the sources are all open. This round turns on when the release ships.", "decided": [], "open": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q10"]},
   "groups": [
     {"id": "g1", "title": "Release"},
     {"id": "g2", "title": "Chain"},

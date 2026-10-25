@@ -30,7 +30,12 @@ from server import rebuild_responses  # noqa: E402
 
 ROUND = HERE / "round.py"
 CHECK = HERE.parent / "scripts" / "check-open-questions.sh"
+REPO = HERE.parents[2]
 BASH = shutil.which("bash")
+# The repository's locked install, else one on PATH; None when neither resolves.
+MARKDOWNLINT = shutil.which(
+    str(REPO / "node_modules" / ".bin" / "markdownlint-cli2")
+) or shutil.which("markdownlint-cli2")
 AT = "2026-09-24T10:00:00Z"
 
 
@@ -345,6 +350,129 @@ class TestExportBrief(SessionCase):
         self.assertNotIn("Brief is missing the section", out)
         self.assertIn("procedure=ok", out)
         self.assertEqual(rc, 0, out)
+
+    PLAN_HEAD = "# Plan: export test\n\nNotes above the Brief stay as written.\n\n"
+    STALE = "## Brief\n\n### TLDR\n\n- a stale hand-merged Brief\n\n"
+    PLAN_TAIL = (
+        "## Plan\n\n1. First step.\n\n"
+        "```markdown\n## Brief\n\nA fenced heading is not the Brief.\n```\n"
+    )
+
+    def merged_plan(self, text):
+        """(ledger, PLAN.md) after `export-brief --ledger --into` ran on a PLAN.md holding text."""
+        self.deferred_session()
+        ledger = self.export("ledger")
+        plan = self.tmp / "PLAN.md"
+        plan.write_bytes(text.encode("utf-8"))
+        rc, out = self.rp("export-brief", "--ledger", str(ledger), "--into", str(plan))
+        self.assertEqual(rc, 0, out)
+        return ledger, plan
+
+    def brief_section(self, ledger, nl="\n"):
+        """The `## Brief` section of the --out export, as --into writes it before a heading."""
+        out = self.tmp / "brief-section.md"
+        rc, text = self.rp("export-brief", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        full = out.read_text(encoding="utf-8")
+        brief = full[: full.rindex("\n## Plan\n")].rstrip("\n")
+        self.assertTrue(brief.startswith("## Brief\n"), brief)
+        return brief.replace("\n", nl) + nl + nl
+
+    def test_into_replaces_the_brief_section_and_keeps_every_other_byte(self):
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
+        merged = plan.read_bytes().decode("utf-8")
+        self.assertNotIn("stale hand-merged", merged)
+        self.assertEqual(
+            merged, self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL
+        )
+        rc, out = self.check("--ledger", ledger, "--brief", plan, "--procedure")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+    def test_into_keeps_a_crlf_file_crlf(self):
+        head, stale, tail = (
+            x.replace("\n", "\r\n") for x in (self.PLAN_HEAD, self.STALE, self.PLAN_TAIL)
+        )
+        ledger, plan = self.merged_plan(head + stale + tail)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            head + self.brief_section(ledger, "\r\n") + tail,
+        )
+
+    def test_into_a_brief_at_the_end_of_the_file_ends_with_one_newline(self):
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + self.STALE)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + self.brief_section(ledger)[:-1],
+        )
+
+    def test_into_keeps_a_scope_change_note_above_the_first_subheading(self):
+        heading = "## Brief\n\n"
+        note = "> 2026-10-25 scope change: started fresh because the goal moved.\n\n"
+        stale = heading + note + self.STALE[len(heading) :]
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + stale + self.PLAN_TAIL)
+        fresh = self.brief_section(ledger)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + heading + note + fresh[len(heading) :] + self.PLAN_TAIL,
+        )
+
+    def test_into_reads_fences_as_the_gate_does(self):
+        # A four-backtick fence quoting a three-backtick one and a tilde line: the fenced
+        # `## Plan` is content, and the section ends at the real one.
+        nested = "## Brief\n\n### TLDR\n\n````markdown\n```\n## Plan\n```\n~~~\n````\n\n"
+        ledger, plan = self.merged_plan(self.PLAN_HEAD + nested + self.PLAN_TAIL)
+        self.assertEqual(
+            plan.read_bytes().decode("utf-8"),
+            self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL,
+        )
+
+    def test_into_refuses_a_plan_with_no_brief_heading_or_two(self):
+        self.deferred_session()
+        plan = self.tmp / "PLAN.md"
+        for text, why in (
+            (self.PLAN_HEAD + self.PLAN_TAIL, "no `## Brief` heading"),
+            (
+                self.PLAN_HEAD + self.STALE + self.STALE + self.PLAN_TAIL,
+                "2 `## Brief` headings",
+            ),
+            (
+                self.PLAN_HEAD + "## Brief\n\n```\nnever closed\n\n## Plan\n\n1. First step.\n",
+                "a fenced block that never closes",
+            ),
+        ):
+            with self.subTest(why=why):
+                plan.write_bytes(text.encode("utf-8"))
+                rc, out = self.rp("export-brief", "--into", str(plan))
+                self.assertEqual(rc, 1, out)
+                self.assertIn(why, out)
+                self.assertNotIn("Traceback", out)
+                self.assertEqual(plan.read_bytes().decode("utf-8"), text)
+
+    def test_into_a_missing_file_writes_the_whole_export(self):
+        self.deferred_session()
+        plan = self.tmp / "new" / "PLAN.md"
+        rc, out = self.rp("export-brief", "--into", str(plan))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            plan.read_text(encoding="utf-8"),
+            self.export("brief").read_text(encoding="utf-8"),
+        )
+
+    def test_merged_plan_passes_markdownlint(self):
+        if not MARKDOWNLINT:
+            self.skipTest("markdownlint-cli2 not installed; `npm ci` at the repository root")
+        _, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
+        # markdownlint-cli2 reads its config from its working directory.
+        shutil.copy(REPO / ".markdownlint-cli2.jsonc", self.tmp)
+        p = subprocess.run(
+            [MARKDOWNLINT, plan.name],
+            cwd=self.tmp,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
     def acceptance_section(self, acceptance, verdicts=("confirm",)):
         self.session(
@@ -794,6 +922,131 @@ class TestBriefRestatements(SessionCase):
         )
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
+
+
+class TestBriefDecisionsOnce(SessionCase):
+    """Each decision reaches the Brief once, in its current form: a superseded row stays in the
+    ledger, and an answered row the confirmed restatement carries adds no raw Constraints line."""
+
+    OLD = ("Cache builds in S3?", "S3 cache", "Use the shared S3 bucket.")
+
+    def section(self, text, name):
+        return text.split(f"### {name}")[1].split("###")[0].split("\n## ")[0]
+
+    def confirmed(self, qs, events, **sections):
+        """Rewrite the session with a confirmed rev 1 of sections; events may differ from the
+        ones the recap was taken over."""
+        confirm = {
+            **event(len(events) + 1, None, "confirm-understanding", "confirm"),
+            "contentRev": 1,
+        }
+        rev = {"rev": 1, "at": AT, "sections": sections}
+        self.session(qs, [*events, confirm], restatements=[rev])
+        return self.export("brief").read_text(encoding="utf-8")
+
+    def gated(self, name, text):
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        return name, text
+
+    def briefs(self, constraints=""):
+        """(name, Brief) without a restatement, then with a confirmed one whose decisions are
+        the register recap, each gated as it is exported: Q1..Q28 all accepted, Q13 then
+        superseded by Q28, Q13 with a confirmed commitment."""
+        qs = [question(f"Q{i}") for i in range(1, 29)]
+        title, short, rec = self.OLD
+        qs[12].update(
+            title=title,
+            short=short,
+            recommendation=rec,
+            commits=["Bucket is shared"],
+            supersededBy="Q28",
+        )
+        qs[27].update(
+            title="Cache builds on local disk?",
+            short="Local cache",
+            recommendation="Use the runner's local disk.",
+            supersedes="Q13",
+        )
+        events = [event(i, f"Q{i}", "accept") for i in range(1, 29)]
+        events.append(event(29, "Q13", "confirm", alt="0"))
+        self.session(qs, events)
+        out = [self.gated("no restatement", self.export("brief").read_text(encoding="utf-8"))]
+        recap, fits = exporters.confirmation_recap(self.dir, 20000)
+        self.assertTrue(fits)
+        sections = {"decisions": recap}
+        if constraints:
+            sections["constraints"] = constraints
+        out.append(self.gated("restated", self.confirmed(qs, events, **sections)))
+        return out
+
+    def test_a_superseded_row_leaves_the_brief_and_its_replacement_appears_once(self):
+        for name, text in self.briefs():
+            with self.subTest(name):
+                for where in ("Constraints", "Captured assumptions", "Out-of-scope"):
+                    part = self.section(text, where)
+                    for said in (*self.OLD, "Bucket is shared"):
+                        self.assertNotIn(said, part, where)
+                    self.assertNotRegex(part, r"\bQ13\b", where)
+                q28 = [x for x in text.splitlines() if re.search(r"\bQ28\b", x)]
+                self.assertEqual(len(q28), 1, q28)
+                if name == "restated":
+                    # The recap carries every answered row, Q28 marked as Q13's replacement
+                    # in Decisions.
+                    self.assertEqual(
+                        self.section(text, "Constraints").strip(), "- none recorded"
+                    )
+                    self.assertTrue(q28[0].startswith("- Q28 answered: "), q28)
+                    self.assertTrue(q28[0].endswith("; replaces Q13"), q28)
+                    self.assertIn(q28[0], self.section(text, "Decisions"))
+
+    def test_no_decision_line_appears_twice(self):
+        for name, text in self.briefs(constraints="- stdlib only (Q2)"):
+            with self.subTest(name):
+                # A decision line is a bullet naming a Q<N>; `- none` repeats by design.
+                lines = [
+                    x
+                    for x in text.splitlines()
+                    if x.startswith("- ") and re.search(r"\bQ[0-9]+\b", x)
+                ]
+                self.assertEqual(
+                    sorted(x for x in set(lines) if lines.count(x) > 1), []
+                )
+                leads = [
+                    x.split()[1] for x in lines if re.match(r"^- Q[0-9]+\b", x)
+                ]
+                twice = sorted({q for q in leads if leads.count(q) > 1})
+                self.assertEqual(twice, [])
+                answered = {f"Q{i}" for i in range(1, 29)} - {"Q13"}
+                if name == "restated":
+                    # The recap carries Q2; the constraint citing it stays as written.
+                    self.assertNotIn("- Q2 Short Q2:", text)
+                    self.assertIn("- stdlib only (Q2)", self.section(text, "Constraints"))
+                self.assertEqual(set(leads), answered)
+
+    def test_a_cut_stale_or_uncopied_restatement_line_keeps_the_row_line(self):
+        long = " ".join(["Keep the build cache on the runner's local disk."] * 8)
+        qs = [question("Q1", recommendation=long), *(question(f"Q{i}") for i in (2, 3, 4))]
+        events = [event(i, f"Q{i}", "accept") for i in range(1, 5)]
+        self.session(qs, events)
+        recap, _ = exporters.confirmation_recap(self.dir, 20000)
+        cut = [x for x in recap.splitlines() if x.startswith(("Q1 ", "Q2 "))]
+        self.assertTrue(cut[0].endswith("…)"), cut)
+        own = "Q3 Short Q3: accepted: Recommended answer for Q3."
+        text = self.confirmed(
+            qs,
+            # Q2's answer changes after the recap was taken.
+            [*events, event(5, "Q2", "alt", alt="a")],
+            decisions="\n".join(cut),
+            constraints=f"- launch before Q4 2026\n- {own}",
+        )
+        constraints = self.section(text, "Constraints")
+        self.assertIn(f"- Q1 Short Q1: accepted: {long}\n", constraints)
+        self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
+        self.assertEqual(text.splitlines().count(f"- {own}"), 1)
+        self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
 
 
 class TestSupersededCommitments(SessionCase):
