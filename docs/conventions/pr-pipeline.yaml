@@ -320,9 +320,10 @@ activities:
     # Lets the run read web pages, so it can check a fact against its source
     # (a documented default on a vendor docs page) instead of trusting the
     # issue's quote. It may search the web, fetch any page and run the
-    # research skills; it lists each page it read in its report. The launcher stages no curl-based docs script,
-    # so pages arrive through WebFetch alone. The job holds no write token and
-    # a page can try to steer the run, so every PR the run opens is reviewed.
+    # research skills; it lists each page it read in its report. The
+    # launcher stages no curl-based docs script, so pages arrive through
+    # WebFetch alone. The job holds no write token (#8691) and a page can try
+    # to steer the run, so every PR the run opens is reviewed.
     web-access:
       enabled: true
       domains: any
