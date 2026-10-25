@@ -175,8 +175,15 @@ apply() {
     # to drop.
     [[ "$f" != "$new" || ! -f "$f" ]] ||
       keep="$(LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" |
-        awk '/^[^ \t#]/ { k = /^pixel_tolerance[ \t]*:/ } k || /^(e2e_driver|reuse_running_instance|feature_map_dir|browser_driver|tdd_refactor_step|first_test)[ \t]*:/')"
+        awk '/^[^ \t#]/ { k = /^pixel_tolerance[ \t]*:/ } k || /^(e2e_driver|reuse_running_instance|browser_driver|tdd_refactor_step|first_test)[ \t]*:/')"
     printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s%s' "$y" "${keep:+$keep$'\n'}" >"$tmp"
+    # feature_map_dir is retired; name a dropped value so a legacy map it
+    # pointed at still gets converted.
+    [[ "$f" != "$new" || ! -f "$f" ]] ||
+      LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" | sed -n 's/^feature_map_dir[[:blank:]]*:[[:blank:]]*//p' |
+        while IFS= read -r v; do
+          printf 'setup: dropped the retired feature_map_dir line (%s); convert a legacy map there with /app-control:map refresh <path>\n' "$v"
+        done | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2
   fi
   mv -f "$tmp" "$f" || die "cannot write $f"
   if ! got="$(env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home")" ||
