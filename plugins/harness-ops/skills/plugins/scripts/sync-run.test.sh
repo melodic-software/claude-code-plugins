@@ -1405,7 +1405,7 @@ assert_eq "stale many: the full list keeps a path past the cap with its count" "
   "$(jq --arg p "$(norm_path "$case_dir/g12/x")" '.[] | select(.path == $p) | .count' \
     "$stale_run_dir/stale-project-records.market1.json" 2>/dev/null)"
 assert_eq "stale many: the printed digest carries no per-path array" "false" \
-  "$(jq '[.. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
+  "$(jq '[.marketplaces[].stale_project_records | .. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
 # Audit's scratch directory is removed on exit, so the render names no file there.
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
@@ -1732,9 +1732,9 @@ assert_eq "divergences real: a by_path entry counts its records and names its id
 assert_eq "divergences real: records[] does not carry the by_path class" "false" \
   "$(jq '[.marketplaces[0].divergences.records[] | has("class")] | any' <<<"$REPORT_DIGEST")"
 assert_contains "divergences real: an absent path's sub-line says it is not present" "$REPORT_TEXT" \
-  "  - $p_gone (not present): 3 diverging record(s): alpha@market1, gamma@market1, zeta@market1"
+  "  - <case>/gone (not present): 3 diverging record(s): alpha@market1, gamma@market1, zeta@market1"
 assert_contains "divergences real: a worktree path's sub-line says it is a linked worktree" "$REPORT_TEXT" \
-  "  - $p_wt (linked worktree): 2 diverging record(s): alpha@market1, beta@market1"
+  "  - <case>/wt (linked worktree): 2 diverging record(s): alpha@market1, beta@market1"
 assert_eq "divergences real: one by_path entry per project path" "5" \
   "$(jq '.marketplaces[0].divergences.by_path | length' <<<"$REPORT_DIGEST")"
 
