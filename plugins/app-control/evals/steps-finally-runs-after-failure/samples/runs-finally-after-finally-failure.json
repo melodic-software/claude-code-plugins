@@ -1,17 +1,17 @@
 {
   "pass": [
     {
-      "answer": "```json\n[\n  {\"id\": \"open-billing\", \"outcome\": \"done\"},\n  {\"id\": \"add-test-invoice\", \"outcome\": \"done\"},\n  {\"id\": \"press-export\", \"outcome\": \"failed\", \"observed\": \"Export button is disabled\"},\n  {\"id\": \"delete-test-invoice\", \"finally\": true, \"outcome\": \"failed\", \"observed\": \"no invoice with amount 1.00\"},\n  {\"outcome\": \"done\", \"id\": \"reload-billing\", \"finally\": true}\n]\n```\nThe run's failure is press-export: Export button is disabled.",
+      "answer": "```json\n[\n  {\"id\": \"open-billing\", \"outcome\": \"done\"},\n  {\"id\": \"set-month-filter\", \"outcome\": \"done\"},\n  {\"id\": \"press-export\", \"outcome\": \"failed\", \"observed\": \"Export button is disabled\"},\n  {\"id\": \"clear-month-filter\", \"finally\": true, \"outcome\": \"failed\", \"observed\": \"no filter is set\"},\n  {\"outcome\": \"done\", \"id\": \"reload-billing\", \"finally\": true}\n]\n```\nThe run's failure is press-export: Export button is disabled.",
       "why": "the second finally step runs after the first one fails"
     }
   ],
   "fail": [
     {
-      "answer": "```json\n[\n  {\"id\": \"press-export\", \"outcome\": \"failed\"},\n  {\"id\": \"delete-test-invoice\", \"finally\": true, \"outcome\": \"failed\"},\n  {\"id\": \"reload-billing\", \"finally\": true, \"outcome\": \"not run\"}\n]\n```",
+      "answer": "```json\n[\n  {\"id\": \"press-export\", \"outcome\": \"failed\"},\n  {\"id\": \"clear-month-filter\", \"finally\": true, \"outcome\": \"failed\"},\n  {\"id\": \"reload-billing\", \"finally\": true, \"outcome\": \"not run\"}\n]\n```",
       "why": "stops the finally steps at the first finally failure, as a language finally block would"
     },
     {
-      "answer": "```json\n[\n  {\"id\": \"delete-test-invoice\", \"status\": \"failed\"},\n  {\"id\": \"reload-billing\", \"status\": \"done\"}\n]\n```",
+      "answer": "```json\n[\n  {\"id\": \"clear-month-filter\", \"status\": \"failed\"},\n  {\"id\": \"reload-billing\", \"status\": \"done\"}\n]\n```",
       "why": "an invented shape with no outcome field and no finally marker"
     }
   ]

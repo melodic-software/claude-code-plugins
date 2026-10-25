@@ -1,5 +1,5 @@
 steps:
-  - id: delete-test-invoice
-    action: delete the invoice with amount 1.00
+  - id: clear-month-filter
+    action: click button "Clear filters"
   - id: reload-billing
     action: goto /billing

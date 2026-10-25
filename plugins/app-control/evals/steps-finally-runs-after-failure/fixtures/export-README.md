@@ -4,7 +4,7 @@ A user downloads their invoices as one CSV file.
 
 ## Parts
 
-- content: the file holds a row for each invoice, including one just created
+- content: the file holds a row for each invoice in the month the filter shows
 
 ## Sub-features
 
@@ -16,12 +16,12 @@ none
 
 ## Reset
 
-The finally steps from [reset.yaml](reset.yaml) delete the test invoice the drive creates.
+The finally steps from [reset.yaml](reset.yaml) clear the month filter the drive sets.
 
 ## Drive
 
-Run the steps in [steps.yaml](steps.yaml): create a test invoice, export, check the file holds it.
+Run the steps in [steps.yaml](steps.yaml): set the month filter, export, check the file holds only that month.
 
 ## Gotchas
 
-- The test invoice is the only row with amount 1.00; reset deletes it by that amount.
+- The month filter stays set for the browser session until it is cleared, so a later feature would see it.

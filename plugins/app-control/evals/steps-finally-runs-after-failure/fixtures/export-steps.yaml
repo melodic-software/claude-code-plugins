@@ -1,11 +1,11 @@
 steps:
   - id: open-billing
     action: goto /billing
-  - id: add-test-invoice
-    action: click button "New invoice"; fill "Amount" with 1.00; click button "Save"
+  - id: set-month-filter
+    action: select "2026-01" in the "Month" filter
   - id: press-export
     action: click button "Export"
   - id: check-download
-    action: expect download invoices.csv with a row of amount 1.00
+    action: expect download invoices.csv with only 2026-01 rows
   - include: reset.yaml
     finally: true

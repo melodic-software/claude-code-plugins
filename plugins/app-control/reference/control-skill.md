@@ -146,10 +146,12 @@ include a `shared/` item names `shared/<item>` in its feature file, which is how
 its users.
 
 - **Step ids.** Every step has an id, unique among all the steps a run expands to, includes
-  included. The prose, the evidence file names and the write grants name steps by those ids. A
-  repeated id stops the run before anything starts, naming the id.
-- **Includes.** A step list can include another steps file, from this control skill or another
-  one, which expands in place. An include can carry:
+  included, and made of letters, digits, `-` and `_` only, prefix included. The prose and the
+  evidence file names name steps by those ids. A repeated id, or one with any other character,
+  stops the run before anything starts, naming the id.
+- **Includes.** A step list can include another steps file of this control skill, which expands
+  in place. The included file's real path must sit inside this control skill's directory; one
+  outside it stops the run. An include can carry:
   - `prefix`: put before every included step id, so one file can be included twice with unique
     ids. Two includes of one file without different prefixes repeat ids and stop the run. A
     sign-in file included twice for one account is two attempts under the Sign-in floor.
@@ -163,7 +165,9 @@ its users.
   after the others, in order, whether or not a step before them failed; they are where a write's
   reset goes. Every finally step runs even when an earlier one
   fails, and each failure is reported beside the one that came first, never in its place. The
-  safety floors apply to them as to any step, and a refusal (exit 4) is reported, not retried.
+  safety floors apply to them as to any step, and a refusal (exit 4) is reported, not retried. A
+  failed sign-in ends the other steps the same way; a finally step that would sign in again for
+  that account is refused under the Sign-in floor and reported as blocked.
 - **Optional steps.** An optional step is for a prompt or screen that appears on some runs only.
   When its target is absent, the step is recorded as skipped and the run goes on; no retry and no
   wait stands in for it. When its target is present, it runs and can fail like any other step.

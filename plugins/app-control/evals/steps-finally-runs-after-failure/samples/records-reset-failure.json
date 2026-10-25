@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "```json\n[\n  {\"id\": \"delete-test-invoice\", \"action\": \"delete the invoice with amount 1.00\", \"outcome\": \"failed\", \"finally\": true}\n]\n```",
+      "answer": "```json\n[\n  {\"id\": \"clear-month-filter\", \"action\": \"click button \"Clear filters\"\", \"outcome\": \"failed\", \"finally\": true}\n]\n```",
       "why": "the reset ran as a finally step and its failure is recorded"
     }
   ],

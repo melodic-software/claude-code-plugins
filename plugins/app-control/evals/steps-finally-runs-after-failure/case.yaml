@@ -2,11 +2,11 @@ schema_version: "1.1"
 name: steps-finally-runs-after-failure
 description: When a drive step fails, drive skips the remaining ordinary steps, still runs every finally step even after one of them fails, and keeps the first failure as the run's failure
 tags: [drive, steps-files, invented]
-expected_outcome: "The reply's report.json steps list records press-export as failed, performs no check-download, and records both finally steps with finally true: delete-test-invoice as failed and reload-billing as done, because every finally step runs even when an earlier one fails. It names press-export's failure as the run's failure and reports the reset failure beside it, never in its place."
+expected_outcome: "The reply's report.json steps list records press-export as failed, performs no check-download, and records both finally steps with finally true: clear-month-filter as failed and reload-billing as done, because every finally step runs even when an earlier one fails. It names press-export's failure as the run's failure and reports the reset failure beside it, never in its place."
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files. Committed config allows unattended writes to the local environment, so every step clears the safety floors. Treat open-billing and add-test-invoice as done; press-export as failed with the observed text 'Export button is disabled'; delete-test-invoice, if it runs, as failed with 'no invoice with amount 1.00'; and any other step that runs as acting as written. Reply with the `steps` list this run's report.json would hold, as one fenced JSON block, one object per step that runs, in order, then one sentence naming the run's failure. Then stop."
+  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files. Treat open-billing and set-month-filter as done; press-export as failed with the observed text 'Export button is disabled'; clear-month-filter, if it runs, as failed with 'no filter is set'; and any other step that runs as acting as written. Reply with the `steps` list this run's report.json would hold, as one fenced JSON block, one object per step that runs, in order, then one sentence naming the run's failure. Then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 20
   timeout_seconds: 600
@@ -23,8 +23,8 @@ graders:
     arm: both
   - name: records-reset-failure
     type: regex
-    pattern: '\{(?=[^{}]*"id"\s*:\s*"delete-test-invoice")(?=[^{}]*"finally"\s*:\s*true)(?=[^{}]*"outcome"\s*:\s*"failed)[^{}]*\}'
+    pattern: '\{(?=[^{}]*"id"\s*:\s*"clear-month-filter")(?=[^{}]*"finally"\s*:\s*true)(?=[^{}]*"outcome"\s*:\s*"failed)[^{}]*\}'
     arm: both
   - name: finally-after-failure
     type: llm
-    criteria: "PASS only if the reply (1) records press-export as failed and has no entry for check-download, (2) records delete-test-invoice as failed and reload-billing as done, both marked as finally steps, so reload-billing runs although the finally step before it failed, and (3) names press-export's failure ('Export button is disabled') as the run's failure, with the reset failure reported beside it. FAIL if it stops after delete-test-invoice fails, runs check-download, skips a finally step, names the reset failure as the run's failure in place of press-export's, or says it launched the app."
+    criteria: "PASS only if the reply (1) records press-export as failed and has no entry for check-download, (2) records clear-month-filter as failed and reload-billing as done, both marked as finally steps, so reload-billing runs although the finally step before it failed, and (3) names press-export's failure ('Export button is disabled') as the run's failure, with the reset failure reported beside it. FAIL if it stops after clear-month-filter fails, runs check-download, skips a finally step, names the reset failure as the run's failure in place of press-export's, or says it launched the app."
