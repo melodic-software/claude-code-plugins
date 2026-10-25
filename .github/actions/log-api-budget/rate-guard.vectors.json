@@ -277,6 +277,31 @@
       "name": "a short write's fragment spoils only the line it merges into",
       "text": "core 17927graphql 1792751600\n* 1792748060\ncode_search 1792751600\n",
       "until": { "core": 1792748060, "graphql": 1792748060, "search": 1792748060, "code_search": 1792751600 }
+    },
+    {
+      "name": "an empty file holds nothing",
+      "text": "",
+      "until": { "core": null, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "a stop until now holds nothing; one a second later holds",
+      "text": "core 1792748000\ngraphql 1792748001\n",
+      "until": { "core": null, "graphql": 1792748001, "search": null, "code_search": null }
+    },
+    {
+      "name": "a past * stop leaves a pool's own stop holding",
+      "text": "* 1792747000\ncore 1792751600\n",
+      "until": { "core": 1792751600, "graphql": null, "search": null, "code_search": null }
+    },
+    {
+      "name": "search and code_search are separate pools",
+      "text": "search 1792751600\ncode_search 1792749000\n",
+      "until": { "core": null, "graphql": null, "search": 1792751600, "code_search": 1792749000 }
+    },
+    {
+      "name": "digits outside ASCII are not digits: Arabic-Indic, fullwidth, and one among ASCII digits",
+      "text": "core ١٧٩٢٧٥١٦٠٠\ngraphql １７９２７５１６００\nsearch 179275160٠\nsearch 1792749000\n",
+      "until": { "core": null, "graphql": null, "search": 1792749000, "code_search": null }
     }
   ]
 }
