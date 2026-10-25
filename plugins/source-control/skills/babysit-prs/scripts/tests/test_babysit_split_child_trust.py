@@ -57,6 +57,9 @@ def graphql_issue(case: dict[str, Any], parents: dict[str, Any]) -> dict[str, An
         text = parents[case["parent"]]
         comments = [
             {
+                "databaseId": c["id"],
+                "createdAt": c["created_at"],
+                "updatedAt": c["updated_at"],
                 "body": c["body"],
                 "lastEditedAt": c["last_edited_at"],
                 "author": actor(c["author"]),
@@ -170,7 +173,7 @@ class TheSharedVectorsHold(unittest.TestCase):
     def test_every_vector(self) -> None:
         data = json.loads(VECTORS.read_text(encoding="utf-8"))
         cases = data["cases"]
-        self.assertGreaterEqual(len(cases), 21)
+        self.assertGreaterEqual(len(cases), 43)
         for case in cases:
             with self.subTest(case["name"]):
                 app_id = case["app_id"] if "app_id" in case else data["app_id"]
@@ -205,6 +208,41 @@ class AnEditTicksOnly(unittest.TestCase):
         self.assertTrue(counts(["* Line 3.", "  * Line 4."]))
         self.assertFalse(counts(["* Line 3.", "* Line 4."]), "the indent counts")
         self.assertFalse(counts(["* [x] Line 3."]), "no ticked form to derive")
+
+
+class ASourceIdRoundTrips(unittest.TestCase):
+    """admit.mjs reads the source line's id as a Number and writes it back
+    into the header it compares, so an id a double cannot hold exactly never
+    matches, even when the refinement carries it."""
+
+    def test_an_id_past_double_precision_counts_nothing(self) -> None:
+        data = json.loads(VECTORS.read_text(encoding="utf-8"))
+        case = next(c for c in data["cases"] if c["name"] == "a refinement-only child")
+        issue = graphql_issue(case, data["parents"])
+
+        def counts(comment_id: int) -> bool:
+            child = issue | {
+                "body": issue["body"].replace(
+                    "refinement=901", f"refinement={comment_id}"
+                ),
+                "parent": issue["parent"]
+                | {
+                    "comments": {
+                        "totalCount": 1,
+                        "nodes": [
+                            issue["parent"]["comments"]["nodes"][0]
+                            | {"databaseId": comment_id}
+                        ],
+                    }
+                },
+            }
+            found = ve.split_child_body(
+                child, REPO, frozenset(data["humans"]), data["app_id"], TASK_LIST
+            )
+            return found is not None
+
+        self.assertTrue(counts(2**53))
+        self.assertFalse(counts(2**53 + 1))
 
 
 class AFailedReadRefuses(unittest.TestCase):
