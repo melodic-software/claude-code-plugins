@@ -68,6 +68,31 @@ OTHER_FAILURE = {
     "message": "failure-class=incomplete: no completed review was found on this head",
 }
 
+# publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
+# recorded it when the review's own post hit GitHub's API rate limit.
+PUBLISH_RATE_LIMIT = {
+    "path": ".github",
+    "annotation_level": "failure",
+    "title": "",
+    "message": "claude-review: failure-class=publish-failed: posting the review failed"
+    " (API rate limit exceeded for installation. If you reach out to GitHub Support"
+    " for help, please include the request ID 7819:37FE4F:2414D85:756EBF6:6ADCE2DA"
+    " and timestamp 2026-10-24 16:54:51 UTC. For more on scraping GitHub and how it"
+    " may affect your rights, please review our Terms of Service"
+    " (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service)"
+    " - https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api#rate-limiting)",
+}
+
+
+def publish_failed(detail: str) -> dict[str, Any]:
+    return {
+        "path": ".github",
+        "annotation_level": "failure",
+        "title": "",
+        "message": f"claude-review: failure-class=publish-failed: posting the review failed ({detail})",
+    }
+
+
 _ids = iter(range(1000, 10**6))
 
 
@@ -538,6 +563,42 @@ class AttemptRuleTests(Base):
         first = attempt("claude-review", S, 1, [RATE_LIMIT], "failure")
         result = self.bind([self.lane_run(first, self.ok(2))])
         self.assertTrue(result["claude-review"].bound)
+
+    def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
+        first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_second_attempt_after_a_publish_secondary_rate_limit_failure(self) -> None:
+        limited = publish_failed(
+            "You have exceeded a secondary rate limit. Please wait a few minutes"
+            " before you try again."
+        )
+        first = attempt("claude-review", S, 1, [limited], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_second_attempt_after_another_publish_failure(self) -> None:
+        for detail in (
+            "Validation Failed",
+            "Not Found; the reviewer also logged API rate limit exceeded",
+            "the publish gate could not be loaded",
+        ):
+            with self.subTest(detail=detail):
+                first = attempt(
+                    "claude-review", S, 1, [publish_failed(detail)], "failure"
+                )
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_rate_limit_text_outside_a_publish_failure_line(self) -> None:
+        other = dict(
+            OTHER_FAILURE,
+            message="failure-class=incomplete: no review (API rate limit exceeded)",
+        )
+        first = attempt("claude-review", S, 1, [other], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_rate_limit_annotation_on_a_successful_first_attempt(self) -> None:
         first = attempt("claude-review", S, 1, [RATE_LIMIT], "success")

@@ -97,6 +97,15 @@ SHA_RE = re.compile(rf"^{_SHA}$")
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # The wrapper re-runs a review only after a usage-limit failure, once.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# Or after the review's own post hit GitHub's API rate limit: publish-review's
+# failure line (ci-workflows publish.cjs `fail`) whose detail, the request
+# error's message, opens with GitHub's primary or secondary rate-limit text
+# (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+# Any other publish failure stays refused, so a re-run cannot hide one.
+PUBLISH_RATE_LIMIT_RE = re.compile(
+    r"(?m)^[\w-]+: failure-class=publish-failed: [^(\n]*"
+    r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
+)
 MARKER_AUTHOR = "github-actions[bot]"
 MARKER_RE = re.compile(
     rf"^<!-- claude-lane-reviewed-head lane=([\w-]+) sha=({_SHA}) -->$"
@@ -425,7 +434,10 @@ def _rate_limited(job: Mapping[str, Any]) -> bool:
     return any(
         isinstance(a, Mapping)
         and a.get("annotation_level") == "failure"
-        and RATE_LIMIT_CLASS_RE.search(str(a.get("message") or ""))
+        and any(
+            pattern.search(str(a.get("message") or ""))
+            for pattern in (RATE_LIMIT_CLASS_RE, PUBLISH_RATE_LIMIT_RE)
+        )
         for a in job["annotations"]
     )
 
