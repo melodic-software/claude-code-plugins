@@ -136,7 +136,7 @@ skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA
 places."* The `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code v2.1.196 or later; below that
 floor the rule stays a literal string and never matches.
 
-**The plugin-scoped pair carries a boundary, and it is the whole of the rule.** The same page's
+**The plugin-scoped pair carries a boundary.** The same page's
 variable table states `${CLAUDE_PLUGIN_ROOT}` is *"Substituted only in plugin skills."* So in a
 personal or project skill, in an agent or command, and in any settings file's `permissions.allow`
 array, both tokens stay literal and the grant is inert. No page documents `${CLAUDE_*}` expansion in
@@ -153,9 +153,9 @@ a prompt. `${CLAUDE_PLUGIN_ROOT}` is the one that can name a script shared betwe
 which `${CLAUDE_SKILL_DIR}` cannot express. `${CLAUDE_PROJECT_DIR}` anchors to the consuming project
 rather than to a portable command, so it is not the right tool for a shared code-execution helper.
 
-**None of this changes anti-pattern 1**, and the distinction is worth holding: substitution decides
-whether a rule *resolves*, never whether auto mode *keeps* it. Auto mode still drops
-broad and interpreter-shaped rules however the path was written. The docs establish that the token
+**None of this changes anti-pattern 1.** Substitution decides whether a rule *resolves*, never
+whether auto mode *keeps* it. Auto mode still drops broad and interpreter-shaped rules however the
+path was written. The docs establish that the token
 resolves; they do not establish that the resolved rule matches at runtime on every host, so do not
 ship a grant on docs alone.
 
