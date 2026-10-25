@@ -5217,6 +5217,8 @@ test("handoff-evidence.sh: job-level evidence decides through a lagging listing,
   assert.equal(empty.status, 0);
   assert.deepEqual(empty.outputs, { posted: "false", allowed: "true" });
   assert.equal(empty.calls.trim().split("\n").length, 1, "job-level evidence needs one read");
+  assert.match(empty.stdout, /^handoff evidence: posted=false allowed=true \(1 read\)$/m);
+  assert.doesNotMatch(empty.stdout, /::error::/);
   // A kill switch or refusal: broker-allowed skipped, steps empty.
   const killed = readPosted(t, read, lagging(withMarkers(jobListing([], { reportSkipped: FIX_CI_CALLS }), [])));
   assert.deepEqual(killed.outputs, { posted: "false", allowed: "false" });
@@ -5227,6 +5229,7 @@ test("handoff-evidence.sh: job-level evidence decides through a lagging listing,
   assert.equal(retried.status, 0);
   assert.deepEqual(retried.outputs, { posted: "true", allowed: "true" });
   assert.equal(retried.calls.trim().split("\n").length, 3);
+  assert.match(retried.stdout, /^handoff evidence: posted=true allowed=true \(3 reads\)$/m);
   assert.match(retried.stdout, /Read 1: missing: fix-ci \/ report step "Post the check run" has no conclusion/);
   // No broker-allowed job (a listing from before it): the broker step decides,
   // retried while null, then the handoff the subscription leg starts on.

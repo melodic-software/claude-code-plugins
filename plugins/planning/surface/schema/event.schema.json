@@ -21,6 +21,11 @@
     "undoSeq": {"type": "integer"},
     "auditSeq": {"type": "integer"},
     "contentRev": {"type": "integer"},
+    "outOfOrder": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "On a decision event: the prerequisites still open when the user answered anyway (frontierLock confirm). The server keeps only the ids the page sent that were open; the first live decision on each marks this question stale."
+    },
     "items": {
       "type": "array",
       "items": {

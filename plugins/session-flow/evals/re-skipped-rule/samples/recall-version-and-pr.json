@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "2.14.0; the changelog fragments came in #4262.",
+      "why": "both facts"
+    },
+    {
+      "answer": "We are cutting v2.14.0. #4262 carried the fragments and it is merged.",
+      "why": "both facts"
+    },
+    {
+      "answer": "Release 2.14.0, fragments in PR 4262.",
+      "why": "both, terse"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "2.15.0, from #4262.",
+      "why": "wrong version"
+    },
+    {
+      "answer": "2.14.0; I am not sure which PR.",
+      "why": "missing PR"
+    },
+    {
+      "answer": "2.14.0 from #4471.",
+      "why": "wrong number (the tracking issue)"
+    }
+  ]
+}

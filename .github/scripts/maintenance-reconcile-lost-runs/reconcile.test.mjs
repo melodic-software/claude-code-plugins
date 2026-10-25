@@ -18,7 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { GITHUB_STATUS_URL, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -433,6 +433,8 @@ test("pr-verify still names its judge step as the reconciler reads it", () => {
   const judge = stepAt(JUDGE_STEP);
   assert.ok(judge >= 0);
   assert.ok(judge < stepAt("Upload the verdict"));
+  const names = [...workflow.matchAll(/^[ ]*- name: (.+)$/gm)].map((m) => m[1]);
+  assert.equal(names[names.indexOf(JUDGE_STEP) - 1], JUDGE_PREDECESSOR);
 });
 
 test("a verify run whose judge step started is never re-run or recorded", async () => {
@@ -529,6 +531,39 @@ test("a verify run whose job lost its runner is re-run when its cut list stops b
   assert.equal(unnoted.code, 1);
   assert.deepEqual(unnoted.reruns, []);
   assert.deepEqual(records(unnoted.outputs), ["", "", ""]);
+});
+
+// The judge step's log can echo model or PR text, so a failure annotation that
+// reads as a runner loss proves one only on a cut list that stops before the
+// judge step's predecessor, in a job that failed.
+test("a runner-loss annotation counts only on a failed job whose cut list stops before the judge step's predecessor", async () => {
+  const cutAt = (names, conclusion = "failure") => ({
+    id: 88,
+    name: "verify",
+    status: "completed",
+    conclusion,
+    runner_id: 7,
+    steps: names.map((name, i) => ({ number: i + 1, name, status: i === names.length - 1 ? "in_progress" : "completed", conclusion: i === names.length - 1 ? null : "success" })),
+    notes: [{ annotation_level: "failure", message: "The hosted runner lost communication with the server." }],
+  });
+  const early = ["Set up job", "Check the trigger", "Read the spec"];
+  const run201 = (job) => reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [job] }] });
+  const genuine = await run201(cutAt(early));
+  assert.equal(genuine.code, 0);
+  assert.deepEqual(genuine.reruns, [201]);
+  for (const reached of [JUDGE_PREDECESSOR, JUDGE_STEP]) {
+    const echoed = await run201(cutAt([...early, reached]));
+    assert.equal(echoed.code, 0, reached);
+    assert.deepEqual(echoed.reruns, [], reached);
+    assert.deepEqual(records(echoed.outputs), ["", "", ""], reached);
+  }
+  const notFailed = await run201(cutAt(early, "cancelled"));
+  assert.equal(notFailed.code, 1);
+  assert.deepEqual(notFailed.reruns, []);
+  assert.deepEqual(records(notFailed.outputs), ["", "", ""]);
+  const judgeNotFailed = await run201(cutAt([...early, JUDGE_STEP], "cancelled"));
+  assert.equal(judgeNotFailed.code, 1);
+  assert.deepEqual(judgeNotFailed.reruns, []);
 });
 
 // Whatever the list looks like, a judge step listed with any state but a
