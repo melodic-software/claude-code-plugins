@@ -1,7 +1,5 @@
 ---
-bump: minor
+bump: none
 ---
 
-### Changed
-
-- **`mutation-testing` declares `testing` as a dependency.** `/mutation-testing:audit --exercised` finds the test files through `/testing:audit --file` and refuses without the `testing` plugin, so the manifest's `dependencies` now lists `testing`, and installing `mutation-testing` installs it.
+No release: `mutation-testing` keeps `testing` an optional collaborator, so this change declares no dependency in its manifest.
