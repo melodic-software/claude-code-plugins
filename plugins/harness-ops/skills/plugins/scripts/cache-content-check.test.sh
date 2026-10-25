@@ -251,9 +251,11 @@ assert_exit "--ids: a clean fleet is exit 0" 0 "$rc"
 assert_eq "--ids: a clean fleet emits nothing" "" "$ids"
 
 # ============================================================================
-# Case: the recorded sha is not an object in the installLocation clone. The
-# check must say so and must NOT fetch — a fetch is a network mutation, and it
-# would silently repair the very condition being reported.
+# Case: the recorded sha is not an object in the installLocation clone. It is
+# not the clone's HEAD, so it is not compared: counted not_checked, never
+# unverifiable and never a match. The check must NOT fetch — a fetch is a
+# network mutation, and it would silently repair the very condition being
+# reported.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -262,10 +264,70 @@ seed_cache_from "$case_dir" "$SHA2" >/dev/null
 seed_state "$case_dir" "0123456789abcdef0123456789abcdef01234567"
 out=$(run_check "$case_dir" --marketplace market1)
 rc=$?
-assert_exit "sha-not-local: exit 0" 0 "$rc"
-assert_eq "sha-not-local: verdict names the condition" "sha-not-local" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
-assert_eq "sha-not-local: counted as unverifiable, not as a match" "1" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
-assert_eq "sha-not-local: and not as a match" "0" "$(jq -r '.match' <<<"$out" 2>/dev/null)"
+assert_exit "sha absent from the clone: exit 0" 0 "$rc"
+assert_eq "sha absent from the clone: verdict is not-at-head" "not-at-head" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "sha absent from the clone: counted not_checked" "1" "$(jq -r '.not_checked' <<<"$out" 2>/dev/null)"
+assert_eq "sha absent from the clone: not counted unverifiable" "0" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
+assert_eq "sha absent from the clone: and not as a match" "0" "$(jq -r '.match' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# Case: a one-commit (shallow) clone, the shape Claude Code's marketplace clone
+# is observed in. A record at the clone's HEAD is compared; a record at an older
+# sha, which the clone does not hold, is counted not_checked with no file
+# compared, and nothing is fetched to reach it.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
+seed_cache_from "$case_dir" "$SHA2" >/dev/null
+# `--depth` is honored only over a transport, so the source is a file:// URL.
+# A drive-letter path (Windows) needs the third slash a POSIX path already
+# supplies.
+shallow_url="file://$case_dir/market"
+[[ "$case_dir" == /* ]] || shallow_url="file:///$case_dir/market"
+git clone -q --depth 1 "$shallow_url" "$case_dir/shallow" 2>/dev/null
+# Fixture preconditions, asserted so a deep clone cannot turn the older record
+# into a vacuous pass.
+assert_eq "one-commit clone: the fixture clone's HEAD is the newer sha" "$SHA2" \
+  "$(git -C "$case_dir/shallow" rev-parse HEAD 2>/dev/null)"
+if git -C "$case_dir/shallow" cat-file -e "$SHA1^{commit}" 2>/dev/null; then
+  fail "one-commit clone: the fixture clone lacks the older sha" "the clone holds $SHA1, so it is not one commit deep"
+else
+  pass "one-commit clone: the fixture clone lacks the older sha"
+fi
+mkdir -p "$case_dir/cache/alpha/0.9.0" "$case_dir/present-repo"
+write "$case_dir/cache/alpha/0.9.0/hooks/run.sh" 'echo v1'
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\":\"user\",\"version\":\"1.0.0\",\"gitCommitSha\":\"$SHA2\",\"installPath\":\"$case_dir/cache/alpha/1.0.0\"},
+      {\"scope\":\"project\",\"version\":\"0.9.0\",\"gitCommitSha\":\"$SHA1\",\"installPath\":\"$case_dir/cache/alpha/0.9.0\",\"projectPath\":\"$case_dir/present-repo\"}
+    ]
+  }
+}"
+write "$case_dir/known_marketplaces.json" \
+  "{\"market1\": {\"installLocation\": \"$case_dir/shallow\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+out=$(run_check "$case_dir" --marketplace market1 --scope all)
+rc=$?
+assert_exit "one-commit clone: exit 0" 0 "$rc"
+assert_eq "one-commit clone: both records checked" "2" "$(jq -r '.checked' <<<"$out" 2>/dev/null)"
+assert_eq "one-commit clone: the record at HEAD is compared and matches" "match" \
+  "$(jq -r --arg s "$SHA2" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
+assert_eq "one-commit clone: the record at the older sha is not-at-head" "not-at-head" \
+  "$(jq -r --arg s "$SHA1" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
+assert_eq "one-commit clone: no file of the older record is compared" "0 0 0 0" \
+  "$(jq -r --arg s "$SHA1" 'first(.installs[] | select(.gitCommitSha == $s) | "\(.differing) \(.missing_from_cache) \(.extra_in_cache) \(.paths | length)")' <<<"$out" 2>/dev/null)"
+assert_eq "one-commit clone: tallies are 1 match, 1 not checked, 0 unverifiable, 0 stale" "1 1 0 0" \
+  "$(jq -r '"\(.match) \(.not_checked) \(.unverifiable) \(.stale_content)"' <<<"$out" 2>/dev/null)"
+# The same compare still catches a stale cache at HEAD, so the gate narrows
+# what is compared and does not excuse it.
+write "$case_dir/cache/alpha/1.0.0/hooks/run.sh" 'echo edited'
+out=$(run_check "$case_dir" --marketplace market1 --scope all)
+assert_eq "one-commit clone: an edited cache at HEAD is still stale-content" "stale-content" \
+  "$(jq -r --arg s "$SHA2" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
+assert_eq "one-commit clone: the older record stays not-at-head" "not-at-head" \
+  "$(jq -r --arg s "$SHA1" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
 
 # ============================================================================
 # Case: a cache-only file the marketplace's own .gitignore covers is generated
@@ -353,6 +415,17 @@ write "$case_dir/known_marketplaces.json" \
   "{\"market1\": {\"installLocation\": \"$case_dir/does-not-exist\"}}"
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "no-install-location: verdict names the condition" "no-install-location" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+
+# ...and a git work tree whose HEAD names no commit (an unborn branch) has
+# nothing any record could be compared against: unverifiable, not not_checked.
+CASE_NUM=$((CASE_NUM + 1))
+init_fixture_repo "$case_dir/unborn"
+write "$case_dir/known_marketplaces.json" \
+  "{\"market1\": {\"installLocation\": \"$case_dir/unborn\"}}"
+out=$(run_check "$case_dir" --marketplace market1)
+assert_eq "no-clone-head: verdict names the condition" "no-clone-head" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "no-clone-head: counted unverifiable, not not_checked" "1 0" \
+  "$(jq -r '"\(.unverifiable) \(.not_checked)"' <<<"$out" 2>/dev/null)"
 
 # ============================================================================
 # Case: the cache directory itself is gone. Reported, never treated as a match.
@@ -527,8 +600,10 @@ assert_eq "absent gitCommitSha: counted as unverifiable" "1" "$(jq -r '.unverifi
 # Resolving the source from the current checkout would look an older tree up
 # under a path it does not contain, and `git ls-tree` reports a pathspec that
 # matches nothing as success with EMPTY output — so every cache file becomes an
-# extra and a perfectly matching cache reports stale-content. Reading the
-# manifest at the recorded sha is what makes this a match.
+# extra and a perfectly matching cache reports stale-content. A record at the
+# pre-rename commit is not the clone's HEAD, so it is not compared at all; with
+# the clone checked out AT that commit and its work-tree manifest edited to the
+# renamed path, reading the manifest at the recorded sha makes it a match.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -555,7 +630,15 @@ seed_state "$case_dir" "$RENAME_SHA1"
 out=$(run_check "$case_dir" --marketplace market1)
 rc=$?
 assert_exit "renamed source: exit 0" 0 "$rc"
-assert_eq "renamed source: the source path is read at the recorded sha, so it is a match" \
+assert_eq "renamed source: a record older than the clone's HEAD is not-at-head, never stale-content" \
+  "not-at-head" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+git -C "$repo" checkout -q --detach "$RENAME_SHA1"
+# The work tree's manifest names the renamed path, uncommitted, so only a read
+# at the recorded sha (never the checkout) resolves the source the cache holds.
+write "$repo/.claude-plugin/marketplace.json" \
+  '{"plugins":[{"name":"alpha","source":"./plugins/alpha-renamed"}]}'
+out=$(run_check "$case_dir" --marketplace market1)
+assert_eq "renamed source: at HEAD, the source path is read at the recorded sha, so it is a match" \
   "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "renamed source: nothing is called extra-in-cache" \
   "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
@@ -730,19 +813,18 @@ assert_eq "hash-batch-misaligned: the same fixture with the real git is a match"
   "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 
 # ============================================================================
-# Case: two records share ONE source directory at DIFFERENT shas. The tree
-# lookup is keyed by sha as well as by source directory, so the newer sha's
-# file list cannot stand in for the older one's: a file that exists only at the
-# newer sha is a cache-only extra for the record pinned to the older one, and
-# that record is stale-content rather than match.
+# Case: two records share ONE source directory at DIFFERENT shas, both held by
+# a full clone. Only the record at the clone's HEAD is compared: the record at
+# the older sha is not-at-head even though the clone holds that commit, so the
+# answer does not depend on how deep the clone is, and the newer sha's file
+# list never stands in for the older one's.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
-# A third commit whose ONLY delta is one added file. Anything else in it would
-# make the older record stale for a `differs` or `missing-from-cache` reason and
-# the extra-in-cache direction — the one a sha-blind tree map suppresses — would
-# never be what the verdict rests on.
+# A third commit whose ONLY delta is one added file: compared against the older
+# sha's tree, the cache would show it as an extra, so a record compared there
+# would be stale-content rather than not-at-head.
 write "$case_dir/market/plugins/alpha/lib/extra.sh" 'echo extra'
 git -C "$case_dir/market" add -A
 git -C "$case_dir/market" commit -q -m three
@@ -768,16 +850,12 @@ assert_eq "shared source dir: both records checked" "2" "$(jq -r '.checked' <<<"
 # not this assertion's to assume.
 assert_eq "shared source dir: the record at the newer sha matches" "match" \
   "$(jq -r --arg s "$SHA3" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
-assert_eq "shared source dir: the record at the older sha is stale-content" "stale-content" \
+assert_eq "shared source dir: the record at the older sha is not-at-head, though the clone holds it" "not-at-head" \
   "$(jq -r --arg s "$SHA2" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
-assert_eq "shared source dir: the file added at the newer sha is the older record's cache-only extra" "1" \
-  "$(jq -r --arg s "$SHA2" 'first(.installs[] | select(.gitCommitSha == $s) | .extra_in_cache)' <<<"$out" 2>/dev/null)"
-assert_contains "shared source dir: that extra is named" \
-  "$(jq -r --arg s "$SHA2" 'first(.installs[] | select(.gitCommitSha == $s) | .paths | join(","))' <<<"$out" 2>/dev/null)" \
-  "extra-in-cache: lib/extra.sh"
-assert_eq "shared source dir: and nothing else is reported against it" "0 0" \
-  "$(jq -r --arg s "$SHA2" 'first(.installs[] | select(.gitCommitSha == $s) | "\(.differing) \(.missing_from_cache)")' <<<"$out" 2>/dev/null)"
-assert_eq "shared source dir: exactly one of the two is stale" "1" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
+assert_eq "shared source dir: no file is reported against the older record" "0 0 0" \
+  "$(jq -r --arg s "$SHA2" 'first(.installs[] | select(.gitCommitSha == $s) | "\(.differing) \(.missing_from_cache) \(.extra_in_cache)")' <<<"$out" 2>/dev/null)"
+assert_eq "shared source dir: 1 match, 1 not checked, nothing stale" "1 1 0" \
+  "$(jq -r '"\(.match) \(.not_checked) \(.stale_content)"' <<<"$out" 2>/dev/null)"
 
 # ============================================================================
 # Case: two marketplace entries with nested source directories share one sha.

@@ -108,18 +108,26 @@ changed, files the tree has and the cache lacks, and files the cache holds and t
 ids and no per-file detail; the row then carries the id alone.
 
 **The check never repairs.** It does not delete a cache directory, does not re-run an update, and
-does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
-`sha-not-local` and left alone: fetching is a network mutation this audit does not perform, and it
-would also silently erase the condition the verdict exists to report. Every verdict other than
-`match` and `stale-content` is counted as `unverifiable`, meaning the audit looked and could not decide,
-which is its own number and never folded into either side.
+does not `git fetch` a commit the marketplace clone lacks: fetching is a network mutation this audit
+does not perform, some hosts refuse a fetch by sha, and it would also silently erase the condition
+the verdict exists to report.
 
-**Expect a substantial `unverifiable` share, and never read it as a pass.** The marketplace clone
-is observed to be shallow, and Claude Code re-clones it on update
-([host-marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md), as of 2026-10-18;
+**Only an install recorded at the clone's HEAD is compared.** The marketplace clone is observed to
+be shallow, and Claude Code re-clones it on update
+([host-marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md), as of 2026-10-25;
 the page states the re-clone, not shallowness or a depth; recheck when its update or clone
-description changes). So only installs recorded at a commit inside the clone can be compared and
-any other reports `sha-not-local` through no fault of the fleet. Most installs read unverifiable
-right after a refresh (84 of 86 on 2026-10-04, #5941). The render says so alongside
-the match count rather than leading with the match count alone: a row with the unverifiable share
-when nothing is stale, and a sub-line under the finding when something is.
+description changes). So an install recorded at an older commit usually has no object in the clone
+to compare against. The checker therefore compares only records whose `gitCommitSha` is the
+clone's HEAD and gives every other record the `not-at-head` verdict, counted in `not_checked`. A
+deeper clone that does hold the older commit gets the same answer, so the report does not depend
+on clone depth. Expect a large `not_checked` share right after a refresh, through no fault of the
+fleet: on 2026-10-04 (#5941), 84 of 86 installs read `sha-not-local`, the verdict the check then
+gave a record whose commit the clone did not hold.
+
+`not_checked` is its own number. It is not a match, and it is not `unverifiable`, which counts the
+other verdicts where the audit looked and could not decide, such as no clone, no source at the
+recorded commit, or a broken hash batch. Neither is folded into either side. The render puts both beside the
+match count rather than leading with the match count alone: when nothing is stale, a row such as
+`Cache content: 2 of 86 user-scope install(s) compared, no disagreement found; 84 not checked
+(recorded at an older commit)`, and when something is, a sub-line under the finding giving the same
+tally.

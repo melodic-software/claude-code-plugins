@@ -240,18 +240,20 @@ fi
 if [[ "${CC_STUB_CLEAN:-0}" == "1" ]]; then
   cat <<JSON
 {"marketplace":"$mp","scope":"user","checked":1,"match":1,"stale_content":0,
- "unverifiable":0,"skipped_absent_project_paths":0,
+ "unverifiable":0,"not_checked":0,"skipped_absent_project_paths":0,
  "installs":[{"id":"alpha@$mp","version":"0.1.0","verdict":"match",
               "differing":0,"missing_from_cache":0,"extra_in_cache":0}]}
 JSON
   exit 0
 fi
 cat <<JSON
-{"marketplace":"$mp","scope":"user","checked":2,"match":1,"stale_content":1,
- "unverifiable":0,"skipped_absent_project_paths":0,
+{"marketplace":"$mp","scope":"user","checked":3,"match":1,"stale_content":1,
+ "unverifiable":0,"not_checked":1,"skipped_absent_project_paths":0,
  "installs":[{"id":"alpha@$mp","version":"0.1.0","verdict":"stale-content",
               "differing":2,"missing_from_cache":1,"extra_in_cache":1},
              {"id":"beta@$mp","version":"0.1.0","verdict":"match",
+              "differing":0,"missing_from_cache":0,"extra_in_cache":0},
+             {"id":"gamma@$mp","version":"0.1.0","verdict":"not-at-head",
               "differing":0,"missing_from_cache":0,"extra_in_cache":0}]}
 JSON
 exit 0
@@ -380,6 +382,8 @@ assert_eq "sync: only the stale install gets a per-id row" "1" \
   "$(jq -r '.marketplaces[0].cache_content.stale | length' <<<"$out")"
 assert_eq "sync: that row carries the id, its version, and the file count" "alpha@market1 0.1.0 4" \
   "$(jq -r '.marketplaces[0].cache_content.stale[0] | "\(.id) \(.version) \(.files_differ)"' <<<"$out")"
+assert_eq "sync: the not-checked count is carried apart from unverifiable" "1 0" \
+  "$(jq -r '.marketplaces[0].cache_content | "\(.not_checked) \(.unverifiable)"' <<<"$out")"
 assert_eq "sync: the update is reported as a forward move" "forward" \
   "$(jq -r '.marketplaces[0].user_sweep.updated[0].direction' <<<"$out")"
 assert_eq "sync: old version came from the pre-mutation snapshot" "0.1.0" \
@@ -2390,14 +2394,26 @@ assert_eq "cache scope: the always-zero project-path counter is not carried" "fa
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 0,
   "unverifiable": 3, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_contains "cache scope: the unverifiable-only row names user scope" "$cache_text" \
-  "Cache content: 3 of 10 user-scope install(s) unverifiable"
+  "Cache content: 7 of 10 user-scope install(s) compared, no disagreement found; 3 unverifiable, which is not a pass"
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 1,
   "unverifiable": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
   jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_contains "cache scope: the stale row names user scope" "$cache_text" \
   "Cache content: 1 user-scope install(s) whose cache files disagree"
-assert_contains "cache scope: the checked sub-line names user scope" "$cache_text" \
-  "(checked 10 user-scope install(s): 7 match, 2 unverifiable"
+assert_contains "cache scope: the tally sub-line names user scope" "$cache_text" \
+  "(of 10 user-scope install(s): 7 match, 2 unverifiable; unverifiable is not a pass)"
+# A record at a commit other than the clone's HEAD is not compared, and the row
+# says so in its own words rather than counting it unverifiable.
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 86, "match": 2, "stale_content": 0,
+  "unverifiable": 0, "not_checked": 84, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: not-checked-only row" "$cache_text" \
+  "Cache content: 2 of 86 user-scope install(s) compared, no disagreement found; 84 not checked (recorded at an older commit)"
+assert_not_contains "cache content: a not-checked record is not called unverifiable" "$cache_text" "unverifiable"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 6, "stale_content": 1,
+  "unverifiable": 1, "not_checked": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
+  jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: the tally sub-line under a finding names both counts" "$cache_text" \
+  "(of 10 user-scope install(s): 6 match, 1 unverifiable, 2 not checked (recorded at an older commit); unverifiable is not a pass)"
 assert_contains "cache content: a row without pending fragments keeps the repair" "$cache_text" \
   "Remediation: remove that version's directory"
 
