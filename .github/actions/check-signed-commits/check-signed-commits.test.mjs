@@ -443,7 +443,7 @@ function workflowJobs(name) {
       inPermissions = true;
       continue;
     }
-    if (/^\s+(?:-\s+)?uses:\s+["']?anthropics\/claude-code-action@/.test(line)) {
+    if (/^\s+(?:-\s+)?uses:\s+["']?(?:anthropics\/claude-code-action|melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli)@/.test(line)) {
       job.model = true;
     }
     if (/^\s+(?:-\s+)?uses:\s+["']?\.\/\.base\/\.github\/actions\/check-signed-commits["'\s]/.test(line)) {
@@ -457,13 +457,14 @@ function workflowJobs(name) {
   return jobs;
 }
 
-// claude-code-action passes the job's GITHUB_TOKEN to the model, so a job that
-// runs it holds contents and pull-requests read and no issues permission.
+// claude-code-action and run-claude-cli pass the job's GITHUB_TOKEN to the
+// model, so a job that runs either holds contents and pull-requests read and no
+// issues permission.
 for (const file of ["pr-run-activity-write.yml", "pr-run-activity-read.yml"]) {
   test(`${file}: no model job holds issues or a contents or pull-requests write`, () => {
     const jobs = [...workflowJobs(file)];
     const models = jobs.filter(([, job]) => job.model);
-    assert.ok(models.length > 0, "no job runs claude-code-action");
+    assert.ok(models.length > 0, "no job runs claude-code-action or run-claude-cli");
     for (const [name, job] of models) {
       assert.ok(job.permissions, `${name} declares no permissions map`);
       assert.equal(job.permissions.issues, undefined, `${name} holds issues`);

@@ -93,7 +93,8 @@ activities:
     # ran, a person gated it or a kept thread is a security or intent
     # finding (a write-access fix
     # request newer than the last round still runs one more round on its
-    # threads; other findings get one fresh fixer round, then wait), and
+    # threads; other findings get one fresh fixer round, then go to a person
+    # as feedback-not-converging), and
     # writes the thread file; the read runner
     # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
@@ -424,9 +425,10 @@ activities:
   label-unblocked:
     # When an issue closes (or, hourly, for each issue a listed human or a
     # merge closed in the last three hours), labels agent-ready each issue it
-    # blocked whose blockers are all closed as completed by a listed human or
-    # a merge, meaning a merged PR or a commit (a pull request blocker:
-    # merged; another repository's: never), that carries no
+    # blocked whose blockers are all closed, for any reason, by a listed human
+    # or a merge in this repository, meaning a merged PR or a commit (a pull
+    # request blocker: merged here; another repository's blocker: closed there
+    # by a listed human), oldest first, that carries no
     # hold label, and whose agent-ready label was never removed or was marked
     # `status: ready` by the lanes App or a listed human after its newest
     # removal. The label
@@ -441,11 +443,13 @@ activities:
     # admission rules, and admits it only on their admit verdict; a refusal
     # moves it to `status: needs-decision` with a comment. Hourly it also
     # re-fires an agent-ready issue left stranded (no run, or one that ended
-    # with no report, for three hours) once per version of the lane workflow
-    # files, then hands it to a person with needs-human and a comment; and it
-    # hands an agent-ready issue whose
-    # lanes-App PR merged with `Refs:` or closed unmerged to triage
-    # (needs-triage on, agent-ready off), lifting only the needs-human
+    # with no report, for three hours, and no open PR of the lanes App's or a
+    # listed human's for it) once per version of the lane workflow files, then
+    # on a backoff (three hours doubling, at most 24) with one comment it
+    # edits, never needs-human; and it hands an agent-ready issue whose
+    # lanes-App PR merged with `Refs:` or closed unmerged back to intake
+    # triage (`status: ready` and agent-ready off, which the hourly triage
+    # sweep dispatches intake for), lifting only the needs-human
     # report-outcome set for a Refs PR that merged or closed unmerged. A
     # script, no model.
     # .github/workflows/work-unblock.yml runs it.
@@ -669,6 +673,8 @@ models:
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
+    # An issue's code change, on run-claude-cli, which needs a model alias.
+    resolve-issue: code-fix
     # pr-unblock's read-only judge of a finding address-feedback disputed: at
     # least the review lanes' model, so a weaker model never overrules the
     # reviewer.
@@ -699,15 +705,17 @@ models:
           "85127655": knowable
           "85127656": unknown
     sizes:
-      # 75 turns is the cap every lane run had; 50 minutes covers the high
-      # factor at the 20 seconds a turn the old 75-turn, 25-minute run allowed.
+      # 75 turns is the cap every lane run had; a 50-minute leg covers the
+      # high factor at the 20 seconds a turn the old 75-turn, 25-minute run
+      # allowed, and the job holds 15 minutes more, for the steps around the
+      # launcher's leg (pr-run-activity-read.yml's launch step).
       small:
         base-turns: 75
-        timeout-minutes: 50
-      # Twice small's turns and time.
+        timeout-minutes: 65
+      # Twice small's turns and leg time.
       medium:
         base-turns: 150
-        timeout-minutes: 100
+        timeout-minutes: 115
       # Too big for one run: the lane skips it (split-required) before any
       # model turn, and triage sends it to /work-items:decompose.
       large: split

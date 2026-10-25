@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "I merge them myself when green with no hold: [h17] supersedes [h1].",
+      "why": "rule and source"
+    },
+    {
+      "answer": "The agent does, per [h17]: no routine owner merges, trust-path included, once ci-status is green and nothing holds it.",
+      "why": "full"
+    },
+    {
+      "answer": "I do: trust-path PRs merge like any other once ci-status is green on the head and nothing holds them; the owner-merges rule was replaced.",
+      "why": "content without a hop tag"
+    },
+    {
+      "answer": "I merge trust-path PRs myself once ci-status is green on the head and no hold applies; the old owner-merges rule is superseded.",
+      "why": "meets every part of the criterion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The owner merges trust-path PRs ([h1]).",
+      "why": "stale rule"
+    },
+    {
+      "answer": "I merge everything except trust-path PRs, which go to the owner.",
+      "why": "half the rule"
+    },
+    {
+      "answer": "Whoever is around; the handoff does not say.",
+      "why": "misses the rule"
+    },
+    {
+      "answer": "[h17]: the owner merges trust-path PRs once they are green.",
+      "why": "right tag, wrong content"
+    },
+    {
+      "answer": "Me. [h1] said the owner merges, but [h17] replaced it.",
+      "why": "does not state the condition: green ci-status on the head and no hold"
+    }
+  ]
+}

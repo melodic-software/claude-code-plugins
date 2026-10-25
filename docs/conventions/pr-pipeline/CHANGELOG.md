@@ -1,5 +1,40 @@
 # Changelog for the PR pipeline convention
 
+## [5.7.0] - 2026-10-25
+
+### Changed
+
+- Past the address-feedback round bound (`loop.review-rounds` plus the one fresh fixer round), a pull request whose open findings all come from the code review lane no longer skips `cost-gated` and waits with no label. It escalates `feedback-not-converging` with the human-gated label and a comment that names each open review thread and gives its own resume steps: resolve the open threads, or reply on one with a write-access fix request and dispatch the lane, since removing the label alone would stop again on the same head. No sweep, schedule or dispatch starts another automatic round; a write-access fix request still gets its own round, and a security or intent finding or a pull request a person gated still escalates `feedback-round-cap` (`.github/scripts/pr-unblock/address-feedback.mjs`, `.github/scripts/pr-unblock/report-escalation.sh`).
+- The address-feedback round marker reads `round <N> of max <M>`, M being the cap plus the fresh fixer's round, and a round-cap escalation's neutral `address-feedback` and `publish-feedback` checks add the same line to their summary through `report-check-run`'s new `not-run-detail` input, which shows only that line.
+
+- `work-resolve-issue`'s `resolve-issue` runs on ci-workflows' `run-claude-cli` instead of claude-code-action, on `ISSUE_LANE_CLAUDE_API_KEY` first, in `dontAsk` with an explicit allow list. When that call hands off (an empty key, a credit stop, or a 401 or 402), a new `resolve-issue-handoff` job reads so from the run's job conclusions through the shared `handoff-evidence.sh` and `resolve-issue-subscription` runs the activity again on `ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN`; every later job takes the call that ran. See [Issue mode](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#issue-mode).
+- On the launcher, an issue lane's check and verify-script wrappers are staged under `.lane/` (read-only, denied to the file tools), `issue.json` goes to the writable `.lane/scratch`, and its skill reads git only through a staged `git-read` wrapper that runs `git status`, `diff`, `log` and `show` and refuses options that write a file or read one outside the checkout. See [Two calls on one credential each](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#two-calls-on-one-credential-each).
+- The read runner's launcher step and leg timeouts now derive from the run job's `timeout-minutes` (10 and 15 minutes under it); the issue sizes' timeouts grow by 15 minutes (small 65, medium 115, 40 without dimensions) so each leg keeps the time its turn budget was set for, and a first call hands off on `run-claude-cli`'s `handoff` output, which adds a 401 or 402 to the credit stop, in PR mode too.
+- `resolve-issue` routes to the `code-fix` model profile, since the launcher needs a model alias; the reuse summary pass also runs on the launcher.
+- A run the launcher stopped at its leg timeout (class `timeout`) with no outcome of its own is now a turn-cap stop: it keeps `agent-ready`, work-unblock restarts it within `limits.turn-cap-restarts`, and the next run resumes its branch, instead of handing back as `stopped`.
+
+- An issue run of the read runner (`work-resolve-issue`'s `resolve-issue`) now hands its reply, run fields, patch and outcome files to the scan job only sealed to the scan-carrier key, as a PR-mode run does. The scan job opens them, scans them for credentials, and is the only job that uploads them; the run job uploads nothing and shows no model text in its step summary. See [The scan job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-scan-job).
+- The read runner's patch outputs now come from the scan job alone. Its issue outputs (`scan-issue-run-started`, `scan-reuse-branch`, `scan-resume-branch`, `scan-resume-tip`, `scan-base-sha`) come from a new `issue-fields` job, which runs whatever the run job's result, holds each run job field to its closed set and combinations, and re-derives any branch claim with the default-tip earlier-work check. `work-resolve-issue.yml` reads only these, and the reuse summary job takes its code from the default branch tip. The run-job-sourced `issue-run-started`, `reuse-branch`, `resume-branch`, `resume-tip` and `base-sha` outputs are removed.
+- The skill's `work-outcome.json` is cut at 48 KiB, down from 64 KiB, so every sealed payload at its cap still fits the five chunks a job's outputs hold.
+
+## [5.6.0] - 2026-10-25
+
+### Changed
+
+- work-unblock and the hourly triage sweep no longer stop an item for a person outside an intent or security question (owner intent, 2026-10-24):
+  - A stranded issue already re-fired on its lane workflow files, or a lane token request that keeps failing, is re-fired again on a backoff (three hours, doubling, at most 24) with one comment edited in place, never `needs-human`.
+  - A lanes App PR merged with `Refs:` or closed unmerged takes `status: ready` and `agent-ready` off and adds no `needs-triage`, so the triage sweep sends the issue back to intake, whose fresh `status: ready` re-admits it.
+  - A blocker closed by a listed human or a merge in this repository counts whatever its close reason, and another repository's blocker counts once a listed human closed it there (a merge there, or another repository's pull request blocker, never counts).
+  - A listed human's open pull request for an issue counts as work running on it, so work-unblock does not re-fire or relabel it.
+  - The triage sweep re-dispatches intake for any issue with no `status:` label and no `agent-ready` or person's hold, whatever comments intake left (an issue the lanes App opened included), and for a born-triaged issue in `status: ready` that nothing admitted. After two dispatches in one triage cycle (a work-unblock hand-back starts a new one) it labels the issue `needs-triage` and says so in its own comment on the issue, instead of filing a new issue, and later passes skip that issue unread while it carries `needs-triage`.
+  - Admission on a blocker's close takes the issues it would label oldest opened first (owner Q95) (`.github/scripts/work-unblock/label-unblocked.mjs`, `.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs`).
+
+## [5.5.1] - 2026-10-24
+
+### Fixed
+
+- A handoff job's log now shows the decision: `handoff-evidence.sh` prints one line naming each settled fact and the read count, such as `handoff evidence: posted=false allowed=true (1 read)`, before it exits successfully (`.github/scripts/lib/handoff-evidence.sh`).
+
 ## [5.5.0] - 2026-10-24
 
 ### Added
