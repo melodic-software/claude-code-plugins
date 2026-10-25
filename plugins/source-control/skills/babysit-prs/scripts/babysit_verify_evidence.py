@@ -1926,6 +1926,36 @@ def lane_risk_refusal(
     return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
 
 
+def lane_queue(
+    repo: str, branch: str, number: int, head: str, limit: int
+) -> dict[str, Any]:
+    """The merge queue's failed-check removals of `head` and whether pr-merge's
+    gate would enqueue it again under `merge.max-queue-ejections` `limit`
+    (`babysit_merge.queue_ejection_refusal`), with the gate's marked comment
+    (`queue_ejection_body`) when the cap refuses. A read that fails refuses
+    as the gate's unreadable hold, with no comment."""
+    # Imported here: babysit_merge imports this module.
+    import babysit_merge  # noqa: PLC0415
+
+    try:
+        queue = babysit_merge.read_merge_queue(repo, number)
+    except Exception:  # noqa: BLE001 - any doubt holds, as the gate's
+        queue = {"readError": "unreadable"}
+    count = None if queue.get("readError") else queue.get("failedEjections")
+    count = count if isinstance(count, int) else None
+    refusal = babysit_merge.queue_ejection_refusal(count, limit, head)
+    comment = None
+    if refusal is not None and count is not None:
+        runs = babysit_merge._failed_merge_group_runs(repo, branch, number)
+        comment = babysit_merge.queue_ejection_body(head, count, runs)
+    return {
+        "failedEjections": count,
+        "limit": limit,
+        "refusal": refusal,
+        "comment": comment,
+    }
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -1947,7 +1977,11 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
-    the pull request on its risk score (`lane_risk_refusal`), else why.
+    the pull request on its risk score (`lane_risk_refusal`), else why. With
+    `--lane-queue` too, a line whose `reviews` is null also carries `queue`
+    (`lane_queue`): the head's failed-check merge-queue removals, the
+    `merge.max-queue-ejections` limit, and the gate's refusal and comment at
+    or over it.
 
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now
@@ -1967,6 +2001,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--base-sha", default=None)
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("--lane-reviews", action="store_true")
+    cmd.add_argument("--lane-queue", action="store_true")
     cmd.add_argument("--rung", default=None)
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
@@ -2001,6 +2036,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         parser.error(
             "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
         )
+    if args.lane_queue and not (args.lane_reviews and args.base_sha):
+        # The reviews read checks the head the count is for and reads the limit.
+        parser.error("--lane-queue needs --lane-reviews and --base-sha")
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
     link: dict[str, Any] = {}
     config: merge_policy.PipelineConfig | None = None
@@ -2058,6 +2096,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                     config,
                     reader.linked_issue.get(args.number),
                 )
+            )
+        if args.lane_queue and link["reviews"] is None and config is not None:
+            link["queue"] = lane_queue(
+                args.repo,
+                args.branch,
+                args.number,
+                args.head,
+                config.max_queue_ejections,
             )
     print(json.dumps(evidence.report() | link))
     return 0

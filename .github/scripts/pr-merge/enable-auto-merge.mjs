@@ -72,6 +72,12 @@
 //   lane applied its hold label), a symlink, submodule or other non-regular
 //   mode, a high path, the manifest review, the trust gate and the cost
 //   review hold. Read only after the verdict allows.
+// - pr-merge's gate would enqueue its head again: `evidence --lane-queue`
+//   reads the gate's count of failed-check merge-queue removals since the
+//   head changed against merge.max-queue-ejections (ejectionHold). At the cap
+//   it is left unarmed with the gate's own marked comment and no label (a
+//   push resets the count); an unread count leaves it unarmed. GitHub drops
+//   the arm on an ejection, so an armed one is not disarmed on this.
 // A reader run that leaves a lanes App pull request unarmed, or disarms it,
 // on a hold path, a cost hold, the gate's verdict or its risk score says why
 // on the pull request, since under merge.lane-prs native the gate never
@@ -370,6 +376,20 @@ export function verifyClears(evidence, head) {
   return evidence.ineligible === null && typeof evidence.reviews === "string" ? "risk" : null;
 }
 
+// Why the gate would not enqueue the head again (`evidence --lane-queue`,
+// babysit_merge.queue_ejection_refusal: merge.max-queue-ejections failed-check
+// removals since the head changed), with the gate's marked comment when the
+// count was read, or null under the cap. An answer not of that shape holds.
+export function ejectionHold(evidence) {
+  const queue = evidence?.queue;
+  if (queue === null || typeof queue !== "object" || !(queue.refusal === null || typeof queue.refusal === "string")) {
+    return { reason: "its merge-queue ejections could not be read", comment: null };
+  }
+  return queue.refusal === null
+    ? null
+    : { reason: `pr-merge's gate would not enqueue it again (${escapeCommand(queue.refusal)})`, comment: typeof queue.comment === "string" ? queue.comment : null };
+}
+
 // The refusal comment on a lanes App pull request the run leaves unarmed:
 // pr-merge's reasons-comment marker and shape (babysit_merge.py
 // risk_comment_body), its second line naming the head, and for a person's
@@ -411,10 +431,11 @@ export function pinned(comments, bot, head) {
   return pin !== undefined && !pin.lastEditedAt && PIN_RE.exec(String(pin.body).split("\n", 1)[0].replace(/\r$/, ""))[1] === head;
 }
 
-// The lanes App's newest refusal comment in `comments` (DETAIL_QUERY's).
-function priorRefusal(comments, bot) {
+// The lanes App's newest comment in `comments` (DETAIL_QUERY's) whose first
+// or second line is `marker`, the refusal comment's by default.
+function priorRefusal(comments, bot, marker = REFUSAL_MARKER) {
   return (comments ?? [])
-    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && String(c.body ?? "").split("\n", 2).map((line) => line.replace(/\r$/, "")).includes(REFUSAL_MARKER))
+    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && String(c.body ?? "").split("\n", 2).map((line) => line.replace(/\r$/, "")).includes(marker))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
     .at(-1);
 }
@@ -438,7 +459,13 @@ export function riskEscalationMinutes(path) {
 // until its comment has stood unchanged for `minutes`, the gate's
 // escalation rule. Returns what it wrote, or null when the comment already
 // says this.
-export function refusalWrites(pull, comments, { clears, reason }, { bot, label, minutes, now }) {
+export function refusalWrites(pull, comments, { clears, reason, comment }, { bot, label, minutes, now }) {
+  // The gate's own marked comment (the queue-ejection one): edited in place,
+  // with no label, as babysit_merge.upsert_marker_comment writes it.
+  if (typeof comment === "string") {
+    const marked = priorRefusal(comments, bot, comment.split("\n", 1)[0]);
+    return marked?.body === comment ? null : { body: comment, commentId: marked?.databaseId ?? null, label: null };
+  }
   const prior = priorRefusal(comments, bot);
   const lane = refusalBody(false, reason, pull.headRefOid, label);
   const person = refusalBody(true, reason, pull.headRefOid, label);
@@ -521,7 +548,7 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
       throw new Error("its base commit is not a commit SHA");
     }
     // --base-sha: the gate's FAIL cap, the lower of the base's and main's.
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--lane-queue", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
     if (typeof rung === "string") {
       args.push("--rung", rung);
     }
@@ -644,6 +671,12 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (unverified !== null) {
     const clears = verifyClears(detail.verify, pull.headRefOid);
     return { action: armed ? "disarm" : "none", reason: unverified, ...(clears ? { clears } : {}) };
+  }
+  // GitHub drops the arm on an ejection, so only the lane's own arm is refused.
+  const ejected = armed ? null : ejectionHold(detail.verify);
+  if (ejected !== null) {
+    // A push resets the count: the lanes clear it, with the gate's comment.
+    return { action: "none", reason: ejected.reason, ...(ejected.comment ? { clears: "lane", comment: ejected.comment } : {}) };
   }
   return armed ? { action: "none", reason: "already armed" } : { action: "arm", reason: "no hold" };
 }
@@ -781,6 +814,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     for (const pull of pulls) {
       let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
       let clears;
+      let comment;
       let detail = null;
       // Checked before the reads, so a held lane spends none.
       const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
@@ -805,7 +839,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${describe(error)}`);
         }
-        ({ action, reason, clears } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
+        ({ action, reason, clears, comment } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
       if (action === "verify" && !reads) {
         ({ action, reason } =
@@ -821,7 +855,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
         }
-        ({ action, reason, clears } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+        ({ action, reason, clears, comment } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
       }
       // A pull request armed earlier in this run counts toward the cap.
       const full = action === "arm" ? roomHold(pull) : null;
@@ -835,7 +869,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         if (reason !== "not the lanes App's") {
           console.log(`enable-auto-merge: #${pull.number} left: ${escapeCommand(reason)}`);
         }
-        await note(pull, detail, { clears, reason });
+        await note(pull, detail, { clears, reason, comment });
         continue;
       }
       if (!write) {

@@ -3747,6 +3747,22 @@ def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] |
     ]
 
 
+def queue_ejection_refusal(ejections: int | None, limit: int, head: str) -> str | None:
+    """Why the gate does not enqueue `head` again, from its failed-check
+    removals since it last changed (`_failed_ejections`, None when unread)
+    and `merge.max-queue-ejections` `limit`, or None while under it.
+    enable-auto-merge.mjs refuses to arm on the same answer
+    (babysit_verify_evidence.py `evidence --lane-queue`)."""
+    if ejections is None:
+        return "the merge queue's removals of this head are unreadable"
+    if ejections >= limit:
+        return (
+            f"queue-ejected:{ejections} failed-check removals from the merge queue "
+            f"at head {head}; a push resets the count"
+        )
+    return None
+
+
 def queue_ejection_body(head: str, count: int, runs: list[str] | None) -> str:
     """The comment for a head the gate stopped enqueuing: a function of the
     head, the count and the runs read, so a rerun renders the same body."""
@@ -4215,9 +4231,10 @@ def unattended_enqueue(
     # same commits; only a push (which resets the count) can change that.
     ejections = queue.get("failedEjections")
     step["failedEjections"] = ejections
-    if ejections is None:
-        return hold("the merge queue's removals of this head are unreadable")
-    if ejections >= inputs["config"].max_queue_ejections:
+    ejected = queue_ejection_refusal(
+        ejections, inputs["config"].max_queue_ejections, pin
+    )
+    if ejected is not None and ejections is not None:
         # One marked comment, so fix-ci or a person sees why the lane stopped.
         try:
             step["ejectionComment"] = upsert_marker_comment(
@@ -4232,10 +4249,8 @@ def unattended_enqueue(
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             step["ejectionComment"] = f"error: {exc}"
-        return hold(
-            f"queue-ejected:{ejections} failed-check removals from the merge queue "
-            f"at head {pin}; a push resets the count"
-        )
+    if ejected is not None:
+        return hold(ejected)
     kill = merge_policy.kill_switch(
         repo,
         authority=str(inputs.get("authority")),
