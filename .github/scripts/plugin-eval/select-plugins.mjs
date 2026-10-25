@@ -20,9 +20,10 @@
 //   and --head in the git repository --repo, every frontmatter key outside
 //   SAFE_KEYS (hooks, allowed-tools, shell and the rest) and adds or changes
 //   no `!` shell-preprocessing line. Without --repo it cannot be read, so it
-//   is refused.
+//   is refused;
+// - no path is one git quoted (a leading `"`), whose real name is unknown.
 //
-// When a selected plugin breaks a rule, `<path>: <reason>` lines go to stderr
+// When a path breaks a rule, `<path>: <reason>` lines go to stderr
 // and the exit is 1. Exit 0 otherwise.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -55,7 +56,7 @@ export const SAFE_KEYS = new Set([
 const PREPROCESS = /!`|^\s*```!/;
 
 export const selectPlugins = (paths) =>
-  [...new Set(paths.map((path) => SUITE_PATH.exec(path.trim())?.[1]).filter((name) => name && !name.startsWith(".")))]
+  [...new Set(paths.map((path) => SUITE_PATH.exec(path)?.[1]).filter((name) => name && !name.startsWith(".")))]
     .sort()
     .map((name) => `plugins/${name}`);
 
@@ -115,7 +116,11 @@ export function proseRefusal(base, head) {
 // absent there, or undefined when nothing can be read.
 export function refusals(paths, plugins, read = () => undefined) {
   const out = [];
-  for (const path of paths.map((p) => p.trim())) {
+  for (const path of paths) {
+    if (path.startsWith('"')) {
+      out.push(`${path}: a quoted path cannot be checked`);
+      continue;
+    }
     const match = PLUGIN_PATH.exec(path);
     if (!match || !plugins.includes(`plugins/${match[1]}`)) {
       continue;
@@ -166,7 +171,7 @@ const gitShow = (repo, ref, path) => {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const { values } = parseArgs({ options: { repo: { type: "string" }, base: { type: "string" }, head: { type: "string" } } });
   const read = values.repo && values.base && values.head ? gitReader(values.repo, { base: values.base, head: values.head }) : undefined;
-  const paths = readFileSync(0, "utf8").split("\n").filter((path) => path.trim());
+  const paths = readFileSync(0, "utf8").split("\n").filter(Boolean);
   const selected = selectPlugins(paths);
   const refused = refusals(paths, selected, read);
   if (refused.length) {

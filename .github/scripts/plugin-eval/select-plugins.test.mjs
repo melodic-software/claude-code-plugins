@@ -58,6 +58,13 @@ test("a script that an unchanged hook calls, changed beside an eval, is refused"
   assert.match(out.stderr, /plugins\/x\/scripts\/h\.sh: outside/);
 });
 
+test("a path git quoted is refused, since its real name is unknown", () => {
+  const out = run('"plugins/x/hooks/h\\303\\251.sh"\nplugins/x/evals/c/prompt.md\n');
+  assert.equal(out.status, 1);
+  assert.equal(out.stdout, "");
+  assert.match(out.stderr, /quoted path/);
+});
+
 test("a non-markdown file under skills/ or agents/ is refused", () => {
   const out = run("plugins/x/skills/s/scripts/run.sh\nplugins/x/agents/helper.py\n");
   assert.equal(out.status, 1);
