@@ -2146,6 +2146,57 @@ test("a refusal whose log does not name the kill switch on the step's last line 
   assert.deepEqual(writes(unread.calls), refired(30));
 });
 
+// Run 40127232943 (issue #9696): broker-check's `Check the kill switch` read
+// the repository kill switch on, so its broker ask was skipped and the run
+// ended green with no job failed and no log naming the reason.
+const KILL_SKIPPED = [
+  ADMITTED,
+  pickSlot,
+  {
+    name: "resolve-issue / broker-check",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "skipped" },
+    ],
+  },
+  { name: "report-skip", conclusion: "skipped", steps: [] },
+  {
+    name: "resolve-issue / run",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Assert the broker allowed this attempt", conclusion: "skipped" },
+    ],
+  },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+test("a green run whose broker ask the kill switch skipped is a breaker trip, read from the job listing alone", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), []);
+  // Three hours on, it is still a trip, never stranded as a run with no report.
+  const late = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
+  assert.equal(await sweep({ github: late.github, actions: late.actions, now: Date.parse("2026-10-16T14:05:00Z") }), 0);
+  tripped(late.calls);
+});
+
+test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
+  const [kill, ask] = KILL_SKIPPED[2].steps;
+  const check = (steps) => ({ ...KILL_SKIPPED[2], steps });
+  for (const [name, broker] of [
+    ["kill-switch check skipped", check([{ ...kill, conclusion: "skipped" }, ask])],
+    ["no kill-switch check listed", check([ask])],
+    ["broker ask ran", check([kill, { ...ask, conclusion: "success" }])],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: [ADMITTED, pickSlot, broker, KILL_SKIPPED[4]], conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+  }
+});
+
 test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {
   for (const [name, jobs] of [
     ["stop step skipped", [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped")]],
@@ -2182,6 +2233,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
+  assert.ok(steps(read["broker-check"]).includes("Check the kill switch"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {
