@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-10-25
+
+### Added
+
+- **Routing eval: retrieval cases.** Six `rt-*` cases under `evals/routing/retrieval/` ask codebase-retrieval questions (locate code, trace callers, where something happens) about a pinned snapshot of the `multi-agent` and `evals` plugins, each graded by deterministic regex graders with must-pass and must-fail samples. Their README gives the arm configuration (model and effort level) for each setup the paired routing eval compares ([#10009](https://github.com/melodic-software/claude-code-plugins/issues/10009)).
+
 ## [0.13.2] - 2026-10-25
 
 ### Added
