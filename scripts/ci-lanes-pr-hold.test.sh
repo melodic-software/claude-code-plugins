@@ -9,7 +9,9 @@
 # newest comment saying not to merge, and a changed or renamed-from path
 # matching the merge lane's denied paths. It reads them live, on a pull
 # request event and in the merge queue, runs the base commit's
-# merge-holds.mjs, and fails closed when it cannot tell.
+# merge-holds.mjs, and fails closed when it cannot tell. In the merge queue it
+# also runs pr-merge's verdict reader (babysit_verify_evidence.py, stubbed
+# here) from main's checkout, whose FAIL refusals hold.
 # test-scope: .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
@@ -170,6 +172,38 @@ EOF
 printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
+# The verdict reader stub logs `reader <args>`, exits STUB_READER_RC when set,
+# and otherwise saves the run's listing as the reader does (unless
+# STUB_NO_LISTING is set): each STUB_ARTIFACTS name's artifacts, plus an
+# expired one of that name and an unexpired one whose name only starts with
+# it, both of run 11, which neither may count. It then prints STUB_EVIDENCE,
+# or by default a report with no refusal for the head it was given.
+cat >"$TMP_ROOT/reader.py" <<'EOF'
+import json, os, sys
+with open(os.environ["STUB_LOG"], "a") as log:
+    log.write("reader " + " ".join(sys.argv[1:]) + "\n")
+if os.environ.get("STUB_READER_RC"):
+    sys.exit(int(os.environ["STUB_READER_RC"]))
+if not os.environ.get("STUB_NO_LISTING"):
+    listing = []
+    for name, runs in json.loads(os.environ.get("STUB_ARTIFACTS") or "{}").items():
+        listing += [{"name": name, "id": run * 10, "expired": False, "workflow_run": {"id": run}} for run in runs]
+        listing += [{"name": name, "id": 110, "expired": True, "workflow_run": {"id": 11}},
+                    {"name": name + "-i1", "id": 110, "expired": False, "workflow_run": {"id": 11}}]
+    with open(os.environ["BABYSIT_VERIFY_LISTING"], "w") as out:
+        json.dump({"fetchedAt": "2026-10-25T10:00:00+00:00", "artifacts": listing}, out)
+print(os.environ.get("STUB_EVIDENCE") or json.dumps({"refusal": None, "head": sys.argv[-1], "detail": None}))
+EOF
+# The head-ref map stub logs `head-ref-map <args>` and fails when
+# STUB_MAP_FAILS is set, as a read that warns and writes nothing.
+mkdir -p "$TMP_ROOT/pr-merge"
+cat >"$TMP_ROOT/pr-merge/head-ref-map.mjs" <<'EOF'
+import { appendFileSync } from "node:fs";
+import process from "node:process";
+appendFileSync(process.env.STUB_LOG, `head-ref-map ${process.argv.slice(2).join(" ")}\n`);
+process.exitCode = process.env.STUB_MAP_FAILS ? 1 : 0;
+EOF
+
 SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
@@ -190,9 +224,11 @@ review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
+  rm -f "$TMP_ROOT/verify-listing.json"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL=http://127.0.0.1:9 RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
+    VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
     LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -238,6 +274,85 @@ if grep -qF 'LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}' <<<"$step" &&
   ok "the step reads both kill switches from the vars context"
 else
   fail "the step does not read both kill switches from the vars context"
+fi
+
+# THE QUEUE'S VERDICT READER IS MAIN'S, WARM FROM PR-MERGE'S LAST RUN: the
+# step runs babysit_verify_evidence.py and head-ref-map.mjs from the .base
+# checkout of the default branch, with the run cache the carry step starts
+# from pr-merge's carried reads.
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+for line in 'VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' \
+  'PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge' \
+  'ACTIONS_TOKEN: ${{ github.token }}' \
+  'BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json' \
+  'BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json' \
+  'HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json' \
+  'BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json' \
+  'API_BUDGET_TOKEN: github-token'; do
+  if grep -qxF "          $line" <<<"$step"; then
+    ok "the step sets $line"
+  else
+    fail "the step does not set $line"
+  fi
+done
+step_of() { awk -v name="      - name: $1" '$0 == name { on = 1; print; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW"; }
+base_step="$(step_of "Check out main's Node pin and verdict reader")"
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+if [[ "$base_step" == *'ref: ${{ github.event.repository.default_branch }}'* && "$base_step" == *"persist-credentials: false"* ]]; then
+  ok "the reader's checkout is the default branch, with no credential kept"
+else
+  fail "no default-branch checkout named 'Check out main's Node pin and verdict reader' without kept credentials"
+fi
+sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
+want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /plugins/source-control/lib/parse-concern-value.sh)
+# Every module head-ref-map.mjs and carry-run-cache.mjs import, transitively.
+queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
+while ((${#queue[@]})); do
+  file=${queue[0]}
+  queue=("${queue[@]:1}")
+  [[ " ${want_sparse[*]} " == *" /$file "* ]] && continue
+  want_sparse+=("/$file")
+  while read -r rel; do
+    queue+=("$(realpath -m --relative-to="$ROOT" "$ROOT/$(dirname "$file")/$rel")")
+  done < <(sed -nE 's/^import .* from "(\.[^"]+)";$/\1/p' "$ROOT/$file")
+done
+missing=()
+for path in "${want_sparse[@]}"; do
+  grep -qxF -- "$path" <<<"$sparse" || missing+=("$path")
+done
+if ((${#missing[@]} == 0)); then
+  ok "the reader's checkout holds the reader, its parser and every module the head-ref map and carry import"
+else
+  fail "the reader's checkout lacks: ${missing[*]}"
+fi
+restore="$(step_of "Restore the verdict reads pr-merge's last run kept")"
+carry="$(step_of "Start the run cache from them")"
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+queue_only='if: ${{ !cancelled() && github.event_name == '"'merge_group'"' }}'
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+if [[ "$restore" == *"uses: actions/cache/restore@"* && "$restore" == *"restore-keys: pr-merge-run-cache-"* &&
+  "$restore" == *'path: ${{ runner.temp }}/pr-merge-carried.json'* && "$restore" == *"continue-on-error: true"* &&
+  "$restore" == *"$queue_only"* ]]; then
+  ok "in the merge queue, pr-merge's carried reads are restored, and a miss only leaves the reader cold"
+else
+  fail "no merge_group-only, continue-on-error restore of pr-merge's carried reads"
+fi
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+if [[ "$carry" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs"* && "$carry" == *'CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json'* &&
+  "$carry" == *'CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json'* && "$carry" == *"continue-on-error: true"* &&
+  "$carry" == *"$queue_only"* ]]; then
+  ok "the carried reads start the reader's run cache, and a failure only leaves it empty"
+else
+  fail "no merge_group-only, continue-on-error carry into the reader's run cache"
+fi
+order="$(grep -nxF -e "      - name: Check out main's Node pin and verdict reader" -e "      - name: Restore the verdict reads pr-merge's last run kept" \
+  -e "      - name: Start the run cache from them" -e "      - name: $NAME" "$WORKFLOW" | cut -d: -f2- | sed 's/^      - name: //' | paste -sd'|')"
+if [[ "$order" == "Check out main's Node pin and verdict reader|Restore the verdict reads pr-merge's last run kept|Start the run cache from them|$NAME" ]]; then
+  ok "the checkout, the restore and the carry come before the step, in that order"
+else
+  fail "the reader's steps are out of order: $order"
 fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
@@ -351,8 +466,12 @@ run() { jq -nc --argjson id "$1" --arg path "${2:-.github/workflows/pr-verify.ym
     repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"}}'; }
 DIGEST="$(printf '%s' work-resolve-issue/issue-1 | sha256sum | cut -c1-16)"
 OLD=fedcba9876543210fedcba9876543210fedcba98
-# lookups: the artifact-by-name reads the last run made.
+# lookups: the artifact-by-name reads the last run made; readers: the verdict
+# reader runs; maps: the head-ref map reads; runs: the run reads.
 lookups() { grep -c 'actions/artifacts?name=' "$TMP_ROOT/log"; }
+readers() { grep -c '^reader ' "$TMP_ROOT/log"; }
+maps() { grep -c '^head-ref-map ' "$TMP_ROOT/log"; }
+runs() { grep -c 'actions/runs/' "$TMP_ROOT/log"; }
 STUB_RUNS="$(jq -sc 'map({(.id | tostring): .}) | add' <<<"$(run 11)
 $(run 12 .github/workflows/pr-verify.yml workflow_run main in_progress '')
 $(run 13 .github/workflows/other.yml)
@@ -365,7 +484,7 @@ export STUB_RUNS
 
 STUB_PULL="$(pull 'Closes #1')"
 expect "a pull request event reads no verdict" 0 3 "no hold path"
-if [[ "$(lookups)" -eq 0 ]] && ! grep -q 'actions/runs/' "$TMP_ROOT/log"; then
+if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]] && ! grep -q 'actions/runs/' "$TMP_ROOT/log"; then
   ok "a pull request event makes no verdict read, so pr-verify can follow a green ci-status"
 else
   fail "a pull request event read a verdict: '$(sort -u "$TMP_ROOT/log")'"
@@ -405,11 +524,38 @@ STUB_PULL="$(pull 'Closes #1')"
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
 export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 expect "in the merge queue, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-if [[ "$(lookups)" -eq 1 ]]; then
-  ok "a plain-named pass ends the lookup after one name"
+if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 1 ]]; then
+  ok "the pass comes from the reader's listing, with no lookup by name and one run read"
 else
-  fail "a plain-named pass took $(lookups) lookups"
+  fail "a plain-named pass took $(lookups) lookups and $(runs) run reads"
 fi
+if [[ "$(readers)" -eq 1 ]] && grep -qxF "reader evidence --repo o/r --base-sha $SHA 7 $SHA" "$TMP_ROOT/log"; then
+  ok "the queue runs the verdict reader once, for the pull request at its head, with the group's base for the FAIL cap"
+else
+  fail "the verdict reader ran as: '$(grep '^reader ' "$TMP_ROOT/log")'"
+fi
+if [[ "$(maps)" -eq 1 ]] && grep -qxF "head-ref-map read" "$TMP_ROOT/log" &&
+  [[ "$(grep -E '^(head-ref-map|reader) ' "$TMP_ROOT/log" | cut -d' ' -f1 | paste -sd' ')" == "head-ref-map reader" ]]; then
+  ok "the head-ref map is read once, before the reader"
+else
+  fail "the head-ref map was read as: '$(grep -E '^(head-ref-map|reader) ' "$TMP_ROOT/log")'"
+fi
+# THE READER'S FAIL REFUSALS HOLD (merge-holds.mjs evidenceHold).
+evidence() { jq -nc --arg refusal "$1" --arg head "${2:-$SHA}" '{refusal: $refusal, head: $head, detail: "why"}'; }
+for refusal in verify:fail verify:earlier-fail verify:repeated-fail verify:unreadable verify:too-old; do
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error::#7: pr-verify's reader refuses this head ($refusal: why)"
+done
+STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a refusal a pass decides is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:spec-changed)."
+STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
+STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
+  expect "in the merge queue, an approval of an earlier head lifts no FAIL hold" 1 3 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_EVIDENCE="$(jq -nc --arg head "$OLD" '{refusal: null, head: $head}')" expect "in the merge queue, a report for another head holds" 1 3 "its pr-verify FAILs could not be read"
+STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report holds" 1 3 "its pr-verify FAILs could not be read"
+STUB_READER_RC=1 expect "in the merge queue, a reader that fails fails closed" 1 3 "::error::babysit_verify_evidence.py could not judge #7 at $SHA"
+STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence verify:unreadable)" expect "in the merge queue, a reader that read no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
+STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS=''
 # The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
 # after arming to close or name another issue holds the group.
 NO_CLOSING='{"totalCount":0,"nodes":[]}'
@@ -435,10 +581,10 @@ STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes-$DIGEST\":[11]}"
 expect "in the merge queue, a digest-named pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
 STUB_ARTIFACTS='{}'
 expect "in the merge queue, no verdict fails the group" 1 3 "::error::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
-if [[ "$(lookups)" -eq 4 ]]; then
-  ok "no verdict looks up each pass name once"
+if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 ]]; then
+  ok "no verdict makes no lookup by name and no run read"
 else
-  fail "no verdict took $(lookups) lookups"
+  fail "no verdict took $(lookups) lookups and $(runs) run reads"
 fi
 STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11],\"pr-verify-7-$SHA-fail\":[11]}"
 expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 3 "pr-verify has not passed this head"
@@ -458,17 +604,17 @@ expect "in the merge queue, a failed run's pass does not hide a later name's goo
 # id: the lookup must not stop on it, so the later real pass is still read.
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[17],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
 expect "in the merge queue, another run's record does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
-if [[ "$(lookups)" -eq 2 ]]; then
+if [[ "$(runs)" -eq 2 ]]; then
   ok "a record whose run id differs from its artifact's does not end the lookup"
 else
-  fail "a mismatched run record ended the lookup after $(lookups) lookup(s)"
+  fail "a mismatched run record ended the lookup after $(runs) run read(s)"
 fi
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[13],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
 expect "in the merge queue, another workflow's successful run does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
-if [[ "$(lookups)" -eq 2 ]]; then
+if [[ "$(runs)" -eq 2 ]]; then
   ok "the lookup ends at the first name holding a pr-verify pass"
 else
-  fail "the lookup took $(lookups) lookups"
+  fail "the lookup took $(runs) run reads"
 fi
 STUB_ARTIFACTS='{}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
 expect "in the merge queue, a trusted approval of the head lifts a missing pass" 0 3 "no verifier hold: kyle-sexton approved this head"
@@ -481,15 +627,18 @@ STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11]}"
 expect "in the merge queue, a push after a pass fails the group on the new head" 1 3 "pr-verify has not passed this head"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "in the merge queue, a person's pull request reads no verdict" 0 0 "not the lanes App's"
-if [[ "$(lookups)" -eq 0 ]]; then
-  ok "a person's pull request makes no verdict lookup"
+if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]]; then
+  ok "a person's pull request makes no verdict lookup, reader run or head-ref map read"
 else
-  fail "a person's pull request made $(lookups) lookups"
+  fail "a person's pull request made $(lookups) lookups, $(readers) reader runs and $(maps) map reads"
 fi
 STUB_PULL="$(pull 'Closes #1')"
 printf 'console.log("#7: no body hold, no member veto and no hold path.");\n' >"$TMP_ROOT/old.mjs"
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}" STUB_MODULE="$TMP_ROOT/old.mjs"
 expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verifier verdict"
+printf 'console.log("#7: no body hold, no member veto and no hold path.");\nconsole.log("#7: no verifier hold: pr-verify passed this head.");\n' >"$TMP_ROOT/older.mjs"
+STUB_MODULE="$TMP_ROOT/older.mjs"
+expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
 unset STUB_MODULE
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"

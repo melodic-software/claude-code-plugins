@@ -98,7 +98,11 @@ error is read again after each of `LISTING_WAITS`, every read inside one gh
 timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
 included, is not. A failed listing is never saved, and is kept as well, so one
 outage refuses every entry of the gate run without paging again: it holds the
-whole queue rather than merging blind.
+whole queue rather than merging blind. `evidence --shared-listing`
+(enable-auto-merge.mjs's reader) takes the run's saved listing at any age and
+allows on it without listing again, so its run lists once: ci-status's
+merge-queue step runs this reader again, on a listing of its own, for a lanes
+App pull request at the head it merges.
 
 An untied FAIL's recorded head branch is read from the head-ref map pr-merge.yml
 names in `HEAD_REFS_ENV` before it is downloaded: artifact id to the head_ref
@@ -209,7 +213,8 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
-# The oldest listing any judgment uses, saved or in memory (see the bound).
+# The oldest listing a judgment uses, saved or in memory (see the bound),
+# unless `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
@@ -513,12 +518,15 @@ def _wall_clock() -> datetime:
     return datetime.now(UTC)
 
 
-def _recent(fetched_at: datetime | None) -> bool:
-    """A listing begun at most `LISTING_MAX_AGE` ago; a time with no zone, or
-    one in the future, is not."""
+def _recent(
+    fetched_at: datetime | None, max_age: timedelta | None = LISTING_MAX_AGE
+) -> bool:
+    """A listing begun at most `max_age` ago (None: any time before now); a
+    time with no zone, or one in the future, is not."""
     if fetched_at is None or fetched_at.tzinfo is None:
         return False
-    return timedelta(0) <= _wall_clock() - fetched_at <= LISTING_MAX_AGE
+    age = _wall_clock() - fetched_at
+    return timedelta(0) <= age and (max_age is None or age <= max_age)
 
 
 def dependency_bot(user: Any) -> bool:
@@ -705,6 +713,9 @@ class Reader:
     # the author a size split's sub-issue needs (`_split_child`); unset, no
     # sub-issue counts.
     agent_identity: str | None = None
+    # The oldest listing a judgment uses; None (`evidence --shared-listing`)
+    # takes the run's saved listing at any age.
+    listing_max_age: timedelta | None = LISTING_MAX_AGE
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -749,13 +760,15 @@ class Reader:
         return listing
 
     def _current_listing(self) -> list[dict[str, Any]]:
-        """Every repository artifact, read at most `LISTING_MAX_AGE` before
+        """Every repository artifact, read at most `listing_max_age` before
         this judgment (from the run's saved listing when it is that recent): a
         failed read is kept too, so one outage refuses each later entry
         without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
-        if self._artifacts is not None and _recent(self._fetched_at):
+        if self._artifacts is not None and _recent(
+            self._fetched_at, self.listing_max_age
+        ):
             return self._artifacts
         saved = None if self._own else self._load_saved()
         if saved is not None:
@@ -797,7 +810,7 @@ class Reader:
 
     def _load_saved(self) -> tuple[datetime, list[dict[str, Any]]] | None:
         """The run's saved listing and when it began to be read. A missing or
-        malformed file, or one with no `fetchedAt` within `LISTING_MAX_AGE`,
+        malformed file, or one with no `fetchedAt` within `listing_max_age`,
         is none, so the listing is read from the API instead."""
         if not self.listing_path:
             return None
@@ -810,7 +823,7 @@ class Reader:
             return None
         listing = saved.get("artifacts")
         if (
-            not _recent(fetched_at)
+            not _recent(fetched_at, self.listing_max_age)
             or not is_json_array(listing)
             or not all(map(is_json_object, listing))
         ):
@@ -1916,7 +1929,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     lower one (`with_default_branch`), each read once per run by commit
     (`merge_policy.config_at`); a config that cannot be read refuses
     `verify:unreadable`. A pass judged on the run's saved listing is judged
-    again on a listing of its own, as the gate does before it allows.
+    again on a listing of its own, as the gate does before it allows. With
+    `--shared-listing` the run's saved listing serves at any age, an allow
+    included: ci-status's merge-queue step runs this reader again at the head.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
     pull request's issue link is one the pr-merge lane takes
@@ -1945,6 +1960,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("--lane-reviews", action="store_true")
     cmd.add_argument("--rung", default=None)
+    cmd.add_argument("--shared-listing", action="store_true")
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     room = sub.add_parser("lane-room", allow_abbrev=False)
@@ -1979,6 +1995,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
         )
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
+    if args.shared_listing:
+        reader.listing_max_age = None
     link: dict[str, Any] = {}
     config: merge_policy.PipelineConfig | None = None
     if args.lane_link:
@@ -2008,7 +2026,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             print(json.dumps(refusal.report() | link))
             return 0
     evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved:
+    if evidence.refusal is None and reader.saved and not args.shared_listing:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:

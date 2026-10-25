@@ -1131,7 +1131,10 @@ and one error annotation and summary line naming each one still armed because it
 it posts no comment on the pull requests.
 Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
-saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and
+head-ref map and run cache and one artifact listing for the run, which its first pull request reads
+and every later one uses at any age, an allow included (`evidence --shared-listing`), since the
+merge queue runs the reader again at the head it merges; an event run reads no link or verdict,
+never arms, and
 only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
 turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
 armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
@@ -1186,14 +1189,28 @@ builds the group, and after a person lifts one with a later comment, `ci-status`
 
 In the merge queue the same step also requires a verifier pass at the queued pull request's live
 head: an unexpired `pr-verify-<pr>-<head>-pass` or `-pass-notes` artifact, with or without the
-head-branch digest, looked up by exact name and uploaded by a completed, successful
+head-branch digest, taken by exact name and uploaded by a completed, successful
 `workflow_run` run of `pr-verify.yml` on main here (`verdictHold` in `merge-holds.mjs`). Whatever
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
-verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
-`enable-auto-merge.mjs`'s, whose reader arms nothing they refuse.
+verdict, and a pull request event makes no verdict read.
+
+The queue also runs pr-merge's verdict reader, `babysit_verify_evidence.py evidence --base-sha`,
+from a checkout of main for the queued pull request at its live head, on a listing of its own, and
+holds on its report (`evidenceHold` in `merge-holds.mjs`): every FAIL class the gate counts (a FAIL
+at the head under any number, an earlier FAIL tied by number, commit or head branch, the
+`merge.max-verify-fails` cap with other pull requests' FAILs for its issues, an untied FAIL whose
+record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploaded after
+`enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
+(`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
+`linkHold`. The same trusted approval of the head lifts it. The pass names come from the reader's
+listing. The reader starts from pr-merge's head-ref map and carried run cache, so it reads only
+what landed since pr-merge's last run: about 73 requests for one pull request, where a cold reader
+makes about 860 (measured 2026-10-25 on 6,620 artifacts, 294 of them FAILs). A cache or map that
+does not read only leaves it cold. It reads with `ci-status`'s token, which holds no `issues`
+scope: an issue read that does not answer refuses `verify:unreadable`, which holds.
 
 ### Dependabot pull requests
 

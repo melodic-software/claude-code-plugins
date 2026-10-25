@@ -24,7 +24,9 @@ ENV = "BABYSIT_RUN_CACHE"
 # The oldest shared value that can change during a run, and the oldest
 # artifact listing the verdict reader judges on (judgment): pr-verify is not a
 # required check, so a queued entry whose FAIL lands mid-run must be held
-# before the merge queue can land it.
+# before the merge queue can land it. enable-auto-merge's reader lifts the
+# listing bound (`evidence --shared-listing`): ci-status runs the reader again
+# in the merge queue instead.
 MAX_AGE = timedelta(minutes=2)
 # What gh reads its credentials from: these variables and hosts.yml.
 CREDENTIAL_ENV = (
