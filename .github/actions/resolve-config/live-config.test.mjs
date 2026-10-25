@@ -379,16 +379,10 @@ test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the 
   assert.deepEqual(others, []);
 });
 
-// A domain list, not `any`, for resolve-issue: on the write path `any` also
-// grants the curl-based docs scripts. fix-docs reads any host from a job with
-// no write token, and the launcher stages no docs script.
-test("live config: resolve-issue reads official docs hosts only; review-dependency reads release-note hosts; no other activity, fix-docs included, reads the web", () => {
-  const web = selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"];
-  assert.notEqual(web.domains, "any");
-  assert.deepEqual(web, {
-    enabled: true,
-    domains: ["code.claude.com", "platform.claude.com", "docs.anthropic.com", "docs.github.com", "nodejs.org", "docs.python.org"],
-  });
+// resolve-issue reads any host: it runs on the launcher, which stages no
+// curl-based docs script, from a job with no write token.
+test("live config: resolve-issue reads any host; review-dependency reads release-note hosts; no other activity, fix-docs included, reads the web", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
   const doc = parse(FILES.config);
   assert.deepEqual(doc.activities["review-dependency"]["web-access"], {
     enabled: true,

@@ -1787,14 +1787,12 @@ def lane_risk_refusal(
     number: int,
     pr: dict[str, Any],
     config: merge_policy.PipelineConfig,
-    rung: str,
     issue: int | None,
 ) -> str | None:
     """Why pr-merge's gate would hold the pull request on its risk score, or
     None: `babysit_risk.score` and `holding` over the inputs the gate builds
-    (`babysit_merge.score_unattended`) for a lane pull request, class
-    `LANE_CLASS` at `rung`, with `config` the base's tightened by the
-    default branch head's. So the review lanes' evidence (an open CRITICAL
+    (`babysit_merge.score_unattended`) for a lane pull request, with `config`
+    the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
     security finding, a review not bound to the head), a symlink, submodule
     or other non-regular mode, a high path, the manifest review, the trust
     gate and the cost review all hold, the cost review lifted only by the
@@ -1824,18 +1822,14 @@ def lane_risk_refusal(
         files = merge_policy.with_contents(repo, pr, files)
         private = json_object(json_object(pr.get("base")).get("repo")).get("private")
         risk_input = babysit_risk.RiskInput(
-            work_class=merge_policy.LANE_CLASS,
-            rung=babysit_risk.Rung[rung.upper()],
             files=files,
             files_complete=complete,
             max_changed_lines=config.max_changed_lines,
             high_paths=config.denied_paths,
             lanes=lanes,
-            blast_radius=None,
             public=True if private is False else None,
             pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
             high_floor=config.high_path_floor,
-            c2_contradictions=config.c2_contradictions,
             max_changed_files=config.max_changed_files,
             lines_optional=True,
         )
@@ -1981,7 +1975,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                     args.number,
                     json_object(pr),
                     config,
-                    rung,
                     reader.linked_issue.get(args.number),
                 )
             )

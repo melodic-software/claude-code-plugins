@@ -58,9 +58,9 @@ class Wanted(unittest.TestCase):
         self.assertFalse(wr.wanted(None, result(HIGH, other), (CLEAN, CLEARS)))
 
     def test_a_reason_that_does_not_hold_leaves_the_findings_alone(self) -> None:
-        # blast-radius-missing does not hold, so the finding is the only hold
-        # and a whole review can clear it.
-        other = risk.Reason("blast-radius-missing", risk.Risk.MED, "C3 unrated")
+        # lines-over does not hold, so the finding is the only hold and a
+        # whole review can clear it.
+        other = risk.Reason("lines-over", risk.Risk.MED, "201 > 200")
         self.assertTrue(wr.wanted(None, result(HIGH, other), (CLEAN, CLEARS)))
 
     def test_a_lane_whose_findings_a_whole_review_cannot_close(self) -> None:

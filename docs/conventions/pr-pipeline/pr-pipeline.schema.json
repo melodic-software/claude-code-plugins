@@ -902,7 +902,7 @@
         "rung": {
           "enum": ["off", "C2", "C3"],
           "default": "off",
-          "description": "Highest work class the merge authority merges. C1 produces no PR; C4 and C5 need a human (README.md, Merge authority)."
+          "description": "Pacing cap for the merge authority: off merges nothing without a human; C2 or C3 lets it merge. No work class is read; the only class-named check is the local babysit lane's untrusted-provenance hold (README.md, Merge authority)."
         },
         "authority": {
           "enum": ["local-babysit", "pr-merge"],
@@ -1036,7 +1036,8 @@
             "c2-contradictions": {
               "type": "boolean",
               "default": false,
-              "description": "pr-merge lane only: true scores a C2 diff that removes, renames or copies a file, changes a schema, or spans plugins MED. Absent or false: not checked. The local babysit lane always checks."
+              "deprecated": true,
+              "description": "Deprecated, no effect: the risk score reads no work class, so nothing checks a diff against C2. Still accepted so existing configs validate."
             }
           }
         },
