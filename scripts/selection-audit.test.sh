@@ -163,6 +163,23 @@ EOF
   else
     fail "trace: ci.yml-named fallback exit $rc, want 0"
   fi
+
+  # A Python suite runs under scripts/lib/pytest-python.sh's choice: here the
+  # checkout's setup-env venv, whose python imports pytest and logs its run.
+  echo 'def test_v(): pass' >"$t/suites/test_v.py"
+  mkdir -p "$t/.work/venv/bin"
+  # shellcheck disable=SC2016 # the stub's $1 is its own argument, written literally
+  printf '%s\n' '#!/usr/bin/env bash' '[[ $1 == -I ]] && exit 0' "echo \"\$*\" >>'$TMP_ROOT/venv.log'" \
+    >"$t/.work/venv/bin/python"
+  chmod +x "$t/.work/venv/bin/python"
+  rc=0
+  (cd "$t" && env -u SETUP_ENV_VENV SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" \
+    bash "$AUDIT" trace --out "$TMP_ROOT/out-py" suites/test_v.py) >/dev/null 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 && "$(cat "$TMP_ROOT/venv.log" 2>/dev/null)" == "-m pytest -q -p no:cacheprovider suites/test_v.py" ]]; then
+    ok "trace: a Python suite runs under the setup-env venv's python when python3 is not the pick"
+  else
+    fail "trace: Python suite exit $rc, venv log [$(cat "$TMP_ROOT/venv.log" 2>/dev/null)]"
+  fi
 fi
 
 # --- replay: verdict per commit ------------------------------------------------
