@@ -62,14 +62,15 @@
 # branch needs no local ref. A babysit worker's worktree pushes this way.
 #
 # The branch it would push (named, current, or the --pr head) refuses when it is
-# the push remote's default branch (<remote>/HEAD; with that unset, main and
-# master refuse).
+# main, master, or the push remote's default branch as `git ls-remote --symref`
+# reports it; a failed ls-remote refuses too. `--check` runs only that check
+# (create.md calls it before opening a PR) and pushes nothing.
 #
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
 # above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
 # block below), and --pr for a fork head needs --dir.
 #
-# Usage: push-branch.sh [--dir <checkout>] [branch-name | --pr <number>]
+# Usage: push-branch.sh [--check] [--dir <checkout>] [branch-name | --pr <number>]
 #   (options in any order; defaults to the current branch; any other argument
 #   refuses)
 set -uo pipefail
@@ -84,8 +85,13 @@ BRANCH=""
 PR=""
 HAS_DIR=""
 HAS_PR=""
+CHECK=""
 while (($#)); do
   case "$1" in
+    --check)
+      CHECK=1
+      shift
+      ;;
     --dir | --pr)
       if [[ $# -lt 2 || ("$1" == --dir && -n "$HAS_DIR") || ("$1" == --pr && -n "$HAS_PR") ]]; then
         echo "push-branch.sh: $1 needs one value and is given once; not pushing" >&2
@@ -139,6 +145,38 @@ if [[ -n "$HAS_PR" ]]; then
   fi
 elif [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
+fi
+
+# refuse_default <remote> <branch>: exit 1 when <branch> is main, master, or
+# <remote>'s default branch. The default is read from the remote itself
+# (`ls-remote --symref`), never the local <remote>/HEAD, which can be unset or
+# stale. A failed read refuses; an empty remote has no HEAD, so only main and
+# master refuse there.
+refuse_default() {
+  local out default
+  if ! out=$(git ls-remote --symref "$1" HEAD 2>/dev/null); then
+    echo "push-branch.sh: the default branch of $1 could not be read (git ls-remote failed); not pushing" >&2
+    exit 1
+  fi
+  default=$(sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}")
+  if [[ -n "$default" && "$2" == "$default" ]]; then
+    echo "push-branch.sh: '$2' is the default branch of $1; not pushing" >&2
+    exit 1
+  fi
+  if [[ "$2" == main || "$2" == master ]]; then
+    echo "push-branch.sh: '$2' is refused (main and master are always refused); not pushing" >&2
+    exit 1
+  fi
+}
+
+if [[ -n "$CHECK" ]]; then
+  if [[ -z "$BRANCH" ]]; then
+    echo "push-branch.sh: no branch to check (detached HEAD?); not pushing" >&2
+    exit 1
+  fi
+  CHECK_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
+  refuse_default "$CHECK_REMOTE" "$BRANCH"
+  exit 0
 fi
 
 # Inside a lane, hand the push to lane-push.sh (loop-lane convention, "Lane
@@ -205,21 +243,9 @@ if [[ "$ACTING" == *"[bot]" ]]; then
 fi
 
 PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
-# Never push the push remote's default branch (a cwd that reset to the main
-# checkout would otherwise push main). The default is <remote>/HEAD; with that
-# unset, main and master refuse.
-if [[ -n "$BRANCH" ]]; then
-  DEFAULT=$(git symbolic-ref -q "refs/remotes/$PUSH_REMOTE/HEAD" 2>/dev/null | tr -d '\r')
-  DEFAULT="${DEFAULT#"refs/remotes/$PUSH_REMOTE/"}"
-  if [[ -n "$DEFAULT" && "$BRANCH" == "$DEFAULT" ]]; then
-    echo "push-branch.sh: '$BRANCH' is the default branch of $PUSH_REMOTE; not pushing" >&2
-    exit 1
-  fi
-  if [[ -z "$DEFAULT" && ("$BRANCH" == main || "$BRANCH" == master) ]]; then
-    echo "push-branch.sh: '$BRANCH' may be the default branch of $PUSH_REMOTE ($PUSH_REMOTE/HEAD is unset, so main and master are refused); not pushing" >&2
-    exit 1
-  fi
-fi
+# Never push main, master or the push remote's default branch (a cwd that reset
+# to the main checkout would otherwise push main).
+[[ -z "$BRANCH" ]] || refuse_default "$PUSH_REMOTE" "$BRANCH"
 # A same-named local branch is not the PR's head unless every URL the push
 # writes to is the PR's head repository on github.com (a fork PR's head lives
 # on the fork). The URLs are read after insteadOf rewriting, as git pushes them.

@@ -523,18 +523,9 @@ if [[ -z "$BRANCH" ]]; then
   echo "create: '<checkout>' is not on a named branch (detached HEAD?); not creating a PR" >&2
   exit 1
 fi
-# The default-branch check push-branch.sh makes: <remote>/HEAD, else main and master.
-REMOTE=$(cd "<checkout>" && bash "<skill-dir>/scripts/resolve-remote.sh" --push "$BRANCH") || exit 1
-DEFAULT=$(git -C "<checkout>" symbolic-ref -q "refs/remotes/$REMOTE/HEAD" | tr -d '\r')
-DEFAULT="${DEFAULT#"refs/remotes/$REMOTE/"}"
-if [[ -n "$DEFAULT" && "$BRANCH" == "$DEFAULT" ]]; then
-  echo "create: '$BRANCH' is the default branch of $REMOTE; not creating a PR" >&2
-  exit 1
-fi
-if [[ -z "$DEFAULT" && ("$BRANCH" == main || "$BRANCH" == master) ]]; then
-  echo "create: '$BRANCH' may be the default branch of $REMOTE ($REMOTE/HEAD is unset, so main and master are refused); not creating a PR" >&2
-  exit 1
-fi
+# push-branch.sh's own check, pushing nothing: refuses main, master, the push
+# remote's default branch as the remote reports it, and an unreadable default.
+bash "<skill-dir>/scripts/push-branch.sh" --check --dir "<checkout>" "$BRANCH" || exit 1
 ```
 
 Then open the PR as a draft from head `$BRANCH`, with the title and the body file, and capture `PR_URL` and `PR_NUMBER`
