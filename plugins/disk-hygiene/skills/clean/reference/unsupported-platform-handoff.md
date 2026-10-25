@@ -221,8 +221,8 @@ So the deny-by-default Bash lane and the PowerShell deletion prompts keep applyi
 unrelated later work in the same process, not only to this cleanup. Say so when a later,
 unrelated command is blocked or prompted, rather than treating it as a surprise.
 
-They do **not** survive a resume: after `claude -p --resume` the belt was absent and a PowerShell
-delete the user had approved before the resume ran unprompted
+They do **not** survive a resume: after `claude -p --resume` the belt was absent and an approved
+PowerShell delete ran unprompted in the resumed process
 ([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853)). Run each approved
 manual-lane delete in the same process that ran the skill. When a session resumed after this skill
 ran, the plugin's resume notice says so at session start: make no delete or overwrite until the user

@@ -16,9 +16,10 @@
 // It always exits 0 and prints nothing unless the source is `resume` and a
 // marker exists. Candidates mirror run-python-hook.sh's `_marker_candidates`:
 // the marker root, then (off Windows) `${TMPDIR:-/tmp}/disk-hygiene-clean-invoked`.
-// On Windows the bash fallback tmp directory is not one node can name, so only
-// the marker root counts there, as in exec-bash.mjs's marker check.
-import { existsSync, readFileSync } from 'node:fs'
+// On Windows the launcher's tmp fallback is a Git Bash path this script does
+// not resolve, so only the marker root counts there; with
+// ${CLAUDE_PLUGIN_DATA} expanded the launcher writes the marker root first.
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -65,8 +66,16 @@ function main(argv) {
   if (out) process.stdout.write(`${JSON.stringify(out)}\n`)
 }
 
-const fold = (p) => (process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p))
-if (process.argv[1] && fold(fileURLToPath(import.meta.url)) === fold(process.argv[1])) {
+// Node realpaths the main entry, so compare real paths: a launch through a
+// symlinked or junctioned plugin path must still reach main().
+function realPath(p) {
+  try {
+    return realpathSync(p)
+  } catch {
+    return resolve(p)
+  }
+}
+if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
   try {
     main(process.argv.slice(2))
   } catch {

@@ -4,7 +4,7 @@
 // and every other session start stays quiet.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -129,6 +129,19 @@ test('the registered rows: the notice fires only after /disk-hygiene:clean expan
     assert.equal(quiet.status, 0, quiet.stderr)
     assert.equal(quiet.stdout, '', JSON.stringify(payload))
   }
+})
+
+test('a launch through a symlinked plugin path still prints the notice', (t) => {
+  const data = scratch(t)
+  mark(data, 'sess-link')
+  const link = join(data, 'plugin-link')
+  symlinkSync(pluginRoot, link, 'junction')
+  const r = spawnSync('node', [join(link, 'hooks', 'resume-notice.mjs'), '--marker-root', data], {
+    input: JSON.stringify({ session_id: 'sess-link', source: 'resume' }),
+    encoding: 'utf8',
+  })
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(JSON.parse(r.stdout).hookSpecificOutput.additionalContext, NOTICE)
 })
 
 test('a malformed payload exits 0 and prints nothing', () => {

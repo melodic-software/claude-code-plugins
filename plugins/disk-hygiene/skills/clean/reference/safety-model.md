@@ -617,7 +617,9 @@ also writes a per-session marker (`clean-invoked/<session_id>.launched` under th
 directory, through the launcher's `--launch-marker`), and on a `SessionStart` whose `source` is
 `resume` the plugin's existing `SessionStart` entry (`hooks/resume-notice.mjs`) finds that marker and
 tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again, which
-registers the belt again. It relies on the model following the notice. A forked session and `/clear`
+registers the belt again. It relies on the model following the notice. The marker is written before
+the launcher resolves Python, so an expansion blocked for want of an interpreter still leaves it, and a
+later resume still warns; that errs toward no deletes. A forked session and `/clear`
 start a new session id, so the marker does not carry over and no notice fires; whether the belt itself
 survives `/clear` or compaction in the same process was not probed.
 
