@@ -223,6 +223,16 @@ def block($d):
                 else empty end)] | join("; ")) as $parts
            | "Divergences: \($parts) (of \($v.post) in all: \($intervals))"
          end),
+      # One sub-line per project path holding a skewed record, so the count names where
+      # the work is. A path converge cannot act on says why; a digest written before
+      # `class` renders every path bare. A digest written before `by_path` renders the
+      # count line alone.
+      ((.divergences.by_path // [])[]
+       | "  - \(.path)"
+         + (if .class == "blocked" then " (not present)"
+            elif .class == "worktree" then " (linked worktree)" else "" end)
+         + ": \(.count) diverging record(s): \(.ids | join(", "))"
+         + (if (.more // 0) > 0 then ", +\(.more) more" else "" end)),
 
       # The digest names this plugin's own row; a digest written before it did
       # carries no row, so the note names no plugin rather than guess one.
@@ -279,7 +289,13 @@ def block($d):
            "Cache content: \($c.stale_content) \($installs) whose cache files disagree with their recorded gitCommitSha",
            ($c.stale[] | (if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end)
                          + (if .unreleased_changes == true then " (unreleased changes pending)" else "" end)),
-           (if ($c.unverifiable // 0) > 0 then "  (checked \($c.checked) \($installs): \($c.match) match, \($c.unverifiable) unverifiable; unverifiable is not a pass)" else empty end),
+           (if ($c.unverifiable // 0) > 0 or ($c.not_checked // 0) > 0 then
+              "  (of \($c.checked) \($installs): \($c.match) match"
+              + (if ($c.unverifiable // 0) > 0 then ", \($c.unverifiable) unverifiable" else "" end)
+              + (if ($c.not_checked // 0) > 0 then ", \($c.not_checked) not checked (recorded at an older commit)" else "" end)
+              + (if ($c.unverifiable // 0) > 0 then "; unverifiable is not a pass" else "" end)
+              + ")"
+            else empty end),
            (if any($c.stale[]; .unreleased_changes == true) then
               "  Unreleased changes pending: the marketplace holds changelog fragments for that plugin, so its files",
               "  changed without a version bump; its next release brings the cache up to date. Leave its cache alone."
@@ -288,8 +304,10 @@ def block($d):
               "  Remediation\(if any($c.stale[]; .unreleased_changes == true) then ", for the rows not marked unreleased" else "" end): remove that version's directory under the plugin cache, then re-run",
               "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
             else empty end)
-         elif ($c.unverifiable // 0) > 0 then
-           "Cache content: \($c.unverifiable) of \($c.checked) \($installs) unverifiable (recorded commit not in the local marketplace clone); no disagreement found among the rest"
+         elif ($c.unverifiable // 0) > 0 or ($c.not_checked // 0) > 0 then
+           "Cache content: \($c.match) of \($c.checked) \($installs) compared, no disagreement found"
+           + (if ($c.not_checked // 0) > 0 then "; \($c.not_checked) not checked (recorded at an older commit)" else "" end)
+           + (if ($c.unverifiable // 0) > 0 then "; \($c.unverifiable) unverifiable, which is not a pass" else "" end)
          else empty end),
 
       (if $t == null then "Timing: n/a"
@@ -381,6 +399,10 @@ def block($d):
     (if $d.mode == "audit" then "Run: audit scratch directory, removed on exit"
      else "Run journal: \($d.run_dir)" end),
     "Timing: \($d.timings.total | secs) run total"
+    # A re-entry digest times both passes; the marketplace rows above time the
+    # re-entry alone.
+    + (if ($d.timings.passes // null) == null then ""
+       else " over both passes (first pass \($d.timings.passes[0].total | secs), --only-install re-entry \($d.timings.passes[1].total | secs); the wait between them is not counted)" end)
     + (if $d.timings.outside_marketplaces == null then ""
        else "; \($d.timings.outside_marketplaces)s outside the marketplace blocks" end)
     + "; clock resolution: \($d.timings.resolution)",

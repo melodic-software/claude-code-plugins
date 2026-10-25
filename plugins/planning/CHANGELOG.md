@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.101.1] - 2026-10-25
+
+### Fixed
+
+- **`interview` surface:** `export-brief` no longer drops three sections of a confirmed restatement. Its `decisions` recap becomes a `### Decisions` section, and its `deferred` and `planningOwned` bullets join `### Deferred questions` after the register's retired rows, tagged **arbiter: /planning:plan**, or **arbiter: USER-RESERVED** when a bullet leads with a user-reserved row's `Q<N>` or says USER-RESERVED, so `/planning:plan` sees them ([#9895](https://github.com/melodic-software/claude-code-plugins/issues/9895)).
+
 ## [0.101.0] - 2026-10-25
 
 ### Added
