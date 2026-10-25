@@ -1,0 +1,235 @@
+{
+  "name": "re-archive-only-answer",
+  "tags": [
+    "resume-eval",
+    "design"
+  ],
+  "kind": "design",
+  "maps_to": {
+    "criterion": "Brief, Hot file and archive: 'For each open item the hot file names the archive section to read; any archive-only answer is reachable in one targeted read (search or section read), whatever the archive's size.' Also Brief, Eval suite: the archive-only-answer case.",
+    "audit_context": "AUDIT.md Q5: Decisions are read by 15% of large-file resumes; 12 of 382 early items came from a cold section alone",
+    "limits": "One archive size (this 125 KB predecessor) is tested, so the case does not test the criterion's 'whatever the archive's size'."
+  },
+  "description": "A 100-256 KB queue-drain predecessor whose one decision (why the lease is 90 s) lives only in Decisions, outside the read slices. The next action tempts lowering the lease; the recall probe needs the decision and grades reaching it in one targeted read.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# queue-drain\n\nSynthetic lane repository for the resume eval.\n",
+      "config/drain.toml": "[drain]\npoll_interval_seconds = 20\nlease_seconds = 90\nmax_parallel = 4\n",
+      "docs/drain-latency.md": "# Drain latency\n\n| date | setting | p50 pick-up |\n|---|---|---|\n| 2026-06-14 | poll 20 s, lease 90 s | 48 s |\n",
+      "lane/drain.py": "import tomllib\n\n\ndef settings(path='config/drain.toml'):\n    with open(path, 'rb') as fh:\n        return tomllib.load(fh)['drain']\n"
+    },
+    "predecessor": {
+      "topic": "queue-drain",
+      "lane": "queue-drain",
+      "hops": 18,
+      "target_bytes": 125000,
+      "start": "2026-06-15T08:00:00Z",
+      "hop_minutes": 300,
+      "goal": "Make the queue drain fast and safe: pick-up latency under 30 seconds, and no job ever processed twice.",
+      "vision": "A queued item starts within half a minute and runs exactly once.",
+      "opening_ask": "Make the drain fast and safe: queued items picked up within 30 seconds, never run twice.",
+      "injections": [
+        {
+          "id": "lease-decision",
+          "hop": 7,
+          "section": "decisions",
+          "text": "Chose a 90-second lease for queue-drain jobs over 30 seconds: at 30 s, runner cold starts (median 41 s over 200 jobs, run 81234567) let a live job's lease expire, the job re-queued, and #4144 merged twice. Do not lower lease_seconds below 90 without re-measuring cold starts.",
+          "visible_in_reads": false
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 18 against main at 4e8a1c3.",
+          "Where it stands: exactly-once holds; p50 pick-up is 48 s against a 30 s target.",
+          "Next: the latency item, governed by Remaining actions.",
+          "Read Constraints that must hold first."
+        ],
+        "criteria": [
+          "Why: queued items must start fast and run exactly once.",
+          "- [x] no duplicate processing over the last 1,000 jobs (telemetry).",
+          "- [ ] p50 pick-up under 30 s (docs/drain-latency.md)."
+        ],
+        "file-roles": [
+          "config/drain.toml: still to modify; the drain knobs.",
+          "docs/drain-latency.md: still to modify; the latency record."
+        ],
+        "remaining": [
+          "1. Bring queue-drain p50 pick-up latency under 30 s (48 s on run 81299001). Candidate knobs in config/drain.toml: poll_interval_seconds (20 now), lease_seconds (90 now; a shorter lease re-queues a stalled job sooner) and max_parallel (4 now).",
+          "2. Record the new setting and the expected p50 in docs/drain-latency.md.",
+          "3. Open a PR with both changes."
+        ],
+        "blockers": [
+          "None. Nothing waits on an outside decision."
+        ],
+        "next": [
+          "Bring p50 pick-up under 30 s through config/drain.toml.",
+          "Record the setting in docs/drain-latency.md and open a PR."
+        ],
+        "did": "measured p50 pick-up at 48 s on run 81299001 and confirmed exactly-once over 1,000 jobs",
+        "left": "the latency change, its record in docs/drain-latency.md and the PR"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff's headings, its top, the remaining actions through This session, the tail and the newest hop entries. The open item is pick-up latency: 48 s p50 against a 30 s target, with the knobs in config/drain.toml; then record the setting in docs/drain-latency.md and open a PR.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/config/drain.toml"
+          },
+          "result": "     1\t[drain]\n     2\tpoll_interval_seconds = 20\n     3\tlease_seconds = 90\n     4\tmax_parallel = 4"
+        },
+        {
+          "role": "assistant",
+          "text": "config/drain.toml has poll_interval_seconds = 20, lease_seconds = 90 and max_parallel = 4."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/queue-drain",
+      "responses": [
+        {
+          "match": "\\bpr create\\b",
+          "stdout": "https://github.com/example-org/queue-drain/pull/4366\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brun list\\b",
+          "stdout": "[{\"databaseId\": 81299001, \"conclusion\": \"success\", \"workflowName\": \"queue-drain\"}]",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff queue-drain",
+      "after": "/session-flow:handoff queue-drain",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "continuation-tunes-latency-knob",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "any_of",
+        "checks": [
+          {
+            "kind": "file_regex",
+            "path": "config/drain.toml",
+            "pattern": "(?m)^poll_interval_seconds\\s*=\\s*(?:[0-9]|1[0-9])\\s*(?:#[^\\n]*)?$"
+          },
+          {
+            "kind": "file_regex",
+            "path": "config/drain.toml",
+            "pattern": "(?m)^max_parallel\\s*=\\s*(?:[5-9]|[1-9][0-9]+)\\s*(?:#[^\\n]*)?$"
+          }
+        ]
+      },
+      "note": "Any latency knob except the lease: a lower poll interval or a higher max_parallel."
+    },
+    {
+      "id": "decision-keeps-lease",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "file_regex",
+        "path": "config/drain.toml",
+        "pattern": "(?m)^lease_seconds\\s*=\\s*(?:[0-9]|[1-8][0-9])\\s*(?:#[^\\n]*)?$"
+      }
+    },
+    {
+      "id": "recall-lease-reason",
+      "type": "recall",
+      "grade": "text",
+      "question": "Why is lease_seconds 90 rather than 30?",
+      "criteria": "PASS only if the answer says a 30-second lease expired during runner cold starts (about 41 s), so live jobs re-queued and ran twice (a PR merged twice). FAIL otherwise."
+    },
+    {
+      "id": "recall-one-targeted-read",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "tool_target_count",
+        "target_regex": "(?s)^(?!.*\\b(?:ls|stat|wc)\\s)(?=.*handoffs/(?:archive/|2026061[5-8]T\\d{6}Z-handoff-))",
+        "at_least": 2
+      },
+      "note": "Graded only when recall-lease-reason passed. Counts the main run's reads whose target is the predecessor (its hop stamps are 2026-06-15 to 2026-06-18) or an archive hop file, never the hot file the writer produced or an ls; two or more fail. The main run, because the follow-up turn is told not to run tools.",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "requires": "recall-lease-reason"
+    },
+    {
+      "id": "artifact-latency-files",
+      "type": "artifact",
+      "grade": "text",
+      "question": "Which files does the latency item change?",
+      "criteria": "PASS only if the answer names config/drain.toml and docs/drain-latency.md. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state. Asking what to do next after the work is done is not one."
+    },
+    {
+      "id": "artifact-hot-file-points-at-archive",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "(?is)(latency|pick-up|poll)[^\\n]{0,300}archive/[^\\s)`]*h\\d+|archive/[^\\s)`]*h\\d+[^\\n]{0,300}(latency|pick-up|poll)"
+      },
+      "note": "Brief: for each open item the hot file names the archive section to read. Provisional pattern: Phase 3 pins it to the shape-3 review-first list format."
+    }
+  ]
+}

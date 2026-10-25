@@ -19,8 +19,9 @@ name: maintenance-audit-lane-runs
 #
 # A fourth job, triage-sweep, runs alone every hour (and with the daily run):
 # it dispatches intake-triage.yml for open issues intake never reached, at
-# most 5 a pass, and files one needs-triage issue for an issue 2 dispatches
-# left untriaged. It uses the job's own token, never the lanes App.
+# most 5 a pass, and labels needs-triage, with a comment on the issue, an issue
+# 2 dispatches in one triage cycle left untriaged. It uses the job's own
+# token, never the lanes App.
 #
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false"; every job checks it first.
