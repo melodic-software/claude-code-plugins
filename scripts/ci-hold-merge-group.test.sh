@@ -290,6 +290,13 @@ trust "the lanes App's one clean Refs issue passes" 0 3 "carries no label naming
 # A bot with no numeric id cannot be told apart from the lanes App: it fails closed.
 STUB_LINK="$(link Bot "[$(issue 16 '[]')]" '' null)"
 trust "a bot author with no numeric id fails closed" 1 1 "::error::the bot author id of #6419 could not be read"
+# An empty LANES_APP_ID (the variable unset) cannot tell the lanes App's pull
+# request from another automation's, whose unlinked pull request passes: it
+# fails closed rather than reading the lanes App's as another automation's.
+app_id=$LANES LANES=''
+STUB_LINK="$(link Bot '[]' '' "$app_id")"
+trust "an empty lanes App id fails a bot's unlinked pull request closed" 1 1 "::error::the bot author id of #6419 could not be read"
+LANES=$app_id
 STUB_LINK='' STUB_ISSUE_LABELS=''
 
 # A jq error is neither a match nor a miss: it fails closed.
