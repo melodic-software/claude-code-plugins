@@ -694,9 +694,10 @@ and `C2` or `C3` lets the authority merge. Neither authority reads a work class
 - `off` is the default. The first rung a repository adopts is `C2`, together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - No work class is read, and no class, missing class or diff shape caps the rung. The only
-  class-named check is the local babysit lane's untrusted-provenance hold: a pull request whose
-  linked issue carries `work-class: untrusted-provenance`, or had it removed by a non-human, waits
-  for a human. The pr-merge lane merges on the verifier verdict
+  class-named check is the untrusted-provenance hold: a pull request whose linked issue carries
+  `work-class: untrusted-provenance` (any label naming untrusted work), or had it removed by a
+  non-human, waits for a human, in the local babysit lane and when `enable-auto-merge` arms a
+  lanes App pull request. The pr-merge lane merges on the verifier verdict
   ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
@@ -1021,7 +1022,9 @@ run that finds the comment unchanged (same head and reasons) adds no label. A re
 the lanes App included, by an account off that list, or made through a GitHub App
 (`performed_via_github_app`) lifts nothing, and a new head or new
 reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
-escalations.
+escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes App pull
+request instead, and posts the escalation to a person as a new comment rather than rewriting its
+earlier one, since an edit notifies no one and keeps the comment's old date.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also
@@ -1105,7 +1108,12 @@ gate's veto rule; a later comment lifts it), and whose head changes no path in t
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
-the one issue its plain `Refs: #<n>` lines name; a failed read refuses), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
+the one issue its plain `Refs: #<n>` lines name; a failed read refuses) and whose issue clears
+the trust hold (`babysit_merge_policy.trust_refusal`: its labels read whole, none naming untrusted
+work in any spelling, and none ever removed by a non-human or through an App, so a label added
+after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed-by-non-human` or
+`issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
+issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
 heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
@@ -1194,6 +1202,26 @@ request the gate sends to a person. It runs only in the queue: pr-verify runs on
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
 verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
 `enable-auto-merge.mjs`'s, whose reader arms nothing they refuse.
+
+The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
+already carries `work-class: untrusted-provenance`. At arm time, `enable-auto-merge` refuses it
+through `evidence --lane-link`. In the merge queue, `ci-status`'s step `Fail a queued pull request
+carrying a hold label` reads the queued pull request's linked issue when an automation opened the
+pull request. The linked issue is its closing issues here, or with none, the one issue its plain
+`Refs:` lines name, by the base's `refsIssue`. The step fails when that issue carries a label
+containing `untrusted` in any ASCII case (as `babysit_merge_policy._untrusted` matches it), or had
+one removed by anyone other than a person on the base's trusted-actor list, or through an App. A
+lanes App pull request that does not link exactly one issue here also fails, so dropping the link
+after arming does not skip the check; another automation's pull request that links none passes. An
+unreadable link, label list, timeline or trusted-actor list fails closed. So a label added after
+the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a
+person on that list lifts it by removing the label and re-queuing. A person's own pull request is
+not read.
+
+A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
+issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
+label still holds. The way out is a new issue a person files for the work, and a new pull request
+linking it.
 
 ### Dependabot pull requests
 

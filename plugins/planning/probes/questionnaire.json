@@ -10,13 +10,6 @@
     "work-items:track",
     "session-flow:handoff"
   ],
-  "competitor_dirs": {
-    "planning:interview": "plugins/planning/skills/interview",
-    "planning:audit-answers": "plugins/planning/skills/audit-answers",
-    "planning:prd": "plugins/planning/skills/prd",
-    "work-items:track": "plugins/work-items/skills/track",
-    "session-flow:handoff": "plugins/session-flow/skills/handoff"
-  },
   "queries": [
     {
       "id": "pos-train-01",

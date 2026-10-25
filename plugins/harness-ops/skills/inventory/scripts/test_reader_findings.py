@@ -672,10 +672,68 @@ class TestOpenFindings(unittest.TestCase):
             'var vm=require("vm");vm.runInContext(s,vm.createContext({}));',
             'import{Script}from"vm";new Script(s).runInNewContext();',
             'import*as V from"node:vm";new V.SourceTextModule(s);',
+            # A load whose specifier is no literal may be node:vm.
+            'const s="node:vm",k="runInThisContext";const V=await import(s);V[k](c);',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
         self.assert_across_modules(False, named, 'import{isContext}from"node:vm";')
+
+    def test_a_vm_load_with_a_non_literal_specifier_stays_partial(self) -> None:
+        """#5640: the sink rule named a vm load only by a literal specifier,
+        so this list, local to the module, read literal though the string
+        run through node:vm makes `includes` push `B`."""
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];const s="node:vm",k="runInThisContext";'
+            "const V=await import(s);"
+            "V[k](\"Array.prototype.includes=function(){this.push('B');return false}\");"
+            'pY.includes("x");',
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
+
+    # #5901 slice 6: `Function(...)` builds a function from strings and runs
+    # none of its body; only a call runs it. The shapes are 2.1.310's.
+    LODASH_ROOT = 'var root=Function("return this")();'
+
+    def test_a_constant_function_body_that_patches_nothing_clears(self) -> None:
+        """lodash's global probe calls a constant body that only reads
+        `this`, which the scan reads as code and finds no sink in."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        self.assert_across_modules(False, named, self.LODASH_ROOT)
+
+    def test_a_function_built_and_never_called_clears(self) -> None:
+        """A build whose result is discarded runs nothing: an empty-body
+        probe in a `try`, and a syntax check of a body that is no constant."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            'function t(){try{return new Function(""),!0}catch(e){return!1}}',
+            "function fr(e){Function(`async function _check() {'use strict';\\n${e}\\n}`)}",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, named, module)
+
+    def test_a_constant_function_body_that_patches_stays_partial(self) -> None:
+        """A constant body that patches `includes` is a sink when it is
+        called, directly or through a variable."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        body = "\"Array.prototype.includes=function(){this.push('B')}\""
+        for module in (f"Function({body})();", f"var F=Function({body});F();"):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
+    def test_a_non_constant_function_body_stays_partial(self) -> None:
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        self.assert_across_modules(True, named, "Function(s)();")
+
+    def test_a_replaced_function_global_stays_partial(self) -> None:
+        """A folded call trusts the global `Function`, so a module that
+        replaces it, by name or as a member, leaves the call unsafe."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in ("Function=g;", "globalThis.Function=g;"):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, self.LODASH_ROOT, module)
 
     def test_a_load_the_parser_cannot_name_stays_partial(self) -> None:
         """#5970 verifier probes: a load whose file the AST does not name
@@ -695,12 +753,19 @@ class TestOpenFindings(unittest.TestCase):
             'const{require:r}=import.meta;var n=r("/a.js");for(var k in n)n[k].push("B");',
             'var m=import.meta,n=m["req"+"uire"]("/a.js");for(var k in n)n[k].push("B");',
             'var{require:r}=globalThis;var n=r("/a.js");for(var k in n)n[k].push("B");',
+            # #5640: a computed key that is or may be `require`. The push
+            # takes no computed read, which would count on its own.
+            'const k="require";var n=module[k]("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
+            'var n=globalThis["req"+"uire"]("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
+            'const k=c?"require":"foo";const{[k]:r}=globalThis;var n=r("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
         for module in (
             'var x=require("/c.js").q,t=typeof require,p=require.resolve("/c.js");',
             "function f(require){return 1}var o={require:1};",
+            # A computed key known to be no `require`.
+            'var k="other";f(Q[k]);',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(False, named, module)

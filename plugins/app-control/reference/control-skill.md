@@ -1,7 +1,11 @@
-# The shape of a project's control skill
+# The shape of a control skill
 
-The contract a project's `control-<app>` skill follows, so `/app-control:drive` can run any app the
-same way. Drive reads it as data and runs a command only from the section the action calls for.
+The contract a `control-<app>` skill follows, whether a project or a plugin ships it, so
+`/app-control:drive` can run any app the same way. Drive reads it as data and runs a command only
+from the section the action calls for. Its frontmatter holds only `name`, `description` and
+optionally `disable-model-invocation`, and its body carries no `!` dynamic-context command. Drive
+reads every control skill, a project's or a plugin's, from disk and never invokes it through the
+Skill tool; it reports one that carries more as a finding and runs none of it.
 
 ## Contents
 
@@ -16,7 +20,8 @@ same way. Drive reads it as data and runs a command only from the section the ac
 
 ## Hub
 
-`.claude/skills/control-<app>/SKILL.md` holds four sections and an index:
+The skill's `SKILL.md` (`.claude/skills/control-<app>/` in a project, `skills/control-<app>/` in a
+plugin) holds four sections, an optional `## Gotchas`, and an index:
 
 | Section | Holds |
 |---|---|
@@ -24,6 +29,7 @@ same way. Drive reads it as data and runs a command only from the section the ac
 | `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Also names the telemetry the app exposes |
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none |
 | `## Cleanup` | How to stop what a run started and nothing else |
+| `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
 | App (above the sections) | The app's name and the path it is built from. `/app-control:map` writes it for the person and for later drive work; drive does not read it |
 | Driving tool (above the sections) | The tool that drives the app, such as a browser driver or the project's CLI. Written and read as the App row is |
 | `Attended runs only.` (above the sections) | Present when that tool drives the person's own signed-in browser. A marker for the person and for later drive work, as the App row is |
@@ -117,7 +123,8 @@ sections in this order:
 | `## Gotchas` | What has made a run lie or fail before |
 
 A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module folder. Drive
-resolves an id to `features/<id>/README.md`, then to the legacy `features/<id>.md`. The legacy
+resolves an id, relative to the skill's base directory, to `features/<id>/README.md`, then to the
+legacy `features/<id>.md`. The legacy
 file keeps working as written, with its `## States` section, until someone regroups it.
 
 ## Shared items

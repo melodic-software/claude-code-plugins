@@ -13,6 +13,10 @@ to the result file. Prints one line per check, detail lines indented under it:
     run errors        no run errored, aborted, or ended its trace in an error
     row count         every case holds N rows per arm; runsPerCase is ignored
     traces            how many tracePaths resolve, and what that leaves unchecked
+    session started   no run ended at 0 turns with no run error, no failed Bash
+                      result reports the sandbox failing to start, and no run of 2
+                      or more Bash calls had every one fail; each means the run
+                      measured a session that never ran, or ran with no working shell
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
@@ -82,6 +86,7 @@ RUN_ERROR = "error"  # cases[].arms.<arm>[].error, null when the run ended norma
 RUN_ABORTED = "aborted"  # present when a mock stopped the run
 RUN_SKIPPED_PAID = "skippedPaidGraders"
 RUN_SCORE = "score"
+RUN_TURNS = "turns"  # 0 when the session never took a turn
 RUN_TRACE = "tracePath"  # absent or deleted unless the run passed --keep-temp
 RUN_GRADERS = "graders"  # cases[].arms.<arm>[].graders[]
 GRADER_NAME = "name"
@@ -105,6 +110,11 @@ MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[]
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
 TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_error"
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
+# Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
+SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
+# A run with at least this many Bash calls, every one failed, had no working shell.
+# Two, not one, so a lone grep that matches nothing does not flag a healthy run.
+MIN_BASH_CALLS = 2
 # The input a denial line prints: Read's file, or Grep's and Glob's search root,
 # else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
@@ -325,6 +335,46 @@ def check_paid(runs):
     return PASS, "no run skipped its paid graders", [], None
 
 
+def trace_errored(run):
+    return bool(run.trace) and any(
+        line.get(LINE_TYPE) == TRACE_RESULT and line.get(TRACE_RESULT_ERROR) is True
+        for line in run.trace
+    )
+
+
+def is_denial(block):
+    """True when a tool_result is the permission settings refusing the call."""
+    return block.get(RESULT_ERROR) is True and DENIAL_TEXT in json.dumps(
+        block.get(CONTENT)
+    )
+
+
+def shell_failure(run):
+    """Why the run had no working shell, or None: a failed Bash result reporting the
+    sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing,
+    which catches a sandbox failure whatever its wording. A denied call never reached
+    the shell, so it counts toward neither; check_denials judges it."""
+    bash_ids, failed_ids = set(), set()
+    for line in run.trace or []:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == BASH_TOOL:
+                bash_ids.add(block.get(USE_ID))
+            elif (
+                block.get(BLOCK_TYPE) == TOOL_RESULT
+                and block.get(RESULT_ERROR) is True
+                and block.get(RESULT_USE_ID) in bash_ids
+            ):
+                if is_denial(block):
+                    bash_ids.discard(block.get(RESULT_USE_ID))
+                    continue
+                if SANDBOX_FAILURE_TEXT in json.dumps(block.get(CONTENT)):
+                    return "the shell sandbox failed to start"
+                failed_ids.add(block.get(RESULT_USE_ID))
+    if len(bash_ids) >= MIN_BASH_CALLS and failed_ids == bash_ids:
+        return "all %d Bash calls failed" % len(bash_ids)
+    return None
+
+
 def check_errors(runs):
     details = []
     for r in runs:
@@ -334,10 +384,7 @@ def check_errors(runs):
             details.append(
                 "%s: aborted %s" % (r.where, json.dumps(r.row.get(RUN_ABORTED)))
             )
-        if r.trace and any(
-            line.get(LINE_TYPE) == TRACE_RESULT and line.get(TRACE_RESULT_ERROR) is True
-            for line in r.trace
-        ):
+        if trace_errored(r):
             details.append(
                 "%s: its trace ends in an error (%s)" % (r.where, r.trace_path)
             )
@@ -345,6 +392,35 @@ def check_errors(runs):
         count = plural(len(details), "run error")
         return FAIL, count, details, count
     return PASS, "no run errored or aborted", [], None
+
+
+def check_started(runs):
+    """A run at 0 turns that check_errors passes, or one whose trace shows the
+    sandbox failing to start, scored a session that never ran or had no shell."""
+    details, failed = [], set()
+    for r in runs:
+        if (
+            is_number(r.row.get(RUN_TURNS))
+            and r.row[RUN_TURNS] == 0
+            and r.row.get(RUN_ERROR) is None
+            and not r.row.get(RUN_ABORTED)
+            and not trace_errored(r)
+        ):
+            details.append("%s: 0 turns and no run error" % r.where)
+            failed.add(r)
+        reason = shell_failure(r)
+        if reason:
+            details.append("%s: %s (%s)" % (r.where, reason, r.trace_path))
+            failed.add(r)
+    if details:
+        count = plural(len(failed), "run")
+        return (
+            FAIL,
+            "%s never started or had no sandbox" % count,
+            details,
+            "%s never started or had no sandbox" % count,
+        )
+    return PASS, "every run took a turn and no trace shows a sandbox failure", [], None
 
 
 def check_rows(cases, runs_wanted, arms):
@@ -423,11 +499,7 @@ def denials(run):
                     block.get(USE_NAME),
                     as_dict(block.get(USE_INPUT)),
                 )
-            elif (
-                block.get(BLOCK_TYPE) == TOOL_RESULT
-                and block.get(RESULT_ERROR) is True
-                and DENIAL_TEXT in json.dumps(block.get(CONTENT))
-            ):
+            elif block.get(BLOCK_TYPE) == TOOL_RESULT and is_denial(block):
                 found.setdefault(block.get(RESULT_USE_ID), None)
         if line.get(LINE_TYPE) == TRACE_RESULT:
             for denial in as_list(line.get(TRACE_DENIALS)):
@@ -790,6 +862,7 @@ def main(argv=None):
     else:
         lines.append("traces: %d of %d tracePaths resolve" % (len(runs), len(runs)))
     later = [
+        ("session started", check_started(runs)),
         ("permission denials", check_denials(runs, plugin_roots)),
         ("skill fired", check_fired(cases, runs, root)),
         ("models", check_models(result, runs)),

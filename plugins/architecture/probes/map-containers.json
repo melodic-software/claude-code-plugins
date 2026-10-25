@@ -9,12 +9,6 @@
     "architecture:map-deployment",
     "architecture:map-context"
   ],
-  "competitor_dirs": {
-    "architecture:map-components": "plugins/architecture/skills/map-components",
-    "architecture:map-landscape": "plugins/architecture/skills/map-landscape",
-    "architecture:map-deployment": "plugins/architecture/skills/map-deployment",
-    "architecture:map-context": "plugins/architecture/skills/map-context"
-  },
   "queries": [
     {
       "id": "pos-train-01",

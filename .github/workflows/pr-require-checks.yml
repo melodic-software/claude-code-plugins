@@ -3140,6 +3140,10 @@ jobs:
       # of status writes and the 90 s rerun wait, plus retry sleeps.
       GH_READ_JOB_SECONDS: 660
       GH_READ_MARGIN_SECONDS: 300
+      # The lanes App's bot account id, which the trust-hold and lanes-hold
+      # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
+      # checks it is merge.agent-identity's trusted-actor id).
+      LANES_APP_ID: 337595936
       # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
@@ -3155,7 +3159,8 @@ jobs:
         # is one line in $RUNNER_TEMP/api-budget/<token>:
         #   <status> <limit> <remaining> <used> <reset epoch> <resource>
         # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
-        # lines. Never fails the caller.
+        # lines. Never fails the caller, except that a stop the rate guard below
+        # cannot record ends the step.
         #
         #   api_budget_read <token> <file>
         #                               gh api -i output: the header block at the start
@@ -3171,9 +3176,28 @@ jobs:
         # exhausted, no gh call goes to that pool before its reset for the rest of the
         # job; each refusal returns 1 with an error naming the reset, and so does a
         # call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
-        # gh's status, so no caller resends a write GitHub accepted. Its stops are
+        # gh's status, so no caller resends a write GitHub accepted, unless its stop
+        # cannot be recorded, which ends the step first (below). Its stops are
         # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
-        # it) goes in $RUNNER_TEMP/api-budget/guessed too.
+        # it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
+        # shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
+        # rate-guard.mjs does, so a fragment a short write left spoils only the line
+        # it runs into. A missing stop file holds no stop; one that exists but cannot
+        # be read holds every pool until 999999999999, with an error naming it.
+        #
+        # Most calls run in $(...) subshells, whose variables never reach the shell
+        # that started them, so the file is what carries a stop from one call to the
+        # next. A stop the file cannot take (no space, no permission) would leave
+        # every later call free to reach the exhausted pool. So the step ends there:
+        # the error names the pool, API_BUDGET_UNRECORDED refuses every later call in
+        # this shell, and from a subshell every shell from its parent up to the
+        # step's shell ($$) is sent TERM, so no caller's retry loop in a capture
+        # around it sends again. A caller may hold a subshell's stderr in a file it
+        # reads only after the call, so both error lines go to a copy of the stderr
+        # the step had when api_budget_wrap_gh ran. Callers must not trap TERM or run
+        # the wrapper under a nested bash -c, whose $$ is the inner shell: either
+        # leaves the step running.
+        #
         #   api_budget_classify         jq filter: rate-guard.mjs's classify over
         #                               {status, headers, body, now (ms), pool, floor}
         #   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
@@ -3236,6 +3260,7 @@ jobs:
 
         api_budget_wrap_gh() {
           API_BUDGET_GH_TOKEN=$1
+          [[ -n ${API_BUDGET_ERR_FD:-} ]] || exec {API_BUDGET_ERR_FD}>&2
           # shellcheck disable=SC2329 # called by the script that sources this file
           gh() {
             local arg out pool rc=0
@@ -3305,15 +3330,30 @@ jobs:
         }
 
         api_budget_stop_until() {
-          local file=${RUNNER_TEMP:-/tmp}/api-budget/stop
-          [[ -s $file ]] || return 0
-          awk -v pool="$1" -v now="$(date +%s)" '($1 == pool || $1 == "*" || pool == "any") && $2 ~ /^[0-9]+$/ && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
-            END { if (max) print max }' "$file"
+          local file=${RUNNER_TEMP:-/tmp}/api-budget/stop up
+          if [[ ! -e $file ]]; then
+            # Missing (ENOENT) only when the nearest path part above it that exists
+            # is a directory it can search; else ENOTDIR or EACCES.
+            up=$file
+            while [[ $up == */* ]]; do
+              up=${up%/*}
+              [[ -e ${up:-/} ]] && break
+            done
+            [[ -d ${up:-/} && -x ${up:-/} ]] && return 0
+          fi
+          if [[ -d $file ]] || ! { : <"$file"; } 2>/dev/null; then
+            echo "::error::the rate guard's stop file $file cannot be read, so every GitHub API pool counts as stopped" >&2
+            echo 999999999999
+            return 0
+          fi
+          # The x ends an unterminated last line in a non-digit, so it never matches.
+          { cat -- "$file"; printf x; } | awk -v pool="$1" -v now="$(date +%s)" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && ($1 == pool || $1 == "*" || pool == "any") && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
+            END { if (max) print max }'
         }
 
         api_budget_guessed() {
           local file=${RUNNER_TEMP:-/tmp}/api-budget/guessed
-          [[ -s $file ]] && awk -v t="$1" '$2 == t { found = 1 } END { exit !found }' "$file"
+          [[ -s $file ]] && awk -v t="$1" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t { found = 1 } END { exit !found }' "$file"
         }
 
         api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
@@ -3321,6 +3361,10 @@ jobs:
 
         api_budget_refuse() {
           local until
+          if [[ -n ${API_BUDGET_UNRECORDED:-} ]]; then
+            echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$API_BUDGET_UNRECORDED") stop could not be recorded, so this step sends no further call" >&2
+            return 1
+          fi
           until=$(api_budget_stop_until "$1")
           [[ -z $until ]] && return 0
           echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
@@ -3328,13 +3372,29 @@ jobs:
         }
 
         api_budget_stop() {
-          local dir=${RUNNER_TEMP:-/tmp}/api-budget
-          if mkdir -p "$dir" 2>/dev/null; then
-            echo "$1 $2" >>"$dir/stop"
-            [[ $3 != fallback ]] || echo "$1 $2" >>"$dir/guessed"
+          local dir=${RUNNER_TEMP:-/tmp}/api-budget lines
+          lines=("::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
+          # One printf per line: the line and its newline go in one write.
+          if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
+            { [[ $3 != fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
+            printf '%s\n' "${lines[@]}" >&2
+            return 1
           fi
-          echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}" >&2
-          return 1
+          API_BUDGET_UNRECORDED=$1
+          lines+=("::error::GitHub's $(api_budget_label "$1") stop could not be recorded in $dir; later calls would reach the exhausted pool, so this step ends")
+          { printf '%s\n' "${lines[@]}" >&"${API_BUDGET_ERR_FD:-2}"; } 2>/dev/null || printf '%s\n' "${lines[@]}" >&2
+          if ((BASH_SUBSHELL > 0)); then
+            # Each parent up to $$, from /proc/<pid>/stat's ppid; only $$ when the
+            # walk cannot reach it.
+            local pid=$BASHPID stat up=()
+            while ((pid != $$)) && read -r stat 2>/dev/null <"/proc/$pid/stat"; do
+              read -r _ pid _ <<<"${stat##*) }"
+              up+=("$pid")
+            done
+            ((pid == $$)) || up=("$$")
+            kill -s TERM "${up[@]}" 2>/dev/null
+          fi
+          exit 1
         }
 
         # shellcheck disable=SC2016 # a jq program
@@ -3360,7 +3420,8 @@ jobs:
                (if $rem == 0 and $reset != null then [$reset, "x-ratelimit-reset"] else empty end)] as $c
             | (if ($c | length) > 0 then ($c | reduce .[1:][] as $x (.[0]; if $x[0] > .[0] then $x else . end)) else null end) as $best
             | (if $best != null and $best[0] > $n then $best
-               else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end) as $at
+               else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end
+               | .[0] |= ([., 999999999999] | min)) as $at
             | (($h["x-ratelimit-resource"] // "") | tostring) as $res
             | {latched: true, low: $low, reset_source: $at[1], reset: $at[0],
                pool: (if $ra != null or $secondary or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
@@ -3720,7 +3781,8 @@ jobs:
       # on, posts one comment citing the decision and removes the label. A
       # GITHUB_TOKEN removal starts no run, so the steps below read the label
       # off in this run, and the hold-lift step skips on cleared=true.
-      # Unreadable input clears nothing; the step itself never fails the job.
+      # Unreadable input clears nothing; the step fails the job only when the
+      # api-budget rate guard ends it on a stop it could not record.
       # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
       - name: Clear a cost-only review hold the owner decided
         id: cost_hold
@@ -4315,7 +4377,13 @@ jobs:
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
       # dequeue the pull request as well. An unparsable ref, an unreadable
-      # tracker config or an unreadable label list fails closed. Pinned by
+      # tracker config or an unreadable label list fails closed. For a pull
+      # request an automation opened it then applies the trust hold to its
+      # linked issue (comment in the body). report-outcome's Hold: line covers
+      # the label at PR open and enable-auto-merge at arm time, so this holds a
+      # label added after either: one GraphQL read, a labels read for a Refs
+      # issue, and one timeline read per linked issue; an unreadable one, or
+      # the base's trusted-actor list unreadable, fails closed. Pinned by
       # scripts/ci-hold-merge-group.test.sh, which runs this body.
       - name: Fail a queued pull request carrying a hold label
         if: github.event_name == 'merge_group'
@@ -4366,6 +4434,127 @@ jobs:
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+          # The trust hold, for a pull request an automation opened: its linked
+          # issue (babysit_merge_policy._linked_issue: the closing issues here,
+          # or with none, the one issue its plain `Refs:` lines name, by the
+          # base's merge-holds.mjs refsIssue) carries no label naming untrusted
+          # work, and none was ever removed other than by a person on the base's
+          # trusted-actor list, not through an App (_untrusted,
+          # _untrusted_removed_by_non_human). The lanes App's pull request
+          # must link exactly one issue here, as _linked_issue refuses
+          # otherwise, so a link dropped after arming fails; another
+          # automation's (Dependabot, standards-sync, a plugin release) that
+          # links none passes. A jq error fails closed.
+          # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
+          read3() {
+            local attempt
+            for attempt in 1 2 3; do
+              gh_read "$@" && return 0
+              [ "$attempt" -lt 3 ] || return 1
+              sleep $((attempt * 5))
+            done
+          }
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
+            -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
+            echo "::error::could not read the issue link of #$pr; re-run this run."
+            exit 1
+          }
+          author=$(jq -er '.data.repository.pullRequest.author.__typename | strings' <<<"$link") || {
+            echo "::error::the author of #$pr could not be read; re-run this run."
+            exit 1
+          }
+          if [ "$author" = User ]; then
+            echo "#$pr is a person's pull request, which the trust hold does not read."
+            exit 0
+          fi
+          # The lanes App's bot account, as the lanes App step below matches it.
+          # A bot with no numeric id could be it, so that fails closed.
+          lanes=$(jq -r --argjson id "$LANES_APP_ID" '.data.repository.pullRequest.author
+            | if .__typename != "Bot" then false
+              elif (.databaseId | type) == "number" then .databaseId == $id
+              else error("no numeric databaseId") end' <<<"$link") || {
+            echo "::error::the bot author id of #$pr could not be read; re-run this run."
+            exit 1
+          }
+          closing=$(jq -ec '.data.repository.pullRequest.closingIssuesReferences | objects | select(.totalCount == (.nodes | length))' <<<"$link") || {
+            echo "::error::the closing issues of #$pr could not all be read; a person merges it."
+            exit 1
+          }
+          # One "<number> <label names as JSON, or null when cut>" line per issue.
+          issues=$(jq -r --arg repo "$GITHUB_REPOSITORY" '.nodes[]
+            | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase))
+            | "\(.number) \(if .labels.totalCount == (.labels.nodes | length) then [.labels.nodes[].name] | tojson else "null" end)"' <<<"$closing")
+          total=$(jq -r .totalCount <<<"$closing")
+          if [ "$total" = 0 ]; then
+            jq -r '.data.repository.pullRequest.body // ""' <<<"$link" >"$RUNNER_TEMP/queued-body.txt"
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            refs=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { refsIssue } = await import(pathToFileURL(process.argv[2]).href);
+              console.log(refsIssue(readFileSync(process.argv[1], "utf8")) ?? "");' \
+              "$RUNNER_TEMP/queued-body.txt" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || {
+              echo "::error::the Refs line of #$pr could not be read with merge-holds.mjs at $BASE_SHA; re-run this run."
+              exit 1
+            }
+            if [ -n "$refs" ]; then
+              names=$(read3 "repos/$GITHUB_REPOSITORY/issues/$refs/labels?per_page=100" --paginate --jq '.[].name') || {
+                echo "::error::could not read the labels of issue #$refs, which #$pr names; re-run this run."
+                exit 1
+              }
+              issues="$refs $(jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$names")"
+            fi
+          fi
+          if [ "$lanes" = true ] && { [ "$total" -gt 1 ] || [ -z "$issues" ]; }; then
+            why="its Refs: lines name no single issue"
+            [ "$total" -eq 0 ] || why="it closes $total issue(s), none or more than one here"
+            echo "::error::#$pr is the lanes App's and does not link exactly one issue in this repository, as pr-merge's lane takes it: $why; a person merges it."
+            exit 1
+          fi
+          if [ -z "$issues" ]; then
+            echo "#$pr links no issue in this repository for the trust hold to read."
+            exit 0
+          fi
+          humans=$(jq -ec '[.actors[] | select(.kind == "human" and (.id | type) == "number") | .id]' \
+            "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || {
+            echo "::error::could not read trusted-actors.json at $BASE_SHA; re-run this run."
+            exit 1
+          }
+          while read -r number names; do
+            if [ "$names" = null ]; then
+              held=1
+              echo "::error::the labels of issue #$number, which #$pr links, could not all be read (issue-labels-unreadable); a person merges it."
+              continue
+            fi
+            rc=0
+            jq -e 'any(.[]; ascii_downcase | contains("untrusted"))' <<<"$names" >/dev/null || rc=$?
+            if [ "$rc" -gt 1 ]; then
+              held=1
+              echo "::error::the labels of issue #$number, which #$pr links, could not be matched (jq exit $rc); a person merges it."
+              continue
+            fi
+            if [ "$rc" -eq 0 ]; then
+              held=1
+              echo "::error::issue #$number, which #$pr links, carries a label naming untrusted work (untrusted-provenance); the merge queue removes #$pr. A person on the trusted-actor list removing the label lifts it; re-queue to merge."
+              continue
+            fi
+            events=$(read3 "repos/$GITHUB_REPOSITORY/issues/$number/timeline?per_page=100" --paginate --jq '.[] | select(.event == "unlabeled") | @json') || {
+              echo "::error::could not read the timeline of issue #$number, which #$pr links; re-run this run."
+              exit 1
+            }
+            rc=0
+            jq -se --argjson humans "$humans" 'any(.[]; (.label.name // "" | ascii_downcase | contains("untrusted"))
+              and (.actor.type != "User" or .performed_via_github_app != null or (.actor.id as $id | any($humans[]; . == $id) | not)))' <<<"$events" >/dev/null || rc=$?
+            if [ "$rc" -gt 1 ]; then
+              held=1
+              echo "::error::the label removals on issue #$number, which #$pr links, could not be matched (jq exit $rc); a person merges it."
+            elif [ "$rc" -eq 0 ]; then
+              held=1
+              echo "::error::a label naming untrusted work was removed from issue #$number, which #$pr links, by someone not on the trusted-actor list or through an App (untrusted-provenance-removed-by-non-human). No label change on that issue lifts it; a new issue a person files, and a new pull request linking it, does."
+            fi
+          done <<<"$issues"
+          [ "$held" -eq 0 ] || exit 1
+          echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails
@@ -4437,7 +4626,10 @@ jobs:
           LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
-          lanes_app_id=337595936
+          if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the job's LANES_APP_ID is not a numeric id."
+            exit 1
+          fi
           pr=$PR_NUMBER
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
@@ -4466,7 +4658,7 @@ jobs:
             echo "::error::the author of #$pr could not be read."
             exit 1
           fi
-          if ! jq -e --argjson id "$lanes_app_id" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+          if ! jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
           fi

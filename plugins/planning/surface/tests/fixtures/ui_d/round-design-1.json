@@ -1,4 +1,5 @@
 {
+  "restate": {"text": "The interview is under way. The design stage opens with one question. This round turns on whether the design keeps one store.", "decided": [], "open": ["E1"]},
   "questions": [
     {"id": "E1", "group": "base", "stage": "design", "short": "First design", "title": "Should the design keep one store?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]}
   ]

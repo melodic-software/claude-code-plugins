@@ -13,7 +13,7 @@ Every value the file-name skills act on comes from one consumer surface,
 `.claude/docs-naming.json`, layered as user-global (`~/.claude/docs-naming.json`),
 team (tracked), and personal overlay (`.claude/docs-naming.local.json`). All
 three absent is a valid state: every key has a bundled default, and the defaults
-are this marketplace's own values.
+are this marketplace's own values, except `generated`, which is empty.
 
 This skill is the check-centric setup for that surface: `check` inspects and
 verifies, `apply` persists, and neither installs anything. Keys, defaults, layer
