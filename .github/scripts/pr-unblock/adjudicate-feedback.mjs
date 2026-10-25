@@ -34,7 +34,6 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, FINDING_STANDS, need, SHA } from "./address-feedback.mjs";
-import { budgetedFetch } from "./request-budget.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -397,6 +396,10 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       throw new Error("HEAD_SHA is not a commit id");
     }
     // Each read's rate-limit headers go to the job-end api-budget notice.
+    // request-budget.mjs reaches into .github/actions, so it loads here, from
+    // the full base checkout prepare runs in: publish-feedback.mjs imports this
+    // module from a copy of this directory alone.
+    const { budgetedFetch } = await import("./request-budget.mjs");
     const client =
       api ??
       createGitHubApi({
