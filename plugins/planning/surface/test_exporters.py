@@ -864,12 +864,15 @@ class TestBriefDecisionsOnce(SessionCase):
                     self.assertNotRegex(part, r"\bQ13\b", where)
                 q28 = [x for x in text.splitlines() if re.search(r"\bQ28\b", x)]
                 self.assertEqual(len(q28), 1, q28)
-        # The restated Brief: the recap carries every answered row, Q28 marked as Q13's
-        # replacement in Decisions.
-        self.assertEqual(self.section(text, "Constraints").strip(), "- none recorded")
-        self.assertTrue(q28[0].startswith("- Q28 answered: "), q28)
-        self.assertTrue(q28[0].endswith("; replaces Q13"), q28)
-        self.assertIn(q28[0], self.section(text, "Decisions"))
+                if name == "restated":
+                    # The recap carries every answered row, Q28 marked as Q13's replacement
+                    # in Decisions.
+                    self.assertEqual(
+                        self.section(text, "Constraints").strip(), "- none recorded"
+                    )
+                    self.assertTrue(q28[0].startswith("- Q28 answered: "), q28)
+                    self.assertTrue(q28[0].endswith("; replaces Q13"), q28)
+                    self.assertIn(q28[0], self.section(text, "Decisions"))
 
     def test_no_decision_line_appears_twice(self):
         for name, text in self.briefs(constraints="- stdlib only (Q2)"):
