@@ -442,8 +442,8 @@ describe("applyRefinement", () => {
       assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
     });
 
-    // Issue #9016: a listed human filed it with no task list, and the
-    // refinement this run posts is the spec admission reads (owner Q78).
+    // A listed human filed it with no task list, so the refinement this
+    // run posts is the spec admission reads.
     test(`an exact refinement of ${branch} re-triages when a listed human filed it and only this refinement will hold the task list`, async () => {
       const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: specOf() });
       assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
