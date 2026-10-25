@@ -147,6 +147,17 @@
         "groups": {"type": "array", "items": {"type": "object"}},
         "questions": {"type": "array", "items": {"type": "object"}},
         "visuals": {"type": "array", "items": {"type": "object"}},
+        "restate": {
+          "description": "Required when the op adds questions: the round's opening restate. `text` is markdown of at most 3 sentences (what is decided, which branches are open, what this round turns on); `decided` and `open` list question ids.",
+          "type": "object",
+          "required": ["text", "decided", "open"],
+          "additionalProperties": false,
+          "properties": {
+            "text": {"type": "string"},
+            "decided": {"type": "array", "items": {"type": "string"}},
+            "open": {"type": "array", "items": {"type": "string"}}
+          }
+        },
         "repoint": {
           "description": "As on `add`, for each question that supersedes another.",
           "type": "boolean"

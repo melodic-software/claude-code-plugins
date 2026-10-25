@@ -34,10 +34,10 @@ scanner; remaining real cite relocated.
 | `docs/conventions/ecosystem-commands/README.md` | clean |
 | `docs/conventions/hook-observability/README.md` | clean |
 | `docs/conventions/hook-telemetry/README.md` | clean |
-| `plugins/ai-briefing/skills/generate/reference/build-pipeline.md` | clean |
-| `plugins/ai-briefing/skills/generate/reference/slide-generation.md` | clean |
+| `/ai-briefing:generate` `reference/build-pipeline.md` | clean |
+| `/ai-briefing:generate` `reference/slide-generation.md` | clean |
 | `plugins/architecture/CHANGELOG.md` | basename-exempt |
-| `plugins/harness-ops/skills/known-issues/context/registry-schema.md` | clean (pointer-converted in #2695, re-verified present) |
+| `/harness-ops:known-issues` `context/registry-schema.md` | clean (pointer-converted in #2695, re-verified present) |
 | `plugins/disk-hygiene/CHANGELOG.md` | basename-exempt |
 | `plugins/domain-driven-design/README.md` | clean |
 | `plugins/dometrain/README.md` | clean |
@@ -47,22 +47,22 @@ scanner; remaining real cite relocated.
 | `plugins/eol-normalizer/README.md` | clean |
 | `plugins/evals/CHANGELOG.md` | basename-exempt |
 | `plugins/firecrawl/CHANGELOG.md` | basename-exempt |
-| `plugins/knowledge/skills/video-digest/templates/sources.md` | clean |
+| `/knowledge:video-digest` `templates/sources.md` | clean |
 | `plugins/knowledge/vendor/repo-analysis/README.md` | clean |
 | `plugins/knowledge/vendor/video-digestion/TUNING.md` | clean |
-| `plugins/machine-health/skills/audit/reference/windows/check-catalog.md` | clean |
-| `plugins/machine-health/skills/audit/reference/windows/elevation-matrix.md` | clean |
-| `plugins/mcp-tools/skills/audit/reference/server-discovery.md` | clean |
-| `plugins/planning/skills/draft-goal-condition/SKILL.md` | clean |
-| `plugins/planning/skills/interview/context/session-config.md` | clean |
-| `plugins/playbooks/skills/boris/SKILL.md` | clean |
+| `/machine-health:audit` `reference/windows/check-catalog.md` | clean |
+| `/machine-health:audit` `reference/windows/elevation-matrix.md` | clean |
+| `/mcp-tools:audit` `reference/server-discovery.md` | clean |
+| `/planning:draft-goal-condition` | clean |
+| `/planning:interview` `context/session-config.md` | clean |
+| `/playbooks:boris` | clean |
 | `plugins/songwriting/context/pat-pattison/research/ai-tools.md` | clean |
 | `plugins/testing/README.md` | clean |
-| `plugins/toolchain/skills/check/context/bash.md` | clean |
-| `plugins/toolchain/skills/check/context/dotnet.md` | clean |
-| `plugins/toolchain/skills/check/context/go.md` | clean |
-| `plugins/toolchain/skills/check/context/python.md` | clean |
-| `plugins/toolchain/skills/check/context/typescript.md` | clean |
+| `/toolchain:check` `context/bash.md` | clean |
+| `/toolchain:check` `context/dotnet.md` | clean |
+| `/toolchain:check` `context/go.md` | clean |
+| `/toolchain:check` `context/python.md` | clean |
+| `/toolchain:check` `context/typescript.md` | clean |
 | `plugins/typos-format/README.md` | clean |
 
 ## Route: extract-ssot (136)
@@ -87,9 +87,9 @@ Re-open only if two checklists are byte-identical and meant to stay that way
 - `plugins/**/templates/checklist.md` (planning, interview, session-flow,
   debugging, codebase-health, code-tidying, harness-config, source-control,
   work-items, …)
-- `plugins/machine-health/skills/audit/scripts/{linux,macos}/not-implemented.md`
+- `/machine-health:audit` `scripts/{linux,macos}/not-implemented.md`
   (near-dup scaffolding; OS-specific on purpose)
-- `plugins/harness-config/skills/audit/templates/checklist.md` and siblings
+- `/harness-config:audit` `templates/checklist.md` and siblings
 
 ### C: CHANGELOG routes (changelog-parity before any dedup)
 
