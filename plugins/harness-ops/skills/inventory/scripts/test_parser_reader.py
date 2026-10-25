@@ -761,8 +761,26 @@ class TestFlowQuery(unittest.TestCase):
             ("(0,eval)(s);", ["indirect-eval"]),
             ("var e=eval;", ["indirect-eval"]),
             ("Function(s)();", ["function-constructor"]),
-            ("new Function(s);", ["function-constructor"]),
+            ("var F=new Function(s);F();", ["function-constructor"]),
             ("Function.call(0,s)();", ["function-constructor"]),
+            # #5901 slice 6: a build that runs, or folds to code that hits.
+            ('Function("Array.prototype.includes=f")();', ["function-constructor"]),
+            ('new Function("o","o.includes=f")(P);', ["function-constructor"]),
+            ('Function(`eval("")`)();', ["function-constructor"]),
+            ('Function("with(o){}")();', ["function-constructor"]),
+            ('Function("return this").call(0);', ["function-constructor"]),
+            # The built function binds no `anonymous`; that is a global here.
+            ('Function("anonymous.includes=f")();', ["function-constructor"]),
+            # A body's `-->` line is a comment, so the patch below it runs.
+            (
+                'Function("var y=0;y\\n-->`\\nArray.prototype.includes=f\\n//`")();',
+                ["function-constructor"],
+            ),
+            # A write of the global `Function` the folded calls trust.
+            ("Function=g;", ["global-write", "function-constructor"]),
+            ("globalThis.Function=g;", ["write"]),
+            ('Reflect.set(globalThis,"Function",g);', ["argument"]),
+            ('var isFunction=tagTester("Function");', []),
             ("globalThis.eval(s);", ["indirect-eval"]),
             ("window.Function(s)();", ["function-constructor"]),
             ("o.eval=f;", []),
@@ -773,6 +791,13 @@ class TestFlowQuery(unittest.TestCase):
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
+            # #5901 slice 6: a `Function` build that runs no unknown code.
+            ('Function("return this")();', []),
+            ('function t(){try{return new Function(""),!0}catch(e){return!1}}', []),
+            ("function c(e){Function(`async function _check() {'use strict';\\n${e}\\n}`)}", []),
+            ("new Function(s);", []),
+            ('Function("a","b","return a+b")(1,2);', []),
+            ('Function("return Function(`return 1`)()")();', []),
             ("class C{constructor(k){this[k]=1}}", []),
             (
                 "class D extends B{constructor(k){super();this[k]=1}}",
