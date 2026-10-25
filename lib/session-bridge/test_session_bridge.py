@@ -514,6 +514,42 @@ class TestWatcherScripts(BridgeCase):
         self.assertEqual(r.returncode, 1)
         self.assertEqual(r.stdout, "")
 
+    def after_apply_toy(self):
+        """A conf naming AFTER_APPLY=check and a toy that logs each call, failing `check` on $TOY_AFTER_RC."""
+        (self.bin / "session-bridge.conf").write_text(
+            "NAME=toy\nCONTROL=toy.sh\nAFTER_APPLY=check\n", encoding="utf-8"
+        )
+        (self.bin / "toy.sh").write_text(
+            '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >>"$2/calls"\n'
+            '[[ "$3" == check ]] && exit "${TOY_AFTER_RC:-0}"\nexit "${TOY_RC:-0}"\n',
+            encoding="utf-8",
+        )
+        return [
+            f"--dir {self.dir} apply --file {self.dir}/ops.json",
+            f"--dir {self.dir} check",
+        ]
+
+    def test_wake_runs_the_after_apply_subcommand_then_rearms(self):
+        calls = self.after_apply_toy()
+        self.hub.append("next")
+        r = self.run_script("wake.sh", str(self.dir))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.dir / "calls").read_text().splitlines(), calls)
+        self.assertEqual(json.loads(r.stdout)["events"][0]["text"], "next")
+
+    def test_a_failing_after_apply_subcommand_still_rearms(self):
+        self.after_apply_toy()
+        self.hub.append("next")
+        r = self.run_script("wake.sh", str(self.dir), env={"TOY_AFTER_RC": "1"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["events"][0]["text"], "next")
+
+    def test_a_failed_apply_skips_the_after_apply_subcommand(self):
+        calls = self.after_apply_toy()
+        r = self.run_script("wake.sh", str(self.dir), env={"TOY_RC": "1"})
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual((self.dir / "calls").read_text().splitlines(), calls[:1])
+
     def recording_curl(self):
         """A curl stand-in that logs its argv, then runs the real curl."""
         log = self.tmp / "curl-argv"
