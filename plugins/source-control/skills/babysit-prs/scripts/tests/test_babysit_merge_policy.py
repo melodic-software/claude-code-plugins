@@ -1243,6 +1243,29 @@ class IssueVouch(unittest.TestCase):
             eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
         )
 
+    def test_a_human_issue_retitled_by_a_non_human_is_refused(self) -> None:
+        # A title edit leaves the body history alone, so the author path reads
+        # the `renamed` events too: only a human in person may retitle.
+        gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
+        rename = {
+            "event": "renamed",
+            "actor": {"login": IDENTITY, "type": "Bot"},
+            "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+            "created_at": "2026-10-11T10:00:00Z",
+        }
+        gh.rest[self.TIMELINE] = [rename]
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        rename["actor"] = {"login": OPERATOR, "type": "User"}
+        rename["performed_via_github_app"] = {"slug": "agent"}
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
+        )
+        del rename["performed_via_github_app"]
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+
     def test_a_human_relabel_after_a_lane_rewrite_vouches(self) -> None:
         # Either vouch suffices: a human who re-applies the admission label in
         # person after the lane's edit vouches for the edited body.

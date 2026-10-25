@@ -1055,8 +1055,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    No work class is read: the only class-named check is the trust hold, which refuses an issue
    carrying `work-class: untrusted-provenance`, or one a non-human removed it from. Eligibility
    also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a
-   write-access human wrote it and no non-human edited its body since
-   (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
+   write-access human wrote it and no non-human, or anyone through an App, retitled it
+   (`title-edited-by-non-human`) or edited its body since (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
    or one applied the tracker's admission label (`agent-ready` unless `.work-item-tracker.json`
    maps the `autonomous-eligible` role, read at the base branch) in person with no body edit or
    title change after (`title-edited-after-label`). Either suffices, so a human's issue a
