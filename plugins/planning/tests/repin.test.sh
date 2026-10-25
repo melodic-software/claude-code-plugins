@@ -50,7 +50,7 @@ pin_file() {
   if [[ "\$got" == "\$want" ]]; then echo "ok: \$label"; else echo "FAIL: \$label — changed (want \$want, got \$got). Re-read." >&2; FAILS=1; fi
 }
 # Existing justification for the alpha pin.
-pin_file "alpha file is unchanged (\\\`lock\\\` row)" \\
+pin_file "alpha file is unchanged (\\\`lock\\\` row, \\\\\\"quoted\\\\\\")" \\
   "$WORK/alpha.txt" \\
   "$alpha_sha"
 pin_file "beta file is unchanged" \\
@@ -71,7 +71,7 @@ out="$(run_repin --test-file "$t" 'alpha file' 'Alpha text edited; the defense s
 rc=$?
 if [[ $rc -eq 0 ]]; then ok "stale pin re-pinned: exit 0"; else fail "stale pin: expected exit 0, got $rc: $out"; fi
 if [[ "$out" == *PASS* ]]; then ok "prints PASS"; else fail "no PASS in output: $out"; fi
-if [[ "$out" == *"alpha file is unchanged (\`lock\` row): $STALE -> $ALPHA"* ]]; then ok "prints label: old -> new for the commit"; else fail "label and old -> new not printed: $out"; fi
+if [[ "$out" == *"alpha file is unchanged (\`lock\` row, \"quoted\"): $STALE -> $ALPHA"* ]]; then ok "prints label: old -> new for the commit"; else fail "label and old -> new not printed: $out"; fi
 changes="$(diff "$WORK/stale.before" "$t" | grep -c '^[<>]')"
 if [[ "$changes" -eq 3 ]]; then ok "exactly three lines differ: old sha, new sha, justification"; else fail "expected 3 differing lines, got $changes"; fi
 if grep -qx "  \"$ALPHA\"" "$t"; then ok "alpha sha rewritten"; else fail "alpha sha not rewritten"; fi

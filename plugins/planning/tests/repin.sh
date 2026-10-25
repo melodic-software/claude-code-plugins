@@ -85,8 +85,8 @@ run_test() { bash "$test_file" 2>&1; }
 
 out="$(run_test)"
 new="$(printf '%s\n' "$out" | tr -d '\r' | sed -n "s/.*(want $old, got \([0-9a-f]\{64\}\)).*/\1/p" | head -1)"
-# The label is the call's first quoted argument, backslashes dropped.
-pin_label="$(sed -n "${call_line}p" "$test_file" | tr -d "\\\\" | sed 's/^pin_[a-z_]* "\([^"]*\)".*/\1/')"
+# The label is the call's first argument, backslashes dropped; it ends at the line's last quote.
+pin_label="$(sed -n "${call_line}p" "$test_file" | tr -d "\\\\" | sed 's/^pin_[a-z_]* "\(.*\)"[[:space:]]*$/\1/')"
 if [[ -z "$new" ]]; then
   echo "$self: nothing to change for ${pin_label}: the digest already matches, or the pin fails for a reason a new digest does not fix." >&2
   exit 4
