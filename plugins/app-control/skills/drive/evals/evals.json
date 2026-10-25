@@ -211,7 +211,7 @@
     {
       "id": 16,
       "name": "plugin-shipped-control-skill-resolves",
-      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds skills/control-claude-code/SKILL.md and skills/control-claude-code/features/mods/toast/README.md. The available skills also list harness-ops:control-claude-code.",
+      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds .claude-plugin/plugin.json with name harness-ops, skills/control-claude-code/SKILL.md and skills/control-claude-code/features/mods/toast/README.md. The available skills also list harness-ops:control-claude-code.",
       "expected_output": "Finds no repository control skill on disk, finds harness-ops:control-claude-code under the plugin's install path, reads its SKILL.md with the Read tool and never invokes it through the Skill tool, reads features/mods/toast/README.md beside it, names the skill by its full name with the source plugin in the report, and does not fall back to the run skill or a project-type recipe.",
       "files": [],
       "narration": true,
@@ -257,7 +257,7 @@
     {
       "id": 19,
       "name": "lone-plugin-control-skill-stops-without-app",
-      "prompt": "/app-control:drive --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds skills/control-claude-code/SKILL.md, the only control skill on disk. Nobody is available to answer questions.",
+      "prompt": "/app-control:drive --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds .claude-plugin/plugin.json with name harness-ops and skills/control-claude-code/SKILL.md, the only control skill on disk. Nobody is available to answer questions.",
       "expected_output": "Finds no repository control skill and one plugin control skill, harness-ops:control-claude-code. Because no <app> was named, it does not use it: it writes a blocked line naming harness-ops:control-claude-code in the report under ./evidence, launches nothing, runs no Ready command, invokes no control skill through the Skill tool, and asks nothing.",
       "files": [],
       "narration": true,

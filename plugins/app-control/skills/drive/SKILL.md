@@ -53,11 +53,14 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports, take
    its folder (`readFromFolder` when given, else `installPath`), look in its `skills/*/SKILL.md` and
    `commands/**/*.md`, and keep matches by step 1's rule. Its source is `plugin` and its full name
-   `<plugin>:control-<app>`. Session-only plugins are not read (see the plugin list below). Each of
-   these records a `blocked:` line and stops the run there: a `control-<app>` a manifest defines
-   inline, with no file (`control skill <name> has no file to read`), and a `*:control-*` name this
-   session shows whose `<plugin>` matches no row of the list (`control skill <name> is from a
-   session-only plugin drive cannot read`).
+   `<plugin>:control-<app>`, where `<plugin>` is the `name` in that folder's
+   `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below).
+   Session-only plugins are not read. Each of these records a `blocked:` line and stops the run
+   there: a `control-<app>` a manifest defines inline, with no file (`control skill <name> has no
+   file to read`), and a `<plugin>:control-<app>` name this session shows (no `<app>`: any
+   `*:control-*`) when step 1 kept no repository match for that app and `<plugin>` is no listed
+   folder's manifest `name` (`control skill <name> is from a session-only plugin drive cannot
+   read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
    below). A repository file for an `<app>`
@@ -89,8 +92,9 @@ that section changes what `run` does or how it picks a project skill). What load
 or runs: <https://code.claude.com/docs/en/skills#frontmatter-reference>,
 <https://code.claude.com/docs/en/skills#inject-dynamic-context>. The plugin list, its folder
 fields and what it shows from inside a session:
-<https://code.claude.com/docs/en/plugins/cli-reference#plugin-list>; plugin skills and commands:
-<https://code.claude.com/docs/en/plugins/components#skills>,
+<https://code.claude.com/docs/en/plugins/cli-reference#plugin-list>; the plugin names:
+<https://code.claude.com/docs/en/plugins/loading#entry-name-and-manifest-name>; plugin skills and
+commands: <https://code.claude.com/docs/en/plugins/components#skills>,
 <https://code.claude.com/docs/en/plugins/components#commands>; a worktree session's repository
 plugins: <https://code.claude.com/docs/en/plugins/loading#check-why-a-repository-plugin-didnt-load>;
 Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>. All
