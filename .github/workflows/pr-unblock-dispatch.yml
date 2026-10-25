@@ -10,7 +10,8 @@ name: pr-unblock-dispatch
 # (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
 # open lanes App PR, or idle PR of an owner in the config's `adoption`
 # section, whose head's ci-status failed (or passed while its pr-test-windows
-# run failed) after the lost-run reconciler's re-run, and has no fix-ci run yet,
+# run failed), with no re-run of that run going and no infra-only first
+# failure's reconciler re-run still due, and has no fix-ci run yet,
 # at most limits.fix-ci-per-run per run, from one GraphQL query whose
 # rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). It
 # also dispatches pr-refine.yml's fix-docs once per open, ready PR into main
