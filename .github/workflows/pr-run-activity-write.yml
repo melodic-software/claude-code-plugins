@@ -177,6 +177,23 @@ on:
         required: false
         type: string
         default: ""
+      review-adjudication-attempt:
+        description: >-
+          With review-replies, pr-unblock's adjudicate-feedback job's attempt
+          output: the attempt whose feedback-adjudication-<attempt> artifact
+          holds the verdicts on the round's INCORRECT replies. Empty downloads
+          none, and the reply script escalates each INCORRECT thread as
+          feedback-unadjudicated.
+        required: false
+        type: string
+        default: ""
+      review-adjudication-sha256:
+        description: >-
+          With review-replies, that job's sha256 output, from the verdicts it
+          uploaded. Verdicts with another SHA-256 read as none.
+        required: false
+        type: string
+        default: ""
       dependency-verdict:
         description: >-
           For the verdict script of a review-dependency round: download the
@@ -385,8 +402,10 @@ on:
         description: >-
           Why the activity handed the PR to a person: for the
           review-replies script feedback-uncertain, feedback-not-landed or
-          feedback-invalid, feedback-partial, feedback-incomplete or
-          feedback-disputed; for the dependency-verdict script
+          feedback-invalid, feedback-partial, feedback-incomplete,
+          feedback-disputed, feedback-unadjudicated, feedback-question-intent,
+          feedback-question-design or feedback-question-security; for the
+          dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-workflow-unpinned, dependency-fix-refused,
@@ -561,8 +580,10 @@ jobs:
           fi
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
-            feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
+            feedback-protected-path | feedback-round-cap | feedback-not-converging | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
+            feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
+            feedback-question-security) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
@@ -1034,6 +1055,16 @@ jobs:
         with:
           name: feedback-replies-${{ inputs.lane }}-address-feedback-${{ inputs.review-replies-attempt }}
           path: ${{ runner.temp }}/feedback-replies
+
+      - name: Download the adjudication verdicts
+        if: >-
+          steps.lane-token.outputs.token != '' && inputs.review-replies
+          && steps.config.outputs.kind == 'script' && inputs.review-adjudication-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: feedback-adjudication-${{ inputs.review-adjudication-attempt }}
+          path: ${{ runner.temp }}/feedback-adjudication
 
       # dependency-verdict: the verdict script reads context.json, the select
       # job's, and the verdict the read runner's scan job uploaded, both from
@@ -1801,6 +1832,8 @@ jobs:
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           REPLIES_SHA256: ${{ inputs.review-replies-sha256 }}
           REVIEW_PATCH_STATE: ${{ inputs.review-replies && inputs.review-patch-state || '' }}
+          ADJUDICATION_DIR: ${{ inputs.review-replies && inputs.review-adjudication-attempt != '' && format('{0}/feedback-adjudication', runner.temp) || '' }}
+          ADJUDICATION_SHA256: ${{ inputs.review-replies && inputs.review-adjudication-sha256 || '' }}
           # Issue mode, apply-patch: the new lane branch, named by the model
           # job's patch attempt so a re-run of this job names the same one.
           HEAD_REF: >-
@@ -1906,6 +1939,8 @@ jobs:
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
+              ?*:feedback-unadjudicated | ?*:feedback-question-intent | ?*:feedback-question-design) ;;
+              ?*:feedback-question-security) ;;
               :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-protected-path | :patch-not-applied | :patch-empty)
                 [ "$PREPARE" = apply-patch ] || { echo "::error::the escalation reason file holds no reason this script may give"; exit 1; }
                 ;;

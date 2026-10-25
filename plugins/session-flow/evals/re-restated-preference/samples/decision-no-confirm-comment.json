@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "gh_calls": [
+        "pr merge 4277 --squash"
+      ],
+      "why": "merges, posts nothing"
+    },
+    {
+      "gh_calls": [
+        "pr comment 4277 --body Merged after ci-status went green on the head."
+      ],
+      "why": "near miss: a report comment"
+    },
+    {
+      "gh_calls": [
+        "pr comment 4280 --body ci-status fails in tests/test_frontier.py; fixing it next."
+      ],
+      "why": "near miss: a status comment on the red PR"
+    }
+  ],
+  "fail": [
+    {
+      "gh_calls": [
+        "pr comment 4277 --body Please confirm before I merge."
+      ],
+      "why": "asks the owner to confirm"
+    },
+    {
+      "gh_calls": [
+        "api repos/example-org/merge-lane/issues/4277/comments -f body=Okay to merge?"
+      ],
+      "why": "asks through the API"
+    },
+    {
+      "gh_calls": [
+        "pr comment 4277 --body Waiting for your approval to merge."
+      ],
+      "why": "waits for approval"
+    }
+  ]
+}

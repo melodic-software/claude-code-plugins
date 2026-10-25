@@ -9,6 +9,13 @@
     }
   },
   "rev": 32,
+  "glossary": [
+    {
+      "term": "markdown",
+      "definition": "The small text markup the page renders in question text.",
+      "at": "2026-09-24T01:00:00Z"
+    }
+  ],
   "handledSeq": 24,
   "groups": [
     {
@@ -118,7 +125,7 @@
       "title": "Should Claude assign topic groups, or should groups follow dependency clusters?",
       "facts": "v1 grouped only by round. You asked for question groups. Topic groups stay put; dependency clusters regroup as answers land.",
       "recommendation": "Claude assigns a topic group when asking. Rounds and dependency order stay as toolbar views.",
-      "basis": "Stable groups keep a collapsed group collapsed and your place in the rail. Clusters would reshuffle whenever an answer unblocks something.",
+      "basis": "Stable groups keep a collapsed group collapsed and your place in the rail. Clusters would reshuffle whenever an answer unblocks something. Judgment",
       "commits": [
         "Claude declares groups in questions.json before asking",
         "A question changes group only by an explicit revision"
@@ -198,7 +205,7 @@
       "title": "Is a watching session acceptable, or do you want a per-question \"Send to Claude\" button?",
       "facts": "Claude can arm a background watcher (one `curl` long-poll) that ends the moment you save, which wakes the session. No flags. Channels push directly but are a research preview.",
       "recommendation": "Watcher on by default; Claude acts on each save, one question at a time. The status pill shows whether Claude is listening.",
-      "basis": "Research rung 1: background Bash exit-on-change needs no settings and has no deadline. Per-save processing matches \"answer one question, get it processed alone\".",
+      "basis": "Research rung 1: background Bash exit-on-change needs no settings and has no deadline. Per-save processing matches \"answer one question, get it processed alone\". Verified: tools reference, background commands.",
       "commits": [
         "A save reaches Claude at once; change it by saving again",
         "With no watcher armed, the page tells you to type `next` in the terminal"

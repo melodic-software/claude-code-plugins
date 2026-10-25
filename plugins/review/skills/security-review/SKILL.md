@@ -124,6 +124,12 @@ unsafe handling of tokens / secrets / credentials. Tag each finding with a
 severity (CRITICAL / IMPORTANT / SUGGESTION). Only a CRITICAL finding holds the merge for the
 owner; the others flag it.
 
+**Trusted paths.** A changed file matching a glob the wrapper lists under `TRUSTED PATHS:` gets
+extra scrutiny: read its whole change and what it gates. With no such line (seat-run mode or an
+older wrapper), the globs are `.github/standards/trusted-actors/**`,
+`.github/actions/check-trusted-trigger/**`, `**/CODEOWNERS` and `**/.gitmodules`. The match alone
+is not a finding and holds nothing.
+
 GitHub Actions hardening is zizmor's advisory lane: dangerous triggers such as
 `pull_request_target` or `workflow_run` running untrusted code with secrets,
 expression injection through the `github` context inside `run:` blocks,
@@ -257,18 +263,24 @@ The merge gate reads severity from two plain-text lines, never HTML comments:
 
 A comment or summary without its one readable line counts every finding it holds as CRITICAL.
 
-**Hold for a person.** When the wrapper's output schema has a `hold` field, fill it as that
-schema defines it, only for `critical-security`: one or more CRITICAL findings, a CRITICAL
-`manifest <field>: flag` line and a trust-control finding included, with a reason naming them.
-Each keeps its `severity: CRITICAL` line and its place in `critical-findings: <n>`; the hold adds
-to neither count. A trusted path with no CRITICAL finding sets no hold.
+**Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
+classes the wrapper's prompt defines, each named by its criterion, with a reason naming the
+findings or files. A `critical-security` hold (one or more CRITICAL findings, a CRITICAL
+`manifest <field>: flag` line and a trust-control finding included) leaves each CRITICAL finding its
+`severity: CRITICAL` line and its place in `critical-findings: <n>`; the hold adds to neither
+count. Never return `trust-gate`: a trusted-path match alone holds nothing. Spend that draws
+only on prepaid credit or a subscription is never a hold and never a counted finding: name it in
+one summary line. When the prompt defines no classes, hold only for `critical-security` (a
+CRITICAL finding) or `cost` (a change that can start a real charge: a paid plan or billing
+setting, or a billed resource).
 
 An IMPORTANT or SUGGESTION finding, a `manifest <field>: flag` line short of CRITICAL, and every
 other finding is a normal finding and never sets `hold`. With no `hold` field in the schema,
-seat-run mode included, return none. Pointer: the field's shape is the output schema in the
-compose step of
-[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.65.7/.github/workflows/pr-review-cli.yml#L958-L971),
-and its hold classes in the prompt below it
-([L1011-L1021](https://github.com/melodic-software/ci-workflows/blob/v0.65.7/.github/workflows/pr-review-cli.yml#L1011-L1021)).
-As of: 2026-10-24. Recheck trigger: a ci-workflows release changes the `hold` schema or its
-criteria.
+seat-run mode included, return none. Pointer: the classes are the compose step's prompt in
+[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.65.8/.github/workflows/pr-review-cli.yml#L1088-L1098),
+the `TRUSTED PATHS:` line at
+[L1065-L1070](https://github.com/melodic-software/ci-workflows/blob/v0.65.8/.github/workflows/pr-review-cli.yml#L1065-L1070),
+and the field's shape is its output schema at
+[L1035-L1048](https://github.com/melodic-software/ci-workflows/blob/v0.65.8/.github/workflows/pr-review-cli.yml#L1035-L1048).
+As of: 2026-10-24. Recheck trigger: a ci-workflows release changes the compose prompt's hold
+classes, its `TRUSTED PATHS:` line, or the `hold` schema.

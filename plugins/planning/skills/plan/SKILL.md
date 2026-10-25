@@ -188,6 +188,8 @@ Per-scale examples: [context/plan-template.md](context/plan-template.md) "Choosi
 
 **Tracker-write phases:** when any phase ends in creating a work item (e.g. `/work-items:track add`), the plan body MUST follow [context/plan-template.md](context/plan-template.md) "Phase-entry checks for tracker writes": search-before-create as the first work item, an explicit pivot path for the match case, and the search outcome captured in the phase Sanity Check.
 
+**Model-run phases:** when a phase or test step spends model runs (evals, agent fan-outs, benchmark batches), it puts a graded reproduction check before any batch, sizes the run count from tokens measured on 1-2 runs, and carries a `**Run budget:**` line the runner enforces: [context/plan-template.md](context/plan-template.md) "Model-run phases".
+
 **Pre-flight consumer check**. When a phase migrates a contract (frontmatter schema, JSON schema, public API surface, env-var shape, file format, exported function signature), list "Identify consumers" as its FIRST work item: `Grep` + `Glob` for scripts/hooks/workflows/sibling components parsing the contract surface; document parse paths. Migration work items follow. Full pattern: [context/plan-template.md](context/plan-template.md) "Pre-flight consumer check".
 
 **Sub-topic promotion check**. When a phase grows beyond ANY of (>5 distinct work items / >300 LOC delta / own exploration or research need / 2+ sub-phases of its own / independent commit boundary), recommend promoting it to its own topic directory with its own PLAN.md. Criteria: [context/plan-template.md](context/plan-template.md) "Sub-Topic Promotion Trigger".

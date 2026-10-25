@@ -6,11 +6,11 @@ name: pr-run-activity-read
 # resolves the base-SHA config, fails red on any effect but `read` before the
 # PR head is checked out, and runs a skill or a script with the job's
 # read-only GITHUB_TOKEN; the report job writes the check from the run job's
-# runner-computed outputs. A PR-mode skill runs on ci-workflows'
-# run-claude-cli, on one Claude secret per call: the caller's first call
-# passes the role's API key and hands off on a credit stop or an empty key,
-# and its second call, gated on those outputs, passes the OAuth token. An
-# issue skill runs on claude-code-action.
+# runner-computed outputs. A skill runs on ci-workflows' run-claude-cli, on
+# one Claude secret per call: the caller's first call passes the role's API
+# key and hands off on an empty key or the launcher's handoff (a credit stop,
+# or a 401 or 402), and its second call, started by a job that reads this
+# run's jobs, passes the OAuth token.
 # Secrets are scrubbed per workflow run, so this file references no App key.
 # Only the broker-check job, which runs no PR head code, requests an OIDC
 # token; the run job that runs head code holds neither. Write activities run
@@ -75,12 +75,13 @@ on:
         default: ""
       fallback:
         description: >-
-          PR mode: empty for the first call, which runs on claude-api-key and
-          hands off on a credit stop or an empty key; `credit-stop`, `no-key`
+          Empty for the first call, which runs on claude-api-key and hands off
+          on an empty key or the launcher's handoff; `credit-stop`, `no-key`
           or `handoff` for the second, which runs on claude-code-oauth-token
           and names why in its lane record. `handoff` says only that the
-          first call posted no check, for a caller that reads that from this
-          run's jobs rather than from the first call's outputs.
+          first call handed off as this run's jobs show it, for a caller that
+          reads that rather than the first call's outputs. Issue mode takes
+          empty or `handoff`.
         required: false
         type: string
         default: ""
@@ -191,8 +192,8 @@ on:
         required: false
         type: string
         default: ""
-    # A caller passes one of the two: PR mode's first call the API key, its
-    # fallback call and issue mode the OAuth token.
+    # A caller passes one of the two: its first call the API key, its
+    # fallback call the OAuth token.
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -323,8 +324,9 @@ on:
           Issue mode: the earlier run's lane branch this run resumed; empty
           otherwise.
         value: ${{ jobs.issue-fields.outputs.resume-branch }}
-      # PR mode, from run-claude-cli and the credential steps, never from
-      # model text: the caller's fallback call reads these alone.
+      # From run-claude-cli and the credential steps, never from model text,
+      # but set by the run job, which head code can forge: no caller starts
+      # its fallback call on them.
       lane-class:
         description: >-
           The launcher's failure class, `credit-stop` when the key leg hit
@@ -337,9 +339,10 @@ on:
         value: ${{ jobs.run.outputs.credential-present }}
       handed-off:
         description: >-
-          `true` when the first call's key was empty or hit a credit stop, so
-          it uploaded nothing, recorded no lane outcome and posted no check,
-          and the fallback call runs the activity.
+          `true` when the first call's key was empty or its key leg handed
+          off (run-claude-cli's handoff: a credit stop, or a 401 or 402), so
+          it skipped the scan job, uploaded nothing, recorded no lane outcome
+          and posted no check, and the fallback call runs the activity.
         value: ${{ jobs.run.outputs.handed-off }}
 
 permissions: {}
@@ -412,6 +415,21 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
 
+  # Job-level evidence of the broker's allow for a caller's handoff read
+  # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
+  # broker-check's allowed output and is skipped otherwise, and the Actions
+  # API returns a job's conclusion as it ends, where a step's can stay empty
+  # for minutes. It needs broker-check alone, so no run job output reaches it.
+  broker-allowed:
+    needs: broker-check
+    if: needs.broker-check.outputs.allowed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Record the broker's allow
+        run: echo "The broker allowed this lane."
+
   run:
     needs: broker-check
     # The lanes App's own pull_request events never start a lane.
@@ -424,13 +442,11 @@ jobs:
       contents: read
       pull-requests: read
     # The report job trusts only these. Each is a step outcome or an output of a
-    # step that ran before any PR head code, except act-outcome for a gate
-    # skill: the verdict step it reads runs after the skill, so a gate skill
-    # must not execute head code. Every output set after a leg (or any head
-    # code) is forgeable: the scan job takes those only through checks.
-    # act-outcome and the other step outcomes still reach the verdict and the
-    # check-run conclusion this workflow posts, and a hostile run can forge
-    # them. So no PR-mode gate skill runs on this workflow, and nothing may
+    # step that ran before any PR head code. Every output set after a leg (or
+    # any head code) is forgeable: the scan job takes those only through
+    # checks. act-outcome and the other step outcomes still reach the verdict
+    # and the check-run conclusion this workflow posts, and a hostile run can
+    # forge them. So no gate skill runs on this workflow, and nothing may
     # trust that conclusion as merge or apply evidence (a required check,
     # ci-status, pr-merge, apply-patch, or a workflow_run trigger).
     outputs:
@@ -442,14 +458,11 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      # A gate skill succeeds only on a `pass` verdict, and a skill that took
-      # no model turn fails. The scan job's verdict reads it. A PR-mode
-      # skill runs on one of act-key and act-token.
+      # A skill that took no model turn fails. The scan job's verdict reads
+      # it. A skill runs on one of act-key and act-token.
       act-outcome: >-
-        ${{ (steps.act-skill.outcome == 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
-        && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-        || steps.act-turns.outcome != 'success') && 'failure'
-        || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+        ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
+        && steps.act-turns.outcome != 'success' && 'failure'
         || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
         || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
         || steps.act-script.outcome }}
@@ -471,11 +484,11 @@ jobs:
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       resume-branch: ${{ steps.issue-prior.outputs.resume-branch }}
       resume-tip: ${{ steps.issue-prior.outputs.resume-tip }}
-      # PR mode: run-claude-cli sets lane-class after it restores the step
-      # files, so the leg cannot set it; the presence steps run before it.
+      # run-claude-cli sets lane-class and handoff after it restores the step
+      # files, so the leg cannot set them; the presence steps run before it.
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present }}
-      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.lane-class == 'credit-stop' }}
+      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' }}
       # Set after head code ran, for the scan job alone: each payload's byte
       # count and the sealed bundle, never a workflow_call output.
       carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
@@ -508,13 +521,14 @@ jobs:
           FALLBACK: ${{ inputs.fallback }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
-          # trusting the default branch tip, with none of the PR inputs; the
-          # config step below holds it to patch mode.
+          # trusting the default branch tip, with none of the PR inputs and
+          # a fallback only as handoff; the config step below holds it to
+          # patch mode.
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
             if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
               [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
-              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID$FALLBACK" ]; then
-              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, and no pr-number, dispatcher-run-id or fallback"
+              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || [ "${FALLBACK:-handoff}" != handoff ]; then
+              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty or handoff"
               exit 1
             fi
           fi
@@ -739,22 +753,29 @@ jobs:
             exit 1
           fi
 
-      # PR mode runs a skill on run-claude-cli: a role names its secret, a
-      # model alias is set (`default` resolves to none, which the launcher
-      # cannot pass), and the fallback picks the lane record's name. Before
-      # any head code.
+      # A skill runs on run-claude-cli: a role names its secret, a model
+      # alias is set (`default` resolves to none, which the launcher cannot
+      # pass), and the fallback picks the lane record's name. The launcher
+      # step's timeout and its leg's come from the job's: 10 and 15 minutes
+      # under it, for the steps before and after the leg and the CLI install.
+      # Before any head code.
       - name: Check the launcher's inputs
         id: launch
-        if: >-
-          steps.config.outcome == 'success' && inputs.issue-number == ''
-          && steps.config.outputs.kind == 'skill'
+        if: steps.config.outcome == 'success' && steps.config.outputs.kind == 'skill'
         env:
           ROLE: ${{ inputs.role }}
           MODEL: ${{ steps.config.outputs.model }}
           GATING: ${{ steps.config.outputs.gating }}
+          TIMEOUT: ${{ inputs.timeout-minutes }}
         run: |
+          if ! [[ $TIMEOUT =~ ^[1-9][0-9]{0,3}$ ]] || [ "$TIMEOUT" -le 15 ]; then
+            echo "::error::a skill's run job needs a timeout-minutes over 15, to hold the launcher step"
+            exit 1
+          fi
+          echo "step-minutes=$((TIMEOUT - 10))" >>"$GITHUB_OUTPUT"
+          echo "leg-minutes=$((TIMEOUT - 15))" >>"$GITHUB_OUTPUT"
           if [[ ! "$ROLE" =~ ^[a-z][a-z0-9-]*$ ]]; then
-            echo "::error::a PR-mode skill needs a role of lowercase letters, digits and hyphens"
+            echo "::error::a skill needs a role of lowercase letters, digits and hyphens"
             exit 1
           fi
           if [ -z "$MODEL" ]; then
@@ -762,7 +783,7 @@ jobs:
             exit 1
           fi
           if [ "$GATING" != advisory ]; then
-            echo "::error::a PR-mode gate skill's verdict is not read from run-claude-cli"
+            echo "::error::a gate skill's verdict is not read from run-claude-cli"
             exit 1
           fi
           role=${ROLE^^}
@@ -981,8 +1002,7 @@ jobs:
           github-token: ${{ github.token }}
 
       # The head checkout below replaces .base, so what the activity runs from
-      # the base is copied out first. A PR-mode skill runs on run-claude-cli,
-      # an issue skill on claude-code-action.
+      # the base is copied out first. A skill runs on run-claude-cli.
       - name: Stage the activity from the base
         id: stage
         if: steps.go.outputs.run == 'true'
@@ -996,10 +1016,12 @@ jobs:
           prepare: ${{ steps.config.outputs.prepare }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
           issue-number: ${{ inputs.issue-number }}
-          launcher: ${{ inputs.issue-number == '' && 'run-claude-cli' || 'claude-code-action' }}
+          launcher: run-claude-cli
 
       # Issue mode: the skill reads the issue from its scratch directory, so it
-      # needs no shell or API access. Title, body and labels as written, which
+      # needs no shell or API access: the stage's scratch/, which the run job
+      # copies to .lane/scratch, since --restricted reads nothing outside the
+      # checkout. Title, body and labels as written, which
       # the skill evaluates as untrusted data, plus only the comments
       # select-trusted-text's author and edit rules keep, so a listed
       # maintainer's recorded decision reaches the skill. The lanes App's own
@@ -1014,7 +1036,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
-          ISSUE_FILE: ${{ runner.temp }}/lane-scratch/issue.json
+          ISSUE_FILE: ${{ runner.temp }}/lane-stage/scratch/issue.json
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
@@ -1191,14 +1213,14 @@ jobs:
             exit 1
           fi
 
-      # PR mode: run-claude-cli reads only inside the checkout, so the stage
-      # the base copy left goes to .lane/, which a head may not hold. The
-      # plugin, the CI context, the dependency context, the trusted context,
-      # the prompt, the review-thread files and .lane/ itself are read-only,
-      # so a script the
-      # skill runs writes only in .lane/scratch and the review-thread tool
-      # only in .lane/feedback/state, which the stage made before the copy;
-      # git ignores the directory, and the patch leaves it out
+      # run-claude-cli reads only inside the checkout, so the stage the base
+      # copy left goes to .lane/, which a head may not hold. The plugin, the
+      # CI context, the dependency context, the trusted context, the check
+      # and verify-script copies, the git-read wrapper, the prompt, the review-thread files and
+      # .lane/ itself are read-only, so a script the skill runs writes only
+      # in .lane/scratch and the review-thread tool only in
+      # .lane/feedback/state, which the stage made before the copy; git
+      # ignores the directory, and the patch leaves it out
       # (collect-patch.sh).
       - name: Stage the skill's files in the checkout
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
@@ -1225,6 +1247,11 @@ jobs:
           if [ -d .lane/merge ]; then
             chmod -R a-w .lane/merge
           fi
+          for dir in .lane/checks .lane/verify .lane/git; do
+            if [ -d "$dir" ]; then
+              chmod -R a-w "$dir"
+            fi
+          done
           if [ -d .lane/feedback ]; then
             chmod a-w .lane/feedback/threads.json .lane/feedback/run.json .lane/feedback/feedback-thread.sh
             chmod -R a-w .lane/feedback/bin
@@ -1258,12 +1285,12 @@ jobs:
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
           done
 
-      # PR mode: run-claude-cli on exactly one credential per call, so a
-      # step references one Claude secret. The first call runs on the role's
-      # API key (act-key); after its credit stop or with its key empty it
-      # hands off, and the caller's fallback call runs on the role's OAuth
-      # token (act-token). Only whether the secret is set leaves these steps,
-      # never its value.
+      # run-claude-cli on exactly one credential per call, so a step
+      # references one Claude secret. The first call runs on the role's API
+      # key (act-key); with its key empty, or on the launcher's handoff (a
+      # credit stop, or a 401 or 402), it hands off, and the caller's
+      # fallback call runs on the role's OAuth token (act-token). Only
+      # whether the secret is set leaves these steps, never its value.
       - name: Check the API key
         id: key-present
         if: >-
@@ -1301,15 +1328,16 @@ jobs:
       # reports by failing its step, from ending the job before the reply,
       # turn and outcome steps; "Fail without a result" carries the red. A
       # handoff skips every upload, the lane record and the check. One leg
-      # of leg-timeout-minutes and the CLI install fit in timeout-minutes,
-      # which the lane record repeats, and that fits in the caller's job
-      # timeout. setup-python exports LD_LIBRARY_PATH, which the launcher
-      # refuses as a loader variable, so the step clears it.
+      # of leg-timeout-minutes and the CLI install fit in the step's
+      # timeout, which the lane record repeats, and that fits in the job's
+      # (the launch step derives both). setup-python exports
+      # LD_LIBRARY_PATH, which the launcher refuses as a loader variable, so
+      # the step clears it.
       - name: Run the skill on the API key
         id: act-key
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         env:
           # No work may outlive the result message the launcher reads.
@@ -1340,18 +1368,18 @@ jobs:
           json-schema-file: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
             && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
-          leg-timeout-minutes: "45"
+          leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
 
       # The CLI's init message reports the permission mode the leg ran in. A
       # leg in another mode, or with no init message, fails the job, so no
-      # patch is collected; a credit stop hands off unchecked. Asked for
+      # patch is collected; a handoff goes unchecked. Asked for
       # dontAsk, default passes: see check-permission-mode.sh. It reads only
       # that field and writes no summary.
       - name: Check the API key leg's permission mode
         id: mode-key
         if: >-
           always() && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.lane-class != 'credit-stop'
+          && steps.act-key.outputs.handoff != 'true'
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
@@ -1361,7 +1389,7 @@ jobs:
         id: act-token
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1388,7 +1416,7 @@ jobs:
           json-schema-file: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
             && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
-          leg-timeout-minutes: "45"
+          leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
 
       - name: Check the OAuth token leg's permission mode
         id: mode-token
@@ -1398,131 +1426,19 @@ jobs:
           MODE: ${{ steps.config.outputs.permission-mode }}
         run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
 
-      # Issue mode, on claude-code-action until the issue lane moves to the
-      # launcher. A failure does not stop the job here: the next step fails
-      # it unless the failure is only the turn cap on a successful result,
-      # and a failed run's partial change is still collected, so a resumed
-      # run continues it.
-      - name: Run the skill activity
-        id: act-skill
-        if: >-
-          steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
-          && inputs.issue-number != ''
-        continue-on-error: ${{ inputs.issue-number != '' }}
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
-        env:
-          # Strips the OAuth token and other credentials from Bash, hook and
-          # MCP subprocesses and gives Bash its own PID namespace, so /proc
-          # shows no ancestor's env. It keeps GH_TOKEN and GITHUB_TOKEN, so a
-          # subprocess still holds this activity's GitHub token
-          # (code.claude.com/docs/en/env-vars, as of 2026-10-04; recheck when
-          # the CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row stops listing GH_TOKEN
-          # and GITHUB_TOKEN as kept).
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          # The action stops reading at Claude's first result message
-          # (base-action/src/run-claude-sdk.ts:198-209), so background work
-          # that reports in a later turn is lost. This runs every subagent in
-          # the foreground and turns off run_in_background
-          # (code.claude.com/docs/en/env-vars, CLAUDE_CODE_DISABLE_BACKGROUND_TASKS
-          # row, as of 2026-10-15; recheck on a claude-code-action bump that
-          # drops that break, or when the row stops naming run_in_background).
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-          CLAUDE_BRANCH: ${{ steps.gate.outputs.head-ref }}
-        with:
-          claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
-          # The action needs a GitHub token and exports it to the CLI's
-          # environment (src/entrypoints/run.ts:177-191 at the pinned SHA): the
-          # job's read-only one, never an App token.
-          github_token: ${{ github.token }}
-          use_commit_signing: true
-          # A workflow_run after a lanes App push runs as the App, and a
-          # dispatcher-sent run as github-actions; the trigger gate has
-          # already admitted both, so the action's own bot check only needs
-          # them listed (the App pushes the lane's PRs).
-          allowed_bots: >-
-            ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
-            || 'melodic-automation-lanes[bot]' }}
-          plugin_marketplaces: ${{ runner.temp }}/base-marketplace
-          plugins: ${{ steps.stage.outputs.plugins }}
-          prompt: ${{ steps.stage.outputs.prompt }}
-          # The model, turns and effort come from the base config's models
-          # profile (resolve-config), never from text the run reads.
-          settings: ${{ steps.config.outputs.settings-json }}
-          claude_args: >-
-            --setting-sources user
-            --permission-mode dontAsk
-            ${{ steps.config.outputs.claude-args }}
-            ${{ steps.stage.outputs.claude-args }}
-
-      # Issue mode: claude-code-action fails the step on a `success` result
-      # whose num_turns is over --max-turns, after the CLI has finished the
-      # work (base-action/src/run-claude-sdk.ts:241-250 at the pinned SHA).
-      # Such a run counts as a success: the last result message in the
-      # execution file must say subtype `success`, is_error false, and
-      # num_turns over the cap. Any other failure, or a missing or unreadable
-      # file, fails the job here.
-      - name: Check the skill's failure is only the turn cap
-        id: act-result
-        if: >-
-          always() && inputs.issue-number != ''
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          ACT_OUTCOME: ${{ steps.act-skill.outcome }}
-          EXECUTION_FILE: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
-          MAX_TURNS: ${{ steps.config.outputs.max-turns }}
-        with:
-          retries: 0
-          script: |
-            const fs = require('fs');
-            const { ACT_OUTCOME, EXECUTION_FILE, MAX_TURNS } = process.env;
-            if (ACT_OUTCOME === 'success') {
-              core.setOutput('outcome', 'success');
-              return;
-            }
-            let result = null;
-            try {
-              const messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
-              result = Array.isArray(messages) ? messages.filter((m) => m?.type === 'result').at(-1) ?? null : null;
-            } catch (error) {
-              core.setFailed(`the skill step failed and its execution file is not readable: ${error.code ?? error.name}`);
-              return;
-            }
-            const cap = /^[1-9][0-9]*$/.test(MAX_TURNS ?? '') ? Number(MAX_TURNS) : null;
-            const turns = result?.num_turns;
-            if (
-              result?.subtype === 'success' && result.is_error === false && cap !== null
-              && Number.isSafeInteger(turns) && turns > cap
-            ) {
-              core.notice(`the skill finished with a successful result after ${turns} turns, over the ${cap}-turn cap; counted as a success`);
-              core.setOutput('outcome', 'success');
-              return;
-            }
-            core.setFailed(
-              `the skill step failed: result subtype=${JSON.stringify(result?.subtype ?? null)} ` +
-                `is_error=${JSON.stringify(result?.is_error ?? null)} num_turns=${JSON.stringify(turns ?? null)} max-turns=${cap ?? 'unset'}`,
-            );
-
       # The reply is untrusted model text: it is read with jq and written as
-      # data, never interpolated into a command. The file path falls back to
-      # the action's fixed location (base-action/src/execution-file.ts:6-13).
-      # The leak scan reads it before the step summary shows it and before it
-      # is uploaded as audit evidence, since the REST API cannot read step
-      # summaries; apply-patch's ci-escalations report reads it. A launcher
-      # run that handed off has no reply: the fallback call's is the run's.
+      # data, never interpolated into a command. The leak scan reads it
+      # before the step summary shows it and before it is uploaded as audit
+      # evidence, since the REST API cannot read step summaries;
+      # apply-patch's ci-escalations report reads it. A run that handed off
+      # has no reply: the fallback call's is the run's.
       - name: Write the skill's final reply
         if: >-
-          always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
-          || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.lane-class != 'credit-stop'
+          always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
+          && steps.act-key.outputs.handoff != 'true'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         env:
-          EXECUTION_FILE: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
         run: |
           mkdir -p "$REPLY_DIR"
@@ -1542,7 +1458,7 @@ jobs:
         if: >-
           always() && steps.config.outputs.prepare == 'dependency-review'
           && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.lane-class != 'credit-stop'
+          && steps.act-key.outputs.handoff != 'true'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
@@ -1569,16 +1485,12 @@ jobs:
       - name: Check the skill took a model turn
         id: act-turns
         if: >-
-          always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
-          || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.lane-class != 'credit-stop'
+          always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
+          && steps.act-key.outputs.handoff != 'true'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          EXECUTION_FILE: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
         with:
           retries: 0
@@ -1650,18 +1562,19 @@ jobs:
               );
             }
 
-      # Issue mode: the API error a failed skill run ended on, from the
-      # execution file's result fields, never model text, for report-outcome's
-      # funding check (ci-workflows#781): the status and the CLI's error text,
-      # on one line and capped.
+      # Issue mode: the API error a failed leg ended on, from the execution
+      # file's result fields, never model text, for report-outcome's funding
+      # check (ci-workflows#781): the status and the CLI's error text, on one
+      # line and capped. A handoff reads none.
       - name: Read the run's API error
         id: act-error
-        if: always() && inputs.issue-number != '' && steps.act-skill.outcome == 'failure'
+        if: >-
+          always() && inputs.issue-number != ''
+          && (steps.act-key.outcome == 'failure' && steps.act-key.outputs.handoff != 'true'
+          || steps.act-token.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          EXECUTION_FILE: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
         with:
           retries: 0
           script: |
@@ -1682,49 +1595,14 @@ jobs:
               .join(' ');
             core.setOutput('text', text.replace(/\s+/g, ' ').slice(0, 500));
 
-      # Issue mode: the lane record, the run's failure class and, on a usage
-      # limit, when it resets, read from the execution file's structured
-      # fields by ci-workflows' classifier, never from model text. lane.json
-      # carries it, where the limit-stop restarts read it. The credential is
-      # named from the caller's funding role: `issue-lane` reports
-      # ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN.
-      - name: Name the run's credential
-        id: credential
-        if: >-
-          always() && inputs.issue-number != ''
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        env:
-          ROLE: ${{ inputs.role }}
-        run: |
-          if [[ ! "$ROLE" =~ ^[a-z][a-z0-9-]*$ ]]; then
-            echo "::error::issue mode needs a role of lowercase letters, digits and hyphens"
-            exit 1
-          fi
-          role=${ROLE^^}
-          echo "name=${role//-/_}_CLAUDE_CODE_OAUTH_TOKEN" >>"$GITHUB_OUTPUT"
-
-      - name: Record the lane outcome
+      # One lane record per run, naming the credential the leg ran on. A
+      # handoff records nothing; the fallback call records the run under a
+      # name that says why it ran (until report-lane-outcome takes the reason
+      # itself, ci-workflows#806). An issue run keeps the lane's own name.
+      - name: Record the launcher's lane outcome
         id: lane-record
         if: >-
-          always() && inputs.issue-number != ''
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
-        with:
-          outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
-          execution-file: >-
-            ${{ steps.act-skill.outputs.execution_file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
-          lane: ${{ inputs.lane }}
-          lane-id: ${{ inputs.lane }}
-          credential: ${{ steps.credential.outputs.name }}
-          max-turns: ${{ steps.config.outputs.max-turns }}
-
-      # PR mode: one lane record per run. A handoff records nothing; the
-      # fallback call records the run under a name that says why it ran
-      # (until report-lane-outcome takes the reason itself, ci-workflows#806).
-      - name: Record the launcher's lane outcome
-        if: >-
-          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
@@ -1732,7 +1610,10 @@ jobs:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
           lane: >-
-            ${{ inputs.fallback == 'credit-stop'
+            ${{ inputs.issue-number != '' && inputs.fallback == 'handoff'
+            && format('{0} (key {1} handed off)', inputs.lane, steps.launch.outputs.key-name)
+            || inputs.issue-number != '' && inputs.lane
+            || inputs.fallback == 'credit-stop'
             && format('{0}/{1} (key {2} hit a credit stop)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
             || inputs.fallback == 'no-key'
             && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
@@ -1741,33 +1622,10 @@ jobs:
             || format('{0}/{1}', inputs.lane, inputs.activity) }}
           lane-id: ${{ inputs.lane }}
           step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at }}
-          step-timeout-minutes: 50
+          step-timeout-minutes: ${{ steps.launch.outputs.step-minutes }}
           credential: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
-
-      # The verdict comes from the action's structured_output, read through env
-      # and parsed by jq. Anything but exactly `pass` fails the activity; the
-      # summary is model text, printed as data.
-      - name: Check the gate skill's verdict
-        id: skill-verdict
-        if: always() && steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
-        env:
-          STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
-        run: |
-          verdict=$(jq -r 'if type == "object" and (.verdict | type) == "string" then .verdict else "" end' <<<"$STRUCTURED_OUTPUT") || verdict=""
-          summary=$(jq -r 'if type == "object" then (.summary // "" | tostring)[:4000] | gsub("`"; "'"'"'") else "" end' <<<"$STRUCTURED_OUTPUT") || summary=""
-          {
-            echo "### Gate verdict"
-            echo
-            echo '```text'
-            printf 'verdict: %s\n\n%s\n' "$verdict" "$summary"
-            echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
-          if [ "$verdict" != pass ]; then
-            echo "::error::the gate skill's verdict is not pass"
-            exit 1
-          fi
 
       - name: Run the script activity
         id: act-script
@@ -1830,9 +1688,10 @@ jobs:
       # in PR mode the scan job scans it, and the job that applies the patch
       # checks both. The launcher steps fail softly, so a PR-mode skill needs
       # one that succeeded: a handoff or a failed leg collects nothing.
-      # In issue mode it also runs after a failed skill step (a turn cap or a
-      # usage limit), so the partial work reaches a lane branch a resumed run
-      # continues; the apply job holds it to the same rules.
+      # In issue mode it also runs after a failed leg (a turn cap or a usage
+      # limit) whose permission mode checked out, so the partial work reaches
+      # a lane branch a resumed run continues; the apply job holds it to the
+      # same rules. A handoff skips the mode check, so it collects nothing.
       # merge-base measures the patch from the conflict tree the merge step
       # reached, so it holds the skill's resolutions alone, never the merge's
       # base-side changes.
@@ -1843,7 +1702,7 @@ jobs:
           && (job.status == 'success'
           && (steps.launch.outcome != 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
           || inputs.issue-number != ''
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'))
+          && (steps.mode-key.outcome == 'success' || steps.mode-token.outcome == 'success'))
         env:
           HEAD_SHA: ${{ steps.start.outputs.sha }}
           FROM_TREE: ${{ steps.config.outputs.prepare == 'merge-base' && steps.merge.outputs.conflict-tree || '' }}
@@ -1866,7 +1725,7 @@ jobs:
       # and the head checkout removed .base, so the model could make one
       # there too; with both gone, both post steps return before any git runs.
       - name: Remove the checkouts' .git directories
-        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
+        if: always() && steps.go.outputs.run == 'true'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.git" "${GITHUB_WORKSPACE:?}/.base/.git"
 
       # Issue mode: the skill's outcome file is model output, copied as data
@@ -1876,16 +1735,18 @@ jobs:
       # report-outcome re-checks every field. This run makes no branch: the
       # apply job names the one it makes in lane.json. Capped at 49152 bytes
       # so the sealed payloads still fit five chunks; a longer file is cut,
-      # which report-outcome reads as an invalid outcome.
+      # which report-outcome reads as an invalid outcome. The limit record
+      # is the launcher's class and reset time. A handoff collects nothing.
       - name: Collect the issue outcome
         if: >-
           always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
           && steps.config.outputs.kind == 'skill'
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
         env:
-          SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
+          SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
-          LANE_CLASS: ${{ steps.lane-record.outputs.failure-class }}
-          LANE_RESETS: ${{ steps.lane-record.outputs.resets-at }}
+          LANE_CLASS: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
+          LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets }}
           # The run's turn cap, so a turn-cap stop names it.
           LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
           # The branch a resumed run continued, which still holds the work
@@ -1893,7 +1754,7 @@ jobs:
           LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
           # A run that exited non-zero, and the API error it ended on, so a
           # funding stop is named as one (report-outcome readFunding).
-          LANE_FAILED: ${{ steps.act-skill.outcome == 'failure' }}
+          LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' }}
           LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
           LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
         run: |
@@ -1988,13 +1849,13 @@ jobs:
           max-chunks: 5
 
       # The launcher steps fail softly. A run that handed off ends green and
-      # leaves the activity to the fallback call; any other PR-mode skill run
-      # that got as far as the credential steps and left no launcher success
-      # fails here.
+      # leaves the activity to the fallback call; any other skill run that
+      # got as far as the credential steps and left no launcher success fails
+      # here, after its outcome and partial patch were carried.
       - name: Fail without a result
         if: >-
           always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
         run: |
           echo "::error::the skill's launcher run left no result"
@@ -2156,7 +2017,8 @@ jobs:
   # gated head, or in issue mode the base or resume tip), writes the
   # summary, and is the only job that uploads the reply, patch, issue
   # outcome and verdict artifacts. A handoff skips it: the fallback call's
-  # artifacts take the same names. The key pair's
+  # artifacts take the same names, and work-resolve-issue.yml's handoff job
+  # starts that call on this job's skip, read from this run's jobs. The key pair's
   # generation and rotation: .github/actions/open-lane-output/README.md.
   # Setup, in this order (the owner, offline from the repository root):
   #   1. Create the environment, with custom branch policies:
@@ -2975,7 +2837,9 @@ jobs:
       # branch's diff from a blobless fetch into a repository outside the
       # workspace: git diff reads no attributes or diff drivers from it, so
       # nothing on the branch runs. tip is the commit the diff read. The fetch
-      # is unauthenticated, so it reads only a public repository.
+      # is unauthenticated, so it reads only a public repository. The data
+      # sits under the workspace, since run-claude-cli's --restricted reads
+      # nothing outside it.
       - name: Write the reused branch's diff and issue for the summary pass
         id: summary-data
         if: steps.node.outcome == 'success'
@@ -2985,9 +2849,9 @@ jobs:
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
           BASE_SHA: ${{ needs.issue-fields.outputs.base-sha }}
-          DATA: ${{ runner.temp }}/reuse-summary-data
+          DATA: ${{ github.workspace }}/.summary
           SRC: ${{ runner.temp }}/reuse-summary-src
-          ISSUE_FILE: ${{ runner.temp }}/reuse-summary-data/issue.json
+          ISSUE_FILE: ${{ github.workspace }}/.summary/issue.json
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
@@ -3028,17 +2892,17 @@ jobs:
           output-path: ${{ runner.temp }}/reuse-summary-models.json
 
       # Read under the data directory is the pass's only tool; it writes
-      # nothing and returns its summary as structured output. A rule path
-      # starting `//` is absolute. The denials hold if the action ever adds a
-      # tool or MCP server of its own for these inputs.
-      - name: Build the summary pass's prompt and arguments
+      # nothing and returns its summary as structured output, to a schema
+      # the launcher reads from runner.temp. The prompt file sits beside the
+      # data, which the model may read.
+      - name: Build the summary pass's prompt
         id: summary-prompt
-        if: steps.summary-models.outcome == 'success'
+        if: steps.summary-models.outcome == 'success' && steps.summary-models.outputs.model != ''
         continue-on-error: true
         env:
-          DATA: ${{ runner.temp }}/reuse-summary-data
+          DATA: ${{ github.workspace }}/.summary
+          SCHEMA: ${{ runner.temp }}/reuse-summary-schema.json
         run: |
-          [[ $DATA =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "::error::the data directory has a name a rule cannot carry"; exit 1; }
           prompt=$(
             cat <<'PROMPT'
           You write the pull request description for work an earlier lane run committed to a branch and
@@ -3064,63 +2928,92 @@ jobs:
           prompt=${prompt//ISSUE_FILE/$DATA/issue.json}
           prompt=${prompt//BRANCH_FILE/$DATA/branch.json}
           prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
-          schema='{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"changes":{"type":"array","items":{"type":"string"}}},"required":["title","summary","changes"],"additionalProperties":false}'
-          denied="Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Skill"
-          denied="$denied,mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment"
-          args="--allowedTools \"Read(/$DATA/**)\" --disallowedTools \"$denied\" --json-schema '$schema'"
-          delimiter="prompt_$(openssl rand -hex 16)"
-          {
-            echo "claude-args=$args"
-            echo "prompt<<$delimiter"
-            printf '%s\n' "$prompt"
-            echo "$delimiter"
-          } >>"$GITHUB_OUTPUT"
+          printf '%s\n' "$prompt" >"$DATA/prompt.md"
+          printf '%s\n' '{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"changes":{"type":"array","items":{"type":"string"}}},"required":["title","summary","changes"],"additionalProperties":false}' >"$SCHEMA"
 
-      # bwrap for the env scrub, then no sudo or docker. A failure here stops
-      # the pass, so the model never runs without isolation.
+      # run-claude-cli refuses to run without the managed settings, which
+      # need sudo; then bwrap for the env scrub, and no sudo or docker. A
+      # failure here stops the pass, so the model never runs without them.
+      - name: Apply the Claude managed settings
+        id: summary-settings
+        if: steps.summary-prompt.outcome == 'success'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+
       - name: Isolate the runner
         id: isolate
-        if: steps.summary-prompt.outcome == 'success'
+        if: steps.summary-settings.outcome == 'success'
         continue-on-error: true
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
-      # The action gets the job's read-only GITHUB_TOKEN, no plugins and no
-      # commit signing, and the model reads the data files and nothing else.
-      - name: Summarize the reused branch
-        id: summary-run
-        if: steps.isolate.outcome == 'success'
+      # One launcher step per secret, as in the run job: the first call's
+      # pass runs on the API key, a fallback call's on the OAuth token. The
+      # model reads the data files and nothing else: Read is its one tool,
+      # and the default branch checkout and process files are denied.
+      - name: Summarize the reused branch on the API key
+        id: summary-key
+        if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
+        timeout-minutes: 15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         env:
-          # As in the run job's skill step.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
-          claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
-          github_token: ${{ github.token }}
-          # The run job's trigger gate admitted this run's actor, which on an
-          # App-labeled issue is the lanes App.
-          allowed_bots: melodic-automation-lanes[bot]
-          prompt: ${{ steps.summary-prompt.outputs.prompt }}
-          settings: ${{ steps.summary-models.outputs.settings-json }}
-          claude_args: >-
-            --setting-sources user
-            --permission-mode dontAsk
-            ${{ steps.summary-models.outputs.claude-args }}
-            ${{ steps.summary-prompt.outputs.claude-args }}
+          lane: summarize-reuse
+          role: ${{ inputs.role }}
+          prompt-file: ${{ github.workspace }}/.summary/prompt.md
+          preamble: You run unattended as a CI lane's read-only summary pass, and no one can answer a question.
+          api-key: ${{ secrets.claude-api-key }}
+          model: ${{ steps.summary-models.outputs.model }}
+          effort: ${{ steps.summary-models.outputs.effort }}
+          max-turns: ${{ steps.summary-models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./.summary/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(//proc/**)
+          json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
+          leg-timeout-minutes: "10"
+
+      - name: Summarize the reused branch on the OAuth token
+        id: summary-token
+        if: steps.isolate.outcome == 'success' && inputs.fallback != ''
+        continue-on-error: true
+        timeout-minutes: 15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: summarize-reuse
+          role: ${{ inputs.role }}
+          prompt-file: ${{ github.workspace }}/.summary/prompt.md
+          preamble: You run unattended as a CI lane's read-only summary pass, and no one can answer a question.
+          subscription-token: ${{ secrets.claude-code-oauth-token }}
+          model: ${{ steps.summary-models.outputs.model }}
+          effort: ${{ steps.summary-models.outputs.effort }}
+          max-turns: ${{ steps.summary-models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./.summary/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(//proc/**)
+          json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
+          leg-timeout-minutes: "10"
 
       # The summary file: issue, branch and tip are runner values from before
-      # the model ran; output is the action's structured output, model text,
-      # read through env and parsed by jq (null when it does not parse).
-      # report-outcome uses it only for the PR's title and body text.
+      # the model ran; output is the launcher's structured output, model
+      # text, parsed by jq (null when it does not parse). report-outcome uses
+      # it only for the PR's title and body text.
       - name: Collect the reused branch's summary
         id: summary-collect
-        if: steps.summary-run.outcome == 'success'
+        if: steps.summary-key.outcome == 'success' || steps.summary-token.outcome == 'success'
         continue-on-error: true
         env:
-          STRUCTURED_OUTPUT: ${{ steps.summary-run.outputs.structured_output }}
+          OUTPUT_FILE: ${{ steps.summary-key.outputs.structured-output-file || steps.summary-token.outputs.structured-output-file }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
           TIP: ${{ steps.summary-data.outputs.tip }}
@@ -3128,7 +3021,11 @@ jobs:
         run: |
           rm -rf "$OUT_DIR"
           mkdir -p "$OUT_DIR"
-          jq -n --argjson issue "$ISSUE_NUMBER" --arg branch "$REUSE_BRANCH" --arg tip "$TIP" --arg output "$STRUCTURED_OUTPUT" \
+          output=""
+          if [ -f "$OUTPUT_FILE" ]; then
+            output=$(head -c 1000000 "$OUTPUT_FILE")
+          fi
+          jq -n --argjson issue "$ISSUE_NUMBER" --arg branch "$REUSE_BRANCH" --arg tip "$TIP" --arg output "$output" \
             '{version: 1, issue: $issue, branch: $branch, tip: $tip, output: ($output | try fromjson catch null)}' \
             >"$OUT_DIR/reuse-summary.json"
 

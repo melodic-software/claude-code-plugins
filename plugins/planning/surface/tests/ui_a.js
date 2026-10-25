@@ -34,6 +34,16 @@ async page => {
   ok("no card element overflows its own width at 510px", lay.every(l => !l.over.length), JSON.stringify(lay.map(l => l.over)));
   await page.setViewportSize({width: 1400, height: 860});
 
+  // I4: a Judgment basis and a Verified basis wear different chips beside the recommendation
+  const basisChip = async id => {
+    if (!(await page.isVisible('.qbtn[data-q="' + id + '"]'))) await page.evaluate(i => document.querySelector('.qbtn[data-q="' + i + '"]').closest(".sec").querySelector(".sec-h").click(), id);
+    await page.click('.qbtn[data-q="' + id + '"]'); await page.waitForTimeout(200);
+    return page.evaluate(() => { const c = document.querySelector("#dscroll section.blk > h4 .chip.basis"); return c ? c.className + "|" + c.textContent : ""; });
+  };
+  const jChip = await basisChip("Q2"), vChip = await basisChip("Q4");
+  ok("I4: a basis ending Judgment renders a basis-judgment chip", /chip basis basis-judgment\|Judgment$/.test(jChip), jChip);
+  ok("I4: a basis ending Verified: <source> renders a basis-verified chip", /chip basis basis-verified\|Verified$/.test(vChip), vChip);
+
   // history labels
   await page.click('.qbtn[data-q="W1"]').catch(async () => { await page.click('.sec[data-key="g:wrap"] .sec-h'); await page.click('.qbtn[data-q="W1"]'); });
   await page.waitForTimeout(200);
@@ -102,7 +112,13 @@ async page => {
   await page.keyboard.press("End"); await page.waitForTimeout(150);
   ok("End goes to the last tab; only the selected tab is in the tab order", await page.evaluate(() => document.activeElement.dataset.panel === "settings" && [...document.querySelectorAll('#tabs [role="tab"]')].filter(b => b.tabIndex === 0).length === 1));
   await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(150);
-  ok("ArrowLeft goes back one tab", await page.evaluate(() => document.activeElement.dataset.panel === "activity"));
+  ok("ArrowLeft goes back one tab", await page.evaluate(() => document.activeElement.dataset.panel === "terms"));
+  ok("Terms tab lists the defined terms", await page.textContent("#flyTitle") === "Terms" && await page.$$eval("#fbody dl.terms dt", els => els.map(e => e.textContent).join()) === "markdown");
+  const before = await sel();
+  await page.evaluate(() => document.querySelector('.qbtn[data-q="Q1"]').click()); await page.waitForTimeout(200);
+  ok("a defined term used in a question title shows its definition on hover", await page.$$eval("#qhead abbr.term", els => els.map(e => e.textContent + "=" + e.title).join()) === "markdown=The small text markup the page renders in question text.");
+  await page.evaluate(id => document.querySelector('.qbtn[data-q="' + id + '"]').click(), before); await page.waitForTimeout(200);
+  await page.focus('#tabs [data-panel="terms"]');
   await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150); // back on Settings, where the steps below expect to be
   ok("the font stacks name no web font the CSP cannot load", await page.evaluate(() => { const c = getComputedStyle(document.documentElement); return !/Plex|Newsreader/.test(c.getPropertyValue("--sans") + c.getPropertyValue("--mono") + c.getPropertyValue("--display")); }));
   await page.click("#pinBtn"); await page.waitForTimeout(200);

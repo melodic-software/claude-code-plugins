@@ -16,7 +16,7 @@ const CONFIG_BASENAME = "pr-pipeline.yaml";
 const RESERVED_ACTIVITIES = new Set(["run", "report"]);
 // Model routes that are no activity: pr-verify.yml's judgment, the code and
 // security review lanes, and intake triage.
-const RUN_ROUTES = new Set(["verify-pr", "review-code", "review-security", "triage-issue", "summarize-reuse"]);
+const RUN_ROUTES = new Set(["verify-pr", "review-code", "review-security", "triage-issue", "summarize-reuse", "adjudicate-feedback"]);
 // The profile every run takes in a config with no `models` block.
 const BUILTIN_MODELS = Object.freeze({
   profiles: { standard: { model: "default", "max-turns": 75 } },
