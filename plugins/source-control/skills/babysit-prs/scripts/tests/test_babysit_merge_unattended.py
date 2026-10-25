@@ -876,6 +876,9 @@ class Unattended(unittest.TestCase):
             if self.timeline_error is not None:
                 raise self.timeline_error
             return self.timeline
+        # The linked issue's label history the trust hold reads: none.
+        if endpoint == "repos/owner/repo/issues/41/timeline?per_page=100":
+            return []
         return self._real_paginated(endpoint, label, **kwargs)
 
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:
@@ -2277,6 +2280,19 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 for c in self.capture.call_args_list
                 for a in c.args[0]
             )
+        )
+
+    def test_a_failed_runs_read_still_refuses_and_records_its_error(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        with mock.patch.object(
+            merge, "_failed_merge_group_runs", side_effect=RuntimeError("boom")
+        ):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "error: boom")
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
         )
 
     def test_one_ejection_still_enqueues(self) -> None:

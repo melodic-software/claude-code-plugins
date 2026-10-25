@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Not a feature or drive-step lesson, so nothing goes into the control skill. I report it for /corrections:codify, which places it. Nothing else differs: the outcome is clean.",
+      "why": "hands the lesson to codify"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I would add 'never stage dist/' to the hub's Gotchas so drives see it, and ship it in the upkeep pull request.",
+      "why": "writes a non-feature lesson into the control skill"
+    }
+  ]
+}

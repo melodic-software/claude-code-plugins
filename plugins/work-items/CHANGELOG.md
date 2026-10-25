@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.5] - 2026-10-25
+
+### Fixed
+
+- `triage`'s board steps say what to do when the board watcher exits 4 after its run of empty waits: re-arm it with the command it prints while triage is still going.
+
+## [3.4.4] - 2026-10-25
+
+### Fixed
+
+- Harden the triage board's view bridge: the watcher exits after 40 consecutive empty waits (exit 4) so an orphaned watcher no longer keeps the server alive, the wait and lease-release endpoints need a watcher-only token that the page never receives, and U+2028 and U+2029 are escaped in output lines.
+
 ## [3.4.3] - 2026-10-25
 
 ### Changed

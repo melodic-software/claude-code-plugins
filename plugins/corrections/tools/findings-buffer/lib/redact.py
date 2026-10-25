@@ -1,4 +1,4 @@
-# GENERATED from plugins/session-flow/skills/audit-sessions/scripts/redact.py by scripts/sync-shared-copies.sh. Do not edit this copy:
+# GENERATED from lib/redact.py by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 """Redact secrets, emails and home paths from text before audit-sessions stores any of it.
 

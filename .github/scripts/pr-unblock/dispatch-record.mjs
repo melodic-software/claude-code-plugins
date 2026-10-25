@@ -13,7 +13,9 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 // good, so a record written under the old rule is read as empty: version 2
 // leaves unrecorded a head a later no-model-turn reply or verdict can release,
 // version 3 a review-dependency head a limit stop holds until its reset, and
-// version 4 a resolve-conflicts head a failed run or a held skip left.
+// version 4 a resolve-conflicts head a failed run or a held skip left. A fix-ci
+// head recorded at its per-head cap needs no new version: a record with no
+// fix-ci entry reads the same either way.
 export const RECORD_VERSION = 4;
 
 export function emptyRecord() {

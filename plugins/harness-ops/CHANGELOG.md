@@ -3,6 +3,29 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.6] - 2026-10-25
+
+### Fixed
+
+- The parser reader's sink rule no longer counts every use of the global `Function` as code built from a string. A `Function(...)` or `new Function(...)` whose result is discarded (an expression statement, or a sequence operand other than the last, as in `try{return new Function(""),!0}catch(e){return!1}`) builds code it never runs, so it is no sink. A direct call of one whose every argument is a constant string, such as lodash's `Function("return this")()`, has the code those strings spell parsed and scanned the same way, and is a sink only when that code is. Code holding an HTML-like comment (`<!--`, `-->`) is not folded. Every other use still counts, and a write of `Function` (`Function=g`, `globalThis.Function=g`, or a definer such as `Reflect.set` given `"Function"`) is now a sink of its own, since the folded calls trust it.
+
+## [4.5.5] - 2026-10-25
+
+### Fixed
+
+- **The inventory's built-in plugin lane no longer reports a wrong value where it cannot read one.** A method gate (`isAvailable(){...}`) now reads `gated: true` with `gate_flags` unresolved and named in `partial`, instead of `gated: false`. A plugin the loader requires at several call sites combines them: any unguarded site makes it `unconditional`, and sites guarded differently leave `load` partial instead of keeping the first site's guards. A command name registered twice with different records keeps both and leaves `commands` partial. A `hooks` object holding a spread, or a key the reader cannot see, lists the keys it read and names `classic_hooks` in `partial`.
+
+## [4.5.4] - 2026-10-25
+
+### Changed
+
+- **Behavior-probe records and the changelog's native-drift facts cite skills by slash invocation.** The records name `/source-control:worktree` for their record format, and the native-drift facts name `/work-items:track add` as their basis, in place of paths and URLs into those plugins' skill folders.
+
+### Fixed
+
+- `inventory --reader=parser` no longer reads a list as literal when a module may load a file through a computed key that is or may be `require` (`module[k]`, `globalThis["req"+"uire"]`, `{[k]:r}=globalThis`). The key is read the way the sink rule reads a computed key, and such a load now fails the export hop.
+- The parser reader's sink rule now counts every load the scan cannot name, such as `import(s)` with a variable specifier, an aliased or `.call`ed `require`, or a computed `require` key, since any of them may load `node:vm`. A list local to a module that runs a string through a vm load with a non-literal specifier now reads partial instead of literal.
+
 ## [4.5.3] - 2026-10-25
 
 ### Changed

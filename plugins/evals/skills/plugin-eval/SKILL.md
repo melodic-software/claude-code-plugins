@@ -239,7 +239,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
 
    When preflight's `suite_tools` lists gated tools, add `--allow-tools` with exactly those tools;
    without the grant each is removed from every run, so a case that must run or verify its own
-   work cannot.
+   work cannot. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a short directory outside the system temp directories that you create first (for example `/run/user/$(id -u)/ev`). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
 
    Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
@@ -465,7 +465,7 @@ record is the CI pins row under [Sources](#sources).
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
   When `error` is null, run the validity gate and the noise report before drawing any conclusion,
-  and say nothing yet about the cases themselves.
+  and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
 - A run from inside a Claude Code session keeps its report local and says `kept local`; from a
   terminal it may publish to claude.ai unless `--no-publish` is passed.
 - The sandbox limits what the agent under test can reach. It is not a boundary against the

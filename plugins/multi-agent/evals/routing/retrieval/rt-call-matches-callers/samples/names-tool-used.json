@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "grade_tool_used\ngrade_tool_order\n",
+      "why": "both callers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "grade_tool_order\n",
+      "why": "grade_tool_used missing"
+    },
+    {
+      "answer": "grade_tool_used_count\ngrade_tool_order\n",
+      "why": "a different name"
+    }
+  ]
+}

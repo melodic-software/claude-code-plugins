@@ -1,5 +1,36 @@
 # Changelog for the PR pipeline convention
 
+## [5.10.5] - 2026-10-25
+
+### Fixed
+
+- The shell rate guard ends the step when it cannot record a stop (no space or no permission for `$RUNNER_TEMP/api-budget`), with an error naming the pool, and refuses every later call in that shell, so no call reaches an exhausted pool unrecorded. Its errors go to a copy of the step's stderr taken when the wrapper is set up, so they reach the log when a caller such as ci-status's `gh_read` holds the call's stderr in a file, and from a subshell every shell up to the step's is ended, so no retry loop around the call sends again. The Node guard names a stop it could not record in its error line.
+- The shell and Node stop-file readers fail closed: a stop file that exists but cannot be read (no permission, a directory, a path part that is a file) holds every pool, with an error naming the file; a missing one holds nothing.
+- The shell and Node stop-file readers take only lines shaped `<pool> <1-12 digits>` and ended by a newline, alike, so a fragment a short write left spoils only the line it runs into; `rate-guard.vectors.json` pins the reader cases for every port. Both guards cap a stop at the largest 12-digit second, so a huge `retry-after` still writes a stop the readers take.
+
+## [5.10.4] - 2026-10-25
+
+### Fixed
+
+- `enable-auto-merge` posts a new refusal comment when it escalates a lanes App pull request to a person (the comment carrying the attended queue's escalation marker, written with the human-gated label), instead of editing its earlier lane comment. An edit sent no notification and kept the comment's old date, so the timeline showed only a bare label event with no visible reason. A refusal that stays a lane's still edits the one comment in place, and an unchanged person's refusal is not posted again.
+
+## [5.10.3] - 2026-10-25
+
+### Fixed
+
+- The fix-ci dispatcher counts a head's earlier `pr-unblock / fix-ci` runs from the REST check-runs listing before it dispatches, instead of from the GraphQL check rollup, which lists only the newest run per check name. The per-head cap (`limits.limit-stops-per-head`) now stops a head that fix-ci-context skips each time, which was dispatched again after every base move. A head whose runs cannot be read is not dispatched (`.github/scripts/pr-unblock/fix-ci-dispatch.mjs`).
+- A head that reaches the per-head cap in fix-ci or resolve-conflicts now gets one `::warning::` annotation on the dispatcher run that finds the cap, naming the PR, the head and the run count. The head then goes into the dispatch record, so later dispatcher runs skip it without reading its hold, check runs or required run (`.github/scripts/pr-unblock/fix-ci-dispatch.mjs`, `.github/scripts/pr-unblock/dispatch.mjs`, `.github/scripts/pr-unblock/limit-stop.mjs`).
+
+- `enable-auto-merge` no longer arms, and disarms, a lanes App pull request whose linked issue carries a label naming untrusted work, in any spelling, or had one removed by a non-human. report-outcome already writes a `Hold:` line when the issue carries the exact label at PR open, so this covers a label added after the pull request opened, or any other spelling. The refusal is one a person clears: the pull request gets the refusal comment and the human-gated label.
+
+- In the merge queue, `ci-status` now applies the trust hold to a queued pull request an automation opened. The step `Fail a queued pull request carrying a hold label` reads its linked issue: its closing issues here, or with none, the one plain `Refs:` issue. The step fails when that issue carries a label containing `untrusted` in any ASCII case, or had one removed by anyone other than a person on the base's trusted-actor list, or through an App. A lanes App pull request that does not link exactly one issue here fails too, so dropping the link after arming does not skip the check; another automation's that links none passes. A removal by a non-human stays in the issue's timeline, so no later label change lifts it; a new issue and a new pull request linking it do. report-outcome's `Hold:` line covers the exact label at PR open, and `enable-auto-merge` covers arm time, so the remaining gap was a label added after the pull request opened. A pull request armed before the label landed no longer merges on it. An unreadable link, label list, timeline or trusted-actor list, a bot author with no numeric id, or a jq error matching them, fails closed. This costs one GraphQL read per queued pull request, plus one timeline read per linked issue and a labels read for a `Refs:` issue when an automation opened it. A person's own pull request is not read.
+
+## [5.10.2] - 2026-10-25
+
+### Changed
+
+- The pr-merge merge job now needs post-merge-dispatch, so it reads this run's kept post-merge report instead of racing its upload and running the same check again; on 2026-10-25, 20 of 43 scheduled runs read before the report was kept. `!cancelled()` keeps the job running on pull_request_target, where post-merge-dispatch is skipped, and when that job fails. The reuse rule (same main commit, under REUSE_MINUTES old) and the fallback to the job's own check are unchanged (`.github/workflows/pr-merge.yml`).
+
 ## [5.10.1] - 2026-10-25
 
 ### Changed

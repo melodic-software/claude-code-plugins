@@ -3,6 +3,12 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.9] - 2026-10-25
+
+### Changed
+
+- The audit's routing row for page derivability no longer cites a file inside the review plugin's skill folder; it names `/review:fanout run-everything` by invocation only.
+
 ## [0.10.8] - 2026-10-20
 
 ### Changed

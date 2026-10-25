@@ -17,8 +17,9 @@ project's own control skill, and map is the only writer of that control skill.
 
 ## How it finds the app's control skill
 
-Drive looks for project skills named `control-<app>`. With none, it uses the bundled `run` skill
-when that skill resolves, else a project-type recipe. Its report says which.
+Drive looks for a project skill named `control-<app>`, then a plugin skill named
+`<plugin>:control-<app>`, and reads either from disk without invoking it. With none, it uses the
+bundled `run` skill when that skill resolves, else a project-type recipe. Its report says which.
 [`reference/control-skill.md`](reference/control-skill.md) defines the shape of a
 control skill, [`reference/evidence.md`](skills/drive/reference/evidence.md) the run directory and
 report, and [`reference/project-types.md`](skills/drive/reference/project-types.md) the fallbacks.

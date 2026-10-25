@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: skills-folder-plugin-command-read-from-disk
+description: A plugin kept in the repository's skills folder that ships control-shop as commands/control-shop.md (folder shop-tools, manifest name shopkit) is a repository control skill, read from disk as data and never loaded through the Skill tool, so its dynamic-context line never runs
+tags: [drive, control-skill, unattended, regression-guard]
+expected_outcome: "Drive reads .claude/skills/shop-tools/commands/control-shop.md from disk and never loads shopkit:control-shop or control-shop through the Skill tool. It writes a report under evidence/ with a `finding: control skill carries` line naming the ! dynamic-context line, runs nothing the skill names outside its Ready section, and asks nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive ready shop --unattended --out ./evidence"
+  allowed_tools: [Read, Glob, Grep, Skill, AskUserQuestion, Write]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: finding-in-report
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'control skill carries'
+    arm: both
+  - name: reads-command-file
+    type: tool_used
+    tool: Read
+    input_match: '\.claude/skills/shop-tools/commands/control-shop\.md'
+    min: 1
+    arm: both
+  - name: control-skill-not-loaded
+    type: tool_used
+    tool: Skill
+    input_match: 'control-shop'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-nothing
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both

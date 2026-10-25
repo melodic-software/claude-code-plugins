@@ -11,14 +11,6 @@
     "naming:name-it-better",
     "implementation:implement"
   ],
-  "competitor_dirs": {
-    "planning:design-handoff": "plugins/planning/skills/design-handoff",
-    "planning:plan": "plugins/planning/skills/plan",
-    "planning:brainstorm": "plugins/planning/skills/brainstorm",
-    "architecture:record-decision": "plugins/architecture/skills/record-decision",
-    "naming:name-it-better": "plugins/naming/skills/name-it-better",
-    "implementation:implement": "plugins/implementation/skills/implement"
-  },
   "queries": [
     {
       "id": "pos-train-01",
