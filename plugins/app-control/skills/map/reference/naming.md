@@ -40,7 +40,7 @@ The text checks above see only the string. Before the first write, and again bef
 resolve the real path (every symlink followed) of:
 
 - the control skill directory, and every parent of it that already exists;
-- `config/.gitignore` inside it;
+- every file and directory map writes inside it, `config/.gitignore` included;
 - the instruction file the pointer goes to.
 
 Each must sit under the repository root's real path, with no symlink anywhere between the root and

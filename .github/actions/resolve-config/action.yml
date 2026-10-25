@@ -16,7 +16,9 @@ inputs:
     description: >
       A run that is no lane activity (verify-pr for pr-verify.yml,
       review-code for pr-review-hosted.yml, review-security for
-      pr-review-security-hosted.yml, triage-issue for intake-triage.yml):
+      pr-review-security-hosted.yml, triage-issue for intake-triage.yml,
+      summarize-reuse for work-resolve-issue's summary pass,
+      adjudicate-feedback for pr-unblock.yml's adjudicate-feedback job):
       resolve only its model profile, for the profile, claude-args,
       settings-json, max-turns, model and effort outputs. Set it or lane, not both.
     required: false

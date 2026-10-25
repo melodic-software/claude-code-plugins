@@ -163,10 +163,12 @@ jobs:
     # The model jobs narrow this to contents: read and pull-requests: read;
     # only the reusable's status job (the claude-review-status check) writes.
     permissions:
+      actions: read          # the reusable's check-key-credit job reads this
+                             # workflow's runs for the key's recent credit stop
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@f1096608192c54cfb3dc252e36670e6f86700b9b # v0.65.5
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@4fbceb4b75ffd568dfa5db31de0d0e753c0c64e6 # v0.65.9
     with:
       lane: code
       publish: comments
@@ -189,9 +191,10 @@ jobs:
       # change, documentation included.
       docs-only-paths: ''
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
-      # fails while the label is on. The review holds only for its hold
-      # classes; a changed file matching hold-paths holds as trust-gate
-      # whatever the review says. Keep both lists equal in the two callers.
+      # fails while the label is on. The review holds only for a real-charge
+      # cost or a CRITICAL security finding; hold-paths names the files the
+      # prompt sends to extra security scrutiny and never holds by itself.
+      # Keep both lists equal in the two callers.
       hold-label: needs-human
       hold-paths: |
         .github/standards/trusted-actors/**

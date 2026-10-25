@@ -3,6 +3,29 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.0] - 2026-10-25
+
+### Added
+
+- **`block-cross-domain`, a guard on the Bash and PowerShell row that classifies each call against a machine-local identity-domain map (#9743).** It reads `${CLAUDE_PLUGIN_DATA}/identity-domains.json`: `domains.<name>` with per-OS `roots`, `owners`, `identity_markers` and optional `gh_config_dir` and `az_config_dir`, then top-level `identity_files`, `shared_exceptions` and `messages`. It compiles the map with `jq` once per change into `identity-domains.cache` and reads that back with builtins, classifies the session cwd into the domain whose root holds it or neutral, and parses a command only when its text names a configured root or marker. It never denies a call: the result goes to the telemetry envelope (`cwd` and `form`, never a domain name), and a malformed map tells the user once per session. With no map it reads and parses nothing. The `block_cross_domain_enabled` option turns it off.
+
+### Fixed
+
+- `block-unresolved-pr-merge` closes four target-resolution gaps (#8657). A quote-split `gh pr mer"ge" 5` is parsed, and a `gh pr` subcommand or a `-X` method taken from a variable on a merge route is blocked as unresolvable. A `gh pr merge` with no `-R` is blocked when the command runs `cd`, `pushd` or `popd` or names `GH_REPO`. A `-R HOST/OWNER/REPO` is read without its host, and a 404 on a repo the command wrote is blocked instead of run unchecked. A branch name is percent-encoded into the pulls `head=` query (`plugins/guardrails/hooks/block-unresolved-pr-merge.sh`).
+
+## [0.56.3] - 2026-10-24
+
+### Fixed
+
+- cli-flag-verify treats a quoted argument as one argument: no word inside a quoted prompt (the prompt given to the print option, or a positional prompt) or a quoted flag value is read as a flag or a subcommand. The machine-health setup skill's scheduled prompt no longer reports its slash-command argument as an unknown Claude CLI flag.
+- The reference-verify pre-push entry judges a pushed branch that merged the default branch only on the lines the branch itself adds, not on the lines the merge brought in, so a finding on the default branch no longer blocks every branch that merges it, and the push checks only the branch's own files.
+
+## [0.56.2] - 2026-10-24
+
+### Fixed
+
+- `block-unresolved-pr-merge` now lets a GraphQL merge mutation through with the two-channel "not checked" notice when its pull request id is a literal `PR_...` value and gh is missing or unauthenticated, as the owner decided on #6463. A non-literal id (a variable, `$(...)` or a file reference) is still blocked, with or without gh, and so is a literal id whose node cannot be read for any other reason.
+
 ## [0.56.1] - 2026-10-24
 
 ### Fixed

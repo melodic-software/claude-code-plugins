@@ -10,27 +10,47 @@
 //   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value an option
 //   name of models.issue-dimensions (its key, capitalized: Small, Knowable);
 // - the flags from one `Flags: ` line, `none` or a comma list of intent,
-//   security and cost.
+//   security and cost;
+// - the issues it depends on from one `Blocked by: ` line, `none` or a comma
+//   list of `#<number>` (edges.mjs); a missing or unreadable line names none.
 //
 // It then adds the class label, sets the three issue fields (their ids from
 // models.issue-dimensions, checked against the ids GitHub answers) and adds
-// `status: ready` when the class, all three fields and no flag parsed, no
-// hold label (needs-human, status: needs-info, status: needs-decision) is on
-// the issue, and nothing it found conflicts; otherwise `status: needs-decision`
-// (unless a needs-info or needs-decision status is already there) and never
-// `status: ready`; a `needs-triage` the triage left also keeps it from ready. Only the lanes App's own earlier class and field values
-// give way to the new verdict; a class or value anyone else set, or one whose
-// setter cannot be read, is kept and sends the issue to needs-decision, and a
-// hold class (structural, untrusted-provenance) is never taken off. The class
-// must be one of the repository's work-class labels. When it applied a class it rewrites the comment's
-// "a maintainer confirms" lines. On `status: ready` it hands the verdict to
-// admit.mjs, which adds `agent-ready` when the admission rules and the caps
+// `status: ready` when all three fields and no flag parsed, no hold label
+// (needs-human, status: needs-info, status: needs-decision) holds the issue,
+// and nothing it found conflicts; otherwise `status: needs-decision` (unless a
+// needs-info or needs-decision status is already there), never
+// `status: ready`, and one lanes App comment, edited in place, that lists why.
+// A status hold the lanes App set on an earlier run gives way to a ready
+// verdict and is taken off only when the App's earlier verdict comment lists
+// no flag. One that listed a flag, or no App verdict comment at all (an issue
+// held before these comments), holds, and the new comment carries the flag or
+// the missing record forward. A held verdict writes that comment before its
+// labels and, when the comment write fails, adds no label and takes off only
+// `status: ready`, so no hold lands without its record; needs-human, and
+// a hold the triage run (github-actions[bot], the reusable's escalation), a
+// person, or an unread setter set, holds. The
+// `needs-triage` floor label is taken off after the verdict is written.
+// The work class gates nothing (owner Q85, #9668) except
+// `work-class: untrusted-provenance`, which holds the issue and is never taken
+// off. The lanes App's own earlier class and field values give way to the new
+// verdict; a field value a listed human set is kept and is the value admission
+// reads; one anyone else set, or one whose setter cannot be read, is kept and
+// sends the issue to needs-decision; a class anyone else set is kept. A class
+// that is not one of the repository's work-class labels is not applied. When
+// it applied a class it rewrites the comment's "a maintainer confirms" lines.
+// It writes a native blocked-by edge for each open issue of this repository
+// the verdict names, then on `status: ready` hands the verdict to admit.mjs,
+// which adds `agent-ready` when the admission rules, the blockers and the caps
 // allow. Otherwise, when a done-when item is one the lane cannot perform,
-// admit.mjs's noteUnrunnable posts the split it recommends.
+// admit.mjs's noteUnrunnable posts the split it recommends. An option GitHub
+// keeps under another id than models.issue-dimensions maps fails the run and
+// leaves the issue's labels as they are.
 //
 // Issue text can only refuse: a line the model quotes is prefixed `> ` and
 // matches nothing, a duplicated, missing or unknown value writes no fields, and
-// an escalated run writes only needs-decision. It writes only on an open issue
+// an escalated run writes only needs-decision and its reasons; model text
+// reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
 // whose author is a listed human or the lanes App, and only from a lane
 // comment updated at or after STARTED_AT (this run's), so a run whose triage
 // wrote nothing never applies an older verdict.
@@ -59,9 +79,12 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, loadRules, noteUnrunnable } from "./admit.mjs";
+import { admit, loadRules, noteUnrunnable, UNTRUSTED } from "./admit.mjs";
+import { parseBlockedBy, writeEdges } from "./edges.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
+// The lanes App's one comment saying why the verdict holds the issue.
+export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
 const LANE_BOT = "github-actions[bot]";
 const ACTIONS_BOT_ID = 41898282;
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -71,6 +94,7 @@ const NEEDS_INFO = "status: needs-info";
 const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
+const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION]);
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
   size: "Size",
@@ -78,8 +102,10 @@ export const DIMENSIONS = Object.freeze({
   uncertainty: "Uncertainty",
 });
 const FLAGS = new Set(["intent", "security", "cost"]);
-// Classes that hold an issue for a person; the writer never takes one off.
-const HOLD_CLASSES = new Set(["work-class: structural", "work-class: untrusted-provenance"]);
+const EARLIER = "(an earlier verdict)";
+// The reason a hold stays when no App verdict comment says whether an earlier
+// verdict flagged; the comment carries it, so a later run reads it the same.
+export const UNRECORDED = "no lanes App verdict comment shows whether an earlier verdict was flagged";
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
@@ -115,19 +141,20 @@ export function checkActors(env, humans, logins) {
 export function parseVerdict(body, dimensionsConfig, classes) {
   const lines = String(body ?? "").split("\n");
   const problems = [];
+  const shown = {};
   const escalated = String(body ?? "").includes(ESCALATED);
   const classMatch = CLASS_LINE.exec(lines[1] ?? "");
-  if (!classMatch) {
-    problems.push("the second line is not a `Proposed work class:` line");
-  }
-  let workClass = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
-  if (workClass !== null && !classes.has(workClass)) {
-    problems.push(`\`${workClass.slice(0, 60)}\` is not a work-class label here`);
-    workClass = null;
-  }
+  const proposed = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
+  const workClass = proposed !== null && classes.has(proposed) ? proposed : null;
+  // The hold reads the proposal itself, so a missing label cannot drop it.
+  const untrusted = proposed === UNTRUSTED;
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
+    if (found.length === 1) {
+      // Model text: only letters, digits and plain punctuation reach a reason.
+      shown[prefix] = found[0].slice(0, 40).replaceAll(/[^A-Za-z0-9 ,.:-]/g, "?");
+    }
     if (found.length !== 1) {
       problems.push(`${found.length === 0 ? "no" : "more than one"} \`${prefix}:\` line`);
       return null;
@@ -141,7 +168,7 @@ export function parseVerdict(body, dimensionsConfig, classes) {
     const options = Object.values(dimensionsConfig?.fields?.[key]?.options ?? {});
     const option = options.find((name) => capitalize(name) === value);
     if (value !== null && option === undefined) {
-      problems.push(`\`${prefix}: ${value.slice(0, 40)}\` is not one of ${options.map(capitalize).join(", ")}`);
+      problems.push(`\`${prefix}: ${shown[prefix]}\` is not one of ${options.map(capitalize).join(", ")}`);
     }
     dimensions[key] = option ?? null;
   }
@@ -158,10 +185,13 @@ export function parseVerdict(body, dimensionsConfig, classes) {
     if (list.every((flag) => FLAGS.has(flag)) && new Set(list).size === list.length) {
       flags = list;
     } else {
-      problems.push(`\`Flags: ${flagText.slice(0, 40)}\` is not none or a list of ${[...FLAGS].join(", ")}`);
+      problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS].join(", ")}`);
     }
   }
-  return { escalated, workClass, dimensions, flags, problems };
+  // An unreadable line names no blocker and holds nothing: a missed edge is a
+  // finding for review, not a stop.
+  const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
+  return { escalated, workClass, untrusted, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
@@ -170,15 +200,18 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 // either way) is the lanes App's; never for an unknown id or App.
 const isApp = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
 
-export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {} }) {
+export function planWrites(
+  verdict,
+  { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {}, earlierFlags = [] },
+) {
   const reasons = [...verdict.problems];
   const add = [];
   const remove = [];
   if (verdict.escalated) {
     reasons.push("the triage run escalated");
   }
-  if (verdict.workClass === null && !verdict.escalated) {
-    reasons.push("no work class was proposed");
+  if (verdict.untrusted || labels.includes(UNTRUSTED)) {
+    reasons.push(`${UNTRUSTED} work needs a person`);
   }
 
   let classApplied = false;
@@ -189,25 +222,34 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
       classApplied = true;
     } else if (held.length === 1 && held[0] === verdict.workClass) {
       classApplied = true;
-    } else if (held.length === 1 && !HOLD_CLASSES.has(held[0]) && isApp(classSetters[held[0]], appId)) {
+    } else if (held.length === 1 && held[0] !== UNTRUSTED && isApp(classSetters[held[0]], appId)) {
       // Only the lanes App's own earlier class gives way; anyone else's,
       // or one no event names, is kept.
       remove.push(held[0]);
       add.push(verdict.workClass);
       classApplied = true;
-    } else {
-      reasons.push(`the issue already carries ${held.join(", ")}`);
+    } else if (verdict.workClass === UNTRUSTED) {
+      // A hold label is added beside any class already held.
+      add.push(UNTRUSTED);
+      classApplied = true;
     }
   }
 
   const fieldWrites = [];
+  // The values admission reads: the verdict's, or a listed human's kept one.
+  const dimensions = verdict.dimensions === null ? null : { ...verdict.dimensions };
   if (verdict.dimensions !== null) {
     for (const key of Object.keys(DIMENSIONS)) {
       const { "field-id": fieldId, options } = dimensionsConfig.fields[key];
       const optionId = Object.keys(options).find((id) => options[id] === verdict.dimensions[key]);
       const current = fields[String(fieldId)];
-      if (current && String(current.option) !== optionId && !isApp(current.setter, appId)) {
-        reasons.push(`${DIMENSIONS[key]} was set to another value by someone other than the lanes App`);
+      if (current && String(current.option) !== optionId && humans.has(Number(current.setter))) {
+        dimensions[key] = options[String(current.option)] ?? null;
+        if (dimensions[key] === null) {
+          reasons.push(`${DIMENSIONS[key]} holds an option models.issue-dimensions does not map`);
+        }
+      } else if (current && String(current.option) !== optionId && !isApp(current.setter, appId)) {
+        reasons.push(`${DIMENSIONS[key]} was set to another value by someone other than a listed human or the lanes App`);
       } else if (current && !isApp(current.setter, appId) && !humans.has(Number(current.setter))) {
         // The value matches, but the work lanes count it only when a listed
         // human or the lanes App set it (resolve-config dimensions.mjs).
@@ -225,16 +267,32 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   if (verdict.flags?.length) {
     reasons.push(`flagged: ${verdict.flags.join(", ")}`);
   }
-  const holds = labels.filter((label) => label === NEEDS_HUMAN || label === NEEDS_INFO || label === NEEDS_DECISION);
-  if (holds.length > 0) {
-    reasons.push(`held by ${holds.join(", ")}`);
+  // A status hold the lanes App set on an earlier run gives way to this
+  // verdict only when the App's earlier verdict comment lists no flag
+  // (earlierFlags []); a listed flag or no readable comment (null) holds, as
+  // does one the triage run (github-actions[bot]), a person, or an unread
+  // setter set, and needs-human always holds.
+  const holds = labels.filter((label) => HOLDS.has(label));
+  const appHolds =
+    earlierFlags === null || earlierFlags.length > 0
+      ? []
+      : holds.filter((label) => label !== NEEDS_HUMAN && isApp(holdSetters[label], appId));
+  for (const label of holds.filter((label) => !appHolds.includes(label))) {
+    reasons.push(`held by ${label}`);
   }
-  if (labels.includes(NEEDS_TRIAGE)) {
-    reasons.push(`the issue carries ${NEEDS_TRIAGE}`);
+  // Carried into the comment, so a later clean verdict still reads the flag,
+  // or still reads that no record says.
+  const carried = holds.length > 0 ? (earlierFlags ?? []).filter((flag) => !verdict.flags?.includes(flag)) : [];
+  if (carried.length > 0) {
+    reasons.push(`flagged: ${carried.join(", ")} ${EARLIER}`);
+  }
+  if (holds.length > 0 && earlierFlags === null) {
+    reasons.push(UNRECORDED);
   }
 
-  const ready = reasons.length === 0 && classApplied && verdict.dimensions !== null && verdict.flags !== null;
+  const ready = reasons.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
   if (ready) {
+    remove.push(...appHolds);
     if (!labels.includes(READY)) {
       add.push(READY);
     }
@@ -246,7 +304,33 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
       add.push(NEEDS_DECISION);
     }
   }
-  return { add, remove, fieldWrites, classApplied, ready, reasons };
+  // The verdict is the triage, so the floor label goes after it.
+  const after = labels.includes(NEEDS_TRIAGE) ? [NEEDS_TRIAGE] : [];
+  return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, dimensions };
+}
+
+// The lanes App's own earlier verdict comment, if any.
+const ownVerdict = (comments, appId) =>
+  comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
+
+// The flags the lanes App's earlier verdict comment listed: only known flags
+// from a `- flagged: ` reason line. null when no App verdict comment exists
+// or it carries UNRECORDED: whether an earlier verdict flagged is unknown.
+export function earlierFlags(comments, appId) {
+  const own = ownVerdict(comments, appId);
+  const lines = String(own?.body ?? "").split("\n");
+  if (!own || lines.includes(`- ${UNRECORDED}`)) {
+    return null;
+  }
+  return [
+    ...new Set(
+      lines
+        .filter((line) => line.startsWith("- flagged: "))
+        .flatMap((line) => line.slice("- flagged: ".length).replace(` ${EARLIER}`, "").split(","))
+        .map((flag) => flag.trim())
+        .filter((flag) => FLAGS.has(flag)),
+    ),
+  ];
 }
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
@@ -256,10 +340,10 @@ export function rewordComment(body) {
   return next === body ? null : next;
 }
 
-// {label: account id} for each work-class label on the issue: who added it
-// last, from the issue's events; none when no event names it.
-async function classSetters(github, base, labels) {
-  const held = new Set(labels.filter((label) => label.startsWith("work-class:")));
+// {label: account id} for each work-class and hold label on the issue: who
+// added it last, from the issue's events; none when no event names it.
+async function labelSetters(github, base, labels) {
+  const held = new Set(labels.filter((label) => label.startsWith("work-class:") || HOLDS.has(label)));
   const setters = {};
   if (held.size === 0) {
     return setters;
@@ -318,7 +402,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     log(`apply-verdict: #${number}'s author is neither a listed human nor the lanes App; nothing written`);
     return { outcome: "skipped" };
   }
-  const lane = (await paginate(github, `${base}/comments`)).filter(
+  const comments = await paginate(github, `${base}/comments`);
+  const lane = comments.filter(
     (comment) => comment.user?.login === LANE_BOT && comment.user?.type === "Bot" && String(comment.body ?? "").startsWith(MARKER),
   );
   if (lane.length !== 1) {
@@ -337,13 +422,16 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const verdict = parseVerdict(comment.body, dimensionsConfig, classes);
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
   const fields = await readFields(github, repository, number, fieldSetters);
+  const setters = await labelSetters(github, base, labels);
   const plan = planWrites(verdict, {
     labels,
     fields,
     dimensionsConfig,
     appId,
     humans,
-    classSetters: await classSetters(github, base, labels),
+    classSetters: setters,
+    holdSetters: setters,
+    earlierFlags: earlierFlags(comments, appId),
   });
 
   if (plan.fieldWrites.length > 0) {
@@ -361,22 +449,44 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     const answered = new Map((Array.isArray(written) ? written : []).map((row) => [row?.issue_field_id, row?.single_select_option?.id]));
     const wrong = plan.fieldWrites.filter(({ fieldId, optionId }) => answered.get(fieldId) !== optionId);
     if (wrong.length > 0) {
-      await addLabels(github, base, labels.includes(NEEDS_DECISION) ? [] : [NEEDS_DECISION]);
+      // Config drift, not the issue's: the run fails and the issue keeps
+      // its labels.
       throw new Error(
-        `GitHub kept other options than models.issue-dimensions maps for ${wrong.map(({ key }) => DIMENSIONS[key]).join(", ")}; the issue is set to ${NEEDS_DECISION}`,
+        `GitHub kept other options than models.issue-dimensions maps for ${wrong.map(({ key }) => DIMENSIONS[key]).join(", ")}; fix models.issue-dimensions and triage again`,
       );
     }
   }
-  for (const name of plan.remove) {
+  // Before any label: a failed edge write leaves the labels as they were,
+  // never `status: ready` without admission. A re-run skips edges written.
+  const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
+  // A held verdict's reasons comment goes before its labels, so a hold never
+  // lands without the record of whether it was flagged (earlierFlags): when
+  // the comment write fails, no hold, class or floor label changes and the
+  // caller fails the job; `status: ready` still comes off, since taking it off
+  // adds no hold.
+  // A ready verdict's comment names admission's outcome, so it goes after; a
+  // failed one stops neither the reword nor the summary.
+  let reasonsError = null;
+  const say = async (admission) => {
     try {
-      await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
+      await sayReasons(github, repository, base, comments, appId, plan, admission);
     } catch (error) {
-      if (!(error instanceof GitHubError && error.status === 404)) {
-        throw error;
-      }
+      reasonsError = String(error?.message ?? error);
     }
+  };
+  if (!plan.ready) {
+    await say(null);
   }
-  await addLabels(github, base, plan.add);
+  const labeled = reasonsError === null;
+  const unready = plan.remove.filter((name) => name === READY);
+  if (labeled) {
+    const floor = plan.remove.filter((name) => name === NEEDS_TRIAGE);
+    await removeLabels(github, base, plan.remove.filter((name) => name !== NEEDS_TRIAGE));
+    await addLabels(github, base, plan.add);
+    await removeLabels(github, base, floor);
+  } else {
+    await removeLabels(github, base, unready);
+  }
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller
@@ -384,21 +494,24 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   let admission = null;
   if (plan.ready && admitIssue) {
     try {
-      admission = await admitIssue(verdict);
+      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions });
     } catch (error) {
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
   }
   // A held issue never reaches admission, so its split note, when a done-when
   // item is one the lane cannot perform, is written here.
-  if (!plan.ready && noteSplit) {
+  if (!plan.ready && labeled && noteSplit) {
     try {
       admission = await noteSplit(issue);
     } catch (error) {
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
   }
-  if (plan.classApplied) {
+  if (plan.ready) {
+    await say(admission);
+  }
+  if (plan.classApplied && labeled) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
       await github("PATCH", `/repos/${repository}/issues/comments/${comment.id}`, { body: reworded });
@@ -410,12 +523,74 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Issue: #${number}`,
     `- Work class: ${verdict.workClass ?? "none"}${plan.classApplied ? "" : " (not applied)"}`,
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
-    `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`,
-    `- Status: ${plan.ready ? READY : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
+    labeled
+      ? `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`
+      : `- Labels added: none, since the reasons comment was not written; removed: ${unready.join(", ") || "none"}`,
+    `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
+    ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
+    ...(reasonsError ? [`- Reasons comment: not written (${reasonsError})`] : []),
   ].join("\n");
   log(summary);
-  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, summary };
+  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, summary };
+}
+
+async function removeLabels(github, base, names) {
+  for (const name of names) {
+    try {
+      await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
+    } catch (error) {
+      if (!(error instanceof GitHubError && error.status === 404)) {
+        throw error;
+      }
+    }
+  }
+}
+
+const edgeSummary = (edges, problem) =>
+  [
+    ...(edges?.written.length ? [`${edges.written.map((n) => `#${n}`).join(", ")} written`] : []),
+    ...(edges?.skipped ?? []).map(({ number, why }) => `#${number} skipped (${why})`),
+    ...(problem ? [problem] : []),
+  ].join("; ");
+
+// Where a ready verdict leaves the issue after admission, when admission
+// moved it off `status: ready` or did not finish; null when it stays ready.
+const settled = (admission) =>
+  admission?.outcome === "refused" ? NEEDS_DECISION : admission?.outcome === "error" ? "not settled: admission did not finish" : null;
+
+// One lanes App comment, edited in place, says why the verdict holds the
+// issue; a later ready verdict marks it settled, naming the status admission
+// left. None is posted for a ready verdict that stays ready and never held;
+// one admission moved or did not finish gets the record a later run reads.
+async function sayReasons(github, repository, base, comments, appId, plan, admission) {
+  const own = ownVerdict(comments, appId);
+  const after = settled(admission);
+  if (plan.ready && !own && after === null) {
+    return;
+  }
+  const body = plan.ready
+    ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
+        after === NEEDS_DECISION
+          ? `admission moved the issue to \`${NEEDS_DECISION}\`; its comment says why.`
+          : after
+            ? "admission did not finish, so the issue's status is not settled."
+            : `the issue is at \`${READY}\`.`
+      }`
+    : [
+        VERDICT_MARKER,
+        `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`,
+        "",
+        ...plan.reasons.map((reason) => `- ${reason}`),
+      ].join("\n");
+  if (own?.body === body) {
+    return;
+  }
+  if (own) {
+    await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, { body });
+  } else {
+    await github("POST", `${base}/comments`, { body });
+  }
 }
 
 async function addLabels(github, base, names) {
@@ -487,6 +662,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       }
       if (result.admission?.outcome === "error") {
         console.log(`::error title=apply-verdict::admission failed: ${result.admission.reasons[0].replaceAll(/[\r\n%]/g, " ")}`);
+        process.exitCode = 1;
+      }
+      if (result.reasonsError) {
+        console.log(`::error title=apply-verdict::the reasons comment was not written: ${result.reasonsError.replaceAll(/[\r\n%]/g, " ")}`);
         process.exitCode = 1;
       }
     } catch (error) {

@@ -110,6 +110,7 @@ async function gate({
   requireKind,
   appLabel,
   reconcilerWorkflow,
+  ciStatusRerunWorkflow,
   runAttempt = "1",
   rerunner = USERS[triggeringActor.toLowerCase()],
   ownRun,
@@ -158,6 +159,7 @@ async function gate({
       ...(requireKind === undefined ? {} : { REQUIRE_KIND: requireKind }),
       ...(appLabel === undefined ? {} : { APP_LABEL: appLabel }),
       ...(reconcilerWorkflow === undefined ? {} : { RECONCILER_WORKFLOW: reconcilerWorkflow }),
+      ...(ciStatusRerunWorkflow === undefined ? {} : { CI_STATUS_RERUN_WORKFLOW: ciStatusRerunWorkflow }),
       ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
     },
     github: withOwnRun,
@@ -2628,4 +2630,226 @@ test("upstream re-run: an attempt GitHub reports was started by someone else ref
 test("upstream re-run: a record does not vouch for an unlisted re-runner of this run", async () => {
   const github = fakeGitHub(upstreamRoutes());
   assert.deepEqual(await upstreamRerun({ github, runAttempt: "2", rerunner: STRANGER }), STOPPED("untrusted-rerunner"));
+});
+
+// A ci-status job pr-feedback-dispatch.yml's rerun-ci-status job re-ran: the
+// upstream run is at attempt 2 or later, started by github-actions[bot], and
+// that job uploaded rerun-ci-status-<run id>-<attempt>-<head sha> just before
+// the re-run. Its run may poll for up to 10 minutes first, so the record, not
+// the run's start, opens the window.
+
+const CI_STATUS_RERUN_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+const DISPATCH_RUN_ID = 39330000001;
+const dispatchRoute = `GET /repos/${REPOSITORY}/actions/runs/${DISPATCH_RUN_ID}`;
+const ciStatusRecord = (attempt) => `rerun-ci-status-${CI_RERUN_ID}-${attempt}-${HEAD_SHA}`;
+const reconcilerListing = artifactsByName(CI_RERUN_RECORD);
+
+// Started 18:50:00, polled ten and a half minutes, uploaded its record at
+// 19:00:30; the re-run attempt started at 19:00:45.
+const dispatchRun = (overrides = {}) => ({
+  id: DISPATCH_RUN_ID,
+  name: "pr-feedback-dispatch",
+  path: CI_STATUS_RERUN_WORKFLOW,
+  event: "workflow_run",
+  status: "in_progress",
+  head_branch: "main",
+  head_sha: RECONCILER_HEAD,
+  run_attempt: 1,
+  run_started_at: "2026-10-19T18:50:00Z",
+  actor: STRANGER,
+  triggering_actor: STRANGER,
+  repository: { id: 1, full_name: REPOSITORY },
+  head_repository: { id: 1, full_name: REPOSITORY },
+  ...overrides,
+});
+const ciStatusArtifact = (attempt, overrides = {}) =>
+  rerunRecord({
+    name: ciStatusRecord(attempt),
+    created_at: "2026-10-19T19:00:30Z",
+    workflow_run: { id: DISPATCH_RUN_ID, repository_id: 1, head_repository_id: 1, head_branch: "main", head_sha: RECONCILER_HEAD },
+    ...overrides,
+  });
+
+function ciStatusRoutes({ attempt = 3, upstream = {}, dispatch = {}, artifacts, extra = {} } = {}) {
+  return {
+    [commitPulls]: [fixture("api-pull-42.json")],
+    [`GET /repos/${REPOSITORY}/actions/runs/${CI_RERUN_ID}/attempts/${attempt}`]: lostAttempt({
+      id: CI_RERUN_ID,
+      name: "pr-require-checks",
+      path: ".github/workflows/pr-require-checks.yml",
+      event: "pull_request",
+      head_branch: "feat/lane-probe",
+      head_sha: HEAD_SHA,
+      run_attempt: attempt,
+      run_started_at: "2026-10-19T19:00:45Z",
+      ...upstream,
+    }),
+    [reconcilerListing]: listing(),
+    [artifactsByName(ciStatusRecord(attempt))]: artifacts ?? listing(ciStatusArtifact(attempt)),
+    [dispatchRoute]: dispatchRun(dispatch),
+    [tipRoute]: TIP_REF,
+    [reconcilerCompare]: { status: "ahead" },
+    ...extra,
+  };
+}
+
+const ciStatusRerun = ({ github, attempt = 3, event = upstreamRerunEvent({ run_attempt: attempt }), ...rest }) =>
+  gate({ eventName: "workflow_run", event, github, reconcilerWorkflow: RECONCILER_WORKFLOW, ciStatusRerunWorkflow: CI_STATUS_RERUN_WORKFLOW, ...rest });
+
+for (const attempt of [2, 3]) {
+  test(`ci-status re-run: attempt ${attempt} by github-actions[bot] with rerun-ci-status's record proceeds`, async () => {
+    const github = fakeGitHub(ciStatusRoutes({ attempt }));
+    assert.deepEqual(await ciStatusRerun({ github, attempt }), PROCEED);
+    assert.ok(github.calls.includes(`GET /repos/${REPOSITORY}/actions/runs/${CI_RERUN_ID}/attempts/${attempt}`));
+    assert.ok(github.calls.includes(artifactsByName(`rerun-ci-status-39310000010-${attempt}-${HEAD_SHA}`)));
+    assert.ok(github.calls.includes(reconcilerCompare));
+  });
+}
+
+test("ci-status re-run: at attempt 2 the reconciler's record is read first and still vouches", async () => {
+  const github = fakeGitHub(
+    // The reconciler started at 19:04:10 and recorded at 19:04:40.
+    ciStatusRoutes({ attempt: 2, upstream: { run_started_at: "2026-10-19T19:04:45Z" }, artifacts: listing(), extra: { [reconcilerListing]: listing(rerunRecord({ name: CI_RERUN_RECORD })), [reconcilerRoute]: reconcilerRun() } }),
+  );
+  assert.deepEqual(await ciStatusRerun({ github, attempt: 2 }), PROCEED);
+  assert.ok(!github.calls.includes(artifactsByName(ciStatusRecord(2))));
+});
+
+test("ci-status re-run: at attempt 2, 21 forged reconciler candidates do not use up rerun-ci-status's cap", async () => {
+  const forged = Array.from({ length: 21 }, (_, i) =>
+    rerunRecord({ id: 11900000000 + i, name: CI_RERUN_RECORD, created_at: "2026-10-19T19:00:00Z", workflow_run: { id: 39340000000 + i } }),
+  );
+  const github = fakeGitHub(ciStatusRoutes({ attempt: 2, extra: { [reconcilerListing]: listing(...forged) } }));
+  assert.deepEqual(await ciStatusRerun({ github, attempt: 2 }), PROCEED);
+  assert.equal(github.calls.filter((call) => /\/actions\/runs\/39340[0-9]+$/.test(call)).length, 20);
+  assert.ok(github.calls.includes(dispatchRoute));
+});
+
+test("ci-status re-run: 21 forged candidates under the last name refuse at once, before the real record", async () => {
+  const sleep = fakeSleep();
+  const forged = Array.from({ length: 21 }, (_, i) =>
+    rerunRecord({ id: 11900000000 + i, name: ciStatusRecord(3), created_at: "2026-10-19T19:00:00Z", workflow_run: { id: 39340000000 + i } }),
+  );
+  const github = fakeGitHub(ciStatusRoutes({ artifacts: listing(...forged, ciStatusArtifact(3)) }));
+  assert.deepEqual(await ciStatusRerun({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.equal(github.calls.filter((call) => /\/actions\/runs\/39340[0-9]+$/.test(call)).length, 20);
+  assert.equal(github.calls.filter((call) => call === artifactsByName(ciStatusRecord(3))).length, 1);
+  assert.deepEqual(sleep.waits, []);
+  assert.ok(!github.calls.includes(dispatchRoute));
+});
+
+test("ci-status re-run: with no record the bot stays an untrusted actor after one re-read", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(ciStatusRoutes({ artifacts: listing() }));
+  assert.deepEqual(await ciStatusRerun({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.equal(github.calls.filter((call) => call === artifactsByName(ciStatusRecord(3))).length, 2);
+  assert.ok(!github.calls.includes(reconcilerListing));
+  assert.deepEqual(sleep.waits, [5000]);
+});
+
+test("ci-status re-run: github-actions[bot] at attempt 1 refuses and reads no record", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ attempt: 1 }));
+  assert.deepEqual(await ciStatusRerun({ github, attempt: 1 }), STOPPED("untrusted-actor"));
+  assert.deepEqual(github.calls, [commitPulls]);
+});
+
+test("ci-status re-run: without ci-status-rerun-workflow attempt 3 refuses and reads no record", async () => {
+  const github = fakeGitHub(ciStatusRoutes());
+  assert.deepEqual(await ciStatusRerun({ github, ciStatusRerunWorkflow: "" }), STOPPED("untrusted-actor"));
+  assert.deepEqual(github.calls, [commitPulls]);
+});
+
+for (const [label, name] of [
+  ["another run", `rerun-ci-status-39310000011-3-${HEAD_SHA}`],
+  ["another head", `rerun-ci-status-39310000010-3-${LOST_HEAD}`],
+  ["another attempt", `rerun-ci-status-39310000010-2-${HEAD_SHA}`],
+  ["the reconciler's name", `reconcile-rerun-39310000010-2-${HEAD_SHA}`],
+]) {
+  test(`ci-status re-run: a record for ${label} does not vouch for attempt 3`, async () => {
+    const artifact = ciStatusArtifact(3, { name });
+    const github = fakeGitHub(ciStatusRoutes({ artifacts: listing(), extra: { [artifactsByName(name)]: listing(artifact) } }));
+    assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+    assert.ok(!github.calls.includes(artifactsByName(name)));
+    assert.ok(!github.calls.includes(dispatchRoute));
+  });
+}
+
+test("ci-status re-run: a listing that answers another run's record by the right name does not vouch", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ artifacts: listing(ciStatusArtifact(3, { name: `rerun-ci-status-39310000011-3-${HEAD_SHA}` })) }));
+  assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+  assert.ok(!github.calls.includes(dispatchRoute));
+});
+
+for (const [label, dispatch] of [
+  ["another workflow", { path: ".github/workflows/pr-unblock.yml" }],
+  ["the reconciler", { path: RECONCILER_WORKFLOW, event: "schedule" }],
+  ["a pull_request run of the file", { event: "pull_request" }],
+  ["a run off the default branch", { head_branch: "feat/lane-probe" }],
+  ["another repository's run", { repository: { id: 2, full_name: "someone/fork" } }],
+  ["a re-run by an unlisted actor", { run_attempt: 2, triggering_actor: STRANGER }],
+  ["another run id", { id: DISPATCH_RUN_ID + 1 }],
+]) {
+  test(`ci-status re-run: a record uploaded by ${label} does not vouch`, async () => {
+    const github = fakeGitHub(ciStatusRoutes({ dispatch }));
+    assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("ci-status re-run: a recording run re-run by a listed human vouches", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ dispatch: { run_attempt: 2, triggering_actor: KYLE } }));
+  assert.deepEqual(await ciStatusRerun({ github }), PROCEED);
+});
+
+test("ci-status re-run: a recording run not on the default branch's history does not vouch", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ extra: { [reconcilerCompare]: { status: "diverged" } } }));
+  assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+});
+
+for (const [label, record] of [
+  ["uploaded after the attempt started", { created_at: "2026-10-19T19:00:46Z" }],
+  ["uploaded more than ten minutes before the attempt", { created_at: "2026-10-19T18:50:44Z" }],
+  ["expired", { expired: true }],
+]) {
+  test(`ci-status re-run: a record ${label} does not vouch`, async () => {
+    const github = fakeGitHub(ciStatusRoutes({ artifacts: listing(ciStatusArtifact(3, record)) }));
+    assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+  });
+}
+
+// Inside the ten-minute window, so only the run-start bound refuses it.
+test("ci-status re-run: a record uploaded before its run started does not vouch", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ dispatch: { run_started_at: "2026-10-19T19:00:31Z" } }));
+  assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+});
+
+test("ci-status re-run: a record ten minutes before the attempt still vouches", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ artifacts: listing(ciStatusArtifact(3, { created_at: "2026-10-19T18:50:45Z" })) }));
+  assert.deepEqual(await ciStatusRerun({ github }), PROCEED);
+});
+
+test("ci-status re-run: an attempt GitHub reports was started by someone else refuses", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ upstream: { triggering_actor: KYLE } }));
+  assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+});
+
+test("ci-status re-run: a record does not vouch for an unlisted upstream actor", async () => {
+  const event = upstreamRerunEvent({ run_attempt: 3, actor: STRANGER });
+  const github = fakeGitHub(ciStatusRoutes());
+  assert.deepEqual(await ciStatusRerun({ github, event }), STOPPED("untrusted-actor"));
+  assert.ok(!github.calls.includes(artifactsByName(ciStatusRecord(3))));
+});
+
+test("ci-status re-run: the record vouches only for the upstream run, never this run's own bot re-runner", async () => {
+  const github = fakeGitHub(ciStatusRoutes());
+  const outputs = await gate({
+    eventName: "workflow_run",
+    event: rerunEvent(),
+    github,
+    triggeringActor: "github-actions[bot]",
+    reconcilerWorkflow: RECONCILER_WORKFLOW,
+    ciStatusRerunWorkflow: CI_STATUS_RERUN_WORKFLOW,
+    runAttempt: "3",
+  });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+  assert.deepEqual(github.calls, [commitPulls]);
 });

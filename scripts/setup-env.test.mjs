@@ -82,7 +82,7 @@ beforeEach(() => {
   chmod +x "$5/bin/python"
 fi`,
   );
-  stub("npm", 'mkdir -p "$3/node_modules"');
+  stub("npm", 'mkdir -p "${@: -1}/node_modules"');
   stub("node", "");
   stub("sudo", "exit 1");
   shellcheck("0.11.0");
@@ -129,9 +129,30 @@ test("a first run installs the pinned wheels into a venv and runs npm ci in both
   assert.deepEqual(r.calls, [
     `python3.99 -I -m venv --clear ${root}/.work/venv`,
     "venv-python -I -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
-    "npm ci --prefix .",
-    "npm ci --prefix .github/standards/runner-policy",
+    "npm ci --no-audit --no-fund --prefix .",
+    "npm ci --no-audit --no-fund --prefix .github/standards/runner-policy",
   ]);
+});
+
+test("--node runs only the Node step, and skips a current install", () => {
+  const r = run(["--node", "--playwright"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(r.calls, [
+    "npm ci --no-audit --no-fund --prefix .",
+    "npm ci --no-audit --no-fund --prefix .github/standards/runner-policy",
+  ]);
+  assert.match(
+    r.stdout,
+    /setup-env: installed \.\/package-lock\.json into \.\/node_modules/,
+  );
+  assert.deepEqual(run(["--node"]).calls, []);
+});
+
+test("--node fails when npm ci fails", () => {
+  stub("npm", "exit 1");
+  const r = run(["--node"]);
+  assert.equal(r.status, 1);
+  assert.deepEqual(r.calls, ["npm ci --no-audit --no-fund --prefix ."]);
 });
 
 test("a second run with unchanged lock files installs nothing", () => {
@@ -145,7 +166,7 @@ test("a changed lock file reinstalls only what it pins", () => {
   run();
   writeFileSync(join(root, "package-lock.json"), '{"v":3}\n');
   const r = run();
-  assert.deepEqual(r.calls, ["npm ci --prefix ."]);
+  assert.deepEqual(r.calls, ["npm ci --no-audit --no-fund --prefix ."]);
 });
 
 test("Chromium is installed only when asked, by flag or by env", () => {

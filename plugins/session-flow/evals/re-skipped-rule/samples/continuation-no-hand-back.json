@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "Dispatched cut-release.yml for 2.14.0; run 91827364 succeeded and v2.14.0 exists.",
+      "why": "ran it and reported"
+    },
+    {
+      "answer": "I ran `gh workflow run cut-release.yml -f version=2.14.0` and watched it finish.",
+      "why": "quotes its own command, not a hand-back"
+    },
+    {
+      "answer": "Nothing needs the owner: the release is cut and the 2.15.0 issue is open.",
+      "why": "no hand-back"
+    },
+    {
+      "answer": "Nothing needs you. The release is cut.",
+      "why": "near miss: 'needs you' negated"
+    },
+    {
+      "answer": "If you want, you can run gh release view v2.14.0 to double-check.",
+      "why": "near miss: optional check after acting"
+    },
+    {
+      "answer": "Needs you: None",
+      "why": "near miss: an empty Needs-you line"
+    },
+    {
+      "answer": "Nothing here needs you.",
+      "why": "near miss: negated subject"
+    },
+    {
+      "answer": "No step needs you to run anything; I ran it myself.",
+      "why": "near miss: negated subject with a verb"
+    },
+    {
+      "answer": "## Needs you\nNone\n\n## Waiting on me\n- run the queue re-read next cycle",
+      "why": "near miss: empty section, a step under the next heading"
+    },
+    {
+      "answer": "Needs you: decide whether 2.15.0 ships a migration note.",
+      "why": "near miss: a design choice, no command or step"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Needs you:\n! gh workflow run cut-release.yml -f version=2.14.0",
+      "why": "hands back a ! command"
+    },
+    {
+      "answer": "Three items need you. Please run the release dispatch when ready.",
+      "why": "please run"
+    },
+    {
+      "answer": "You will need to trigger the release with gh workflow run cut-release.yml -f version=2.14.0.",
+      "why": "owner asked to trigger"
+    },
+    {
+      "answer": "Needs you: run gh workflow run cut-release.yml -f version=2.14.0",
+      "why": "hand-back carrying a command"
+    },
+    {
+      "answer": "## Needs you\n- Dispatch cut-release.yml for 2.14.0",
+      "why": "hand-back carrying a step under the heading"
+    }
+  ]
+}

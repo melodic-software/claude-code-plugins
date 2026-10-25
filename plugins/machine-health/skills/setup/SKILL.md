@@ -151,11 +151,11 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    the [roots block](#resolving-the-state-root):
 
    ```powershell
-   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Test-MonthlyRunCurrent -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot
+   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Test-MonthlyRunCurrent -StateBase $stateRoot
    ```
 
-   FAIL when `WrapperCurrent` or `SettingsCurrent` is false, or it throws: the copy pins an older plugin root or wrapper, or lacks its deny settings, so the next
-   run fails. Rerunning `schedule` rewrites both files.
+   FAIL when `WrapperCurrent` is false, or it throws: the copy is an older wrapper. Rerunning
+   `schedule` rewrites it.
 
 ## `apply` (idempotent)
 
@@ -299,34 +299,29 @@ every rule that grants a shell, file-write or network action beside the proposed
 `$f = Join-Path ($env:CLAUDE_CONFIG_DIR ?? (Join-Path $HOME '.claude')) 'settings.json'; if (Test-Path -LiteralPath $f) { @((Get-Content -Raw -LiteralPath $f | ConvertFrom-Json).permissions.allow) -match '^(Bash|PowerShell|Monitor|Edit|Write|NotebookEdit|WebFetch|WebSearch|Agent|Workflow|mcp__)' } else { 'no user settings file' }`
 Quote the rules as data. Never edit the settings file: narrowing a rule is the owner's change.
 
-**The scheduled audit types its roots.** Under `--scheduled` the audit types the plugin root,
-`<StateBase>` and the `report_dir` option, when set, inside single quotes, where a permission rule
-can match them (audit SKILL.md, `--scheduled`); with the option unset it leaves the report folder
-to the orchestrator's default. Before step 1 of either route, run, appended to the
-[roots block](#resolving-the-state-root):
+**The monthly run researches the web in auto mode.** Both routes run in auto mode
+([Permission modes, "Eliminate permission prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode);
+**As of**: 2026-10-23; **Recheck trigger**: that section stops offering auto mode to `claude -p`
+runs), with no tool list or deny rules of their own: auto mode and the owner's settings decide
+what the run may do. The audit researches new unfamiliar findings and its check proposals through
+`/discovery:research` when that skill is available (audit SKILL.md, step 5), so the run reads web
+pages and writes a notes file beside the report. Say so to the owner with the task. Before step 1
+of either route, run, appended to the [roots block](#resolving-the-state-root):
 
 ```powershell
-. (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Assert-ScheduleRoot -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot; if ($reportRoot) { $reportRoot } else { Join-Path $env:USERPROFILE 'Documents\MachineHealth' }
+if ($reportRoot) { $reportRoot } else { Join-Path $env:USERPROFILE 'Documents\MachineHealth' }
 ```
 
-It throws when any of them holds a single quote (`'` or U+2018 to U+201B), a control character, a
-line break or one of `% & | < > ^`; then report its message and offer neither route. Otherwise it prints the report
-folder the monthly runs will write to: show it to the owner with the task.
+It prints the report folder the monthly runs will write to: show it to the owner with the task.
 
 **Desktop task** (recommended where the Claude Desktop app is open on the first of the month):
 
 1. Present it: a local task named `machine-health-monthly`, working folder `<StateBase>`,
    instructions `/machine-health:audit on-demand --scheduled`, Custom schedule `0 9 1 * *` (local
    time, minute hour day-of-month month day-of-week), and the owner's allow rules read above.
-2. Ask which permission mode, offering exactly two, beside the tools a scheduled audit uses (the
-   Bash tool to run its two scripts as `pwsh -NoProfile -File`, Read for its
-   references, and Write or Edit for `<StateBase>/TODO.md` only: under `--scheduled` it authors no
-   custom check). Say plainly that this route passes no tool list: the task runs under the mode
-   picked here plus the owner's allow rules shown above, and Manual plus one Run now is the tighter
-   of the two.
-   - **Auto** (recommended): the run proceeds without prompts.
-   - **Manual plus one Run now**: after creating the task, the owner clicks **Run now**, watches
-     for prompts and answers each with "always allow", so later runs do not stall on them.
+2. The task uses **Auto** mode. Manual is not offered: the research step reads different pages and
+   writes different paths each month, so answers given on one run never cover the next, and a
+   Manual run would stall on a prompt.
 3. On yes, create it. A Desktop session can create the task itself, as the page below describes;
    from any other surface, walk the owner through the **New task** form, then the task's **Edit**
    form, which holds the Custom schedule.
@@ -342,30 +337,16 @@ folder the monthly runs will write to: show it to the owner with the task.
   happens to a missed run, or which permission modes a task can take.
 
 **Task Scheduler fallback** (no Desktop app): a monthly task that runs a copied wrapper, which calls
-`claude -p "/machine-health:audit on-demand --scheduled"` in dontAsk mode under the wrapper's time
+`claude -p "/machine-health:audit on-demand --scheduled"` in auto mode under the wrapper's time
 limit (its `-TimeoutSeconds` default) and records each run in
-`<StateBase>/logs/monthly-run-<runStamp>.status.json` (read by `check` step 6). The run is meant to
-do only what its allow rules name. The command-line allow rules are Read; Write or
-Edit of `<StateBase>/TODO.md` (one `Edit(/TODO.md)` rule covers both tools; the wrapper starts the
-run in `<StateBase>`, where a command-line `/path` rule is anchored); and exactly two shell
-commands through the Bash tool, the two `--scheduled` commands audit SKILL.md prints, matched
-exactly, with the plugin root, `<StateBase>` and the report folder written into the copy: any other
-argument, such as a different `-StateBase`, is denied. WebFetch,
-WebSearch and `pwsh -NoProfile -File -` (a script read from stdin) are denied, and no MCP server
-loads. The run also gets `--settings <StateBase>/scheduler/scheduled-settings.json`, whose deny
-rules block git, gh, download commands and the tools that write or act outside `TODO.md`, including
-where the owner's own allow rules grant them. The owner's other allow rules still apply.
-
-A plugin update moves the plugin root, and a changed `report_dir` option moves the report folder;
-the copy keeps the old ones. The next run's audit
-commands then match no allow rule and are denied, so it fails (`latest_newer` false); once the old
-root is gone the wrapper refuses to start; and `check` step 6 FAILs the stale copy. Rerunning
-`schedule` after either change rewrites it.
+`<StateBase>/logs/monthly-run-<runStamp>.status.json` (read by `check` step 6). A plugin update that
+changes the wrapper leaves the copy stale, and `check` step 6 FAILs it; rerunning `schedule`
+rewrites it.
 
 1. Present the task: the `schtasks` command in step 2, which names it `machine-health monthly`,
    runs it only while the owner is logged on (`/it`), and runs
    `pwsh -NoProfile -File <StateBase>/scheduler/monthly-run.ps1` on the schedule its `/sc`, `/d`
-   and `/st` arguments set; the allow rules above; and the owner's allow rules read above. Refuse
+   and `/st` arguments set; and the owner's allow rules read above. Refuse
    the fallback when `${CLAUDE_PLUGIN_DATA}` ends in `-inline`: a `--plugin-dir` session's data directory is not
    the one the task's `claude -p` run writes, so `latest_newer` could never hold. And refuse it
    when `<StateBase>` sits under a cloud sync root, where the audit writes no state: run, appended
@@ -381,13 +362,12 @@ root is gone the wrapper refuses to start; and `check` step 6 FAILs the stale co
    (pointer below):
 
    ```powershell
-   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
+   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -StateBase $stateRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
    ```
 
-   It writes the wrapper, with the plugin root filled in, and `scheduled-settings.json` into
-   `<StateBase>/scheduler`. The wrapper runs only from that folder, never from the plugin install,
-   which a plugin update replaces. Re-running this step refreshes both files and replaces the
-   task. Then show the owner the command the task will run:
+   It copies the wrapper into `<StateBase>/scheduler` and removes a `scheduled-settings.json` an
+   earlier build left there. The wrapper runs only from that folder, never from the plugin install,
+   which a plugin update replaces. Re-running this step refreshes the copy and replaces the task. Then show the owner the command the task will run:
    `(Get-ScheduledTask -TaskName 'machine-health monthly').Actions | Format-List Execute, Arguments`.
 3. Offer one run now, on its own yes, as a background command appended to the
    [roots block](#resolving-the-state-root):
@@ -398,25 +378,12 @@ root is gone the wrapper refuses to start; and `check` step 6 FAILs the stale co
 
    Then run `check` and report step 6.
 
-- **Pointer**: print mode and the `--permission-mode`, `--allowedTools`, `--disallowedTools`,
-  `--settings`, `--strict-mcp-config` and `--bare` flags are in
+- **Pointer**: print mode and the `--permission-mode` and `--bare` flags are in
   [CLI reference, "CLI flags"](https://code.claude.com/docs/en/cli-reference#cli-flags); the
   wrapper never passes `--bare`, which skips plugin and skill loading.
   **As of**: 2026-10-22. **Recheck trigger**: a
   [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry
   makes `--bare` the `-p` default or adds a `--no-bare`-style flag.
-- **Pointer**: what dontAsk runs and denies is in
-  [Permission modes, "Allow only pre-approved tools with dontAsk mode"](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode);
-  how a command rule matches is in
-  [Configure permissions, "Wildcard patterns"](https://code.claude.com/docs/en/permissions#wildcard-patterns)
-  and ["PowerShell"](https://code.claude.com/docs/en/permissions#powershell); how `Edit` and path
-  rules apply to writes is in ["Read and Edit"](https://code.claude.com/docs/en/permissions#read-and-edit);
-  how deny and allow rules from different sources combine is in
-  ["Settings precedence"](https://code.claude.com/docs/en/permissions#settings-precedence) and
-  [Settings, "Settings precedence"](https://code.claude.com/docs/en/settings#settings-precedence).
-  **As of**: 2026-10-22. **Recheck trigger**: any of those sections changes what dontAsk runs, how
-  a command rule matches its text, how deny and allow rules combine, where a path rule is
-  anchored, or whether `--settings` lists merge.
 - **Pointer**: Git Bash's rewriting of slash-led arguments is in
   [MSYS2, "Filesystem Paths"](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion).
   **As of**: 2026-10-22. **Recheck trigger**: that section stops converting slash-led arguments

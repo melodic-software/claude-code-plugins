@@ -66,7 +66,8 @@ lane in two jobs. Its contract is
   the verdict is written, so a forged `no-pr` gate stop would suppress the check and a forged head
   SHA would post it on another commit.
 - **The run job checks commit signatures and reports the result in the verdict.** Rejected for the
-  same reason; `check-signed-commits` runs in the report job, which needs only API reads.
+  same reason; `check-signed-commits` runs in the report job, which holds `issues: write` so it can
+  add its label and comment, and no job that runs the model holds it.
 - **The run job computes `act-outcome` in a step and writes it to `GITHUB_OUTPUT`.** Rejected: that
   step would run after head code, which could forge it. The job output and the verdict step's env
   use the same runner-evaluated expression instead.

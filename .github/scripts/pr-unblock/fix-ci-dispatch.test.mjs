@@ -101,6 +101,9 @@ function fakeApi({
     },
     async listWorkflowRuns() {
       calls.runs += 1;
+      if (workflowRuns instanceof Error) {
+        throw workflowRuns;
+      }
       return workflowRuns;
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
@@ -360,6 +363,16 @@ test("a fix-ci run for the PR that is not done yet holds the dispatch", async ()
     [6],
   );
   assert.equal(api.calls.runs, 1);
+});
+
+test("a rate-limited run listing defers with a warning; any other listing error fails", async () => {
+  const limited = Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
+  const deferred = await run({ pages: [[pr(5)]], workflowRuns: limited });
+  assert.deepEqual(deferred.result, { dispatched: [], failed: 0 });
+  assert.ok(deferred.lines.some((line) => line.startsWith("::warning::") && line.includes("rate limited")));
+  const broken = await run({ pages: [[pr(5)]], workflowRuns: new Error("GET runs returned 404") });
+  assert.deepEqual(broken.result, { dispatched: [], failed: 1 });
+  assert.ok(broken.lines.some((line) => line.startsWith("::error::") && line.includes("404")));
 });
 
 test("no candidate reads no workflow runs", async () => {

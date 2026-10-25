@@ -19,10 +19,11 @@
       "secretPrefix": "ISSUE_LANE",
       "tokenSecret": "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN",
       "keySecret": "ISSUE_LANE_CLAUDE_API_KEY",
-      "keyed": false,
+      "keyed": true,
       "category": "issue",
       "lanes": [
-        { "id": "resolve-issue", "workflow": "work-resolve-issue.yml", "launcher": "claude-code-action", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "resolve-issue", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_API_KEY"] },
+        { "id": "resolve-issue-subscription", "workflow": "work-resolve-issue.yml", "launcher": "run-claude-cli", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -53,6 +54,7 @@
         { "id": "fix-docs-subscription", "workflow": "pr-refine.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "address-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "address-feedback-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "adjudicate-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "review-dependency-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-conflicts", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
@@ -79,8 +81,18 @@
       "keyed": false,
       "category": "maintenance",
       "lanes": [
-        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "claude-code-action", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+      ]
+    },
+    {
+      "id": "maintenance",
+      "secretPrefix": "MAINTENANCE",
+      "tokenSecret": "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN",
+      "keySecret": "MAINTENANCE_CLAUDE_API_KEY",
+      "keyed": false,
+      "category": "maintenance",
+      "lanes": [
+        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]

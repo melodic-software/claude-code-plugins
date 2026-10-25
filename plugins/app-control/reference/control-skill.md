@@ -145,8 +145,9 @@ CLI through it. Otherwise write a script in the language the repository already 
 - rejects an unknown flag, a repeated step id, or an app, environment or feature id that does not
   exist, before it starts anything;
 - records the app's own pid, not a wrapper shell's;
-- reads its settings through the Config layers below and reports each value's layer;
-- enforces the Safety floors below: it is the only component that does.
+- reads its settings through the Config layers below and reports each value's layer, and has a
+  `config` command that changes nothing and prints each value with its layer;
+- enforces the Safety floors below, all but the per-run sign-in count, which the caller keeps.
 
 A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
 or external system needs `cli/`: each such step is a `cli/` command, never a click or a raw request
@@ -184,20 +185,21 @@ Each floor ships at its safe value, and the CLI carries those values itself. Onl
 loosens a floor. Committed means the content of `config/defaults.json` tracked at HEAD, read with
 `git show HEAD:<control skill dir>/config/defaults.json`: a loosening present only in the working
 tree, and every floor while the file is not yet tracked at HEAD, stays at the safe value.
-`config/local.json`, environment variables and flags only tighten a floor.
+`config/local.json`, environment variables and flags only tighten a floor; the two caller
+attestations below, `--attended` and `--yes`, are the only flags that lift one.
 
 Before each command that sends, signs in or writes, the CLI applies the floors. A loosening from
 the local, environment or flag layer, or a step a floor forbids, makes the command do nothing and
-exit 4, printing the floor, the layer and the value it refused. A caller reads exit 4 as refused by
-a floor, never as a failure to retry.
+exit 4, printing the floor, the layer and the value it refused; `config` exits 4 the same way. A
+caller reads exit 4 as refused by a floor, never as a failure to retry.
 
 - **Recipients.** Each side-effect channel (mail, SMS, chat, webhook) has an allowlist, empty by
   default. A send command refuses any recipient not on it, so the run stops at the form and never
   presses send.
 - **Sign-in.** One attempt per account per run. `sign-in <account>` makes one attempt per call and
   never retries inside itself; a failure exits non-zero. Only committed config allows more attempts
-  for an account. The CLI keeps no state between calls, so the caller that owns the run keeps the
-  per-run count: it calls `sign-in` for an account at most once, and a failed attempt stops the run,
+  for an account. The CLI keeps no state between calls, so the caller that owns the run (whatever runs the
+  feature's `## Drive` steps) keeps the per-run count: it calls `sign-in` for an account at most once, and a failed attempt stops the run,
   with no switch to another account.
 - **Production.** An environment marked `production: true` in committed config is read-only. A
   write to it runs only when committed config grants that write and the command carries `--yes`,

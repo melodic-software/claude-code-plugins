@@ -24,6 +24,7 @@ import {
   readChecks,
   readOutcome,
   readTurnCap,
+  RESUMABLE,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
@@ -235,6 +236,11 @@ test("untrusted-provenance work carries the hold line", () => {
 // Structural risk shows in the diff, which the review lanes read.
 test("structural work on ordinary files carries no hold line", () => {
   const plan = decideDone({ issueLabels: ["work-class: structural"] });
+  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+});
+
+test("an issue with no work class, on ordinary files, carries no hold line", () => {
+  const plan = decideDone({ issueLabels: ["agent-ready"] });
   assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
 });
 
@@ -1424,9 +1430,30 @@ test("lane.json's max-turns class is the turn-cap record; any other class is non
     [{ branch: "", class: "max-turns", "max-turns": "75" }, { cap: 75 }],
     [{ branch: "", class: "max-turns", "max-turns": "75; rm" }, { cap: null }],
     [{ branch: "", class: "rate-limit", "max-turns": "75" }, null],
+    [{ branch: "", class: "timeout", "max-turns": "75" }, { cap: null, timeout: true }],
+    [{ branch: "", class: "other", "max-turns": "75" }, null],
   ]) {
     withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readTurnCap(dir), expected, JSON.stringify(lane)));
   }
+});
+
+// A leg run-claude-cli stopped at its timeout (class timeout) ran out of time
+// like a turn cap: with a restart left it keeps agent-ready, so work-unblock
+// restarts it and the next run resumes its branch (turn-cap is RESUMABLE);
+// it never hands back as stopped while a restart is left.
+test("a leg timeout with no outcome of its own restarts from its branch like a turn cap, naming the time", () => {
+  const timedOut = withDir({ "lane.json": JSON.stringify({ branch: "", class: "timeout", "max-turns": "75" }) }, (dir) => readTurnCap(dir));
+  const plan = capped({ turnCap: timedOut });
+  assert.equal(plan.action, "turn-cap");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap run=555 -->\n"), plan.comment);
+  assert.match(plan.comment, /its time ran out \(the launcher's leg timeout\)/);
+  assert.ok(plan.comment.includes(BRANCH));
+  assert.equal(parseOutcomeMarker(plan.comment).outcome, "turn-cap");
+  assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome), "the next run resumes the branch");
+  const spent = capped({ turnCap: timedOut, turnCapRestarts: 1 });
+  assert.equal(spent.action, "hand-back", "with its restarts used it goes to a person");
 });
 
 test("restarts count the App's turn-cap markers since a person last added agent-ready, not this run's", () => {
@@ -1749,6 +1776,26 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
   }
 });
 
+// The issue-fields job re-derives a resume claimed before the model ran;
+// main moving during the run must not void it.
+test("with keepBehind a marked run's branch behind main still resumes at its tip", () => {
+  for (const behindBy of [0, 1, 865]) {
+    const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
+    assert.deepEqual(
+      prior({ branches, markers: [marked("stopped", "400")], keepBehind: true }),
+      { action: "resume", branch: lane(400), tip: SHA_400, cause: "stopped" },
+      String(behindBy),
+    );
+  }
+});
+
+test("keepBehind does not resume a branch that fails the other checks", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 3, pulls: [pullBy(BOT)] })];
+  assert.equal(prior({ branches, markers: [marked("stopped", "400")], keepBehind: true }).action, "stop");
+  const notApp = [branchFact(lane(400), { sha: SHA_400, behindBy: 3, commits: [LANE_TIP, { ...LANE_TIP, author: { login: "stranger" } }] })];
+  assert.deepEqual(prior({ branches: notApp, markers: [marked("stopped", "400")], keepBehind: true }), { action: "run" });
+});
+
 test("a lanes-App PR open from a lane branch behind main still stops the run", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865, pulls: [pullBy(BOT)] })];
   assert.equal(prior({ branches, markers: [marked("stopped", "400")] }).action, "stop");
@@ -1788,6 +1835,14 @@ test("--find-prior runs the model fresh, with no resume outputs, when the marked
   const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
+});
+
+test("--find-prior with FIND_PRIOR_KEEP_BEHIND=true names a marked run's branch behind main as the resume", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison, env: { FIND_PRIOR_KEEP_BEHIND: "true" } });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=stopped\n`);
 });
 
 test("another issue's lane branches are never this issue's", () => {
@@ -1837,6 +1892,7 @@ async function runPrior({
   repoAnswer = { default_branch: "main" },
   commitAnswer = LANE_TIP,
   graphqlPages,
+  env = {},
 }) {
   return withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
     const fake = fakeFetch([
@@ -1870,6 +1926,7 @@ async function runPrior({
         GH_TOKEN: "t",
         TRUSTED_ACTORS_PATH: join(dir, "trusted.json"),
         GITHUB_OUTPUT: join(dir, "output"),
+        ...env,
       },
       fetch,
     });

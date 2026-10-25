@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.10] - 2026-10-24
+
+### Fixed
+
+- The post-merge check no longer drops a red job when the jobs API lists its steps empty or cut short. A failed job that lists no failed step now counts as a failing check of its own, as a failed non-hygiene step does, so a job failing only on the gitleaks gate is still charged when its steps are missing. With the full step list, the hygiene-aggregate rule is unchanged. Such a job still excuses no test suite.
+
+## [3.0.9] - 2026-10-24
+
+### Changed
+
+- The review-dependency reference no longer tells the reviewer that a `merge` on an update that changes a workflow or action file goes to a person; the runner now acts on that verdict like any other.
+
+## [3.0.8] - 2026-10-24
+
+### Changed
+
+- Babysit review evidence now unbinds the review lanes (`lane-source-changed`) only for a change to what a pull request's checkout can feed or forge for its own review: `.github/workflows/` (the head's caller workflows run, and a workflow it adds can post a reviewed-head marker), `plugins/review/`, a `.claude/` directory, `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `REVIEW.md` or `.gitattributes` at any depth, `docs/standards/`, the instruction exception register and untrusted-content conventions, and `.claude-lane/`. A bare directory path counts as the directory. Other files under `.github/` no longer unbind them: the callers run their local actions from a checkout of main, and the reusable workflow runs its composites from its own repository.
+
+### Fixed
+
+- `cost_decision` binds an owner cost decision to one pull request and the head it decided. A `**Decision recorded.** Cost:` comment counts on the pull request, or on its linked issue (closing, else the one `Refs:` issue) when it names the pull request as `#<number>` (not `owner/repo#<number>`, `&#<number>` or `##<number>`); the newest on the pull request, else the newest on the issue, is the decision. It covers the head of the newest github-actions[bot] cost hold marker before it while that marker was never edited and no comment on the pull request was deleted since it was posted (an edited or unreadable one, or a deletion since, covers no head, and no older marker stands in), and a later head only when every change since is a merge of the base: the pull request's net change against its base branch, file by file, is the same at both. With no marker before it, it covers no head. A decision recorded on that issue for another change no longer clears the cost hold of a pull request that links the issue later, and a commit after the decision needs a new one.
+
+- The pr-merge gate no longer holds a pull request at `verify:earlier-fail` after its link changed from `Refs:` to closing the issue and the verifier passed the new head. An earlier FAIL at a head of the same change now clears when every counted FAIL at that head records `spec_kind` `refs` for this pull request and every counted pass at the head records `spec_kind` `closes` with exactly the linked issues the FAIL records: a closing pass is judged against the whole spec, which includes the slice that failed. A `refs` pass after a `closes` FAIL, two verdicts of the same kind, a missing or unknown `spec_kind`, a pass that closes another issue or more issues than the FAIL named, linked issues that cannot be read, and a FAIL record that cannot be read or records another pull request, head or verdict all keep the refusal. Every other refusal is unchanged.
+
 ## [3.0.7] - 2026-10-24
 
 ### Fixed
