@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs\nfunction: decide\nlist: FETCH_HOSTS\n",
+      "why": "the hook file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file: plugins/multi-agent/hooks/drift-checker-fetch-gate.test.mjs\nfunction: decide\nlist: FETCH_HOSTS\n",
+      "why": "names the test file"
+    },
+    {
+      "answer": "file: plugins/multi-agent/agents/drift-checker.md\nfunction: none\nlist: tools\n",
+      "why": "names the agent definition"
+    }
+  ]
+}
