@@ -5,6 +5,7 @@
 // through a checked dispatcher run, and require-pr false checks the actors
 // without a PR. Every failure ends in proceed=false with a
 // reason; main never throws.
+import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -190,11 +191,33 @@ export function retryServerErrors(
   };
 }
 
+// A response's body as text, raising once it is over `maxBytes` bytes, by its
+// Content-Length or as it streams; leaving the loop cancels the stream.
+async function readCapped(response, maxBytes, what) {
+  const over = () => new Error(`${what} answered a body over ${maxBytes} bytes`);
+  if (Number(response.headers.get("content-length")) > maxBytes) {
+    await response.body?.cancel().catch(() => {});
+    throw over();
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of response.body ?? []) {
+    size += chunk.byteLength;
+    if (size > maxBytes) {
+      throw over();
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 // One function every API read and write goes through; tests replace it.
 // keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
 // judge, instead of raising on any. A GET answered 5xx is sent again
 // (retryServerErrors). A call while the rate guard's latch holds its pool
-// throws RateLimitStop without a request.
+// throws RateLimitStop without a request. `maxBytes` returns a plain-text body
+// (a job's log) as text from one fetch, through the latch with no retry,
+// raising on a body over that many bytes.
 export function createGitHub({
   token,
   apiUrl = "https://api.github.com",
@@ -209,8 +232,9 @@ export function createGitHub({
   latch,
 }) {
   const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch });
-  return async function github(method, apiPath, body, headers = {}, { signal } = {}) {
-    const response = await send(`${apiUrl}${apiPath}`, {
+  const once = (latch ?? rateLimitLatch).guard(fetchImpl);
+  return async function github(method, apiPath, body, headers = {}, { signal, maxBytes } = {}) {
+    const init = {
       method,
       headers: {
         Accept: "application/vnd.github+json",
@@ -221,10 +245,21 @@ export function createGitHub({
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
-    });
+    };
+    const capped = maxBytes !== undefined;
+    let response;
+    if (capped) {
+      const timeout = AbortSignal.timeout(attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS);
+      response = await once(`${apiUrl}${apiPath}`, { ...init, signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+    } else {
+      response = await send(`${apiUrl}${apiPath}`, init);
+    }
     onResponse?.(response);
     if (!response.ok) {
       throw new GitHubError(response.status, `${method} ${apiPath}`);
+    }
+    if (capped) {
+      return readCapped(response, maxBytes, `${method} ${apiPath}`);
     }
     // A success can carry no body: 204, or the 201 a workflow re-run answers.
     const text = await response.text();

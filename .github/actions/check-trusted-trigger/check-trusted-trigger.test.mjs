@@ -1869,6 +1869,53 @@ test("createGitHub returns null for a success with no body", async () => {
   assert.equal(await github("POST", "/repos/o/r/actions/runs/1/rerun"), null);
 });
 
+test("createGitHub with maxBytes returns a plain-text body as text from one fetch", async () => {
+  let fetches = 0;
+  const fetchImpl = async () => {
+    fetches += 1;
+    return new Response("2026-10-24T19:57:51Z ##[error]denied\n", { status: 200, headers: { "Content-Type": "text/plain" } });
+  };
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl });
+  assert.equal(await github("GET", "/repos/o/r/actions/jobs/1/logs", undefined, {}, { maxBytes: 100 }), "2026-10-24T19:57:51Z ##[error]denied\n");
+  assert.equal(fetches, 1);
+});
+
+test("createGitHub with maxBytes refuses a body over the cap, by its Content-Length or as it streams", async () => {
+  const github = (response) => createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl: async () => response() });
+  const declared = () => new Response("x".repeat(11), { status: 200, headers: { "Content-Length": "11" } });
+  await assert.rejects(github(declared)("GET", "/logs", undefined, {}, { maxBytes: 10 }), /over 10 bytes/);
+  const streamed = () =>
+    new Response(
+      new ReadableStream({
+        pull(controller) {
+          controller.enqueue(new TextEncoder().encode("x".repeat(6)));
+        },
+      }),
+      { status: 200 },
+    );
+  await assert.rejects(github(streamed)("GET", "/logs", undefined, {}, { maxBytes: 10 }), /over 10 bytes/);
+});
+
+test("createGitHub with maxBytes sends a GET answered 500 once and raises its status", async () => {
+  let fetches = 0;
+  const fetchImpl = async () => {
+    fetches += 1;
+    return new Response("", { status: 500 });
+  };
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, sleep: async () => {} });
+  await assert.rejects(github("GET", "/logs", undefined, {}, { maxBytes: 10 }), (error) => error instanceof GitHubError && error.status === 500);
+  assert.equal(fetches, 1);
+});
+
+test("createGitHub with maxBytes goes through the rate guard's latch", async () => {
+  const guarded = [];
+  const latch = { guard: (fetchImpl) => async (url, init) => (guarded.push(url), fetchImpl(url, init)) };
+  const fetchImpl = async () => new Response("log\n", { status: 200 });
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch });
+  assert.equal(await github("GET", "/repos/o/r/actions/jobs/1/logs", undefined, {}, { maxBytes: 10 }), "log\n");
+  assert.deepEqual(guarded, ["https://api.example/repos/o/r/actions/jobs/1/logs"]);
+});
+
 test("createGitHub raises on a GraphQL response that carries errors", async () => {
   const fetchImpl = async () =>
     new Response(JSON.stringify({ data: null, errors: [{ message: "nope" }] }), { status: 200 });

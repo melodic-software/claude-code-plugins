@@ -96,6 +96,20 @@
 // the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
 // limit stop, so it never counts toward handing the issue to a person.
 //
+// A run the token broker refused for the lanes kill switch, at broker-check's
+// `Ask the broker whether the lane may run` or at a `Request the lane token`
+// step, is a breaker trip, not a fault in the issue or the lanes; only the
+// refused job's log names the reason (the jobs listing reads the same for a
+// workflow-modified refusal). It is re-fired limits.reset-clamp-min hours after
+// the run ended with a breaker record of its own, and after
+// limits.limit-stops-per-issue trips since a listed human last added
+// agent-ready or a run last reported, on the stranded backoff. A breaker
+// record never spends the once-per-version re-fire, never counts toward the
+// failed-mint bound and never raises another cause's backoff. Each run's log
+// is read once, from its one refused job and at most LOG_CAP_BYTES, and only
+// its failed step's last line counts: a refusal for another reason, or a log
+// that cannot be read, keeps the class it had before.
+//
 // When that label's run opened a pull request instead, the newest one the
 // lanes App opened from the issue's lane branch in this repository decides.
 // Merged with `Refs:` (the issue stays open with nothing to run) or closed
@@ -131,7 +145,8 @@
 //   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
 //                          must be a listed human (`issues` only)
 //   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
-//                          work-resolve-issue runs; unset skips the re-fire
+//                          work-resolve-issue runs and read a refused job's
+//                          log; unset skips the re-fire
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -173,7 +188,21 @@ const STALE_STEP = "Stop on stale workflow files";
 const BLOCKER_STEP = "Wait for open blockers";
 // The admit job's step a run stops at for good on untrusted provenance.
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
-const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
+// broker-check's step, which asks the broker before any resolve-issue run job.
+const BROKER_STEP = "Ask the broker whether the lane may run";
+// request-lane-token's last line when the broker refuses it, in check mode
+// (BROKER_STEP) or token mode (MINT_STEP), and the runner's line that follows
+// it when the step fails. Only the reason word is read.
+const DENIAL = {
+  check: /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]lane-check-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)/,
+  token: /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]lane-token-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)/,
+};
+const STEP_FAILED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]Process completed with exit code [0-9]+\.$/;
+const BREAKER = "kill-switch";
+// The refused jobs' logs on 2026-10-24 were 45 KB (broker-check) and 94 KB
+// (apply-issue-patch); a longer one is left unread.
+const LOG_CAP_BYTES = 1_048_576;
+const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // A person decides these; the lane never starts on them.
@@ -221,10 +250,11 @@ const reportError = (number, error) =>
 
 const isLabel = (event, kind) => event.event === kind && String(event.label?.name).toLowerCase() === LABEL;
 
-// A re-fire marker reads as outcome `refired` with its workflow key.
+// A re-fire marker reads as outcome `refired` with its workflow key, and
+// `breaker` when a kill-switch refusal caused it.
 const parseMarker = (body) => {
   const refire = REFIRED.exec(String(body ?? "")) ?? INFRA.exec(String(body ?? ""));
-  return refire ? { outcome: "refired", key: refire[1] } : parseOutcomeMarker(body);
+  return refire ? { outcome: "refired", key: refire[1], breaker: refire[2] !== undefined } : parseOutcomeMarker(body);
 };
 
 // The lanes App's outcome and re-fire markers on an issue, oldest first, each
@@ -594,6 +624,11 @@ const strandedCause = {
 
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token.`;
 
+// The record of a re-fire after a kill-switch refusal, posted before the
+// label moves, once per re-fire.
+export const breakerComment = (key) =>
+  `<!-- work-unblock refired ${key} breaker -->\nThe token broker refused the work-resolve-issue run that \`${LABEL}\` started because the lanes kill switch was on, so it did no work. work-unblock removed and added \`${LABEL}\` back to start a fresh run. A kill-switch refusal is no fault in this issue or the lanes, so it never counts against later re-fires; after limits.limit-stops-per-issue of them since a person last added \`${LABEL}\` or a run last reported, work-unblock waits longer before each one, up to ${BACKOFF_CAP_HOURS} hours.`;
+
 // The backoff record of an issue whose re-fires on these workflow files keep
 // ending the same way: one comment per issue, edited on each re-fire.
 export const infraComment = (key, cause, refires) =>
@@ -640,13 +675,22 @@ async function laneRuns(actions, repo, number, addedAt) {
 // How every one of `runs` (completed) did no work in its latest attempt, or
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step fail (`mint-failed`, which
-// wins), was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
-// did not), or was skipped by the admit job's blocker gate (`blocked`: its
-// BLOCKER_STEP ran and pick-slot did not). A run another gate stopped before
-// its mint (an open closing PR, a reused branch) is none of these, so it is
-// never re-fired here.
-async function didNoWork(jobsOf, runs) {
+// wins), had the broker refuse it for the kill switch at broker-check or a
+// mint (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
+// resolve-issue did not), or was skipped by the admit job's blocker gate
+// (`blocked`: its BLOCKER_STEP ran and pick-slot did not). A broker-check
+// refusal for another reason, or one whose log gives none, is none of these.
+// A run another gate stopped before its mint (an open closing PR, a reused
+// branch) is none of these, so it is never re-fired here.
+async function didNoWork(jobsOf, refusalOf, runs) {
+  // A higher rank wins across runs; between equal ranks the first stays.
+  const rank = { capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
   let stalled = null;
+  const atLeast = (kind) => {
+    if (rank[kind] > (rank[stalled] ?? 0)) {
+      stalled = kind;
+    }
+  };
   for (const run of runs) {
     if (!RUN_ID.test(String(run.id))) {
       return null;
@@ -657,6 +701,9 @@ async function didNoWork(jobsOf, runs) {
       return null;
     }
     const named = (name) => namedJobs(jobs, name);
+    const failedAt = (job, name) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === "failure");
+    const checked = named("resolve-issue").find((job) => failedAt(job, BROKER_STEP));
+    const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const capped =
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
@@ -664,15 +711,41 @@ async function didNoWork(jobsOf, runs) {
     const blocked =
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
-    if (mints.some((step) => step.conclusion === "failure")) {
-      stalled = "mint-failed";
+    // One log per run: broker-check's when it refused, else the first failed mint's.
+    const refused = checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
+    if ((await refused) === BREAKER) {
+      atLeast("breaker");
+    } else if (minting) {
+      atLeast("mint-failed");
     } else if (capped) {
-      stalled ??= "capped";
+      atLeast("capped");
     } else if (blocked) {
-      stalled ??= "blocked";
+      atLeast("blocked");
     }
   }
   return stalled;
+}
+
+// The reason the broker refused `job`, from its log: the failed step's last
+// line before the runner's first `Process completed`, in `mode` (check or
+// token). Null when that line is no such refusal or the log cannot be read
+// within LOG_CAP_BYTES; the log is data, and no other line of it is read.
+function refusalReader(actions, repo) {
+  return async (job, mode) => {
+    if (!RUN_ID.test(String(job?.id))) {
+      return null;
+    }
+    let log;
+    try {
+      log = await actions("GET", `/repos/${repo}/actions/jobs/${job.id}/logs`, undefined, {}, { maxBytes: LOG_CAP_BYTES });
+    } catch (error) {
+      console.log(`::warning title=label-unblocked::job ${job.id}'s log was not read: ${escapeCommand(error?.message ?? error)}`);
+      return null;
+    }
+    const lines = String(log ?? "").split("\n");
+    const end = lines.findIndex((line) => STEP_FAILED.test(line));
+    return end > 0 ? (DENIAL[mode].exec(lines[end - 1])?.[1] ?? null) : null;
+  };
 }
 
 // Each run's latest-attempt job listing, read once per run id.
@@ -937,14 +1010,20 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   }
   // A record counts once the App added the label back at or after it; one
   // whose label write failed is finished by the next sweep, not posted again.
+  // A re-fire record on workflow files `key` other than a breaker trip's.
+  const refiredOn = (marker, key) => marker.outcome === "refired" && !marker.breaker && marker.key === key;
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
   // A re-fire past the first on these workflow files waits longer each time
   // (backoffDue from `since`), and its record is the one backoff comment,
   // edited in place, never a new comment or a hold.
   const backoff = (key, since, cause) => {
-    const first = Math.min(...markers.filter((marker) => marker.outcome === "refired" && marker.key === key).map((marker) => marker.at));
-    const refires = events.filter((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= first).length;
+    const first = Math.min(...markers.filter((marker) => refiredOn(marker, key)).map((marker) => marker.at));
+    // An App re-add after a breaker record is that trip's, not this cause's.
+    const refires = events.filter((event) => {
+      const at = Date.parse(event.created_at);
+      return isLabel(event, "labeled") && event.actor?.login === bot && at >= first && !markers.filter((marker) => marker.at <= at).at(-1)?.breaker;
+    }).length;
     const due = backoffDue(since, refires);
     if (now < due) {
       return { reason: `re-fired ${refires} time(s) on workflow files ${key}; it is re-fired again after ${new Date(due).toISOString()}` };
@@ -969,7 +1048,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
       return { reason: `${why}; a listed human's PR #${person.number} for it is open` };
     }
     const key = await workflowKey();
-    const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
+    const fired = markers.filter((marker) => refiredOn(marker, key));
     if (fired.some(relabeled)) {
       return backoff(key, since, strandedCause[cause]);
     }
@@ -992,11 +1071,21 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
   }
-  const stalled = await didNoWork(jobsOf, runs);
+  const stalled = await didNoWork(jobsOf, refusalReader(actions, repo), runs);
   if (stalled) {
-    const due = ended + limits["reset-clamp-min"] * HOUR_MS;
+    // Breaker trips since a listed human last added agent-ready or a run last
+    // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
+    const from = Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...events.filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
+      ...markers.filter((marker) => marker.outcome !== "refired").map((marker) => marker.at),
+    );
+    const trips = stalled === "breaker" ? markers.filter((marker) => marker.breaker && marker.at > from).length : 0;
+    const over = trips - limits["limit-stops-per-issue"];
+    const due = over >= 0 ? backoffDue(ended, over) : ended + limits["reset-clamp-min"] * HOUR_MS;
     if (now < due) {
-      return { reason: `its lane run did no work; it is re-fired after ${new Date(due).toISOString()}` };
+      const why = stalled === "breaker" ? `the broker refused its lane run for the lanes kill switch (trip ${trips + 1})` : "its lane run did no work";
+      return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}` };
     }
     if (await wipCapped()) {
       return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
@@ -1009,17 +1098,17 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
     // goes on a backoff after limits.limit-stops-per-issue re-fires on these
     // workflow files, as a crash does after one. A WIP cap skip made no mint
     // attempt, and the cap and restarts-per-run bound it.
-    const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key).length;
+    const fired = markers.filter((marker) => refiredOn(marker, key)).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
       return backoff(key, ended, MINT_CAUSE);
     }
-    return { reason: null, resets: due, refire: key, recorded };
+    return { reason: null, resets: due, refire: key, recorded, stall: stalled };
   }
   if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(jobsOf, runs)) && !(await stoppedStale(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
   }
   const key = await workflowKey();
-  const recorded = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
+  const recorded = markers.filter((marker) => refiredOn(marker, key));
   if (recorded.some(relabeled)) {
     return stranded(ended, `already re-fired for workflow files ${key}`, "failed-again");
   }
@@ -1203,7 +1292,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, recurrence, recorded, handOff, pr, explained, release, infra } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, stall, recurrence, recorded, handOff, pr, explained, release, infra } of ready.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (handOff) {
       // The comment first, then the labels; agent-ready comes off last, so a
@@ -1235,7 +1324,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        await github("POST", `${base}/comments`, { body: refireComment(refire, cause) });
+        await github("POST", `${base}/comments`, { body: stall === "breaker" ? breakerComment(refire) : refireComment(refire, cause) });
       }
       if (infra) {
         await (infra.id === undefined
@@ -1260,7 +1349,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     const add = () => github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
     try {
       await add().catch(add);
-      const why = infra ? "re-fired on a backoff" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
+      const why = infra ? "re-fired on a backoff" : stall === "breaker" ? "re-fired after a kill-switch refusal" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
       console.log(`label-unblocked: #${number} ${why}`);
     } catch (error) {
       failed += 1;
