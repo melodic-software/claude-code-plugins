@@ -17,11 +17,13 @@
 //   work; no other work class gates admission (owner Q85, #9668);
 // - 7: a `task-list` line, the criteria the lane checks, in text pr-verify
 //   will read (resolve-pr.mjs linkedIssues): the body or a comment written,
-//   and last edited if ever, by a listed human, and, on an issue whose body a
+//   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
-//   (refinementSpec). Nothing else the lanes App wrote counts, an App-filed
-//   issue included, and an issue with more comments than the 100 pr-verify
-//   reads is refused, since pr-verify stops on it;
+//   (refinementSpec); and the body of a sub-issue a size split filed, while
+//   unedited and copying only that human's task-list lines verbatim, or last
+//   edited by a listed human (splitChildBody). Nothing else the lanes App wrote counts,
+//   an App-filed issue included, and an issue with more comments than the
+//   100 pr-verify reads is refused, since pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request in this
 //   repository or an issue closed, for any reason, by a listed human or (in
 //   this repository only) a merge or commit, read there when it is another
@@ -42,8 +44,8 @@
 //   `admission-deferred`, so admission takes the oldest first (owner Q95).
 //
 // A refusal a person must settle swaps `status: ready` for
-// `status: needs-decision`; a blocker or an open pull request keeps
-// `status: ready`. Either way one App comment carrying ADMIT_MARKER says why.
+// `status: needs-decision`; a blocker, an open pull request or an open
+// sub-issue (a size split's, owner Q93) keeps `status: ready`. Either way one App comment carrying ADMIT_MARKER says why.
 // An open pull request also adds `admission-deferred`: work-unblock's sweep
 // skips the issue while such a pull request is open and admits it once none
 // is. An issue that waits only on a blocker loses `admission-deferred`, and
@@ -54,6 +56,7 @@
 // was removed until the lanes App or a listed human adds `status: ready`
 // after the newest removal. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -64,6 +67,14 @@ export const DEFERRED = "admission-deferred";
 export const ADMIT_MARKER = "<!-- intake-triage admission -->";
 // Opens the lanes App's refinement comment (refine.mjs).
 export const REFINE_MARKER = "<!-- intake-triage refinement -->";
+// The wait reason a Size Large issue gets until refine.mjs splits it into
+// sub-issues (owner Q93).
+export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at intake is pending (owner Q93)";
+// Opens the lanes App's comment on an issue refine.mjs split into sub-issues;
+// its second line is the split record (splitRecord).
+export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
+// Opens the body of each sub-issue that split files.
+export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -339,7 +350,7 @@ export function admissionSettled(labels, events, isMark) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], events, spec, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -352,6 +363,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
 
   const refuse = [];
+  // A trusted size-split sub-issue never splits again, so Size Large neither
+  // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
+  if (splitChildBody(spec, humans, rules["task-list"]) !== null && !rules.sizes.includes("large")) {
+    rules = { ...rules, sizes: [...rules.sizes, "large"] };
+  }
   const author = issue.user?.id;
   if (!(humans.has(author) || (appId !== undefined && author === appId))) {
     refuse.push("the author is neither a listed human nor the lanes App");
@@ -374,7 +390,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // at status: ready (a wait with no pull request), never needs-decision.
   const parked = [];
   if (verdict.dimensions?.size === "large" && !rules.sizes.includes("large")) {
-    parked.push(`Size large: the split into sub-issues at intake is pending (owner Q93)`);
+    parked.push(SIZE_SPLIT_PENDING);
   } else if (!rules.sizes.includes(verdict.dimensions?.size)) {
     refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);
   }
@@ -388,7 +404,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  const lines = trustedSpecTexts(spec, humans, appId).flatMap((text) => text.split("\n"));
+  const lines = trustedSpecTexts(spec, humans, appId, rules["task-list"]).flatMap((text) => text.split("\n"));
   if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
@@ -419,6 +435,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   for (const pull of pulls) {
     wait.push(`open pull request #${pull} is for it`);
+  }
+  // A split issue's work is its sub-issues' (owner Q93).
+  for (const child of subIssues.filter((item) => item?.state !== "closed")) {
+    wait.push(`sub-issue #${child.number} is open`);
   }
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
@@ -530,15 +550,17 @@ export function refinementSpec(comments, appId) {
 // and last edited if ever, by a User among `humans`, and, when the body is
 // such text, the lanes App's refinement (refinementSpec)
 // (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). No other Bot or
-// App text counts. Pure.
-export function trustedSpecTexts(spec, humans, appId) {
+// App text counts, except the body of a sub-issue a size split filed
+// (splitChildBody, which reads `taskList`, the rules' `task-list`). Pure.
+export function trustedSpecTexts(spec, humans, appId, taskList) {
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
   if (!spec) {
     return [];
   }
   const refinement = written(spec) ? refinementSpec(spec.comments, appId) : undefined;
-  return [spec, ...(spec.comments ?? [])].filter((item) => written(item) || item === refinement).map((item) => String(item.body ?? ""));
+  const own = (item) => written(item) || item === refinement || (item === spec && splitChildBody(spec, humans, taskList) !== null);
+  return [spec, ...(spec.comments ?? [])].filter(own).map((item) => String(item.body ?? ""));
 }
 
 const hasTaskLine = (text, taskList) =>
@@ -548,7 +570,115 @@ const hasTaskLine = (text, taskList) =>
 
 // Whether that text holds a `taskList` line: criterion 7. Pure.
 export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
-  trustedSpecTexts(spec, humans, appId).some((text) => hasTaskLine(text, taskList));
+  trustedSpecTexts(spec, humans, appId, taskList).some((text) => hasTaskLine(text, taskList));
+
+// The task-list lines a listed human wrote on an issue, as written, in order:
+// the items a size split partitions. The lanes App's refinement is left out,
+// so a split copies only a listed human's lines (splitChildBody). Pure.
+export const trustedTaskLines = (spec, humans, taskList) =>
+  trustedSpecTexts(spec, humans, undefined, taskList).flatMap((text) => text.split("\n").filter((line) => line.trimStart().startsWith(taskList)));
+
+// The fixed header of part `part` of `parts` that a size split files from
+// issue `parent`; the copied task lines follow it, one per line.
+export const splitChildHeader = (parent, part, parts) =>
+  [SPLIT_CHILD_MARKER, `Part ${part} of ${parts} of #${parent}, split at intake (owner Q93). The done-when below is copied from #${parent} as written.`, "", "## Done when", ""].join("\n");
+
+// The body of a sub-issue a size split filed, when it counts as the listed
+// human's text it copies (owner Q9 extension), else null. `spec.splitParent`
+// is {number, spec, appId}: the issue's native parent, its text as specOf
+// reads it, and the lanes App's id, set only by the reader that read the
+// parent link (admissionFacts, resolve-pr.mjs). It counts when the lanes App
+// wrote the body, the parent was filed by a listed human, the body opens
+// with splitChildHeader for that parent, and either nobody edited it since
+// and every line after the header is one of the parent's trusted task-list
+// lines (trustedTaskLines with `taskList`, the rules' `task-list`; owner
+// decision on #9906), or a listed human last edited it (ticking a task box
+// is an edit), which makes it that human's text as trustedSpecTexts reads
+// any body. An edit by anyone else, the App included, leaves it untrusted,
+// and so does a missing or empty `taskList`. Pure.
+export function splitChildBody(spec, humans, taskList) {
+  const parent = spec?.splitParent;
+  const author = spec?.author;
+  if (typeof taskList !== "string" || taskList === "" || parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId) {
+    return null;
+  }
+  const human = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const edited = spec.lastEditedAt != null;
+  if (!human(parent.spec?.author) || (edited && !human(spec.editor))) {
+    return null;
+  }
+  const body = String(spec.body ?? "");
+  const part = /^Part ([1-9][0-9]?) of ([1-9][0-9]?) of #/.exec(body.split("\n")[1] ?? "");
+  const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]))}\n` : null;
+  if (header === null || !body.startsWith(header)) {
+    return null;
+  }
+  if (edited) {
+    return body;
+  }
+  const allowed = new Set(trustedTaskLines(parent.spec, humans, taskList));
+  const lines = body.slice(header.length).split("\n");
+  return lines.every((line) => allowed.has(line)) ? body : null;
+}
+
+// The split record on the second line of the lanes App's SIZE_SPLIT_MARKER
+// comment: the sha256 of the task lines split, the parts (1-based item
+// numbers), the order pairs [a, b] (part b waits on part a), and the
+// sub-issues filed, empty until every one is filed.
+export const linesDigest = (lines) => createHash("sha256").update(JSON.stringify(lines)).digest("hex");
+const RECORD = /^<!-- size-split items=([0-9a-f]{64}) parts=([0-9,;]+) order=([0-9>,]*) filed=([0-9,]*) -->$/;
+const numbers = (text, separator) => (text === "" ? [] : text.split(separator).map(Number));
+
+export const renderSplitRecord = ({ items, parts, order, filed = [] }) =>
+  `<!-- size-split items=${items} parts=${parts.map((part) => part.join(",")).join(";")} order=${order.map(([a, b]) => `${a}>${b}`).join(",")} filed=${filed.join(",")} -->`;
+
+// The record a comment body carries, or null. Pure.
+export function splitRecord(body) {
+  const lines = String(body ?? "").split("\n");
+  const match = lines[0] === SIZE_SPLIT_MARKER ? RECORD.exec(lines[1] ?? "") : null;
+  if (!match) {
+    return null;
+  }
+  return {
+    items: match[1],
+    parts: match[2].split(";").map((part) => numbers(part, ",")),
+    order: numbers(match[3], ",").length === 0 ? [] : match[3].split(",").map((pair) => pair.split(">").map(Number)),
+    filed: numbers(match[4], ","),
+  };
+}
+
+// Whether `issue`, as just read, is a parent a size split filed every
+// sub-issue for, closed as completed by the lanes App (`isApp(actor)`) once
+// each sub-issue was closed by a listed human or a merge (`trusted(number)`):
+// the one close by the App that counts as done (owner Q93).
+export async function splitParentClosed({ github, repository, issue, isApp, trusted }) {
+  if (issue?.state !== "closed" || issue.state_reason !== "completed" || !isApp(issue.closed_by) || !Number.isInteger(issue.number)) {
+    return false;
+  }
+  const base = `/repos/${repository}/issues/${issue.number}`;
+  if (!(await paginate(github, `${base}/comments`)).some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+    return false;
+  }
+  const children = await paginate(github, `${base}/sub_issues`);
+  for (const child of children) {
+    if (child?.state !== "closed" || !(await trusted(child.number))) {
+      return false;
+    }
+  }
+  return children.length > 0;
+}
+
+// admissionFacts' `isTrusted` for admit(): issue `number` here was closed by
+// a listed human or a merge, or is a split parent the lanes App closed
+// (splitParentClosed), read fresh.
+export const closedByTrusted = ({ github, repository, humans, appId }) => {
+  const isApp = (actor) => appId !== undefined && actor?.id === appId;
+  const trusted = async (number) => {
+    const issue = await github("GET", `/repos/${repository}/issues/${number}`);
+    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, trusted });
+  };
+  return trusted;
+};
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
 // a hold), the same split note a refusal posts, when a done-when item is one
@@ -575,7 +705,7 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 // (humans, appId, repository, webHosts), for `issue` as just read.
 // `isTrusted(number)` answers whether a closed blocker's close counts; by
 // default it reads the blocker fresh.
-export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted }) {
+export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
   // Anyone may close their own issue, so a blocking issue counts only with a
@@ -595,15 +725,24 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   }
   // A throw here stops the caller before decide(), so nothing is written.
   const spec = await specOf(github, repository, number);
+  const child = appId !== undefined && issue.user?.id === appId && String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER);
+  const typed = [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name);
+  const parent = child || typed ? await parentOf(github, base) : null;
+  // A size split's sub-issue counts as its parent's text (splitChildBody).
+  if (child && parent !== null && here(parent.repository_url, repository) && Number.isInteger(parent.number)) {
+    spec.splitParent = { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
+  }
   return {
     issue,
     // Read for the admission comment's own earlier copy (sayWhy).
     comments: await paginate(github, `${base}/comments`),
     spec,
-    parent: [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name) ? await parentOf(github, base) : null,
+    parent: typed ? parent : null,
     blockers,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
+    // Listed only when the issue read counts any.
+    subIssues: (issue.sub_issues_summary?.total ?? 0) > 0 ? await paginate(github, `${base}/sub_issues`) : [],
     events: await paginate(github, `${base}/events`),
   };
 }
@@ -635,7 +774,7 @@ async function deferredAhead(github, repository, issue) {
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const facts = await admissionFacts({ github, repository, number, issue, rules, humans });
+  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted: closedByTrusted({ github, repository, humans, appId }) });
   const { comments } = facts;
   const decision = decide({
     ...facts,

@@ -118,6 +118,11 @@
 // by the App. Relabels share limits.restarts-per-run, and the count is logged
 // before any of them.
 //
+// When a sub-issue of a size split (intake's refine.mjs, owner Q93) closes,
+// by a listed human or, on the sweep, a merge, and every sub-issue of its
+// open parent is closed that way, the App comments on the parent and closes
+// it as completed. Only a parent whose split record the App posted counts.
+//
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
@@ -147,12 +152,13 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, isTrustedClose, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { splitParentClosed, splitRecord } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -296,7 +302,7 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   const pending = await stillBlocking(
     await blockersOf(github, base),
     repo,
-    (number) => trustedClose({ github, repo, number, humans, closes }),
+    (number) => trustedClose({ github, repo, number, humans, closes, bot }),
     closedElsewhere({ github, repo, humans, closes }),
   );
   if (pending.length > 0) {
@@ -356,14 +362,14 @@ async function closedSince(github, repo, since) {
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents. `where` is the
 // blocker's repository: outside `repo`, only a listed human's close counts.
-function trustedClose({ github, repo, where = repo, number, humans, closes }) {
+function trustedClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
   const key = `${where.toLowerCase()}#${number}`;
   if (!closes.has(key)) {
     closes.set(
       key,
       (async () => {
         const closed = await github("GET", `/repos/${where}/issues/${number}`);
-        return where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, closed, humans) : humans.has(closed?.closed_by?.id);
+        return where.toLowerCase() === repo.toLowerCase() ? isTrustedClose(github, repo, closed, humans, bot) : humans.has(closed?.closed_by?.id);
       })(),
     );
   }
@@ -526,7 +532,8 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     issue,
     rules,
     humans,
-    isTrusted: (blocker) => trustedClose({ github, repo, number: blocker, humans, closes }),
+    appId,
+    isTrusted: (blocker) => trustedClose({ github, repo, number: blocker, humans, closes, bot }),
   });
   const decision = trusted(READY)
     ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts })
@@ -568,7 +575,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }
   for (const source of closed) {
     let blocked;
     try {
-      if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes }))) {
+      if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes, bot }))) {
         console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
         continue;
       }
@@ -961,7 +968,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   const pending = await stillBlocking(
     await blockersOf(github, `/repos/${repo}/issues/${number}`),
     repo,
-    (blocker) => trustedClose({ github, repo, number: blocker, humans, closes }),
+    (blocker) => trustedClose({ github, repo, number: blocker, humans, closes, bot }),
     closedElsewhere({ github, repo, humans, closes }),
   );
   if (pending.length > 0) {
@@ -1305,6 +1312,65 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   return failed;
 }
 
+const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
+
+// A close that counts as done: by a listed human or a merge, or the lanes
+// App's close of a size split's parent once each sub-issue's close counts
+// (admit.mjs splitParentClosed, owner Q93).
+async function isTrustedClose(github, repo, issue, humans, bot) {
+  const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
+  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, trusted });
+}
+
+// For each issue in `closed` (on the sweep, only one a listed human or a
+// merge closed), closes its split parent when it is done (closeSplitParent).
+// Returns how many reads or writes failed.
+async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
+  const closes = new Map();
+  let failed = 0;
+  for (const number of closed) {
+    try {
+      await closeSplitParent({ github, repo, number, humans, closes, bot, sweep });
+    } catch (error) {
+      failed += 1;
+      reportError(number, error);
+    }
+  }
+  return failed;
+}
+
+// Closes, as completed and with one comment first, the open parent a size
+// split filed issue `number` under, once every sub-issue is closed by a
+// listed human or a merge (owner Q93). Its body is never edited.
+async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
+  if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
+    return;
+  }
+  const parent = await github("GET", `/repos/${repo}/issues/${number}/parent`);
+  if (parent?.state !== "open" || !NUMBER.test(String(parent.number)) || !String(parent.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase())) {
+    return;
+  }
+  const base = `/repos/${repo}/issues/${parent.number}`;
+  const comments = await paginate(github, `${base}/comments`);
+  if (!comments.some((comment) => comment.user?.login === bot && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+    return;
+  }
+  const children = await paginate(github, `${base}/sub_issues`);
+  for (const child of children) {
+    if (child?.state !== "closed" || !NUMBER.test(String(child.number)) || !(await trustedClose({ github, repo, number: Number(child.number), humans, closes, bot }))) {
+      console.log(`label-unblocked: split parent #${parent.number} stays open: sub-issue #${child?.number} is not closed by a listed human or a merge`);
+      return;
+    }
+  }
+  if (!comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(SPLIT_CLOSED))) {
+    await github("POST", `${base}/comments`, {
+      body: `${SPLIT_CLOSED}\nEvery sub-issue of this split is closed by a listed human or a merge (${children.map((child) => `#${child.number}`).join(", ")}), so the lanes App closes it as completed.`,
+    });
+  }
+  await github("PATCH", base, { state: "closed", state_reason: "completed" });
+  console.log(`label-unblocked: split parent #${parent.number} closed as completed`);
+}
+
 // What a marked issue's admission check reads from the default branch: the
 // rules, models.issue-dimensions, the issue lane's web hosts and the field
 // setter reader. resolve-config needs the packages its step installed in this
@@ -1375,6 +1441,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     const gate = admissionGate(status);
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission }) : 0;
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
+    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
       failed += await restartLimited({ github, actions, repo, bot, humans, now, limits, status });
     }
