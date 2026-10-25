@@ -35,7 +35,11 @@
 //   nothing (verifyHold). The link is the gate's own rule
 //   (babysit_merge_policy._linked_issue): one closing issue in this
 //   repository, or, with none, the one issue its plain `Refs: #<issue>` lines
-//   name. Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
+//   name, and that issue clears the trust hold
+//   (babysit_merge_policy.trust_refusal): its labels read whole, none naming
+//   untrusted work in any spelling and none ever removed by a non-human, so
+//   one added after admission refuses for a person
+//   (`untrusted-provenance`). Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
 //   at it, no earlier FAIL is uncleared, FAILs sit at fewer than
 //   merge.max-verify-fails heads, and the spec is unchanged and trusted. A
 //   read that fails, or a line without the link's answer, refuses. Only the
@@ -441,12 +445,14 @@ export function verifyHold(evidence, head) {
 // opens the reasons string or follows "; "
 // (babysit_verify_evidence.lane_risk_refusal).
 export const PERSON_REFUSALS = Object.freeze(["verify:untrusted-spec", "verify:repeated-fail"]);
+export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 const PERSON_RISK = /(?:^|; )(?:security-finding|trust-gate:[a-z-]+|cost-review-required|high-path:\*\*):/;
 
 // Who clears the refusal verifyHold reads in `evidence` at `head`: `person`
-// for a PERSON_REFUSALS refusal or a risk hold carrying a PERSON_RISK
-// reason, `lane` for every other refusal (an issue link the lane does not
-// take, a FAIL, a changed spec, another risk reason), which gets the comment
+// for a PERSON_REFUSALS refusal, an issue link the trust hold refuses
+// (TRUST_REFUSALS, babysit_merge_policy.trust_refusal's reasons) or a
+// risk hold carrying a PERSON_RISK reason, `lane` for every other refusal
+// (any other issue link the lane does not take, a FAIL, a changed spec, another risk reason), which gets the comment
 // and no label, and null for an unread answer, which the next run reads
 // again.
 export function verifyClears(evidence, head) {
@@ -454,7 +460,7 @@ export function verifyClears(evidence, head) {
     return null;
   }
   if (typeof evidence.ineligible === "string") {
-    return "lane";
+    return TRUST_REFUSALS.includes(evidence.ineligible) ? "person" : "lane";
   }
   if (typeof evidence.refusal === "string") {
     return PERSON_REFUSALS.includes(evidence.refusal) ? "person" : "lane";

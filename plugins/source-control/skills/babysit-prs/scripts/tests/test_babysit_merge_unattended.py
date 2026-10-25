@@ -878,6 +878,9 @@ class Unattended(unittest.TestCase):
             if self.timeline_error is not None:
                 raise self.timeline_error
             return self.timeline
+        # The linked issue's label history the trust hold reads: none.
+        if endpoint == "repos/owner/repo/issues/41/timeline?per_page=100":
+            return []
         return self._real_paginated(endpoint, label, **kwargs)
 
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:

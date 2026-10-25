@@ -1,7 +1,7 @@
 # Behavior probes: recorded outcomes
 
 Each record below is a claim about Claude Code platform behavior that a case in `cases/` measures, in
-the format of the [worktree fixtures records](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/worktree/fixtures/README.md):
+the record format `/source-control:worktree` uses for its fixtures:
 claim, basis, as-of, recheck trigger, outcome. They are probed behaviors in the sense of the
 [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md):
 the pointer is the case, and the observation is ours. A record whose case cannot be rerun is a
