@@ -446,7 +446,9 @@ activities:
     # with no report, for three hours, and no open PR of the lanes App's or a
     # listed human's for it) once per version of the lane workflow files, then
     # on a backoff (three hours doubling, at most 24) with one comment it
-    # edits, never needs-human; and it hands an agent-ready issue whose
+    # edits, never needs-human (a run the token broker refused for the lanes
+    # kill switch re-fires on its own count and never spends that once); and
+    # it hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged back to intake
     # triage (`status: ready` and agent-ready off, which the hourly triage
     # sweep dispatches intake for), lifting only the needs-human

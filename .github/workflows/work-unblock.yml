@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # list work-resolve-issue runs to find a failed one
+      actions: read # list work-resolve-issue runs to find a failed one, and read a refused job's log
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
     steps:

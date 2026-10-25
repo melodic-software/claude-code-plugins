@@ -191,6 +191,16 @@ a merged component change does **not** reach existing environments on its own: t
 rebuilds only on the events in
 [Environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching), so after a standards bump, force a rebuild with any trivial edit to the script field.
 
+**Connectors** (account owner, once per account): add Context7, Ref, Firecrawl and Perplexity
+as OAuth claude.ai connectors at [claude.ai/customize/connectors](https://claude.ai/customize/connectors); the cloud
+host passes them into every cloud session on the account. Add one only on a vendor plan with a
+set cost and no automatic overage or automatic top-up, so more usage happens only when the
+account owner buys it by hand. Context7 and Ref are confirmed; Firecrawl and Perplexity wait
+until the owner confirms their plans. The endpoints, the vendors' plan pages, and how Miro and
+Dometrain behave in cloud sessions are in
+[cloud-sessions.md](cloud-sessions.md#documentation-and-search-connectors). No repository
+adds an MCP route for them: no `.mcp.json`, no `claude mcp add` in the bootstrap.
+
 ## Step 2: per-repo wiring
 
 Two committed files per repo, so every cloud session picks them up from the clone; nothing

@@ -97,6 +97,7 @@ function world({
   events = {},
   runs = [],
   jobs = {},
+  logs = {},
   openLanePrs = 0,
   mergedLanePrs = 24,
   blobs = {},
@@ -114,7 +115,7 @@ function world({
 } = {}) {
   const calls = [];
   const base = `/repos/${REPO}/issues`;
-  const github = async (method, path, body) => {
+  const github = async (method, path, body, headers, { maxBytes } = {}) => {
     calls.push(body === undefined ? `${method} ${path}` : `${method} ${path} ${JSON.stringify(body)}`);
     if (failOn && (typeof failOn === "function" ? failOn(method, path, body) : path.startsWith(failOn))) {
       throw new Error(`${method} ${path} failed with status 500`);
@@ -167,6 +168,17 @@ function world({
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {
       assert.equal(new URL(path, "https://x").searchParams.get("filter"), "latest");
       return { jobs: jobs[match[1]] ?? [] };
+    }
+    // A job's log is read as text under a byte cap, as createGitHub's maxBytes does.
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/jobs/(\\d+)/logs$`)))) {
+      assert.equal(typeof maxBytes, "number");
+      if (logs[match[1]] === undefined) {
+        throw new Error(`${method} ${path} failed with status 404`);
+      }
+      if (logs[match[1]].length > maxBytes) {
+        throw new Error(`${method} ${path} answered a body over ${maxBytes} bytes`);
+      }
+      return logs[match[1]];
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/pulls/(\\d+)$`))) && pulls[match[1]]) {
       return pulls[match[1]];
@@ -552,6 +564,8 @@ const sweep = (args, extra = {}) =>
       TRIGGERING_ACTOR: LANES_BOT.login,
       ...extra,
     }),
+    // A job's log goes through the same fake as every other read.
+    jobLog: args.actions ? (repo, id, options) => args.actions("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options) : undefined,
     ...args,
   });
 
@@ -1515,10 +1529,12 @@ function stalledRun({
   blobs = BLOBS,
   queuedIssues = [],
   blockedBy = {},
+  logs = {},
 } = {}) {
   const fake = world({
     blockedBy,
     queuedIssues,
+    logs,
     openReady: [ready(number)],
     comments: { [number]: comments },
     events: { [number]: events },
@@ -1918,6 +1934,216 @@ test("a run that stopped green on stale workflow files is re-fired, once per ver
   });
   assert.equal(await sweep({ github: changed.github, actions: changed.actions }), 0);
   assert.deepEqual(writes(changed.calls), refired(30, `${WRITE_SHA}-${newer}`));
+});
+
+// A breaker trip: the token broker refused the run for the lanes kill switch,
+// which only the refused job's log names. Run 40127074215 failed at
+// broker-check's broker ask before any resolve-issue run job; run 40127093047
+// ran the model and was refused at its write runner's mint. Each denial line
+// is the failed step's last, just before `Process completed`. A broker-check
+// refusal for workflow-modified fails at the same step and stays a failed run.
+const denied = (mode, reason, { stamp = "2026-10-24T19:57:51.9466327Z " } = {}) =>
+  [
+    "2026-10-24T19:57:50.6158116Z ##[group]Run request-lane-token",
+    `${stamp}##[error]lane-${mode}-denied: the broker answered 403 with reason ${reason}: not-false: the repository CLAUDE_LANES_REPO_DISABLED is set and not exactly "false"`,
+    "2026-10-24T19:57:51.9468461Z ##[error]Process completed with exit code 1.",
+    "2026-10-24T19:57:52.0000000Z Cleaning up orphan processes",
+    "",
+  ].join("\n");
+const BROKER_CHECK_ID = 120970852314;
+const BROKER_REFUSED = [
+  ADMITTED,
+  pickSlot,
+  {
+    id: BROKER_CHECK_ID,
+    name: "resolve-issue / broker-check",
+    conclusion: "failure",
+    runner_id: 12,
+    started_at: "2026-10-16T10:01:00Z",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "failure" },
+    ],
+  },
+  { name: "report-skip", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue / run", conclusion: "skipped", steps: [] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+const PATCH_MINT_ID = 120972368518;
+const REPORT_MINT_ID = 120972137995;
+const MINT_REFUSED = [
+  ADMITTED,
+  pickSlot,
+  BROKER_ALLOWED,
+  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
+  { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+  { id: REPORT_MINT_ID, name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+];
+const CHECK_KILLED = { [BROKER_CHECK_ID]: denied("check", "kill-switch") };
+const MINT_KILLED = { [PATCH_MINT_ID]: denied("token", "kill-switch"), [REPORT_MINT_ID]: denied("token", "kill-switch") };
+// The breaker's own record, by its literal marker.
+const BREAKER_MARKER = `<!-- work-unblock refired ${KEY} breaker -->`;
+const isBreakerRecord = (call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: BREAKER_MARKER }).slice(0, -2)}`);
+const tripped = (calls) => {
+  const done = writes(calls);
+  assert.equal(done.length, 3, done.join("\n"));
+  assert.ok(isBreakerRecord(done[0]), done[0]);
+  assert.deepEqual(done.slice(1), restarted(30));
+  assert.ok(!done.some((call) => call.includes("needs-human")));
+};
+const logReads = (calls) => calls.filter((call) => /^GET \/repos\/[^ ]+\/actions\/jobs\/\d+\/logs$/.test(call));
+// An issue's comments and events after the App's records `bodies`, each
+// followed by its remove and re-add; the last re-add starts the run checked.
+const history = (bodies) => {
+  if (bodies.length === 0) {
+    return { comments: [note()], events: [added(LABELED_AT, OWNER)] };
+  }
+  const comments = [note()];
+  const events = [added("2026-10-16T05:00:00Z", OWNER)];
+  bodies.forEach((body, index) => {
+    const at = `2026-10-16T0${6 + index}:00:00Z`;
+    comments.push({ id: 70 + index, body, user: LANES_BOT, created_at: at });
+    events.push({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+    events.push(added(index === bodies.length - 1 ? LABELED_AT : `2026-10-16T0${6 + index}:00:01Z`));
+  });
+  return { comments, events };
+};
+// The history after `count` sweeps of runs with `jobs` and `logs`, each
+// carrying the record the sweep before posted.
+async function afterSweeps(count, jobs, logs) {
+  const bodies = [];
+  for (let index = 0; index < count; index += 1) {
+    const { github, actions, calls } = stalledRun({ jobs, logs, ...history(bodies) });
+    assert.equal(await sweep({ github, actions }), 0);
+    const posted = writes(calls).find((call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments `));
+    assert.ok(posted, `sweep ${index + 1} posted no record`);
+    bodies.push(JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body);
+  }
+  return history(bodies);
+}
+
+test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired an hour after it ended", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
+  // Within the hour it waits.
+  const early = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
+  assert.deepEqual(writes(early.calls), []);
+});
+
+test("a breaker trip leaves the once-per-version re-fire for a later failed run", async () => {
+  // A run that minted its token and failed later, after one breaker re-fire on these workflow files.
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const { github, actions, calls } = stalledRun({ jobs: failedLater, ...(await afterSweeps(1, BROKER_REFUSED, CHECK_KILLED)) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("a run the broker refused at its mints for the kill switch, after the model ran, is a breaker trip read from one log", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: MINT_REFUSED, logs: MINT_KILLED });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.equal(logReads(calls).length, 1);
+  // Past the failed-mint bound on these workflow files it still goes as a trip, with no backoff record.
+  const pumped = stalledRun({ jobs: MINT_REFUSED, logs: MINT_KILLED, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  tripped(pumped.calls);
+});
+
+test("breaker trips at the mint never count toward the failed-mint bound", async () => {
+  // Three trips so far, then a mint that failed for another reason: the first failed-mint re-fire.
+  const { github, actions, calls } = stalledRun(await afterSweeps(3, MINT_REFUSED, MINT_KILLED));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("breaker trips past limit-stops-per-issue since a person last added agent-ready wait on the stranded backoff", async () => {
+  const under = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...(await afterSweeps(2, BROKER_REFUSED, CHECK_KILLED)) });
+  assert.equal(await sweep({ github: under.github, actions: under.actions }), 0);
+  tripped(under.calls);
+  // Three trips: three hours after the run ended at 10:05.
+  const three = await afterSweeps(3, BROKER_REFUSED, CHECK_KILLED);
+  const over = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...three });
+  assert.equal(await sweep({ github: over.github, actions: over.actions }), 0);
+  assert.deepEqual(writes(over.calls), []);
+  const due = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...three });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T13:05:00Z") }), 0);
+  tripped(due.calls);
+  // A listed human's agent-ready since starts the count again.
+  const reset = { comments: three.comments, events: [...three.events.slice(0, -1), added(LABELED_AT, OWNER)] };
+  const fresh = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...reset });
+  assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
+  tripped(fresh.calls);
+});
+
+// The backoff comment is dated by its last edit, which moves it past the
+// re-adds it made earlier; a breaker record before it still claims only its
+// own re-add. Three re-fires of a failed run on these workflow files (06:00,
+// 08:00 and 10:00, the last two on the backoff comment, edited at 09:59)
+// around one breaker trip (07:00) wait 24 hours, not 12.
+test("a breaker trip's re-add is its own: the backoff counts every other re-fire after the backoff comment is edited", async () => {
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const unlabeled = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+  const history = {
+    comments: [
+      note(),
+      refireNote(KEY, "2026-10-16T06:00:00Z"),
+      { id: 71, body: `${BREAKER_MARKER}\nThe token broker refused the run for the lanes kill switch.`, user: LANES_BOT, created_at: "2026-10-16T07:00:00Z" },
+      { id: 72, body: infraComment(KEY, "A cause.", 2), user: LANES_BOT, created_at: "2026-10-16T08:00:00Z", updated_at: "2026-10-16T09:59:59Z" },
+    ],
+    events: [
+      added("2026-10-16T05:00:00Z", OWNER),
+      unlabeled("2026-10-16T06:00:00Z"),
+      added("2026-10-16T06:00:01Z"),
+      unlabeled("2026-10-16T07:00:00Z"),
+      added("2026-10-16T07:00:01Z"),
+      unlabeled("2026-10-16T08:00:00Z"),
+      added("2026-10-16T08:00:01Z"),
+      unlabeled("2026-10-16T09:59:59Z"),
+      added(LABELED_AT),
+    ],
+  };
+  // The run ended at 10:05: three re-fires wait 24 hours, so nothing at 12 hours.
+  const early = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T22:05:00Z") }), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const due = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }), 0);
+  const done = writes(due.calls);
+  assert.equal(done.length, 3, done.join("\n"));
+  assert.ok(done[0].startsWith(`PATCH /repos/${REPO}/issues/comments/72 `), done[0]);
+  assert.ok(done[0].includes("has re-fired it 4 time(s)"), done[0]);
+  assert.deepEqual(done.slice(1), restarted(30));
+});
+
+test("a refusal whose log does not name the kill switch on the step's last line stays a failed run", async () => {
+  const lines = (...items) => `${items.join("\n")}\n`;
+  for (const [name, log] of [
+    ["workflow-modified", denied("check", "workflow-modified")],
+    ["a lookalike reason", denied("check", "kill-switch-x")],
+    ["no timestamp", denied("check", "kill-switch", { stamp: "" })],
+    ["the mint's line in the check job", denied("token", "kill-switch")],
+    ["over the size cap", `${"x".repeat(2 * 1024 * 1024)}\n${denied("check", "kill-switch")}`],
+    [
+      "a kill-switch line before the step's real denial",
+      lines(
+        "2026-10-24T19:57:50.0000000Z ##[error]lane-check-denied: the broker answered 403 with reason kill-switch",
+        "2026-10-24T19:57:51.0000000Z ##[error]lane-check-denied: the broker answered 403 with reason workflow-modified",
+        "2026-10-24T19:57:51.1000000Z ##[error]Process completed with exit code 1.",
+      ),
+    ],
+    ["no log", undefined],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: log === undefined ? {} : { [BROKER_CHECK_ID]: log } });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+  // A mint refusal whose log cannot be read is a failed mint.
+  const unread = stalledRun({ jobs: MINT_REFUSED });
+  assert.equal(await sweep({ github: unread.github, actions: unread.actions }), 0);
+  assert.deepEqual(writes(unread.calls), refired(30));
 });
 
 test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {
