@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Concatenate ## Gotchas from the bugs config-cascade layers in layer order
-# (user-global, team, local overlay). Form 1 (concatenate) per
+# (user-global ~/.claude/bugs.md, team docs/conventions/bugs.md, local overlay
+# .claude/bugs.local.md). Form 1 (concatenate) per
 # docs/conventions/config-cascade/consumer-gotchas.md (#3547).
 #
 # Usage: concat-gotchas.sh
@@ -93,9 +94,12 @@ fi
 
 user="${HOME:+$HOME/.claude/bugs.md}"
 [[ -n "$user" ]] && emit_layer "user-global" "$user"
-for pair in "team:bugs.md" "local overlay:bugs.local.md"; do
+for pair in "team:docs/conventions/bugs.md" "local overlay:.claude/bugs.local.md"; do
   [[ -n "$root" ]] || break
-  file="$root/.claude/${pair#*:}"
+  file="$root/${pair#*:}"
+  # One-release fallback: the team gotchas come from .claude/bugs.md while
+  # docs/conventions/bugs.md is absent.
+  [[ "${pair%%:*}" == team && ! -e "$file" ]] && file="$root/.claude/bugs.md"
   [[ -n "$user" && "$file" -ef "$user" ]] && continue
   emit_layer "${pair%%:*}" "$file"
 done

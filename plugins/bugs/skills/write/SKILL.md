@@ -212,7 +212,7 @@ present in their host.
 - **The survey is grounding, not investigation.** A bug that needs real investigation is scoped
   separately.
 - **Consumer gotchas extend these.** The pre-computed block holds the `## Gotchas` sections of the
-  `.claude/bugs.md` layers (user-global, team, local overlay) in layer order; apply them to this
+  bugs config layers (user-global, team, local overlay) in layer order; apply them to this
   invocation. A missing layer is absent, not an error. A generalizable line belongs in this
   shipped skill via an issue, not in the consumer file.
 
