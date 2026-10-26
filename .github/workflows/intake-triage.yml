@@ -448,6 +448,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           STARTED_AT: ${{ needs.born-triaged.outputs.started-at }}
@@ -475,6 +476,14 @@ jobs:
           else
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app
 
   # Refines a thin issue (#9215): one whose verdict flags intent (no exact
   # outcome) or whose body has no task list (no checkable criteria). It also
@@ -928,6 +937,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
@@ -955,6 +965,14 @@ jobs:
           else
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app
 
   # An exact refinement lifted the lanes App's needs-decision: triage the
   # issue once more, as intake-reenter.yml does, so apply-verdict and

@@ -483,12 +483,13 @@ jobs:
     # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
     # which is what ends a long sweep: the budget stops between candidates,
     # a timeout can stop one between its check and its merge-queue write.
-    # 30 leaves about a minute before the loop, then the longer of the
+    # 45 leaves about a minute before the loop, then the longer of the
     # budget plus the last candidate's read limit (merge.gate-candidate-minutes,
     # 4) and a deferred candidate's ceiling (merge.gate-deferred-minutes, 20;
-    # it is always gated first), plus one read's own timeout, the writes and
-    # the closing steps.
-    timeout-minutes: 30
+    # it is always gated first), plus one read's own timeout, the escalation
+    # clear's 15 (three reader runs of 4), the writes and the closing steps
+    # (workflow.test.mjs checks it).
+    timeout-minutes: 45
     permissions:
       contents: read # check out main
       pull-requests: read # list the open PRs
@@ -555,35 +556,22 @@ jobs:
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing checked or merged"
 
       # The token broker gives this lane its merge token only when the person
-      # behind the run is a listed human (trusted-actors.json on main). Runs
-      # started by a bot, such as the lanes App pushing or labeling, or by an
-      # unlisted account, stop here quietly instead of failing; the next
-      # scheduled run picks up whatever they changed. A scheduled run always
-      # proceeds: nobody starts it, and GitHub names as its actor whoever last
-      # changed the schedule or the default branch, often a bot.
+      # behind the run is a listed human (trusted-actors.json on main), matched
+      # by account id (who.mjs states the rule). Runs started by a bot, such as
+      # the lanes App pushing or labeling, or by an unlisted account, stop here
+      # quietly instead of failing; the next scheduled run picks up whatever
+      # they changed. A scheduled run's first attempt proceeds without a read;
+      # a re-run of it proceeds only when a listed human re-ran it.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
         env:
-          EVENT: ${{ github.event_name }}
+          # The lane token holds no Actions permission.
+          ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-        run: |
-          set -euo pipefail
-          if [ "$EVENT" = schedule ]; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          elif [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
-            jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
-              [.actors[] | select(.kind == "human")] as $humans
-              | ($humans | any(.id == $id))
-                and ($humans | any((.login | ascii_downcase) == ($login | ascii_downcase)))
-            ' "$LIST" >/dev/null; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; nothing checked here, the next scheduled run checks every candidate"
-            echo "proceed=false" >>"$GITHUB_OUTPUT"
-          fi
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          STOP_NOTICE: nothing checked here, the next scheduled run checks every candidate
+        run: node .base/.github/scripts/pr-merge/who.mjs
 
       # A run still pending in the concurrency group below starts after this
       # one. When one is pending that checks every candidate and does every
@@ -1427,6 +1415,10 @@ jobs:
       # and the head: never a label a person set, and never after anyone but
       # the App commented or reviewed since it went on. At most five a run, and not
       # while the lane is report-only or after the gate's rate-limit stop.
+      # Under merge.lane-prs native, a label enable-auto-merge set at the
+      # current head is judged again with the gate's reader, at most three
+      # reads a run of up to four minutes each, sharing the gate step's run
+      # cache, listing and head-ref map.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
         if: >-
@@ -1434,9 +1426,15 @@ jobs:
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
           && steps.gate.outputs.rate-limited != 'true'
-        timeout-minutes: 3
+        timeout-minutes: 15
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          API_BUDGET_TOKEN: lanes-app
+          API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
@@ -1574,31 +1572,19 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The broker mints the merge token only for a listed human, or on the
-      # schedule; any other run stops here quietly, as the merge job's does.
+      # Same rule as the merge job's who step (who.mjs): a listed human by
+      # account id, or a scheduled run's first attempt; any other run stops
+      # here quietly.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
         env:
-          EVENT: ${{ github.event_name }}
+          # The lane token holds no Actions permission.
+          ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-        run: |
-          set -euo pipefail
-          if [ "$EVENT" = schedule ]; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          elif [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
-            jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
-              [.actors[] | select(.kind == "human")] as $humans
-              | ($humans | any(.id == $id))
-                and ($humans | any((.login | ascii_downcase) == ($login | ascii_downcase)))
-            ' "$LIST" >/dev/null; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; the next scheduled run arms what this one would"
-            echo "proceed=false" >>"$GITHUB_OUTPUT"
-          fi
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          STOP_NOTICE: the next scheduled run arms what this one would
+        run: node .base/.github/scripts/pr-merge/who.mjs
 
       # The merge job's skip, for this job's group: when another run's
       # enable-auto-merge job still waits and does all this one would (a
