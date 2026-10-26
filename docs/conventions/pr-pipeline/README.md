@@ -971,8 +971,12 @@ except six:
   enqueued it, its newest unedited pin comment names that head, and no other author has commented
   or submitted the newest review since that pin), a recent `updatedAt` does not refuse, since the
   pin comment and the enqueue refresh it; any other comment or review, such as a request to
-  wait, refuses again, as does an unreadable one. The head commit test and every hold still
-  apply. A person's merge-queue enqueue that the queue removed for failed checks also excuses
+  wait, refuses again, as does an unreadable one. The same holds after the lane's own
+  whole-review request at the current head: while the lanes App's newest reasons comment records
+  a request at that head and no person has commented, reviewed or commented inline since the
+  record's time, a recent `updatedAt` does not refuse, since the record, the draft toggle and the
+  whole review it starts refresh it (`lane_toggled_at_head`); bots do not count. The head commit
+  test and every hold still apply, and a draft still refuses. A person's merge-queue enqueue that the queue removed for failed checks also excuses
   both idle tests ([Adoption](#adoption)). The decision records it as `eligibility.adoption`
   (`idle-owner:<hours>h`, or `requeue-after-ejection`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
@@ -1073,7 +1077,7 @@ unchanged thread: a lane that resolved an unfixed finding and pushed an unrelate
 open. A resolved thread also closes when a human resolved it, or when it is
 outdated with none of its flagged lines left at the head; an unresolved thread stays open.
 
-Whole-review request (`babysit_whole_review.py`): when a lane pull request passes every other gate
+Whole-review request (`babysit_whole_review.py`): when a lane or adopted pull request passes every other gate
 and its only risk reasons are open findings a clean whole review of the head would close (no review
 of that head reported a finding or was whole, and no lane thread is unresolved), the gate writes a
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Request a whole review of a lane pull request's head when the only thing
-holding it is findings on its review chain that an incremental review cannot
-clear (`LaneEvidence.whole_review_clears`).
+"""Request a whole review of a lane or adopted pull request's head when the
+only thing holding it is findings on its review chain that an incremental
+review cannot clear (`LaneEvidence.whole_review_clears`).
 
 A whole review runs on `ready_for_review`, so the request converts the pull
 request to a draft and marks it ready again, with the lane token (an App
@@ -48,7 +48,7 @@ RECORD_RE = re.compile(
     r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ): .*$",
     re.MULTILINE,
 )
-# Whole reviews a lane pull request may request; past that a person decides.
+# Whole reviews a pull request may request; past that a person decides.
 MAX_TOGGLES = 2
 # A lane conversion to draft this long after a record belongs to its toggle.
 CONVERT_WINDOW = timedelta(minutes=10)

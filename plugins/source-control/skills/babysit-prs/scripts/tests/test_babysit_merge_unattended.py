@@ -4281,6 +4281,18 @@ class WholeReviewRequest(Unattended):
         self.run_main()
         self.assertNotIn("toggle", self.log)
 
+    def test_an_adopted_owner_pull_request_records_then_toggles(self) -> None:
+        self.pr_user = {"login": "maintainer", "type": "User"}
+        self.eligible = policy.Eligibility(
+            True, None, "C2", 40, adoption="idle-owner:24h"
+        )
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            _, out = self.run_main()
+        self.assertIs(out["unattended"]["wholeReviewWanted"], True)
+        self.assertEqual(self.log, ["risk-comment:POST", "toggle"])
+        self.assertTrue(merge.whole_review.recorded(self.posted(), HEAD))
+        self.assertEqual(out["unattended"]["writes"]["wholeReview"], {"toggled": True})
+
     def test_report_only_requests_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
         self.run_main()

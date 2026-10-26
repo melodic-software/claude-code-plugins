@@ -966,11 +966,12 @@ jobs:
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi
 
-      # A whole-review request (babysit_whole_review.py) converts a lane PR
-      # to a draft and marks it ready again; a run that ended between the two
-      # left a draft the listing above skips. Each lane draft updated in the
-      # last day whose newest lane comment records a request at its current
-      # head is marked ready here: one comments read per such draft.
+      # A whole-review request (babysit_whole_review.py) converts a lane or
+      # adopted PR to a draft and marks it ready again; a run that ended
+      # between the two left a draft the listing above skips. Each listed
+      # draft updated in the last day whose newest lane comment records a
+      # request at its current head is marked ready here: one comments read
+      # per such draft.
       - name: Re-ready a draft a whole-review request left
         if: steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
         continue-on-error: true
