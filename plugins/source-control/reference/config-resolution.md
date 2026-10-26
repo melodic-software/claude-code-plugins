@@ -349,13 +349,15 @@ file's H2 only. Two readers apply this order:
   which keeps merges `human-only`.
 
 The merge gate (`babysit_merge.py --unattended`) reads `babysit_loop_merge` from both files at the
-pull request's base SHA and takes the lower, so a demotion in either file holds the gate. While
-the legacy file exists it must set the key, or the rung is off; a YAML that sets none leaves the
-legacy value. With no legacy file the YAML alone decides. Either file that the gate cannot read
-or trust turns the rung off, never falling back to the other file's value: a YAML the shared
-reader rejects or whose value is empty, non-scalar or unknown, and a legacy file the parser
-rejects or whose `## babysit_loop_merge` H2 is empty or repeated. A raise therefore reaches the gate only when both files carry
-it: every change to `babysit_loop_merge` is written to both files while the legacy file exists.
+pull request's base SHA and takes the lower, so a demotion in either file holds the gate. While the
+legacy file exists it must set the key, or the rung is off; a YAML that sets none leaves the legacy
+value. With no legacy file the rung is off: the YAML alone never raises the gate until the slice
+that deletes the legacy file changes that deliberately. Either file that the gate cannot read or
+trust turns the rung off, never falling back to the other file's value: a YAML the shared reader
+rejects or whose value is empty, non-scalar or unknown, and a legacy file the parser rejects or
+whose `## babysit_loop_merge` H2 is empty or repeated. A raise therefore reaches the gate only when
+both files carry it: every change to `babysit_loop_merge` is written to both files while the legacy
+file exists.
 
 | Key | Value | Default when absent |
 |---|---|---|

@@ -753,8 +753,8 @@ and its queued entries leave; two different identities, or an unreadable head co
 - **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (the lower of
   `docs/conventions/source-control.yaml` and `.claude/source-control.md`; a legacy file without the
   key, or either file the wrapper cannot read or trust, means `off`; a YAML without it leaves the
-  legacy value, and with no legacy file the YAML alone decides), the cap variable, and `off`
-  while any demotion issue is open.
+  legacy value, and with no legacy file the rung is `off`, so the YAML alone never raises it), the
+  cap variable, and `off` while any demotion issue is open.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `C2` or `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
   can read variables but not write them. A 404 after the variables listing proved readable means no

@@ -473,9 +473,10 @@ class ReadConfigAt(unittest.TestCase):
             # A demotion written only to the legacy file still holds it.
             ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_merge: c2-mechanical\n", loose, "c2-mechanical"),
-            # With no legacy file the YAML alone supplies the value.
-            ("babysit_loop_merge: c2-mechanical\n", None, "c2-mechanical"),
-            ("babysit_loop_merge: c3-autonomous\n", None, "c3-autonomous"),
+            # With no legacy file the gate stays off whatever the YAML sets:
+            # the YAML alone never raises it.
+            ("babysit_loop_merge: c2-mechanical\n", None, None),
+            ("babysit_loop_merge: c3-autonomous\n", None, None),
             # A YAML without the key falls back to the legacy value.
             (None, SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_stop_mode: standing\n", SOURCE_CONTROL, "c2-mechanical"),
