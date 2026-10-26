@@ -22,8 +22,9 @@ The repository's pipeline config is a hold path.
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
   pull request as `#<number>` (`namesPull`, `names_pull`), and both carry it
-  to the same heads: the decided head, or a later one with the same net
-  change against the base branch (`costMarker`, `sameNetChange`).
+  to the same heads: the decided head, read from the review lanes' check-run
+  notices (`noticedHead`, `_noticed_head`), or a later one with the same net
+  change against the base branch (`sameNetChange`).
 """
 
 from __future__ import annotations
@@ -393,118 +394,134 @@ DECISIONS = {
     "another decision": (_link(7), _comment(7, body="**Decision recorded.** Ship")),
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
 }
-def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[str, Any]:
-    body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria=cost -->\nHeld."
-    user = {"login": "github-actions[bot]", "type": "Bot"}
-    return {"user": user, "node_id": "M", "created_at": at, "body": body} | fields
+CHECKS = dict(policy.REVIEW_LANES)
 
 
-# The head reads: the pull request's comments (a cost hold marker at the head
-# before the decision by default) and a compare per head.
-# The marker's edit read answers `marker_edited`, or fails when it is "fail";
-# the deleted-comment read lists the `deleted` times (or answers the timeline
-# items given), or fails when it is "fail".
-DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}, "marker_edited": None, "deleted": []}
+def _run(
+    sha: str,
+    at: str = "2026-01-02T12:00:00Z",
+    *,
+    criteria: str = "cost",
+    lane: str = "pr-review-hosted.yml",
+    job: str | None = None,
+    notice: str | None = None,
+    created: str = "2026-01-02T11:00:00Z",
+) -> dict[str, Any]:
+    """A review lane's run on `sha`, started at `created`, whose status job
+    (or `job`) finished at `at` with a hold notice naming `notice`."""
+    message = f"claude-lane-hold lane=claude-review sha={notice or sha} criteria={criteria} label=needs-human"
+    return {
+        "lane": lane,
+        "sha": sha,
+        "at": at,
+        "job": job or CHECKS[lane],
+        "created": created,
+        "notes": [{"annotation_level": "notice", "message": message}],
+    }
+
+
+# The head reads: the review lanes' runs on the head branch (a cost notice at
+# the head before the decision by default), their jobs and annotations, and a
+# compare per head; a run's head answers {"files": [TF]} unless `compares`
+# names it.
+DEFAULT_HEADS = {"runs": [_run(HEAD)], "compares": {}}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
+LATE = "2026-01-02T18:00:00Z"
 # Each case: the heads world for a decision on the pull request (_link(7)).
 CARRIES = {
-    "a marker at the head": DEFAULT_HEADS,
+    "a notice at the head": DEFAULT_HEADS,
     "a base merge since the decided head": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
     },
     "a commit of its own since": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
     },
     "a rename since": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {
             OLD: {"files": [TF]},
             HEAD: {"files": [TF | {"status": "renamed", "previous_filename": "z.tf"}]},
         },
     },
     "300 files": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {
             sha: {"files": [TF | {"filename": f"f{i}"} for i in range(300)]}
             for sha in (OLD, HEAD)
         },
     },
     "a file with no patch": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {sha: {"files": [{"filename": "a.png", "status": "added"}]} for sha in (OLD, HEAD)},
     },
-    "an unreadable compare": {"markers": [_marker(OLD)], "compares": {OLD: {"files": [TF]}}},
-    "the latest marker before it, not an older one at the head": {
-        "markers": [_marker(HEAD, "2026-01-02T06:00:00Z"), _marker(OLD)],
+    "an unreadable compare": {"runs": [_run(OLD)], "compares": {OLD: {"files": [TF]}}},
+    "the latest notice before it, not an older one at the head": {
+        "runs": [_run(HEAD, "2026-01-02T06:00:00Z", created="2026-01-02T05:00:00Z"), _run(OLD)],
         "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
     },
-    "a marker after it": {"markers": [_marker(HEAD, "2026-01-04T00:00:00Z")]},
-    "a person's marker": {"markers": [_marker(HEAD, user={"type": "User"})]},
-    "another bot's marker": {
-        "markers": [_marker(HEAD, user={"login": "claude[bot]", "type": "Bot"})]
+    "a notice from the security lane": {
+        "runs": [_run(HEAD, lane="pr-review-security-hosted.yml")]
     },
-    "no marker": {"markers": []},
-    "an edited marker": {"marker_edited": "2026-01-02T13:00:00Z"},
-    "an unreadable marker edit state": {"marker_edited": "fail"},
-    "an edited marker after a base merge": {
-        "markers": [_marker(OLD)],
-        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
-        "marker_edited": "2026-01-02T13:00:00Z",
+    "a job done after it": {"runs": [_run(HEAD, "2026-01-04T00:00:00Z")]},
+    "a run started after it": {"runs": [_run(HEAD, LATE, created="2026-01-03T01:00:00Z")]},
+    "a job other than the status job": {"runs": [_run(HEAD, job="pr-review / review-key")]},
+    "a notice naming another head than its run's": {"runs": [_run(OLD, notice=HEAD)]},
+    "a notice without cost": {"runs": [_run(HEAD, criteria="trust-gate")]},
+    "two heads at the newest time": {
+        "runs": [_run(HEAD), _run(OLD, lane="pr-review-security-hosted.yml")]
+    },
+    "no notice": {"runs": []},
+    "a run on a head that changes a review-lane workflow": {
+        "compares": {HEAD: {"files": [{"filename": ".github/workflows/pr-review-hosted.yml"}]}}
+    },
+    "a run on a head whose compare has no file list": {
+        "compares": {HEAD: {"status": "diverged"}}
     },
     "a filename listed twice": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {OLD: {"files": [TF, TF]}, HEAD: {"files": [TF, TF]}},
     },
-    "a comment deleted since the marker": {"deleted": ["2026-01-02T13:00:00Z"]},
-    "a comment deleted since the marker, after a base merge": {
-        "markers": [_marker(OLD)],
-        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
-        "deleted": ["2026-01-02T13:00:00Z"],
-    },
-    "a comment deleted before the marker": {"deleted": ["2026-01-02T11:00:00Z"]},
-    "an unreadable deleted-comment list": {"deleted": "fail"},
-    "more deleted comments than listed": {
-        "deleted": {"filteredCount": 2, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
-    },
-    "a deleted-comment count that is not a number": {
-        "deleted": {"filteredCount": True, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
-    },
     "a patchless pure rename": {
-        "markers": [_marker(OLD)],
+        "runs": [_run(OLD)],
         "compares": {
             sha: {"files": [{"filename": "b", "status": "renamed", "previous_filename": "a"}]}
             for sha in (OLD, HEAD)
         },
     },
 }
+
+
+def _answers(heads: dict[str, Any]) -> dict[str, Any]:
+    return {r["sha"]: {"files": [TF]} for r in heads["runs"]} | heads["compares"]
+
+
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue, heads] = JSON.parse(process.argv[1]);
+const [body, comment, issue, heads, answers] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
   if (method === "GET" && path.includes("/compare/")) {
     const sha = path.split("...")[1];
-    if (!(sha in heads.compares)) throw new Error("no such commit");
-    return heads.compares[sha];
+    if (!(sha in answers)) throw new Error("no such commit");
+    return answers[sha];
   }
-  if (method === "GET" && path === "/repos/o/r/issues/7/comments?per_page=100&page=1") return heads.markers;
+  const runs = /\\/actions\\/workflows\\/([a-z-]+\\.yml)\\/runs\\?event=pull_request&branch=b&per_page=100&page=1$/.exec(path);
+  if (method === "GET" && runs) {
+    return { workflow_runs: heads.runs.flatMap((r, i) => (r.lane === runs[1] ? [{ id: i + 1, head_sha: r.sha, created_at: r.created }] : [])) };
+  }
+  const jobs = /\\/actions\\/runs\\/([0-9]+)\\/jobs\\?filter=all&per_page=100&page=1$/.exec(path);
+  if (method === "GET" && jobs) {
+    const r = heads.runs[Number(jobs[1]) - 1];
+    return { jobs: [{ id: Number(jobs[1]), name: r.job, completed_at: r.at }] };
+  }
+  const notes = /\\/check-runs\\/([0-9]+)\\/annotations\\?per_page=100&page=1$/.exec(path);
+  if (method === "GET" && notes) return heads.runs[Number(notes[1]) - 1].notes;
   if (method === "GET") return comment;
-  if (data.query.includes("COMMENT_DELETED_EVENT")) {
-    if (heads.deleted === "fail") throw new Error("unreadable");
-    const items = Array.isArray(heads.deleted)
-      ? { filteredCount: heads.deleted.length, nodes: heads.deleted.map((createdAt) => ({ createdAt })) }
-      : heads.deleted;
-    return { data: { repository: { pullRequest: { timelineItems: items } } } };
-  }
   if (data.variables.number !== undefined) {
-    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", baseRefName: "main",
+    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", baseRefName: "main", headRefName: "b",
       closingIssuesReferences: { totalCount: 1, nodes: [{ number: issue, repository: { nameWithOwner: "o/r" } }] } } } } };
-  }
-  if (data.variables.id === "M") {
-    if (heads.marker_edited === "fail") throw new Error("unreadable");
-    return { data: { node: { lastEditedAt: heads.marker_edited } } };
   }
   return { data: { node: { lastEditedAt: comment.edited } } };
 };
@@ -522,7 +539,7 @@ def js_decision(
             "--input-type=module",
             "-e",
             script,
-            json.dumps([body, comment, ISSUE, DEFAULT_HEADS | heads]),
+            json.dumps([body, comment, ISSUE, DEFAULT_HEADS | heads, _answers(DEFAULT_HEADS | heads)]),
         ],
         capture_output=True,
         text=True,
@@ -535,33 +552,34 @@ def py_decision(
     body: str, comment: dict[str, Any], heads: dict[str, Any] = DEFAULT_HEADS
 ) -> str | None:
     heads = DEFAULT_HEADS | heads
+    answers = _answers(heads)
 
     def graphql(query: str, what: str, **variables: Any) -> dict[str, Any]:
-        if "COMMENT_DELETED_EVENT" in query:
-            if heads["deleted"] == "fail":
-                raise policy.PolicyReadError(what)
-            deleted = heads["deleted"]
-            items = (
-                {"filteredCount": len(deleted), "nodes": [{"createdAt": t} for t in deleted]}
-                if isinstance(deleted, list)
-                else deleted
-            )
-            return {"repository": {"pullRequest": {"timelineItems": items}}}
-        if variables.get("id") == "M":
-            if heads["marker_edited"] == "fail":
-                raise policy.PolicyReadError(what)
-            return {"node": {"lastEditedAt": heads["marker_edited"]}}
         return {"node": {"lastEditedAt": comment["edited"]}}
 
-    def get(endpoint: str) -> tuple[int | None, Any]:
+    def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
-            return (200, heads["compares"][sha]) if sha in heads["compares"] else (404, None)
+            return (200, answers[sha]) if sha in answers else (404, None)
         return 200, comment
 
-    def paginated(endpoint: str, _label: str) -> list[dict[str, Any]]:
-        assert endpoint == "repos/o/r/issues/7/comments?per_page=100", endpoint
-        return heads["markers"]
+    def paginated(
+        endpoint: str, _label: str, items_key: str | None = None, env: Any = None
+    ) -> list[dict[str, Any]]:
+        if "/actions/workflows/" in endpoint:
+            lane = endpoint.split("/actions/workflows/", 1)[1].split("/", 1)[0]
+            assert endpoint.endswith("/runs?event=pull_request&branch=b&per_page=100"), endpoint
+            return [
+                {"id": i + 1, "head_sha": r["sha"], "created_at": r["created"]}
+                for i, r in enumerate(heads["runs"])
+                if r["lane"] == lane
+            ]
+        if "/jobs?" in endpoint:
+            n = int(endpoint.split("/actions/runs/", 1)[1].split("/", 1)[0])
+            r = heads["runs"][n - 1]
+            return [{"id": n, "name": r["job"], "completed_at": r["at"]}]
+        n = int(endpoint.split("/check-runs/", 1)[1].split("/", 1)[0])
+        return heads["runs"][n - 1]["notes"]
 
     with (
         mock.patch.object(policy, "_get", side_effect=get),
@@ -601,9 +619,9 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
                 answers[case] = py_decision(_link(7), _comment(7), heads)
                 self.assertEqual(js_decision(_link(7), _comment(7), heads), answers[case])
         carried = {
-            "a marker at the head",
+            "a notice at the head",
             "a base merge since the decided head",
-            "a comment deleted before the marker",
+            "a notice from the security lane",
         }
         for case in carried:
             self.assertEqual(answers[case], _link(7), case)

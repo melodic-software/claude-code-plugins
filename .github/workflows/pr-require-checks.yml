@@ -3749,9 +3749,9 @@ jobs:
       #   lane's status job records (any attempt, on this branch), never from
       #   the hold comment, which anyone with write access can edit or delete.
       #   A pull_request run takes its workflow from the pull request, so a
-      #   run whose head changes either review-lane workflow from the base (or
-      #   whose comparison lists 300 files, the API's cap) could forge that
-      #   notice, and keeps the hold.
+      #   run in it or started before the decision whose head changes either
+      #   review-lane workflow from the base (or whose comparison lists 300
+      #   files, the API's cap) could forge that notice, and keeps the hold.
       # - No lanes App escalation comment (a `<!-- work-items:escalation`
       #   marker) was written or edited and no comment was deleted in it: a
       #   lanes App escalation adds no label event to a label already on. Its
@@ -3764,13 +3764,16 @@ jobs:
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). Of those, the newest on the pull request, else the
       #   newest on the issue, is the decision. It covers the head it decided
-      #   (the newest github-actions[bot] cost hold marker before it, while
-      #   never edited and no comment was deleted since it was posted; with
-      #   none, an edited one or a deletion since, no head) and a later head only when the pull request's net
-      #   change against its base branch is the same at both, so every change
-      #   since is a base merge (the base's merge-holds.mjs costMarker and
-      #   sameNetChange; owner decisions Q17 c and Q18 d on #9436, as
-      #   ci-workflows v0.65.4's hold step reads them). The linked issue is the one issue in this repository that
+      #   and a later head only when the pull request's net change against its
+      #   base branch is the same at both, so every change since is a base
+      #   merge (the base's merge-holds.mjs sameNetChange; owner decisions
+      #   Q17 c and Q18 d on #9436). The decided head is the `sha=` of the
+      #   newest cost hold notice a review lane's status job recorded before
+      #   the decision, read with the holds below from runs vetted the same
+      #   way and only where it names its own run's head; never a hold
+      #   comment, which any GITHUB_TOKEN workflow can post as
+      #   github-actions[bot]. With none, or two heads at that time, it covers
+      #   no head. The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
       #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
       #   read to be an issue and not a pull request. A second closing issue
@@ -3871,11 +3874,9 @@ jobs:
           fi
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
           comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
-          jq -sc 'add // []' <<<"$comments" >"$RUNNER_TEMP/cost-hold-comments.json" || keep "the comments do not parse"
           # shellcheck disable=SC2016 # GraphQL variables, not shell
           deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
             -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"
-          jq '.data' <<<"$deleted" >"$RUNNER_TEMP/cost-hold-deleted.json" || keep "the deleted comments do not parse"
           # holds_js <function> <json-file>...: one function of the base's
           # merge-holds.mjs over the files. The module goes last: as the first
           # argument it would run as the command line.
@@ -3889,26 +3890,13 @@ jobs:
               console.log(out !== null && typeof out === "object" ? JSON.stringify(out) : String(out ?? ""));' \
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
-          # carries <comment>: whether the decision comment covers HEAD_SHA:
-          # its decided head, from the newest cost hold marker before it and
-          # only while that marker was never edited and no comment was deleted
-          # since it was posted (the base's deletedSince, so deleting a newer
-          # marker cannot promote an older head), is HEAD_SHA, or the net
-          # change against the base branch is the same at both. No marker, an
-          # edited or unreadable newest marker, a deletion since it, an
+          # carries <decided>: whether a decision whose decided head is
+          # <decided> covers HEAD_SHA: it is HEAD_SHA, or the net change
+          # against the base branch is the same at both. No decided head, an
           # unusable base branch name or any read that fails carries nothing.
           carries() {
-            local at="$RUNNER_TEMP/cost-hold-at.json" marker decided marker_edited base_ref
-            jq '.created_at' <<<"$1" >"$at" || return 1
-            marker=$(holds_js costMarker "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
-            [ -n "$marker" ] || return 1
-            decided=$(jq -r '.sha' <<<"$marker") || return 1
+            local decided=$1 base_ref
             [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
-            # shellcheck disable=SC2016 # GraphQL variables, not shell
-            marker_edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$(jq -r '.node' <<<"$marker")") || return 1
-            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$marker_edited" >/dev/null 2>&1 || return 1
-            jq '.at' <<<"$marker" >"$RUNNER_TEMP/cost-hold-marker-at.json" || return 1
-            [ "$(holds_js deletedSince "$RUNNER_TEMP/cost-hold-deleted.json" "$RUNNER_TEMP/cost-hold-marker-at.json")" = false ] || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
             base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
@@ -3949,13 +3937,13 @@ jobs:
           # review lanes' hold step picks it; only it may carry.
           chosen=$(jq -c '([.[] | select(.own)] | if length > 0 then . else null end) // [.[] | select(.own | not)]
             | to_entries | sort_by([-.value.at, .key]) | .[0].value // empty' <<<"$decisions") || keep "the decisions do not parse"
-          decision='' decision_id=''
-          if [ -n "$chosen" ] && carries "$(jq -c .comment <<<"$chosen")"; then
-            decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
-          fi
-          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering this head"
-          # Every hold a review lane recorded in the window, as {at, criteria}.
-          holds='[]' vetted=''
+          [ -n "$chosen" ] || keep "the body cites no recorded owner cost decision covering this head"
+          decided_at=$(jq -r '.at' <<<"$chosen") || keep "the decisions do not parse"
+          # Every hold notice a review lane's status job recorded in a run
+          # updated in the window or started before the decision, as {at,
+          # criteria, sha, run}: `sha` as the notice names it, `run` the head
+          # its run ran on.
+          notices='[]' vetted=''
           while read -r file check; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
             while read -r id sha; do
@@ -3971,17 +3959,28 @@ jobs:
                 vetted+=" $sha"
               fi
               jobs=$(read_api "repos/$repo/actions/runs/$id/jobs?filter=all&per_page=100" --paginate) || keep "the jobs of run $id are unreadable"
-              for job in $(jq -nr --arg check "$check" --argjson since "$since" '[inputs.jobs[] | select(.name == $check
-                and .completed_at != null and (.completed_at | fromdateiso8601) > $since) | "\(.id)/\(.completed_at)"] | unique[]' <<<"$jobs"); do
+              for job in $(jq -nr --arg check "$check" '[inputs.jobs[] | select(.name == $check
+                and .completed_at != null) | "\(.id)/\(.completed_at)"] | unique[]' <<<"$jobs"); do
                 notes=$(read_api "repos/$repo/check-runs/${job%%/*}/annotations?per_page=100" --paginate) || keep "the annotations of job ${job%%/*} are unreadable"
-                holds=$(jq -nc --argjson holds "$holds" --arg at "${job#*/}" '$holds + [inputs[] | select(.annotation_level == "notice")
+                notices=$(jq -nc --argjson notices "$notices" --arg at "${job#*/}" --arg run "$sha" '$notices + [inputs[] | select(.annotation_level == "notice")
                   | .message | select(startswith("claude-lane-hold "))
-                  | {at: ($at | fromdateiso8601), criteria: (capture("^claude-lane-hold lane=[a-z-]+ sha=[0-9a-f]{40} criteria=(?<c>[a-z,-]+) label=").c // "unparsed")}]' \
+                  | (capture("^claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=(?<c>[a-z,-]+) label=") // {sha: "", c: "unparsed"}) as $m
+                  | {at: ($at | fromdateiso8601), criteria: $m.c, sha: $m.sha, run: $run}]' \
                   <<<"$notes") || keep "the annotations of job ${job%%/*} do not parse"
               done
-            done < <(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
+            done < <(jq -nr --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
+              | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
+          # The decided head: the sha of the newest cost notice before the
+          # decision that names its own run's head; none when two heads share
+          # that time.
+          decided=$(jq -r --argjson at "$decided_at" '[.[] | select(.at < $at and .sha == .run and any(.criteria | split(",")[]; . == "cost"))]
+            | (map(.at) | max) as $newest | [.[] | select(.at == $newest) | .sha] | unique
+            | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
+          carries "$decided" || keep "the body cites no recorded owner cost decision covering this head"
+          decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
+          holds=$(jq -c --argjson since "$since" '[.[] | select(.at > $since)]' <<<"$notices") || keep "the hold notices do not parse"
           verdict=$(jq -nr --arg label "$label" --argjson since "$since" --argjson holds "$holds" --argjson app "$LANES_APP_ID" \
             --slurpfile events <(printf '%s\n' "$events") --slurpfile comments <(printf '%s\n' "$comments") \
             --slurpfile deleted <(printf '%s\n' "$deleted") '

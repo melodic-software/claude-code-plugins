@@ -425,15 +425,10 @@ const DECISION_LINK = /https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)
 const DECISION_LINE = /^\*\*Decision recorded\.\*\*[ \t]+Cost:/;
 export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) { createdAt baseRefName closingIssuesReferences(first: 2) { totalCount nodes { number repository { nameWithOwner } } } }
+    pullRequest(number: $number) { createdAt baseRefName headRefName closingIssuesReferences(first: 2) { totalCount nodes { number repository { nameWithOwner } } } }
   }
 }`;
 export const COMMENT_EDITED_QUERY = "query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt } } }";
-export const COMMENT_DELETED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) { timelineItems(itemTypes: [COMMENT_DELETED_EVENT], last: 100) { filteredCount nodes { ... on CommentDeletedEvent { createdAt } } } }
-  }
-}`;
 
 // Whether `text` names pull request `number` as `#<number>`: not part of a
 // longer number, and not after a letter, digit, `_`, `#`, `&`, `/`, `.` or
@@ -444,50 +439,105 @@ export function namesPull(text, number) {
   return Number.isSafeInteger(number) && new RegExp(`(?:^|[^A-Za-z0-9_#&/.-])#${number}(?:[^0-9]|$)`).test(String(text ?? ""));
 }
 
-// A review lane's cost hold marker, as ci-workflows apply-review-hold writes
-// it on the first line of its hold comment: the head it held and its
-// criteria. The base branch name a compare takes, as the hold step reads it.
-const COST_MARKER = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) -->(?:\n|$)/;
+// The review lanes whose status job records a `claude-lane-hold` notice, as
+// [workflow file, status job name] (ci-status's cost-hold step reads the same
+// two). The notice's head and criteria, and the base branch name a compare
+// takes, as the hold step reads it.
+export const REVIEW_LANES = [
+  ["pr-review-hosted.yml", "pr-review / claude-review-status"],
+  ["pr-review-security-hosted.yml", "pr-review-security / security-review"],
+];
+const HOLD_NOTICE = /^claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) label=/;
 const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}$/;
 
-// The newest cost hold marker github-actions[bot] posted among the pull
-// request's `comments` before a decision made at `at`, as { sha, node, at }
-// (the head it held, its comment's node id and created_at), else null
-// (babysit_merge_policy.cost_marker; the first of two at one time wins, as
-// in the review lanes' hold step). It decides a head only while never
-// edited and while no comment was deleted since it was posted, which the
-// caller reads.
-export function costMarker(comments, at) {
-  const cutoff = Date.parse(at);
-  let found = null;
-  let latest = -Infinity;
-  for (const row of Array.isArray(comments) ? comments : []) {
-    const marker = row?.user?.login === "github-actions[bot]" ? COST_MARKER.exec(String(row.body ?? "")) : null;
-    const made = Date.parse(row?.created_at);
-    if (marker && marker[2].split(",").includes("cost") && made < cutoff && made > latest) {
-      found = { sha: marker[1], node: String(row.node_id ?? ""), at: row.created_at };
-      latest = made;
-    }
-  }
-  return found;
+// Why a compare answer (base...head) shows a head whose lane runs cannot be
+// trusted, else null: it changes a review-lane workflow, which a
+// pull_request run takes from the head and so could write the notice, or it
+// lists 300 files or more (the compare API's cap), or no file list.
+export function laneChange(compare) {
+  const files = compare?.files;
+  if (!Array.isArray(files)) return "no file list";
+  if (files.length >= 300) return "too many files";
+  const lanes = REVIEW_LANES.map(([file]) => `.github/workflows/${file}`);
+  return files.some((f) => lanes.includes(f?.filename)) ? "a review-lane workflow" : null;
 }
 
-// Whether a COMMENT_DELETED_QUERY answer (its `data`) shows a comment on the
-// pull request deleted at or after `at`, or cannot show that none was: no
-// readable list, more deletions than it lists, or a time that does not parse
-// (babysit_merge_policy.deleted_since). A deleted newer marker would
-// otherwise make an older one the decided head.
-export function deletedSince(answer, at) {
-  const when = Date.parse(at);
-  const items = answer?.repository?.pullRequest?.timelineItems;
-  const nodes = items?.nodes;
-  if (!Number.isFinite(when) || !Array.isArray(nodes) || !Number.isInteger(items.filteredCount) || items.filteredCount > nodes.length) {
-    return true;
-  }
-  return nodes.some((node) => {
-    const made = Date.parse(node?.createdAt);
-    return !Number.isFinite(made) || made >= when;
+// The cost hold notices among one status job's `annotations`, as { sha, at }
+// with `at` the job's completion: only those naming `head`, the head its run
+// ran on, so a notice can speak for no other commit.
+export function costNotices(annotations, head, at) {
+  return (Array.isArray(annotations) ? annotations : []).flatMap((a) => {
+    const notice = a?.annotation_level === "notice" ? HOLD_NOTICE.exec(String(a.message ?? "")) : null;
+    return notice && notice[1] === head && notice[2].split(",").includes("cost") ? [{ sha: notice[1], at }] : [];
   });
+}
+
+// The decided head: the sha of the newest of `notices` before `at`, else
+// null; null too when two heads share that time
+// (babysit_merge_policy.decided_head, and ci-status's cost-hold step).
+export function decidedHead(notices, at) {
+  const cutoff = Date.parse(at);
+  const before = notices.filter((n) => Date.parse(n.at) < cutoff);
+  const newest = Math.max(...before.map((n) => Date.parse(n.at)));
+  const heads = new Set(before.filter((n) => Date.parse(n.at) === newest).map((n) => n.sha));
+  return heads.size === 1 ? [...heads][0] : null;
+}
+
+// Every item of the REST list at `path` whose answer holds it under `key`.
+async function listed(read, path, key) {
+  const rows = [];
+  for (let page = 1; ; page += 1) {
+    const answer = await read("GET", `${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`);
+    const items = answer?.[key];
+    if (!Array.isArray(items)) {
+      throw new Error(`${path} has no ${key} list`);
+    }
+    rows.push(...items);
+    if (items.length < 100) {
+      return rows;
+    }
+  }
+}
+
+// The head a decision made at `at` decided, from the review lanes' check-run
+// annotations, never a comment (any GITHUB_TOKEN workflow posts as
+// github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
+// the head `branch` started before `at`, each run's head vetted against
+// `base` (laneChange), its status job's cost notices (costNotices) from jobs
+// done before `at`, then decidedHead. A run on a head that fails the vet, or
+// a read that fails, decides nothing. `read` holds actions: read and
+// checks: read.
+async function noticedHead(read, repo, branch, base, at) {
+  const cutoff = Date.parse(at);
+  if (!Number.isFinite(cutoff) || typeof branch !== "string" || !BRANCH.test(branch)) {
+    return null;
+  }
+  const notices = [];
+  const vetted = new Set();
+  for (const [file, check] of REVIEW_LANES) {
+    const runs = await listed(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
+    for (const run of runs) {
+      if (!(Date.parse(run?.created_at) < cutoff)) {
+        continue;
+      }
+      const head = String(run.head_sha ?? "");
+      if (!/^[0-9a-f]{40}$/.test(head)) {
+        return null;
+      }
+      if (!vetted.has(head)) {
+        if (laneChange(await read("GET", `/repos/${repo}/compare/${base}...${head}`)) !== null) {
+          return null;
+        }
+        vetted.add(head);
+      }
+      for (const job of await listed(read, `/repos/${repo}/actions/runs/${run.id}/jobs?filter=all`, "jobs")) {
+        if (job?.name === check && Date.parse(job.completed_at) < cutoff) {
+          notices.push(...costNotices(await pages(read, `/repos/${repo}/check-runs/${job.id}/annotations`), head, job.completed_at));
+        }
+      }
+    }
+  }
+  return decidedHead(notices, at);
 }
 
 // Whether a COMMENT_EDITED_QUERY answer's node was never edited.
@@ -528,36 +578,24 @@ async function pages(github, path) {
   }
 }
 
-// Whether the decision `comment` covers pull request `number` at `head`
-// (owner decisions Q17 c and Q18 d on #9436): its decided head (costMarker,
-// never edited, so no one with write access moved its sha) is `head`, with
+// Whether the decision `comment` covers the pull request at `head` (owner
+// decisions Q17 c and Q18 d on #9436): its decided head (noticedHead, read
+// with `actions` from the head branch `branch`'s lane runs) is `head`, with
 // no compare read, or every change since is a merge of the base branch
 // `base`, so the net change against it is the same at both (sameNetChange).
-// No marker, an edited or unreadable newest marker (no older one stands in),
-// a comment deleted since that marker was posted (deletedSince, read before
-// the head check, so deleting a newer marker cannot promote an older head),
-// an unusable base name or a read that fails carries nothing.
-async function carries(github, repo, number, comment, head, base) {
+// No decided head, an unusable base name or a read that fails carries
+// nothing.
+async function carries(github, actions, repo, comment, head, base, branch) {
   try {
-    const marker = costMarker(await pages(github, `/repos/${repo}/issues/${number}/comments`), comment.created_at);
-    if (marker === null) {
-      return false;
-    }
-    const node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: marker.node } }))?.data?.node;
-    if (!unedited(node)) {
-      return false;
-    }
-    const [owner, name] = repo.split("/");
-    const deleted = await github("POST", "/graphql", { query: COMMENT_DELETED_QUERY, variables: { owner, name, number } });
-    if (deletedSince(deleted?.data, marker.at)) {
-      return false;
-    }
-    const decided = marker.sha;
-    if (decided === head) {
-      return true;
-    }
     if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
+    }
+    const decided = await noticedHead(actions, repo, branch, base, comment.created_at);
+    if (decided === null) {
+      return false;
+    }
+    if (decided === head) {
+      return true;
     }
     const then = await github("GET", `/repos/${repo}/compare/${base}...${decided}`);
     const now = await github("GET", `/repos/${repo}/compare/${base}...${head}`);
@@ -580,9 +618,11 @@ async function carries(github, repo, number, comment, head, base) {
 // the issue, as the review lanes' hold step picks it; it covers the head it
 // decided and a later one only when every change since is a base merge
 // (carries, against the pull request's base branch). `github(method, path,
-// body)` reads; a failed read of the pull request or the Refs target decides
-// nothing, and one of a comment or its edit state skips that comment.
-export async function costDecision(github, repo, number, body, humans, head) {
+// body)` reads; `actions`, the same shape, reads the lane runs, their jobs,
+// annotations and compares (it needs actions: read and checks: read). A
+// failed read of the pull request or the Refs target decides nothing, and one
+// of a comment or its edit state skips that comment.
+export async function costDecision(github, repo, number, body, humans, head, actions = github) {
   const links = [...String(body ?? "").replaceAll(HTML_COMMENT, "").matchAll(DECISION_LINK)].filter(
     (link) => `${link[1]}/${link[2]}`.toLowerCase() === String(repo).toLowerCase(),
   );
@@ -651,7 +691,7 @@ export async function costDecision(github, repo, number, body, humans, head) {
   // The newest; of two at one time, the first linked.
   const newest = (own) => decisions.filter((d) => d.own === own).reduce((best, d) => (best === undefined || at(d) > at(best) ? d : best), undefined);
   const decision = newest(true) ?? newest(false);
-  return decision && (await carries(github, repo, number, decision.comment, head, pull?.baseRefName)) ? decision.link : null;
+  return decision && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
 }
 
 // A GitHub REST and GraphQL reader on fetch, for costDecision.

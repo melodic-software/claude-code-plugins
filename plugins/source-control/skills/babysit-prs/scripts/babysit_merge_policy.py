@@ -376,11 +376,11 @@ def _split_repo(repo: str) -> tuple[str, str]:
     return owner, name
 
 
-def _get(endpoint: str) -> tuple[int | None, Any]:
+def _get(endpoint: str, env: Mapping[str, str] | None = None) -> tuple[int | None, Any]:
     """(status, payload): 200 and the JSON on success; on failure the status gh
-    reported, or None when it named none."""
+    reported, or None when it named none. `env` overrides gh's environment."""
     try:
-        proc = gh_capture(["api", endpoint])
+        proc = gh_capture(["api", endpoint], **({"env_overrides": env} if env else {}))
     except (RuntimeError, ValueError, OSError):
         return None, None
     if proc.returncode != 0:
@@ -392,10 +392,16 @@ def _get(endpoint: str) -> tuple[int | None, Any]:
 
 
 def _paginated(
-    endpoint: str, label: str, items_key: str | None = None
+    endpoint: str,
+    label: str,
+    items_key: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     try:
-        proc = gh_capture(["api", endpoint, "--paginate", "--slurp"])
+        proc = gh_capture(
+            ["api", endpoint, "--paginate", "--slurp"],
+            **({"env_overrides": env} if env else {}),
+        )
     except (RuntimeError, ValueError, OSError) as exc:
         raise PolicyReadError(f"{label}: {exc}") from exc
     if proc.returncode != 0:
@@ -2150,11 +2156,6 @@ DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
-COMMENT_DELETED = (
-    "query PolicyCommentDeleted($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name)"
-    "{pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100)"
-    "{filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}"
-)
 
 
 def names_pull(text: Any, number: Any) -> bool:
@@ -2178,66 +2179,136 @@ def _after(value: Any, opened: datetime | None) -> bool:
     return made is not None and opened is not None and made > opened
 
 
-# A review lane's cost hold marker, as ci-workflows apply-review-hold writes
-# it on the first line of its hold comment: the head it held and its
-# criteria. The base branch name a compare takes, as the hold step reads it.
-COST_MARKER = re.compile(
-    r"<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) "
-    r"criteria=([a-z,-]+) -->(?:\n|\Z)"
+# The review lanes whose status job records a `claude-lane-hold` notice, as
+# (workflow file, status job name) (merge-holds.mjs `REVIEW_LANES`, and
+# ci-status's cost-hold step). The notice's head and criteria, and the base
+# branch name a compare takes, as the hold step reads it.
+REVIEW_LANES = (
+    ("pr-review-hosted.yml", "pr-review / claude-review-status"),
+    ("pr-review-security-hosted.yml", "pr-review-security / security-review"),
+)
+HOLD_NOTICE = re.compile(
+    r"claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) label="
 )
 BASE_BRANCH = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}")
+# The token the lane-run, job, annotation and vetting reads take when set:
+# pr-merge.yml passes the job's GITHUB_TOKEN (actions: read, checks: read),
+# while the lanes App token it runs gh with holds neither
+# (babysit_verify_evidence.py `TOKEN_ENV`).
+ACTIONS_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 _NEVER = datetime.min.replace(tzinfo=UTC)
 
 
-def cost_marker(comments: Any, at: Any) -> tuple[str, str, Any] | None:
-    """The newest cost hold marker github-actions[bot] posted among the pull
-    request's `comments` before a decision made at `at`, as (the head it
-    held, its comment's node id, its created_at), else None (merge-holds.mjs
-    `costMarker`; the first of two at one time wins, as in the review lanes'
-    hold step). It decides a head only while never edited and while no
-    comment was deleted since it was posted, which the caller reads."""
-    when = parse_timestamp(at)
-    found: tuple[datetime, str, str] | None = None
-    for row in json_array(comments):
+def lane_change(compare: Any) -> str | None:
+    """Why a compare answer (base...head) shows a head whose lane runs cannot
+    be trusted, else None: it changes a review-lane workflow, which a
+    pull_request run takes from the head and so could write the notice, or it
+    lists 300 files or more (the compare API's cap), or no file list
+    (merge-holds.mjs `laneChange`)."""
+    files = json_object(compare).get("files")
+    if not is_json_array(files):
+        return "no file list"
+    if len(files) >= 300:
+        return "too many files"
+    lanes = {f".github/workflows/{file}" for file, _ in REVIEW_LANES}
+    if any(json_object(f).get("filename") in lanes for f in files):
+        return "a review-lane workflow"
+    return None
+
+
+def cost_notices(annotations: Any, head: str, at: Any) -> list[tuple[str, Any]]:
+    """The cost hold notices among one status job's `annotations`, as (sha,
+    at) with `at` the job's completion: only those naming `head`, the head its
+    run ran on, so a notice can speak for no other commit (merge-holds.mjs
+    `costNotices`)."""
+    found: list[tuple[str, Any]] = []
+    for row in json_array(annotations):
         row = json_object(row)
-        made = parse_timestamp(row.get("created_at"))
-        marker = (
-            COST_MARKER.match(str(row.get("body") or ""))
-            if json_object(row.get("user")).get("login") == "github-actions[bot]"
+        notice = (
+            HOLD_NOTICE.match(str(row.get("message") or ""))
+            if row.get("annotation_level") == "notice"
             else None
         )
-        if (
-            marker
-            and "cost" in marker[2].split(",")
-            and made is not None
-            and when is not None
-            and made < when
-            and (found is None or made > found[0])
-        ):
-            found = (made, marker[1], str(row.get("node_id") or ""), row.get("created_at"))
-    return (found[1], found[2], found[3]) if found else None
+        if notice and notice[1] == head and "cost" in notice[2].split(","):
+            found.append((notice[1], at))
+    return found
 
 
-def deleted_since(answer: Any, at: Any) -> bool:
-    """Whether a `COMMENT_DELETED` answer (its `data`) shows a comment on the
-    pull request deleted at or after `at`, or cannot show that none was: no
-    readable list, more deletions than it lists, or a time that does not
-    parse (merge-holds.mjs `deletedSince`). A deleted newer marker would
-    otherwise make an older one the decided head."""
+def decided_head(notices: Collection[tuple[str, Any]], at: Any) -> str | None:
+    """The sha of the newest of `notices` before `at`, else None; None too
+    when two heads share that time (merge-holds.mjs `decidedHead`)."""
     when = parse_timestamp(at)
-    items = json_object(
-        json_object(json_object(json_object(answer).get("repository")).get("pullRequest")).get(
-            "timelineItems"
+    if when is None:
+        return None
+    before = [
+        (made, sha)
+        for sha, made in ((sha, parse_timestamp(t)) for sha, t in notices)
+        if made is not None and made < when
+    ]
+    if not before:
+        return None
+    newest = max(made for made, _ in before)
+    heads = {sha for made, sha in before if made == newest}
+    return heads.pop() if len(heads) == 1 else None
+
+
+def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str | None:
+    """The head a decision made at `at` decided, from the review lanes'
+    check-run annotations, never a comment (any GITHUB_TOKEN workflow posts as
+    github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
+    the head `branch` started before `at`, each run's head vetted against
+    `base` (`lane_change`), its status job's cost notices (`cost_notices`)
+    from jobs done before `at`, then `decided_head`. A run on a head that fails
+    the vet decides nothing, and a read that fails raises."""
+    cutoff = parse_timestamp(at)
+    if cutoff is None or not isinstance(branch, str) or not BASE_BRANCH.fullmatch(branch):
+        return None
+    token = os.environ.get(ACTIONS_TOKEN_ENV)
+    env = {"GH_TOKEN": token} if token else None
+    notices: list[tuple[str, Any]] = []
+    vetted: set[str] = set()
+    for file, check in REVIEW_LANES:
+        runs = _paginated(
+            f"repos/{owner}/{name}/actions/workflows/{file}/runs"
+            f"?event=pull_request&branch={quote(branch, safe='')}&per_page=100",
+            f"{file} runs",
+            items_key="workflow_runs",
+            env=env,
         )
-    )
-    nodes, count = items.get("nodes"), items.get("filteredCount")
-    if when is None or not is_json_array(nodes) or not isinstance(count, int) or isinstance(count, bool) or count > len(nodes):
-        return True
-    for node in nodes:
-        made = parse_timestamp(json_object(node).get("createdAt"))
-        if made is None or made >= when:
-            return True
-    return False
+        for run in runs:
+            started = parse_timestamp(run.get("created_at"))
+            if started is None or started >= cutoff:
+                continue
+            head = str(run.get("head_sha") or "")
+            if not re.fullmatch(r"[0-9a-f]{40}", head):
+                return None
+            if head not in vetted:
+                status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
+                if status != 200:
+                    raise PolicyReadError(f"the changes of {head} are unreadable")
+                if lane_change(compare) is not None:
+                    return None
+                vetted.add(head)
+            jobs = _paginated(
+                f"repos/{owner}/{name}/actions/runs/{run.get('id')}/jobs?filter=all&per_page=100",
+                f"run {run.get('id')} jobs",
+                items_key="jobs",
+                env=env,
+            )
+            for job in jobs:
+                done = parse_timestamp(job.get("completed_at"))
+                if job.get("name") != check or done is None or done >= cutoff:
+                    continue
+                notices += cost_notices(
+                    _paginated(
+                        f"repos/{owner}/{name}/check-runs/{job.get('id')}/annotations?per_page=100",
+                        f"job {job.get('id')} annotations",
+                        env=env,
+                    ),
+                    head,
+                    job.get("completed_at"),
+                )
+    return decided_head(notices, at)
 
 
 def same_net_change(decided: Any, current: Any) -> bool:
@@ -2267,42 +2338,25 @@ def same_net_change(decided: Any, current: Any) -> bool:
 def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bool:
     """Whether the decision `comment` covers the pull request at its head
     (owner decisions Q17 c and Q18 d on #9436): its decided head
-    (`cost_marker`, never edited, so no one with write access moved its sha)
-    is the head, with no compare read, or every change since is a merge of the
-    base branch, so the net change against it is the same at both
-    (`same_net_change`). No marker, an edited or unreadable newest marker (no
-    older one stands in), a comment deleted since that marker was posted
-    (`deleted_since`, read before the head check, so deleting a newer marker
-    cannot promote an older head), an unusable base name or a read that fails
-    carries nothing."""
+    (`_noticed_head`, from the head branch's review-lane runs) is the head,
+    with no compare read, or every change since is a merge of the base
+    branch, so the net change against it is the same at both
+    (`same_net_change`). No decided head, an unusable base name or a read
+    that fails carries nothing."""
     sha = str(json_object(pr.get("head")).get("sha") or "")
+    branch = json_object(pr.get("head")).get("ref")
     base = json_object(pr.get("base")).get("ref")
-    owner, name = _split_repo(repo)
-    try:
-        marker = cost_marker(
-            _paginated(
-                f"repos/{owner}/{name}/issues/{pr.get('number')}/comments?per_page=100",
-                "cost hold markers",
-            ),
-            comment.get("created_at"),
-        )
-        if marker is None:
-            return False
-        node = _graphql(COMMENT_EDITED, "cost hold marker", id=marker[1]).get("node")
-        if not (is_json_object(node) and "lastEditedAt" in node and node["lastEditedAt"] is None):
-            return False
-        deleted = _graphql(
-            COMMENT_DELETED, "deleted comments", owner=owner, name=name, number=pr.get("number")
-        )
-    except PolicyReadError:
-        return False
-    if deleted_since(deleted, marker[2]):
-        return False
-    decided = marker[0]
-    if decided == sha:
-        return True
     if not isinstance(base, str) or not BASE_BRANCH.fullmatch(base):
         return False
+    owner, name = _split_repo(repo)
+    try:
+        decided = _noticed_head(owner, name, branch, base, comment.get("created_at"))
+    except PolicyReadError:
+        return False
+    if decided is None:
+        return False
+    if decided == sha:
+        return True
     reads = [
         _get(f"repos/{owner}/{name}/compare/{base}...{each}") for each in (decided, sha)
     ]

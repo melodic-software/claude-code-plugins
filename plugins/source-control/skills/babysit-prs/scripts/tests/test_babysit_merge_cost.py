@@ -23,7 +23,7 @@ PR_CREATED = "2026-10-22T10:00:00Z"
 HEAD = "0123456789abcdef0123456789abcdef01234567"
 BASE = "main"
 OLD = "fedcba9876543210fedcba9876543210fedcba98"
-LANE = {"login": "github-actions[bot]", "type": "Bot"}
+CHECKS = dict(policy.REVIEW_LANES)
 PULL = {
     "number": 99,
     "created_at": PR_CREATED,
@@ -33,29 +33,85 @@ PULL = {
 TF = {"filename": "infra/main.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 
 
-def _marker(
+def _run(
     sha: str,
     at: str = "2026-10-22T11:00:00Z",
+    *,
     criteria: str = "cost",
-    user: dict[str, Any] = LANE,
+    lane: str = "pr-review-hosted.yml",
+    job: str | None = None,
+    notice: str | None = None,
+    created: str = "2026-10-22T10:30:00Z",
 ) -> dict[str, Any]:
-    body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria={criteria} -->\nHeld."
-    return {"user": user, "node_id": "IC_M", "created_at": at, "body": body}
+    """A review lane's pull_request run on `sha`, started at `created`, whose
+    status job (or `job`) finished at `at` and recorded a hold notice naming
+    `notice` (default `sha`)."""
+    message = (
+        f"claude-lane-hold lane=claude-review sha={notice or sha} "
+        f"criteria={criteria} label=needs-human"
+    )
+    return {
+        "lane": lane,
+        "sha": sha,
+        "at": at,
+        "job": job or CHECKS[lane],
+        "created": created,
+        "notes": [{"annotation_level": "notice", "message": message}],
+    }
 
 
 def _net(*files: dict[str, Any]) -> dict[str, Any]:
     return {"files": list(files)}
 
 
-def _deletions(deleted: Any) -> dict[str, Any]:
-    """A COMMENT_DELETED answer: a list of deletion times, or the timeline
-    items as given."""
-    items = (
-        {"filteredCount": len(deleted), "nodes": [{"createdAt": t} for t in deleted]}
-        if isinstance(deleted, (list, tuple))
-        else deleted
-    )
-    return {"repository": {"pullRequest": {"timelineItems": items}}}
+class Lanes:
+    """The head reads of `_noticed_head` over `runs`, and the compares: a
+    run's head answers _net(TF) unless `compares` names it. A read whose label
+    (or `compare <sha>`) is `unreadable` fails. `reads` logs every endpoint and
+    `envs` the environment each lane read took."""
+
+    def __init__(self, runs: list[dict[str, Any]], compares: dict[str, Any], unreadable: str = "") -> None:
+        self.runs = runs
+        self.compares = {r["sha"]: _net(TF) for r in runs} | compares
+        self.unreadable = unreadable
+        self.reads: list[str] = []
+        self.envs: list[Any] = []
+
+    def get(self, endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+        self.reads.append(endpoint)
+        sha = endpoint.rsplit("...", 1)[1]
+        if sha in self.compares and self.unreadable != f"compare {sha}":
+            return 200, self.compares[sha]
+        return 404, None
+
+    def paginated(
+        self, endpoint: str, label: str, items_key: str | None = None, env: Any = None
+    ) -> list[dict[str, Any]]:
+        self.reads.append(endpoint)
+        self.envs.append(env)
+        if label == self.unreadable:
+            raise policy.PolicyReadError(label)
+        prefix = "repos/owner/repo/"
+        if "/actions/workflows/" in endpoint:
+            lane = endpoint.split("/actions/workflows/", 1)[1].split("/", 1)[0]
+            assert endpoint == (
+                f"{prefix}actions/workflows/{lane}/runs?event=pull_request"
+                "&branch=fix%2Fcost&per_page=100"
+            ), endpoint
+            assert items_key == "workflow_runs"
+            return [
+                {"id": i + 1, "head_sha": r["sha"], "created_at": r["created"]}
+                for i, r in enumerate(self.runs)
+                if r["lane"] == lane
+            ]
+        if "/jobs?" in endpoint:
+            assert items_key == "jobs"
+            n = int(endpoint.split("/actions/runs/", 1)[1].split("/", 1)[0])
+            run = self.runs[n - 1]
+            return [{"id": n, "name": run["job"], "completed_at": run["at"]}]
+        n = int(endpoint.split("/check-runs/", 1)[1].split("/", 1)[0])
+        assert endpoint == f"{prefix}check-runs/{n}/annotations?per_page=100", endpoint
+        return self.runs[n - 1]["notes"]
 
 
 def _comment(**changes: Any) -> dict[str, Any]:
@@ -81,61 +137,40 @@ class CostDecision(unittest.TestCase):
         issue: int | None = 40,
         node: Any = ...,
         created: Any = None,
-        markers: list[dict[str, Any]] | None = None,
+        runs: list[dict[str, Any]] | None = None,
         compares: dict[str, Any] | None = None,
         unreadable: str = "",
         pull: dict[str, Any] | None = None,
-        marker_node: Any = ...,
-        deleted: Any = (),
         head: str = HEAD,
     ) -> str | None:
         created = PR_CREATED if created is None else created
-        self.reads: list[str] = []
-        compares = compares or {}
+        self.lanes = lanes = Lanes(
+            [_run(HEAD)] if runs is None else runs, compares or {}, unreadable
+        )
+        self.reads = lanes.reads
 
-        def get(endpoint: str) -> tuple[int | None, Any]:
-            self.reads.append(endpoint)
+        def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
             if "/compare/" in endpoint:
-                sha = endpoint.rsplit("...", 1)[1]
-                if sha in compares and unreadable != f"compare {sha}":
-                    return 200, compares[sha]
-                return 404, None
+                return lanes.get(endpoint, env)
+            self.reads.append(endpoint)
             return status, comment if comment is not None else _comment()
 
-        def paginated(endpoint: str, label: str) -> list[dict[str, Any]]:
-            self.reads.append(endpoint)
-            if label == unreadable:
-                raise policy.PolicyReadError(label)
-            self.assertEqual(endpoint, "repos/owner/repo/issues/99/comments?per_page=100")
-            return [_marker(HEAD)] if markers is None else markers
-
         answer = {"lastEditedAt": edited} if node is ... else node
-        held = {"lastEditedAt": None} if marker_node is ... else marker_node
 
         def graphql(query: str, what: str, **variables: Any) -> dict[str, Any]:
-            if query == policy.COMMENT_DELETED:
-                self.reads.append("deleted")
-                self.assertEqual(variables, {"owner": "owner", "name": "repo", "number": 99})
-                if unreadable == "deleted":
-                    raise policy.PolicyReadError(what)
-                return _deletions(deleted)
-            if variables.get("id") != "IC_M":
-                return {"node": answer}
-            self.reads.append("marker edited")
-            if unreadable == "marker edited":
-                raise policy.PolicyReadError(what)
-            return {"node": held}
+            self.assertEqual(query, policy.COMMENT_EDITED)
+            return {"node": answer}
 
         with (
             mock.patch.object(policy, "_get", side_effect=get),
-            mock.patch.object(policy, "_paginated", side_effect=paginated),
+            mock.patch.object(policy, "_paginated", side_effect=lanes.paginated),
             mock.patch.object(policy, "_graphql", side_effect=graphql),
         ):
             return policy.cost_decision(
                 REPO,
                 (pull or PULL)
                 | {"body": body, "created_at": created}
-                | ({} if head == HEAD else {"head": {"sha": head}}),
+                | ({} if head == HEAD else {"head": {"sha": head, "ref": "fix/cost"}}),
                 issue,
                 permission=lambda login: permission,
                 agent_identity=IDENTITY,
@@ -148,9 +183,13 @@ class CostDecision(unittest.TestCase):
             self.reads,
             [
                 "repos/owner/repo/issues/comments/7",
-                "repos/owner/repo/issues/99/comments?per_page=100",
-                "marker edited",
-                "deleted",
+                "repos/owner/repo/actions/workflows/pr-review-hosted.yml/runs"
+                "?event=pull_request&branch=fix%2Fcost&per_page=100",
+                f"repos/owner/repo/compare/{BASE}...{HEAD}",
+                "repos/owner/repo/actions/runs/1/jobs?filter=all&per_page=100",
+                "repos/owner/repo/check-runs/1/annotations?per_page=100",
+                "repos/owner/repo/actions/workflows/pr-review-security-hosted.yml/runs"
+                "?event=pull_request&branch=fix%2Fcost&per_page=100",
             ],
         )
 
@@ -193,8 +232,8 @@ class CostDecision(unittest.TestCase):
             issue_url="https://api.github.com/repos/owner/repo/issues/99",
             created_at="2026-10-21T09:00:00Z",
         )
-        markers = [_marker(HEAD, "2026-10-21T08:00:00Z")]
-        self.assertEqual(self.decide(body=link, comment=comment, markers=markers), link)
+        runs = [_run(HEAD, "2026-10-21T08:00:00Z", created="2026-10-21T07:50:00Z")]
+        self.assertEqual(self.decide(body=link, comment=comment, runs=runs), link)
         # With no time it decides no head, so it carries to none.
         timeless = comment | {"created_at": None}
         self.assertIsNone(self.decide(body=link, comment=timeless))
@@ -272,7 +311,7 @@ class CostDecision(unittest.TestCase):
 
     # The carry rule (#9436 Q18 d): the decided head is OLD, the head HEAD.
     def later(self, compares: dict[str, Any], **change: Any) -> str | None:
-        return self.decide(markers=[_marker(OLD)], compares=compares, **change)
+        return self.decide(runs=[_run(OLD)], compares=compares, **change)
 
     def test_a_base_merge_after_the_decision_carries(self) -> None:
         self.assertEqual(self.later({OLD: _net(TF), HEAD: _net(TF)}), LINK)
@@ -325,88 +364,93 @@ class CostDecision(unittest.TestCase):
     def test_a_failed_read_does_not_carry(self) -> None:
         same = {OLD: _net(TF), HEAD: _net(TF)}
         self.assertIsNone(self.later(same, unreadable=f"compare {HEAD}"))
-        self.assertIsNone(self.later(same, unreadable="cost hold markers"))
+        for label in (
+            "pr-review-hosted.yml runs",
+            "pr-review-security-hosted.yml runs",
+            "run 1 jobs",
+            "job 1 annotations",
+            f"compare {OLD}",
+        ):
+            with self.subTest(label):
+                self.assertIsNone(self.later(same, unreadable=label))
         self.assertIsNone(self.later({OLD: _net(TF), HEAD: {"status": "diverged"}}))
 
-    def test_the_decided_head_is_the_latest_bot_marker_before_the_decision(
+    def test_the_decided_head_is_the_newest_cost_notice_before_the_decision(
         self,
     ) -> None:
         added = {"filename": "b.tf", "status": "added", "patch": "+b"}
         changed = {OLD: _net(TF), HEAD: _net(TF, added)}
-        older_head = [_marker(HEAD, "2026-10-22T10:30:00Z"), _marker(OLD, "2026-10-22T11:30:00Z")]
-        self.assertIsNone(self.decide(markers=older_head, compares=changed))
-        newer_head = [_marker(OLD, "2026-10-22T10:30:00Z"), _marker(HEAD, "2026-10-22T11:30:00Z")]
-        self.assertEqual(self.decide(markers=newer_head, compares=changed), LINK)
+        older_head = [_run(HEAD, "2026-10-22T10:40:00Z"), _run(OLD, "2026-10-22T11:30:00Z")]
+        self.assertIsNone(self.decide(runs=older_head, compares=changed))
+        late = "2026-10-22T11:30:00Z"
         for name, extra in {
-            "after": _marker(HEAD, "2026-10-22T12:30:00Z"),
-            "a person": _marker(HEAD, "2026-10-22T11:30:00Z", user={"type": "User"}),
-            "another bot": _marker(
-                HEAD, "2026-10-22T11:30:00Z", user={"login": "claude[bot]", "type": "Bot"}
-            ),
-            "not on the first line": _marker(HEAD, "2026-10-22T11:30:00Z")
-            | {"body": f"Held.\n<!-- claude-lane-hold lane=claude-review sha={HEAD} criteria=cost -->"},
-            "not cost": _marker(HEAD, "2026-10-22T11:30:00Z", criteria="trust-gate"),
+            "a later notice at the head": _run(HEAD, late),
+            "from the security lane": _run(HEAD, late, lane="pr-review-security-hosted.yml"),
+            "with cost among its criteria": _run(HEAD, late, criteria="cost,trust-gate"),
         }.items():
             with self.subTest(name):
-                self.assertIsNone(
-                    self.decide(markers=[_marker(OLD), extra], compares=changed)
-                )
-        both = _marker(HEAD, "2026-10-22T11:30:00Z", criteria="cost,trust-gate")
-        self.assertEqual(self.decide(markers=[_marker(OLD), both], compares=changed), LINK)
+                self.assertEqual(self.decide(runs=[_run(OLD), extra], compares=changed), LINK)
+        for name, extra in {
+            "a job done after it": _run(HEAD, "2026-10-22T12:30:00Z"),
+            "a run started after it": _run(HEAD, late, created="2026-10-22T12:10:00Z"),
+            "a job other than the status job": _run(HEAD, late, job="pr-review / review-key"),
+            "the other lane's status job name": _run(
+                HEAD, late, job=CHECKS["pr-review-security-hosted.yml"]
+            ),
+            "a notice naming another head than its run's": _run(OLD, late, notice=HEAD),
+            "a notice without cost": _run(HEAD, late, criteria="trust-gate"),
+            "two heads at the newest time": _run(
+                HEAD, lane="pr-review-security-hosted.yml"
+            ),
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(self.decide(runs=[_run(OLD), extra], compares=changed))
+        # A run that started after the decision is not read at all.
+        self.decide(runs=[_run(HEAD), _run(OLD, "2026-10-22T12:30:00Z", created="2026-10-22T12:10:00Z")])
+        self.assertNotIn("repos/owner/repo/actions/runs/2/jobs?filter=all&per_page=100", self.reads)
 
-    def test_with_no_marker_before_the_decision_nothing_carries(self) -> None:
+    def test_a_lane_run_on_a_head_it_cannot_vet_decides_nothing(self) -> None:
+        for name, answer in {
+            "the code lane's workflow": _net(TF, {"filename": ".github/workflows/pr-review-hosted.yml"}),
+            "the security lane's workflow": _net(
+                {"filename": ".github/workflows/pr-review-security-hosted.yml"}
+            ),
+            "300 files": _net(*({"filename": f"f{i}"} for i in range(300))),
+            "no file list": {"status": "diverged"},
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(self.decide(compares={HEAD: answer}))
+                runs = [_run(OLD, "2026-10-22T10:40:00Z"), _run(HEAD)]
+                self.assertIsNone(self.decide(runs=runs, compares={OLD: answer}))
+
+    def test_the_lane_reads_take_the_actions_token_when_set(self) -> None:
+        with mock.patch.dict(policy.os.environ, {policy.ACTIONS_TOKEN_ENV: "job"}):
+            self.assertEqual(self.decide(), LINK)
+        self.assertEqual(self.lanes.envs, [{"GH_TOKEN": "job"}] * 4)
+        with mock.patch.dict(policy.os.environ, {policy.ACTIONS_TOKEN_ENV: ""}):
+            self.assertEqual(self.decide(), LINK)
+        self.assertEqual(self.lanes.envs, [None] * 4)
+
+    def test_the_decided_head_is_never_read_from_a_comment(self) -> None:
+        self.decide()
+        self.assertFalse(any("/issues/99/comments" in r for r in self.reads))
+
+    def test_with_no_notice_before_the_decision_nothing_carries(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
         own = _comment(issue_url="https://api.github.com/repos/owner/repo/issues/99")
         for body, comment in ((link, own), (LINK, None)):
             with self.subTest(body):
-                self.assertIsNone(self.decide(body=body, comment=comment, markers=[]))
+                self.assertIsNone(self.decide(body=body, comment=comment, runs=[]))
                 self.assertFalse(any("/compare/" in r for r in self.reads))
 
-    def test_an_edited_or_unreadable_newest_marker_does_not_carry(self) -> None:
-        same = {OLD: _net(TF), HEAD: _net(TF)}
-        for name, change in {
-            "edited": dict(marker_node={"lastEditedAt": "2026-10-22T11:05:00Z"}),
-            "a null node": dict(marker_node=None),
-            "no lastEditedAt key": dict(marker_node={}),
-            "unreadable": dict(unreadable="marker edited"),
-        }.items():
-            with self.subTest(name):
-                self.assertIsNone(self.decide(**change))
-                self.assertIsNone(self.later(same, **change))
-        # An older unedited marker at this head does not stand in.
-        older = [_marker(HEAD, "2026-10-22T10:00:00Z"), _marker(OLD)]
-        edited = {"lastEditedAt": "2026-10-22T11:05:00Z"}
-        self.assertIsNone(self.decide(markers=older, compares=same, marker_node=edited))
-
-    def test_a_comment_deleted_since_the_newest_marker_does_not_carry(self) -> None:
-        same = {OLD: _net(TF), HEAD: _net(TF)}
-        # Deleting the newer marker would make an older head the decided head.
-        promoted = self.decide(
-            markers=[_marker(OLD, "2026-10-22T10:30:00Z")],
-            head=OLD,
-            deleted=["2026-10-22T11:45:00Z"],
+    def test_at_the_decided_head_it_carries_with_no_net_change_compare(self) -> None:
+        self.assertEqual(self.decide(), LINK)
+        self.assertEqual(
+            [r for r in self.reads if "/compare/" in r],
+            [f"repos/owner/repo/compare/{BASE}...{HEAD}"],
         )
-        self.assertIsNone(promoted)
-        self.assertFalse(any("/compare/" in r for r in self.reads))
-        for name, change in {
-            "at the marker's time": dict(deleted=["2026-10-22T11:00:00Z"]),
-            "unreadable": dict(unreadable="deleted"),
-            "more than listed": dict(
-                deleted={"filteredCount": 101, "nodes": [{"createdAt": "2026-10-22T09:00:00Z"}]}
-            ),
-            "an unparsed time": dict(deleted=["soon"]),
-        }.items():
-            with self.subTest(name):
-                self.assertIsNone(self.decide(**change))
-        self.assertIsNone(self.later(same, deleted=["2026-10-22T11:30:00Z"]))
-        # A deletion before the marker was posted does not stop it.
-        self.assertEqual(self.decide(deleted=["2026-10-22T10:59:59Z"]), LINK)
-        self.assertEqual(self.later(same, deleted=["2026-10-22T09:00:00Z"]), LINK)
-
-    def test_at_the_decided_head_it_carries_with_no_compare_read(self) -> None:
-        pull = PULL | {"base": {"ref": "-unusable"}}
-        self.assertEqual(self.decide(pull=pull), LINK)
-        self.assertFalse(any("/compare/" in r for r in self.reads))
+        # With no usable base no run can be vetted, so nothing carries.
+        self.assertIsNone(self.decide(pull=PULL | {"base": {"ref": "-unusable"}}))
 
     def test_a_duplicate_filename_a_pure_rename_or_an_unusable_base_does_not_carry(
         self,
@@ -443,22 +487,19 @@ class CostDecision(unittest.TestCase):
         }
         changed = {OLD: _net(TF), HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"})}
 
-        def pick(body: str, markers: list[dict[str, Any]]) -> str | None:
-            def get(endpoint: str) -> tuple[int | None, Any]:
+        def pick(body: str, runs: list[dict[str, Any]]) -> str | None:
+            lanes = Lanes(runs, changed)
+
+            def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
                 if "/compare/" in endpoint:
-                    sha = endpoint.rsplit("...", 1)[1]
-                    return 200, changed[sha]
+                    return lanes.get(endpoint, env)
                 return 200, rows[endpoint.rsplit("/", 1)[1]]
 
             with (
                 mock.patch.object(policy, "_get", side_effect=get),
-                mock.patch.object(policy, "_paginated", return_value=markers),
+                mock.patch.object(policy, "_paginated", side_effect=lanes.paginated),
                 mock.patch.object(
-                    policy,
-                    "_graphql",
-                    side_effect=lambda query, *_, **__: _deletions([])
-                    if query == policy.COMMENT_DELETED
-                    else {"node": {"lastEditedAt": None}},
+                    policy, "_graphql", return_value={"node": {"lastEditedAt": None}}
                 ),
             ):
                 return policy.cost_decision(
@@ -470,10 +511,13 @@ class CostDecision(unittest.TestCase):
                 )
 
         every = f"Closes #40\n{LINK}\n{on_pull(8)}\n{on_pull(9)}"
-        self.assertEqual(pick(every, [_marker(HEAD, "2026-10-22T11:15:00Z")]), on_pull(9))
-        older_head = [_marker(HEAD, "2026-10-22T10:00:00Z"), _marker(OLD, "2026-10-22T11:15:00Z")]
+        self.assertEqual(pick(every, [_run(HEAD, "2026-10-22T11:15:00Z")]), on_pull(9))
+        older_head = [
+            _run(HEAD, "2026-10-22T10:00:00Z", created="2026-10-22T09:50:00Z"),
+            _run(OLD, "2026-10-22T11:15:00Z"),
+        ]
         self.assertIsNone(pick(every, older_head))
-        self.assertEqual(pick(f"Closes #40\n{LINK}", [_marker(HEAD)]), LINK)
+        self.assertEqual(pick(f"Closes #40\n{LINK}", [_run(HEAD)]), LINK)
 
     def test_a_failed_permission_read_clears_nothing(self) -> None:
         def refuse(login: str) -> str:
