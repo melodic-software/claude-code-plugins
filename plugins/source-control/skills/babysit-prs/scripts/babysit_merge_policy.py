@@ -301,9 +301,12 @@ def resolve_bash(
 
 
 def _concern_values(
-    text: str, keys: list[tuple[str, bool]]
+    text: str,
+    keys: list[tuple[str, bool]],
+    run: Callable[..., Any] | None = None,
 ) -> dict[str, list[str]] | None:
-    """Each key's values from a YAML document through the shared reader.
+    """Each key's values from a YAML document through the shared reader,
+    run through `run` (default `run_command`).
 
     None when the reader rejects the document (`--strict` exit 3). Any other
     failure raises.
@@ -319,7 +322,7 @@ def _concern_values(
         for key, as_list in keys:
             argv = [bash, str(PARSER), "--strict", *(["--list"] if as_list else [])]
             try:
-                proc = run_command(
+                proc = (run or run_command)(
                     [*argv, str(document), key],
                     allowed_executables=(bash,),
                     check=False,
