@@ -82,7 +82,9 @@ mk .github/workflows/pr-test-windows.yml "name: test-windows"
 printf '%s\n' "# seconds" \
   "plugins/a/a.test.sh 100" "plugins/b/b.test.sh 30" "plugins/c/c.test.sh 90" "plugins/d/d.test.sh 60" \
   "plugins/e/e.test.sh 50" "plugins/f/f.test.sh 40" "plugins/g/g.test.sh 20" "plugins/h/h.test.sh 10" \
-  "plugins/p/test_p.py 200" "plugins/q/test_q.py 100" >"$repo/scripts/suite-seconds.txt"
+  "plugins/p/test_p.py 200" "plugins/q/test_q.py 100" \
+  "plugins/animation/anim.test.sh 5" "plugins/speech/sp.test.sh 5" \
+  "plugins/harness-ops/skills/inventory/inv.test.sh 5" >"$repo/scripts/suite-seconds.txt"
 printf '%s\n' "# job key [pattern...]" \
   "win-a plugins/a/a.test.sh" \
   "win-b plugins/ps/run.ps1 plugins/ps/*.Tests.ps1" \
@@ -193,6 +195,14 @@ check "another Python pin runs the Python suites but no Windows step" $?
 plan -- plugins/animation/requirements.txt
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
 check "the animation lock test-python installs is a Python pin" $?
+
+# A suite suite-seconds.txt does not list weighs the median of the listed Python
+# suites (200 and 100: 150), not 5 s, so a heavy new suite cannot hide on one leg.
+mk plugins/u/test_u.py "assert True"
+plan -- plugins/p/p.py plugins/q/test_q.py plugins/u/test_u.py
+grep -q 'python: 3 suite(s), 450 suite-seconds, 3 leg(s)' "$ERR"
+check "an unlisted Python suite counts the median of the listed ones, so 200 + 100 + 150 take 3 legs" $?
+rm -f "$repo/plugins/u/test_u.py"
 
 # 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 5.
 # Longest first onto the least-loaded leg: p, r, s, q and t open the five legs,

@@ -58,7 +58,7 @@
 # run at a time, so about 40 s of wall) up to 6 legs, and the whole tree always
 # takes 6; test-python takes 180 s a leg (one suite at a time) up to 5. A
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
-# over whole-tree CI runs; a suite the file does not list counts 5, and a suite
+# over whole-tree CI runs; a suite the file does not list counts the median of the listed suites of its runner, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
 # seconds. A leg's load is the larger of its suite-seconds and its serial
 # suite-seconds plus three times its longest suite that runs three at a time,
@@ -335,11 +335,23 @@ done <<<"$packages"
 # <workers> times its longest parallel suite.
 pack() {
   local lane="$1" budget="$2" cap="$3" force="$4" workers="$5" list="$6" serial="${7:-/dev/null}"
-  awk -v def="$DEFAULT_SECONDS" -v workers="$workers" '
+  local runner
+  case "$lane" in
+    python) runner='(^|/)test_[^/]*[.]py$' ;;
+    *) runner='[.]test[.]sh$' ;;
+  esac
+  awk -v def="$DEFAULT_SECONDS" -v workers="$workers" -v runner="$runner" '
+    function median(   i, j, v, m) {
+      if (med != "") return med
+      for (i in secs) if (i ~ runner) m[++k] = secs[i] + 0
+      if (!k) return med = def
+      for (i = 2; i <= k; i++) { v = m[i]; for (j = i - 1; j > 0 && m[j] > v; j--) m[j + 1] = m[j]; m[j + 1] = v }
+      return med = (k % 2) ? m[(k + 1) / 2] : int((m[k / 2] + m[k / 2 + 1]) / 2)
+    }
     FILENAME == ARGV[1] { if ($0 !~ /^[[:blank:]]*(#|$)/) secs[$1] = $2; next }
     FILENAME == ARGV[2] { sub(/#.*/, ""); if (NF) alone[$1] = 1; next }
     NF {
-      s = ($1 in secs) ? secs[$1] : def
+      s = ($1 in secs) ? secs[$1] : median()
       printf "%s\t%s\t%s\n", s * (($1 in alone) ? workers : 1), $1, ($1 in alone) ? 0 : s * workers
     }' \
     "$SECONDS_LIST" "$serial" "$list" |
