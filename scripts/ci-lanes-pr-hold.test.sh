@@ -365,7 +365,7 @@ fi
 ci_status="$(awk '/^  ci-status:/ { on = 1; print; next } on && /^  [A-Za-z0-9_-]+:$/ { exit } on { print }' "$WORKFLOW")"
 if grep -qE '^ +uses: actions/cache(/restore)?@' <<<"$ci_status"; then
   fail "ci-status restores an Actions cache"
-elif grep -A3 -E '^ +uses: actions/setup-node@' <<<"$ci_status" | grep -q 'package-manager-cache: false' &&
+elif [[ "$(grep -A3 -E '^ +uses: actions/setup-node@' <<<"$ci_status")" == *'package-manager-cache: false'* ]] &&
   [[ "$(grep -cE '^ +uses: actions/setup-node@' <<<"$ci_status")" -eq "$(grep -cE '^ +package-manager-cache: false$' <<<"$ci_status")" ]]; then
   ok "ci-status restores no Actions cache, setup-node's package cache included"
 else
