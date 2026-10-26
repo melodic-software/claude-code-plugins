@@ -68,6 +68,7 @@ merge:
     max-changed-lines: 200
 """
 SOURCE_CONTROL = "## babysit_loop_merge\n\nc2-mechanical\n"
+LEGACY_WITHOUT_KEY = "## babysit_loop_tier\n\nworker\n"
 TEAM_YAML = "docs/conventions/source-control.yaml"
 
 
@@ -472,10 +473,16 @@ class ReadConfigAt(unittest.TestCase):
             # A demotion written only to the legacy file still holds it.
             ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_merge: c2-mechanical\n", loose, "c2-mechanical"),
-            # One file alone supplies the value.
+            # With no legacy file the YAML alone supplies the value.
             ("babysit_loop_merge: c2-mechanical\n", None, "c2-mechanical"),
+            ("babysit_loop_merge: c3-autonomous\n", None, "c3-autonomous"),
+            # A YAML without the key falls back to the legacy value.
             (None, SOURCE_CONTROL, "c2-mechanical"),
             ("babysit_loop_stop_mode: standing\n", SOURCE_CONTROL, "c2-mechanical"),
+            # A legacy file without the key holds the gate off: a raise
+            # needs both files while the legacy file exists.
+            ("babysit_loop_merge: c3-autonomous\n", LEGACY_WITHOUT_KEY, None),
+            ("babysit_loop_merge: c2-mechanical\n", LEGACY_WITHOUT_KEY, None),
             (None, None, None),
         ):
             with self.subTest(team=team, source=source):

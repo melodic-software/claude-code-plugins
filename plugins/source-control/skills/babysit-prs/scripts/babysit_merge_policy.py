@@ -723,10 +723,11 @@ def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
 def _resolve_loop_merge(
     file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
 ) -> str | None:
-    """The lower of the team YAML's and the legacy file's `babysit_loop_merge`
-    at `base_sha`, counting only the files that set one, so a demotion in
-    either file reaches the gate. Either file unreadable or untrustworthy
-    yields None (off), never the other file's value alone."""
+    """`babysit_loop_merge` at `base_sha`. With no legacy file, the team
+    YAML's value. While the legacy file exists it must set the key, else
+    None (off), so a raise needs both files; the result is the lower of the
+    two, or the legacy value when the YAML sets none. Either file unreadable
+    or untrustworthy yields None (off), never the other file's value alone."""
     try:
         source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
@@ -744,10 +745,11 @@ def _resolve_loop_merge(
     if note:
         notes.append(note)
         return None
-    found = [value for value in (team, legacy) if value is not None]
-    if not found:
-        return None
-    return min(found, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
+    if source is None:
+        return team
+    if legacy is None or team is None:
+        return legacy
+    return min(team, legacy, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
 
 
 def read_config_at(
