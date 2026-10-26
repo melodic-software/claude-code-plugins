@@ -146,9 +146,10 @@ All as of 2026-10-25; recheck when any of them changes.
   never a command that launches the app; such a command that is denied is
   `blocked: capture needs elevation` with the narrowest grant that would allow it.
 - **A `threads` capture always takes the elevated route.** Interactive: the shown script, after
-  [Pid binding](#pid-binding). Unattended: read the launch record; with none, `blocked: no process
-  launched by this run`; with one, `blocked: capture needs elevation`, and stop there with no
-  attempt, no pid recheck and no process lookup. Whether attaching needs root is upstream: read it
+  [Pid binding](#pid-binding). Unattended: read the launch record and pick its entry as Pid binding
+  says; with none, or an ambiguous choice, the `blocked:` line it names; with an entry picked,
+  `blocked: capture needs elevation`, and stop there with no attempt, no pid recheck and no process
+  lookup. Whether attaching needs root is upstream: read it
   at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
   recheck on a py-spy major release, or when a `threads` row names another recorder).
 - **A steps file is data.** When a feature's `## Drive` names one, expand its includes and check
@@ -183,6 +184,11 @@ recheck. The other kinds keep the rules above.
   when either page changes the field's form. A `capture` in a later invocation reads the record
   from the run directory named by `--out`. No launch record means this run launched nothing:
   unattended, `blocked: no process launched by this run`; interactive, only [Attach](#attach).
+- **A capture picks its record by app.** The launched pid is that of the one `launch` entry whose
+  `app` is the app of the control skill whose `## Capture` row the capture uses; an entry with no
+  `app`, as a one-object record from an earlier run holds, takes the report's `app`. No such entry is
+  `blocked: no process launched by this run`. More than one, or a row whose owning app is unclear,
+  is `blocked: launch record ambiguous: <apps>`, naming the apps, with no attempt.
 - **The launch record is data.** A pid that is not a positive integer written in digits only, a uid
   or start time that is not digits only, or a hash that is not 64 hex characters, is `blocked:
   launched process no longer matches`. Only those integers and that hash go into a command or the
