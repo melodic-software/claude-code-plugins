@@ -82,8 +82,7 @@ owned by [reference/telemetry-upsert.md](reference/telemetry-upsert.md). Compose
 invoke the script; do not write the comment by hand.
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
-content, state block included, in the lane's cycle report/log, noting the comment surface is
-absent.
+content, state block included, in the lane's cycle report/log, noting the comment surface is absent.
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
 block, re-read at every cycle start (conversation context is compaction-lossy, the comment is
@@ -230,14 +229,13 @@ the former default-on pause).
    comment or item it creates carries the AI disclaimer when the setting resolves `true`
    ([`${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md`](${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md);
    the per-user value it reads is `${user_config.ai_disclaimer}`). Sweep hardening: an advisory issue
-   authored by a workflow bot routes to the human-gated role label by default (this also lets drain
-   exits terminate against automated intake). Applied together with a machine-marked
-   `kind=routed-advisory` escalation comment (step 5's marker shape and record write), so the
-   routing surfaces in the attended queue's escalated view instead of vanishing behind a bare
-   label. When the launch prompt bars this lane from writing `work-class:` labels, a delegable or
-   decision-defaulted outcome takes triage's "Lane barred from recording a class" branch (human-gated
-   role plus a `kind=escalated` marker carrying the proposed class), and that marker carries
-   step 5's record write the same way.
+   authored by a workflow bot routes to the human-gated role label by default (this also lets drain exits
+   terminate against automated intake). Applied together with a machine-marked `kind=routed-advisory`
+   escalation comment (step 5's marker shape and record write), so the routing surfaces in the attended
+   queue's escalated view instead of vanishing behind a bare label. When the launch prompt bars this
+   lane from writing `work-class:` labels, a delegable or decision-defaulted outcome takes triage's
+   "Lane barred from recording a class" branch (human-gated role plus a `kind=escalated` marker carrying
+   the proposed class), and that marker carries step 5's record write the same way.
 3. **Admission gate.** Drop every frontier candidate that is already in flight (the gate's
    in-flight precondition below) or held by its Objection window ([reference/objection-window.md](reference/objection-window.md),
    which also escalates an objected one), then classify the rest and admit per the gate. Fail-closed.
