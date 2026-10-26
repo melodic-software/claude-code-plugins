@@ -581,7 +581,8 @@ test('automatic mode: a typed turn gets the line at once, offers nothing and han
 })
 
 const BAND_ON = { options: { rate_limit_guard_enabled: false, rate_limit_guard_band: true } }
-const BAND_ROW = /^5h /
+// The band row, led by the plugin's name; a notice row also starts with the name, then a window clause.
+const BAND_ROW = /^rate-limit-guard: 5h \S+ \| 7d /
 // Every Text the AbovePrompt mount drew, in order.
 const drawn = async ($: any, surface: 'terminal' | 'desktop' | 'vscode') => {
   const ui = await $.ui.mount({ ...BAND, surface })
@@ -600,10 +601,10 @@ test('band: off by default, so a terminal mount returns only what is drawn benea
 
 test('band: dashes before a reading, figures after, with no model id, kept above what is drawn beneath', BAND_ON, async ($, on) => {
   const { w } = world(on, { limits: [] })
-  for (const surface of ['terminal', 'desktop'] as const) expect(await drawn($, surface)).toEqual(['5h - | 7d -', 'drawn beneath'])
+  for (const surface of ['terminal', 'desktop'] as const) expect(await drawn($, surface)).toEqual(['rate-limit-guard: 5h - | 7d -', 'drawn beneath'])
   w.limits = limits(23.5)
   await bash($)
-  for (const surface of ['terminal', 'desktop'] as const) expect(await drawn($, surface)).toEqual(['5h 23.5% | 7d 7%', 'drawn beneath'])
+  for (const surface of ['terminal', 'desktop'] as const) expect(await drawn($, surface)).toEqual(['rate-limit-guard: 5h 23.5% | 7d 7%', 'drawn beneath'])
 })
 
 test('command: band on, band off and a bare band set and toggle the row for the session', NO_WRITES, async ($, on) => {
@@ -612,7 +613,7 @@ test('command: band on, band off and a bare band set and toggle the row for the 
   const row = async () => (await drawn($, 'terminal')).find(t => BAND_ROW.test(t))
   expect(await row()).toBeUndefined()
   expect((await command($, 'band on')).text).toBe('Band row on for this session')
-  expect(await row()).toBe('5h 20% | 7d 7%')
+  expect(await row()).toBe('rate-limit-guard: 5h 20% | 7d 7%')
   expect((await command($, 'band off')).text).toBe('Band row off for this session')
   expect(await row()).toBeUndefined()
   await command($, 'band')
@@ -1260,7 +1261,7 @@ test('pull tool: a refused registration logs one line, and lines, band and write
   w.limits = limits(96)
   expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: BAND_ROW }))?.text).toBe('5h 96% | 7d 7%')
+  expect((await ui.find({ type: 'Text', text: BAND_ROW }))?.text).toBe('rate-limit-guard: 5h 96% | 7d 7%')
   await ui.unmount()
   expect(bodies(w).map(b => b.rate_limits.five_hour.used_percentage)).toEqual([96])
   const failures = logs.filter(l => l.startsWith('rate-limit-guard: the status pull tool'))

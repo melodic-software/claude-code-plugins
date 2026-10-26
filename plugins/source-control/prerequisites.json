@@ -27,18 +27,37 @@
         "hook:pr-linkage-mcp-gate.sh",
         "hook:worktree-add-claim-gate.sh",
         "hook:worktree-add-containment-gate.sh",
-        "hook:worktree-create-gate.sh"
+        "hook:worktree-create-gate.sh",
+        "hook:worktree-remove-gate.sh"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the source-control hooks skip their work.",
+      "degrade": "Without jq, the source-control hooks skip their work, except worktree-remove-gate.sh, which refuses, so a worktree Claude Code removes stays on disk.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
       "check": "/source-control:check"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:worktree-remove-gate.sh"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude CLI on the hooks' PATH, the WorktreeRemove hook cannot reap a worktree's plugin install records, so it refuses and the worktree stays on disk for /source-control:worktree cleanup.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
     },
     {
       "id": "xcrun",

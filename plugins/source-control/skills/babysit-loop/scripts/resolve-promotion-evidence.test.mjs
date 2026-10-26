@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./operator-options.mjs";
-import { laneWritable } from "./resolve-promotion-evidence.mjs";
+import { laneWritable, OPTION_KEYS } from "./resolve-promotion-evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
@@ -447,7 +447,7 @@ test("managed settings win over user settings, later managed files over earlier 
   writeSettings({ promotion_evidence_checker: "/managed/checker", promotion_evidence_binding: "/managed/binding" }, primary);
   writeSettings({ promotion_evidence_binding: "/dropin/binding" }, dropin);
   const install = { pluginId: "source-control@mkt", name: "source-control", userSettings: user };
-  const resolved = readOperatorOptions(install, [primary, dropin, join(dir, "absent.json")]);
+  const resolved = readOperatorOptions(install, [primary, dropin, join(dir, "absent.json")], OPTION_KEYS);
   assert.deepEqual(resolved.promotion_evidence_checker, { value: "/managed/checker", scope: "managed", file: primary });
   assert.deepEqual(resolved.promotion_evidence_binding, { value: "/dropin/binding", scope: "managed", file: dropin });
   assert.deepEqual(resolved.promotion_evidence_root, { value: "/user/root", scope: "user", file: user });
@@ -462,25 +462,25 @@ test("a malformed managed entry or a null managed value fails closed instead of 
   const install = { pluginId: "source-control@mkt", name: "source-control", userSettings: user };
   for (const entry of [{ options: "oops" }, { options: [] }, "oops", { options: { promotion_evidence_checker: null } }]) {
     writeFileSync(managed, JSON.stringify({ pluginConfigs: { "source-control@mkt": entry } }));
-    assert.throws(() => readOperatorOptions(install, [managed]), OptionsError, JSON.stringify(entry));
+    assert.throws(() => readOperatorOptions(install, [managed], OPTION_KEYS), OptionsError, JSON.stringify(entry));
   }
   for (const pluginConfigs of ["oops", [], null]) {
     writeFileSync(managed, JSON.stringify({ pluginConfigs }));
-    assert.throws(() => readOperatorOptions(install, [managed]), OptionsError, JSON.stringify(pluginConfigs));
+    assert.throws(() => readOperatorOptions(install, [managed], OPTION_KEYS), OptionsError, JSON.stringify(pluginConfigs));
   }
   writeFileSync(managed, JSON.stringify({ pluginConfigs: { "source-control@mkt": {} } }));
-  assert.equal(readOperatorOptions(install, [managed]).promotion_evidence_checker.value, "/user/checker");
+  assert.equal(readOperatorOptions(install, [managed], OPTION_KEYS).promotion_evidence_checker.value, "/user/checker");
   writeFileSync(managed, JSON.stringify({}));
-  assert.equal(readOperatorOptions(install, [managed]).promotion_evidence_checker.value, "/user/checker");
+  assert.equal(readOperatorOptions(install, [managed], OPTION_KEYS).promotion_evidence_checker.value, "/user/checker");
 });
 
 test("an unanchored install reads managed settings by manifest name and no user settings", () => {
   const dir = mkdtempSync(join(base, "unanchored-"));
   const managed = join(dir, "managed-settings.json");
   writeSettings({ promotion_evidence_checker: "/managed/checker" }, managed, "source-control@any-mkt");
-  const resolved = readOperatorOptions({ pluginId: null, name: "source-control", userSettings: null }, [managed]);
+  const resolved = readOperatorOptions({ pluginId: null, name: "source-control", userSettings: null }, [managed], OPTION_KEYS);
   assert.equal(resolved.promotion_evidence_checker.value, "/managed/checker");
-  assert.throws(() => readOperatorOptions({ pluginId: null, name: "source-control", userSettings: null }, [dir]), OptionsError);
+  assert.throws(() => readOperatorOptions({ pluginId: null, name: "source-control", userSettings: null }, [dir], OPTION_KEYS), OptionsError);
 });
 
 test("managedSettingsFiles names the fixed system path and nothing on an unknown platform", () => {

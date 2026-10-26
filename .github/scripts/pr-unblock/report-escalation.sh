@@ -145,7 +145,7 @@ key_line="<!-- pr-unblock resume-key=$HEAD_SHA -->"
 
 labeled=$(gh api "$issue" | jq --arg l "$label" '[.labels[].name] | index($l) != null')
 if [[ $labeled == true ]]; then
-  marked=$(gh api --paginate "$issue/comments" | jq -s --arg bot "$bot" --arg m "$marker" --arg k "$key_line" \
+  marked=$(gh api --paginate "$issue/comments?per_page=100" | jq -s --arg bot "$bot" --arg m "$marker" --arg k "$key_line" \
     --arg r "- Reason: \`$ESCALATION_REASON\`" \
     '[add[] | select(.user.login == $bot) | (.body // "") | split("\n") | map(rtrimstr("\r"))
       | select(.[0] == $m and (.[1] // "") == $k and any(.[]; . == $r))] | length > 0')

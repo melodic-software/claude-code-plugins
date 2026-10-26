@@ -87,6 +87,8 @@ printf '%s\n' "${threads[@]+"${threads[@]}"}" | jq -Rnc '[inputs | select(length
 : >"$forge/calls.jsonl"
 
 git init -q --bare "$forge/eval-fixture/app.git"
+# The base is the repository's default branch, which ls-remote reports as HEAD.
+git -C "$forge/eval-fixture/app.git" symbolic-ref HEAD "refs/heads/$base"
 export PATH="$forge/bin:$PATH"
 git push -q origin "$base" "$head"
 git branch -q --set-upstream-to="origin/$head" "$head"

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "It holds for every feature, so it goes once in the `## Gotchas` section of the hub, .claude/skills/control-clockwork/SKILL.md, and in no feature file. It is doc drift: the outcome is changed and it ships as a commit on control-skill-upkeep/control-clockwork through one pull request.",
+      "why": "hub Gotchas once, changed outcome, upkeep branch and one pull request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add the banner note to the hub's `## Gotchas` in SKILL.md and to the `## Gotchas` of each of the four feature READMEs, so every drive sees it. Outcome changed; it ships on control-skill-upkeep/control-clockwork in one pull request.",
+      "why": "copies it into each feature file as well"
+    }
+  ]
+}
