@@ -69,3 +69,8 @@ changelog	Reverted the 2.1.259 change applying
 plugins/install	### Plugins with dependencies
 deep-links	registers the `claude-cli://` handler with your operating system
 deep-links	writes to user-level locations only
+permissions	Rules are evaluated in order: deny, then ask, then allow
+permissions	Bare filenames follow gitignore semantics and match at any depth
+permissions	`path` or `./path`
+settings	Personal overrides for one project
+settings	"Read(./.env.*)"

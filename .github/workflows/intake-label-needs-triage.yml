@@ -97,8 +97,18 @@ jobs:
       - name: Check whether the issue was born triaged
         id: check
         uses: ./.base/.github/actions/check-born-triaged # zizmor: ignore[self-repository]
+        env:
+          API_BUDGET_TOKEN: github-token
         with:
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   intake-label-needs-triage:
     needs: [kill-switch, born-triaged]

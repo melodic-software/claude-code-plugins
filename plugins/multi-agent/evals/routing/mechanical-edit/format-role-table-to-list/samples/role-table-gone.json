@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Role defaults\n\n- `orchestrator`: inherit @ high\n- `worker`: inherit @ medium\n- `verifier`: inherit @ high\n- `retrieval`: sonnet @ medium\n\n## Workloads\n\n| Workload | Declared |\n|---|---|\n| code | true |\n| research | true |\n| mechanical | true |\n",
+      "why": "only the workload table is left"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Role defaults\n\n| Role | Model | Effort |\n|---|---|---|\n| orchestrator | inherit | high |\n| worker | inherit | medium |\n",
+      "why": "table untouched"
+    },
+    {
+      "answer": "## Role defaults\n\n| Role | Model | Effort |\n|---|---|---|\n- `orchestrator`: inherit @ high\n- `worker`: inherit @ medium\n",
+      "why": "header row left above the list"
+    }
+  ]
+}

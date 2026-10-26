@@ -10,13 +10,6 @@
     "attribution:audit",
     "multi-agent:audit-defaults"
   ],
-  "competitor_dirs": {
-    "discovery:read-docs": "plugins/discovery/skills/read-docs",
-    "harness-config:audit": "plugins/harness-config/skills/audit",
-    "discipline:do-your-research": "plugins/discipline/skills/do-your-research",
-    "attribution:audit": "plugins/attribution/skills/audit",
-    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults"
-  },
   "queries": [
     {
       "id": "pos-train-01",

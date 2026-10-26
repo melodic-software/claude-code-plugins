@@ -66,8 +66,9 @@
 #   --agents-json FILE   read the session list from FILE instead of
 #                        `claude agents --json` (offline / test injection).
 #   --app-slug SLUG      the GitHub App whose installation token gh runs under;
-#                        lane comments are then read from SLUG[bot]. See
-#                        WRITE IDENTITY below.
+#                        lane comments are then read from SLUG[bot]. An empty
+#                        value or an unrendered `${user_config.*}` placeholder
+#                        means no slug. See WRITE IDENTITY below.
 #   --telemetry-json FILE
 #                        read lane telemetry from FILE instead of `gh`: a JSON
 #                        object mapping lane name -> that issue's comments array,
@@ -217,6 +218,9 @@ CONSUMER_MARKER="harness-ops:restart-consumer"
 CONSUMER_LANE="restart-consumer"
 SENTINEL_PREFIX="<!-- harness-ops:lane-telemetry marker="
 TASK_NAME="HarnessOps Lane Restart Consumer"
+# Below this Claude Code version --permission-prompts is an unknown option;
+# the same floor as lane-launcher.sh. https://code.claude.com/docs/en/headless
+PERMISSION_PROMPTS_MIN_VERSION="2.1.259"
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
@@ -302,7 +306,12 @@ parse_args() {
       ;;
     --telemetry-json=*) TELEMETRY_JSON_FILE="${1#*=}" ;;
     --app-slug)
-      check_optarg "$1" "${2:-}" || exit 3
+      # An empty value is allowed: the lanes skill always passes the rendered
+      # lane_app_slug option, which is empty when the operator left it unset.
+      if (($# < 2)) || [[ "$2" == -* ]]; then
+        err "option '$1' requires a non-option argument"
+        exit 3
+      fi
       APP_SLUG="$2"
       shift
       ;;
@@ -374,6 +383,9 @@ parse_args() {
     esac
     shift
   done
+  # An unrendered `${user_config.lane_app_slug}` placeholder means the option is
+  # unset; treat it, like an empty value, as no slug.
+  [[ "$APP_SLUG" == "\${user_config."* ]] && APP_SLUG=""
   if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
     err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
     exit 3
@@ -1286,7 +1298,7 @@ print_report_header() {
 
 # --- print-schedule -----------------------------------------------------------
 action_print_schedule() {
-  local self claude_bin run_cmd win_repo win_claude data_dir opts opts_sq
+  local self claude_bin run_cmd win_repo win_claude data_dir opts opts_sq perm_flags cli_ver
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
   # Behavior-affecting options must survive into every emitted command. This
   # action runs BEFORE resolve_config/resolve_target_repo, so these hold exactly
@@ -1318,7 +1330,20 @@ action_print_schedule() {
   # `run` is load-bearing: the script's default action is the read-only
   # `check`, so a schedule registered without `run` would report forever and
   # never relaunch anything.
-  run_cmd="claude -p \"/harness-ops:lanes consume-restarts run${opts}\" --output-format text"
+  # The permission posture is stated in the command, as lane-launcher.sh's
+  # build_lane_flags states it, not inherited from whatever defaultMode the
+  # user's settings carry: explicit auto, never bypassPermissions, plus
+  # --permission-prompts none from the CLI version that accepts it (older
+  # CLIs reject it; an unreadable version omits it, as the launcher does).
+  perm_flags="--permission-mode auto"
+  cli_ver="$("$claude_bin" --version 2>/dev/null | tr -d '\r' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" || cli_ver=""
+  if [[ -n "$cli_ver" ]] && awk -v a="$cli_ver" -v b="$PERMISSION_PROMPTS_MIN_VERSION" 'BEGIN {
+    split(a, x, "."); split(b, y, ".")
+    for (i = 1; i <= 3; i++) { if (x[i] + 0 != y[i] + 0) exit !(x[i] + 0 > y[i] + 0) }
+  }'; then
+    perm_flags+=" --permission-prompts none"
+  fi
+  run_cmd="claude -p \"/harness-ops:lanes consume-restarts run${opts}\" ${perm_flags} --output-format text"
 
   cat <<EOF
 Registering the schedule is an OPERATOR action — this script never performs it.
@@ -1339,7 +1364,7 @@ Reader: $run_cmd
   cmd.exe syntax). NOT from Git Bash: MSYS path conversion rewrites /-style
   options — 'schtasks /Query' becomes an invalid 'C:/Program Files/Git/Query'.
 
-schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/harness-ops:lanes consume-restarts run${opts}\" --output-format text"
+schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/harness-ops:lanes consume-restarts run${opts}\" ${perm_flags} --output-format text"
 
   /IT runs the task only while that user is logged on, so the CLI reads the
   credentials already in the user profile: no stored password, no elevation.
@@ -1347,7 +1372,7 @@ schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F /RU "%US
 
   Cold start after a reboot — add a logon trigger alongside the poll:
 
-schtasks /Create /TN "$TASK_NAME (logon)" /SC ONLOGON /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/harness-ops:lanes consume-restarts run${opts}\" --output-format text"
+schtasks /Create /TN "$TASK_NAME (logon)" /SC ONLOGON /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/harness-ops:lanes consume-restarts run${opts}\" ${perm_flags} --output-format text"
 
   Remove both (also from cmd.exe):
 
@@ -1358,7 +1383,7 @@ schtasks /Delete /TN "$TASK_NAME (logon)" /F
 
   Same command on the same interval. cron form:
 
-*/${INTERVAL_MINUTES} * * * * cd '$REPO' && '$claude_bin' -p '/harness-ops:lanes consume-restarts run${opts}' --output-format text
+*/${INTERVAL_MINUTES} * * * * cd '$REPO' && '$claude_bin' -p '/harness-ops:lanes consume-restarts run${opts}' ${perm_flags} --output-format text
 
 == Offline variant (no model turn) ==
 

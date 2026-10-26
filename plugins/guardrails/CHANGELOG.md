@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.2] - 2026-10-26
+
+### Fixed
+
+- `secret_pattern_detection_allowed_roots` now grants a Windows write whose path reaches an allowed root through a junction into the temp folder, as it does on Linux. Git Bash answers such a junction in the `/tmp` mount spelling, and the long drive spelling of that answer is now taken from the existing ancestor alone, before the components still to be created are joined. A path that resolves outside every root, or that cannot be resolved, is still scanned.
+
 ## [0.59.1] - 2026-10-25
 
 ### Fixed
