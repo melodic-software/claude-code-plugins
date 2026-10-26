@@ -471,14 +471,16 @@ jobs:
     # A run started on any other branch would use that branch's copy of this
     # file, so it does nothing. pull_request_target runs carry the PR's base
     # branch here, so PRs that do not target main are skipped too. Events from
-    # a fork PR are skipped before the job joins the concurrency group, so an
-    # outsider editing a fork PR over and over cannot keep pushing real runs
-    # out of the queue.
+    # a fork PR or sent by a bot are skipped before the job joins the
+    # concurrency group, so an outsider editing a fork PR over and over cannot
+    # keep pushing real runs out of the queue, and a bot's event does not wait
+    # in it only to stop at the who step (a bot is never a listed human).
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && (github.event_name != 'pull_request_target'
-      || github.event.pull_request.head.repo.full_name == github.repository)
+      || (github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.sender.type != 'Bot'))
     # One run at a time, and a running one is never cancelled: a cancelled run
     # could stop between the gate's check and its merge-queue write. Extra runs
     # wait in line (`queue: max`) instead of being dropped. Without it GitHub
@@ -1534,14 +1536,17 @@ jobs:
     needs: [post-merge-dispatch]
     # A pull request event wakes it only for a lanes App pull
     # request (its author's id is AUTOMATION_LANES_APP_SENDER_ID), the only
-    # kind it arms: any other event's job is skipped before it joins the
-    # group, so its check reads skipped, never pending behind the queue.
+    # kind it arms, and only when a person sent the event (a bot is never a
+    # listed human at the who step): any other event's job is skipped before
+    # it joins the group, so its check reads skipped, never pending behind the
+    # queue.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
       && (github.event_name != 'pull_request_target'
       || (github.event.pull_request.head.repo.full_name == github.repository
-      && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID))
+      && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID
+      && github.event.sender.type != 'Bot'))
     # A pending run is never replaced: a cancelled run leaves a CANCELLED
     # check on the pull request that woke it.
     concurrency:
