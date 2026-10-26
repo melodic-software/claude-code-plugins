@@ -3088,7 +3088,10 @@ jobs:
     # decision, about eight (nine on a Refs issue), and two more per review
     # run since the window opened, plus the base-config checkout's fetch
     # (seconds; its retries replace the contents reads' 15 s each).
-    timeout-minutes: 11
+    # 20: a cold verdict reader in the merge queue takes about 6 to 11
+    # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
+    # calls), on top of the job's other reads.
+    timeout-minutes: 20
     env:
       # gh_read's wait budget: a rate-limit wait must end by
       # GH_READ_JOB_SECONDS (timeout-minutes in seconds) less
@@ -3096,7 +3099,7 @@ jobs:
       # five minutes for the job's setup and the steps after the wait:
       # aggregate-results' 60 s rate-limit wait, 45 s of own-gate retries, 7 s
       # of status writes and the 90 s rerun wait, plus retry sleeps.
-      GH_READ_JOB_SECONDS: 660
+      GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 300
       # The lanes App's bot account id, which the trust-hold and lanes-hold
       # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
@@ -4858,14 +4861,35 @@ jobs:
             # pr-merge's head-ref map: a read that fails leaves none, and the
             # reader downloads each untied FAIL instead.
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
-            # A cold reader holds without reading: with no carried run cache it
-            # reads every FAIL (about 860 GITHUB_TOKEN requests and, at the 0.4
-            # to 0.7 s a call pr-merge's reader logs, 6 to 11 minutes, against
-            # pr-pipeline.yaml's 1,000-an-hour plan and this job's 11-minute
-            # cap). The carry step writes the cache only on success.
+            # A cold reader runs only with the headroom for it. With no carried
+            # run cache (the carry step writes it only on success) the reader
+            # reads every FAIL: about 860 GITHUB_TOKEN requests, measured
+            # 2026-10-25, so COLD_READ_COST is 900. It runs when the core
+            # pool's remaining count, read once from /rate_limit (which
+            # "does not count against your REST API rate limit",
+            # https://docs.github.com/en/rest/rate-limit/rate-limit), is at
+            # least that cost plus the read floor the job env inlines from
+            # pr-pipeline.yaml limits.api (API_BUDGET_READ_FLOOR of
+            # min(limit, API_BUDGET_LIMIT_CAP)), so a cold read never takes
+            # the pool under the floor. A rate limit that does not read, or a
+            # stop in the job's stop file (gh_read's rate guard refuses the
+            # pool), holds. The reader's own babysit_gh.py guard shares that
+            # stop file.
             if [ ! -s "$BABYSIT_RUN_CACHE" ]; then
-              echo "::error::#$pr is held: no carried run cache from pr-merge's last run, so the verdict reader would read every pr-verify FAIL cold (about 860 requests). Re-queue it after pr-merge's next run saves its cache."
-              exit 1
+              cold="#$pr is held: no carried run cache from pr-merge's last run"
+              rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
+              if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
+                ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
+                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" \
+                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 900 + int(floor * cap + 0.999999) }'); then
+                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (about 860 requests) is not started. Re-queue it."
+                exit 1
+              fi
+              if [ "$remaining" -lt "$need" ]; then
+                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (about 860 plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
+                exit 1
+              fi
+              echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (a cold read needs $need), so the verdict reader reads every FAIL."
             fi
             rm -f "$BABYSIT_VERIFY_LISTING"
             report=$(python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
