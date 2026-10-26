@@ -188,19 +188,28 @@ export async function read({ env = process.env, actions: client, download } = {}
     download ??= (id, name) => ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name, file: CARRY_FILE })(id);
     const actions = sharedReads(client, env.PR_MERGE_READS_PATH);
     const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
-    const readArtifact = async (name) => {
-      const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name, accept });
-      if (id === undefined) return undefined;
+    const find = (name) => newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name, accept });
+    const load = (name, id) => {
       const text = download(id, name);
       if (!isObject(JSON.parse(text))) throw new Error(`the ${name} file of run ${id} is not a JSON object`);
       console.log(`${name} of run ${id}`);
       return text;
     };
-    const kept = await readArtifact(CARRY_ARTIFACT);
-    // A verify file that does not read leaves the merge job's file as it is.
+    // A trust failure stops the read; a file that does not read counts as absent,
+    // and the other file is still carried.
+    const mergeId = await find(CARRY_ARTIFACT);
+    let kept;
+    if (mergeId !== undefined) {
+      try {
+        kept = load(CARRY_ARTIFACT, mergeId);
+      } catch (error) {
+        console.log(`::warning::the ${CARRY_ARTIFACT} file was not carried: ${escapeCommand(error?.message ?? error)}`);
+      }
+    }
     let verify;
     try {
-      verify = await readArtifact(VERIFY_ARTIFACT);
+      const verifyId = await find(VERIFY_ARTIFACT);
+      if (verifyId !== undefined) verify = load(VERIFY_ARTIFACT, verifyId);
     } catch (error) {
       console.log(`::warning::the verifier reads were not carried: ${escapeCommand(error?.message ?? error)}`);
     }
