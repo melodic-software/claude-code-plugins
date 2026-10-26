@@ -497,3 +497,25 @@ test("a guard given a token records its readings under that name, and one withou
       }
     }
   }));
+
+// label-unblocked's ACTIONS_TOKEN client runs in a lanes-app step: its guard
+// plans to github-token's limit-cap of 1000, not lanes-app's header limit.
+test("a guard given a token plans to that token's limits.api entry, not API_BUDGET_TOKEN's", async () => {
+  const saved = process.env.API_BUDGET_TOKEN;
+  process.env.API_BUDGET_TOKEN = "lanes-app";
+  try {
+    const past = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600" }];
+    const limits = () => ({ "github-token": { "read-floor": 0.1, "limit-cap": 1000 }, "lanes-app": { "read-floor": 0.1 } });
+    const warned = async (options) => {
+      const lines = [];
+      const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits, stopFile: null });
+      await latch.guard(fakeGitHub([past]).fetch, options)(URL_A);
+      return lines.length;
+    };
+    assert.equal(await warned({ token: "github-token" }), 1);
+    assert.equal(await warned(), 0);
+  } finally {
+    if (saved === undefined) delete process.env.API_BUDGET_TOKEN;
+    else process.env.API_BUDGET_TOKEN = saved;
+  }
+});

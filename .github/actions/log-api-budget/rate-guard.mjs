@@ -304,7 +304,8 @@ export function createRateLimitLatch({
   const low = new Map();
   const warned = new Set();
   let config;
-  function margin(pool, key) {
+  // A token-pinned guard plans to its own token's entry (entryOf).
+  function margin(pool, key, token) {
     if (config === undefined) {
       try {
         config = limits();
@@ -313,7 +314,7 @@ export function createRateLimitLatch({
         log("::warning::rate guard: limits.api and its schema defaults could not be read; the read floor is not checked");
       }
     }
-    const value = config?.[entryOf(pool)]?.[key];
+    const value = config?.[entryOf(pool, token)]?.[key];
     return typeof value === "number" ? value : null;
   }
 
@@ -334,12 +335,12 @@ export function createRateLimitLatch({
     throw stop;
   }
 
-  async function observe(url, response, method = "GET") {
+  async function observe(url, response, method = "GET", token = undefined) {
     const pool = poolOf(url);
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
-    const limitCap = margin(pool, "limit-cap");
-    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor"), limitCap });
+    const limitCap = margin(pool, "limit-cap", token);
+    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap });
     low.set(pool, verdict.low);
     if (verdict.latched) {
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
@@ -388,7 +389,7 @@ export function createRateLimitLatch({
         }
         const response = await fetchImpl(url, init);
         recordReading({ token, status: response.status, headers: response.headers });
-        await observe(url, response, init.method);
+        await observe(url, response, init.method, token);
         return response;
       },
   };
