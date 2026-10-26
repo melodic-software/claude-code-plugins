@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.106.1] - 2026-10-26
+
+### Fixed
+
+- The interview page no longer shows an answered question as needing you after a `revise` that changed only its title or short: the question stays off Show: Review and wears no `Revised after your answer` chip, matching `round.sh status`, which counts it closed. A revise history line now lists the fields it changed in `changed`.
+
 ## [0.106.0] - 2026-10-25
 
 ### Added
