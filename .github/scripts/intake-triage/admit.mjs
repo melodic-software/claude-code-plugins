@@ -105,6 +105,9 @@ export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
 export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
+export const CONFIRMED = "status: confirmed";
+// Refuse-labels that hold for a person; any other listed label is mechanical.
+const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // The one work class that holds an issue for a person (owner Q85, #9668).
 export const UNTRUSTED = "work-class: untrusted-provenance";
@@ -405,7 +408,11 @@ export function admissionSettled(labels, events, isMark) {
   return null;
 }
 
-// {verdict: admit | refuse | wait | skip, reasons}. Pure.
+// {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
+// refusal that parks at needs-decision: an untrusted author or provenance or
+// a person-held label (the owner's 2026-10-26 rule keeps a person out of
+// every other refusal), or done-when items a lane run cannot perform, which
+// refine splits only from needs-decision (refine.mjs splitOf). Pure.
 export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
@@ -419,6 +426,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
 
   const refuse = [];
+  let hold = false;
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
   if (splitChildBody(spec, humans, rules["task-list"]) !== null && !rules.sizes.includes("large")) {
@@ -427,6 +435,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const author = issue.user?.id;
   if (!(humans.has(author) || (appId !== undefined && author === appId))) {
     refuse.push("the author is neither a listed human nor the lanes App");
+    hold = true;
   }
   const type = issue.type?.name ?? "none";
   const underParent = rules["types-under-parent"].includes(type);
@@ -443,6 +452,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
+    hold = true;
   }
   // Reasons the owner already settled without a person: they park the issue
   // at status: ready (a wait with no pull request), never needs-decision.
@@ -471,23 +481,18 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
   if (unrunnable) {
     refuse.push(unrunnable);
+    hold = true;
   }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
+      hold ||= PERSON_LABELS.has(label);
     }
   }
   const confirm = operatorConfirmation({ schedule, labels, title: issue.title });
   if (confirm) {
     refuse.push(confirm);
   }
-  if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: [...refuse, ...parked] };
-  }
-  if (parked.length > 0) {
-    return { verdict: "wait", reasons: parked, pulls: [] };
-  }
-
   const wait = [];
   for (const blocker of blockers) {
     if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
@@ -498,9 +503,21 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   for (const pull of pulls) {
     wait.push(`open pull request #${pull} is for it`);
   }
-  // A split issue's work is its sub-issues' (owner Q93).
-  for (const child of subIssues.filter((item) => item?.state !== "closed")) {
+  // A split issue's work is its sub-issues' (owner Q93): while one is open the
+  // parent waits, so a mechanical refusal or a pending split never loops it.
+  // A refusal that holds for a person still refuses first.
+  const openSubs = subIssues.filter((item) => item?.state !== "closed");
+  for (const child of openSubs) {
     wait.push(`sub-issue #${child.number} is open`);
+  }
+  if (!hold && openSubs.length > 0) {
+    return { verdict: "wait", reasons: wait, pulls };
+  }
+  if (refuse.length > 0) {
+    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }) };
+  }
+  if (parked.length > 0) {
+    return { verdict: "wait", reasons: parked, pulls: [] };
   }
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
@@ -655,7 +672,7 @@ export async function sayWhy(github, repository, base, comments, text) {
 // The body, the comment count and the first 100 comments, each with its
 // author, last editor and edit time: the first 100 comments are what pr-verify
 // reads, and it stops on an issue with more.
-const SPEC_COMMENTS = 100;
+export const SPEC_COMMENTS = 100;
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
     body lastEditedAt author { ...actor } editor { ...actor }
@@ -1028,12 +1045,15 @@ export async function admit({ github, repository, number, verdict, rules, humans
   if (decision.verdict === "refuse") {
     // The hold before status: ready comes off: a failed write never leaves
     // admission-deferred on an issue with neither, which the sweep admits.
-    await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    // Any other refusal parks at status: confirmed, which the triage sweep
+    // skips: an agent fixes the reason and dispatches intake again.
+    const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
+    await github("POST", `${base}/labels`, { labels: [status] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
-    return { outcome: "refused", reasons: decision.reasons };
+    return { outcome: "refused", reasons: decision.reasons, status };
   }
   if (decision.verdict === "wait") {
     if (decision.pulls.length === 0) {

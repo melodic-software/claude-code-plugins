@@ -67,6 +67,13 @@ OTHER_FAILURE = {
     "title": "claude-review failed",
     "message": "failure-class=incomplete: no completed review was found on this head",
 }
+# publish-review's failure line (ci-workflows publish.cjs `fail`) for a
+# rejected Claude credential.
+AUTH_FAILURE = dict(
+    OTHER_FAILURE,
+    message="claude-review: failure-class=auth:"
+    " the Claude credential was rejected; the owner replaces the secret",
+)
 
 # publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
 # recorded it when the review's own post hit GitHub's API rate limit.
@@ -564,6 +571,56 @@ class AttemptRuleTests(Base):
         result = self.bind([self.lane_run(first, self.ok(2))])
         self.assertTrue(result["claude-review"].bound)
 
+    def test_second_attempt_after_a_credential_failure(self) -> None:
+        first = attempt("claude-review", S, 1, [AUTH_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_a_warning_level_auth_does_not_bind(self) -> None:
+        # publish.cjs warns `<lane> key: class=auth` when the key leg's
+        # credential is refused, whatever the run then failed on; only a
+        # failure-level line names why the run failed.
+        timeout = dict(
+            OTHER_FAILURE,
+            message="claude-review: failure-class=timeout:"
+            " the review leg reached its time limit",
+        )
+        for message in (
+            "claude-review key: class=auth: the API refused the key;"
+            " the owner must replace the secret.",
+            AUTH_FAILURE["message"],
+        ):
+            with self.subTest(message=message):
+                warning = dict(
+                    AUTH_FAILURE, annotation_level="warning", message=message
+                )
+                first = attempt("claude-review", S, 1, [warning, timeout], "failure")
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_an_auth_lookalike_does_not_bind(self) -> None:
+        for message in (
+            "claude-review: failure-class=auth-x: something else",
+            "claude-review: failure-class=other: an unclassified failure"
+            " (detail quoting failure-class=auth: rejected)",
+            "security-review: failure-class=auth: another lane's credential",
+        ):
+            with self.subTest(message=message):
+                first = attempt(
+                    "claude-review",
+                    S,
+                    1,
+                    [dict(AUTH_FAILURE, message=message)],
+                    "failure",
+                )
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_credential_failure_is_not_a_rate_limit(self) -> None:
+        self.assertFalse(
+            ev.rate_limited("claude-review", {"annotations": [AUTH_FAILURE]})
+        )
+
     def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
         first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
         result = self.bind([self.lane_run(first, self.ok(2))])
@@ -666,6 +723,217 @@ class AttemptRuleTests(Base):
         )
         result = self.bind([base, head])
         self.assertUnbound(result["claude-review"], "evidence-error")
+
+    def test_every_rerun_the_gate_starts_binds(self) -> None:
+        # The merge gate re-runs a review only on what `rate_limited` accepts
+        # (babysit_merge.rerun_rate_limited_review); each such re-run must
+        # bind, or the gate spends the one allowed attempt for nothing.
+        for note in (RATE_LIMIT, PUBLISH_RATE_LIMIT):
+            with self.subTest(message=note["message"][:40]):
+                first = attempt("claude-review", S, 1, [note], "failure")
+                self.assertTrue(ev.rate_limited("claude-review", first["jobs"][0]))
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertTrue(result["claude-review"].bound)
+
+
+# The caller workflows' `Report the kill switch` notice
+# (pr-review-hosted.yml, pr-review-security-hosted.yml).
+KILL_NOTICE = {
+    "claude-review": "a kill switch stops this review"
+    " (lanes: kill-switch, CLAUDE_REVIEW_DISABLED: false)",
+    "claude-security-review": "a kill switch stops this security review"
+    " (lanes: kill-switch, CLAUDE_SECURITY_REVIEW_DISABLED: false)",
+}
+
+
+def kill_switched(
+    lane: str,
+    sha: str = S,
+    *,
+    message: str | None = None,
+    level: str = "notice",
+    kill_conclusion: str = "success",
+    kill_name: str = "kill-switch",
+) -> dict[str, Any]:
+    """Attempt 1 as #10092's review runs recorded it: the kill-switch job
+    succeeded and wrote its notice, and the reusable's caller job was skipped,
+    so no lane job exists."""
+    caller = JOBS[lane].split(" / ", 1)[0]
+
+    def job(name: str, conclusion: str, annotations: Any = None) -> dict[str, Any]:
+        item = {
+            "id": next(_ids),
+            "run_attempt": 1,
+            "name": name,
+            "status": "completed",
+            "conclusion": conclusion,
+            "head_sha": sha,
+        }
+        if annotations is not None:
+            item["annotations"] = annotations
+        return item
+
+    notice = {
+        "path": ".github",
+        "annotation_level": level,
+        "title": "",
+        "message": KILL_NOTICE[lane] if message is None else message,
+    }
+    return {
+        "run_attempt": 1,
+        "head_sha": sha,
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+            job(kill_name, kill_conclusion, [notice]),
+            job("resolve-model", "success"),
+            job(caller, "skipped"),
+        ],
+    }
+
+
+class KillSwitchRerunTests(Base):
+    """A re-run after a kill switch stopped attempt 1 (#10092, #10057): the
+    review never started, so attempt 2 is the first review of the head."""
+
+    def lane_run(self, lane: str, *attempts: dict[str, Any]) -> dict[str, Any]:
+        return run(lane, S, attempts=list(attempts))
+
+    def ok(self, lane: str, n: int = 2) -> dict[str, Any]:
+        return attempt(lane, S, n, [record(lane, S, "findings=0 inline=0 scope=whole")])
+
+    def test_second_attempt_after_a_kill_switch_stop_binds(self) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                result = self.bind(
+                    [self.lane_run(lane, kill_switched(lane), self.ok(lane))]
+                )
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_the_other_lanes_notice_does_not_bind(self) -> None:
+        for lane, other in zip(LANES, reversed(LANES), strict=True):
+            with self.subTest(lane=lane):
+                first = kill_switched(lane, message=KILL_NOTICE[other])
+                result = self.bind([self.lane_run(lane, first, self.ok(lane))])
+                self.assertUnbound(result[lane], "rerun-not-allowed")
+
+    def test_a_lookalike_notice_does_not_bind(self) -> None:
+        for message in (
+            "the log says: a kill switch stops this review (lanes: x)",
+            "a kill switch stops this review",
+            "A kill switch stops this review (lanes: x)",
+        ):
+            with self.subTest(message=message):
+                first = kill_switched("claude-review", message=message)
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_notice_at_another_level_does_not_bind(self) -> None:
+        for level in ("warning", "failure"):
+            with self.subTest(level=level):
+                first = kill_switched("claude-review", level=level)
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_the_notice_on_another_job_does_not_bind(self) -> None:
+        first = kill_switched("claude-review", kill_name="resolve-model")
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_kill_switch_job_that_did_not_succeed_does_not_bind(self) -> None:
+        for conclusion in ("failure", "cancelled", "skipped"):
+            with self.subTest(conclusion=conclusion):
+                first = kill_switched("claude-review", kill_conclusion=conclusion)
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_two_kill_switch_jobs_do_not_bind(self) -> None:
+        first = kill_switched("claude-review")
+        first["jobs"].append(copy.deepcopy(first["jobs"][0]))
+        first["jobs"][-1]["id"] = next(_ids)
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_first_attempt_that_reviewed_never_rebinds(self) -> None:
+        # The notice beside a lane job that ran: attempt 1 may hold a verdict.
+        reviewed = self.ok("claude-review", 1)
+        first = kill_switched("claude-review")
+        first["jobs"].append(reviewed["jobs"][0])
+        for conclusion in ("success", "failure"):
+            with self.subTest(conclusion=conclusion):
+                trial = copy.deepcopy(first)
+                trial["conclusion"] = conclusion
+                result = self.bind(
+                    [self.lane_run("claude-review", trial, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_failed_first_attempt_with_the_notice_does_not_bind(self) -> None:
+        first = kill_switched("claude-review")
+        first["conclusion"] = "failure"
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_third_attempt_after_a_kill_switch_stop_is_never_allowed(self) -> None:
+        stopped_again = kill_switched("claude-review")
+        stopped_again["run_attempt"] = 2
+        for item in stopped_again["jobs"]:
+            item["run_attempt"] = 2
+        result = self.bind(
+            [
+                self.lane_run(
+                    "claude-review",
+                    kill_switched("claude-review"),
+                    stopped_again,
+                    self.ok("claude-review", 3),
+                )
+            ]
+        )
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_kill_switched_run_on_an_earlier_head_does_not_unbind(self) -> None:
+        stopped = run(
+            "claude-review", S0, attempts=[kill_switched("claude-review", S0)]
+        )
+        result = self.bind([stopped, whole("claude-review", S)])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_a_kill_switched_head_alone_does_not_bind(self) -> None:
+        result = self.bind(
+            [self.lane_run("claude-review", kill_switched("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_unread_kill_switch_annotations_are_missing_evidence(self) -> None:
+        first = kill_switched("claude-review")
+        del first["jobs"][0]["annotations"]
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "evidence-missing")
+
+    def test_a_changed_caller_workflow_still_binds_no_lane(self) -> None:
+        # The head's copy of a caller runs on pull_request, so a head that
+        # edits one could write the notice itself; any such edit unbinds.
+        runs = [
+            self.lane_run(lane, kill_switched(lane), self.ok(lane)) for lane in LANES
+        ]
+        result = self.bind(runs, changed_paths=[FILES["claude-review"]])
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
 
 
 class RecordTests(Base):
@@ -1790,6 +2058,124 @@ class FailClosedTests(Base):
             changed_paths=(),
         )
         self.assertFalse(result[0].bound)
+
+
+class CarriedBlockingTests(Base):
+    """A blocking security finding a bound review left open still holds after
+    the lane unbinds: the binder carries the count from the newest head of
+    the pull request the lane's evidence binds at, so the gate's person
+    routing (babysit_risk.person_reasons) still sees `security-finding`."""
+
+    SEC = "claude-security-review"
+    S2 = "c2" * 20  # a newer head
+
+    def critical_at_s(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        body = f"finding\n\nseverity: CRITICAL\n`claude-lane: {self.SEC}`"
+        return runs, [thread(body)]
+
+    def person(self, lanes: dict[str, Any]) -> list[str]:
+        result = risk.score(
+            risk.RiskInput(
+                files=(
+                    risk.ChangedFile(
+                        "docs/a.md", None, "modified", 1, 1, True, "100644", "100644"
+                    ),
+                ),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(lanes[lane] for lane in LANES),
+                lines_optional=True,
+            )
+        )
+        return [r.code for r in risk.person_reasons(risk.holding(result))]
+
+    def test_a_bound_critical_finding_holds_for_a_person(self) -> None:
+        runs, threads = self.critical_at_s()
+        bound = self.bind(runs, threads=threads)
+        self.assertEqual(bound[self.SEC].blocking_findings, 1)
+        self.assertEqual(self.person(bound), ["security-finding"])
+
+    def test_a_retargeted_base_carries_the_critical_finding(self) -> None:
+        runs, threads = self.critical_at_s()
+        lanes = by_lane(
+            ev.bind(
+                S,
+                runs,
+                both_markers(),
+                threads,
+                is_human=is_human,
+                head_file=fixed_head,
+                changed_paths=(),
+                base_changed=True,
+            )
+        )
+        self.assertUnbound(lanes[self.SEC], "base-retargeted")
+        self.assertEqual(lanes[self.SEC].blocking_findings, 1)
+        self.assertEqual(self.person(lanes), ["security-finding"])
+
+    def test_a_new_head_carries_the_critical_finding(self) -> None:
+        # A push to S2: no review there yet, or one that failed and wrote a
+        # newer marker. Either way the review at S still leaves it open.
+        runs, threads = self.critical_at_s()
+        failed = run(
+            self.SEC,
+            self.S2,
+            attempts=[attempt(self.SEC, self.S2, 1, [], "failure")],
+            created="2026-01-02T00:00:00Z",
+        )
+        # Later than every marker at S, so it is the lane's newest.
+        newer = {**marker(self.SEC, self.S2), "created_at": "2026-01-02T01:00:00Z"}
+        for name, extra_runs, extra_markers in (
+            ("no review yet", [], []),
+            ("a newer marker on a failed review", [failed], [newer]),
+        ):
+            with self.subTest(name):
+                lanes = by_lane(
+                    ev.bind(
+                        self.S2,
+                        [*runs, *extra_runs],
+                        [*both_markers(), *extra_markers],
+                        threads,
+                        is_human=is_human,
+                        head_file=fixed_head,
+                        changed_paths=(),
+                    )
+                )
+                self.assertFalse(lanes[self.SEC].bound)
+                self.assertEqual(lanes[self.SEC].blocking_findings, 1)
+                self.assertEqual(self.person(lanes), ["security-finding"])
+
+    def test_an_older_marker_naming_a_head_is_read_only_off_the_newest(
+        self,
+    ) -> None:
+        older = marker(self.SEC, S)
+        newer = {**marker(self.SEC, self.S2), "created_at": "2026-01-02T01:00:00Z"}
+        comments = [newer, older]
+        with self.assertRaises(ev.Unbound):
+            ev._require_marker(self.SEC, S, comments)
+        self.assertEqual(
+            ev._require_marker(self.SEC, S, comments, newest_only=False),
+            older["body"],
+        )
+
+    def test_nothing_is_carried_without_a_blocking_finding(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        body = f"finding\n\nseverity: SUGGESTION\n`claude-lane: {self.SEC}`"
+        lanes = by_lane(
+            ev.bind(
+                self.S2,
+                runs,
+                both_markers(),
+                [thread(body)],
+                is_human=is_human,
+                head_file=fixed_head,
+                changed_paths=(),
+            )
+        )
+        self.assertIsNone(lanes[self.SEC].blocking_findings)
+        self.assertEqual(self.person(lanes), [])
 
 
 class SeverityTests(Base):
