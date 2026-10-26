@@ -184,6 +184,7 @@ def shape_error(kind: str, data: Any) -> str | None:
             _opt(n.get("name"), str)
             and _opt(n.get("class"), str)
             and _strs(n.get("markers"))
+            and _strs(n.get("docs_markers"))
             for n in (r.get("native") or {} for r in rows)
         ):
             bad.append("rows[].native")
@@ -519,11 +520,13 @@ def evaluate_row(
     the row.
 
     Presence, provenance class, and the hidden, gated and model-invocation-
-    disabled markers are compared with the row. Removal and rename are events,
-    so they fire only when the previous extraction held the name and this one
-    does not; a name neither extraction holds (a CLI subcommand, a surface read
-    by a targeted search) is outside what the lanes observe. A row whose lane
-    is broken this run is not re-derivable.
+    disabled markers are compared with the row, except a marker the row lists
+    in `native.docs_markers` (its basis is the docs, so no extraction judges
+    it). Removal and rename are events, so they fire only when the previous
+    extraction held the name and this one does not; a name neither extraction
+    holds (a CLI subcommand, a surface read by a targeted search) is outside
+    what the lanes observe. A row whose lane is broken this run is not
+    re-derivable.
     """
     native = row.get("native") or {}
     name, klass = native.get("name"), native.get("class")
@@ -547,9 +550,13 @@ def evaluate_row(
         )
     recorded = set(native.get("markers") or [])
     observed = set(rec.get("markers") or [])
+    # A recorded marker the row sources from the docs is one the extraction
+    # does not set, so neither side counts it: its basis is the docs.
+    unjudged = recorded & set(native.get("docs_markers") or [])
     if rec.get("model_invocable") is None:
-        recorded.discard("model-invocation-disabled")
-        observed.discard("model-invocation-disabled")
+        unjudged.add("model-invocation-disabled")
+    recorded -= unjudged
+    observed -= unjudged
     if recorded != observed:
         reasons.append(
             "markers differ: recorded "
