@@ -4116,17 +4116,23 @@ jobs:
             | ([$held_at, ($events[] | select(.event == "labeled" and .created_at > $held_at
                 and (.actor.id as $id | $humans | contains(" \($id) "))) | .created_at)] | max) as $since
             | [$events[] | select(.event == "unlabeled" and .created_at > $since)]
-            | min_by(.created_at) // empty | [.created_at, (.actor.id // 0 | tostring), (.actor.login // "an unknown account")] | @tsv' <<<"$events") || {
+            | min_by(.created_at) // empty | [.created_at, (.actor.id // 0 | tostring), (.actor.login // "an unknown account"),
+              (.performed_via_github_app | if . == null then "" else .slug // .name // "an unnamed App" end)] | @tsv' <<<"$events") || {
             echo "::error::cannot read the events of #$PR_NUMBER."
             exit 1
           }
-          IFS=$'\t' read -r lifted_at actor_id actor_login <<<"$lifted"
+          IFS=$'\t' read -r lifted_at actor_id actor_login via_app <<<"$lifted"
           if [ -z "$lifted_at" ]; then
             echo "::error::a review lane held #$PR_NUMBER at $held_at, and no removal of '$HUMAN_GATED' since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
             exit 1
           fi
           if [[ " $humans " != *" $actor_id "* ]]; then
             echo "::error::$actor_login removed '$HUMAN_GATED' from #$PR_NUMBER after a review lane held it, and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."
+            exit 1
+          fi
+          # An App acting for a listed person is not that person's approval.
+          if [ -n "$via_app" ]; then
+            echo "::error::$actor_login removed '$HUMAN_GATED' from #$PR_NUMBER through the App $via_app after a review lane held it, which is not a person's own approval. Add the label back; a person on the trusted-actor list removing it directly approves this pull request."
             exit 1
           fi
           echo "$actor_login, a person on the trusted-actor list, lifted the review-lane hold on #$PR_NUMBER."
