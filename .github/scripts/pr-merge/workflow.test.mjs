@@ -552,6 +552,19 @@ for (const [name, status, body] of [
   });
 }
 
+test("a secondary limit with a spent pool still stops every pool, as the guard does", () => {
+  const headers = { "x-ratelimit-remaining": "0", "x-ratelimit-reset": `${NOW + 30}`, "x-ratelimit-resource": "core" };
+  const body = JSON.stringify({ message: "You have exceeded a secondary rate limit" });
+  const want = classify({ url: DISPATCH_URL, status: 403, headers, body }, { now: NOW * 1000 });
+  assert.equal(want.pool, "*");
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([{ status: "403 X", headers, body }, ok(1)], { jobId, event: "schedule" });
+    stopped(r);
+    assert.match(r.out, new RegExp(`::error title=GitHub rate limit::every pool is exhausted \\(HTTP 403: .*before ${resetLabel(want.reset)}`));
+    assert.match(r.output, new RegExp(`^stop=every pool until ${resetLabel(want.reset)}$`, "m"));
+  }
+});
+
 const refused = () => limited({ "X-Ratelimit-Remaining": "900" }, "Resource not accessible by integration");
 
 test("a refusal ends green with a warning naming the merge, and no run id", () => {

@@ -300,14 +300,18 @@ jobs:
                 now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
                 if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
                 if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
-                if ! [[ $after =~ ^[0-9]+$ ]] && [ "$left" = 0 ]; then
+                secondary=''
+                if [[ ${message,,} =~ secondary\ rate\ limit|abuse\ detection ]]; then secondary=1; fi
+                # As rate-guard.mjs classify: a secondary limit is not per
+                # resource, whatever remaining says.
+                if ! [[ $after =~ ^[0-9]+$ ]] && [ "$left" = 0 ] && [ -z "$secondary" ]; then
                   [[ $resource =~ ^[a-z_]+$ ]] || resource=core
                   pool="the $resource pool"
                 fi
                 # No header time ahead, as rate-guard.mjs classify: a secondary
                 # limit or a past header time waits the minute, any other the hour.
                 if [ -z "$until" ]; then
-                  if [[ ${message,,} =~ secondary\ rate\ limit|abuse\ detection ]]; then until=$((now + 60)); else until=$((now + 3600)); fi
+                  if [ -n "$secondary" ]; then until=$((now + 60)); else until=$((now + 3600)); fi
                 elif ((until <= now)); then
                   until=$((now + 60))
                 fi
@@ -1861,14 +1865,18 @@ jobs:
                 now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
                 if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
                 if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
-                if ! [[ $after =~ ^[0-9]+$ ]] && [ "$left" = 0 ]; then
+                secondary=''
+                if [[ ${message,,} =~ secondary\ rate\ limit|abuse\ detection ]]; then secondary=1; fi
+                # As rate-guard.mjs classify: a secondary limit is not per
+                # resource, whatever remaining says.
+                if ! [[ $after =~ ^[0-9]+$ ]] && [ "$left" = 0 ] && [ -z "$secondary" ]; then
                   [[ $resource =~ ^[a-z_]+$ ]] || resource=core
                   pool="the $resource pool"
                 fi
                 # No header time ahead, as rate-guard.mjs classify: a secondary
                 # limit or a past header time waits the minute, any other the hour.
                 if [ -z "$until" ]; then
-                  if [[ ${message,,} =~ secondary\ rate\ limit|abuse\ detection ]]; then until=$((now + 60)); else until=$((now + 3600)); fi
+                  if [ -n "$secondary" ]; then until=$((now + 60)); else until=$((now + 3600)); fi
                 elif ((until <= now)); then
                   until=$((now + 60))
                 fi
