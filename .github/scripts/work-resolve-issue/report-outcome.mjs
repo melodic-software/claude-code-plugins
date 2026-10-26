@@ -754,6 +754,22 @@ export function decide({
       runId,
     });
   }
+  // The lane denies the paths apply-issue-patch refuses and tells a run whose
+  // change needs one to stop with this reason, before it spends the run.
+  if (outcome.exit === "stopped" && /^\s*patch-protected-path\b/.test(outcome.reason)) {
+    return handBack({
+      outcome: {
+        ...outcome,
+        reason: `The run stopped early (\`patch-protected-path\`): its change needs a path the issue lane may not push, which a person changes instead. In the run's words: ${outcome.reason}`,
+      },
+      issueNumber,
+      branch,
+      humanLabel,
+      runUrl,
+      runId,
+      onResumed,
+    });
+  }
   if (outcome.exit !== "done") {
     return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed });
   }

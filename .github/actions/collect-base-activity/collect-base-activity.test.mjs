@@ -5,7 +5,7 @@
 // instruction to commit; a merge-base skill runs on run-claude-cli alone.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
@@ -14,6 +14,7 @@ import { LIMITS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 
 const ACTION = new URL("./action.yml", import.meta.url);
+const REPO_ROOT = path.join(import.meta.dirname, "../../..");
 const COMMIT_TOOL = "mcp__github_file_ops__commit_files";
 const COMMIT_SENTENCE = "commit every repository file you changed";
 // commit_files takes each file's mode from disk, so a skill that commits
@@ -103,6 +104,11 @@ before(() => {
   writeFileSync(path.join(base, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
   resolved = path.join(root, "resolved.json");
   writeFileSync(resolved, JSON.stringify({ selected: { args: "ci" } }));
+  // The issue lane's protected-path rules come from the base's apply-patch
+  // and patch-rules.json, as committed.
+  for (const file of [".github/scripts/apply-patch", ".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-unblock/dependency-classify.mjs", ".github/scripts/pr-unblock/thread-scope.mjs", ".github/actions/resolve-config/patch-rules.json"]) {
+    cpSync(path.join(REPO_ROOT, file), path.join(base, file), { recursive: true });
+  }
 });
 
 after(() => {
@@ -317,7 +323,7 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
   } finally {
     rmSync(path.join(base, ".shellcheckrc"));
     rmSync(path.join(base, ".markdownlint-cli2.jsonc"));
-    rmSync(path.join(base, ".github"), { recursive: true });
+    rmSync(path.join(base, ".github", "requirements-ci.txt"));
   }
 });
 
@@ -1373,6 +1379,26 @@ test("run-claude-cli: an issue lane's patch skill stages its check and verify-sc
   // A PR lane's patch skill keeps all of git denied.
   const pr = launch({ SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH) });
   assert.ok(pr.deniedTools.includes("Bash(git *)") && !pr.allowedTools.some((rule) => rule.includes("git")));
+});
+
+// pr-run-activity.md, "Issue mode": the paths apply-issue-patch refuses are
+// denied to the issue lane's file tools, and the preamble tells the run to
+// stop with patch-protected-path when its change needs one, so it stops at
+// its first such write instead of at the push. A plugin's settings file,
+// which apply-patch pushes, stays writable; a PR lane gets none of this.
+test("run-claude-cli: an issue lane's patch skill is denied the paths apply-issue-patch refuses and told to stop on one", () => {
+  const run = launch({ ISSUE_NUMBER: "7", SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH) });
+  assert.equal(run.status, 0, run.stdout);
+  for (const rule of ["Edit(/.github/workflows/**)", "Edit(/.github/CODEOWNERS)", "Edit(.gitmodules)", "Edit(/settings*.json)", "Edit(/.github/**/settings*.json)"]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  assert.ok(!run.deniedTools.some((rule) => rule.includes("plugins/**/settings")), run.deniedTools.join(" | "));
+  assert.ok(run.preamble.includes("the file tools are denied them: /.github/workflows/**, /CODEOWNERS, /.github/CODEOWNERS,"), run.preamble);
+  assert.ok(run.preamble.includes("a reason that starts with patch-protected-path: and names the path."), run.preamble);
+  const pr = launch({ SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH) });
+  assert.equal(pr.status, 0, pr.stdout);
+  assert.ok(!pr.deniedTools.some((rule) => rule.includes("workflows")), pr.deniedTools.join(" | "));
+  assert.doesNotMatch(pr.preamble, /patch-protected-path/);
 });
 
 // git-read, run against a real checkout: the four read commands run with
