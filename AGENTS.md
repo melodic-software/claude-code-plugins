@@ -14,11 +14,13 @@ Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subj
 `ci-status` fails any other title.
 
 When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
-`gh pr edit <n> --add-label do-not-merge`) before writing any explanation. "Do not merge" in the body
-or a comment is not enforced by `ci-status`, which reads only the label, except on a lanes App pull
-request, where it also fails on a body hold or a member's veto comment; the babysit merge gate
-still respects a body hold and human comments, so never override one. The hold convention is in
-`docs/conventions/loop-lane/README.md`.
+`gh pr edit <n> --add-label do-not-merge`) before writing any explanation. A session holding a pull
+request for any reason, a measured regression included, applies the label at once and removes it
+when the hold ends: a hold kept only in a session, a handoff or a message does not stop another
+session's merge. "Do not merge" in the body or a comment is not enforced by `ci-status`, which
+reads only the label, except on a lanes App pull request, where it also fails on a body hold or a
+member's veto comment; the babysit merge gate still respects a body hold and human comments, so
+never override one. The hold convention is in `docs/conventions/loop-lane/README.md`.
 
 In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
 (shared changelog fragment); the rule itself is the scope test in
@@ -55,8 +57,7 @@ a session or on the PR, lifts it. Ask first when any of those is missing, or whe
 what agents may do unattended and the owner has not decided that change. Launch unattended local lanes with
 `--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
 in its lane telemetry and moves on. CI lanes run with no prompt handler, so an unlisted tool is denied: intake triage passes
-`--permission-mode dontAsk`, and the review lanes run claude-code-action's tag mode, which passes
-`acceptEdits` with a fixed tool allowlist. Read-runner activities (`fix-ci`, `fix-docs`) run
+`--permission-mode dontAsk`, and so do the review lanes, with a fixed tool allowlist. Read-runner activities (`fix-ci`, `fix-docs`) run
 dontAsk with explicit allow rules and no write token; `permission-mode: auto` there fails red,
 because under the launcher's subprocess env scrub the CLI starts in the default mode. All run under
 the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),

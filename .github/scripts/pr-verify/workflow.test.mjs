@@ -4,8 +4,9 @@
 // step, it runs after the verdict file is written, and only when writing it
 // succeeded; the group is per PR and head, never cancelling a running judgment.
 // The key job judges first; the subscription job repeats it on the other
-// credential only when the key job hands the judgment on, so one job per run
-// writes a verdict.
+// credential only when the key job hands the judgment on, and the fallback
+// job repeats it on the central fallback token only when the subscription job
+// hands it on, so one job per run writes a verdict.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -13,7 +14,8 @@ import { test } from "node:test";
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const KEY = "check-intent";
 const SUB = "check-intent-subscription";
-const JOBS = [KEY, SUB];
+const FB = "check-intent-fallback";
+const JOBS = [KEY, SUB, FB];
 const jobText = (id) => {
   const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
   assert.ok(found, `a job ${id}`);
@@ -42,13 +44,32 @@ const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a
 // in report-lane-outcome's fallback-reason (ci-workflows intake-triage.yml).
 const FALLBACK_REASON =
   "${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}";
+// The fallback job's record names why the subscription did not judge, from
+// its handoff-reason (ci-workflows intake-triage.yml, the fallback job).
+const FB_REASON =
+  "${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}";
+const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
+// Whether the fallback leg can run, never the token (ci-workflows
+// intake-triage.yml and pr-review-cli.yml, "Check the credential").
+const FALLBACK_PRESENT = `          FALLBACK_PRESENT: \${{ secrets.${FALLBACK} != '' }}`;
+const FALLBACK_READY = [
+  '          if [ "$FALLBACK_PRESENT" = true ]; then',
+  '            echo "fallback-ready=true" >>"$GITHUB_OUTPUT"',
+  "          else",
+  '            echo "fallback-ready=false" >>"$GITHUB_OUTPUT"',
+  "          fi",
+].join("\n");
 const KEY_CLASS = "${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}";
 const KEY_REPORT_IF =
   "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')";
+const SUB_REPORT_IF =
+  "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')";
 const CREDENTIAL = {
   [KEY]: ["api-key", "PR_VERIFY_CLAUDE_API_KEY"],
   [SUB]: ["subscription-token", "PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN"],
+  [FB]: ["fallback-token", FALLBACK],
 };
+const others = (job) => JOBS.filter((id) => id !== job).map((id) => CREDENTIAL[id]);
 
 test("the upload is each job's only artifact step and follows the written verdict", () => {
   for (const job of JOBS) {
@@ -101,9 +122,8 @@ test("each job judges on run-claude-cli as the pr-verify role with its one secre
     assert.equal(input(judge, "lane"), "pr-verify", job);
     assert.equal(input(judge, "role"), "pr-verify", job);
     const [own, secret] = CREDENTIAL[job];
-    const [other] = CREDENTIAL[job === KEY ? SUB : KEY];
     assert.equal(input(judge, own), `\${{ secrets.${secret} }}`, job);
-    assert.equal(input(judge, other), undefined, job);
+    for (const [other] of others(job)) assert.equal(input(judge, other), undefined, job);
     assert.match(judge, /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m, job);
     for (const key of ["model", "effort", "max-turns"]) {
       assert.equal(input(judge, key), `\${{ steps.models.outputs.${key} }}`, key);
@@ -116,18 +136,20 @@ test("each job judges on run-claude-cli as the pr-verify role with its one secre
     assert.match(input(judge, "prompt-file"), /^\$\{\{ runner\.temp \}\}\//, job);
     assert.match(input(judge, "json-schema-file"), /^\$\{\{ runner\.temp \}\}\//, job);
   }
-  assert.equal(pins.size, 1, "both jobs pin the same run-claude-cli");
+  assert.equal(pins.size, 1, "every job pins the same run-claude-cli");
   assert.doesNotMatch(text, /anthropics\/claude-code-action/);
 });
 
 test("each secret appears only in its own job", () => {
+  // The subscription job may ask only whether the fallback token is set.
+  const seen = (job) => (job === SUB ? jobText(job).replaceAll(`secrets.${FALLBACK} != ''`, "") : jobText(job));
   for (const job of JOBS) {
     const [, own] = CREDENTIAL[job];
-    const [, other] = CREDENTIAL[job === KEY ? SUB : KEY];
     assert.ok(jobText(job).includes(`secrets.${own}`), job);
-    assert.ok(!jobText(job).includes(`secrets.${other}`), job);
+    for (const [, other] of others(job)) assert.ok(!seen(job).includes(`secrets.${other}`), `${job} reads ${other}`);
   }
-  assert.doesNotMatch(text, /secrets\.(?!PR_VERIFY_CLAUDE_API_KEY\b|PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\b)/);
+  assert.ok(jobText(SUB).includes(`secrets.${FALLBACK} != ''`));
+  assert.doesNotMatch(text, /secrets\.(?!PR_VERIFY_CLAUDE_API_KEY\b|PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN\b|FALLBACK_CLAUDE_CODE_OAUTH_TOKEN\b)/);
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
 });
 
@@ -169,10 +191,67 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
       "",
     ].join("\n"),
   );
-  assert.doesNotMatch(job, /^ {4}outputs:/m);
+  // The fallback job reads these: each a launcher output set after the step
+  // files are restored, or the denial check's.
+  assert.equal(
+    /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(job)?.[1],
+    [
+      "      handoff: ${{ steps.judge.outputs.handoff }}",
+      "      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}",
+      "      leg-clean: ${{ steps.sub-leg.outputs.clean }}",
+      "",
+    ].join("\n"),
+  );
+  assert.doesNotMatch(jobText(FB), /^ {4}outputs:/m);
   for (const id of JOBS) {
     assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {6}actions: read #.*\n {4}[a-z]/m, id);
   }
+});
+
+test("the fallback job runs only on the subscription job's clean handoff, on a fixed runner", () => {
+  const job = jobText(FB);
+  assert.match(job, /^ {4}needs: check-intent-subscription$/m);
+  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
+  // One hop: an empty subscription token is the subscription job's red,
+  // never a reason to run the fallback (the reusables gate on handoff alone).
+  assert.equal(
+    gate,
+    [
+      "github.ref == 'refs/heads/main'",
+      "&& github.event.workflow_run.event == 'pull_request'",
+      "&& github.event.workflow_run.conclusion == 'success'",
+      "&& github.event.workflow_run.head_repository.full_name == github.repository",
+      "&& needs.check-intent-subscription.outputs.handoff == 'true'",
+      "&& needs.check-intent-subscription.outputs.leg-clean == 'true'",
+    ].join(" "),
+  );
+  assert.doesNotMatch(gate, /always\(\)|failure\(\)|cancelled\(\)|success\(\)/);
+  assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
+  const steps = job.slice(job.indexOf("\n    steps:\n"));
+  assert.deepEqual(
+    steps.split("\n").filter((line) => line.includes("needs.")),
+    [`          fallback-reason: ${FB_REASON}`],
+  );
+});
+
+test("the subscription job hands the judgment on only after a clean handoff, and only with the fallback token set", () => {
+  const credential = step("Check the credential", SUB);
+  assert.ok(credential.split("\n").includes(FALLBACK_PRESENT));
+  assert.ok(credential.includes(FALLBACK_READY));
+  assert.equal(input(step("Judge the pull request", SUB), "fallback-ready"), "${{ steps.credential.outputs.fallback-ready }}");
+  assert.equal(input(step("Judge the pull request", KEY), "fallback-ready"), undefined);
+  const leg = step("Check the subscription leg", SUB);
+  assert.match(leg, /^ {8}id: sub-leg$/m);
+  assert.match(leg, /^ {8}if: steps\.judge\.outputs\.handoff == 'true'$/m);
+  assert.match(leg, /^ {8}continue-on-error: true$/m);
+  assert.match(leg, /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
+  assert.match(leg, /write-verdict\.mjs check-key-leg\n/);
+  const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(leg)[1];
+  assert.doesNotMatch(run, /\$\{\{/);
+  assert.ok(index("Check the subscription leg", SUB) === index("Judge the pull request", SUB) + 1);
+  assert.ok(index("Report the judgment's outcome", SUB) === index("Check the subscription leg", SUB) + 1);
+  assert.equal(index("Check the subscription leg", KEY), -1);
+  assert.equal(index("Check the subscription leg", FB), -1);
 });
 
 test("the key job hands the judgment on only after a clean handoff or with no key", () => {
@@ -198,6 +277,7 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
   assert.doesNotMatch(run, /\$\{\{/);
   assert.ok(run.lastIndexOf("::warning::") < run.indexOf("check-key-leg"));
   assert.equal(index("Check the key leg", SUB), -1);
+  assert.equal(index("Check the key leg", FB), -1);
   for (const job of JOBS) {
     const credential = step("Check the credential", job);
     assert.match(credential, /^ {8}if: steps\.agree\.outcome == 'success'$/m, job);
@@ -209,22 +289,40 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
 test("the subscription job repeats the key job's steps but for the credential", () => {
   // Each difference the two-job pattern needs, normalized away on the key
   // job's side; everything else, the gates and hardening included, matches.
+  const PLAIN_REPORT_IF = "if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'";
+  const lines = (block) =>
+    block
+      .split("\n")
+      .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
+      .join("\n");
   const normalize = (blocks) =>
     blocks
-      .filter((s) => s.name !== "Check the key leg")
+      .filter((s) => s.name !== "Check the key leg" && s.name !== "Check the subscription leg")
       .map((s) =>
-        s.block
-          .split("\n")
-          .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
-          .join("\n")
+        lines(s.block)
+          .replace(`\n${FALLBACK_PRESENT}`, "")
+          .replace(`\n${FALLBACK_READY}`, "")
+          .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
-          .replace(`if: ${KEY_REPORT_IF}`, "if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'")
+          .replace(`if: ${KEY_REPORT_IF}`, PLAIN_REPORT_IF)
+          .replace(`if: ${SUB_REPORT_IF}`, PLAIN_REPORT_IF)
           .replace(`known-failure-class: ${KEY_CLASS}`, "known-failure-class: ${{ steps.judge.outputs.lane-class }}")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
-          .replace(/ && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m, ""),
+          .replace(/ && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m, "")
+          .replace(/ && steps\.sub-leg\.outcome != 'success'$/m, ""),
       );
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
+  // The fallback job's credential step reads the fallback token where the
+  // subscription job's reads the role's.
+  const fallback = STEPS[FB].map((s) => ({
+    ...s,
+    block: s.block
+      .replace(`PRESENT: \${{ secrets.${FALLBACK} != '' }}\n          SECRET_NAME: ${FALLBACK}`, "PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}\n          SECRET_NAME: PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN")
+      .replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}")
+      .replace(`\n          fallback-reason: ${FB_REASON}`, `\n          fallback-reason: ${FALLBACK_REASON}`),
+  }));
+  assert.deepEqual(normalize(fallback), normalize(STEPS[SUB]));
 });
 
 test("the model reads only the data directory, with Read alone, and is told nothing is posted", () => {
@@ -268,7 +366,7 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   for (const job of JOBS) {
     const report = step("Report the judgment's outcome", job);
     assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(report)[1])?.[1], "report-lane-outcome", job);
-    assert.ok(index("Report the judgment's outcome", job) === index("Judge the pull request", job) + (job === KEY ? 2 : 1), job);
+    assert.ok(index("Report the judgment's outcome", job) === index("Judge the pull request", job) + (job === FB ? 1 : 2), job);
     assert.equal(input(report, "credential"), "${{ steps.judge.outputs.credential }}", job);
 
     assert.equal(input(report, "step-timeout-minutes"), "22", job);
@@ -280,16 +378,24 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
     assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
     assert.match(STEPS[job].at(-1).block, /exit 1/, job);
   }
-  assert.match(step("Report the judgment's outcome", SUB), /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
-  assert.equal(input(step("Report the judgment's outcome", SUB), "known-failure-class"), "${{ steps.judge.outputs.lane-class }}");
-  assert.equal(input(step("Report the judgment's outcome", SUB), "lane"), "pr-verify");
+  assert.equal(/^ {8}if: (.*)$/m.exec(step("Report the judgment's outcome", SUB))[1], SUB_REPORT_IF);
+  assert.match(step("Report the judgment's outcome", FB), /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
+  for (const job of [SUB, FB]) {
+    assert.equal(input(step("Report the judgment's outcome", job), "known-failure-class"), "${{ steps.judge.outputs.lane-class }}", job);
+    assert.equal(input(step("Report the judgment's outcome", job), "lane"), "pr-verify", job);
+  }
   assert.equal(input(step("Report the judgment's outcome", SUB), "fallback-reason"), FALLBACK_REASON);
+  assert.equal(input(step("Report the judgment's outcome", FB), "fallback-reason"), FB_REASON);
   // Only a hand-off spares the key job its red; an empty token fails the subscription job.
   assert.match(
     STEPS[KEY].at(-1).block,
     /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m,
   );
-  assert.match(STEPS[SUB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
+  assert.match(
+    STEPS[SUB].at(-1).block,
+    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.sub-leg\.outcome != 'success'$/m,
+  );
+  assert.match(STEPS[FB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
 
 test("a handoff leaves exactly one lane record, from the job that saw its end", () => {
@@ -308,6 +414,11 @@ test("a handoff leaves exactly one lane record, from the job that saw its end", 
   assert.match(jobText(SUB), /needs\.check-intent\.outputs\.key-leg-clean == 'true'/);
   assert.deepEqual([...FALLBACK_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["credit-stop", "auth", "no-key"]);
   assert.match(FALLBACK_REASON, /lane-class == 'auth' && 'auth'/);
+  // A clean subscription handoff skips the subscription job's report the
+  // same way; the fallback job, which runs exactly when leg-clean is true,
+  // records the run with report-lane-outcome's limit-stop, credit-stop or auth.
+  assert.match(jobText(FB), /needs\.check-intent-subscription\.outputs\.leg-clean == 'true'/);
+  assert.deepEqual([...FB_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["limit-stop", "credit-stop", "auth"]);
   // No gate keys the subscription leg on the credit-stop class any more:
   // run-claude-cli's handoff output is the one signal.
   for (const line of text.split("\n").filter((l) => /^\s+(- )?if: /.test(l) || /^\s+&& /.test(l))) {

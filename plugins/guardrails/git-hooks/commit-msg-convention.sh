@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # guardrails-commit-msg-convention v2
 # guardrails commit-msg check: the commit subject matches the team convention.
 #
@@ -24,39 +24,44 @@
 # `Revert "..."` from git revert.
 # A violation prints how to fix the subject and exits 1; this hook never
 # suggests skipping it.
-set -uo pipefail
+#
+# POSIX sh, the resolver too, run with `sh`: it needs no bash beside git's sh,
+# and on Windows a bash looked up by name can be System32's WSL launcher.
+# shellcheck shell=sh
+set -u
 
 msg_file="${1:-}"
-[[ -n "$msg_file" && -f "$msg_file" ]] || exit 0
+[ -n "$msg_file" ] || exit 0
+[ -f "$msg_file" ] || exit 0
 
-here="${BASH_SOURCE[0]%/*}"
-[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+case "$0" in
+*/*) here="${0%/*}" ;;
+*) here=. ;;
+esac
 resolver="$here/resolve-convention-pattern.sh"
-[[ -f "$resolver" ]] || resolver="$here/../hooks/resolve-convention-pattern.sh"
+[ -f "$resolver" ] || resolver="$here/../hooks/resolve-convention-pattern.sh"
 # Resolver gone: no enforcement, never a blind block.
-[[ -f "$resolver" ]] || exit 0
+[ -f "$resolver" ] || exit 0
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 errf="$(mktemp 2>/dev/null)" || errf=/dev/null
-subject_ere="$(bash "$resolver" "$repo_root" subject_pattern 2>"$errf")"
+subject_ere="$(sh "$resolver" "$repo_root" subject_pattern 2>"$errf")"
 rc=$?
-if ((rc != 0)); then
-  err=""
-  IFS= read -r -d '' err <"$errf" || true
-  err="${err//[$'\r\n\t']/ }"
+if [ "$rc" -ne 0 ]; then
+  err="$(tr '\r\n\t' '   ' <"$errf")"
   err="${err#"${err%%[![:space:]]*}"}"
   err="${err%"${err##*[![:space:]]}"}"
-  [[ "$errf" == /dev/null ]] || rm -f "$errf"
+  [ "$errf" = /dev/null ] || rm -f "$errf"
   # Exit 1 with empty stderr is "no convention tracked": quiet. Any other
   # failure means this check did not run; it still lets the commit through.
-  if [[ -n "$err" || $rc -ne 1 ]]; then
-    [[ -n "$err" ]] || err="exit status $rc, no message"
-    echo "guardrails: the commit-msg convention check did not run, so this subject was not checked. The convention resolver reported \"${err:0:300}\"." >&2
+  if [ -n "$err" ] || [ "$rc" -ne 1 ]; then
+    [ -n "$err" ] || err="exit status $rc, no message"
+    printf 'guardrails: the commit-msg convention check did not run, so this subject was not checked. The convention resolver reported "%.300s".\n' "$err" >&2
   fi
   exit 0
 fi
-[[ "$errf" == /dev/null ]] || rm -f "$errf"
-[[ -n "$subject_ere" ]] || exit 0
+[ "$errf" = /dev/null ] || rm -f "$errf"
+[ -n "$subject_ere" ] || exit 0
 
 # The subject is the first non-empty line git keeps. Git drops comment lines
 # only under the strip cleanup: commit.cleanup=strip, or the default when an
@@ -65,35 +70,48 @@ fi
 # here. The comment character follows core.commentChar; `auto` cannot be known
 # here.
 comment_char="$(git config --get core.commentChar 2>/dev/null || true)"
-[[ -n "$comment_char" && "$comment_char" != auto ]] || comment_char="#"
+case "$comment_char" in
+"" | auto) comment_char="#" ;;
+*) ;;
+esac
 case "$(git config --get commit.cleanup 2>/dev/null || true)" in
 strip) strip=1 ;;
 verbatim | whitespace | scissors) strip=0 ;;
-*) if [[ "${GIT_EDITOR:-}" == ":" ]]; then strip=0; else strip=1; fi ;;
+*) if [ "${GIT_EDITOR:-}" = ":" ]; then strip=0; else strip=1; fi ;;
 esac
 
+cr="$(printf '\r')"
 subject=""
-while IFS= read -r line || [[ -n "$line" ]]; do
-  line="${line%$'\r'}"
-  [[ -n "$line" ]] || continue
-  ((strip)) && [[ "${line:0:1}" == "$comment_char" ]] && continue
+while IFS= read -r line || [ -n "$line" ]; do
+  line="${line%"$cr"}"
+  [ -n "$line" ] || continue
+  if [ "$strip" -eq 1 ]; then
+    case "$line" in
+    "$comment_char"*) continue ;;
+    *) ;;
+    esac
+  fi
   subject="$line"
   break
 done <"$msg_file"
 
 # An empty message: git aborts the commit itself.
-[[ -n "$subject" ]] || exit 0
+[ -n "$subject" ] || exit 0
 
 case "$subject" in
 "fixup! "* | "squash! "* | "amend! "* | "Merge "* | 'Revert "'*) exit 0 ;;
 *) ;;
 esac
 
-grep -Eq -- "$subject_ere" <<<"$subject" && exit 0
+# A heredoc, as POSIX sh has no here-string: a pipe into an early-exit grep can
+# kill its writer.
+grep -Eq -- "$subject_ere" <<EOF && exit 0
+$subject
+EOF
 {
   echo "guardrails: the commit subject does not match the team convention."
-  echo "  subject: $subject"
-  echo "  pattern: $subject_ere   (subject_pattern in .claude/source-control.md)"
+  printf '  subject: %s\n' "$subject"
+  printf '  pattern: %s   (subject_pattern in .claude/source-control.md)\n' "$subject_ere"
   echo "Rewrite the subject to match the pattern and commit again. If the pattern"
   echo "itself is wrong, change it in .claude/source-control.md through a pull request."
 } >&2

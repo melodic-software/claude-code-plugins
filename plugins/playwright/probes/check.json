@@ -1,0 +1,120 @@
+{
+  "skill": "playwright:check",
+  "plugin": "playwright",
+  "skill_dir": "plugins/playwright/skills/check",
+  "ranking_note": "Authored blind from the before descriptions at commit 7f7f5219ab98be34e7bc288fc70c01a5a13f2073, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked playwright skills (setup is user-invoked only).",
+  "competitors": [
+    "playwright:demo-video",
+    "playwright:playwright"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we start the browser test, can you confirm playwright-cli is actually installed on this machine?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I got 'command not found: playwright-cli' when the browser step kicked off. Can you figure out what's absent without changing anything?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is there a Chromium build that playwright-cli can actually find, or are we missing one? Just look, don't install."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The prerequisites summary flagged playwright-cli as a gap. Verify whether it's really absent on this box."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Quick sanity check: do I have everything needed to drive a headless browser with the playwright CLI here?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which version of playwright-cli is on my PATH, and can it locate a browser binary to launch?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make sure the browser tooling is ready before you try anything on the login page; don't set anything up, just tell me what's there."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you tell me whether playwright-cli and a usable browser are present in this container?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The E2E attempt died saying no browser executable was found. Diagnose whether the CLI and browsers are installed, without fixing it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run a read-only preflight on the Playwright CLI setup so I know whether browser automation can work in this environment."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Drive the browser through the signup flow on localhost:3000 and tell me if anything breaks."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install playwright-cli and the Chromium browser for me so I can start using it."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Record a polished demo video of the new dashboard filter and put it on the PR."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a Playwright test spec file for the checkout page; I'll run it in CI later."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check whether my npm dependencies have any known security vulnerabilities."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Take a screenshot of the settings page and capture any console errors it throws."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Upgrade our project's @playwright/test package to the latest version and fix any breaking changes."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make a walkthrough video showing the redesigned onboarding working and attach it to my pull request."
+    }
+  ]
+}

@@ -6,13 +6,16 @@
 // post-merge-demotion-alert.yml share: a cancelled full run counts as red, so
 // no pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
@@ -58,7 +61,18 @@ test("a push job holds the group until the dispatched run finishes", () => {
 // it raises no workflow_run event.
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const SEND = `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242 -f inputs[head-sha]=${HEAD}`;
-function runWait(conclusion, { dispatchFails = false } = {}) {
+// With notModified N, the first read finds the run in progress with ETag
+// "e1", the next N reads (sent with If-None-Match on it) are answered 304
+// with gh's exit 1, and the one after finds it completed. With limited, every
+// read is refused with limitedMessage. Each entry of sendErrors fails one send
+// in turn with that stderr; the send after them succeeds, unless
+// dispatchFails.
+// gh's stderr for a POST GitHub refused for a rate limit, as run 39906176584
+// logged it (pr-merge.yml, dispatch-full-run, "Start the full CI run on main",
+// 2026-10-23T05:30:57Z).
+const RATE_LIMITED_STDERR =
+  "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
+function runWait(conclusion, { dispatchFails = false, sendErrors = [], notModified = 0, limited = false, limitedMessage = RATE_LIMITED_STDERR } = {}) {
   const step = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   const body = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
     .exec(step)[1]
@@ -67,16 +81,33 @@ function runWait(conclusion, { dispatchFails = false } = {}) {
     .join("\n");
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-wait-"));
   mkdirSync(join(dir, "bin"));
-  writeFileSync(join(dir, "bin", "sleep"), "#!/bin/sh\nexit 0\n", {
+  writeFileSync(join(dir, "bin", "sleep"), `#!/bin/sh\necho "$*" >>"${dir}/sleeps"\n`, {
     mode: 0o755,
   });
+  writeFileSync(join(dir, "n304"), String(notModified));
+  sendErrors.forEach((stderr, i) => writeFileSync(join(dir, `send-stderr-${i + 1}`), stderr));
+  const done = `{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}`;
+  const first = notModified > 0 ? `{"status": "in_progress", "conclusion": null, "head_sha": "${HEAD}"}` : done;
   writeFileSync(
     join(dir, "bin", "gh"),
     `#!/usr/bin/env bash
 printf '%s\\n' "$*" >>"${dir}/log"
 case "$*" in
-  *-X\\ POST*) exit ${dispatchFails ? 1 : 0} ;;
-  *) jq -r "\${@: -1}" <<<'{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}' ;;
+  *-X\\ POST*)
+    s=$(($(cat "${dir}/sends" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/sends"
+    if [ -f "${dir}/send-stderr-$s" ]; then cat "${dir}/send-stderr-$s" >&2; exit 1; fi
+    exit ${dispatchFails ? 1 : 0} ;;
+  ${limited ? `*) echo '${limitedMessage}' >&2; exit 1 ;;` : ""}
+  *'-H If-None-Match: "e1"')
+    n=$(cat "${dir}/n304")
+    if [ "$n" -gt 0 ]; then
+      echo $((n - 1)) >"${dir}/n304"
+      printf 'HTTP/2.0 304 Not Modified\\r\\nEtag: "e1"\\r\\n\\r\\n'
+      echo 'gh: HTTP 304' >&2
+      exit 1
+    fi
+    printf 'HTTP/2.0 200 OK\\r\\nEtag: "e2"\\r\\n\\r\\n%s\\n' '${done}' ;;
+  *) printf 'HTTP/2.0 200 OK\\r\\nEtag: "e1"\\r\\n\\r\\n%s\\n' '${first}' ;;
 esac
 `,
     { mode: 0o755 },
@@ -89,17 +120,53 @@ esac
       GH_TOKEN: "x",
       REPO: "o/r",
       RUN_ID: "4242",
+      RUNNER_TEMP: dir,
     },
     encoding: "utf8",
   });
   const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
+  const sleeps = existsSync(join(dir, "sleeps")) ? readFileSync(join(dir, "sleeps"), "utf8").split("\n").filter(Boolean) : [];
   rmSync(dir, { recursive: true, force: true });
   return {
     status: result.status,
     out: result.stdout + result.stderr,
     writes: log.split("\n").filter((l) => l.includes("-X POST")),
+    reads: log.split("\n").filter((l) => l.startsWith("api -i ")),
+    sleeps,
   };
 }
+
+test("a rate-limited read of the full run stops the wait red after one read", () => {
+  const { status, out, reads, writes } = runWait("failure", { limited: true });
+  assert.equal(status, 1, out);
+  assert.equal(reads.length, 1);
+  assert.deepEqual(writes, []);
+  assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+});
+
+// gh's bare 429 message names no rate limit, and is one all the same.
+test("a bare HTTP 429 on the read of the full run stops the wait red after one read", () => {
+  const { status, out, reads, writes } = runWait("failure", { limited: true, limitedMessage: "gh: Too Many Requests (HTTP 429)" });
+  assert.equal(status, 1, out);
+  assert.equal(reads.length, 1);
+  assert.deepEqual(writes, []);
+  assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+});
+
+// A 304 is the run as last read: the wait keeps its three-minute pace and
+// sends the red run once it completes, as with plain reads.
+test("a poll answered 304 waits on, then sends the red run once it completes", () => {
+  const { status, writes, reads, sleeps } = runWait("failure", { notModified: 2 });
+  assert.equal(status, 0);
+  assert.deepEqual(writes, [SEND]);
+  assert.deepEqual(sleeps, ["180", "180", "180", "180"]);
+  assert.deepEqual(reads, [
+    "api -i repos/o/r/actions/runs/4242",
+    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
+    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
+    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
+  ]);
+});
 
 // The alert serializes on signal and head SHA, so the send names the run's
 // head SHA as the run reports it, not this workflow's push SHA.
@@ -133,6 +200,38 @@ test("a send that fails fails the job", () => {
   assert.match(out, /::error::could not send run 4242 to post-merge-demotion-alert\.yml/);
 });
 
+// The owner outage rule (Q677: at most three attempts, a capped full-jitter
+// backoff), sent again only when the request never left, as the dispatch.
+// The 180 s entries are the wait's own polls; the alert's waits come after.
+test("an alert send that never left is sent again after a jittered wait, at most three times", () => {
+  const timeout = 'Post "https://api.github.com/repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches": net/http: TLS handshake timeout';
+  const sent = runWait("failure", { sendErrors: [timeout, timeout] });
+  assert.equal(sent.status, 0, sent.out);
+  assert.deepEqual(sent.writes, [SEND, SEND, SEND]);
+  const waits = sent.sleeps.slice(1).map(Number);
+  assert.equal(waits.length, 2);
+  assert.ok(waits[0] >= 1 && waits[0] <= 10, `${waits[0]}`);
+  assert.ok(waits[1] >= 1 && waits[1] <= 20, `${waits[1]}`);
+  const spent = runWait("failure", { sendErrors: [timeout, timeout, timeout] });
+  assert.equal(spent.status, 1, spent.out);
+  assert.equal(spent.writes.length, 3);
+  assert.match(spent.out, /::error::could not send run 4242 to post-merge-demotion-alert\.yml after 3 attempt\(s\)/);
+  // A send that may have reached GitHub is not sent again.
+  const answered = runWait("failure", { sendErrors: ["gh: Server Error (HTTP 502)", ""] });
+  assert.equal(answered.status, 1);
+  assert.deepEqual(answered.writes, [SEND]);
+});
+
+test("a rate-limited alert send is sent once and stops red", () => {
+  for (const stderr of [RATE_LIMITED_STDERR, "gh: Too Many Requests (HTTP 429)"]) {
+    const { status, out, writes, sleeps } = runWait("failure", { sendErrors: [stderr] });
+    assert.equal(status, 1, out);
+    assert.deepEqual(writes, [SEND]);
+    assert.deepEqual(sleeps, ["180"]);
+    assert.match(out, /::error title=GitHub rate limit::the send of run 4242 to post-merge-demotion-alert\.yml was rate limited/);
+  }
+});
+
 test("the dispatch job's token is actions: write and nothing else", () => {
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(job("dispatch-full-run"))[1];
   assert.deepEqual(
@@ -149,16 +248,18 @@ test("pr-require-checks.yml never cancels a dispatched or scheduled run", () => 
   assert.match(group, /github\.event\.pull_request\.number \|\| github\.run_id/);
 });
 
-// The native-merge plan's arm-merge item: the lanes App token arms a lane
-// pull request as soon as the issue lane finishes, in pr-merge.yml, the one
-// caller the token broker mints `merge` for; the merge job's gate never runs
-// on that event.
-test("the issue lane finishing wakes only the enable-auto-merge job", () => {
-  assert.match(merge, /\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[work-resolve-issue\]\n {4}types: \[completed\]\n/);
-  assert.match(job("merge"), /\n {6}&& github\.event_name != 'workflow_run'\n/);
+// Only a scheduled or hand-started run arms (enable-auto-merge.mjs
+// READER_EVENTS), and a pull request the issue lane just opened is not armed,
+// so the issue lane finishing would give the job nothing to do: no
+// workflow_run trigger wakes it.
+test("no workflow_run trigger wakes pr-merge, and the enable-auto-merge job skips push", () => {
+  const on = merge.slice(merge.indexOf("\non:\n"), merge.indexOf("\npermissions:"));
+  assert.doesNotMatch(on, /\n {2}workflow_run:/);
+  const condition = (body) => /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(body)[1];
+  assert.doesNotMatch(condition(job("merge")), /workflow_run/);
   const arm = job("enable-auto-merge");
-  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1];
-  assert.match(armIf, /github\.event_name != 'workflow_run' \|\| github\.event\.workflow_run\.conclusion != 'skipped'/);
+  const armIf = condition(arm);
+  assert.doesNotMatch(armIf, /workflow_run/);
   // A push to main is a merge landing, never a new lane pull request.
   assert.match(armIf, /github\.event_name != 'push'/);
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
@@ -210,7 +311,7 @@ test("the merge and enable-auto-merge jobs' kept-file readers share their reads"
 
 test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
   const arm = job("enable-auto-merge");
-  const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
+  const step = /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
   assert.ok(step, "the arm step names its timeout");
   // The room read, then the verdict budget and the last read it starts.
   assert.ok(LANE_ROOM_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
@@ -298,8 +399,42 @@ test("enable-auto-merge's step timeouts fit inside its job's", () => {
   const arm = job("enable-auto-merge");
   const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(arm)[1]);
   const steps = [...arm.matchAll(/\n {8}timeout-minutes: ([0-9]+)\n/g)].map((m) => Number(m[1]));
-  assert.ok(steps.length >= 4, "the post-merge check, the cache restore, the arm step and the budget step name timeouts");
+  assert.ok(steps.length >= 4, "the post-merge check, the run cache read, the arm step and the budget step name timeouts");
   assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
+});
+
+// pr-unblock's report-conflict-status precedent: statuses: write only on a
+// job that holds no lane token and runs only main's script.
+test("the pr-merge/unarmed statuses are posted by a job of their own, with statuses: write and nothing it could run from a pull request", () => {
+  const arm = job("enable-auto-merge");
+  assert.match(arm, /\n {4}outputs:\n {6}unarmed-statuses: \$\{\{ steps\.arm\.outputs\.unarmed-statuses \}\}\n/);
+  assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
+  assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
+  const post = job("unarmed-status");
+  assert.match(post, /^ {4}needs: \[enable-auto-merge\]\n/);
+  // It runs whenever enable-auto-merge handed it statuses, after a failed
+  // step too, and only then.
+  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \}\}\n/);
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(post)[1];
+  assert.deepEqual(
+    [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
+    ["contents: read", "statuses: write"],
+  );
+  assert.doesNotMatch(post, /lane-token|request-lane-token|id-token/);
+  assert.match(post, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  // The statuses reach the script through its environment, never the shell.
+  assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
+});
+
+// The merge job's sizing comment: about a minute before the loop, then the
+// longer of the gate budget (10) plus a candidate's read limit (4) and a
+// deferred candidate's ceiling (20), plus one read's own timeout (4); the
+// escalation clear's own timeout comes on top.
+test("the merge job's ceiling covers the gate's sweep and the escalation clear", () => {
+  const gate = job("merge");
+  const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
+  const clear = Number(/- name: Clear escalations whose reason no longer holds\n[\s\S]*?\n {8}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
+  assert.ok(total >= 1 + Math.max(10 + 4, 20) + 4 + clear, `${total} minutes for the gate and a ${clear}-minute clear`);
 });
 
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
@@ -342,12 +477,14 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
 
 // The dispatch POST's retry, run under bash against a stub gh that answers
 // each POST in turn from `answers` ({status, headers, body}, or {stderr} for
-// no response at all, with gh's error text), a stub sleep that logs its seconds and a stub date. The
-// expected waits come from the owner outage rule (at most three attempts;
-// retry-after, else x-ratelimit-reset for a primary limit, else at least
-// 60 s for a secondary one; otherwise a capped full-jitter backoff) and
-// GitHub's documented order
-// (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
+// no response at all, with gh's error text), a stub sleep that logs its seconds and a stub date
+// whose `+%s` is NOW. The expected answers come from the owner outage rule
+// (at most three attempts, a capped full-jitter backoff) and the owner's
+// ban rule: a rate limit is never sent again, and the step fails red naming
+// the reset, the later of retry-after and x-ratelimit-reset while remaining
+// is 0, else a minute on, as GitHub documents the waits
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+// Each expected reset below is `date -u -d @<seconds>` of the NOW sum.
 const NOW = 1792736000;
 const runBody = (block) =>
   /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
@@ -393,7 +530,8 @@ exit "$(cat "${dir}/code-$n" 2>/dev/null || echo 1)"
     { mode: 0o755 },
   );
   writeFileSync(join(dir, "bin", "sleep"), `#!/bin/sh\necho "$1" >>"${dir}/slept"\n`, { mode: 0o755 });
-  writeFileSync(join(dir, "bin", "date"), `#!/bin/sh\necho ${NOW}\n`, { mode: 0o755 });
+  const realDate = spawnSync("bash", ["-c", "command -v date"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(join(dir, "bin", "date"), `#!/bin/sh\nif [ "$1" = +%s ]; then echo ${NOW}; else exec ${realDate} "$@"; fi\n`, { mode: 0o755 });
   writeFileSync(join(dir, "body.sh"), step.body);
   writeFileSync(join(dir, "output"), "");
   const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
@@ -437,54 +575,98 @@ test("a dispatch answered at once records its run and waits for nothing", () => 
   assert.deepEqual(JSON.parse(r.record), { dispatcher_run_id: 77, run_id: 4242 });
 });
 
-test("a rate-limited dispatch waits retry-after seconds, then sends again", () => {
+// A rate limit stops the step red after its one POST, with no wait.
+const stopped = (r) => {
+  assert.equal(r.status, 1, r.out);
+  assert.equal(r.posts, 1);
+  assert.deepEqual(r.slept, []);
+  assert.doesNotMatch(r.output, /run-id=/);
+  // post-merge-dispatch's re-run step reads it and sends nothing.
+  assert.match(r.output, /^rate-limited=true$/m);
+  assert.equal(r.record, "");
+};
+
+test("a retry-after stops every pool until the later of it and a spent pool's reset", () => {
   const r = runDispatch([limited({ "Retry-After": "7", "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 100}` }), ok(4243)]);
-  assert.equal(r.status, 0, r.out);
-  assert.equal(r.posts, 2);
-  assert.deepEqual(r.slept, [7]);
-  assert.match(r.output, /^run-id=4243$/m);
+  stopped(r);
+  assert.match(r.out, /::error title=GitHub rate limit::every pool is exhausted \(HTTP 403: .*\); nothing more is sent before 2026-10-23T06:15:00Z/);
 });
 
-test("a primary limit with no retry-after waits until one second past the reset", () => {
-  const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}` }), ok(4244)]);
-  assert.equal(r.status, 0, r.out);
-  assert.deepEqual(r.slept, [31]);
-  assert.match(r.output, /^run-id=4244$/m);
+test("a primary limit with no retry-after names its pool and the reset", () => {
+  const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}`, "X-Ratelimit-Resource": "core" }), ok(4244)]);
+  stopped(r);
+  assert.match(r.out, /::error title=GitHub rate limit::the core pool is exhausted .*before 2026-10-23T06:13:50Z/);
+  // The merge job reads this through post-merge-dispatch's rate-limited output.
+  assert.match(r.output, /^stop=the core pool until 2026-10-23T06:13:50Z$/m);
 });
 
-test("a secondary limit named only by its message waits 60 s", () => {
+test("a secondary limit named only by its message stops every pool for a minute", () => {
   const r = runDispatch(
     [limited({ "X-Ratelimit-Remaining": "812" }, "You have exceeded a secondary rate limit"), ok(4245)],
     { jobId: "post-merge-dispatch", event: "schedule" },
   );
-  assert.equal(r.status, 0, r.out);
-  assert.deepEqual(r.slept, [60]);
-  assert.match(r.output, /^run-id=4245$/m);
+  stopped(r);
+  assert.match(r.out, /::error title=GitHub rate limit::every pool is exhausted .*before 2026-10-23T06:14:20Z/);
 });
 
-test("three rate-limited answers end green with a warning naming the merge, and no run id", () => {
-  const busy = limited({ "Retry-After": "5" });
-  const r = runDispatch([busy, busy, busy, ok(1)]);
+test("a 429 is stopped like a 403", () => {
+  const r = runDispatch([{ ...limited({ "Retry-After": "5" }), status: "429 Too Many Requests" }, ok(1)]);
+  stopped(r);
+});
+
+// Any 429 is a rate limit, and a limit no header times waits as
+// rate-guard.mjs classify decides: the minute for a secondary one, else the hour.
+const DISPATCH_URL = "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches";
+for (const [name, status, body] of [
+  ["a bare 429 with no headers or message", 429, ""],
+  ["a 403 whose message names a primary rate limit, with no headers", 403, JSON.stringify({ message: "API rate limit exceeded for installation" })],
+  ["a 403 whose message names a secondary rate limit, with no headers", 403, JSON.stringify({ message: "You have exceeded a secondary rate limit" })],
+  ["a 403 whose message names only abuse detection, with no headers", 403, JSON.stringify({ message: "You have triggered an abuse detection mechanism" })],
+]) {
+  test(`${name} stops every pool until the guard's reset`, () => {
+    const want = classify({ url: DISPATCH_URL, status, headers: {}, body }, { now: NOW * 1000 });
+    assert.equal(want.pool, "*");
+    for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+      const r = runDispatch([{ status: `${status} X`, headers: {}, body }, ok(1)], { jobId, event: "schedule" });
+      stopped(r);
+      assert.match(r.out, new RegExp(`::error title=GitHub rate limit::every pool is exhausted \\(HTTP ${status}: .*before ${resetLabel(want.reset)}`));
+    }
+  });
+}
+
+test("a secondary limit with a spent pool still stops every pool, as the guard does", () => {
+  const headers = { "x-ratelimit-remaining": "0", "x-ratelimit-reset": `${NOW + 30}`, "x-ratelimit-resource": "core" };
+  const body = JSON.stringify({ message: "You have exceeded a secondary rate limit" });
+  const want = classify({ url: DISPATCH_URL, status: 403, headers, body }, { now: NOW * 1000 });
+  assert.equal(want.pool, "*");
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([{ status: "403 X", headers, body }, ok(1)], { jobId, event: "schedule" });
+    stopped(r);
+    assert.match(r.out, new RegExp(`::error title=GitHub rate limit::every pool is exhausted \\(HTTP 403: .*before ${resetLabel(want.reset)}`));
+    assert.match(r.output, new RegExp(`^stop=every pool until ${resetLabel(want.reset)}$`, "m"));
+  }
+});
+
+const refused = () => limited({ "X-Ratelimit-Remaining": "900" }, "Resource not accessible by integration");
+
+test("a refusal ends green with a warning naming the merge, and no run id", () => {
+  const r = runDispatch([refused(), ok(1)]);
   assert.equal(r.status, 0, r.out);
-  assert.equal(r.posts, 3);
-  assert.deepEqual(r.slept, [5, 5]);
-  assert.match(r.out, new RegExp(`::warning::no full CI run started for merge ${HEAD} after 3 attempt\\(s\\): HTTP 403`));
+  assert.match(r.out, new RegExp(`::warning::no full CI run started for merge ${HEAD} after 1 attempt\\(s\\): HTTP 403`));
   assert.doesNotMatch(r.output, /run-id=/);
-  assert.equal(r.record, "");
 });
 
 test("a scheduled run's warning names main at the run's start, not a merge", () => {
-  const busy = limited({ "Retry-After": "5" });
-  const r = runDispatch([busy, busy, busy], { jobId: "post-merge-dispatch", event: "schedule" });
+  const r = runDispatch([refused()], { jobId: "post-merge-dispatch", event: "schedule" });
   assert.match(r.out, new RegExp(`::warning::no full CI run started for main \\(this run started at ${HEAD}\\)`));
 });
 
 test("a wait past the job's cap is not taken", () => {
-  const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 1800}` }), ok(1)], { cap: "180" });
+  const r = runDispatch([{ stderr: 'Post "https://api.github.com/x": dial tcp: lookup api.github.com: no such host' }, ok(1)], { cap: "0" });
   assert.equal(r.status, 0, r.out);
   assert.equal(r.posts, 1);
   assert.deepEqual(r.slept, []);
-  assert.match(r.out, /::warning::.*a 1801s wait does not fit the 180s this job allows/);
+  assert.match(r.out, /::warning::.*wait does not fit the 0s this job allows/);
   assert.doesNotMatch(r.output, /run-id=/);
 });
 
@@ -521,6 +703,44 @@ test("a request that never left is sent again after a jittered wait inside its b
   assert.equal(runDispatch([unsent[2], ok(4247)]).posts, 2);
 });
 
+// Go's net/http error when the TLS handshake outlasts its timeout, before any
+// request byte is written, so a resend cannot start a second run.
+const handshakeTimeout = { stderr: `Post "${DISPATCH_URL}": net/http: TLS handshake timeout` };
+
+test("a TLS handshake timeout is sent again in both jobs", () => {
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([handshakeTimeout, ok(4248)], { jobId, event: "schedule" });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.posts, 2, jobId);
+    assert.equal(r.slept.length, 1, jobId);
+    assert.ok(r.slept[0] >= 1 && r.slept[0] <= 10, `${r.slept[0]}`);
+    assert.match(r.output, /^run-id=4248$/m, jobId);
+  }
+});
+
+// The resend never reaches past a rate limit: the attempt after the timeout
+// is answered with one, and nothing is sent after it.
+test("a rate limit after a TLS handshake timeout still stops red, with no further send", () => {
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([handshakeTimeout, limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}`, "X-Ratelimit-Resource": "core" }), ok(1)], { jobId, event: "schedule" });
+    assert.equal(r.status, 1, r.out);
+    assert.equal(r.posts, 2, jobId);
+    assert.equal(r.slept.length, 1, jobId);
+    assert.match(r.output, /^rate-limited=true$/m, jobId);
+    assert.doesNotMatch(r.output, /run-id=/, jobId);
+  }
+});
+
+// Only a lane merge is picked up by the scheduled post-merge check; any other
+// merge waits for the next push or pr-require-checks.yml's own schedule.
+test("the exhausted-retry warning names who starts the run next", () => {
+  assert.match(read("pr-require-checks.yml"), /\n {2}schedule:\n {4}- cron: /);
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([refused()], { jobId, event: "schedule" });
+    assert.match(r.out, /::warning::no full CI run started .*; a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule$/m, jobId);
+  }
+});
+
 // A reset or a timeout on an open connection may come after GitHub took the
 // request, so the run may exist: stop as on exhaustion.
 test("no response once the request may have been sent is not sent again", () => {
@@ -538,21 +758,6 @@ test("no response once the request may have been sent is not sent again", () => 
   }
 });
 
-// post-merge-dispatch's 15 minutes hold its measured steps, the re-run
-// step's read-back after this one, and at most 180 s of waits here (the yaml
-// comment holds the numbers): a 181 s wait is not taken, two 60 s ones are.
-test("post-merge-dispatch takes at most 180 s of waits", () => {
-  const opts = { jobId: "post-merge-dispatch", event: "schedule" };
-  const over = runDispatch([limited({ "Retry-After": "181" }), ok(1)], opts);
-  assert.equal(over.posts, 1);
-  assert.deepEqual(over.slept, []);
-  assert.match(over.out, /a 181s wait does not fit the 180s this job allows/);
-  const secondary = limited({ "Retry-After": "60" });
-  const within = runDispatch([secondary, secondary, ok(4248)], opts);
-  assert.deepEqual(within.slept, [60, 60]);
-  assert.match(within.output, /^run-id=4248$/m);
-});
-
 test("a dispatch that returns no run id is not sent again and records nothing", () => {
   const r = runDispatch([{ status: "200 OK", headers: {}, body: "{}" }, ok(1)]);
   assert.equal(r.status, 0, r.out);
@@ -568,4 +773,232 @@ test("a dispatch that failed skips the record and the wait", () => {
   }
   const wait = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   assert.match(wait, /^ {8}if: github\.event_name == 'push' && steps\.dispatch\.outputs\.run-id != ''\n/);
+});
+
+// Each job's "Check who started the run" step, run under bash from a directory
+// whose .base is this checkout, with the step's own env (its github context
+// filled from the run below) and an API that serves this run attempt's record,
+// or answers 404 when record is null. Expected values come from GitHub's
+// workflow run record: actor is who started the run and triggering_actor who
+// started this attempt, each with a permanent account id, while a login can be
+// released and registered by someone else. The listed human is
+// trusted-actors.json's entry 153232337.
+const OWNER = { id: 153232337, login: "kyle-sexton" };
+const BOT = { id: 41898282, login: "github-actions[bot]" };
+async function runWho(
+  jobId,
+  {
+    event = "workflow_dispatch",
+    attempt = "2",
+    actor = OWNER,
+    actorId = String(actor.id),
+    rerunner = actor,
+    record = { id: 4242, run_attempt: Number(attempt), actor, triggering_actor: rerunner },
+    env: extra = {},
+  } = {},
+) {
+  const step = /- name: Check who started the run\n([\s\S]*?)(?=\n {6}- name: )/.exec(job(jobId))[1];
+  const context = {
+    "github.event_name": event,
+    "github.actor_id": actorId,
+    "github.triggering_actor": rerunner.login,
+    "github.token": "t",
+  };
+  const stepEnv = Object.fromEntries(
+    [...step.matchAll(/^ {10}([A-Z_]+): (.*)$/gm)].map(([, k, v]) => [k, v.replace(/\$\{\{ (\S+) \}\}/g, (_, e) => context[e])]),
+  );
+  const block = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/.exec(step);
+  const body = block ? block[1].split("\n").map((l) => l.slice(10)).join("\n") : /\n {8}run: (.*)/.exec(step)[1];
+  const reads = [];
+  const server = createServer((req, res) => {
+    reads.push(req.url);
+    const found = req.url === "/repos/o/r/actions/runs/4242" && record !== null;
+    res.writeHead(found ? 200 : 404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(found ? record : { message: "Not Found" }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-who-"));
+  try {
+    symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
+    writeFileSync(join(dir, "body.sh"), body);
+    const output = join(dir, "output");
+    const env = {
+      ...process.env,
+      ...stepEnv,
+      GITHUB_OUTPUT: output,
+      GITHUB_REPOSITORY: "o/r",
+      GITHUB_RUN_ID: "4242",
+      GITHUB_RUN_ATTEMPT: attempt,
+      GITHUB_EVENT_NAME: event,
+      GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+      // .base is a link here, a checkout in CI: keep the script's own path.
+      NODE_OPTIONS: "--preserve-symlinks-main",
+      ...extra,
+    };
+    let stdout = "";
+    const status = await new Promise((resolve) => {
+      const child = spawn("bash", ["-e", join(dir, "body.sh")], { cwd: dir, env, stdio: ["ignore", "pipe", "ignore"] });
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.on("close", resolve);
+    });
+    assert.equal(status, 0);
+    return { proceed: /^proceed=(.*)$/m.exec(readFileSync(output, "utf8"))?.[1], reads, stdout };
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const RUN_READ = ["/repos/o/r/actions/runs/4242"];
+
+for (const jobId of ["merge", "enable-auto-merge"]) {
+  test(`${jobId}: a listed human's id proceeds whatever its login now reads`, async () => {
+    const renamed = { id: OWNER.id, login: "kyle-renamed" };
+    const { proceed, reads } = await runWho(jobId, { actor: renamed });
+    assert.equal(proceed, "true");
+    assert.deepEqual(reads, RUN_READ);
+  });
+
+  test(`${jobId}: a re-runner holding a listed login under another id stops, naming both ids`, async () => {
+    const { proceed, stdout } = await runWho(jobId, { rerunner: { id: 999, login: OWNER.login } });
+    assert.equal(proceed, "false");
+    assert.match(stdout, /::notice::.*actor id 153232337, re-runner id 999\)/);
+  });
+
+  test(`${jobId}: an unreadable run record stops`, async () => {
+    assert.equal((await runWho(jobId, { record: null })).proceed, "false");
+  });
+
+  test(`${jobId}: another attempt's record or a missing id stops`, async () => {
+    assert.equal((await runWho(jobId, { record: { id: 4242, run_attempt: 1, actor: OWNER, triggering_actor: OWNER } })).proceed, "false");
+    assert.equal((await runWho(jobId, { record: { id: 4242, run_attempt: 2, actor: OWNER, triggering_actor: { login: OWNER.login } } })).proceed, "false");
+  });
+
+  test(`${jobId}: an unlisted actor stops before any read, whoever re-ran it`, async () => {
+    const { proceed, reads, stdout } = await runWho(jobId, { actor: { id: 999, login: "someone" }, rerunner: OWNER });
+    assert.equal(proceed, "false");
+    assert.deepEqual(reads, []);
+    assert.match(stdout, /::notice::.*\(actor id 999\)/);
+    const malformed = await runWho(jobId, { actorId: "abc", rerunner: OWNER });
+    assert.equal(malformed.proceed, "false");
+    assert.deepEqual(malformed.reads, []);
+    // Number() reads this as the listed id; only the id's own shape refuses it.
+    const padded = await runWho(jobId, { actorId: `0${OWNER.id}`, rerunner: OWNER });
+    assert.equal(padded.proceed, "false");
+    assert.deepEqual(padded.reads, []);
+  });
+
+  // GitHub names as a scheduled run's actor whoever last changed the
+  // schedule, often a bot, and a re-run keeps the schedule event.
+  test(`${jobId}: a scheduled run's first attempt proceeds without a read`, async () => {
+    const { proceed, reads } = await runWho(jobId, { event: "schedule", attempt: "1", actor: BOT, record: null });
+    assert.equal(proceed, "true");
+    assert.deepEqual(reads, []);
+  });
+
+  test(`${jobId}: a re-run of a scheduled run proceeds only for a listed re-runner`, async () => {
+    const listed = await runWho(jobId, { event: "schedule", actor: BOT, rerunner: OWNER });
+    assert.equal(listed.proceed, "true");
+    assert.deepEqual(listed.reads, RUN_READ);
+    assert.equal((await runWho(jobId, { event: "schedule", actor: BOT, rerunner: { id: 999, login: "someone" } })).proceed, "false");
+    assert.equal((await runWho(jobId, { event: "schedule", actor: BOT, rerunner: OWNER, record: null })).proceed, "false");
+  });
+
+  test(`${jobId}: a repository name GitHub cannot hold stops before any read`, async () => {
+    const { proceed, reads } = await runWho(jobId, { env: { GITHUB_REPOSITORY: "o/.." } });
+    assert.equal(proceed, "false");
+    assert.deepEqual(reads, []);
+  });
+
+  test(`${jobId}: an unreadable trusted list stops with its own reason`, async () => {
+    const { proceed, reads, stdout } = await runWho(jobId, { env: { TRUSTED_ACTORS_PATH: "missing.json" } });
+    assert.equal(proceed, "false");
+    assert.deepEqual(reads, []);
+    assert.match(stdout, /::warning title=who::ENOENT/);
+    assert.doesNotMatch(stdout, /record/);
+  });
+}
+
+// A job holding `id-token: write` (the token broker's proof) or a lanes App
+// token restores no Actions cache by a bare `restore-keys` prefix: any job in
+// the default branch's cache scope can write such an entry, and the pinned
+// restore extracts its archive with no entry filter, so a crafted entry could
+// replace a checked-out script before it runs (#9455). In pr-merge.yml no such
+// job restores a cache at all. Steps of a local composite action count as the
+// job's own.
+const root = new URL("../../../", import.meta.url);
+const workflowsDir = new URL(".github/workflows/", root);
+const stepsIn = (text) => text.split(/\n(?=\s*- (?:name|uses|id|if|run|env|with|shell|continue-on-error|timeout-minutes):)/).slice(1);
+const restoresOf = (stepTexts, seen = new Set()) =>
+  stepTexts.flatMap((s) => {
+    const uses = /^\s*(?:- )?uses: *['"]?([^\s'"#]+)/m.exec(s)?.[1] ?? "";
+    if (/^actions\/cache(?:\/restore)?@/.test(uses)) return [{ uses, prefix: /\n\s*restore-keys:/.test(s) }];
+    // setup-node restores a package cache unless told not to
+    // (package-manager-cache defaults to true); any setup action with a
+    // `cache:` input restores one.
+    const setupNode = /^actions\/setup-node@/.test(uses) && !/\n\s*package-manager-cache: false\b/.test(s);
+    if (setupNode || (/^actions\/setup-[a-z]+@/.test(uses) && /\n\s*cache: *\S/.test(s))) return [{ uses, prefix: false }];
+    const local = /^\.\/(?:\.base\/)?(\.github\/actions\/[^@]+)$/.exec(uses)?.[1];
+    if (!local || seen.has(local)) return [];
+    seen.add(local);
+    const action = ["action.yml", "action.yaml"].map((f) => new URL(`${local.replace(/\/$/, "")}/${f}`, root)).find((u) => existsSync(u));
+    return action ? restoresOf(stepsIn(readFileSync(action, "utf8")), seen) : [];
+  });
+// A grant of id-token: write, at any indentation and quoted or not, or write-all.
+const grantsIdToken = (text) =>
+  /^[ \t]*id-token:[ \t]*['"]?write['"]?[ \t]*(?:#.*)?$/m.test(text) || /^[ \t]*permissions:[ \t]*['"]?write-all\b/m.test(text);
+function tokenJobRestores(text) {
+  const at = text.search(/^jobs:[ \t]*$/m);
+  const workflowGrant = grantsIdToken(text.slice(0, at));
+  const body = text.slice(at).replace(/^jobs:.*\n/, "");
+  // Job ids sit at the first indentation under jobs:, whatever it is.
+  const indent = /^([ \t]+)[A-Za-z0-9_-]+:/m.exec(body)?.[1] ?? "  ";
+  return body
+    .split(new RegExp(`\\n(?=${indent}[A-Za-z0-9_-]+:)`))
+    .map((block) => ({ id: new RegExp(`^${indent}([A-Za-z0-9_-]+):`, "m").exec(block)?.[1], block }))
+    .filter(({ id, block }) => id && (workflowGrant || grantsIdToken(block) || /request-lane-token|create-github-app-token/.test(block)))
+    .flatMap(({ id, block }) => restoresOf(stepsIn(block)).map((r) => ({ job: id, ...r })));
+}
+
+test("no job holding id-token or a lanes App token restores a cache by a bare prefix", () => {
+  const found = readdirSync(workflowsDir)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .flatMap((f) => tokenJobRestores(readFileSync(new URL(f, workflowsDir), "utf8")).map((r) => ({ file: f, ...r })))
+    .filter((r) => r.prefix);
+  assert.deepEqual(found, []);
+});
+
+test("no token-holding job in pr-merge.yml restores a cache", () => {
+  assert.deepEqual(tokenJobRestores(merge), []);
+  // The check sees a restore a token-holding job adds, directly or through a
+  // local composite action, and ignores one in a job holding neither token.
+  const withStep = (job, step) => merge.replace(new RegExp(`(\\n  ${job}:\\n[\\s\\S]*?\\n    steps:\\n)`), `$1${step}`);
+  const exact = "      - name: Restore\n        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          key: k\n";
+  const composite = "      - name: Count\n        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]\n";
+  const setupNode = "      - name: Node\n        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0\n        with:\n          node-version: 24\n";
+  const setupPython = "      - name: Python\n        uses: actions/setup-python@v6\n        with:\n          cache: pip\n";
+  for (const job of ["merge", "enable-auto-merge"]) {
+    for (const added of [exact, setupNode, setupPython]) {
+      assert.deepEqual(tokenJobRestores(withStep(job, added)).map((r) => [r.job, r.prefix]), [[job, false]], job);
+    }
+    assert.deepEqual(tokenJobRestores(withStep(job, composite)).map((r) => [r.job, r.prefix]), [[job, true]], job);
+  }
+  assert.deepEqual(tokenJobRestores(withStep("gate-check", exact)), []);
+});
+
+test("a token grant is found at any indentation", () => {
+  const restore = (pad) => `${pad}- name: Restore\n${pad}  uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n${pad}  with:\n${pad}    key: k\n${pad}    restore-keys: k-\n`;
+  // Jobs at four spaces, their permissions at eight and ten.
+  const wide = `on: push\njobs:\n    holder:\n        permissions:\n          id-token: write\n        steps:\n${restore("          ")}    other:\n        permissions:\n          contents: read\n        steps:\n${restore("          ")}`;
+  assert.deepEqual(tokenJobRestores(wide).map((r) => [r.job, r.prefix]), [["holder", true]]);
+  // Jobs at two spaces, the grant at eight, quoted.
+  const deep = `on: push\njobs:\n  holder:\n    permissions:\n        id-token: 'write'\n    steps:\n${restore("      ")}`;
+  assert.deepEqual(tokenJobRestores(deep).map((r) => r.job), ["holder"]);
+  // A workflow-level grant, and write-all, cover every job.
+  for (const grant of ["permissions:\n    id-token: write\n", "permissions: write-all\n"]) {
+    const top = `on: push\n${grant}jobs:\n  plain:\n    steps:\n${restore("      ")}`;
+    assert.deepEqual(tokenJobRestores(top).map((r) => r.job), ["plain"], grant);
+  }
 });

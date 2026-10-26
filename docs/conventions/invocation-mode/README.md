@@ -224,7 +224,7 @@ setup skills are class (ii) by contract; the 141
 
 | Skill | Class | Verdict |
 |---|---|---|
-| `harness-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` |
+| `harness-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, `start` and `restart` pull, update the marketplace, stop sessions and launch `--permission-mode auto` lanes with no stop, `stop`, `run-once` and `consume-restarts run` stop or launch sessions with none either, and `--dry-run` is an opt-in the model can leave off; evidence in [the re-grade below](#re-grade-harness-opslanes-under-the-2026-10-18-decision-9710)) |
 | `harness-ops:plugins` | (i) mutating fleet sync | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, `sync` updates, installs and enables with no stop, and its `--allow-downgrade`, `--install-new` and `--only-install` are model-passable; evidence in [the re-grade below](#re-grade-harness-opsplugins-under-the-2026-10-18-decision-9708)) |
 | `discipline:wait-what` | (i) trigger is human-internal | KEEP `true` |
 | `disk-hygiene:clean` | (i) destructive-capable, manual-only by design | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, the Windows/macOS manual deletion step and the opt-in elevated script do not stop for a person unattended; evidence in [the re-grade below](#re-grade-disk-hygieneclean-under-the-2026-10-18-decision-9706)) |
@@ -354,7 +354,7 @@ must be a deliberate human choice" either. This item records grades only; it cha
 | `playbooks:repo-sweep` | none | Each mutating step already asks for approval: `plan` "open[s] the selection page" before it creates the branch and draft PR; `next` runs "audit, review findings with the user, fix, one commit, tick"; `review` will "audit and file each problem after approval". The sweep opens a draft PR, never merges, and its triggers ("sweep this repo", "next sweep step") are utterances. Not setup, not maintainer-only. | **FLIP → `false`** (approval-gated mutation) |
 | `repo-fleet-hygiene:sync` | none | The mutation is approval-gated twice over: "Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation." (description); "`--yes` skips the script's prompt, not the user. Pass it only after you have shown the user the dry-run plan ... and the user has explicitly said to go ahead." Dirty work is parked, not deleted, and "The script does not reset a branch." Not setup, not maintainer-only. The 2026-08-17 KEEP of `repo-fleet-hygiene:apply` is an owner-decision sibling and is not revisited here. | **FLIP → `false`** (approval-gated mutation) |
 | `session-flow:tidy-work` | none | Removal and moves are approval-gated: "Does not delete or move anything without `--apply` and a confirmation naming the paths."; "Ask one confirmation covering exactly the listed paths. A refusal, or silence, ends the run with nothing changed."; the `--apply` call "is not pre-approved, so it goes through the normal permission flow." The "Nothing runs unless the user invokes this skill" line says it is opt-in, which is not a class. Not setup, not maintainer-only. | **FLIP → `false`** (approval-gated mutation) |
-| `testing:map-features` | none | "This skill writes files into the repository and commits nothing. It writes a new map; it never overwrites one." Where a `SKILL.md` already exists it "stop[s] and write[s] nothing." Additive and uncommitted, and it proves the map by invoking `/testing:run-e2e`, which is `false`, so the invariant does not block that call; a flipped `map-features` could itself be chained to, though `refresh-feature-map` and `run-e2e` only name it for the human to type. Its description's "User-invoked only." states the current flag, not a class. Not setup, not maintainer-only, and its triggers ("map the features of this app", "write a feature map") are utterances. | **FLIP → `false`** |
+| `testing:map-features` | none | "This skill writes files into the repository and commits nothing. It writes a new map; it never overwrites one." Where a `SKILL.md` already exists it "stop[s] and write[s] nothing." Additive and uncommitted, and it proves the map by invoking `/testing:run-e2e`, which is `false`, so the invariant does not block that call; a flipped `map-features` could itself be chained to, though `refresh-feature-map` and `run-e2e` only name it for the human to type. Its description's "User-invoked only." states the current flag, not a class. Not setup, not maintainer-only, and its triggers ("map the features of this app", "write a feature map") are utterances. | **FLIP → `false`**; retired, replaced by `/app-control:map` |
 
 Result: one KEEP (`discipline:be-ambitious`, class (i)) and five FLIPs. Fleet-wide, the non-setup
 `true` population after the 2026-08-21 grade (9) plus these six is 15 skills, of which this section
@@ -444,6 +444,43 @@ prints 1. What would flip it: a hook `ask` on the `claude plugin` mutating verbs
 that reaches a person in every mode (probed, as `disk-hygiene` did for its `apply` lane), or a split
 that leaves the model-invocable half read-only (`audit`). No `SKILL.md` or changelog change follows
 from a KEEP.
+
+## Re-grade: `harness-ops:lanes` under the 2026-10-18 decision (#9710)
+
+Rule, from the owner's 2026-10-18 decision on
+[#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458) (D3, option b): a
+destructive-capable skill becomes model-invocable only if every destructive step provably stops for a
+person even when it runs unattended. A stop that is a model-passable flag or a prose instruction does
+not hold. Read: `plugins/harness-ops/skills/lanes/SKILL.md`, `context/config.md`,
+`context/refresh.md`, `context/restart-consumer.md`, and the mutating calls in
+`scripts/lane-launcher.sh` (`refresh_repo_and_plugins`, `launch_lane`, `stop_lane_if_running`,
+`launch_cloud_lane`, `ensure_lane_worktree`, `_run_once_one`) and `scripts/restart-consumer.sh`.
+Neither script reads a confirmation from stdin, and the plugin's `hooks/hooks.json` registers no
+`PreToolUse` hook, so no hook `ask` backs any step.
+
+| Mutating step | The line that stops it | Holds unattended? |
+|---|---|---|
+| `git pull --ff-only` and `claude plugin marketplace update` (`start`, `restart`) | None. `refresh_repo_and_plugins` runs `run git -C "$REPO" pull --ff-only` and `run claude plugin marketplace update` unless `--no-pull`/`--no-update` is passed | **No.** No stop at all |
+| Launch a lane: `claude --bg -n <name> --permission-mode auto [--permission-prompts none]` (`start`, `restart`) | None. `launch_lane` runs the command with the prompt file's contents; SKILL.md: "`--permission-mode auto` is what makes an unattended lane run past its first permission prompt" | **No.** No stop, and the session it starts is itself built to run with no person |
+| `claude stop <sessionId>` (`stop`, and the stop half of `restart`) | `stop_lane_if_running` acts only on a name in the resolved config ("never touches a session whose name is not a configured lane"); `restart` "always stops-and-relaunches (discarding the running lane's in-flight conversation)" | **No.** The name check limits what is stopped, not whether a person agrees; and config.md says "The lanes file is lane-writable" |
+| `claude --cloud` launch and linked-worktree `git worktree add` / `checkout --detach` (`cloud-session`, `local-background` targets) | Only an untrusted stage is refused outright (`launch_cloud_lane`). A missing GitHub App, a dirty worktree, unreadable telemetry or a lane-stop gate request goes through `refuse_cloud`, which launches the lane as `local-worktree` instead; `local-background` uses a dirty worktree "as it stands" (`ensure_lane_worktree`) | **No.** Those checks reroute the launch more often than they stop it, and none asks a person |
+| `run-once <lane>`: one `claude -p --permission-mode auto` pass | A per-lane `mkdir` lock that keeps two passes apart (config.md "Scheduled runs") | **No.** The lock serializes runs; it is not a stop |
+| `consume-restarts run`: relaunch through `lane-launcher.sh restart` | SKILL.md: "meant to run unattended on an **OS-owned schedule**"; the circuit breaker (by default 3 attempts per lane per 24 h; `--max-restarts` and `--window-hours` are passable, and "0 disables the breaker") and the liveness recheck | **No.** Unattended by design; the breaker bounds retries and asks no one |
+| `consume-restarts run`: create or edit its own telemetry comment on GitHub (`upsert_own_telemetry` through `telemetry-upsert.sh`) | None; only `--dry-run`, `--no-telemetry` or no resolvable issue skips it | **No.** An external write with no stop |
+| `git fetch origin +refs/heads/<branch>:refs/remotes/origin/<branch>` to read the execution target (`start`, `restart`, `run-once`), and the `git fetch origin -q` in the refresh.md staleness probe | None. refresh.md calls its own fetch "neither bounded nor pure-read" | **No.** It updates remote-tracking refs only, so the impact is low, but nothing stops it |
+| `print-schedule --write-script` (writes the per-lane script and config snapshot) | None beyond the flag; config.md: "Registering an entry is the operator's step." | **No.** A flag the model can pass. The write replaces any earlier script and snapshot (`mv -f`), and the snapshot is what keeps a lane's edits to the lane-writable `lanes.json` from reaching a registered schedule, so a model-passed `--write-script` re-approves whatever config the checkout holds |
+| Preview advice ("Preview any mutating run first with `--dry-run`") | SKILL.md "Run it" | No. A prose instruction; `--dry-run` is an opt-in the model can leave off |
+
+Verdict: **KEEP `true`.** The skill is graded as a whole, and no mutating step has a deterministic
+stop: `start` and `restart` pull, refresh the marketplace, stop sessions and launch
+`--permission-mode auto` lanes with no prompt, and `consume-restarts run` and `run-once` exist to run
+with no person present. The config-name scope guard and the run locks limit what runs; they do not
+ask anyone. `disable-model-invocation: true` stays in `SKILL.md`, so
+`git show HEAD:plugins/harness-ops/skills/lanes/SKILL.md | grep -c '^disable-model-invocation: true'`
+prints 1. What would flip it: a hook `ask` on `lane-launcher.sh` and `restart-consumer.sh` mutating
+actions that reaches a person in every mode (probed, as `disk-hygiene` did for its `apply` lane), or a
+split that leaves the model-invocable half read-only (`status`, `print-schedule` without
+`--write-script`, `consume-restarts check`). No `SKILL.md` or changelog change follows from a KEEP.
 
 ## Cross-references
 

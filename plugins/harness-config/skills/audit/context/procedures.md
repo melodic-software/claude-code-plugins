@@ -11,12 +11,14 @@ supplemental jq: below.
 The safety here is *what gets emitted*, not what gets opened. `check-structure.sh` opens the file from
 inside a subprocess, which a `Read(...)` deny does not cover. It is safe because it emits counts and
 never values. The `cat … | jq` recipes below go the other way: `cat` is a file command Claude Code
-recognizes in Bash, so a project carrying the baseline `Read(./.claude/settings.local.json)` deny will
-block them. That is the correct outcome. Do not route around it with an interpreter one-liner
+recognizes in Bash, so a project whose settings carry a `Read(./.claude/settings.local.json)` deny will
+block them. That is the correct outcome. Do not route around the block with an interpreter one-liner
 (`python -c`, `node -e`) to dump content the sanctioned script will not emit. See "Scope of a Read
-deny" in [reference/required-permissions.md](../reference/required-permissions.md).
+deny" in [reference/required-permissions.md](../reference/required-permissions.md); that file's
+"Relation to the standards permission floor" says why the deny is a project's choice, not part of the
+baseline.
 
-**Counts are not guaranteed.** Where the project also enables the sandbox, the baseline `Read` deny
+**Counts are not guaranteed.** Where the project also enables the sandbox, a `Read` deny on the file
 merges into the sandbox filesystem boundary and the OS blocks `check-structure.sh` and its `tr`/`jq`
 children too, and the subprocess route closes. The script distinguishes that case: it reports
 `Readable: no` with a `not inspectable` note rather than `Valid JSON: no`, and does not fail the run.
@@ -62,7 +64,7 @@ built-in `update-config` skill when it resolves in this session, and directly wh
 (`.mcp.json` is always edited directly), except orphan-`false` plugin removal, which stays on
 `scripts/fix-plugin-drift.sh --yes` for its lower-precedence-scope check. In auto mode it needs the
 `[Self-Modification]` handshake: the classifier asks, and the user's explicit approval of that fix
-is the consent. Two operations are refused in auto mode: writing `.claude/audit-pass.md`
+is the consent. Two operations are refused in auto mode: writing the team suppression record
 (`[Instruction Poisoning]`) and re-running `scripts/audit-engine.sh` for the after-fix summary
 (`[Self-Modification]`). The fallback for each is the operator applying the edit or running the
 re-run and pasting the output back; never retry around the refusal. The verification record for the
@@ -105,9 +107,12 @@ audit scans. A judgment finding the model adds takes the same shape with `"tier"
 its anchor and id with the engine's `anchor` and `finding-id` subcommands rather than by hand, so
 two runs agree on the identity.
 
-The same identity keys the consumer's suppression record, `.claude/audit-pass.md`, layered per the
-config-cascade convention. The engine reads the team layer, the user-global layer, and the local
-overlay; only the team layer suppresses, a personal-only entry is reported as `personal-only, not
+The same identity keys the consumer's suppression record, layered per the config-cascade
+convention. The engine reads the team layer (the `suppressions` mapping of
+`<home>/harness-config.yaml`, `<home>` being the convention home the repository binds, default
+`docs/conventions`), the user-global layer, and the local overlay, and lists each in
+`suppressions.layers` with the file read and its state; every applied entry names its layer and
+file. Only the team layer suppresses, a personal-only entry is reported as `personal-only, not
 applied`, and an entry whose constituents do not hash to its key, or that lacks a required key, is
 reported `malformed` and never suppresses. The `--table` output prints a `suppress:` line under every
 finding with the id, surface, and anchor, so an operator who decides to keep a finding copies that

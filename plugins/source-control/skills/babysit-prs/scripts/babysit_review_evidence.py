@@ -51,9 +51,7 @@ LANES: dict[str, tuple[str, str]] = {
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
 # any workflow it adds can post a github-actions[bot] reviewed-head marker),
-# the review plugin path (the reusable stages it from main, so this is
-# caution against a caller that loads it from the checkout), Claude Code project config and instruction files at
-# any depth, the criteria the lane skills read from the checkout (REVIEW.md,
+# Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
 # untrusted-content contract), the lane's input directory .claude-lane/ (the
 # code lane falls back to a context file there), and .gitattributes, which can
@@ -61,10 +59,13 @@ LANES: dict[str, tuple[str, str]] = {
 # from a checkout of main and the reusable runs its composites from its own
 # repository, so the rest of .github/ feeds no review. A pull request that
 # changes any listed path may have changed its own review, so its records
-# prove no review by the default branch's lane.
+# prove no review by the default branch's lane. plugins/review/ is not listed:
+# the reusable pr-review-cli.yml stages the review plugin from
+# claude-code-plugins' default-branch tip, never the head, and
+# scripts/ci-review-plugin-source.test.sh fails if a caller stops calling it
+# pinned to a SHA or passes it a plugin path.
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
-    "plugins/review/",
     "docs/standards/",
     "docs/conventions/instruction-exception-register/",
     "docs/conventions/untrusted-content/",
@@ -94,8 +95,40 @@ RECORD_RE = re.compile(
 )
 SHA_RE = re.compile(rf"^{_SHA}$")
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-# The wrapper re-runs a review only after a usage-limit failure, once.
+# The reconciler re-runs any failed lane run once; attempt 2 binds only when
+# attempt 1 failed on a usage limit.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# Or on a rejected Claude credential: this lane's publish-review failure line
+# (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
+# attempt 1 then left no verdict, so a re-run cannot trade one review for
+# another. It binds a re-run but does not start one (rate_limited), since a
+# re-run before the secret is fixed would spend the one allowed attempt. A
+# spent key needs no entry: publish.cjs reports it as `rate-limit`.
+AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")
+# Or when the review's own post hit GitHub's API rate limit: the message opens
+# with this lane's publish-review failure line (ci-workflows publish.cjs `fail`)
+# whose detail, the request error's message, opens with GitHub's primary or
+# secondary rate-limit text
+# (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+# Any other publish failure stays refused, so a re-run cannot hide one.
+PUBLISH_RATE_LIMIT_RE = re.compile(
+    r"(?P<lane>[\w-]+): failure-class=publish-failed: [^(\n]*"
+    r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
+)
+# Or when a kill switch stopped attempt 1 before the review started: the
+# caller's `kill-switch` job succeeded and its `Report the kill switch` step
+# wrote this lane's notice, whose `if` is the negation of the `proceed` output
+# the lane job needs, and attempt 1 has no lane job. Attempt 1 then left no
+# verdict. The step's text comes from the switch values only, and a head that
+# edits a caller to forge it unbinds through `lane_source`. Like `auth`, it
+# binds a re-run but does not start one: the gate cannot read the switch.
+KILL_SWITCH_JOB = "kill-switch"
+KILL_SWITCH_NOTICE_RE = {
+    "claude-review": re.compile(r"a kill switch stops this review \("),
+    "claude-security-review": re.compile(
+        r"a kill switch stops this security review \("
+    ),
+}
 MARKER_AUTHOR = "github-actions[bot]"
 MARKER_RE = re.compile(
     rf"^<!-- claude-lane-reviewed-head lane=([\w-]+) sha=({_SHA}) -->$"
@@ -126,7 +159,7 @@ def _lane_comment(lane: str, login: object, body: str) -> bool:
 
 
 # The lane whose findings hold the merge only at its top tier, CRITICAL
-# (plugins/review/skills/security-review/SKILL.md, "Reporting"): each inline
+# (/review:security-review, "Reporting"): each inline
 # comment carries one `severity:` line, and the summary one
 # `critical-findings:` line counting its CRITICAL findings with no inline
 # comment. A comment or summary without exactly one readable line counts every
@@ -211,7 +244,12 @@ def bind(
         )
     except Exception as exc:  # noqa: BLE001 - any doubt is unbound
         reason = exc.reason if isinstance(exc, Unbound) else "evidence-error"
-        return tuple(LaneEvidence(lane, False, reason, None) for lane in LANES)
+        return tuple(
+            _unbound(
+                lane, reason, head_sha, runs, comments, threads, is_human, head_file
+            )
+            for lane in LANES
+        )
 
 
 def lane_source(path: Any) -> bool:
@@ -255,9 +293,76 @@ def _bind_lane(
             [(None, marker), *_summary_comments(lane, comments)],
         )
     except Unbound as exc:
-        return LaneEvidence(lane, False, exc.reason, None)
+        return _unbound(
+            lane, exc.reason, head, runs, comments, threads, is_human, head_file
+        )
     blocking = critical if lane == SEVERITY_LANE else None
     return LaneEvidence(lane, True, None, count, clears, blocking)
+
+
+def _unbound(
+    lane: str,
+    reason: str,
+    head: Any,
+    runs: Any,
+    comments: Any,
+    threads: Any,
+    is_human: Callable[[Any], bool],
+    head_file: Callable[[str, str], str | None] | None,
+) -> LaneEvidence:
+    """The unbound evidence for `lane`, carrying for the security lane the
+    blocking findings its last bound review on this pull request still
+    leaves open (`_carried_blocking`), so an unbind never hides one."""
+    carried = (
+        _carried_blocking(head, runs, comments, threads, is_human, head_file)
+        if lane == SEVERITY_LANE
+        else None
+    )
+    return LaneEvidence(lane, False, reason, None, False, carried or None)
+
+
+def _carried_blocking(
+    head: Any,
+    runs: Any,
+    comments: Any,
+    threads: Any,
+    is_human: Callable[[Any], bool],
+    head_file: Callable[[str, str], str | None] | None,
+) -> int | None:
+    """The security lane's blocking findings at the newest head of this pull
+    request its evidence binds at, the pinned head first, judged as at that
+    head against the threads and comments read now; None when none binds.
+    It reads only what the caller already read."""
+    try:
+        lane_runs = _lane_runs(SEVERITY_LANE, runs)
+        ordered = sorted(
+            lane_runs,
+            key=lambda item: (str(item.get("created_at") or ""), item["id"]),
+            reverse=True,
+        )
+        heads = [head, *dict.fromkeys(item["head_sha"] for item in ordered)]
+    except Exception:  # noqa: BLE001 - nothing read, nothing carried
+        return None
+    for sha in dict.fromkeys(h for h in heads if isinstance(h, str)):
+        try:
+            reviewed, chain = _resolve(SEVERITY_LANE, sha, lane_runs)
+            marker = _require_marker(SEVERITY_LANE, sha, comments, newest_only=False)
+            _require_marked_runs(SEVERITY_LANE, lane_runs, comments)
+            _, _, critical = _open_findings(
+                SEVERITY_LANE,
+                lane_runs,
+                threads,
+                is_human,
+                set(),
+                reviewed,
+                chain,
+                head_file,
+                [(None, marker), *_summary_comments(SEVERITY_LANE, comments)],
+            )
+        except Exception:  # noqa: BLE001 - this head does not bind; try older
+            continue
+        return critical
+    return None
 
 
 def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -364,9 +469,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if first.get("conclusion") != "failure" or not _rate_limited(
-            _lane_job(lane, newest["id"], first)
-        ):
+        if not rerun_binds(lane, newest["id"], first):
             raise Unbound("rerun-not-allowed")
     job = _lane_job(lane, newest["id"], latest)
     if job.get("conclusion") != "success" or job.get("head_sha") != sha:
@@ -420,12 +523,67 @@ def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str
     return job
 
 
-def _rate_limited(job: Mapping[str, Any]) -> bool:
+def _failures(job: Mapping[str, Any]) -> list[str]:
+    """The messages of the job's failure-level annotations."""
+    return [
+        str(a.get("message") or "")
+        for a in job["annotations"]
+        if isinstance(a, Mapping) and a.get("annotation_level") == "failure"
+    ]
+
+
+def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
+    """Whether `message` opens with `pattern` for this lane."""
+    found = pattern.match(message)
+    return found is not None and found["lane"] == lane
+
+
+def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
+    return any(
+        RATE_LIMIT_CLASS_RE.search(m) or _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m)
+        for m in _failures(job)
+    )
+
+
+def rerun_binds(lane: str, run_id: int, first: Mapping[str, Any]) -> bool:
+    """Whether attempt 1 (`first`) left no verdict, so attempt 2 binds: it
+    failed on a rate limit or a rejected credential (AUTH_FAILURE_RE), or a
+    kill switch stopped it (`_kill_switch_stopped`)."""
+    if first.get("conclusion") == "success":
+        return _kill_switch_stopped(lane, run_id, first)
+    if first.get("conclusion") != "failure":
+        return False
+    job = _lane_job(lane, run_id, first)
+    return rate_limited(lane, job) or any(
+        _lane_line(AUTH_FAILURE_RE, lane, m) for m in _failures(job)
+    )
+
+
+def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
+    """Whether a kill switch stopped this attempt before its lane job existed."""
+    jobs = attempt.get("jobs")
+    if not isinstance(jobs, list | tuple) or not all(
+        isinstance(job, Mapping) for job in jobs
+    ):
+        raise Unbound("evidence-missing")
+    suffix = LANES[lane][1]
+    if any(str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix for job in jobs):
+        return False
+    kills = [job for job in jobs if job.get("name") == KILL_SWITCH_JOB]
+    if len(kills) != 1 or kills[0].get("conclusion") != "success":
+        return False
+    kill = kills[0]
+    if kill.get("run_id") != run_id or kill.get("run_attempt") != attempt.get(
+        "run_attempt"
+    ):
+        raise Unbound("evidence-error")
+    if not isinstance(kill.get("annotations"), list | tuple):
+        raise Unbound("evidence-missing")
     return any(
         isinstance(a, Mapping)
-        and a.get("annotation_level") == "failure"
-        and RATE_LIMIT_CLASS_RE.search(str(a.get("message") or ""))
-        for a in job["annotations"]
+        and a.get("annotation_level") == "notice"
+        and KILL_SWITCH_NOTICE_RE[lane].match(str(a.get("message") or ""))
+        for a in kill["annotations"]
     )
 
 
@@ -457,9 +615,16 @@ def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
     )
 
 
-def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]]) -> str:
+def _require_marker(
+    lane: str,
+    head: str,
+    comments: Sequence[Mapping[str, Any]],
+    newest_only: bool = True,
+) -> str:
     """The newest reviewed-head marker the lane job wrote must name `head`;
-    its body, which carries the covering review's summary."""
+    its body, which carries the covering review's summary. With
+    `newest_only` False, the newest marker naming `head` will do, for a
+    review a newer marker has passed."""
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
     newest: tuple[str, int, str, str] | None = None
@@ -471,7 +636,7 @@ def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]])
             continue
         first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
         match = MARKER_RE.match(first_line)
-        if not match or match[1] != lane:
+        if not match or match[1] != lane or not (newest_only or match[2] == head):
             continue
         key = (
             str(comment.get("created_at") or ""),
@@ -602,11 +767,11 @@ def _open_findings(
     head_spent = False
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped run has only the caller job and reviewed nothing.
+            # A draft-skipped or kill-switched run reviewed nothing.
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
-            ):
+            ) or _kill_switch_stopped(lane, item["id"], attempt):
                 continue
             job = _lane_job(lane, item["id"], attempt)
             rec = _record(lane, item["head_sha"], job)

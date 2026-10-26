@@ -2,10 +2,10 @@
 """Diff risk scorer for the unattended merge path.
 
 `score(RiskInput) -> RiskResult` is a pure function: no I/O, no GitHub calls.
-The caller reads the PR, its linked issue's class, the base-SHA config and the
-review-lane evidence, and hands them in; this module only judges them. A LOW
-score merges unattended, and so does a MED one whose every reason is a class,
-size or reported review-finding reason (`holds`); every other reason holds.
+The caller reads the PR, the base-SHA config and the review-lane evidence, and
+hands them in; this module only judges them. No work class is read. A LOW
+score merges unattended, and so does a MED one whose every reason is a size or
+reported review-finding reason (`holds`); every other reason holds.
 So every doubtful
 input rates a holding reason: missing or unrecognized data is a miss, never a
 pass, and it never raises: input it cannot read at all rates HIGH as
@@ -15,19 +15,16 @@ that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here, never read from
-configuration. The floor holds only the takeover set, what could hand the
-repository to someone outside the org: the trusted-actor list and the
-trusted-trigger check that enforces it, code owners, submodules, and
-resolve-config, whose code the token broker runs from main in its signer
-process. Everything else, agent permission config, package manifests,
-workflows, this module, the merge gate, the review lanes, hooks, scripts and
-agent instructions included, merges on the two review lanes, which are the
-gate (owner direction 2026-10-23), except the cost and trusted-actor holds
-below. The configured `merge.diff-check.denied-paths` are joined to
-the floor, never in place of it. Every glob matches case-insensitively,
-because a lane host on a case-insensitive filesystem treats `Codeowners` as
-`CODEOWNERS`.
-A plugins/<plugin>/.claude-plugin/plugin.json or the top-level
+configuration. The floor is narrow (owner decision Q-FLOOR (B)): the code
+main runs to mint and scope lane tokens and judge triggers, code owners and
+submodules, and it holds whatever the floor switch says. No other path rates
+HIGH for being trusted alone, and the two review lanes, which are the gate,
+judge it, except the cost and trusted-actor holds below. The configured
+`merge.diff-check.denied-paths` are joined to the floor. Every glob matches
+case-insensitively, because a lane host on a case-insensitive filesystem
+treats `Codeowners` as `CODEOWNERS`.
+With the floor switch on (`high_floor`), a
+plugins/<plugin>/.claude-plugin/plugin.json or the top-level
 .claude-plugin/marketplace.json is compared base against head instead, and a
 change that installs or runs something new rates HIGH as
 `manifest-review-required`: in plugin.json a differing `_EXECUTABLE_KEYS` value
@@ -39,8 +36,7 @@ or repeats a key, holds; an added plugin.json is compared with `{}`.
 A change that adds or widens an entry in the trusted-actor list
 (`TRUSTED_ACTORS_PATH`) rates HIGH as `trust-gate:trusted-actors` in every
 lane, whatever the floor switch and `floor_exempt` say, and waits for the
-owner. Base and head text are compared: only removing entries passes this
-check, though with the floor on the list's directory holds anyway; an
+owner. Base and head text are compared: only removing entries passes; an
 added or changed entry, any other key changed, a side that cannot be read or
 parsed or repeats a key, and an added, removed, renamed or copied file hold.
 
@@ -53,22 +49,21 @@ trusted-actor widening through `trust-gate:trusted-actors`.
 
 A change that could add or raise a charge rates HIGH as `cost-review-required`
 in every lane, floor or not and whatever `floor_exempt` says (owner rule,
-2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep, the multi-agent
-role map) or file under a `RiskInput.pulumi_dirs` directory, and every file
-when `pulumi_dirs` is None (the base tree was not listed); a file renamed or
-copied into a workflow or `pr-pipeline.yaml` path from outside one; a
-`.github/workflows/` file whose patch adds a `_COST_WORKFLOW_LINE` (a `cron`
-key in any spelling, `--model`, `--max-turns`), or, unless `RiskInput.public`
-is True, a `runs-on:`, `windows` or `macos` line; that gains a `_SECRET_REF`,
-a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, counted against the lines it
-removes so a move or repin is not new; that adds a `timeout-minutes` or
-`leg-timeout-minutes` above every one it removes, when its head text
-(`contents`) names a model leg or could not be read; or that gains a runner
-value (head text against base text, and added inline `runs-on:` lines) that
-is not `_FREE_RUNNER` on a public repository, or any on another; and a
-`pr-pipeline.yaml` change with any added or removed line off
-`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow or
-pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
+2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file under a
+`RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is None
+(the base tree was not listed); a file renamed or copied into a workflow or
+`pr-pipeline.yaml` path from outside one; a `.github/workflows/` file whose
+patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
+`--max-turns`), or, unless `RiskInput.public` is True, a `runs-on:`, `windows`
+or `macos` line; that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
+`_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
+is not new; that adds a `timeout-minutes` or `leg-timeout-minutes` above every
+one it removes, when its head text (`contents`) names a model leg or could not
+be read; or that gains a runner value (head text against base text, and added
+inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository, or
+any on another; and a `pr-pipeline.yaml` change with any added or removed line
+off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow
+or pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
 decision the caller verified, clears it.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
@@ -84,9 +79,8 @@ same set (plus `*` and whole `**` segments), read exactly as written, makes the
 configured HIGH set unreadable, and then only the floor is matched.
 Malformed values have no code of their own in the contract, so each maps to the
 nearest existing code: per-file data and the listing to `files-incomplete`, an
-unknown rung to `class-above-rung` (read as off), an unreadable line limit to
-`lines-over`, an unreadable configured HIGH set or file mode to `high-path:**`,
-and a blast radius other than LOW above C2 to `blast-radius-missing`.
+unreadable line limit to `lines-over`, and an unreadable configured HIGH set or
+file mode to `high-path:**`.
 """
 
 from __future__ import annotations
@@ -95,6 +89,7 @@ import enum
 import json
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -105,15 +100,6 @@ class Risk(enum.IntEnum):
     LOW = 0
     MED = 1
     HIGH = 2
-
-
-class Rung(enum.IntEnum):
-    """Order matches the `merge.rung` enum in pr-pipeline.schema.json. Each value
-    is the highest _CLASS_RANK the rung admits; OFF admits none."""
-
-    OFF = 0
-    C2 = 2
-    C3 = 3
 
 
 @dataclass(frozen=True)
@@ -159,18 +145,14 @@ class LaneEvidence:
 
 @dataclass(frozen=True)
 class RiskInput:
-    work_class: str | None  # class of the one linked issue (C1..C5)
-    rung: Rung  # effective rung
     files: tuple[ChangedFile, ...]
     files_complete: bool  # the listing was read to its end
     max_changed_lines: int | None  # merge.diff-check.max-changed-lines at the base SHA
     high_paths: tuple[str, ...]  # configured denied paths, joined to HIGH_FLOOR
     lanes: tuple[LaneEvidence, ...]
-    blast_radius: str | None  # consulted only above C2
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
-    c2_contradictions: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
     # The repository is public, where standard hosted runners are free; any
@@ -185,6 +167,9 @@ class RiskInput:
     # Paths only a trusted author's own commits touched: the path floor and
     # the manifest review leave them out (owner decision 2026-10-22).
     floor_exempt: frozenset[str] = frozenset()
+    # The listing reached the files API's cap, so no read ever completes it
+    # and its paths can never all be judged.
+    files_capped: bool = False
 
 
 @dataclass(frozen=True)
@@ -200,16 +185,20 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
-# What would hand the repository to someone outside the org: who is trusted
-# (the trusted-actor list and the check that enforces it), who owns review
-# (code owners), what code is pulled in from elsewhere (submodules), and the
-# code the token broker runs from main in its signer process (resolve-config,
-# owner decision Q51), with check-kill-switch, whose writeOutputs both of those
-# actions write their verdicts through, request-lane-token, which mints and
-# hands out the lanes App token in every privileged workflow, and the rate
-# guard check-trusted-trigger sends every call through.
+# What a lane pull request must not change unattended (owner decision
+# Q-FLOOR (B)): resolve-config, whose code the token broker runs from main in
+# its signer process, request-lane-token, which mints and hands out the lanes
+# App token, check-trusted-trigger and the rate guard it sends every call
+# through, check-kill-switch, whose writeOutputs both of those actions write
+# their verdicts through, code owners and submodules; and the files that
+# enforce the floor (owner decision Q-ENFORCE (A)): the merge-holds,
+# enable-auto-merge, superseded and clear-escalations scripts, this module,
+# the ci-status workflow, the pr-merge workflow that wires those scripts,
+# the pipeline config, every module those scripts import, and the babysit-prs modules this module and the Python those
+# scripts run (babysit_verify_evidence.py) import (test_merge_holds_sync.py
+# derives both closures and requires them here). merge-holds.mjs
+# HOLD_PATH_FLOOR is the same list (test_merge_holds_sync.py).
 HIGH_FLOOR: tuple[str, ...] = (
-    ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
     "**/CODEOWNERS",
     "**/.gitmodules",
@@ -217,6 +206,36 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/check-kill-switch/**",
     ".github/actions/request-lane-token/**",
     ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
+    ".github/workflows/pr-require-checks.yml",
+    ".github/workflows/pr-merge.yml",
+    "docs/conventions/pr-pipeline.yaml",
+    ".github/scripts/pr-unblock/address-feedback.mjs",
+    ".github/scripts/pr-unblock/gate-source.mjs",
+    ".github/scripts/pr-unblock/thread-scope.mjs",
+    ".github/scripts/work-resolve-issue/report-outcome.mjs",
+    ".github/scripts/work-resolve-issue/limits.mjs",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
@@ -242,7 +261,6 @@ TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 STATUSES = frozenset(
     {"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
 )
-_STRUCTURAL = frozenset({"removed", "renamed", "copied", "changed"})
 
 UNSAFE_PATH_CODE = "high-path:**"
 
@@ -251,13 +269,6 @@ UNSAFE_PATH_CODE = "high-path:**"
 # on some filesystem, so it is unsafe rather than enumerated.
 _SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 _SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
-# The plan's blast-radius scale is LOW / MEDIUM / HIGH / CRITICAL; only LOW
-# can leave a class above C2 at LOW.
-_LOW_BLAST = "low"
-
-_CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5}
-_C1_RANK = _CLASS_RANK["C1"]
-_C2_RANK = _CLASS_RANK["C2"]
 
 _ABSENT_MODE = "000000"
 _TWO_SIDED = frozenset(
@@ -575,7 +586,7 @@ def _high_path_reasons(
     paths = [
         path for f in files for path in f.paths if path and path not in inp.floor_exempt
     ]
-    for pattern in dict.fromkeys((*(HIGH_FLOOR if on else ()), *configured)):
+    for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
@@ -638,8 +649,6 @@ def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
 COST_CODE = "cost-review-required"
 # Infrastructure as code: any change can add or resize a billed resource.
 COST_PATHS: tuple[str, ...] = (
-    # The multi-agent role map: model and effort per role for every fan-out.
-    "plugins/multi-agent/reference/defaults.yaml",
     "**/Pulumi.yaml",
     "**/Pulumi.*.yaml",
     "**/*.tf",
@@ -918,66 +927,6 @@ def _cost_reasons(
     return [Reason(COST_CODE, Risk.HIGH, detail)]
 
 
-def _c2_contradictions(files: list[_File]) -> list[str]:
-    """The diff contradicts C2 ("deterministic and trivially reversible")."""
-    found = []
-    structural = [
-        f.path
-        for f in files
-        if f.status in _STRUCTURAL or (len(f.paths) > 1 and f.paths[1] != f.paths[0])
-    ]
-    if structural:
-        found.append(f"removed, renamed, copied or changed: {', '.join(structural)}")
-    paths = [path for f in files for path in f.paths]
-    schemas = [path for path in paths if path.casefold().endswith(".schema.json")]
-    if schemas:
-        found.append(f"schema changed: {', '.join(schemas)}")
-    # Only `plugins` is folded: plugins/Foo and plugins/foo are two plugins.
-    plugins = {
-        parts[1]
-        for parts in (path.split("/") for path in paths)
-        if len(parts) >= 3 and parts[0].casefold() == "plugins"
-    }
-    if len(plugins) > 1:
-        found.append(f"more than one plugin: {', '.join(sorted(plugins))}")
-    return found
-
-
-def _class_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
-    rank = _CLASS_RANK.get(inp.work_class) if isinstance(inp.work_class, str) else None
-    if rank is None:
-        return [
-            Reason("class-missing", Risk.MED, f"work class {_show(inp.work_class)}")
-        ]
-    reasons = []
-    rung = inp.rung
-    known = isinstance(rung, int) and not isinstance(rung, bool) and rung in set(Rung)
-    if not known or rung == Rung.OFF or rank > rung:
-        shown = Rung(rung).name if known else f"{_show(rung)} (unknown)"
-        detail = f"{inp.work_class} above rung {shown}"
-        reasons.append(Reason("class-above-rung", Risk.MED, detail))
-    if rank <= _C2_RANK:
-        contradictions = (
-            _c2_contradictions(files) if inp.c2_contradictions is not False else []
-        )
-        if rank == _C1_RANK:
-            contradictions.insert(0, "C1 work produces no pull request")
-        if contradictions:
-            reasons.append(
-                Reason("class-contradicted", Risk.MED, "; ".join(contradictions))
-            )
-    blast = inp.blast_radius
-    if rank > _C2_RANK and not (
-        isinstance(blast, str) and blast.casefold() == _LOW_BLAST
-    ):
-        rated = isinstance(blast, str) and blast.strip()
-        detail = f"rated {_show(blast)}, not LOW" if rated else "has no rating"
-        reasons.append(
-            Reason("blast-radius-missing", Risk.MED, f"{inp.work_class} {detail}")
-        )
-    return reasons
-
-
 def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     reasons = []
     incomplete = []
@@ -991,6 +940,9 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     incomplete.extend(f"{f.path or '?'}: {p}" for f in files for p in f.problems)
     if incomplete:
         reasons.append(Reason("files-incomplete", Risk.MED, "; ".join(incomplete)))
+    if inp.files_capped is True:
+        detail = "the listing is past the files API's cap, so it never reads whole"
+        reasons.append(Reason(FILES_CAPPED_CODE, Risk.HIGH, detail))
     lines = sum(f.lines for f in files)
     limit = inp.max_changed_lines
     if limit is None and inp.lines_optional is True:
@@ -1052,6 +1004,11 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             reasons.append(
                 Reason(f"evidence-unbound:{name}", Risk.MED, ": ".join(parts))
             )
+            # A blocking finding the lane did report holds whether or not its
+            # evidence binds to the head.
+            if name == _HOLDING_LANE and _is_count(count) and count > 0:
+                detail = f"{count} open, evidence unbound"
+                reasons.append(Reason(finding_code, finding_severity, detail))
             continue
         total = getattr(lane, "open_findings", None)
         if name != _HOLDING_LANE:
@@ -1075,7 +1032,6 @@ def _score(inp: RiskInput) -> RiskResult:
     # Each producer emits a code at most once, and the only code two of them
     # could share (high-path:**) is refused as a configured glob.
     reasons = [
-        *_class_reasons(inp, files or []),
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
@@ -1087,13 +1043,10 @@ def _score(inp: RiskInput) -> RiskResult:
     return RiskResult(Risk(worst), tuple(reasons))
 
 
-# MED reasons an unattended merge passes: the work class's own contradictions
-# and rating, the diff's size, and the review findings that are reported only.
-# `class-missing` and `class-above-rung` hold: the rung is the owner's cap.
+# MED reasons an unattended merge passes: the diff's size and the review
+# findings that are reported only.
 MERGEABLE_MED = frozenset(
     {
-        "class-contradicted",
-        "blast-radius-missing",
         "lines-over",
         "files-over",
         LANES["claude-review"][0],
@@ -1112,6 +1065,29 @@ def holding(result: RiskResult) -> list[Reason]:
         for r in result.reasons
         if r.severity is not Risk.MED
         or not (r.code in MERGEABLE_MED or r.code.startswith(_MERGEABLE_MED_PREFIX))
+    ]
+
+
+# The holding reasons only a person clears (owner rule 2026-10-26: a person
+# only for an intent or design change or a CRITICAL security issue, with
+# cost and trust holds kept, and for a hold no lane can clear): a CRITICAL
+# security finding, a trusted-actor widening, a cost hold, every high path
+# (the floor, a configured denied path, or an aliasing path, symlink,
+# submodule or mode change) and a listing past the files API's cap. The lanes
+# clear every other holding reason, such as review evidence not yet bound to
+# the head or a listing a read did not finish, by judging again. The one list
+# both the merge gate and enable-auto-merge.mjs read.
+FILES_CAPPED_CODE = "files-capped"
+PERSON_CODES = frozenset({LANES[_HOLDING_LANE][0], COST_CODE, FILES_CAPPED_CODE})
+PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:")
+
+
+def person_reasons(reasons: Iterable[Reason]) -> list[Reason]:
+    """The reasons in `reasons` only a person clears (`PERSON_CODES`)."""
+    return [
+        r
+        for r in reasons
+        if r.code in PERSON_CODES or r.code.startswith(PERSON_PREFIXES)
     ]
 
 

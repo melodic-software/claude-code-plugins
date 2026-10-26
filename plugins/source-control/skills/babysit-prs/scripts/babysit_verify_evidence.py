@@ -65,19 +65,23 @@ from a completed, successful one. Any other artifact is ignored.
   `pull-request` (the title and body were the spec), else only when every
   linked issue it records was
   written, and last edited if ever, by a User on the trusted list's humans
-  (the pull request's author among them), else `verify:untrusted-spec`. A
+  (the pull request's author among them), or is a sub-issue the lanes App
+  filed in a size split whose body counts as its parent's text
+  (`split_child_body`), else `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
-  for a person;
+  for a new head;
 - otherwise `verify:missing`.
 
-`verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and
-`verify:untrusted-spec` need a human, who merges in person; a
-`verify:repeated-fail` escalation quotes the newest head FAIL's summary
-(`Reader.fail_summary`). A `verify:fail` or `verify:earlier-fail` only waits:
+`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a
+human (`NEEDS_HUMAN`), who merges in person; a `verify:repeated-fail`
+escalation quotes the newest head FAIL's summary (`Reader.fail_summary`).
+`verify:spec-changed` holds for the lanes (owner rule 2026-10-26), and
+enable-auto-merge.mjs shows one that stands as a failing `pr-merge/unarmed`
+status. A `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
@@ -233,14 +237,17 @@ INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
-NEEDS_HUMAN = (
-    REPEATED_FAIL,
-    TOO_OLD,
-    UNTRUSTED_SPEC,
-    SPEC_CHANGED,
-)
+# The refusals only a person clears (owner rule 2026-10-26: a person only
+# for an intent or design change or a CRITICAL security issue, with trust
+# holds kept): an untrusted spec (provenance), and the two no lane can clear,
+# the repeated-FAIL cap (terminal: `merge.max-verify-fails`) and an old pull
+# request (judged from its creation, so it never clears). A changed spec
+# holds for the lanes, which judge it again. The one list the merge gate and
+# enable-auto-merge.mjs (`needsHuman`) read.
+NEEDS_HUMAN = (REPEATED_FAIL, TOO_OLD, UNTRUSTED_SPEC)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
+    "labels(first:100){totalCount nodes{name}} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
@@ -265,6 +272,183 @@ REFS_QUERY = (
     f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{ISSUE_FIELDS}}}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
+# A size split's sub-issue, its native parent and the parent's comments, as
+# resolve-pr.mjs PARENT_QUERY reads them: one read per sub-issue judged.
+SPLIT_CHILD_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
+    "parent{number repository{nameWithOwner} body lastEditedAt author{...actor} "
+    "editor{...actor} comments(first:100){totalCount nodes{databaseId createdAt "
+    "updatedAt body lastEditedAt author{...actor} editor{...actor}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+# Admission's rules, whose `task-list` is the prefix a split copies by.
+ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
+# admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
+REFINE_MARKER = "<!-- intake-triage refinement -->"
+SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->"
+SPLIT_PART_RE = re.compile(r"Part ([1-9][0-9]?) of ([1-9][0-9]?) of #")
+SPLIT_SOURCE_RE = re.compile(
+    r"<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->"
+)
+# What JavaScript's trimStart strips: WhiteSpace and LineTerminator.
+JS_SPACE = "\t\n\v\f\r                  　﻿"
+
+
+def split_child_header(
+    parent: int, part: int, parts: int, source: tuple[int, str] | None = None
+) -> str:
+    """admit.mjs splitChildHeader: the fixed header of part `part` of
+    `parts` a size split files from issue `parent`, with admit.mjs
+    splitSourceLine when `source` (id, updated_at) is given."""
+    also = " and intake's refinement comment on it" if source else ""
+    rows = [
+        SPLIT_CHILD_MARKER,
+        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
+        f"The done-when below is copied from #{parent}{also} as written.",
+    ]
+    if source:
+        rows.append(
+            f"<!-- size-split refinement={source[0]} updated_at={source[1]} -->"
+        )
+    return "\n".join([*rows, "", "## Done when", ""])
+
+
+def ticked_forms(line: str, task_list: str) -> list[str]:
+    """admit.mjs tickedForms: `line`, a task-list line, with its box ticked,
+    the one `[ ]` in `task_list` written `[x]` or `[X]`, indent and text
+    unchanged. None when `task_list` does not hold exactly one `[ ]`."""
+    if task_list.count("[ ]") != 1:
+        return []
+    rest = line.lstrip(JS_SPACE)
+    indent = line[: len(line) - len(rest)]
+    text = rest[len(task_list) :]
+    return [indent + task_list.replace("[ ]", box, 1) + text for box in ("[x]", "[X]")]
+
+
+def split_child_body(
+    issue: Any, repo: str, humans: frozenset[int], app_id: int | None, task_list: Any
+) -> str | None:
+    """The body of `issue` (as `SPLIT_CHILD_QUERY` reads it) when it counts
+    as the text a size split copied into it, else None: the split-child trust
+    rule, whose one home is admit.mjs splitChildBody, read the way
+    resolve-pr.mjs reads it (a parent in this repository with every comment
+    read). The lanes App (`app_id`) wrote it, a listed human filed its native
+    parent, and it opens with `split_child_header` for that parent. A header
+    with a source line names a refinement comment, which must still be the
+    lanes App's newest refinement on the parent, unedited, on a parent body
+    a listed human wrote, its updated_at its created_at or the recorded one;
+    otherwise the body counts nothing, whoever edited it since. Every line
+    after the header is one of the allowed lines: the parent's trusted
+    task-list lines (a line of its listed-human text starting, after leading
+    space, with `task_list`, admission's `task-list`) and, under a source
+    line, that refinement's task-list lines, never its other lines. Either
+    nobody edited the body, or a listed human last edited it and a line may
+    also be an allowed line with its box ticked (`ticked_forms`): GitHub
+    names only the last editor, so that edit vouches for ticked boxes, never
+    for other text. A missing or empty `task_list` counts nothing. Pure.
+    split-child.vectors.json holds its cases."""
+    issue = json_object(issue)
+    parent = json_object(issue.get("parent"))
+    author = json_object(issue.get("author"))
+    comments = json_object(parent.get("comments"))
+    nodes = comments.get("nodes")
+    number = parent.get("number")
+    body = issue.get("body")
+    if (
+        not isinstance(task_list, str)
+        or not task_list
+        or type(app_id) is not int
+        or author.get("__typename") != "Bot"
+        or type(author.get("databaseId")) is not int
+        or author["databaseId"] != app_id
+        or type(number) is not int
+        or json_object(parent.get("repository")).get("nameWithOwner") != repo
+        or not is_json_array(nodes)
+        or comments.get("totalCount") != len(nodes)
+        or not isinstance(body, str)
+    ):
+        return None
+    nodes = [json_object(node) for node in nodes]
+
+    def human(actor: Any) -> bool:
+        actor = json_object(actor)
+        return (
+            actor.get("__typename") == "User"
+            and type(actor.get("databaseId")) is int
+            and actor["databaseId"] in humans
+        )
+
+    def written(item: dict[str, Any]) -> bool:
+        return human(item.get("author")) and (
+            item.get("lastEditedAt") is None or human(item.get("editor"))
+        )
+
+    def task_lines(item: dict[str, Any]) -> list[str]:
+        return [
+            line
+            for line in str(item.get("body") or "").split("\n")
+            if line.lstrip(JS_SPACE).startswith(task_list)
+        ]
+
+    edited = issue.get("lastEditedAt") is not None
+    if not human(parent.get("author")) or (edited and not human(issue.get("editor"))):
+        return None
+    rows = body.split("\n")
+    part = SPLIT_PART_RE.match(rows[1]) if len(rows) > 1 else None
+    if part is None:
+        return None
+    tag = SPLIT_SOURCE_RE.fullmatch(rows[2]) if len(rows) > 2 else None
+    # admit.mjs reads the id as a Number and writes it back into the header,
+    # so only an id a double holds exactly can match.
+    source = (
+        (int(tag[1]), tag[2]) if tag and int(float(tag[1])) == int(tag[1]) else None
+    )
+    header = f"{split_child_header(number, int(part[1]), int(part[2]), source)}\n"
+    if not body.startswith(header):
+        return None
+    refinement: list[str] = []
+    if source is not None:
+        # admit.mjs countedRefinement: the newest refinement, never an older
+        # one, only while unedited and on a parent body a listed human wrote.
+        newest = next(
+            (
+                c
+                for c in reversed(nodes)
+                if json_object(c.get("author")).get("__typename") == "Bot"
+                and json_object(c.get("author")).get("databaseId") == app_id
+                and str(c.get("body") or "").startswith(REFINE_MARKER)
+            ),
+            None,
+        )
+        if (
+            newest is None
+            or newest.get("lastEditedAt") is not None
+            or not written(parent)
+        ):
+            return None
+        updated = newest.get("updatedAt")
+        if (
+            type(newest.get("databaseId")) is not int
+            or newest["databaseId"] != source[0]
+            or not isinstance(updated, str)
+            or updated not in (newest.get("createdAt"), source[1])
+        ):
+            return None
+        refinement = task_lines(newest)
+    # admit.mjs trustedTaskLines, then the refinement's task-list lines.
+    exact = {
+        line for item in (parent, *nodes) if written(item) for line in task_lines(item)
+    }
+    exact.update(refinement)
+    allowed = (
+        exact | {form for line in exact for form in ticked_forms(line, task_list)}
+        if edited
+        else exact
+    )
+    lines = body[len(header) :].split("\n")
+    return body if all(line in allowed for line in lines) else None
+
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
 # verifier origin, not a completed success), or counted (both).
@@ -273,9 +457,9 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
 # What earlier pr-merge runs read, copied into this run's cache by
-# .github/scripts/pr-merge/carry-run-cache.mjs from a cache entry any job in
-# the default branch's cache scope could have written. Each is used only
-# where it counts a FAIL; any other answer is read from GitHub.
+# .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted run's
+# pr-merge-run-cache artifact. Each is still used only where it counts a FAIL;
+# any other answer is read from GitHub.
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
@@ -297,6 +481,17 @@ RUN_FIELDS = (
     "run_attempt",
     "run_started_at",
 )
+# `_origin` and carry-run-cache.mjs read only these objects' `full_name`.
+REPOSITORY_FIELDS = ("repository", "head_repository")
+
+
+def _run_fields(record: dict[str, Any]) -> dict[str, Any]:
+    """The `RUN_FIELDS` of a run record, each repository kept as its name."""
+    fields = {k: record.get(k) for k in RUN_FIELDS}
+    for k in REPOSITORY_FIELDS:
+        if is_json_object(fields[k]):
+            fields[k] = {"full_name": fields[k].get("full_name")}
+    return fields
 
 
 class _Unreadable(Exception):
@@ -522,6 +717,10 @@ class Reader:
     )
     # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
+    # `merge.agent-identity`, the lanes App's login: its trusted-list id is
+    # the author a size split's sub-issue needs (`_split_child`); unset, no
+    # sub-issue counts.
+    agent_identity: str | None = None
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -538,6 +737,19 @@ class Reader:
     _mapped: dict[int, str] | None = None  # the head-ref map, once loaded
     _humans: frozenset[int] | None = None
     _humans_at: datetime | None = None  # when `_humans` was read
+    # Every login on the trusted list, lowercased, to its id, and when read.
+    _logins: dict[str, int] | None = None
+    _logins_at: datetime | None = None
+    # Admission's `task-list` (`_task_list`), once read.
+    _task_list_value: Any = None
+    _task_list_read: bool = False
+    _task_list_at: datetime | None = None
+    # Whether each size-split sub-issue judged counts (`_split_child`), and
+    # when each read behind it was taken, noted again on every answer
+    # (`run_cache.note`).
+    _split_children: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
     # The pull requests `link_refusal` read, each taken by the next
     # `_closing_issues` instead of reading it again.
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -754,7 +966,7 @@ class Reader:
         if not cached:
             self._started[run_id] = record.get("run_started_at")
             self._created[run_id] = record.get("created_at")
-            run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
+            run_cache.put(RUN_SECTION, key, _run_fields(record))
         done = (
             record.get("status") == "completed"
             and record.get("conclusion") == "success"
@@ -872,33 +1084,132 @@ class Reader:
             if shared is not None and is_json_array(shared[0]):
                 self._humans = frozenset(i for i in shared[0] if type(i) is int)
                 self._humans_at = shared[1]
-        humans = self._humans
-        if humans is None:
-            self._humans_at = run_cache.now()
-            listing = json_object(
-                _read(
-                    [
-                        "api",
-                        "-H",
-                        "Accept: application/vnd.github.raw",
-                        f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={self.branch}",
-                    ],
-                    "trusted-actor list",
-                )
-            )
-            actors = listing.get("actors")
-            if listing.get("version") != 1 or not is_json_array(actors):
-                raise _Unreadable("trusted-actor list does not match its schema")
-            humans = frozenset(
-                a["id"]
-                for a in map(json_object, actors)
-                if a.get("kind") == "human" and isinstance(a.get("id"), int)
-            )
-            self._humans = humans
-            run_cache.put("trusted-humans", key, sorted(humans), self._humans_at)
+        if self._humans is None:
+            self._read_trusted_list()
         if self._humans_at is not None:
             run_cache.note(self._humans_at)
-        return humans
+        return self._humans or frozenset()
+
+    def _read_trusted_list(self) -> None:
+        """Read the trusted list at the branch once: its human ids, and every
+        login's id (`_lane_app_id`), each shared by the run's gate processes."""
+        key = f"{self.repo}@{self.branch}"
+        at = run_cache.now()
+        listing = json_object(
+            _read(
+                [
+                    "api",
+                    "-H",
+                    "Accept: application/vnd.github.raw",
+                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={self.branch}",
+                ],
+                "trusted-actor list",
+            )
+        )
+        actors = listing.get("actors")
+        if listing.get("version") != 1 or not is_json_array(actors):
+            raise _Unreadable("trusted-actor list does not match its schema")
+        actors = [json_object(a) for a in actors]
+        self._humans = frozenset(
+            a["id"]
+            for a in actors
+            if a.get("kind") == "human" and isinstance(a.get("id"), int)
+        )
+        self._logins = {
+            a["login"].lower(): a["id"]
+            for a in actors
+            if isinstance(a.get("login"), str) and type(a.get("id")) is int
+        }
+        self._humans_at = self._logins_at = at
+        run_cache.put("trusted-humans", key, sorted(self._humans), at)
+        run_cache.put("trusted-logins", key, self._logins, at)
+
+    def _lane_app_id(self) -> int | None:
+        """The lanes App's id: the trusted list's id for `agent_identity`
+        with its `[bot]` suffix, as resolve-pr.mjs reads `laneAppId`; None
+        when no identity is set or the list names none."""
+        identity = (self.agent_identity or "").strip().lower().removesuffix("[bot]")
+        if not identity:
+            return None
+        if self._logins is None:
+            key = f"{self.repo}@{self.branch}"
+            shared = run_cache.get_dated("trusted-logins", key, run_cache.MAX_AGE)
+            if shared is not None and is_json_object(shared[0]):
+                self._logins = {k: v for k, v in shared[0].items() if type(v) is int}
+                self._logins_at = shared[1]
+        if self._logins is None:
+            self._read_trusted_list()
+        if self._logins_at is not None:
+            run_cache.note(self._logins_at)
+        app_id = (self._logins or {}).get(f"{identity}[bot]")
+        return app_id if type(app_id) is int else None
+
+    def _task_list(self) -> str | None:
+        """Admission's `task-list` at the repository's default branch, as
+        resolve-pr.mjs reads it from main's checkout whatever the pull
+        request's base, shared by the run's gate processes; None when the
+        rules hold no string there. A failed read raises `_Unreadable`."""
+        if not self._task_list_read:
+            try:
+                default = merge_policy._default_branch(self.repo, shared=True)
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+            key = f"{self.repo}@{default}"
+            shared = run_cache.get_dated("task-list", key, run_cache.MAX_AGE)
+            if shared is not None:
+                self._task_list_value, at = shared
+            else:
+                at = run_cache.now()
+                rules = json_object(
+                    _read(
+                        [
+                            "api",
+                            "-H",
+                            "Accept: application/vnd.github.raw",
+                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={default}",
+                        ],
+                        "admission rules",
+                    )
+                )
+                self._task_list_value = rules.get("task-list")
+                run_cache.put("task-list", key, self._task_list_value, at)
+            self._task_list_read = True
+            self._task_list_at = at
+        if self._task_list_at is not None:
+            run_cache.note(self._task_list_at)
+        value = self._task_list_value
+        return value if isinstance(value, str) and value else None
+
+    def _split_child(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue`, which the lanes App wrote,
+        is a size split's sub-issue whose body counts (`split_child_body`),
+        read once per Reader under the Actions token (`issues: read`). A
+        failed read raises `_Unreadable` (`verify:unreadable`), as
+        resolve-pr.mjs fails on it; a cut comment read counts nothing."""
+        app_id = self._lane_app_id()
+        number = issue.get("number")
+        if (
+            app_id is None
+            or type(number) is not int
+            or issue.get("author_type") != "Bot"
+            or issue.get("author_id") != app_id
+        ):
+            return False
+        if number not in self._split_children:
+            with run_cache.track() as taken:
+                task_list = self._task_list()
+                run_cache.note(run_cache.now())
+                node = self._graphql(
+                    SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
+                ).get("issue")
+                body = split_child_body(
+                    node, self.repo, self._trusted_humans(), app_id, task_list
+                )
+            self._split_children[number] = (body is not None, tuple(taken))
+        counts, read_at = self._split_children[number]
+        for at in read_at:
+            run_cache.note(at)
+        return counts
 
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
@@ -935,7 +1246,8 @@ class Reader:
 
     def _trusted_spec(self, record: dict[str, Any]) -> bool:
         """Every linked issue was written, and its body last edited if ever,
-        by a User on the trusted list's humans (`_trusted_actor`)."""
+        by a User on the trusted list's humans (`_trusted_actor`), or is a
+        size split's sub-issue whose body counts (`_split_child`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -946,23 +1258,36 @@ class Reader:
             json_object(issue) for issue in json_array(record.get("linked_issues"))
         ]
         return bool(issues) and all(
-            trusted(issue, "author")
-            and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
+            (
+                trusted(issue, "author")
+                and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
+            )
+            or self._split_child(issue)
             for issue in issues
         )
 
     def _graphql(
-        self, query: str, number: int, what: str, missing: str | None = None
+        self,
+        query: str,
+        number: int,
+        what: str,
+        missing: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """The query's `repository`. A NOT_FOUND for `missing` alone
-        (`merge_policy.names_nothing`), which gh exits nonzero on, reads as
-        `missing` an empty object, so a null there without that error stays
-        apart; any other error raises `_Unreadable`."""
+        """The query's `repository`, read under `env`'s token when given. A
+        NOT_FOUND for `missing` alone (`merge_policy.names_nothing`), which
+        gh exits nonzero on, reads as `missing` an empty object, so a null
+        there without that error stays apart; any other error raises
+        `_Unreadable`."""
         owner, _, name = self.repo.partition("/")
         args = ["api", "graphql", "-f", f"query={query}"]
         args += ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"]
         try:
-            proc = postmerge.gh_capture(args)
+            proc = (
+                postmerge.gh_capture(args, env_overrides=env)
+                if env
+                else postmerge.gh_capture(args)
+            )
         except (RuntimeError, ValueError, OSError) as exc:
             raise _Unreadable(f"#{number} {what}: {exc}") from exc
         if missing and merge_policy.names_nothing(proc.stdout, missing):
@@ -1028,7 +1353,11 @@ class Reader:
         takes from a pull request the lane opened, or None when it is: the
         gate's own rule (`merge_policy._linked_issue`, as `lane_eligibility`
         reads it), so one closing issue in this repository, or, with none,
-        the one issue its plain `Refs:` lines name. A failed read refuses."""
+        the one issue its plain `Refs:` lines name. Then the trust hold on that
+        issue as `eligibility` reads it (`merge_policy.trust_refusal`), so a
+        label naming untrusted work added after admission, or one a non-human
+        removed, refuses at arm time; its labels come with the link's read,
+        its timeline in one more. A failed read refuses."""
         try:
             pull = json_object(
                 self._graphql(CLOSING_QUERY, number, "closing issues").get(
@@ -1036,6 +1365,23 @@ class Reader:
                 )
             )
             issue, refusal = merge_policy._linked_issue(pull, self.repo)
+            if refusal is None:
+                owner, _, name = self.repo.partition("/")
+                permission = merge_policy.permission_reader(self.repo)
+                # No agent identity: the lanes App is a Bot, which is never
+                # human (`merge_policy.is_human`).
+                refusal = merge_policy.trust_refusal(
+                    owner,
+                    name,
+                    issue,
+                    lambda actor: merge_policy.is_human(
+                        actor,
+                        repo=self.repo,
+                        agent_identity=None,
+                        permission=permission,
+                    ),
+                    {},
+                )
         except (_Unreadable, merge_policy.PolicyReadError) as exc:
             return f"unreadable: {exc}"
         if refusal is None:
@@ -1309,9 +1655,7 @@ class Reader:
         except postmerge.PostMergeReadError:
             return None
 
-    def _newest(
-        self, passes: list[tuple[int, str, Any]]
-    ) -> list[tuple[int, str, Any]]:
+    def _newest(self, passes: list[tuple[int, str, Any]]) -> list[tuple[int, str, Any]]:
         """The passes whose runs started last (`run_started_at`, which a
         re-attempt moves, and which a re-attempt's judgment read the spec
         at): a pr-verify run that judged the head again after the spec
@@ -1426,9 +1770,10 @@ class Reader:
                 sliced.add(_issue_numbers(record))
             for run_id, name, artifact in passes:
                 record = self._record(run_id, name, artifact)
-                if record.get("spec_kind") != "closes" or {
-                    _issue_numbers(record)
-                } != sliced:
+                if (
+                    record.get("spec_kind") != "closes"
+                    or {_issue_numbers(record)} != sliced
+                ):
                     return False
         except _Unreadable:
             return False
@@ -1537,14 +1882,13 @@ def lane_risk_refusal(
     number: int,
     pr: dict[str, Any],
     config: merge_policy.PipelineConfig,
-    rung: str,
     issue: int | None,
-) -> str | None:
-    """Why pr-merge's gate would hold the pull request on its risk score, or
+) -> tuple[str, bool] | None:
+    """Why pr-merge's gate would hold the pull request on its risk score, and
+    whether only a person clears it (`babysit_risk.person_reasons`), or
     None: `babysit_risk.score` and `holding` over the inputs the gate builds
-    (`babysit_merge.score_unattended`) for a lane pull request, class
-    `LANE_CLASS` at `rung`, with `config` the base's tightened by the
-    default branch head's. So the review lanes' evidence (an open CRITICAL
+    (`babysit_merge.score_unattended`) for a lane pull request, with `config`
+    the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
     security finding, a review not bound to the head), a symlink, submodule
     or other non-regular mode, a high path, the manifest review, the trust
     gate and the cost review all hold, the cost review lifted only by the
@@ -1557,7 +1901,7 @@ def lane_risk_refusal(
     try:
         identity = config.agent_identity
         if not identity:
-            return "unreadable: no agent identity"
+            return "unreadable: no agent identity", False
         permission = merge_policy.permission_reader(repo)
         files, complete = merge_policy.changed_files(repo, pr)
         lanes, _ = babysit_merge._lane_evidence(
@@ -1574,18 +1918,15 @@ def lane_risk_refusal(
         files = merge_policy.with_contents(repo, pr, files)
         private = json_object(json_object(pr.get("base")).get("repo")).get("private")
         risk_input = babysit_risk.RiskInput(
-            work_class=merge_policy.LANE_CLASS,
-            rung=babysit_risk.Rung[rung.upper()],
             files=files,
             files_complete=complete,
+            files_capped=merge_policy.files_capped(pr),
             max_changed_lines=config.max_changed_lines,
             high_paths=config.denied_paths,
             lanes=lanes,
-            blast_radius=None,
             public=True if private is False else None,
             pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
             high_floor=config.high_path_floor,
-            c2_contradictions=config.c2_contradictions,
             max_changed_files=config.max_changed_files,
             lines_optional=True,
         )
@@ -1597,9 +1938,44 @@ def lane_risk_refusal(
             if decision:
                 risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
-        return f"unreadable: {type(exc).__name__}: {exc}"
+        return f"unreadable: {type(exc).__name__}: {exc}", False
     held = babysit_risk.holding(risk)
-    return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
+    text = "; ".join(f"{r.code}: {r.detail}" for r in held)
+    return (text, bool(babysit_risk.person_reasons(held))) if text else None
+
+
+def lane_queue(
+    repo: str, branch: str, number: int, head: str, limit: int
+) -> dict[str, Any]:
+    """The merge queue's failed-check removals of `head` and whether pr-merge's
+    gate would enqueue it again under `merge.max-queue-ejections` `limit`
+    (`babysit_merge.queue_ejection_hold`), with the gate's marked comment when
+    the cap refuses. A read that fails refuses as the gate's unreadable hold,
+    with no comment, and names why in `readError`; a failed runs read keeps
+    the refusal, with no comment and its error in `commentError`."""
+    # Imported here: babysit_merge imports this module.
+    import babysit_merge  # noqa: PLC0415
+
+    try:
+        queue = babysit_merge.read_merge_queue(repo, number)
+    except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
+        queue = {"readError": f"{type(exc).__name__}: {exc}"}
+    read_error = queue.get("readError") or None
+    count = None if read_error else queue.get("failedEjections")
+    count = count if isinstance(count, int) else None
+    if count is None and read_error is None:
+        read_error = "the merge queue's timeline items could not be counted"
+    refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
+        repo, branch, number, head, count, limit
+    )
+    return {
+        "failedEjections": count,
+        "limit": limit,
+        "refusal": refusal,
+        "comment": comment,
+        "readError": str(read_error) if read_error else None,
+        "commentError": comment_error,
+    }
 
 
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
@@ -1611,25 +1987,34 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
 
     With `--base-sha`, the FAIL cap is the gate's: `merge.max-verify-fails`
     of the config at that base commit and at the default branch head, the
-    lower one (`with_default_branch`); a config that cannot be read refuses
+    lower one (`with_default_branch`), each read once per run by commit
+    (`merge_policy.config_at`); a config that cannot be read refuses
     `verify:unreadable`. A pass judged on the run's saved listing is judged
     again on a listing of its own, as the gate does before it allows.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
-    pull request's issue link is one the pr-merge lane takes
-    (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
+    pull request's issue link is one the pr-merge lane takes and its issue
+    clears the trust hold (`Reader.link_refusal`), else why not, with refusal
+    `verify:ineligible`
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
-    the pull request on its risk score (`lane_risk_refusal`), else why.
+    the pull request on its risk score (`lane_risk_refusal`), else why, and
+    `reviewsPerson`: whether only a person clears that hold. With
+    `--lane-queue` too, a line whose `reviews` is null also carries `queue`
+    (`lane_queue`): the head's failed-check merge-queue removals, the
+    `merge.max-queue-ejections` limit, and the gate's refusal and comment at
+    or over it.
 
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now
     (`merge_policy.lane_room`, `LaneRoom.report`), from this run's
     `babysit_postmerge.py` report and the `CLAUDE_LANES_MERGE_RUNG_CAP` value
     the workflow read (empty is no cap; missing holds the rung off). A report
-    refused only as `unverified-stale` is kept while nothing it was read from
-    has moved, else checked again."""
+    the gate would not reuse, for any `shared_refusal`, is checked again; one
+    refused only as `unverified-stale` is first kept while nothing it was
+    read from has moved, and one refused only as `demotion-changed` when the
+    demotion reads the same."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -1641,6 +2026,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--base-sha", default=None)
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("--lane-reviews", action="store_true")
+    cmd.add_argument("--lane-queue", action="store_true")
     cmd.add_argument("--rung", default=None)
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
@@ -1675,6 +2061,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         parser.error(
             "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
         )
+    if args.lane_queue and not (args.lane_reviews and args.base_sha):
+        # The reviews read checks the head the count is for and reads the limit.
+        parser.error("--lane-queue needs --lane-reviews and --base-sha")
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
     link: dict[str, Any] = {}
     config: merge_policy.PipelineConfig | None = None
@@ -1686,7 +2075,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             return 0
     if args.base_sha is not None:
         try:
-            base = merge_policy.read_config_at(args.repo, args.base_sha)
+            base = merge_policy.config_at(args.repo, args.base_sha)
             if base.error:
                 raise merge_policy.PolicyReadError(base.error)
             config = merge_policy.with_default_branch(args.repo, base)
@@ -1695,6 +2084,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             print(json.dumps(refusal.report() | link))
             return 0
         reader.max_fails = config.max_verify_fails
+        reader.agent_identity = config.agent_identity
     pr = None
     if args.lane_reviews:
         try:
@@ -1709,6 +2099,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:
         head = json_object(json_object(pr).get("head")).get("sha")
+        # Whether only a person clears `reviews`; an unread score the lanes
+        # read again.
+        link["reviewsPerson"] = False
         if head != args.head:
             link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
         elif config is None:
@@ -1721,17 +2114,25 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                 cap=args.rung if args.rung in merge_policy.RUNG_RANK else "off",
                 demoted=False,
             ).rung
-            link["reviews"] = (
-                f"unreadable: the lane's rung is {args.rung}"
+            held = (
+                (f"unreadable: the lane's rung is {args.rung}", False)
                 if rung == "off"
                 else lane_risk_refusal(
                     args.repo,
                     args.number,
                     json_object(pr),
                     config,
-                    rung,
                     reader.linked_issue.get(args.number),
                 )
+            )
+            link["reviews"], link["reviewsPerson"] = held or (None, False)
+        if args.lane_queue and link["reviews"] is None and config is not None:
+            link["queue"] = lane_queue(
+                args.repo,
+                args.branch,
+                args.number,
+                args.head,
+                config.max_queue_ejections,
             )
     print(json.dumps(evidence.report() | link))
     return 0

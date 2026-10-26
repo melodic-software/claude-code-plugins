@@ -71,9 +71,10 @@
 # Rewording, extending, or qualifying a pinned line is EXPECTED to fail, including a typo
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
-# then update the skill body and this suite in one change. Recomputing a digest or pin here is
-# attended-only: an unattended run that hits a failing digest reports the pin and the git diff,
-# then stops, and never updates it.
+# then update the skill body and this suite in one change. Any session, a lane included, may
+# re-pin a digest after that re-read: tests/repin.sh rewrites one sha256 literal, and the commit
+# records the old and new digest and why the defense still holds, so the PR review judges the
+# change against the text it guards.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
@@ -100,10 +101,10 @@ AUDIT="$PLUGIN_DIR/skills/audit-answers/SKILL.md"
 EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
-ATTENDED_ONLY="Recomputing a pin or digest is attended-only: an unattended run reports this pin and the git diff, then stops."
+UPDATE_RULE="Read the git diff of this text first; the commit that updates the pin states, for each pin, old -> new and why the defense still holds."
 # Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
 # pins and the boundary failure have nothing for it to recompute.
-REPIN_HINT="After reading the diff, a person re-pins this digest by running, in their own terminal (a Claude Code ! line has no terminal): bash plugins/planning/tests/repin.sh '<pin label text>' '<justification>'"
+REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>' '<why the defense still holds>'"
 PASS=0
 FAIL=0
 fail() {
@@ -176,7 +177,7 @@ pin_exact() {
   if grep -Fxq -- "$line" "$file"; then
     ok "$label"
   else
-    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line ${ATTENDED_ONLY}"
+    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line ${UPDATE_RULE}"
   fi
 }
 
@@ -243,7 +244,7 @@ pin_section() {
   n_open="$(grep -Fxc -- "$open" "$file" || true)"
   n_close="$(grep -Fxc -- "$close" "$file" || true)"
   if [[ "$n_open" != "1" || "$n_close" != "1" ]]; then
-    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest. ${ATTENDED_ONLY}"
+    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest. ${UPDATE_RULE}"
     return
   fi
   got="$(section_digest "$file" "$open" "$close")"
@@ -252,7 +253,7 @@ pin_section() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -272,7 +273,7 @@ pin_frontmatter() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -290,7 +291,7 @@ pin_case_digest() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -307,7 +308,7 @@ pin_file() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -327,7 +328,7 @@ pin_case_set() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -430,7 +431,8 @@ declares_both_fixtures B "$CASE_B"
 #
 # Update procedure when one of these fires: read `git diff` for the named section or case,
 # confirm in words that neither defense was weakened, qualified, or contradicted by the
-# change, then recompute and replace the digest below IN THE SAME COMMIT.
+# change, then re-pin the digest below IN THE SAME COMMIT (tests/repin.sh), with old -> new
+# and that reason in the commit message.
 #
 # The boundary tests below MUST match `section_digest`'s — whole-line equality, not a
 # prefix match. They agree on today's content and diverge in exactly the crafted-heading
@@ -535,11 +537,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # The no-question line drops `lock` from the runs that ask nothing: `lock` asks its problem
 # question, so it always writes a register the gate grades; an unattended pre-confirmed item
 # writes that row `answered` citing the label (problem-framing.md "Pre-confirmed").
+# gate reads only the Restatement stamp (#9912); no defense weakened
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "b848ba47dd1806383cf7ee7d908d816009dbcbd6c670804a7e35c67d32b0eb2a"
+  "f90cc6c8121e2568b49ab8c7a9984112c47060c636200732e6981a64fe8ad35f"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -578,11 +581,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The start-fresh line names the scope-change note as the Brief's only history; it touches no assumption, gap or Brief rule.
 # The `me`-mode persistence line routes a pause through /session-flow:workflow; it touches no assumption, gap or Brief rule.
 # The cross-check and section schema name nine headings, Problem and Work size added; the gate requires more and retires no row.
+# gate reads only the Restatement stamp (#9912); no defense weakened
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "24345865fa0f8200906a8635127237bee6c00bdac4728b6178d0ede76ea97567"
+  "9beea2e4efe382b0d4d2bd5c3be72cc06dd2122a7c35eea2207ad0324b96d0ca"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -635,11 +639,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # The `lock` exemption became one registered problem question, and the no-question carve-out no
 # longer names `lock`; both bring `lock` under the gate and keep STOP-on-gap. The carve-out
 # says `lock` always writes its problem row, so its register always gates.
+# gate reads only the Restatement stamp (#9912); no defense weakened
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "8f439fd3dd258d3121768851a155733657dae22d7c687de1468d3b3440264717"
+  "661b74163de8a4f962989eac8104002abb6da47d9822eb01cc7379dbc733900d"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \

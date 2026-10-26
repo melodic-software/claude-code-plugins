@@ -85,25 +85,49 @@ assert_eq "an unknown role exits 1" 1 "$?"
 
 fixture team
 out="$(run team apply --layer team --write roles.verifier.effort=xhigh)"
-assert_contains "team with no file creates the docs convention file" "$out" "wrote: $T/team/repo/docs/conventions/multi-agent.md"
+assert_contains "team with no file creates the concern YAML" "$out" "wrote: $T/team/repo/docs/conventions/multi-agent.yaml"
 out="$(run team check session=opus)"
-assert_contains "the new docs block is the team layer" "$out" '"layer":"team","path":"'"$T/team/repo/docs/conventions/multi-agent.md"'","state":"read"'
+assert_contains "the new YAML is the team layer" "$out" '"layer":"team","path":"'"$T/team/repo/docs/conventions/multi-agent.yaml"'","state":"read"'
 
+# A bound convention home moves the team YAML apply writes.
+fixture bound
+mkdir -p "$T/bound/repo/team-docs"
+printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team-docs`.\n<!-- END GENERATED: convention-home -->\n' >"$T/bound/repo/AGENTS.md"
+out="$(run bound apply --layer team --write roles.verifier.effort=xhigh)"
+assert_contains "bound home: team writes the YAML under the home" "$out" "wrote: $T/bound/repo/team-docs/multi-agent.yaml"
+state=absent
+[[ -e "$T/bound/repo/docs/conventions/multi-agent.yaml" ]] && state=present
+assert_eq "bound home: nothing is written under docs/conventions" absent "$state"
+out="$(run bound check session=opus)"
+assert_contains "bound home: the written YAML is the team layer" "$out" '"layer":"team","path":"'"$T/bound/repo/team-docs/multi-agent.yaml"'","state":"read"'
+
+# The legacy docs block seeds the YAML and is left as it was.
 fixture docs
 mkdir -p "$T/docs/repo/docs/conventions"
-printf '# Ours\n\nProse.\n\n````markdown\n```yaml config\nschema: 1\n```\n````\n\n```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n\nTrailer.\n' \
+printf '# Ours\n\nProse.\n\n```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n\nTrailer.\n' \
   >"$T/docs/repo/docs/conventions/multi-agent.md"
+cp "$T/docs/repo/docs/conventions/multi-agent.md" "$T/docs/legacy.md"
 run docs apply --layer team --write roles.verifier.effort=high >/dev/null
-f="$(cat "$T/docs/repo/docs/conventions/multi-agent.md")"
-assert_contains "docs block: prose before is kept" "$f" $'# Ours\n\nProse.'
-assert_contains "docs block: the example fence is untouched" "$f" $'````markdown\n```yaml config\nschema: 1\n```\n````'
-assert_contains "docs block: existing and new keys merged" "$f" $'```yaml config\nschema: 1\nroles:\n  verifier:\n    effort: high\n  worker:\n    effort: low\n```\n\nTrailer.'
+assert_eq "docs block: seeded keys and new keys are in the YAML" \
+  $'schema: 1\nroles:\n  verifier:\n    effort: high\n  worker:\n    effort: low' \
+  "$(cat "$T/docs/repo/docs/conventions/multi-agent.yaml")"
+assert_eq "docs block: the legacy file is untouched" "$(cat "$T/docs/legacy.md")" "$(cat "$T/docs/repo/docs/conventions/multi-agent.md")"
 
 fixture claudefile
 mkdir -p "$T/claudefile/repo/.claude"
-printf 'schema: 1\n' >"$T/claudefile/repo/.claude/multi-agent.yaml"
-out="$(run claudefile apply --layer team roles.worker.effort=low)"
-assert_contains "team uses an existing .claude file" "$out" "would write: $T/claudefile/repo/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/claudefile/repo/.claude/multi-agent.yaml"
+out="$(run claudefile apply --layer team roles.verifier.effort=high)"
+assert_contains "team targets the concern YAML, not the .claude file" "$out" "would write: $T/claudefile/repo/docs/conventions/multi-agent.yaml"
+assert_contains "the .claude file seeds the preview" "$out" '+    effort: low'
+
+fixture existing
+mkdir -p "$T/existing/repo/docs/conventions"
+printf 'schema: 1\nroles:\n  worker:\n    effort: max\n' >"$T/existing/repo/docs/conventions/multi-agent.yaml"
+printf '```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n' >"$T/existing/repo/docs/conventions/multi-agent.md"
+run existing apply --layer team --write roles.verifier.effort=high >/dev/null
+assert_eq "an existing YAML is merged, the legacy block is not read" \
+  $'schema: 1\nroles:\n  verifier:\n    effort: high\n  worker:\n    effort: max' \
+  "$(cat "$T/existing/repo/docs/conventions/multi-agent.yaml")"
 
 fixture broken
 mkdir -p "$T/broken/repo/.claude"
@@ -115,11 +139,29 @@ assert_contains "the parse error names the line" "$(cat "$T/broken.err")" 'line 
 fixture symlink
 mkdir -p "$T/symlink/repo/docs/conventions"
 printf 'outside\n' >"$T/symlink/victim"
-ln -s "$T/symlink/victim" "$T/symlink/repo/docs/conventions/multi-agent.md"
+ln -s "$T/symlink/victim" "$T/symlink/repo/docs/conventions/multi-agent.yaml"
 run symlink apply --layer team --write roles.worker.effort=low >/dev/null
 assert_eq "a symlinked team file is refused" 2 "$?"
 assert_eq "the symlink target is untouched" outside "$(cat "$T/symlink/victim")"
 assert_contains "the refusal names the symlink" "$(cat "$T/symlink.err")" 'is a symlink'
+
+# A symlinked legacy file is not read as a seed.
+fixture seedlink
+mkdir -p "$T/seedlink/repo/.claude"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/seedlink/victim"
+ln -s "$T/seedlink/victim" "$T/seedlink/repo/.claude/multi-agent.yaml"
+out="$(run seedlink apply --layer team roles.verifier.effort=high)"
+assert_eq "a symlinked .claude seed is refused" 2 "$?"
+assert_lacks "the symlinked seed is not in the preview" "$out" 'effort: low'
+assert_contains "the seed refusal names the symlink" "$(cat "$T/seedlink.err")" 'is a symlink'
+
+fixture mdlink
+mkdir -p "$T/mdlink/repo/docs/conventions"
+printf '```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n' >"$T/mdlink/victim"
+ln -s "$T/mdlink/victim" "$T/mdlink/repo/docs/conventions/multi-agent.md"
+out="$(run mdlink apply --layer team roles.verifier.effort=high)"
+assert_eq "a symlinked docs seed is refused" 2 "$?"
+assert_lacks "the symlinked docs seed is not in the preview" "$out" 'effort: low'
 
 fixture user
 out="$(run user apply --layer user --write fanout.model=sonnet)"

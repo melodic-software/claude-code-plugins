@@ -1,0 +1,120 @@
+{
+  "skill": "playwright:playwright",
+  "plugin": "playwright",
+  "skill_dir": "plugins/playwright/skills/playwright",
+  "ranking_note": "Authored blind from the before descriptions at commit 7f7f5219ab98be34e7bc288fc70c01a5a13f2073, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked playwright skills (setup is user-invoked only).",
+  "competitors": [
+    "playwright:check",
+    "playwright:demo-video"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Open localhost:5173 in a browser, log in as the test user, and confirm the dashboard loads without errors."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Use playwright to click through the checkout and tell me where it breaks."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Grab a screenshot of the staging settings page after toggling the beta flag."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Load the app, submit the contact form, and show me any JS errors that get logged."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Stub the /api/orders endpoint to return a 500 and see how the orders page handles it in the browser."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Save the logged-in session cookies so later browser runs can skip the login screen."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Smoke test the new signup page in a headless browser against my dev server."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which XHR calls fire when I hit the search button on the products page? Watch the requests for me."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Look at the storage-state JSON from our last playwright-cli sign-in and tell me whether the token has expired."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do an E2E pass on the password reset journey and record a trace I can open later."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is playwright-cli even installed here? Don't change anything, just check."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a PR demo video of the new sidebar with zooms and captions."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write Jest unit tests for the date-formatting helper in src/utils/date.ts."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install the playwright CLI and download the browsers for me."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain the tradeoffs between Playwright and Cypress for our team's testing strategy."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The browser flow said playwright-cli is missing; verify whether a browser binary is resolvable before we go further."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Produce a polished walkthrough recording of the export feature and attach it to my pull request."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fix the flaky assertion in tests/e2e/cart.spec.ts by reading the code; don't run anything."
+    }
+  ]
+}

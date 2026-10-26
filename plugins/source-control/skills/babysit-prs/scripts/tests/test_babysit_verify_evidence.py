@@ -239,6 +239,12 @@ class FakeGitHub:
         # may name is: an issue's repository, or "PullRequest".
         self.body: str | None = None
         self.refs: dict[int, str] = {}
+        # Each issue's label names now, and a totalCount that cuts them.
+        self.labels: dict[int, list[str]] = {}
+        self.labels_total: dict[int, int] = {}
+        # Each issue's REST timeline events, and each login's permission.
+        self.timeline: dict[int, list[dict[str, Any]]] = {}
+        self.permissions: dict[str, str] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -306,6 +312,10 @@ class FakeGitHub:
             "number": n,
             "lastEditedAt": self.closing_edited.get(n),
             "repository": {"nameWithOwner": repo},
+            "labels": {
+                "totalCount": self.labels_total.get(n, len(self.labels.get(n, []))),
+                "nodes": [{"name": name} for name in self.labels.get(n, [])],
+            },
             "comments": {
                 "totalCount": self.comments_total.get(
                     n, len(self.closing_comments.get(n, []))
@@ -386,6 +396,16 @@ class FakeGitHub:
             return subprocess.CompletedProcess(args, 0, self.diffs[sha], "")
         if path.startswith(f"repos/{REPO}/contents/"):
             return ok(self.actors)
+        issues = f"repos/{REPO}/issues/"
+        if path.startswith(issues) and path.endswith("/timeline?per_page=100"):
+            n = int(path[len(issues) :].split("/")[0])
+            return ok([self.timeline.get(n, [])])
+        collaborators = f"repos/{REPO}/collaborators/"
+        if path.startswith(collaborators) and path.endswith("/permission"):
+            login = path[len(collaborators) :].split("/")[0]
+            if login not in self.permissions:
+                return missing()
+            return ok({"permission": self.permissions[login]})
         prefix = f"repos/{REPO}/actions/runs/"
         if path.startswith(prefix):
             run_id = int(path[len(prefix) :])
@@ -972,9 +992,7 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
         # Failed as a slice of one issue, then relinked to close a different
         # issue on the same diff.
-        self.assertEqual(
-            read(self.closing_another(8)).refusal, "verify:earlier-fail"
-        )
+        self.assertEqual(read(self.closing_another(8)).refusal, "verify:earlier-fail")
 
     def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
         self.assertEqual(
@@ -1438,6 +1456,30 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
         self.assertTrue(evidence.needs_human)
         self.assertIn("3", evidence.detail or "")
 
+    def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
+        # A listing that does not read refuses rather than letting the pass
+        # decide, so a short read never lifts the cap.
+        fake = self.failed_at(EARLIER, IN_PR, UNRELATED)
+        fake.fail = {"actions/artifacts"}
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+
+    def test_its_own_fails_cannot_expire_before_it_is_too_old(self) -> None:
+        # Artifacts last 90 days here; a pull request is refused for a person
+        # past TOO_OLD_DAYS, before any of its own FAILs can expire, so an
+        # expired FAIL never lifts the cap of a pull request still judged.
+        self.assertLess(ve.TOO_OLD_DAYS, 90)
+        expired = passing(
+            *(
+                artifact(named(sha, "fail"), i, expired=True)
+                for i, sha in zip((2, 3, 4), (EARLIER, IN_PR, UNRELATED))
+            ),
+            runs={i: judged(i, OLDER_START) for i in (2, 3, 4)},
+        )
+        evidence = read(expired, pull(created_at="2026-07-27T23:00:00Z"))
+        self.assertEqual(evidence.refusal, "verify:too-old")
+        self.assertTrue(evidence.needs_human)
+
     def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
 
@@ -1887,8 +1929,12 @@ class TheNewestPassDecides(unittest.TestCase):
         # Run 1 created first but re-attempted after the edit; run 2 created
         # later but started before it. The later start judged the live spec.
         fake = self.fake(second=True)
-        fake.runs[1] = run(1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z")
-        fake.runs[2] = run(2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z")
+        fake.runs[1] = run(
+            1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z"
+        )
+        fake.runs[2] = run(
+            2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z"
+        )
         self.assertIsNone(read(fake).refusal)
 
     def test_every_pass_decides_when_a_start_time_is_missing(self) -> None:
@@ -1921,7 +1967,7 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 fake.closing = closing
                 evidence = read(fake)
                 self.assertEqual(evidence.refusal, "verify:spec-changed")
-                self.assertTrue(evidence.needs_human)
+                self.assertFalse(evidence.needs_human)
 
     def refs(self, body: str | None, kind: str = REPO) -> FakeGitHub:
         """A pass recording issue 7, for a PR that closes none now."""
@@ -2424,6 +2470,19 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
             read(fake)
         self.assertEqual(self.run_reads(fake, 2), 1)
 
+    def test_a_shared_run_record_keeps_only_repository_names(self) -> None:
+        fake = self.other_fail()
+        fat = {"full_name": REPO, "id": 1, "owner": {"login": "o"}, "x": "y" * 99}
+        fake.runs[2] = run(2, repository=fat, head_repository=dict(fat))
+        self.assertIsNone(read(fake).refusal)
+        path = pathlib.Path(os.environ["BABYSIT_RUN_CACHE"])
+        stored = json.loads(path.read_text())["run-record"][f"{REPO}|2"]["value"]
+        self.assertEqual(stored["repository"], {"full_name": REPO})
+        self.assertEqual(stored["head_repository"], {"full_name": REPO})
+        # The slim record serves the next candidate as the full one did.
+        self.assertIsNone(read(fake).refusal)
+        self.assertEqual(self.run_reads(fake, 2), 1)
+
     def test_a_re_run_of_a_counted_pass_does_not_allow(self) -> None:
         fake = passing()
         self.assertIsNone(read(fake).refusal)
@@ -2579,6 +2638,57 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         self.assertFalse(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
         self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 2), 0)
 
+    def test_slim_and_full_run_records_both_count_a_fail(self) -> None:
+        # Records saved before repositories were trimmed to their names
+        # still carry and count, as trimmed ones do.
+        name = named(UNRELATED, "fail", 99)
+        full = {"full_name": REPO, "id": 1, "owner": {"login": "o"}}
+        for label, repository in (("slim", {"full_name": REPO}), ("full", full)):
+            for section in ("run-record", "carried-run-record"):
+                with self.subTest(record=label, section=section):
+                    (self.dir / "run.json").unlink(missing_ok=True)
+                    fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
+                    stored = run(
+                        2, repository=repository, head_repository=dict(repository)
+                    )
+                    self.restore(
+                        {
+                            section: {f"{REPO}|2": stored},
+                            "fail-head-ref": {f"{REPO}|20": {"head_ref": "feat/x"}},
+                            "on-branch": {f"{REPO}|{MAIN_SHA}...main": True},
+                        }
+                    )
+                    self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                    self.assertFalse(
+                        any(c[-1].endswith("/actions/runs/2") for c in fake.calls)
+                    )
+
+    def test_a_slim_record_of_another_repository_is_not_origin(self) -> None:
+        # A trimmed record naming another repository is no origin, so the
+        # run is read from GitHub, as for a full one.
+        name = named(UNRELATED, "fail", 99)
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
+        other = {"full_name": "someone/fork"}
+        at = datetime.now(UTC).isoformat()
+        # Written as it lands, past carry-run-cache.mjs, which would drop it.
+        (self.dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "carried-run-record": {
+                        f"{REPO}|2": {
+                            "at": at,
+                            "value": run(2, repository=other, head_repository=other),
+                        }
+                    },
+                    "fail-head-ref": {
+                        f"{REPO}|20": {"at": at, "value": {"head_ref": "feat/x"}}
+                    },
+                }
+            )
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertTrue(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
+
 
 # --- A transient listing failure is read again --------------------------------
 
@@ -2661,7 +2771,15 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         # short wait outlasts neither, so neither is read again.
         "gh: Too Many Requests (HTTP 429)",
         "gh: You have exceeded a secondary rate limit. (HTTP 403)",
-        "gh: API rate limit exceeded for installation ID 1. (HTTP 403)",
+        # As run 39906176584 logged it (pr-merge.yml, dispatch-full-run,
+        # 2026-10-23T05:30:57Z).
+        "gh: API rate limit exceeded for installation. If you reach out to"
+        " GitHub Support for help, please include the request ID"
+        " 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23"
+        " 05:30:57 UTC. For more on scraping GitHub and how it may affect"
+        " your rights, please review our Terms of Service"
+        " (https://docs.github.com/en/site-policy/github-terms/"
+        "github-terms-of-service) (HTTP 403)",
         # A read that used the whole gh timeout, gh with no credential
         # (exit 4), and gh missing from PATH (babysit_util.run_command).
         timed_out(),
@@ -2748,6 +2866,11 @@ def evidence(
         ignored=0,
         head_fail=head_fail,
     )
+
+
+# A manifest the floor switch's manifest review holds; the floor itself holds
+# no path.
+MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
 
 
 def changed(path: str, additions: int = 1) -> unattended.ChangedFile:
@@ -2899,13 +3022,13 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[-1])
 
     def test_another_label_does_not_stand_in_for_the_role_label(self) -> None:
-        self.verdicts[unattended.PR] = evidence("verify:spec-changed")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.pr_labels = [{"name": "enhancement"}]
         _, out = self.lane()
         self.assertEqual(out["unattended"]["writes"]["escalation"]["label"], "added")
 
     def test_a_rerun_writes_no_second_label_or_comment(self) -> None:
-        self.verdicts[unattended.PR] = evidence("verify:spec-changed")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.pr_labels = [{"name": "needs-human"}]
         self.comments = [
             {
@@ -2913,7 +3036,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 "user": {"login": unattended.IDENTITY, "type": "Bot"},
                 "created_at": "2026-10-12T10:00:00Z",
                 "body": merge.verify_escalation_body(
-                    "verify:spec-changed", unattended.HEAD
+                    "verify:untrusted-spec", unattended.HEAD
                 ),
             }
         ]
@@ -2925,7 +3048,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         )
         # The escalation's own label is a merge hold too; the reason still
         # names the verifier refusal.
-        self.assertEqual(out["unattended"]["reason"], "verify:spec-changed")
+        self.assertEqual(out["unattended"]["reason"], "verify:untrusted-spec")
 
     FAIL_RUN = (7, f"pr-verify-{unattended.PR}-{unattended.HEAD}-fail")
 
@@ -3048,7 +3171,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             {"label": "present", "comment": "unchanged"},
         )
 
-    def test_a_failed_read_still_rewrites_another_heads_comment(self) -> None:
+    def test_a_failed_read_still_reposts_another_heads_comment(self) -> None:
         self.fail_with_summary(ve.SummaryUnreadable("gh: boom (HTTP 502)"))
         self.comments = [
             {
@@ -3062,7 +3185,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         ]
         _, out = self.lane()
         self.assertEqual(
-            out["unattended"]["writes"]["escalation"]["comment"], "updated"
+            out["unattended"]["writes"]["escalation"]["comment"], "created"
         )
         # The old head's reason stays, under the head it was given at.
         (comment, _) = self.escalation_writes()
@@ -3263,7 +3386,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.config, denied_paths=(), max_changed_lines=None
         )
         self.unlabeled_lane_pr(real_denied_paths=True)
-        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        gate = "plugins/source-control/scripts/source-control-babysit-merge"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
         # The workflow's patch adds no cost line, so the cost hold passes it.
         self.files = (
@@ -3291,19 +3414,18 @@ class LaneRequiresAVerdict(unattended.Unattended):
     def test_the_lane_switches_turned_on_restore_the_refusals(self) -> None:
         self.config = dataclasses.replace(
             self.config, high_path_floor=True, max_changed_files=8,
-            c2_contradictions=True,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
-    def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
+    def test_the_lane_scores_a_manifest_from_the_config_high(self) -> None:
         self.config = dataclasses.replace(self.config, high_path_floor=True)
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["high-path:**/.gitmodules"])
+        self.assertEqual(codes, ["manifest-review-required"])
 
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
@@ -3324,6 +3446,8 @@ class LaneRequiresAVerdict(unattended.Unattended):
         reads = [
             ("_graphql", {"repository": {"pullRequest": node}}),
             ("_base_refusal", None),
+            # The trust hold's label history: no removal.
+            ("_timeline", []),
         ]
         if not real_denied_paths:
             reads.append(("_denied_path_refusal", None))
@@ -3360,15 +3484,14 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         # Q624 turns the floor and caps off for the pr-merge lane only.
         self.config = dataclasses.replace(
             self.config, high_path_floor=False, max_changed_files=None,
-            c2_contradictions=False,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_the_local_floor_holds_whatever_the_switch_says(self) -> None:
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         for on in (False, True):
             with self.subTest(high_path_floor=on):
                 self.config = dataclasses.replace(self.config, high_path_floor=on)
@@ -4107,11 +4230,37 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         import babysit_gh as gh
 
         def answer(cmd: list[str], **kwargs: Any) -> Any:
-            return fake(
-                cmd[1:],
+            # The fake answers without headers, so the guard's `-i` is dropped.
+            args = [a for i, a in enumerate(cmd[1:]) if (i, a) != (1, "-i")]
+            base, _, number = (args[1] if args[:1] == ["api"] else "").partition(
+                "&page="
+            )
+            proc = fake(
+                ["api", base, "--paginate", "--slurp"]
+                if number or base in paged
+                else args,
                 env_overrides=kwargs.get("env_overrides"),
                 binary=kwargs.get("binary"),
             )
+            if not (number or base in paged) or proc.returncode != 0:
+                return proc
+            # A paged read goes page by page: serve the fake's slurped pages
+            # one at a time, linked as GitHub links them.
+            pages, at = json.loads(proc.stdout), int(number or 1)
+            link = (
+                f'Link: <https://api.github.com/{base}&page={at + 1}>; rel="next"\r\n'
+                if at < len(pages)
+                else ""
+            )
+            body = json.dumps(pages[at - 1])
+            return subprocess.CompletedProcess(
+                cmd, 0, f"HTTP/2.0 200 OK\r\n{link}\r\n{body}", ""
+            )
+
+        paged = {
+            f"repos/{REPO}/actions/artifacts?per_page=100",
+            f"repos/{REPO}/pulls/{PR}/commits?per_page=100",
+        }
 
         gh.reset_gh_call_counts()
         with mock.patch.object(gh, "run_command", side_effect=answer):
@@ -4181,6 +4330,19 @@ class EvidenceCommandTest(unittest.TestCase):
         )
         self.assertEqual(report["refusal"], ve.REPEATED_FAIL)
         self.assertTrue(report["needsHuman"])
+
+    def test_a_changed_spec_alone_goes_back_to_the_lanes(self) -> None:
+        # Owner rule 2026-10-26: a person only where no lane can clear the
+        # refusal. An untrusted spec, the terminal repeated-FAIL cap and an
+        # old pull request stay a person's; a changed spec is judged again.
+        for refusal, person in (
+            (ve.UNTRUSTED_SPEC, True),
+            (ve.REPEATED_FAIL, True),
+            (ve.TOO_OLD, True),
+            (ve.SPEC_CHANGED, False),
+        ):
+            with self.subTest(refusal):
+                self.assertIs(ve.Evidence(refusal, HEAD, (), 0).needs_human, person)
 
     def test_a_short_head_or_a_zero_cap_is_refused(self) -> None:
         for argv in (
@@ -4375,6 +4537,98 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
             self.assertTrue(str(report["ineligible"]).startswith("unreadable: "))
             self.assertEqual(report["refusal"], ve.INELIGIBLE)
             self.assertEqual(listings(fake), 0)
+
+    def test_an_untrusted_label_on_the_issue_refuses_for_a_person(self) -> None:
+        # The label lands on the linked issue after admission, while the lane
+        # builds: the arm-time read sees it, on either link.
+        for fake in (passing(), self.refs("Refs: #7\n\n## Summary", n7=REPO)):
+            fake.labels[7] = ["agent-ready", policy.UNTRUSTED_PROVENANCE_LABEL]
+            report = self.cli(fake)
+            self.assertEqual(
+                (report["ineligible"], report["refusal"]),
+                ("untrusted-provenance", ve.INELIGIBLE),
+            )
+            self.assertEqual(listings(fake), 0)
+
+    def test_a_variant_spelling_of_the_label_refuses(self) -> None:
+        for label in (
+            "Work-Class: Untrusted-Provenance",
+            "work-class:untrusted_provenance",
+            "untrusted",
+            "work-class \u2013 UNTRUSTED provenance",
+        ):
+            with self.subTest(label=label):
+                fake = passing()
+                fake.labels[7] = [label]
+                self.assertEqual(self.cli(fake)["ineligible"], "untrusted-provenance")
+
+    def test_unreadable_labels_refuse(self) -> None:
+        fake = passing()
+        fake.labels[7], fake.labels_total[7] = ["agent-ready"], 101
+        report = self.cli(fake)
+        self.assertEqual(
+            (report["ineligible"], report["refusal"]),
+            ("issue-labels-unreadable", ve.INELIGIBLE),
+        )
+        self.assertEqual(listings(fake), 0)
+
+    def test_an_unreadable_timeline_refuses(self) -> None:
+        fake = passing()
+        fake.fail.add("timeline")
+        report = self.cli(fake)
+        self.assertTrue(str(report["ineligible"]).startswith("unreadable: "))
+        self.assertEqual(report["refusal"], ve.INELIGIBLE)
+
+    def test_the_label_removed_by_a_non_human_refuses(self) -> None:
+        def unlabeled(login: str, kind: str, app: Any = None) -> dict[str, Any]:
+            return {
+                "event": "unlabeled",
+                "label": {"name": policy.UNTRUSTED_PROVENANCE_LABEL},
+                "actor": {"login": login, "type": kind},
+                "performed_via_github_app": app,
+            }
+
+        for event in (
+            unlabeled("agent-lanes[bot]", "Bot"),
+            unlabeled("maintainer", "User", {"slug": "some-app"}),
+            unlabeled("reader", "User"),
+        ):
+            with self.subTest(event=event):
+                fake = passing()
+                fake.timeline[7] = [event]
+                fake.permissions = {"maintainer": "admin", "reader": "read"}
+                self.assertEqual(
+                    self.cli(fake)["ineligible"],
+                    "untrusted-provenance-removed-by-non-human",
+                )
+
+    def test_a_clean_or_person_cleared_issue_still_arms(self) -> None:
+        for labels, timeline in (
+            (["agent-ready", "type: bug"], []),
+            (
+                ["agent-ready"],
+                [
+                    {
+                        "event": "unlabeled",
+                        "label": {"name": policy.UNTRUSTED_PROVENANCE_LABEL},
+                        "actor": {"login": "maintainer", "type": "User"},
+                        "performed_via_github_app": None,
+                    }
+                ],
+            ),
+        ):
+            with self.subTest(labels=labels, timeline=timeline):
+                fake = passing()
+                fake.labels[7], fake.timeline[7] = labels, timeline
+                fake.permissions = {"maintainer": "write"}
+                report = self.cli(fake)
+                self.assertEqual(
+                    (report["ineligible"], report["refusal"]), (None, None)
+                )
+                # The labels ride the link's one GraphQL read; the timeline
+                # is one REST read.
+                timelines = [c for c in fake.calls if any("/timeline" in a for a in c)]
+                self.assertEqual(len(timelines), 1)
 
     def test_without_the_flag_no_link_is_read(self) -> None:
         fake = self.refs("Refs: #7\nRefs: #8\n")

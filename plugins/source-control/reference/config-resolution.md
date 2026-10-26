@@ -26,7 +26,39 @@ Implements the tracked-rich-config extensibility contract in
 
 ## The config surface
 
-Markdown, one `## <key>` H2 per key, the value as the section body. Seven babysit-prs
+**Team-layer home of the convention keys.** The seven commit and PR convention keys below
+(`subject_pattern`, `type_list`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`,
+`pr_body_required_sections`, `branch_issue_pattern`) take their team value from
+`docs/conventions/source-control.yaml`, validated by
+[`schemas/source-control.schema.json`](../schemas/source-control.schema.json)
+([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)).
+The compatibility read, for one release: when the YAML lacks a key, the team value is the `## <key>`
+H2 of `.claude/source-control.md` described below, so a repository that has not migrated keeps
+resolving. The YAML wins whenever it carries the key, and a YAML the shared reader rejects stops the
+lookup for that key instead of falling back to the markdown. The personal overlay and the user-global
+file stay markdown and keep their place in
+[The three layers](#the-three-layers). Every resolver reports the layer that supplied a value:
+`docs/conventions/source-control.yaml`, `.claude/source-control.md (legacy)`, the overlay, the
+user-global file, `userConfig`, or the default. `lib/convention-key.sh` is the reader
+(`layer ROOT KEY` prints `yaml`, `legacy-md` or `none`; `value` and `list` print the YAML value), and
+`parse-branch-issue.sh --explain` prints the layer for `branch_issue_pattern`.
+
+```yaml
+subject_pattern: Conventional Commits
+pr_title_pattern: "Same as `subject_pattern`."
+trailer_policy: none
+pr_body_required_sections:
+  - Summary
+  - Test plan
+branch_issue_pattern: '^[^/]+/([0-9]+)-'
+```
+
+The sections below describe each key's value grammar; read "H2" there as "the key in the YAML, or
+its `## <key>` H2 in the legacy file". A list value is a YAML sequence in the YAML and a bullet list
+in the H2.
+
+The overlay, the user-global file and the legacy team file are Markdown: one `## <key>` H2 per key,
+the value as the section body. Seven babysit-prs
 repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
 `babysit_skip_downgrade_logins`, `babysit_review_gate_context`,
@@ -145,7 +177,8 @@ Absent sections are absent, never empty.
 
 ## YAML keys (`docs/conventions/source-control.yaml`)
 
-A key added to this plugin after the YAML config home
+The seven convention keys in the previous section are read from this file first (the compatibility
+read of the legacy file applies to them only). A key added to this plugin after the YAML config home
 ([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md))
 has no H2 in
 `.claude/source-control.md`. Its team value lives in `docs/conventions/source-control.yaml` at the
@@ -541,8 +574,10 @@ Layers, in resolution order, where a later layer refines an earlier one:
 
 1. **`~/.claude/source-control.md`**: user-global. The operator's own preference, following them
    across repos and machines. Their home directory, not consumer repository data.
-2. **`${REPO_ROOT}/.claude/source-control.md`**: team, tracked. The shared convention; the layer
-   `/source-control:setup apply` writes by default.
+2. **`${REPO_ROOT}/docs/conventions/source-control.yaml`**: team, tracked. The shared convention
+   for the seven convention keys; the layer `/source-control:setup apply` writes by default. For one
+   release a key it lacks is read from the legacy `${REPO_ROOT}/.claude/source-control.md` (the
+   compatibility read), which also still carries the `babysit_*` keys.
 3. **`${REPO_ROOT}/.claude/source-control.local.md`**: personal overlay, gitignored. A per-machine
    or per-operator deviation from team policy, never committed.
 

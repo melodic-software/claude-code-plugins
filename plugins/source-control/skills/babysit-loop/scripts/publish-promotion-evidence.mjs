@@ -49,7 +49,7 @@
 //
 // What counts (judgment where the contract names no GitHub source):
 // - A merged PR's work class is the highest `work-class:` label (the label set
-//   babysit-prs/scripts/babysit_merge_policy.py WORK_CLASS_LABELS maps) on the issues it linked
+//   the work-items plugin's work-class label reference defines) on the issues it linked
 //   at merge and on the PR, each label set rebuilt as of merged_at by undoing later
 //   labeled/unlabeled events, so relabeling after the merge changes nothing. The linked set is
 //   closingIssuesReferences with later ConnectedEvent/DisconnectedEvent undone; when the PR body
@@ -87,7 +87,7 @@
 //   undo it.
 // - A cell's window runs from its first counted merge to its last.
 //
-// Event shape and vocabulary: plugins/autonomy/skills/setup/scripts/check-security-binding.mjs,
+// Event shape and vocabulary: the autonomy plugin's check-security-binding.mjs (/autonomy:setup),
 // CONTRARY_EVIDENCE_EVENTS and resolveEffectivePromotion; restated here, not imported, because
 // no plugin reads another plugin's files. Predicate terms and suggested default thresholds:
 // plugins/autonomy/reference/guardrails/work-classes.md "Suggested default predicates".

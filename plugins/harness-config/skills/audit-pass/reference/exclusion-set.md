@@ -56,7 +56,8 @@ output. The membership test is `write_path ⊆ target_root`, evaluated against r
 members below are the ways that condition arises today, not the definition of it. Anything added later
 inherits the rule by satisfying the predicate, and no list has to be remembered and extended.
 
-- **The suppression record** (`.claude/audit-pass.md` and its cascade layers). Excluded from the scan
+- **The suppression record** (`<home>/harness-config.yaml` and its cascade layers, per
+  [suppression.md](suppression.md)). Excluded from the scan
   set: otherwise suppressing a finding changes the tree and perturbs the next run, which would make
   the idempotence property unfalsifiable.
 - **The run's own report artifacts, wherever they land inside the target.** A run writes two,
@@ -87,8 +88,8 @@ reading as a live accepted decision.
 canonical source** as the only place the finding may be judged. The same refusal applies to an entry
 naming a `vendor/` path or a worktree path.
 
-The permitted alternative is always available: record the suppression centrally in
-`.claude/audit-pass.md`, carrying the finding's constituents under its derived `finding_id`, per
+The permitted alternative is always available: record the suppression centrally in the team
+`harness-config.yaml`, carrying the finding's constituents under its derived `finding_id`, per
 [the run contract's suppression section](suppression.md). A central entry names the finding without
 touching the excluded file at all.
 

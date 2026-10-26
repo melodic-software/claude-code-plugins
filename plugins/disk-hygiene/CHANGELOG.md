@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.1] - 2026-10-26
+
+### Fixed
+
+- **A session resumed after `/disk-hygiene:clean` now hears that the clean skill's guard is gone.** The skill-frontmatter belt (the PowerShell deletion prompts and the deny-by-default Bash lane) is not registered after `claude -p --resume`, so an approved manual-lane delete ran unprompted in the resumed process. The `/disk-hygiene:clean` expansion hook now writes a per-session marker, and the existing `SessionStart` entry, on `source: resume` with that marker present, tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again. It is a notice, not a gate. The safety model, the unsupported-platform handoff, the README and the setup skill now state the belt's lifetime as the process that invoked the skill, with the Windows probe as the verification record ([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853)).
+
+## [0.44.0] - 2026-10-25
+
+### Added
+
+- `scan --root-children` on a mount point that is not a volume root, such as a tmpfs `/tmp` on WSL, now lists the mount's immediate children read-only. Loose files are admitted, nested mounts are withheld, and nothing is walked. The output sets `mount_point_target: true`, and under `--quiet` the full listing goes to the `--output` file. A `--root-child` selection on a mount point is refused: scan an admitted child directory as its own target. No snapshot of a mount point is written, so removal stays closed. Without `--root-children`, the refusal of a mount-point target now carries a `hint` that names the flag ([#9572](https://github.com/melodic-software/claude-code-plugins/issues/9572)).
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.43.21] - 2026-10-24
 
 ### Fixed

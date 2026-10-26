@@ -14,7 +14,8 @@
 # closed PR, a moved head, no run yet, a ci-status not started or one started
 # after both lanes finished is left alone. A rate limit waits for its reset
 # within the cap, or fails past it. Unreadable reads fail. Each
-# path's API call count is pinned.
+# path's API call count is pinned, and each response's rate-limit reading is
+# kept for the job-end api-budget notice.
 # test-scope: .github/workflows/pr-feedback-dispatch.yml
 set -uo pipefail
 
@@ -57,7 +58,8 @@ fi
 for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' \
   'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" \
   'REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}' 'REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}' \
-  'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json'; do
+  'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json' \
+  'API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash'; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 job="$(awk '/^  rerun-ci-status:$/ { on = 1; next } on && /^  [a-z]/ { exit } on { print }' "$WORKFLOW")"
@@ -71,14 +73,14 @@ fi
 list_step="$(step_of 'Check out the trusted-actors list')"
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in 'continue-on-error: true' 'uses: actions/checkout@' 'ref: refs/heads/main' 'path: .base' 'persist-credentials: false' \
-  '/.github/standards/trusted-actors/' 'sparse-checkout-cone-mode: false'; do
+  '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' 'sparse-checkout-cone-mode: false'; do
   if [[ "$list_step" == *"$want"* ]]; then ok "the list checkout carries '$want'"; else fail "the list checkout lacks '$want'"; fi
 done
 # The record goes up between the find and the re-run, and each later step
-# runs only on the find step's outputs.
-order="$(grep -nE '^      - name: (Find the ci-status to re-run|Record the re-run|Re-run ci-status)$' <<<"$job" | cut -d: -f3- | paste -sd'|')"
-if [[ "$order" == ' Find the ci-status to re-run| Record the re-run| Re-run ci-status' ]]; then
-  ok "the job finds, records, then re-runs"
+# runs only on the find step's outputs. The job ends by logging its readings.
+order="$(grep -nE '^      - name: ' <<<"$job" | cut -d: -f3- | paste -sd'|')"
+if [[ "$order" == ' Check out the trusted-actors list| Find the ci-status to re-run| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
+  ok "the job finds, records, re-runs, then logs the API budget"
 else
   fail "step order: '$order'"
 fi
@@ -94,6 +96,10 @@ done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in "if: steps.find.outputs.job-id != ''" 'JOB_ID: ${{ steps.find.outputs.job-id }}'; do
   if [[ "$rerun_step" == *"$want"* ]]; then ok "the re-run step carries '$want'"; else fail "the re-run step lacks '$want'"; fi
+done
+budget_step="$(step_of 'Log the API budget at the end')"
+for want in 'if: always()' 'continue-on-error: true' 'uses: ./.base/.github/actions/log-api-budget' 'tokens: github-token'; do
+  if [[ "$budget_step" == *"$want"* ]]; then ok "the budget step carries '$want'"; else fail "the budget step lacks '$want'"; fi
 done
 
 # The stub logs its arguments. A pulls read prints STUB_PR. A review lane's
@@ -120,6 +126,21 @@ if [[ -n "${STUB_LIMIT_FILE:-}" && "$*" == *"/actions/workflows/pr-require-check
     printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: %s\r\n\r\n{"message":"API rate limit exceeded for installation"}\n' "$STUB_RESET"
   fi
   exit 1
+fi
+# With STUB_ETAG set, a read of one run carries that ETag; a read sent with
+# If-None-Match on it is answered 304 (headers only, exit 1, as gh does)
+# while STUB_NOT_MODIFIED_FILE holds a count above 0, which drops by one, and
+# otherwise with the last line of STUB_RUN_SEQ.
+if [[ -n "${STUB_ETAG:-}" && "$*" =~ ^api\ -i\ repos/o/r/actions/runs/[0-9]+($|\ -H) ]]; then
+  if [[ "$*" == *" -H If-None-Match: $STUB_ETAG" && "$(cat "$STUB_NOT_MODIFIED_FILE")" -gt 0 ]]; then
+    echo $(($(cat "$STUB_NOT_MODIFIED_FILE") - 1)) >"$STUB_NOT_MODIFIED_FILE"
+    printf 'HTTP/2.0 304 Not Modified\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n' "$STUB_ETAG"
+    echo "gh: HTTP 304" >&2
+    exit 1
+  fi
+  if [[ "$*" == *" -H If-None-Match: "* ]]; then body=$(tail -n 1 <<<"$STUB_RUN_SEQ"); else body=$(head -n 1 <<<"$STUB_RUN_SEQ"); fi
+  printf 'HTTP/2.0 200 OK\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$STUB_ETAG" "$body"
+  exit 0
 fi
 case "$*" in
 */pulls/*) ok200 "$STUB_PR" ;;
@@ -183,11 +204,14 @@ expect() {
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/out"
   rm -f "$TMP_ROOT/record.json"
+  rm -rf "$TMP_ROOT/rt"
+  mkdir -p "$TMP_ROOT/rt"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
     PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$DONE}" \
     GITHUB_OUTPUT="$TMP_ROOT/out" RECORD_FILE="$TMP_ROOT/record.json" GITHUB_RUN_ID=555 \
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
-    TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" RUNNER_TEMP="$TMP_ROOT/rt" \
+    API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -212,11 +236,13 @@ record=${3:-rerun-ci-status-9-2-$HEAD}"
     fail "$2: outputs: $(paste -sd'|' "$TMP_ROOT/out"), posts: $(grep -c '^api -X POST' "$TMP_ROOT/log")"
   fi
 }
-# The API calls the last case made, against the count its path is pinned to.
+# The API calls the last case made, against the count its path is pinned to,
+# and one rate-limit reading kept for each of them.
 check_calls() {
-  local n
+  local n r
   n=$(grep -c '^api ' "$TMP_ROOT/log")
-  if [[ "$n" == "$1" ]]; then ok "$2 ($1 API calls)"; else fail "$2: $n API calls, want $1: $(paste -sd'|' "$TMP_ROOT/log")"; fi
+  r=$(grep -c . "$TMP_ROOT/rt/api-budget/github-token" 2>/dev/null)
+  if [[ "$n" == "$1" && "$r" == "$1" ]]; then ok "$2 ($1 API calls, $1 readings)"; else fail "$2: $n API calls and $r readings, want $1: $(paste -sd'|' "$TMP_ROOT/log")"; fi
 }
 
 # Both lanes finished: the head's last lane re-runs ci-status once.
@@ -304,6 +330,19 @@ check_reran 1 "the polled run's ci-status is re-run once"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 2 ]]; then ok "it polled every 60 s"; else fail "polls: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
 check_calls 6 "each poll reads the run only"
 if [[ "$(grep -c '/jobs?' "$TMP_ROOT/log")" == 1 ]]; then ok "the job list is read once"; else fail "job list reads: $(grep -c '/jobs?' "$TMP_ROOT/log")"; fi
+# A poll read again is a conditional GET: a 304 stands for the last 200's
+# body, so the run still reads in progress, and the polls keep their 60 s pace.
+echo 2 >"$TMP_ROOT/not-modified"
+STUB_ETAG='W/"e1"' STUB_NOT_MODIFIED_FILE="$TMP_ROOT/not-modified" \
+  expect "a poll answered 304 reads the run as last read, then re-runs once it finishes" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+check_reran 1 "the conditionally polled run's ci-status is re-run once"
+if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 4 && "$(grep -c '^sleep' "$TMP_ROOT/log")" == 4 ]]; then ok "two 304s cost two 60 s polls and no retry"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
+check_calls 8 "each poll still sends one read"
+if [[ "$(grep -c "If-None-Match: W/\"e1\"" "$TMP_ROOT/log")" == 3 && "$(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")" == 2 ]]; then
+  ok "every repeat poll is conditional, and each 304 keeps its reading"
+else
+  fail "conditional reads: $(grep -c 'If-None-Match' "$TMP_ROOT/log"), 304 readings: $(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")"
+fi
 STUB_RUN_SEQ="$(run 9 in_progress)"
 expect "a run still going after the limit fails" 1 "::error::run 9 on $HEAD has not finished after 600s"
 check_reran 0 "nothing is re-run past the poll limit"
@@ -346,6 +385,8 @@ echo 1 >"$STUB_LIMIT_FILE"
 expect "a rate-limited read waits for the reset, then re-runs" 0 "Rate limited reading the pr-require-checks runs on $HEAD; waiting 120s for the reset."
 check_reran 1 "the read after the reset goes on to the re-run"
 if [[ "$(grep -c '^sleep 120$' "$TMP_ROOT/log")" == 1 ]]; then ok "it slept until one second past the reset"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
+check_calls 5 "the refused read is counted and its reading kept"
+if grep -qx '403 na 0 na 1119 na' "$TMP_ROOT/rt/api-budget/github-token"; then ok "the refusal's reading names its status and reset"; else fail "readings: $(paste -sd'|' "$TMP_ROOT/rt/api-budget/github-token")"; fi
 echo 1 >"$STUB_LIMIT_FILE"
 STUB_RETRY_AFTER=30 expect "a retry-after refusal waits that many seconds" 0 "waiting 30s for the reset."
 check_reran 1 "the read after retry-after goes on to the re-run"
@@ -413,6 +454,12 @@ REVIEW_ATTEMPT='' REVIEW_RERUNNER_ID=$KYLE expect "a review run with no attempt 
 check_unrecorded "a missing review attempt hands on no record"
 REVIEW_ATTEMPT=1 REVIEW_RERUNNER_ID=$STRANGER TRUSTED_ACTORS="$TMP_ROOT/absent.json" expect "a first review attempt is recorded without the list" 0 "as attempt 2."
 check_reran 1 "a first attempt hands on the record"
+
+# Without the library (a failed checkout) the job runs as before and keeps no reading.
+STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
+REVIEW_ATTEMPT=1 API_BUDGET_SH="$TMP_ROOT/absent.bash" expect "a missing api-budget library still re-runs" 0 "Re-running ci-status (job 77) of run 9"
+check_reran 1 "the re-run is handed on without the library"
+if [[ ! -e "$TMP_ROOT/rt/api-budget/github-token" ]]; then ok "no reading is kept without the library"; else fail "readings kept without the library"; fi
 
 # The re-run step re-runs only a job id, once.
 rerun_expect() {

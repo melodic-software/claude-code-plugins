@@ -208,7 +208,9 @@ to write, re-arm `watch` alone.
 Exit 2 means curl is missing, the token changed (the server restarted), or the server is
 unreachable: run `ensure-running` without `--open`, then re-arm. Exit 3 means another session holds
 the lease, this session's lease was released, or the session was stopped: run `share.sh lease` and
-re-arm only when this session should still watch.
+re-arm only when this session should still watch. Exit 4 means the watcher hit its limit of consecutive
+empty waits and ended so an orphan cannot keep the server alive; stderr names the re-arm command: run it
+in the background while the session is still open.
 
 When the first wake asks for permission, offer the owner one allow rule for the `next` command's
 prefix, `Bash(bash '<plugin-root>/shared/wake.sh' *)` with the path spelled out as the command quotes

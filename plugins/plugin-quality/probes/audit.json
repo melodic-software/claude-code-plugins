@@ -1,0 +1,125 @@
+{
+  "skill": "plugin-quality:audit",
+  "plugin": "plugin-quality",
+  "skill_dir": "plugins/plugin-quality/skills/audit",
+  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the plugin-quality setup and report skills (same-plugin near-misses) plus the skills the audit description names or borders on: static skill QA (skill-quality:check), MCP tool audits (mcp-tools:audit), PR code review (review:code-review), the installed-plugin landscape report (harness-ops:audit-plugin-landscape), and bug write-ups (bugs:write).",
+  "competitors": [
+    "plugin-quality:setup",
+    "plugin-quality:report",
+    "skill-quality:check",
+    "mcp-tools:audit",
+    "review:code-review",
+    "harness-ops:audit-plugin-landscape",
+    "bugs:write"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just ran /source-control:commit for the first time. Go over how that skill actually behaved and file whatever is wrong with it for the people who maintain it."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Stress-test the guardrails hooks now that I've installed them, and open an issue for the owners with what you find."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does the context-guard SessionStart hook hold up after a real session? I want errors, improvement ideas and annoyances."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We set up work-items yesterday. Take a critical look at its setup command and its tracker adapter, then write a ticket for the plugin team."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "That /bugs:write run felt off. Check whether the skill did what it promised and whether its design makes sense."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Harden the session-flow handoff skill: poke at it, see where it breaks, and give its authors a work item."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is the planning plugin's plan-reviewer agent architected sensibly? I've been leaning on it all week."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Look over the testing plugin I just enabled and list the defects and rough edges you ran into while using it."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Put the review plugin's quality-gate skill through its paces and produce a handoff its upstream maintainers can act on."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Right after using /discovery:explore, I want a behavioral check on it: failures, QoL gaps, design smells."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Lint the SKILL.md under plugins/foo/skills/bar and tell me if the frontmatter passes before I publish it."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Go through our MCP server's tool definitions and score the descriptions and the readOnlyHint annotations."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the diff on PR 412 for correctness bugs and leave inline comments."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Before my first plugin audit in this repo, confirm gh is logged in as the right account and tell me where findings will be filed."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which of my installed plugins overlap each other or have gone stale, and which marketplaces are dead?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "There's a bug in my app: clicking Save returns a 500 instead of storing the record. Write it up properly."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "You are the subagent the audit dispatched and you are done. Format your final message back to the parent."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is my skill's evals/evals.json valid against the schema?"
+    }
+  ]
+}

@@ -74,8 +74,13 @@ per run: the authenticated account's own login first, and the App named by
 `--app-slug` when the token is an App's; the exact order is the script's WRITE
 IDENTITY header. With no identity resolved the run acts on nothing and exits
 non-zero. Run the consumer under the account its lanes write as, and pass
-`--app-slug` when that is an App installation token; `print-schedule` carries a
-passed `--app-slug` into every command it emits.
+`--app-slug` when that is an App installation token; the skill passes the
+`lane_app_slug` option as `--app-slug` on every call, and an empty or unrendered
+value reads as no slug. `print-schedule` carries a passed `--app-slug` into every
+command it emits, so a schedule printed through the skill holds the slug
+`lane_app_slug` had then. That slug comes after the one the skill passes, so it
+wins: after changing or clearing the option, print and register the schedule
+again.
 
 - **Pointer:** how an installation token's writes are attributed,
   [Authenticating as a GitHub App installation, About authentication as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation#about-authentication-as-a-github-app-installation).
@@ -133,7 +138,11 @@ from cmd.exe.
 
 Two scheduled forms, different trade-offs:
 
-- **Headless skill form**: `claude -p "/harness-ops:lanes consume-restarts run"`.
+- **Headless skill form**: `claude -p "/harness-ops:lanes consume-restarts run"
+  --permission-mode auto --permission-prompts none`. The mode is stated, never
+  inherited from user settings; `--permission-prompts none` is printed only when
+  the CLI that runs `print-schedule` accepts it, so regenerate the schedule after
+  upgrading from an older CLI.
   Survives plugin updates (the skill resolves `${CLAUDE_PLUGIN_ROOT}` freshly at
   each invocation, so the task never embeds a plugin cache path that rots), but
   each tick is a paid model turn. Bound the spend: `claude` supports `--model`

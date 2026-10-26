@@ -93,6 +93,15 @@ def refusal(
     evidence: object = None,
     config: policy.PipelineConfig = CONFIG,
 ) -> str | None:
+    held = held_by(files, evidence, config)
+    return None if held is None else held[0]
+
+
+def held_by(
+    files: tuple[ChangedFile, ...] = (DOC,),
+    evidence: object = None,
+    config: policy.PipelineConfig = CONFIG,
+) -> tuple[str, bool] | None:
     evidence = lanes() if evidence is None else evidence
     effect = evidence if isinstance(evidence, Exception) else None
     with (
@@ -108,7 +117,7 @@ def refusal(
             return_value=None if effect else (evidence, []),
         ),
     ):
-        return ve.lane_risk_refusal(REPO, 41, PR, config, "C2", 7)
+        return ve.lane_risk_refusal(REPO, 41, PR, config, 7)
 
 
 class LaneRiskRefusal(unittest.TestCase):
@@ -153,6 +162,24 @@ class LaneRiskRefusal(unittest.TestCase):
         )
         self.assertTrue(str(held).startswith("unreadable: "), held)
 
+    def test_only_a_security_finding_or_a_path_hold_needs_a_person(self) -> None:
+        # Owner rule 2026-10-26: unbound review evidence, the manifest review
+        # and a failed read go back to the lanes; a CRITICAL finding and a
+        # symlink or submodule (an unsafe path) stay a person's.
+        after = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
+        unproven = babysit_merge.HeadPusherUnproven("head-pusher-unproven:a")
+        cases = {
+            "critical finding": (held_by(evidence=lanes(critical=1)), True),
+            "symlink": (held_by((DOC, SYMLINK)), True),
+            "unbound review": (held_by(evidence=lanes(bound=False)), False),
+            "manifest": (held_by((DOC, manifest(after)), config=FLOOR_ON), False),
+            "failed read": (held_by(evidence=unproven), False),
+        }
+        for name, (held, person) in cases.items():
+            with self.subTest(name):
+                self.assertIsNotNone(held)
+                self.assertIs(held[1], person, held)
+
 
 class EvidenceCommandReadsTheRisk(unittest.TestCase):
     def cli(
@@ -162,6 +189,7 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         *,
         head: str = HEAD,
         rung: str | None = "C2",
+        person: bool = False,
     ) -> dict[str, object]:
         out = io.StringIO()
         argv = ["evidence", "--lane-reviews", "--repo", REPO, "--base-sha", BASE]
@@ -175,20 +203,36 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
             mock.patch.object(
                 ve.Reader, "evidence", lambda self, n, h, pr=None: evidence
             ),
-            mock.patch.object(ve, "lane_risk_refusal", return_value=risk) as read,
+            mock.patch.object(
+                ve, "lane_risk_refusal", return_value=risk and (risk, person)
+            ) as read,
             contextlib.redirect_stdout(out),
         ):
             ve.main([*argv, "41", HEAD])
         self.read = read
         return json.loads(out.getvalue())
 
-    def test_a_pass_carries_the_risk_hold_at_the_room_s_rung(self) -> None:
+    def test_a_pass_carries_the_risk_hold_when_the_room_has_a_rung(self) -> None:
         report = self.cli(ve.Evidence(None, HEAD, (), 0), "unsafe-path: docs/link")
         self.assertEqual(
             (report["refusal"], report["reviews"]), (None, "unsafe-path: docs/link")
         )
-        self.assertEqual(self.read.call_args.args[4], "C2")
         self.assertIsNone(self.cli(ve.Evidence(None, HEAD, (), 0), None)["reviews"])
+
+    def test_the_line_says_whether_only_a_person_clears_the_risk_hold(self) -> None:
+        passed = ve.Evidence(None, HEAD, (), 0)
+        for risk, person in (
+            ("security-finding: 1 open", True),
+            ("evidence-unbound:claude-review: not bound", False),
+            (None, False),
+        ):
+            with self.subTest(risk):
+                report = self.cli(passed, risk, person=person)
+                self.assertEqual(
+                    (report["reviews"], report["reviewsPerson"]), (risk, person)
+                )
+        unread = self.cli(passed, None, head="d" * 40)
+        self.assertIs(unread["reviewsPerson"], False)
 
     def test_no_rung_from_the_room_holds(self) -> None:
         for rung in (None, "off", "C9"):
@@ -206,6 +250,156 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         report = self.cli(ve.Evidence(None, HEAD, (), 0), None, head="d" * 40)
         self.assertTrue(str(report["reviews"]).startswith("unreadable: the head is"))
         self.read.assert_not_called()
+
+
+# The gate's hold texts (babysit_merge.unattended_enqueue), written out.
+EJECTED = (
+    f"queue-ejected:2 failed-check removals from the merge queue at head {HEAD}; "
+    "a push resets the count"
+)
+UNREADABLE_QUEUE = "the merge queue's removals of this head are unreadable"
+RUN = "https://github.com/example-org/example-repo/actions/runs/9"
+
+
+class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
+    """`evidence --lane-queue`: the gate's `merge.max-queue-ejections` cap
+    (default 2) on a head the merge queue keeps removing for failed checks,
+    which native auto-merge would otherwise re-arm without end."""
+
+    def cli(
+        self,
+        queue: dict[str, object] | Exception,
+        *,
+        evidence: ve.Evidence | None = None,
+        risk: str | None = None,
+        runs: list[str] | Exception | None = None,
+    ) -> dict[str, object]:
+        out = io.StringIO()
+        runs = [RUN] if runs is None else runs
+        runs_effect = runs if isinstance(runs, Exception) else None
+        argv = ["evidence", "--lane-reviews", "--lane-queue", "--repo", REPO]
+        argv += ["--base-sha", BASE, "--rung", "C2", "41", HEAD]
+        effect = queue if isinstance(queue, Exception) else None
+        with (
+            mock.patch.object(policy, "read_config_at", return_value=CONFIG),
+            mock.patch.object(policy, "with_default_branch", return_value=CONFIG),
+            mock.patch.object(policy, "pull_request", return_value=PR),
+            mock.patch.object(
+                ve.Reader,
+                "evidence",
+                lambda self, n, h, pr=None: evidence or ve.Evidence(None, HEAD, (), 0),
+            ),
+            mock.patch.object(
+                ve, "lane_risk_refusal", return_value=risk and (risk, False)
+            ),
+            mock.patch.object(
+                babysit_merge,
+                "read_merge_queue",
+                side_effect=effect,
+                return_value=None if effect else queue,
+            ) as read,
+            mock.patch.object(
+                babysit_merge,
+                "_failed_merge_group_runs",
+                side_effect=runs_effect,
+                return_value=None if runs_effect else runs,
+            ),
+            contextlib.redirect_stdout(out),
+        ):
+            ve.main(argv)
+        self.read = read
+        return json.loads(out.getvalue())
+
+    def test_a_head_under_the_cap_carries_its_count_and_no_refusal(self) -> None:
+        for count in (0, 1):
+            with self.subTest(count=count):
+                report = self.cli({"readError": None, "failedEjections": count})
+                self.assertEqual(
+                    report["queue"],
+                    {
+                        "failedEjections": count,
+                        "limit": 2,
+                        "refusal": None,
+                        "comment": None,
+                        "readError": None,
+                        "commentError": None,
+                    },
+                )
+
+    def test_a_head_at_or_over_the_cap_carries_the_gates_hold_and_comment(
+        self,
+    ) -> None:
+        for count in (2, 3):
+            with self.subTest(count=count):
+                queue = self.cli({"readError": None, "failedEjections": count})["queue"]
+                self.assertEqual(
+                    (queue["failedEjections"], queue["limit"], queue["refusal"]),
+                    (count, 2, EJECTED.replace("ejected:2", f"ejected:{count}")),
+                )
+                comment = str(queue["comment"]).split("\n")
+                self.assertEqual(comment[0], "<!-- babysit-merge-queue-ejections -->")
+                self.assertIn(f"head `{HEAD}` {count} times", comment[1])
+                self.assertIn(f"- {RUN}", comment)
+
+    def test_an_unreadable_count_refuses_with_no_comment_and_says_why(self) -> None:
+        for queue, why in (
+            (
+                {"readError": "could not read the merge queue: boom"},
+                "could not read the merge queue: boom",
+            ),
+            (
+                {"readError": None, "failedEjections": None},
+                "the merge queue's timeline items could not be counted",
+            ),
+            (RuntimeError("boom"), "RuntimeError: boom"),
+        ):
+            with self.subTest(queue=repr(queue)):
+                self.assertEqual(
+                    self.cli(queue)["queue"],
+                    {
+                        "failedEjections": None,
+                        "limit": 2,
+                        "refusal": UNREADABLE_QUEUE,
+                        "comment": None,
+                        "readError": why,
+                        "commentError": None,
+                    },
+                )
+
+    def test_a_failed_runs_read_still_refuses_and_names_its_error(self) -> None:
+        queue = self.cli(
+            {"readError": None, "failedEjections": 2}, runs=RuntimeError("boom")
+        )["queue"]
+        self.assertEqual(
+            (queue["refusal"], queue["comment"], queue["commentError"]),
+            (EJECTED, None, "error: boom"),
+        )
+
+    def test_the_comment_is_the_one_the_gate_posts(self) -> None:
+        queue = self.cli({"readError": None, "failedEjections": 2})["queue"]
+        with mock.patch.object(
+            babysit_merge, "_failed_merge_group_runs", return_value=[RUN]
+        ):
+            gate = babysit_merge.queue_ejection_hold(REPO, "main", 41, HEAD, 2, 2)
+        self.assertEqual((queue["refusal"], queue["comment"]), gate[:2])
+
+    def test_a_refused_verdict_or_a_risk_hold_reads_no_queue(self) -> None:
+        for kwargs in (
+            {"evidence": ve.Evidence(ve.FAIL, HEAD, (), 0)},
+            {"risk": "unsafe-path: docs/link"},
+        ):
+            with self.subTest(kwargs=repr(kwargs)):
+                report = self.cli({"readError": None, "failedEjections": 5}, **kwargs)
+                self.assertNotIn("queue", report)
+                self.read.assert_not_called()
+
+    def test_the_flag_needs_the_risk_read_that_checks_the_head(self) -> None:
+        argv = ["evidence", "--lane-queue", "--repo", REPO, "--base-sha", BASE]
+        with (
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            ve.main([*argv, "41", HEAD])
 
 
 if __name__ == "__main__":

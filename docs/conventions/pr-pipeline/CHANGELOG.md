@@ -1,5 +1,275 @@
 # Changelog for the PR pipeline convention
 
+## [5.14.1] - 2026-10-26
+
+### Fixed
+
+- pr-merge's `merge` and `enable-auto-merge` jobs no longer restore an Actions cache. They hold `id-token: write` and the lanes App token, and they restored the carried verdict reads by the bare prefix `pr-merge-run-cache-`. Any job in the default branch's cache scope can write that prefix, and the pinned restore extracts its archive into the workspace with no entry filter, so a crafted entry could replace a checked-out script before it ran (#9455). The carried reads and skippable refusals now travel as the `pr-merge-run-cache` artifact (`.github/scripts/pr-merge/carry-run-cache.mjs read`). Each job reads it from the newest scheduled or hand-started `pr-merge.yml` run on main whose head commit is on main, found the way the head-ref map is. The read removes any file at its path before it starts. The carried sections are still used only to count a FAIL. Only a scheduled or hand-started `merge` job uploads the file, since no other run's copy is read back, so a `pull_request_target` run no longer passes its reads to the next run. Permissions are unchanged.
+- A workflow test fails when a job holding `id-token: write` or a lanes App token restores a cache by a `restore-keys` prefix in any workflow, local composite actions included. The test finds a grant at any indentation, quoted or not, and counts `permissions: write-all`. A second test fails when a token-holding job in `pr-merge.yml` restores any cache.
+- pr-merge's head-ref map, lane records and carried run cache readers now also pass over every run while a tag named `main` exists, since a run on that tag reports `head_branch` main. `head-ref-map.mjs` `onMain` reads the tag (only a 404 lets a run count) and main's tip once per process through `check-trusted-trigger.mjs` `readDefaultBranchTip`, and remembers a failed or refused read so the process refuses every run. It then checks each run's head commit with `requireBehindTip`. `requireOnDefaultBranch` now composes those two helpers and behaves as before. The cost is two reads per process.
+
+## [5.14.0] - 2026-10-26
+
+### Changed
+
+- `enable-auto-merge.mjs` adds the human-gated label only for a cause a person must clear (owner rule 2026-10-26): a refusal the gate marks `needsHuman` (an untrusted spec, the repeated-FAIL cap, a pull request too old to verify), the trust hold, a risk hold the gate marks `reviewsPerson`, a hold path, a cost hold, a listing past 300 files (a fourth page that is not empty; no later read completes it), or the lane's own hold line. A changed spec and a changed-file page that did not read get the comment alone, and the next scheduled runs judge them again. `merge-holds.pathHoldKind` reports a path hold's kind, so the routing reads no prose.
+- A refusal the lanes clear that has stood at the head for `merge.risk-escalation-minutes`, timed from the first lane refusal noted there (the comment's `pr-merge-unarmed-since` line), shows as a failing `pr-merge/unarmed` commit status on the head; an arm, the refusal becoming a person's, or a member's veto or a person turning auto-merge off standing in for it posts a passing one over it; a run that read nothing new (no time left, unread hold paths, a verdict that did not read) leaves the status alone. The new `unarmed-status` job in `pr-merge.yml` posts them with the job's own token (`contents: read`, `statuses: write`, no lane token) and trusts only a status the GitHub Actions bot posted; the status is informational, not `ci-status`.
+
+## [5.13.8] - 2026-10-26
+
+### Fixed
+
+- pr-merge.yml's full-run dispatch, in both jobs, now also sends again on Go's `net/http: TLS handshake timeout`, which fails before the request is written; a rate limit still stops the step red with no further send. The re-run step's `rerun-failed-jobs` POST and the full-run wait's send to post-merge-demotion-alert.yml take the same retry: at most three attempts, sent again after a capped full-jitter wait (up to 10 s, then 20 s) only when gh's error shows the request never left. A rate-limited alert send now stops red, sent once. The warning after a dispatch that never started a run now says a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule.
+
+## [5.13.7] - 2026-10-26
+
+### Fixed
+
+- Under `merge.lane-prs: native`, `clear-escalations.mjs` judges `enable-auto-merge`'s person refusal again at the head it was raised at, but only when its recorded verifier or risk cause is one the lanes clear (every code on `LANE_CAUSES`, a label set before its cause became a lane's): the gate's reader runs, and the label comes off as `refusal-cleared` when nothing refuses, or only lane causes refuse, read at least as far as the recorded one. A recorded cause a person clears (an issue link, a security finding, a trust-gate widening, a cost hold, a high path, an untrusted spec, the repeated-fail cap, an unknown code) is never read and never lifted at its head (owner decision Q-CLEAR B); a person removes the label, or the `head-moved` clear does once the head moves. At most three reader runs a run, rotated with the run number.
+- `pr-merge.yml`'s merge job allows 45 minutes, up from 30, and the escalation clear step 15, up from 3, so the clear's reader runs fit beside the gate's own budget.
+
+## [5.13.6] - 2026-10-26
+
+### Fixed
+
+- A head whose CI job ran past its `timeout-minutes` is no longer left red with no lane acting on it. GitHub ends such a job `cancelled`, and only its check run's annotation ("The job has exceeded the maximum execution time") says why; fix-ci-context and the fix-ci dispatcher now read that annotation and count the job as failing, so fix-ci works on the slow or hanging test, with the time-limit note in its context. A check cancelled with no such note stays skipped (`.github/scripts/pr-unblock/fix-ci-context.mjs`, `.github/scripts/pr-unblock/fix-ci-dispatch.mjs`).
+- The fix-ci dispatcher waits for the lost-run reconciler's one re-run of a cancelled, timed-out or start-failed first attempt, as it already does for an infra-only failure, so the two do not act on the same head at once (`.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs`).
+- The lost-run reconciler names each CI run lost again after its one re-run in its run summary, with who takes it (`.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs`).
+
+## [5.13.5] - 2026-10-26
+
+### Fixed
+
+- Intake apply-verdict now writes a native blocked-by edge for each blocker the issue body names, not only those the triage model's `Blocked by:` line lists, so admission, which reads only native edges, no longer admits an issue whose blocker is named only in its text and the issue lane no longer hands it back to a person. A line that starts with `Blocked by` or `Depends on`, and each list item under a `Blocked by` or `Depends on` heading, names its `#<n>` references and this repository's issue URLs; fenced and inline code, HTML comments, `>` quotes, other repositories' references and pull request URLs name nothing, and a Markdown link, inline or by reference, counts as its target alone, so `[#12](<another repository's issue URL>)` names nothing. Each number is only a candidate: it gets an edge when GitHub answers it is an open issue of this repository, not a pull request, with no edge yet, at most 10 per issue, with the existing missed-edge handling. Edges are written on an escalated verdict too, so an `agent-ready` label a person adds later still finds them; an edge missed on a verdict that is not ready only warns, since no `status: ready` waits on it (`.github/scripts/intake-triage/edges.mjs`, `.github/scripts/intake-triage/apply-verdict.mjs`).
+
+## [5.13.4] - 2026-10-26
+
+### Fixed
+
+- The fix-ci dispatcher no longer dispatches a head whose tested run ended `cancelled` when no check on the head failed, timed out or failed to start. fix-ci-context fixes only those, so each such run posted `Skipped: not-applicable` and spent the head's per-head cap on nothing. The dispatcher decides from the head's REST check runs through fix-ci-context's own `failingChecks`, so a failed job that a later contract-only run skipped still gets fix-ci (`.github/scripts/pr-unblock/fix-ci-dispatch.mjs`, `.github/scripts/pr-unblock/fix-ci-context.mjs`, `.github/scripts/pr-unblock/dispatch.mjs`).
+
+## [5.13.3] - 2026-10-26
+
+### Fixed
+
+- pr-merge.yml's full-run dispatch no longer waits out a rate limit and sends again: any 429, or a 403 with a retry-after, remaining 0 or a message naming a rate limit, fails the step red, naming the pool and the reset (with no header time, a minute on for a secondary limit and an hour on for any other, as the lanes' rate guard decides), and the candidate listing fails red on a rate limit instead of retrying it. enable-auto-merge's resend is pinned by a test never to resend an arm GitHub answered with 403 or 429. When a gate reader it starts (the per-pull-request verifier read or the lane-room read) exits 75 on a rate limit, enable-auto-merge holds that pull request and every later one as an unread room: it sends no further read, arm or note that run, disarms each armed lanes App pull request unless the GraphQL pool is the one stopped (then it names each one still armed), and fails red with the guard's error naming the pool and the reset. Either post-merge check (the post-merge-dispatch job's and the merge job's) that exits 75 on a rate limit now fails its job red once its outputs are written, with needs-dispatch false, and no dispatch, re-run or gate follows it. The re-run step's calls and the candidate listing go through the shared shell rate guard (`api-budget.bash`), so a rate-limited read or re-run POST ends it red instead of green. Those steps and the full-run wait also stop on gh's bare `Too Many Requests (HTTP 429)` message, where they used to retry. A rate limit that stops post-merge-dispatch (its check, its dispatch or its re-run) goes to the merge and enable-auto-merge jobs as its `rate-limited` output, naming the pool and the reset; each then ends red at its first step and sends nothing to GitHub.
+
+## [5.13.2] - 2026-10-26
+
+### Fixed
+
+- work-unblock counts a run whose broker-check `Check the kill switch` step saw a kill switch on, and so skipped the broker ask, as a breaker trip. That run ends green with no failed step, so it was handed to a person as stranded with no report instead of being re-fired. The jobs listing alone shows it; no log is read (`.github/scripts/work-unblock/label-unblocked.mjs`).
+
+- The issue lane's WIP cap counts a lane pull request as held when it carries `needs-human` or `do-not-merge` in any case (for example `Needs-Human`), as pr-merge's `enable-auto-merge.mjs` (`holdReason`) matches them, so a hold label with other casing no longer leaves the pull request in the countable total ([#8476](https://github.com/melodic-software/claude-code-plugins/issues/8476)). A label with a missing or non-string name is no hold, and the `Hold: a human merges this` body line still matches exactly.
+
+## [5.13.1] - 2026-10-26
+
+### Changed
+
+- `pr-merge.yml` no longer wakes when `work-resolve-issue` finishes. That run could only disarm an armed pull request on a hold: an event run never arms (`enable-auto-merge.mjs` `READER_EVENTS`), and a pull request the issue lane just opened is not armed yet. The 15-minute schedule arms new lane pull requests as before, and `ci-status` still enforces every hold, on the pull request and in the merge queue. This removes about 1,000 run records and about 140 runner jobs a day.
+
+### Fixed
+
+- A pr-unblock run whose credential was refused (`class=auth`, a 401) now counts as a limit stop: its head waits `limits.fallback-reset` hours before the next dispatch instead of spending all `limits.limit-stops-per-head` runs at once, and the dispatcher logs a notice naming the class and the reset time (`.github/scripts/pr-unblock/limit-stop.mjs`, `dispatch.mjs`).
+- `pr-run-activity-read.yml` now puts the lane record's class and reset on the check run it posts, so `limit-stop.mjs` can tell a usage limit or a refused credential from any other failure on resolve-conflicts, address-feedback and review-dependency checks; before, every such check read as a plain failure.
+
+## [5.13.0] - 2026-10-26
+
+### Added
+
+- `limits.api.<pool>.limit-cap` sets the requests per window a GitHub API pool plans to: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to 1000, GitHub's documented GITHUB_TOKEN limit of 1,000 requests per hour per repository, so an observed 5,000 header limit is headroom, never a target; the other pools have no cap. The rate guard's read floor is now a share of the planned budget, in the Node guard (`planOf` in `.github/actions/log-api-budget/rate-guard.mjs`) and in the shell guard (`API_BUDGET_LIMIT_CAP`, which ci-status sets to 1000). The stop still reads only the header's remaining and GitHub's 403 and 429 refusals, and `writer-pause` and `breaker` stay shares of the header's limit.
+
+### Changed
+
+- Each read-runner lane (pr-unblock's fix-ci, its rung-up, address-feedback, review-dependency and resolve-conflicts; pr-refine's fix-docs; work-resolve-issue's resolve-issue) runs its activity once more, on the central fallback subscription token `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN`, when the role's OAuth token also stops (a limit stop, a credit stop, or a 401 or 402). Each handoff job reads whether the secret is set and passes it as the second call's `fallback-ready`; a `<subscription>-handoff` job reads this run's jobs and `<first>-fallback` runs on the fallback token alone. With the secret empty, the second call stays the last and the lanes run as before.
+
+## [5.12.0] - 2026-10-26
+
+### Changed
+
+- pr-verify judges once more, on the central fallback subscription token `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN`, when the pr-verify role's subscription token also stops (a limit stop, a credit stop, or a 401 or 402) with no permission denial: `check-intent-subscription` passes `fallback-ready` to run-claude-cli, and the new `check-intent-fallback` job runs on a third VM and records `fallback-reason` `limit-stop`, `credit-stop` or `auth`. With the secret empty, the subscription leg stays the last and the lane runs as before.
+
+- No path is held for being trusted alone (owner direction 2026-10-24) except a narrow floor (owner decision Q-FLOOR (B)): ci-status's `merge-holds.mjs` `HOLD_PATH_FLOOR` keeps only `.github/actions/resolve-config/**`, `.github/actions/request-lane-token/**`, `.github/actions/check-trusted-trigger/**`, `.github/actions/check-kill-switch/**`, `.github/actions/log-api-budget/rate-guard.mjs`, `**/CODEOWNERS`, `**/.gitmodules` and the files that enforce it (owner decision [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)): `.github/scripts/pr-merge/merge-holds.mjs`, `.github/scripts/pr-merge/enable-auto-merge.mjs`, `.github/scripts/pr-merge/superseded.mjs`, `.github/scripts/pr-merge/clear-escalations.mjs`, `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`, `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml` (which runs those scripts and sets their environment), `docs/conventions/pr-pipeline.yaml`, and every module those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `.github/scripts/pr-unblock/gate-source.mjs`, `.github/scripts/pr-unblock/thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs`, `.github/scripts/work-resolve-issue/limits.mjs`), and the Python that decides the holds (`babysit_risk.py` and `babysit_verify_evidence.py`, which `enable-auto-merge.mjs` runs, with the 16 `plugins/source-control/skills/babysit-prs/scripts/` modules they import, `babysit_merge.py` and `babysit_merge_policy.py` among them), which `test_merge_holds_sync.py` derives from their imports and requires on the floor, equal to `babysit_risk.HIGH_FLOOR` and read from the base commit's module; a trusted person's approval of the head lifts it. The forced denied paths (the pipeline config and the trusted-actor list) are gone, and resolve-config no longer adds them to `merge.diff-check.denied-paths`: the floor holds the pipeline config, and the widening hold the trusted-actor list. This repository sets `high-path-floor: false`, which no longer turns off the floor. The trusted-actor widening hold and the review lanes still judge the rest.
+- ci-status no longer holds a plugin or marketplace manifest change; the security lane flags it.
+- `plugins/multi-agent/reference/defaults.yaml` is no longer a cost path; the infrastructure-as-code cost paths stay.
+- A body hold (`Hold:` or "do not merge") counts only when a person wrote or edited the body; in a lanes App body only report-outcome's own `Hold: a human merges this` line holds, so untrusted-provenance work still waits.
+- The verifier pass binds a link of several issues that still names the judged one, linked the way it judged it; a link that drops the judged issue, a removed link included, holds it.
+- `enable-auto-merge.mjs` comments on every refusal and adds the human-gated label only for a cause a person must clear: an untrusted spec, the repeated-FAIL round cap, a security finding (CRITICAL, or a path that could alias another, a symlink or a mode change), a trusted-actor widening, a cost hold, a hold path (a configured `merge.diff-check.denied-paths` match or a floor path, which only a trusted approval lifts) or report-outcome's own `Hold: a human merges this` line (owner decision Q-HOLDLINE; a reader run reads the discussion first so it comments once, and disarms an armed one at once). An issue link the lane does not take, a FAIL, a changed spec and any other risk reason get the comment alone.
+- `clear-escalations.mjs` takes that label off once the head moves under `merge.lane-prs: native` too, including a label put back under a standing escalation comment; the next run labels the new head again only if its cause still holds.
+- `enable-auto-merge.mjs` reads a pull request's labels and its comments, reviews and review threads whole instead of refusing past 100, arms nothing and labels nothing when the resolved config does not read, and starts each run at an offset that moves with the run number, so the pull requests past the verify budget change from run to run.
+- ci-status's `merge-holds.mjs` holds a trusted-actor list change that adds or widens an entry (`actorsHold`, the rule of `babysit_risk._actors_widened`, base and head read at `BASE_SHA` and the head), so one pushed after auto-merge is armed waits for the owner; a trusted person's approval of the head lifts it, as it lifts a hold path, and a change that only removes entries passes.
+- The review callers' `hold-paths` name every path-floor entry (`test_merge_holds_sync.py` checks both callers and ci-status's exempt-author `hold_patterns` each match all of them), adding `.github/actions/resolve-config/**`, `.github/actions/request-lane-token/**`, `.github/actions/check-kill-switch/**`, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, which the trusted-trigger check imports), the merge-hold code (`merge-holds.mjs`, `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, the `pr-unblock/` and `work-resolve-issue/` modules they import, `pr-require-checks.yml`, `pr-merge.yml`, and the babysit-prs Python that decides the holds) and the pipeline config (`docs/conventions/pr-pipeline.yaml`, whose lane slots the token broker reads), so the security lane reads those changes as trusted paths, and ci-status's exempt-author check fails a Dependabot, release App or standards-sync pull request that changes them.
+- The review callers' `hold-paths` also name the security review's own files, `plugins/review/skills/security-review/**` and `plugins/review/evals/security-review-*/**`, so a change that weakens the review that judges trust controls gets the same scrutiny. They are scrutiny only: ci-status's exempt-author check does not fail on them, and nothing holds a pull request for them.
+
+## [5.11.3] - 2026-10-26
+
+### Fixed
+
+- The pr-unblock dispatcher no longer fails its run when GitHub answers one pull request's read with a 5xx. A GraphQL query answered 5xx is now sent again with the same bounded backoff and per-attempt timeout as a GET (`retryServerErrors`). A mutation is still sent once: a document that names a mutation or subscription anywhere, or a request that names an operation, is never resent. A per-PR read that still answers 5xx after those retries logs a warning naming the PR and skips that PR until a later run, in fix-docs, resolve-conflicts, review-dependency and fix-ci (its hold read and its required-run read). A rate limit or any other read error still fails the run.
+
+## [5.11.2] - 2026-10-26
+
+### Changed
+
+- `enable-auto-merge` no longer spends most of its lane-room time limit on a full post-merge check when the run's report was refused only because an issue the lanes App opened was edited since (`demotion-changed`). The room reads the demotion records alone and keeps the report when they are unchanged, so a slow API window no longer risks running past the time limit and disarming every armed lanes App pull request.
+
+## [5.11.1] - 2026-10-26
+
+### Changed
+
+- The rate guard keeps a rate-limit reading of every guarded call under `API_BUDGET_TOKEN`, so every Node script's calls reach the job-end api-budget notice, not only `budgetedFetch`'s. The log-api-budget action adds an `api-calls <token>=N not-modified=M` line: this job's own calls, which the notice's `cost` (a counter every concurrent job shares) is not. The jobs that posted no notice now post one: intake-triage's born-triaged and refine-select, pr-verify's two judge jobs, pr-unblock's four select and context jobs, post-merge-demotion-alert's report-red-main, and the audit-lane-runs, delete-stale-branches, monitor-signals and reconcile-lost-runs jobs. No call is added.
+- pr-feedback-dispatch's rerun-ci-status sends each repeat poll of the pr-require-checks run as a conditional GET on the last answer's ETag; a 304 stands for that answer, so the poll keeps its 60 s pace, its 10-minute cap and its decisions. Each 304's reading reaches the job's notice, which shows whether GitHub counts a 304 against `GITHUB_TOKEN`.
+- pr-merge's dispatch-full-run sends each read of the full run after the first as a conditional GET on the last ETag; a 304 means the run is still going, so the wait keeps its three-minute reads, its 39-minute ceiling and its red-run dispatch.
+- pr-unblock's report-escalation reads a pull request's comments 100 to a page, not GitHub's default 30.
+
+### Fixed
+
+- `enable-auto-merge` no longer leaves every lanes App pull request unarmed, and disarms the armed ones, when the run's post-merge report is one the gate would not reuse (for example `demotion-changed`, which any issue the lanes App files and triage then labels sets). The lane's room now checks the report again as the gate does and arms from that answer.
+
+## [5.11.0] - 2026-10-26
+
+### Added
+
+- Adoption: a person's pull request skips the `idle-hours` wait when a trusted person's merge-queue enqueue was removed for failed checks (owner decision Q-REQ (a)). GitHub must have seen that head on the branch by the enqueue and not since, and no person may have commented or reviewed since the enqueue. The pr-merge gate records `eligibility.adoption` as `requeue-after-ejection` and then applies every gate rule unchanged, the `merge.max-queue-ejections` cap included.
+
+## [5.10.7] - 2026-10-25
+
+### Fixed
+
+- The pr-merge lane's escalation to a person (risk, verifier, held-major and shared-copy) is posted as a new comment beside the human-gated label instead of an edit of its earlier comment, so the escalation notifies and the head-moved clear pairs the label with the newest escalation comment. An unchanged escalation is not posted again.
+
+## [5.10.6] - 2026-10-25
+
+### Fixed
+
+- `enable-auto-merge` no longer re-arms a lanes App pull request whose head the merge queue has removed for failed checks `merge.max-queue-ejections` times (default 2) since it last changed. GitHub does not re-arm a pull request the queue removes, and each scheduled run armed it again, so a head that kept failing its merge group was re-queued without end. The count and the limit are the gate's own, read through `babysit_verify_evidence.py evidence --lane-queue`. At the cap the pull request is left unarmed with the gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a push resets the count; a count that cannot be read leaves it unarmed.
+
+## [5.10.5] - 2026-10-25
+
+### Fixed
+
+- The shell rate guard ends the step when it cannot record a stop (no space or no permission for `$RUNNER_TEMP/api-budget`), with an error naming the pool, and refuses every later call in that shell, so no call reaches an exhausted pool unrecorded. Its errors go to a copy of the step's stderr taken when the wrapper is set up, so they reach the log when a caller such as ci-status's `gh_read` holds the call's stderr in a file, and from a subshell every shell up to the step's is ended, so no retry loop around the call sends again. The Node guard names a stop it could not record in its error line.
+- The shell and Node stop-file readers fail closed: a stop file that exists but cannot be read (no permission, a directory, a path part that is a file) holds every pool, with an error naming the file; a missing one holds nothing.
+- The shell and Node stop-file readers take only lines shaped `<pool> <1-12 digits>` and ended by a newline, alike, so a fragment a short write left spoils only the line it runs into; `rate-guard.vectors.json` pins the reader cases for every port. Both guards cap a stop at the largest 12-digit second, so a huge `retry-after` still writes a stop the readers take.
+
+## [5.10.4] - 2026-10-25
+
+### Fixed
+
+- `enable-auto-merge` posts a new refusal comment when it escalates a lanes App pull request to a person (the comment carrying the attended queue's escalation marker, written with the human-gated label), instead of editing its earlier lane comment. An edit sent no notification and kept the comment's old date, so the timeline showed only a bare label event with no visible reason. A refusal that stays a lane's still edits the one comment in place, and an unchanged person's refusal is not posted again.
+
+## [5.10.3] - 2026-10-25
+
+### Fixed
+
+- The fix-ci dispatcher counts a head's earlier `pr-unblock / fix-ci` runs from the REST check-runs listing before it dispatches, instead of from the GraphQL check rollup, which lists only the newest run per check name. The per-head cap (`limits.limit-stops-per-head`) now stops a head that fix-ci-context skips each time, which was dispatched again after every base move. A head whose runs cannot be read is not dispatched (`.github/scripts/pr-unblock/fix-ci-dispatch.mjs`).
+- A head that reaches the per-head cap in fix-ci or resolve-conflicts now gets one `::warning::` annotation on the dispatcher run that finds the cap, naming the PR, the head and the run count. The head then goes into the dispatch record, so later dispatcher runs skip it without reading its hold, check runs or required run (`.github/scripts/pr-unblock/fix-ci-dispatch.mjs`, `.github/scripts/pr-unblock/dispatch.mjs`, `.github/scripts/pr-unblock/limit-stop.mjs`).
+
+- `enable-auto-merge` no longer arms, and disarms, a lanes App pull request whose linked issue carries a label naming untrusted work, in any spelling, or had one removed by a non-human. report-outcome already writes a `Hold:` line when the issue carries the exact label at PR open, so this covers a label added after the pull request opened, or any other spelling. The refusal is one a person clears: the pull request gets the refusal comment and the human-gated label.
+
+- In the merge queue, `ci-status` now applies the trust hold to a queued pull request an automation opened. The step `Fail a queued pull request carrying a hold label` reads its linked issue: its closing issues here, or with none, the one plain `Refs:` issue. The step fails when that issue carries a label containing `untrusted` in any ASCII case, or had one removed by anyone other than a person on the base's trusted-actor list, or through an App. A lanes App pull request that does not link exactly one issue here fails too, so dropping the link after arming does not skip the check; another automation's that links none passes. A removal by a non-human stays in the issue's timeline, so no later label change lifts it; a new issue and a new pull request linking it do. report-outcome's `Hold:` line covers the exact label at PR open, and `enable-auto-merge` covers arm time, so the remaining gap was a label added after the pull request opened. A pull request armed before the label landed no longer merges on it. An unreadable link, label list, timeline or trusted-actor list, a bot author with no numeric id, or a jq error matching them, fails closed. This costs one GraphQL read per queued pull request, plus one timeline read per linked issue and a labels read for a `Refs:` issue when an automation opened it. A person's own pull request is not read.
+
+## [5.10.2] - 2026-10-25
+
+### Changed
+
+- The pr-merge merge job now needs post-merge-dispatch, so it reads this run's kept post-merge report instead of racing its upload and running the same check again; on 2026-10-25, 20 of 43 scheduled runs read before the report was kept. `!cancelled()` keeps the job running on pull_request_target, where post-merge-dispatch is skipped, and when that job fails. The reuse rule (same main commit, under REUSE_MINUTES old) and the fallback to the job's own check are unchanged (`.github/workflows/pr-merge.yml`).
+
+## [5.10.1] - 2026-10-25
+
+### Changed
+
+- A changed trust-gate path no longer holds a pull request by itself: the review callers' `hold-paths` only sends those files to extra security scrutiny, and the security lane judges them. An exempt author's pull request (Dependabot, the release App, the standards-sync App), which no review lane reads, still fails on a trust-gate path.
+- The verifier fails a change to the takeover set only when it lets someone outside the organization gain trust or weakens a check beyond the spec, treats only a hold on a real charge (not model, effort, turn, timeout or schedule spend) as a hold the owner keeps, and passes a diff too large to judge whole with notes naming the parts it could not judge when those parts are prose or data; an unjudged workflow, action, script, hook, binary or takeover-set file still fails.
+- ci-status's cost-only clear is no longer blocked by every lanes App comment in the window, only by a lanes App escalation comment.
+- The lost-run reconciler re-runs, once, a pr-verify run whose first attempt failed or was lost before or during its judge step. A run whose verdict write started, which happens only when the judgment succeeded, is held, with the reason in the run summary, even when writing or uploading the verdict then failed, so a head is never judged twice. pr-verify fails a run the lanes kill switch stopped, so the reconciler re-runs it once the switch is off instead of leaving the head with no verdict.
+
+## [5.10.0] - 2026-10-25
+
+### Added
+
+- Intake's size split also copies, as written, the task-list lines of intake's refinement comment on an issue a listed human filed, where admission already counts that comment as spec. A Size Large issue whose done-when lives only in that refinement no longer stays parked with no one asked. Each sub-issue that copies a refinement line names that comment's id and update time in its header.
+- Admission and pr-verify trust such a sub-issue only while the named comment is still intake's newest refinement on the parent, never edited, with its update time equal to its creation time or to the recorded one, and only on a parent body a listed human wrote. Every line must be one of the listed human's task-list lines or one of that comment's task-list lines, never its prose; after a listed human's edit, either kind may also have its box ticked, and nothing else. A deleted, edited or superseded refinement makes the sub-issue untrusted, even when a listed human has edited it since.
+
+### Changed
+
+- `merge.rung` is a pacing cap: no work class is read, and no class, missing class or diff shape caps it. The only check that names a class is the local babysit lane's untrusted-provenance hold. That lane also needs a human to vouch for the linked issue: a write-access human wrote it, or one applied the admission label in person with no body edit after. The risk score's `class-contradicted`, `blast-radius-missing` and rung reasons are gone (#9668).
+- `merge.diff-check.c2-contradictions` is deprecated and has no effect. The schema still accepts it so existing configs validate, and a config that sets it true gets a `configNotes` entry in the gate's `unattended` report saying it has no effect.
+
+- `resolve-issue` reads any web page and runs the research skills; it was limited to six official docs hosts. It runs on the run-claude-cli launcher, which stages no curl-based docs script, from a job with no write token, and admission no longer refuses a done-when item for naming a page outside those hosts ([pr-pipeline.yaml](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline.yaml)).
+
+### Fixed
+
+- fix-ci no longer hands a pull request to a person (`ci-fix-escalated`) in the same run that pushed its fix: a written patch now pushes with no escalation, whatever the model escalated beside it, and the new head's own CI decides. A red new head gets its own fix-ci run, which escalates what it cannot fix, and `loop.fix-ci-rounds` still ends the rounds with `ci-fix-round-cap` ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#prepare-apply-patch)).
+
+- The issue lane's blocker gate counts the same closes admission does: a size-split parent the lanes App closed once a listed human or a merge closed every sub-issue no longer blocks a run admission already let through (`.github/scripts/work-resolve-issue/check-blockers.mjs`, now on `admit.mjs` `closedByTrusted`).
+
+- The pr-pipeline convention names the repository's default branch, not the pull request's base, as where the merge gate reads admission's `task-list` for a size-split sub-issue.
+
+## [5.9.5] - 2026-10-25
+
+### Fixed
+
+- pr-unblock's publish-feedback step loads again. It runs from a copy of `.github/scripts/pr-unblock/` alone, and the adjudicator module it imports had started loading `request-budget.mjs`, whose `.github/actions` imports do not resolve from that copy, so every address-feedback run failed at publish with `ERR_MODULE_NOT_FOUND`. `adjudicate-feedback.mjs` now loads `request-budget.mjs` only in its `prepare` command, which runs from the full base checkout.
+
+## [5.9.4] - 2026-10-25
+
+### Fixed
+
+- The adjudicator of a disputed review finding now reads the whole review comment and the files and lines it cites, beside the locations the fixing lane cited, instead of only the comment's first paragraph and the lane's locations (`.github/scripts/pr-unblock/adjudicate-feedback.mjs`).
+- A disputed code-review finding carrying `severity: CRITICAL`, and a disputed pr-verify verifier note, go to a person again instead of to the adjudicator: resolving a verifier note's thread left its FAIL holding the merge with nothing to say so.
+- pr-unblock's `adjudicate-feedback` job runs only when the answering leg's replies hold an `INCORRECT` reply; a round with none no longer checks out, sets up and stages for nothing. Its contents reads are logged in the job's api-budget notice.
+- The monitoring lane's rolling issues render each finding's summary inside a text fence, in the body and the change comment, so a mention, link or tag in run or job text no longer works.
+
+## [5.9.3] - 2026-10-25
+
+### Changed
+
+- The pr-pipeline README describes how pr-merge's gate counts a size-split sub-issue the lanes App filed as trusted spec. It does so on the same rule pr-verify applies: every line after the header must be a trusted task-list line of its native parent, or on the edited path that line with its box ticked. A failed read is `verify:unreadable`, and a cut comment page counts nothing.
+
+### Fixed
+
+- work-unblock tells a run the token broker refused for the lanes kill switch, at broker-check or at a lane token request, from other failures by reading the refused job's log (one per run, at most 1 MiB, only the failed step's last line). Such a breaker trip is re-fired an hour after it ended with a record of its own, and past `limits.limit-stops-per-issue` trips on the stranded backoff; it no longer spends the once-per-version re-fire, counts toward the failed-mint bound, or posts the "fault in the lanes" backoff comment. A refusal for another reason, or a log it cannot read, is classed as before (`.github/scripts/work-unblock/label-unblocked.mjs`).
+
+## [5.9.2] - 2026-10-25
+
+### Fixed
+
+- Intake apply-verdict no longer stops the whole verdict when GitHub answers a blocked-by edge read or write with 403, 429 or 5xx: that edge is missed and named in the step summary and a run annotation, and the verdict's other labels still land. Admission and work-unblock read blockers only from the native edges, so the edges that run wrote are deleted again, and a ready verdict with a missed edge lands without `status: ready` and is not admitted; the hourly triage sweep runs intake again on it, and after two runs that leave it so hands it to a maintainer. A 403 fails the job after every write, since no re-run fixes a missing permission (`.github/scripts/intake-triage/edges.mjs`, `.github/scripts/intake-triage/apply-verdict.mjs`).
+- Intake refinement no longer lifts the lanes App's `status: needs-decision`, on an exact refinement or a split, while the App's verdict comment lists a security or cost flag or records that whether an earlier verdict flagged is unknown, so an earlier flag a later triage omitted can no longer clear through a refinement and the re-triage after it (`.github/scripts/intake-triage/refine.mjs`).
+
+### Security
+
+- A size-split sub-issue a listed human last edited counts as that human's text only when every line after its header is one of its parent's trusted task-list lines or that line with its box ticked. GitHub names only the last editor, so a listed human ticking a box after another account's edit no longer makes that account's text trusted.
+- pr-verify stops, writing no verdict, when a split sub-issue's native parent cannot be read or has more comments than the page it reads, instead of judging the pull request without the sub-issue's criteria. Before, an outsider could pad the parent past the page during a run and delete the padding before the merge gate counted the sub-issue.
+
+## [5.9.1] - 2026-10-25
+
+### Changed
+
+- The hourly work-unblock sweep reads closes from 15 minutes before the last scheduled run whose labeling step succeeded (at most 3 hours back; the full 3 hours when that run cannot be read or did not sweep, as under the kill switch or a lane the config turns off) instead of always the last 3 hours. Metric: sweep passes per closed issue. Baseline: about 3 (hub measurement). Expected: about 1.
+
+- enable-auto-merge logs each verifier read's cost, `enable-auto-merge: #<n> calls=<total> github-token=<n> paginated=<n> ms=<elapsed>`, read from the reader's `babysit-gh-calls` stderr line, and adds the same rows to the step summary even on a run that raised nothing. `calls` counts gh invocations; a paginated one (the artifact listing) made one request per page. A reader that exits non-zero is now reported by its last error line, not by the calls line (`.github/scripts/pr-merge/enable-auto-merge.mjs`).
+- pr-merge's merge job records each gate candidate's gh invocations as `calls` in its summary row (`.github/workflows/pr-merge.yml`).
+
+## [5.9.0] - 2026-10-25
+
+### Added
+
+- Intake splits an issue admission parked as Size Large into native sub-issues before any run takes it (owner Q93). The refine model returns only item numbers: the parts over the issue's task-list lines and the order between them. Each part becomes a sub-issue holding those lines as written and taking the issue's Issue Type, the order becomes native blocked-by edges (a refused edge leaves the split unfinished for the next triage to retry), and intake triages each sub-issue. An invalid split leaves the issue parked, with the reason in the step summary.
+- Admission and pr-verify count the body of such a sub-issue as the text of the listed human who filed its parent when every line after its header is one of the parent's trusted task-list lines and nobody edited it, or when a listed human last edited it (ticking a task box is an edit). An edit by any other account makes it untrusted. Admission does not park or refuse such a sub-issue for Size Large, since it never splits again.
+- Admission waits on an issue while any of its sub-issues is open, and work-unblock closes a split issue as completed once every sub-issue is closed by a listed human or a merge.
+
+### Security
+
+- collect-base-activity makes the base marketplace copy read-only (`chmod -R a-w`) once it is staged, and a write skill's `--disallowedTools` carries `Edit(/$RUNNER_TEMP/base-marketplace/**)`, so neither the skill's file tools nor a process it starts can rewrite the plugin hooks and scripts that load in place from that copy ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+## [5.8.1] - 2026-10-25
+
+### Fixed
+
+- An issue's closing pull requests count only the open ones: GitHub lists a merged pull request in `closedByPullRequestsReferences` despite `includeClosedPrs: false`, so admission and the work-unblock sweep waited on a merged closer forever and find-prior stopped the issue lane for one (`.github/scripts/work-resolve-issue/report-outcome.mjs`).
+
 ## [5.8.0] - 2026-10-25
 
 ### Added

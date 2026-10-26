@@ -11,12 +11,16 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, loadRules, refusalText } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { createJobLogReader } from "./job-log.mjs";
 import {
+  budgetLatch,
   checkCloser,
   escalationComment,
-  main,
+  main as runMain,
   RECURRENCE_PREFIX,
   recurrenceComment,
   refireComment,
@@ -34,6 +38,25 @@ const OWNER = { id: 153232337, login: "kyle-sexton" };
 const SECOND = { id: 2001, login: "second-maintainer" };
 const LANES_APP_ID = 337595936;
 const STAMP = "2026-10-16T12:00:00Z";
+const RUN_ID = "39500000088";
+
+// This run's own record, the one read a close run makes with the job token:
+// who started this attempt (`rerunner`), with `record` laid over it.
+function ownRun(rerunner = OWNER, record = {}) {
+  const calls = [];
+  const actions = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (method === "GET" && path === `/repos/${REPO}/actions/runs/${RUN_ID}`) {
+      return { id: Number(RUN_ID), run_attempt: 1, triggering_actor: rerunner, ...record };
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return Object.assign(actions, { calls });
+}
+
+// A close run reads who started it from its own record; unless a test passes
+// its own `actions`, a listed human did.
+const main = (args) => runMain(args.env.GITHUB_EVENT_NAME === "schedule" || "actions" in args ? args : { ...args, actions: ownRun() });
 
 const CLOSED = "2026-10-16T11:30:00Z";
 const issue = (
@@ -97,6 +120,7 @@ function world({
   events = {},
   runs = [],
   jobs = {},
+  logs = {},
   openLanePrs = 0,
   mergedLanePrs = 24,
   blobs = {},
@@ -108,11 +132,13 @@ function world({
   searchIncomplete = false,
   fieldValues = {},
   specs = {},
+  parents = {},
+  subIssues = {},
   failOn,
 } = {}) {
   const calls = [];
   const base = `/repos/${REPO}/issues`;
-  const github = async (method, path, body) => {
+  const github = async (method, path, body, headers, { maxBytes } = {}) => {
     calls.push(body === undefined ? `${method} ${path}` : `${method} ${path} ${JSON.stringify(body)}`);
     if (failOn && (typeof failOn === "function" ? failOn(method, path, body) : path.startsWith(failOn))) {
       throw new Error(`${method} ${path} failed with status 500`);
@@ -166,6 +192,17 @@ function world({
       assert.equal(new URL(path, "https://x").searchParams.get("filter"), "latest");
       return { jobs: jobs[match[1]] ?? [] };
     }
+    // A job's log is read as text under a byte cap, as createGitHub's maxBytes does.
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/jobs/(\\d+)/logs$`)))) {
+      assert.equal(typeof maxBytes, "number");
+      if (logs[match[1]] === undefined) {
+        throw new Error(`${method} ${path} failed with status 404`);
+      }
+      if (logs[match[1]].length > maxBytes) {
+        throw new Error(`${method} ${path} answered a body over ${maxBytes} bytes`);
+      }
+      return logs[match[1]];
+    }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/pulls/(\\d+)$`))) && pulls[match[1]]) {
       return pulls[match[1]];
     }
@@ -184,6 +221,12 @@ function world({
     }
     if ((match = route.match(/\/issues\/(\d+)\/dependencies\/blocked_by$/))) {
       return listed(blockedBy[match[1]] ?? []);
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/parent$/)) && parents[match[1]]) {
+      return parents[match[1]];
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/sub_issues$/))) {
+      return listed(subIssues[match[1]] ?? []);
     }
     if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/issue-field-values$/))) {
       return fieldValues[match[1]] ?? [];
@@ -267,7 +310,8 @@ function envFor(event = {}, extra = {}) {
     KILL_SWITCH: "proceed",
     TRUSTED_ACTORS_PATH: TRUSTED,
     ACTOR_ID: String(OWNER.id),
-    TRIGGERING_ACTOR: OWNER.login,
+    GITHUB_RUN_ID: RUN_ID,
+    GITHUB_RUN_ATTEMPT: "1",
     ...extra,
   };
 }
@@ -461,47 +505,81 @@ test("a failed read on one issue still lets the others through, and fails the ru
 });
 
 // The broker mints only when the closer and any re-runner are each a listed
-// human, so anyone else stops the run quietly, before any API call (and, in
-// the workflow, before the token request, through --check-closer).
-test("a closer or re-runner who is not a listed human stops the run before any API call", async () => {
-  for (const [id, login] of [
+// human, by id, so anyone else stops the run quietly, before any issue read
+// (and, in the workflow, before the token request, through --check-closer).
+// The re-runner's id comes from this run's own record, never a login.
+const IMPOSTOR = { id: 999001, login: OWNER.login };
+test("a closer or re-runner who is not a listed human stops the run before any issue read", async () => {
+  for (const [id, rerunner] of [
     // An unlisted closer, re-run by nobody else.
-    ["1234", "someone-else"],
+    ["1234", { id: 1234, login: "someone-else" }],
     // An unlisted closer, re-run by a listed human.
-    ["1234", OWNER.login],
+    ["1234", OWNER],
     // A listed bot is not a listed human, as closer or as re-runner.
-    [String(LANES_APP_ID), "melodic-automation-lanes[bot]"],
-    [String(OWNER.id), "melodic-automation-lanes[bot]"],
-    // An unlisted re-runner.
-    [String(OWNER.id), "someone-else"],
-    ["", ""],
-    [String(OWNER.id), ""],
+    [String(LANES_APP_ID), { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]" }],
+    [String(OWNER.id), { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]" }],
+    // An unlisted re-runner, and one holding a listed human's login.
+    [String(OWNER.id), { id: 1234, login: "someone-else" }],
+    [String(OWNER.id), IMPOSTOR],
+    ["", OWNER],
   ]) {
     const { github, calls } = oneDependent();
-    assert.equal(await main({ env: envFor({}, { ACTOR_ID: id, TRIGGERING_ACTOR: login }), github }), 0);
-    assert.deepEqual(calls, [], `${id} ${login}`);
+    assert.equal(await main({ env: envFor({}, { ACTOR_ID: id }), github, actions: ownRun(rerunner) }), 0);
+    assert.deepEqual(calls, [], `${id} ${rerunner.id}`);
   }
 });
 
 test("a re-run by a different listed human labels the unblocked issues", async () => {
   const { github, calls } = oneDependent();
-  assert.equal(await main({ env: envFor({}, { ACTOR_ID: String(OWNER.id), TRIGGERING_ACTOR: SECOND.login }), github }), 0);
+  assert.equal(await main({ env: envFor(), github, actions: ownRun(SECOND) }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("the closer check answers proceed only when the closer and the re-runner are each a listed human", () => {
-  const check = (id, login) => checkCloser({ ACTOR_ID: id, TRIGGERING_ACTOR: login, TRUSTED_ACTORS_PATH: TRUSTED });
-  assert.equal(check(String(OWNER.id), OWNER.login), true);
-  assert.equal(check(String(OWNER.id), "Kyle-Sexton"), true);
-  assert.equal(check(String(OWNER.id), SECOND.login), true);
-  assert.equal(check(String(SECOND.id), "Kyle-Sexton"), true);
-  assert.equal(check("1234", "someone-else"), false);
-  assert.equal(check("1234", OWNER.login), false);
-  assert.equal(check(String(LANES_APP_ID), "melodic-automation-lanes[bot]"), false);
-  assert.equal(check(String(OWNER.id), "claude[bot]"), false);
-  assert.equal(check(String(OWNER.id), "someone-else"), false);
-  assert.equal(check(String(OWNER.id), ""), false);
-  assert.equal(check("x", OWNER.login), false);
+test("the closer check answers proceed only when the closer and the re-runner are each a listed human, by id", async () => {
+  const env = (id) => ({ ACTOR_ID: id, TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1" });
+  const check = (id, rerunner) => checkCloser(env(id), ownRun(rerunner));
+  assert.equal(await check(String(OWNER.id), OWNER), true);
+  assert.equal(await check(String(OWNER.id), SECOND), true);
+  assert.equal(await check(String(SECOND.id), OWNER), true);
+  assert.equal(await check("1234", { id: 1234, login: "someone-else" }), false);
+  assert.equal(await check("1234", OWNER), false);
+  assert.equal(await check(String(LANES_APP_ID), { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]" }), false);
+  assert.equal(await check(String(OWNER.id), { id: 209825114, login: "claude[bot]" }), false);
+  assert.equal(await check(String(OWNER.id), { id: 1234, login: "someone-else" }), false);
+  assert.equal(await check("x", OWNER), false);
+});
+
+test("a listed human's login held by a different id is not that human: the closer check answers no", async () => {
+  // TRIGGERING_ACTOR is the login the runner would pass; it is never read.
+  const actions = ownRun(IMPOSTOR);
+  const env = { ACTOR_ID: String(OWNER.id), TRIGGERING_ACTOR: OWNER.login, TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1" };
+  assert.equal(await checkCloser(env, actions), false);
+  assert.deepEqual(actions.calls, [`GET /repos/${REPO}/actions/runs/${RUN_ID}`]);
+});
+
+test("a failed or malformed read of this run's record answers no, and a close run stops before any issue read", async () => {
+  // A listed login in both triggering-actor variables: a login fallback on a failed read would admit.
+  const logins = { GITHUB_TRIGGERING_ACTOR: OWNER.login, TRIGGERING_ACTOR: OWNER.login };
+  const failing = Object.assign(async () => {
+    throw new Error("HTTP 502");
+  }, { calls: [] });
+  for (const [name, actions, extra] of [
+    ["failed read", failing, {}],
+    ["string id", ownRun({ id: String(OWNER.id), login: OWNER.login }), {}],
+    ["no triggering actor", ownRun(null), {}],
+    ["another attempt's record", ownRun(OWNER, { run_attempt: 2 }), {}],
+    ["another run's record", ownRun(OWNER, { id: 1 }), {}],
+    ["no run attempt", ownRun(), { GITHUB_RUN_ATTEMPT: "" }],
+    ["no run id", ownRun(), { GITHUB_RUN_ID: "" }],
+    ["no repository", ownRun(), { GITHUB_REPOSITORY: "" }],
+  ]) {
+    const env = { ACTOR_ID: String(OWNER.id), TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1", ...logins, ...extra };
+    assert.equal(await checkCloser(env, actions), false, name);
+    // main itself fails red on a malformed repository, before the check.
+    const { github, calls } = oneDependent();
+    assert.equal(await main({ env: envFor({}, { ...logins, ...extra }), github, actions }), name === "no repository" ? 1 : 0, name);
+    assert.deepEqual(calls, [], name);
+  }
 });
 
 test("a pull request in the blocking list is skipped", async () => {
@@ -541,9 +619,10 @@ const sweep = (args, extra = {}) =>
     env: envFor({ schedule: "47 * * * *" }, {
       GITHUB_EVENT_NAME: "schedule",
       ACTOR_ID: String(LANES_APP_ID),
-      TRIGGERING_ACTOR: LANES_BOT.login,
       ...extra,
     }),
+    // A job's log goes through the same fake as every other read.
+    jobLog: args.actions ? (repo, id, options) => args.actions("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options) : undefined,
     ...args,
   });
 
@@ -566,6 +645,92 @@ test("the sweep labels an issue whose last blocker a bot closed", async () => {
       `GET /repos/${REPO}/issues?state=closed&since=${encodeURIComponent(SINCE)}&sort=updated&direction=desc&per_page=100&page=1`,
     ),
   );
+});
+
+// The window starts 15 minutes before the last successful scheduled run of
+// work-unblock.yml whose label-unblocked job ran its sweep step, at most 3
+// hours back; anything else, or any failed read, gives the 3 hours.
+const SWEEP_RUNS = `/repos/${REPO}/actions/workflows/work-unblock.yml/runs?event=schedule&status=success&per_page=2`;
+const ago = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
+const sweptJobs = (conclusion = "success", extraSteps = []) => ({
+  jobs: [
+    { name: "save-wip-state", conclusion: "success", steps: [{ name: "Save the WIP cap's last known state", conclusion: "success" }] },
+    {
+      name: "label-unblocked",
+      conclusion: "success",
+      steps: [{ name: "Check the kill switch", conclusion: "success" }, ...extraSteps, { name: "Label the unblocked issues", conclusion }],
+    },
+  ],
+});
+async function windowOf(answer, extra = {}, jobs = sweptJobs()) {
+  const { github, calls } = sweptDependent();
+  const actionCalls = [];
+  const actions = async (method, path) => {
+    actionCalls.push(`${method} ${path}`);
+    if (path.startsWith(`/repos/${REPO}/actions/workflows/work-unblock.yml/runs`)) {
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer;
+    }
+    if (/^\/repos\/[^/]+\/[^/]+\/actions\/runs\/5\/jobs\b/.test(path)) {
+      if (jobs instanceof Error) {
+        throw jobs;
+      }
+      return jobs;
+    }
+    return { workflow_runs: [], jobs: [] };
+  };
+  assert.equal(await sweep({ github, actions }, extra), 0);
+  const listing = calls.find((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed&since=`));
+  const since = Date.parse(decodeURIComponent(/since=([^&]+)/.exec(listing)[1]));
+  return { minutes: (NOW - since) / 60_000, actionCalls };
+}
+
+test("the sweep reads back to 15 minutes before the last sweep that ran its labeling step", async () => {
+  const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(60) }] });
+  assert.equal(minutes, 75);
+  const windowCalls = actionCalls.filter((call) => call.includes("/work-unblock.yml/") || call.includes("/actions/runs/5/"));
+  assert.deepEqual(windowCalls, [`GET ${SWEEP_RUNS}`, `GET /repos/${REPO}/actions/runs/5/jobs?filter=latest&per_page=100`]);
+});
+
+test("a last sweep older than the 3-hour window is capped at 3 hours without reading its jobs", async () => {
+  const { minutes, actionCalls } = await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(300) }] });
+  assert.equal(minutes, 180);
+  assert.ok(!actionCalls.some((call) => call.includes("/actions/runs/5/jobs")));
+});
+
+test("a failed or empty read of the last sweep falls back to 3 hours", async () => {
+  for (const answer of [new Error("GET failed with status 403"), { workflow_runs: [] }, { nope: true }, { workflow_runs: [{ id: "x", run_started_at: ago(60) }] }]) {
+    assert.equal((await windowOf(answer)).minutes, 180);
+  }
+});
+
+// A green run proves nothing by itself: the kill switch and a lane the config
+// turns off each skip the labeling step and still end the job green.
+test("a last successful run that did not sweep falls back to 3 hours", async () => {
+  const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
+  const killed = sweptJobs("skipped", [{ name: "Report the kill switch", conclusion: "success" }]);
+  const offByConfig = sweptJobs("skipped", [
+    { name: "Resolve the config", conclusion: "success" },
+    { name: "Report a lane the config turns off", conclusion: "success" },
+  ]);
+  const noSteps = { jobs: [{ name: "label-unblocked", conclusion: "success", steps: [] }] };
+  const noJob = { jobs: [{ name: "save-wip-state", conclusion: "success", steps: [] }] };
+  for (const jobs of [killed, offByConfig, noSteps, noJob, { jobs: [] }, { nope: true }, new Error("GET failed with status 502")]) {
+    assert.equal((await windowOf(runs, {}, jobs)).minutes, 180);
+  }
+});
+
+test("the current run is skipped when finding the last sweep", async () => {
+  const runs = { workflow_runs: [{ id: 77, run_started_at: ago(5) }, { id: 5, run_started_at: ago(60) }] };
+  assert.equal((await windowOf(runs, { GITHUB_RUN_ID: "77" })).minutes, 75);
+});
+
+test("a sweep with no Actions client reads the full 3 hours", async () => {
+  const { github, calls } = sweptDependent();
+  assert.equal(await sweep({ github }), 0);
+  assert.ok(calls.some((call) => call.includes(`since=${encodeURIComponent(SINCE)}`)));
 });
 
 test("the sweep skips an issue with an open sibling blocker", async () => {
@@ -1421,10 +1586,12 @@ function stalledRun({
   blobs = BLOBS,
   queuedIssues = [],
   blockedBy = {},
+  logs = {},
 } = {}) {
   const fake = world({
     blockedBy,
     queuedIssues,
+    logs,
     openReady: [ready(number)],
     comments: { [number]: comments },
     events: { [number]: events },
@@ -1826,6 +1993,267 @@ test("a run that stopped green on stale workflow files is re-fired, once per ver
   assert.deepEqual(writes(changed.calls), refired(30, `${WRITE_SHA}-${newer}`));
 });
 
+// A breaker trip: the token broker refused the run for the lanes kill switch,
+// which only the refused job's log names. Run 40127074215 failed at
+// broker-check's broker ask before any resolve-issue run job; run 40127093047
+// ran the model and was refused at its write runner's mint. Each denial line
+// is the failed step's last, just before `Process completed`. A broker-check
+// refusal for workflow-modified fails at the same step and stays a failed run.
+const denied = (mode, reason, { stamp = "2026-10-24T19:57:51.9466327Z " } = {}) =>
+  [
+    "2026-10-24T19:57:50.6158116Z ##[group]Run request-lane-token",
+    `${stamp}##[error]lane-${mode}-denied: the broker answered 403 with reason ${reason}: not-false: the repository CLAUDE_LANES_REPO_DISABLED is set and not exactly "false"`,
+    "2026-10-24T19:57:51.9468461Z ##[error]Process completed with exit code 1.",
+    "2026-10-24T19:57:52.0000000Z Cleaning up orphan processes",
+    "",
+  ].join("\n");
+const BROKER_CHECK_ID = 120970852314;
+const BROKER_REFUSED = [
+  ADMITTED,
+  pickSlot,
+  {
+    id: BROKER_CHECK_ID,
+    name: "resolve-issue / broker-check",
+    conclusion: "failure",
+    runner_id: 12,
+    started_at: "2026-10-16T10:01:00Z",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "failure" },
+    ],
+  },
+  { name: "report-skip", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue / run", conclusion: "skipped", steps: [] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+const PATCH_MINT_ID = 120972368518;
+const REPORT_MINT_ID = 120972137995;
+const MINT_REFUSED = [
+  ADMITTED,
+  pickSlot,
+  BROKER_ALLOWED,
+  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
+  { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+  { id: REPORT_MINT_ID, name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+];
+const CHECK_KILLED = { [BROKER_CHECK_ID]: denied("check", "kill-switch") };
+const MINT_KILLED = { [PATCH_MINT_ID]: denied("token", "kill-switch"), [REPORT_MINT_ID]: denied("token", "kill-switch") };
+// The breaker's own record, by its literal marker.
+const BREAKER_MARKER = `<!-- work-unblock refired ${KEY} breaker -->`;
+const isBreakerRecord = (call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: BREAKER_MARKER }).slice(0, -2)}`);
+const tripped = (calls) => {
+  const done = writes(calls);
+  assert.equal(done.length, 3, done.join("\n"));
+  assert.ok(isBreakerRecord(done[0]), done[0]);
+  assert.deepEqual(done.slice(1), restarted(30));
+  assert.ok(!done.some((call) => call.includes("needs-human")));
+};
+const logReads = (calls) => calls.filter((call) => /^GET \/repos\/[^ ]+\/actions\/jobs\/\d+\/logs$/.test(call));
+// An issue's comments and events after the App's records `bodies`, each
+// followed by its remove and re-add; the last re-add starts the run checked.
+const history = (bodies) => {
+  if (bodies.length === 0) {
+    return { comments: [note()], events: [added(LABELED_AT, OWNER)] };
+  }
+  const comments = [note()];
+  const events = [added("2026-10-16T05:00:00Z", OWNER)];
+  bodies.forEach((body, index) => {
+    const at = `2026-10-16T0${6 + index}:00:00Z`;
+    comments.push({ id: 70 + index, body, user: LANES_BOT, created_at: at });
+    events.push({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+    events.push(added(index === bodies.length - 1 ? LABELED_AT : `2026-10-16T0${6 + index}:00:01Z`));
+  });
+  return { comments, events };
+};
+// The history after `count` sweeps of runs with `jobs` and `logs`, each
+// carrying the record the sweep before posted.
+async function afterSweeps(count, jobs, logs) {
+  const bodies = [];
+  for (let index = 0; index < count; index += 1) {
+    const { github, actions, calls } = stalledRun({ jobs, logs, ...history(bodies) });
+    assert.equal(await sweep({ github, actions }), 0);
+    const posted = writes(calls).find((call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments `));
+    assert.ok(posted, `sweep ${index + 1} posted no record`);
+    bodies.push(JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body);
+  }
+  return history(bodies);
+}
+
+test("a run the broker refused at broker-check for the kill switch is a breaker trip: its own record, re-fired an hour after it ended", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`]);
+  // Within the hour it waits.
+  const early = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
+  assert.deepEqual(writes(early.calls), []);
+});
+
+test("a breaker trip leaves the once-per-version re-fire for a later failed run", async () => {
+  // A run that minted its token and failed later, after one breaker re-fire on these workflow files.
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const { github, actions, calls } = stalledRun({ jobs: failedLater, ...(await afterSweeps(1, BROKER_REFUSED, CHECK_KILLED)) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("a run the broker refused at its mints for the kill switch, after the model ran, is a breaker trip read from one log", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: MINT_REFUSED, logs: MINT_KILLED });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.equal(logReads(calls).length, 1);
+  // Past the failed-mint bound on these workflow files it still goes as a trip, with no backoff record.
+  const pumped = stalledRun({ jobs: MINT_REFUSED, logs: MINT_KILLED, ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  tripped(pumped.calls);
+});
+
+test("breaker trips at the mint never count toward the failed-mint bound", async () => {
+  // Three trips so far, then a mint that failed for another reason: the first failed-mint re-fire.
+  const { github, actions, calls } = stalledRun(await afterSweeps(3, MINT_REFUSED, MINT_KILLED));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("breaker trips past limit-stops-per-issue since a person last added agent-ready wait on the stranded backoff", async () => {
+  const under = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...(await afterSweeps(2, BROKER_REFUSED, CHECK_KILLED)) });
+  assert.equal(await sweep({ github: under.github, actions: under.actions }), 0);
+  tripped(under.calls);
+  // Three trips: three hours after the run ended at 10:05.
+  const three = await afterSweeps(3, BROKER_REFUSED, CHECK_KILLED);
+  const over = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...three });
+  assert.equal(await sweep({ github: over.github, actions: over.actions }), 0);
+  assert.deepEqual(writes(over.calls), []);
+  const due = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...three });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-16T13:05:00Z") }), 0);
+  tripped(due.calls);
+  // A listed human's agent-ready since starts the count again.
+  const reset = { comments: three.comments, events: [...three.events.slice(0, -1), added(LABELED_AT, OWNER)] };
+  const fresh = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...reset });
+  assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
+  tripped(fresh.calls);
+});
+
+// The backoff comment is dated by its last edit, which moves it past the
+// re-adds it made earlier; a breaker record before it still claims only its
+// own re-add. Three re-fires of a failed run on these workflow files (06:00,
+// 08:00 and 10:00, the last two on the backoff comment, edited at 09:59)
+// around one breaker trip (07:00) wait 24 hours, not 12.
+test("a breaker trip's re-add is its own: the backoff counts every other re-fire after the backoff comment is edited", async () => {
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const unlabeled = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+  const history = {
+    comments: [
+      note(),
+      refireNote(KEY, "2026-10-16T06:00:00Z"),
+      { id: 71, body: `${BREAKER_MARKER}\nThe token broker refused the run for the lanes kill switch.`, user: LANES_BOT, created_at: "2026-10-16T07:00:00Z" },
+      { id: 72, body: infraComment(KEY, "A cause.", 2), user: LANES_BOT, created_at: "2026-10-16T08:00:00Z", updated_at: "2026-10-16T09:59:59Z" },
+    ],
+    events: [
+      added("2026-10-16T05:00:00Z", OWNER),
+      unlabeled("2026-10-16T06:00:00Z"),
+      added("2026-10-16T06:00:01Z"),
+      unlabeled("2026-10-16T07:00:00Z"),
+      added("2026-10-16T07:00:01Z"),
+      unlabeled("2026-10-16T08:00:00Z"),
+      added("2026-10-16T08:00:01Z"),
+      unlabeled("2026-10-16T09:59:59Z"),
+      added(LABELED_AT),
+    ],
+  };
+  // The run ended at 10:05: three re-fires wait 24 hours, so nothing at 12 hours.
+  const early = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: early.github, actions: early.actions, now: Date.parse("2026-10-16T22:05:00Z") }), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const due = stalledRun({ jobs: failedLater, ...history });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: Date.parse("2026-10-17T10:05:00Z") }), 0);
+  const done = writes(due.calls);
+  assert.equal(done.length, 3, done.join("\n"));
+  assert.ok(done[0].startsWith(`PATCH /repos/${REPO}/issues/comments/72 `), done[0]);
+  assert.ok(done[0].includes("has re-fired it 4 time(s)"), done[0]);
+  assert.deepEqual(done.slice(1), restarted(30));
+});
+
+test("a refusal whose log does not name the kill switch on the step's last line stays a failed run", async () => {
+  const lines = (...items) => `${items.join("\n")}\n`;
+  for (const [name, log] of [
+    ["workflow-modified", denied("check", "workflow-modified")],
+    ["a lookalike reason", denied("check", "kill-switch-x")],
+    ["no timestamp", denied("check", "kill-switch", { stamp: "" })],
+    ["the mint's line in the check job", denied("token", "kill-switch")],
+    ["over the size cap", `${"x".repeat(2 * 1024 * 1024)}\n${denied("check", "kill-switch")}`],
+    [
+      "a kill-switch line before the step's real denial",
+      lines(
+        "2026-10-24T19:57:50.0000000Z ##[error]lane-check-denied: the broker answered 403 with reason kill-switch",
+        "2026-10-24T19:57:51.0000000Z ##[error]lane-check-denied: the broker answered 403 with reason workflow-modified",
+        "2026-10-24T19:57:51.1000000Z ##[error]Process completed with exit code 1.",
+      ),
+    ],
+    ["no log", undefined],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: log === undefined ? {} : { [BROKER_CHECK_ID]: log } });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+  // A mint refusal whose log cannot be read is a failed mint.
+  const unread = stalledRun({ jobs: MINT_REFUSED });
+  assert.equal(await sweep({ github: unread.github, actions: unread.actions }), 0);
+  assert.deepEqual(writes(unread.calls), refired(30));
+});
+
+// Run 40127232943: broker-check's `Check the kill switch` read
+// the repository kill switch on, so its broker ask was skipped and the run
+// ended green with no job failed and no log naming the reason.
+const KILL_SKIPPED = [
+  ADMITTED,
+  pickSlot,
+  {
+    name: "resolve-issue / broker-check",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "skipped" },
+    ],
+  },
+  { name: "report-skip", conclusion: "skipped", steps: [] },
+  {
+    name: "resolve-issue / run",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Assert the broker allowed this attempt", conclusion: "skipped" },
+    ],
+  },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+test("a green run whose broker ask the kill switch skipped is a breaker trip, read from the job listing alone", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), []);
+  // Three hours on, it is still a trip, never stranded as a run with no report.
+  const late = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
+  assert.equal(await sweep({ github: late.github, actions: late.actions, now: Date.parse("2026-10-16T14:05:00Z") }), 0);
+  tripped(late.calls);
+});
+
+test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
+  const [kill, ask] = KILL_SKIPPED[2].steps;
+  const check = (steps) => ({ ...KILL_SKIPPED[2], steps });
+  for (const [name, broker] of [
+    ["kill-switch check skipped", check([{ ...kill, conclusion: "skipped" }, ask])],
+    ["no kill-switch check listed", check([ask])],
+    ["broker ask ran", check([kill, { ...ask, conclusion: "success" }])],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: [ADMITTED, pickSlot, broker, KILL_SKIPPED[4]], conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+  }
+});
+
 test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {
   for (const [name, jobs] of [
     ["stop step skipped", [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped")]],
@@ -1848,6 +2276,10 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
     return Object.fromEntries(ids.map((id, i) => [id, body.split(/^ {2}[a-z][a-z-]*:$/m)[i + 1]]));
   };
   const steps = (block) => [...block.matchAll(/^ {6}- name: (.+)$/gm)].map((m) => m[1]);
+  const unblock = jobs(workflow("work-unblock.yml"));
+  assert.ok(unblock["label-unblocked"] !== undefined);
+  assert.doesNotMatch(unblock["label-unblocked"], /^ {4}name:/m, "label-unblocked keeps its id as its name");
+  assert.ok(steps(unblock["label-unblocked"]).includes("Label the unblocked issues"));
   const caller = jobs(workflow("work-resolve-issue.yml"));
   for (const id of ["admit", "pick-slot", "resolve-issue"]) {
     assert.ok(caller[id] !== undefined, id);
@@ -1858,6 +2290,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
+  assert.ok(steps(read["broker-check"]).includes("Check the kill switch"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {
@@ -1866,6 +2299,27 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   // The write runner mints; the read runner resolve-issue calls never does.
   assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));
   assert.ok(!Object.values(read).some((block) => steps(block).includes("Request the lane token")));
+});
+
+// Each re-runner check matches by id. The dispatch lane cannot read its run's
+// record, so it refuses every re-run; work-unblock's who step reads the record
+// with the job token.
+test("the workflows match a re-runner by id: the dispatch lane refuses a re-run, and the who step reads this run's record", () => {
+  const step = (file, name) => {
+    const text = readFileSync(join(HERE, "../../workflows", file), "utf8");
+    const start = text.indexOf(`      - name: ${name}\n`);
+    assert.ok(start >= 0, `${file}: ${name}`);
+    const end = text.indexOf("\n      - name: ", start + 1);
+    return text.slice(start, end < 0 ? undefined : end);
+  };
+  const dispatch = step("eval-browser-dispatch.yml", "Check the dispatcher is a trusted human");
+  assert.match(dispatch, /^ {10}if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then\n {12}echo "::error::rerun-refused: [^\n]*"\n {12}exit 1\n {10}fi$/m);
+  assert.ok(dispatch.indexOf("GITHUB_RUN_ATTEMPT") < dispatch.indexOf("jq -e"), "the re-run refusal comes before the list check");
+  assert.doesNotMatch(dispatch, /triggering_actor|TRIGGERING_ACTOR/);
+  const who = step("work-unblock.yml", "Check who closed the issue");
+  assert.match(who, /^ {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}$/m);
+  assert.match(who, /label-unblocked\.mjs --check-closer$/m);
+  assert.doesNotMatch(who, /triggering_actor|TRIGGERING_ACTOR/);
 });
 
 test("re-fires of runs that did no work share the restarts-per-run cap", async () => {
@@ -2959,4 +3413,114 @@ test("a stranded issue whose re-fired run failed again is re-fired on a backoff 
   const body = infraComment(KEY, "The work-resolve-issue run that `agent-ready` started failed or was cancelled before it reported, over 3 hours ago.", 2);
   assert.deepEqual(writes(calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body })}`, ...restarted(30)]);
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+});
+
+// Owner Q93: a size split's parent (30) closes as completed, by the App, once
+// every sub-issue (31 and 32) is closed by a listed human or a merge; the App
+// posted the split record listing them. Only that close by the App counts.
+const SPLIT_PARENT_URL = `${API}/repos/${REPO}/issues/30`;
+const splitRecordComment = (user = LANES_BOT) => ({
+  id: 77,
+  user,
+  body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}\nSplit at intake.`,
+  created_at: STAMP,
+});
+const subIssue = (number, overrides = {}) => ({ ...issue(number, { state: "closed" }), parent_issue_url: SPLIT_PARENT_URL, ...overrides });
+const closeParentWrites = [
+  `POST /repos/${REPO}/issues/30/comments`,
+  `PATCH /repos/${REPO}/issues/30 {"state":"closed","state_reason":"completed"}`,
+];
+function splitWorld({ second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) }), record = splitRecordComment() } = {}) {
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  return world({
+    closedList: [first],
+    issues: { 30: issue(30), 31: first, 32: second },
+    parents: { 31: issue(30) },
+    subIssues: { 30: [first, second] },
+    comments: { 30: record === null ? [] : [record] },
+  });
+}
+const writtenPaths = (calls) => writes(calls).map((call) => (call.includes("/comments ") ? call.slice(0, call.indexOf(" {")) : call));
+
+test("the last sub-issue closing by a listed human or a merge closes its split parent as completed, comment first", async () => {
+  const { github, calls } = splitWorld();
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), closeParentWrites);
+  const comment = JSON.parse(writes(calls)[0].slice(writes(calls)[0].indexOf(" {") + 1)).body;
+  assert.match(comment, /^<!-- work-unblock split parent closed -->\n/);
+  assert.match(comment, /#31, #32/);
+});
+
+test("a split parent stays open while a sub-issue is open, or closed by someone else, or with no split record from the App", async () => {
+  const outsider = { id: 4242, login: "someone-else", type: "User" };
+  for (const setup of [
+    { second: subIssue(32, { state: "open", closed_by: null }) },
+    { second: subIssue(32, { closed_by: outsider }) },
+    { record: null },
+    { record: splitRecordComment(outsider) },
+  ]) {
+    const { github, calls } = splitWorld(setup);
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("the App's close of a split parent counts as done for what it blocks; without the split record it does not", async () => {
+  for (const [record, expected] of [
+    [splitRecordComment(), [labeled(20)]],
+    [null, []],
+  ]) {
+    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const { github, calls } = world({
+      closedList: [parent],
+      blockingOf: { 30: [issue(20)] },
+      issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+      blockedBy: { 20: [parent] },
+      subIssues: { 30: [subIssue(31), subIssue(32)] },
+      comments: { 20: [note()], 30: record === null ? [] : [record] },
+    });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), expected);
+  }
+});
+
+// main resolves the App as LANES_BOT_LOGIN; the split parent's close and its
+// record count under that login, not the default one.
+test("with LANES_BOT_LOGIN set, that App's close of a split parent counts as done for what it blocks", async () => {
+  const app = { id: LANES_APP_ID, login: "other-lanes[bot]", type: "Bot" };
+  const parent = issue(30, { state: "closed", closer: app, at: "2026-10-16T11:30:00Z" });
+  const { github, calls } = world({
+    closedList: [parent],
+    blockingOf: { 30: [issue(20)] },
+    issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32) },
+    blockedBy: { 20: [parent] },
+    subIssues: { 30: [subIssue(31), subIssue(32)] },
+    comments: { 20: [note()], 30: [splitRecordComment(app)] },
+  });
+  assert.equal(await sweep({ github }, { LANES_BOT_LOGIN: app.login }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "label-unblocked-budget-"));
+  const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
+  process.env.API_BUDGET_TOKEN = "lanes-app";
+  process.env.RUNNER_TEMP = dir;
+  try {
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4999", "x-ratelimit-used": "1", "x-ratelimit-reset": "1792378942", "x-ratelimit-resource": "core" };
+    const fetchImpl = async () => new Response("{}", { status: 200, headers });
+    const latch = createRateLimitLatch();
+    const actions = budgetLatch("github-token", latch);
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("GET", "/repos/o/r/actions/runs");
+    await createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("o/r", 1, { maxBytes: 10 });
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch })("GET", "/repos/o/r/issues");
+    const line = "200 5000 4999 1 1792378942 core\n";
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line + line);
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line);
+  } finally {
+    for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });

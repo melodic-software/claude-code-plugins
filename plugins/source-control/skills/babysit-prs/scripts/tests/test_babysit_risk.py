@@ -22,9 +22,10 @@ import babysit_risk
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
+    Reason,
     Risk,
     RiskInput,
-    Rung,
+    holding,
     holds,
     normalize_path,
     score,
@@ -91,14 +92,11 @@ BOTH_LANES_CLEAN = (_lane("claude-review"), _lane("claude-security-review"))
 
 def _input(**changes):
     base = RiskInput(
-        work_class="C2",
-        rung=Rung.C2,
         files=(_file("plugins/foo/skills/bar/SKILL.md"),),
         files_complete=True,
         max_changed_lines=200,
         high_paths=(),
         lanes=BOTH_LANES_CLEAN,
-        blast_radius=None,
     )
     return dataclasses.replace(base, **changes)
 
@@ -113,53 +111,45 @@ class AllPassTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.LOW)
         self.assertEqual(result.reasons, ())
 
-    def test_c1_class_is_contradicted_by_any_pull_request(self):
-        # Spec: C1 work produces no pull request, so a C1 PR is contradicted.
-        result = score(_input(work_class="C1"))
-        self.assertEqual(result.score, Risk.MED)
-        self.assertEqual(_codes(result), ("class-contradicted",))
+    def test_a_structural_shaped_diff_scores_low(self):
+        # The former class-contradicted shapes: a removal, a rename, a schema
+        # change and a two-plugin diff, each with nothing else wrong, now
+        # score LOW with no reason (owner decision, option a).
+        for name, files in (
+            ("removed", (_file("plugins/foo/old.md", status="removed", additions=0),)),
+            (
+                "renamed",
+                (
+                    _file(
+                        "plugins/foo/new.md",
+                        status="renamed",
+                        previous_path="plugins/foo/old.md",
+                    ),
+                ),
+            ),
+            (
+                "copied",
+                (
+                    _file(
+                        "plugins/foo/b.md",
+                        status="copied",
+                        previous_path="plugins/foo/a.md",
+                    ),
+                ),
+            ),
+            ("changed", (_file("plugins/foo/a.md", status="changed"),)),
+            ("schema", (_file("plugins/foo/config.schema.json"),)),
+            ("two plugins", (_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
+        ):
+            with self.subTest(name):
+                result = score(_input(files=files))
+                self.assertEqual((result.score, result.reasons), (Risk.LOW, ()))
 
 
 class SingleMedReasonTests(unittest.TestCase):
     """Each single miss flips an all-pass input to exactly one MED reason."""
 
     CASES = [
-        ("class missing", dict(work_class=None), "class-missing"),
-        ("class not a C1..C5 token", dict(work_class="C9"), "class-missing"),
-        (
-            "class above rung",
-            dict(work_class="C3", blast_radius="low"),
-            "class-above-rung",
-        ),
-        ("rung off", dict(rung=Rung.OFF), "class-above-rung"),
-        (
-            "removed file",
-            dict(files=(_file("plugins/foo/old.md", status="removed", additions=0),)),
-            "class-contradicted",
-        ),
-        (
-            "renamed file",
-            dict(
-                files=(
-                    _file(
-                        "plugins/foo/new.md",
-                        status="renamed",
-                        previous_path="plugins/foo/old.md",
-                    ),
-                )
-            ),
-            "class-contradicted",
-        ),
-        (
-            "schema file",
-            dict(files=(_file("plugins/foo/config.schema.json"),)),
-            "class-contradicted",
-        ),
-        (
-            "two plugins",
-            dict(files=(_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
-            "class-contradicted",
-        ),
         (
             "201 changed lines",
             dict(files=(_file("plugins/foo/a.md", additions=150, deletions=51),)),
@@ -236,11 +226,6 @@ class SingleMedReasonTests(unittest.TestCase):
             ),
             "findings:claude-review",
         ),
-        (
-            "blast radius missing above C2",
-            dict(work_class="C3", rung=Rung.C3, blast_radius=None),
-            "blast-radius-missing",
-        ),
     ]
 
     def test_each_single_miss_is_one_med_reason(self):
@@ -287,28 +272,99 @@ class HighReasonTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(_codes(result), ("security-finding",))
 
-    def test_floor_paths_are_high(self):
+    def test_floor_paths_are_high_whatever_the_switch(self):
+        # Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): the narrow floor,
+        # with the files that enforce it, holds with high-path-floor off too.
+        self.assertEqual(
+            babysit_risk.HIGH_FLOOR,
+            (
+                ".github/actions/check-trusted-trigger/**",
+                "**/CODEOWNERS",
+                "**/.gitmodules",
+                ".github/actions/resolve-config/**",
+                ".github/actions/check-kill-switch/**",
+                ".github/actions/request-lane-token/**",
+                ".github/actions/log-api-budget/rate-guard.mjs",
+                ".github/scripts/pr-merge/merge-holds.mjs",
+                ".github/scripts/pr-merge/enable-auto-merge.mjs",
+                ".github/scripts/pr-merge/superseded.mjs",
+                ".github/scripts/pr-merge/clear-escalations.mjs",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
+                ".github/workflows/pr-require-checks.yml",
+                ".github/workflows/pr-merge.yml",
+                "docs/conventions/pr-pipeline.yaml",
+                ".github/scripts/pr-unblock/address-feedback.mjs",
+                ".github/scripts/pr-unblock/gate-source.mjs",
+                ".github/scripts/pr-unblock/thread-scope.mjs",
+                ".github/scripts/work-resolve-issue/report-outcome.mjs",
+                ".github/scripts/work-resolve-issue/limits.mjs",
+            ),
+        )
         cases = [
-            (".gitmodules", "high-path:**/.gitmodules"),
-            (".github/CODEOWNERS", "high-path:**/CODEOWNERS"),
-            (
-                ".github/standards/trusted-actors/trusted-actors.json",
-                "high-path:.github/standards/trusted-actors/**",
-            ),
-            (
-                ".github/actions/check-trusted-trigger/action.yml",
-                "high-path:.github/actions/check-trusted-trigger/**",
-            ),
-            (
-                ".github/actions/resolve-config/resolve.mjs",
-                "high-path:.github/actions/resolve-config/**",
-            ),
-        ]
-        for path, code in cases:
-            with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH)
-                self.assertIn(code, _codes(result))
+            (".gitmodules", "**/.gitmodules"),
+            ("vendor/.GitModules", "**/.gitmodules"),
+            (".github/CODEOWNERS", "**/CODEOWNERS"),
+            (".github/actions/check-trusted-trigger/action.yml", ".github/actions/check-trusted-trigger/**"),
+            (".github/actions/resolve-config/resolve.mjs", ".github/actions/resolve-config/**"),
+            (".github/actions/check-kill-switch/check-kill-switch.mjs", ".github/actions/check-kill-switch/**"),
+            (".github/actions/request-lane-token/action.yml", ".github/actions/request-lane-token/**"),
+            (".github/actions/log-api-budget/rate-guard.mjs", ".github/actions/log-api-budget/rate-guard.mjs"),
+            (".github/scripts/pr-merge/merge-holds.mjs", ".github/scripts/pr-merge/merge-holds.mjs"),
+            (".github/scripts/pr-merge/enable-auto-merge.mjs", ".github/scripts/pr-merge/enable-auto-merge.mjs"),
+            (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
+            (".github/scripts/pr-merge/clear-escalations.mjs", ".github/scripts/pr-merge/clear-escalations.mjs"),
+            ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"),
+            ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py"),
+            ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"),
+            (".github/workflows/pr-require-checks.yml", ".github/workflows/pr-require-checks.yml"),
+            (".github/workflows/pr-merge.yml", ".github/workflows/pr-merge.yml"),
+            ("docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
+            ("Docs/Conventions/PR-Pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
+            (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
+            (".github/scripts/pr-unblock/gate-source.mjs", ".github/scripts/pr-unblock/gate-source.mjs"),
+            (".github/scripts/pr-unblock/thread-scope.mjs", ".github/scripts/pr-unblock/thread-scope.mjs"),
+            (".github/scripts/work-resolve-issue/report-outcome.mjs", ".github/scripts/work-resolve-issue/report-outcome.mjs"),
+            (".github/scripts/work-resolve-issue/limits.mjs", ".github/scripts/work-resolve-issue/limits.mjs"),
+        ]  # fmt: skip
+        for path, glob in cases:
+            for on in (True, False):
+                with self.subTest(path, high_floor=on):
+                    result = score(_input(files=(_file(path),), high_floor=on))
+                    self.assertEqual(result.score, Risk.HIGH)
+                    self.assertEqual(_codes(result), (f"high-path:{glob}",))
+
+    def test_trusted_paths_off_the_floor_hold_only_when_configured(self):
+        # Owner direction 2026-10-24: a trusted-path match alone holds nothing.
+        for path in (
+            ".github/actions/log-api-budget/action.yml",
+            ".github/actions/check-trusted-trigger-x/a.mjs",
+            ".github/scripts/pr-merge/gate-check.mjs",
+            "docs/CODEOWNERS.md",
+        ):
+            for on in (True, False):
+                with self.subTest(path, high_floor=on):
+                    result = score(_input(files=(_file(path),), high_floor=on))
+                    self.assertEqual(result.score, Risk.LOW, _codes(result))
+            with self.subTest(path, configured=True):
+                result = score(_input(files=(_file(path),), high_paths=(path,)))
+                self.assertEqual(_codes(result), (f"high-path:{path}",))
 
     def test_paths_off_the_floor_take_no_path_code(self):
         # Owner direction 2026-10-23: only a takeover path waits for the owner.
@@ -319,7 +375,6 @@ class HighReasonTests(unittest.TestCase):
             "plugins/foo/package-lock.json",
             "plugins/foo/requirements.txt",
             ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-merge.yml",
             ".github/workflows/pr-review-security-hosted.yml",
             ".github/workflows/work-resolve-issue.yml",
         ):
@@ -343,7 +398,8 @@ class HighReasonTests(unittest.TestCase):
         ]
         for path, code in cases:
             with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
+                configured = (code.removeprefix("high-path:"),)
+                result = score(_input(files=(_file(path),), high_paths=configured))
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertEqual(_codes(result), (code,))
 
@@ -355,10 +411,6 @@ class HighReasonTests(unittest.TestCase):
             )
         )
         self.assertEqual(_codes(result), ("high-path:plugins/foo/special.md",))
-
-    def test_empty_configured_set_does_not_weaken_the_floor(self):
-        result = score(_input(files=(_file(".gitmodules"),), high_paths=()))
-        self.assertEqual(result.score, Risk.HIGH)
 
     def test_near_miss_paths_are_not_high(self):
         for path in (
@@ -380,11 +432,9 @@ class RenameTests(unittest.TestCase):
                 previous_path="plugins/foo/CODEOWNERS",
             ),
         )
-        result = score(_input(files=files))
+        result = score(_input(files=files, high_paths=("**/CODEOWNERS",)))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(
-            _codes(result), ("high-path:**/CODEOWNERS", "class-contradicted")
-        )
+        self.assertEqual(_codes(result), ("high-path:**/CODEOWNERS",))
 
     def test_rename_into_a_workflow_takes_the_cost_hold(self):
         files = (
@@ -397,27 +447,16 @@ class RenameTests(unittest.TestCase):
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
         # A file renamed into a workflow also takes the cost hold.
-        self.assertEqual(
-            _codes(result),
-            ("cost-review-required", "class-contradicted"),
-        )
-
-    def test_rename_across_plugins_counts_both_plugins(self):
-        files = (
-            _file(
-                "plugins/foo/x.md", status="renamed", previous_path="plugins/bar/x.md"
-            ),
-        )
-        self.assertEqual(_codes(score(_input(files=files))), ("class-contradicted",))
+        self.assertEqual(_codes(result), ("cost-review-required",))
 
 
 class OrderingTests(unittest.TestCase):
     def test_high_beats_every_med(self):
         result = score(
             _input(
-                work_class=None,
                 files=(_file(".gitmodules", has_patch=False),),
                 files_complete=False,
+                high_paths=("**/.gitmodules",),
             )
         )
         self.assertEqual(result.score, Risk.HIGH)
@@ -434,7 +473,12 @@ class OrderingTests(unittest.TestCase):
             _file("plugins/foo/c.md", additions=500),
         )
         result = score(
-            _input(work_class="C3", files=files, files_complete=False, lanes=lanes)
+            _input(
+                files=files,
+                files_complete=False,
+                lanes=lanes,
+                high_paths=("**/.gitmodules", "**/CODEOWNERS"),
+            )
         )
         self.assertEqual(
             _codes(result),
@@ -442,8 +486,6 @@ class OrderingTests(unittest.TestCase):
                 "high-path:**/.gitmodules",
                 "high-path:**/CODEOWNERS",
                 "security-finding",
-                "blast-radius-missing",
-                "class-above-rung",
                 "files-incomplete",
                 "findings:claude-review",
                 "lines-over",
@@ -461,16 +503,6 @@ class EvidenceAndPluginTests(unittest.TestCase):
         result = score(_input(lanes=lanes))
         self.assertEqual(result.score, Risk.MED)
         self.assertEqual(_codes(result), ("evidence-unbound:claude-review",))
-
-    def test_plugin_directories_differing_only_in_case_are_two_plugins(self):
-        files = (_file("plugins/Foo/a.md"), _file("plugins/foo/b.md"))
-        result = score(_input(files=files))
-        self.assertEqual(_codes(result), ("class-contradicted",))
-
-    def test_plugins_segment_is_folded_when_counting_plugins(self):
-        files = (_file("Plugins/foo/a.md"), _file("plugins/bar/b.md"))
-        result = score(_input(files=files))
-        self.assertEqual(_codes(result), ("class-contradicted",))
 
 
 class _OverBudget(BaseException):
@@ -591,42 +623,6 @@ class GlobWorkTests(unittest.TestCase):
                 self.assertIn(f"high-path:{glob}", _codes(result))
 
 
-class BlastRadiusTests(unittest.TestCase):
-    def test_blast_radius_ignored_for_c2(self):
-        for value in (None, "", "high"):
-            with self.subTest(value):
-                self.assertEqual(score(_input(blast_radius=value)).score, Risk.LOW)
-
-    def test_rated_blast_radius_above_c2_is_low(self):
-        result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="low"))
-        self.assertEqual(result.score, Risk.LOW)
-
-    def test_only_a_low_rating_keeps_a_class_above_c2_low(self):
-        # Spec: the plan's scale is LOW / MEDIUM / HIGH / CRITICAL; any value
-        # other than LOW above C2 rates MED.
-        for value in (
-            "high",
-            "HIGH",
-            "MEDIUM",
-            "CRITICAL",
-            "unknown",
-            "none",
-            "null",
-            " low",
-        ):
-            with self.subTest(value):
-                result = score(
-                    _input(work_class="C3", rung=Rung.C3, blast_radius=value)
-                )
-                self.assertEqual(result.score, Risk.MED)
-        result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="LOW"))
-        self.assertEqual(result.score, Risk.LOW)
-
-    def test_blank_blast_radius_above_c2_is_missing(self):
-        result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="  "))
-        self.assertEqual(_codes(result), ("blast-radius-missing",))
-
-
 class MalformedInputTests(unittest.TestCase):
     """Missing or unrecognized data is a miss: never LOW, and never a raise."""
 
@@ -644,26 +640,6 @@ class MalformedInputTests(unittest.TestCase):
             dict(files=(_file("plugins/foo/a.md", status=None),)),
             Risk.MED,
             "files-incomplete",
-        ),
-        (
-            "copied is structural",
-            dict(
-                files=(
-                    _file(
-                        "plugins/foo/b.md",
-                        status="copied",
-                        previous_path="plugins/foo/a.md",
-                    ),
-                )
-            ),
-            Risk.MED,
-            "class-contradicted",
-        ),
-        (
-            "changed is structural",
-            dict(files=(_file("plugins/foo/a.md", status="changed"),)),
-            Risk.MED,
-            "class-contradicted",
         ),
         (
             "negative additions",
@@ -713,8 +689,6 @@ class MalformedInputTests(unittest.TestCase):
             Risk.MED,
             "files-incomplete",
         ),
-        ("rung out of range", dict(rung=9), Risk.MED, "class-above-rung"),
-        ("rung None", dict(rung=None), Risk.MED, "class-above-rung"),
         (
             "max_changed_lines None",
             dict(max_changed_lines=None),
@@ -728,8 +702,7 @@ class MalformedInputTests(unittest.TestCase):
 
     def test_malformed_inputs_map_to_the_documented_code(self):
         # Spec: the module docstring's mapping (per-file data and the listing
-        # to files-incomplete, an unknown rung to class-above-rung, an
-        # unreadable limit to lines-over, an unreadable HIGH set or path to
+        # to files-incomplete, an unreadable limit to lines-over, an unreadable HIGH set or path to
         # high-path:**), never LOW and never a raise.
         for name, changes, severity, code in self.CASES:
             with self.subTest(name):
@@ -777,15 +750,12 @@ class MalformedInputTests(unittest.TestCase):
 
     def test_two_sided_change_needs_a_previous_mode(self):
         # Spec: modified, changed, renamed or copied with previous_mode None, malformed
-        # or '000000' (absent) is HIGH, at a class where nothing else fires.
+        # or '000000' (absent) is HIGH.
         for status in ("modified", "changed", "renamed", "copied"):
             for previous_mode in (None, "777", "000000"):
                 with self.subTest((status, previous_mode)):
                     result = score(
                         _input(
-                            work_class="C3",
-                            rung=Rung.C3,
-                            blast_radius="low",
                             files=(
                                 _file(
                                     "plugins/foo/b.md",
@@ -870,20 +840,14 @@ class MalformedInputTests(unittest.TestCase):
         result = score(_input(files=(_file("plugins/a\nb"),)))
         self.assertIn("high-path:**", _codes(result))
 
-    def test_rename_or_copy_without_a_previous_path_is_high_at_every_class(self):
+    def test_rename_or_copy_without_a_previous_path_is_high(self):
         for status in ("renamed", "copied"):
-            for work_class, rung in (("C2", Rung.C2), ("C3", Rung.C3)):
-                with self.subTest((status, work_class)):
-                    result = score(
-                        _input(
-                            work_class=work_class,
-                            rung=rung,
-                            blast_radius="low",
-                            files=(_file("plugins/foo/x.md", status=status),),
-                        )
-                    )
-                    self.assertEqual(result.score, Risk.HIGH)
-                    self.assertIn("high-path:**", _codes(result))
+            with self.subTest(status):
+                result = score(
+                    _input(files=(_file("plugins/foo/x.md", status=status),))
+                )
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
 
     def test_unhashable_status_is_malformed_not_a_raise(self):
         for status in ([], {}, ["renamed"]):
@@ -939,7 +903,9 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertIn("high-path:**", _codes(result))
 
     def test_dot_slash_prefix_matches_the_floor_glob(self):
-        result = score(_input(files=(_file("./.gitmodules"),)))
+        result = score(
+            _input(files=(_file("./.gitmodules"),), high_paths=("**/.gitmodules",))
+        )
         self.assertIn("high-path:**/.gitmodules", _codes(result))
 
     def test_caller_globs_are_read_exactly_as_written(self):
@@ -981,7 +947,8 @@ class MalformedInputTests(unittest.TestCase):
             ),
         ):
             with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
+                configured = (code.removeprefix("high-path:"),)
+                result = score(_input(files=(_file(path),), high_paths=configured))
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(code, _codes(result))
 
@@ -994,15 +961,17 @@ class MalformedInputTests(unittest.TestCase):
 
 
 class LaneSwitchTests(unittest.TestCase):
-    """Owner decision Q624: in the pr-merge lane the HIGH path floor, the
+    """Owner decision Q624: in the pr-merge lane the manifest review, the
     file and line caps and the C2 contradictions are each a setting the
-    caller turns off. Off, the same diff that scored above LOW is LOW."""
+    caller turns off. Off, the same diff that scored above LOW is LOW. The
+    HIGH path floor is not one (owner decision Q-FLOOR (B))."""
 
-    def test_the_floor_off_leaves_floor_paths_low(self):
+    def test_the_floor_holds_either_way(self):
         files = (_file(".gitmodules"),)
-        self.assertEqual(score(_input(files=files)).score, Risk.HIGH)
-        result = score(_input(files=files, high_floor=False))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        for on in (True, False):
+            with self.subTest(high_floor=on):
+                result = score(_input(files=files, high_floor=on))
+                self.assertEqual(_codes(result), ("high-path:**/.gitmodules",))
 
     def test_the_floor_off_still_honors_configured_paths(self):
         files = (_file(".github/workflows/x.yml"),)
@@ -1014,15 +983,6 @@ class LaneSwitchTests(unittest.TestCase):
     def test_the_floor_off_still_refuses_unsafe_paths(self):
         result = score(_input(files=(_file("../x"),), high_floor=False))
         self.assertIn("high-path:**", _codes(result))
-
-    def test_contradictions_off_leave_a_structural_diff_low(self):
-        files = (
-            _file("plugins/a/x.md", status="removed", previous_mode=None),
-            _file("plugins/b/y.schema.json"),
-        )
-        self.assertIn("class-contradicted", _codes(score(_input(files=files))))
-        result = score(_input(files=files, c2_contradictions=False))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     def test_no_file_cap_leaves_many_files_low(self):
         files = tuple(
@@ -1167,19 +1127,6 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.MED)
                 self.assertIn("evidence-unbound:unknown", _codes(result))
 
-    def test_class_contradicted_names_the_files(self):
-        files = (_file("plugins/foo/old.md", status="removed", additions=0),)
-        reason = score(_input(files=files)).reasons[0]
-        self.assertEqual(reason.code, "class-contradicted")
-        self.assertIn("plugins/foo/old.md", reason.detail)
-
-    def test_rung_is_named_in_the_detail(self):
-        reasons = score(
-            _input(work_class="C3", rung=Rung.C2, blast_radius="low")
-        ).reasons
-        self.assertIn("C2", reasons[0].detail)
-        self.assertNotIn("<Rung", reasons[0].detail)
-
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[6]
 
@@ -1209,37 +1156,64 @@ def _lane_input(files):
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
         high_floor=config.high_path_floor,
-        c2_contradictions=config.c2_contradictions,
         max_changed_files=config.max_changed_files,
         lines_optional=True,
     )
 
 
 class LanePathFloorTests(unittest.TestCase):
-    """The live pr-merge config holds only the takeover set."""
+    """The live pr-merge config holds no path for being trusted alone (owner
+    direction 2026-10-24) except the narrow floor (owner decisions Q-FLOOR
+    (B) and Q-ENFORCE (A)); the trust gate still holds the trusted-actor
+    list."""
 
-    def test_the_live_config_has_the_floor_on(self):
-        self.assertIs(_lane_config().high_path_floor, True)
+    def test_the_live_config_has_the_floor_off(self):
+        self.assertIs(_lane_config().high_path_floor, False)
 
-    def test_the_keep_set_holds(self):
+    def test_the_floor_holds_with_the_switch_off(self):
         for path in (
             ".gitmodules",
             ".github/CODEOWNERS",
-            ".github/standards/trusted-actors/trusted-actors.json",
             ".github/actions/check-trusted-trigger/action.yml",
             ".github/actions/resolve-config/lane-rules.json",
+            ".github/actions/resolve-config/resolve.mjs",
+            ".github/actions/check-kill-switch/action.yml",
+            ".github/actions/request-lane-token/action.yml",
+            ".github/actions/log-api-budget/rate-guard.mjs",
+            ".github/scripts/pr-merge/merge-holds.mjs",
+            ".github/scripts/pr-merge/enable-auto-merge.mjs",
+            ".github/scripts/pr-merge/superseded.mjs",
+            ".github/scripts/pr-merge/clear-escalations.mjs",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+            ".github/workflows/pr-require-checks.yml",
+            ".github/workflows/pr-merge.yml",
+            "docs/conventions/pr-pipeline.yaml",
+            ".github/scripts/pr-unblock/address-feedback.mjs",
+            ".github/scripts/pr-unblock/gate-source.mjs",
+            ".github/scripts/pr-unblock/thread-scope.mjs",
+            ".github/scripts/work-resolve-issue/report-outcome.mjs",
+            ".github/scripts/work-resolve-issue/limits.mjs",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
                 self.assertEqual(result.score, Risk.HIGH, result.reasons)
 
-    def test_resolve_config_waits_for_the_owner(self):
-        # Owner decision Q51: the token broker runs this code from main.
-        result = score(
-            _lane_input((_file(".github/actions/resolve-config/resolve.mjs"),))
-        )
-        self.assertEqual(result.score, Risk.HIGH, result.reasons)
-        self.assertIn("high-path:.github/actions/resolve-config/**", _codes(result))
+    def test_trusted_paths_off_the_floor_merge(self):
+        for path in (
+            ".github/scripts/pr-merge/gate-check.mjs",
+            "plugins/source-control/scripts/source-control-babysit-merge",
+            ".github/actions/log-api-budget/action.yml",
+        ):
+            with self.subTest(path):
+                result = score(_lane_input((_file(path),)))
+                self.assertEqual(result.score, Risk.LOW, result.reasons)
+
+    def test_the_trusted_actor_list_still_holds(self):
+        path = ".github/standards/trusted-actors/trusted-actors.json"
+        result = score(_lane_input((_file(path),)))
+        self.assertEqual(_codes(result), ("trust-gate:trusted-actors",))
 
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
@@ -1260,7 +1234,7 @@ class LanePathFloorTests(unittest.TestCase):
             "docs/conventions/x.md",
             "REVIEW.md",
             "plugins/review/skills/x/SKILL.md",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
             "plugins/source-control/lib/x.awk",
             "plugins/work-items/x.md",
@@ -1281,7 +1255,6 @@ class LanePathFloorTests(unittest.TestCase):
             "plugins/foo/package-lock.json",
             ".github/requirements-ci.txt",
             ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-merge.yml",
             ".github/workflows/pr-review-security-hosted.yml",
         ):
             with self.subTest(path):
@@ -1296,7 +1269,10 @@ class LanePathFloorTests(unittest.TestCase):
     def test_a_pipeline_caps_edit_still_holds_as_cost(self):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
-        self.assertEqual(_codes(score(_lane_input(files))), ("cost-review-required",))
+        self.assertEqual(
+            _codes(score(_lane_input(files))),
+            ("cost-review-required", "high-path:docs/conventions/pr-pipeline.yaml"),
+        )
 
 
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
@@ -1427,8 +1403,8 @@ class ManifestTests(unittest.TestCase):
 
 
 class HoldsTests(unittest.TestCase):
-    """#9270: a MED score merges unattended when every reason is a class or
-    size reason; every other reason holds."""
+    """A MED score merges unattended when every reason is a size or
+    reported-finding reason; every other reason holds."""
 
     def _holds(self, **changes):
         return holds(score(_input(**changes)))
@@ -1440,8 +1416,6 @@ class HoldsTests(unittest.TestCase):
         for changes in (
             dict(files=(_file("plugins/foo/logo.png", has_patch=False),)),
             dict(files=(_file("plugins/foo/a.md", additions=500),)),
-            dict(work_class="C3", rung=Rung.C3, blast_radius=None),
-            dict(files=(_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
         ):
             with self.subTest(changes=changes):
                 result = score(_input(**changes))
@@ -1478,17 +1452,97 @@ class HoldsTests(unittest.TestCase):
                 files=(_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
             )
         )
-        self.assertTrue(self._holds(files=(_file(".gitmodules"),)))
+        self.assertTrue(
+            self._holds(files=(_file(".gitmodules"),), high_paths=("**/.gitmodules",))
+        )
 
-    def test_the_rung_and_an_unread_listing_hold(self):
-        for changes in (
-            dict(work_class=None),
-            dict(rung=Rung.OFF),
-            dict(work_class="C3", blast_radius="low"),
-            dict(files_complete=False),
-        ):
-            with self.subTest(changes=changes):
-                self.assertTrue(self._holds(**changes))
+    def test_an_unread_listing_holds(self):
+        self.assertTrue(self._holds(files_complete=False))
+
+
+class PersonReasonsTests(unittest.TestCase):
+    """Owner rule 2026-10-26: a person clears only a security issue, a trust
+    or provenance hold, or a cost hold; the lanes clear every other holding
+    reason by judging again."""
+
+    def test_person_reasons_are_security_trust_cost_and_high_paths(self):
+        person = (
+            "security-finding",
+            "trust-gate:trusted-actors",
+            "cost-review-required",
+            "high-path:**",
+            "high-path:**/.gitmodules",
+            "files-capped",
+        )
+        lane = (
+            "evidence-unbound:claude-review",
+            "evidence-unbound:unknown",
+            "files-incomplete",
+            "manifest-review-required",
+            "lines-over",
+        )
+        reasons = [Reason(code, Risk.HIGH, "d") for code in person + lane]
+        self.assertEqual(
+            tuple(r.code for r in babysit_risk.person_reasons(reasons)), person
+        )
+
+    def test_an_unbound_review_holds_for_the_lanes_and_a_finding_for_a_person(self):
+        unbound = score(
+            _input(lanes=(_lane("claude-review", bound=False), BOTH_LANES_CLEAN[1]))
+        )
+        self.assertTrue(holds(unbound))
+        self.assertEqual(babysit_risk.person_reasons(holding(unbound)), [])
+        finding = score(
+            _input(
+                lanes=(
+                    BOTH_LANES_CLEAN[0],
+                    _lane("claude-security-review", open_findings=1),
+                )
+            )
+        )
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(finding))],
+            ["security-finding"],
+        )
+
+    def test_a_carried_security_finding_on_an_unbound_lane_holds_for_a_person(self):
+        # The binder's unbound shape when an earlier bound review left a
+        # blocking finding open (babysit_review_evidence._carried_blocking;
+        # bound through the binder in CarriedBlockingTests there).
+        lane = LaneEvidence("claude-security-review", False, "no-run", None, False, 2)
+        result = score(_input(lanes=(BOTH_LANES_CLEAN[0], lane)))
+        codes = [r.code for r in babysit_risk.person_reasons(holding(result))]
+        self.assertEqual(codes, ["security-finding"])
+
+    def test_a_size_reason_holds_nothing_so_no_one_is_needed(self):
+        # lines-over, files-over and no-patch are MED reasons an unattended
+        # merge passes (MERGEABLE_MED): they never hold, so they never sit
+        # unarmed waiting for a lane or a person.
+        result = score(
+            _input(
+                max_changed_lines=10,
+                max_changed_files=1,
+                files=(
+                    _file("plugins/foo/a.md", additions=50),
+                    _file("plugins/foo/logo.png", has_patch=False),
+                ),
+            )
+        )
+        codes = {r.code for r in result.reasons}
+        self.assertTrue({"lines-over", "files-over"} <= codes, codes)
+        self.assertTrue(any(c.startswith("no-patch:") for c in codes), codes)
+        self.assertFalse(holds(result), result.reasons)
+        self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
+
+    def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
+        capped = score(_input(files_complete=False, files_capped=True))
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(capped))],
+            ["files-capped"],
+        )
+        unread = score(_input(files_complete=False))
+        self.assertTrue(holds(unread))
+        self.assertEqual(babysit_risk.person_reasons(holding(unread)), [])
 
 
 class SecurityBlockingTests(unittest.TestCase):
@@ -1582,14 +1636,11 @@ class TrustGateTests(unittest.TestCase):
                 result = self._score(after)
                 self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_a_pure_removal_holds_on_the_floor(self):
-        # The trusted-actor directory is on the floor: with the floor on, even
-        # a removal waits for the owner.
+    def test_a_pure_removal_merges_with_the_floor_on(self):
+        # No floor holds the trusted-actor directory (owner direction
+        # 2026-10-24): only a widening waits for the owner.
         result = score(_input(files=(_edit(ACTORS, BASE_ACTORS, _actors(_KYLE)),)))
-        self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(
-            _codes(result), ("high-path:.github/standards/trusted-actors/**",)
-        )
+        self.assertEqual(result.score, Risk.LOW, result.reasons)
 
     def test_an_unread_or_structural_change_holds(self):
         cases = (
@@ -1602,9 +1653,7 @@ class TrustGateTests(unittest.TestCase):
         )
         for changed in cases:
             with self.subTest(changed=changed):
-                result = score(
-                    _input(files=(changed,), high_floor=False, c2_contradictions=False)
-                )
+                result = score(_input(files=(changed,), high_floor=False))
                 self.assertEqual(_codes(result), (TRUSTED,))
 
     def test_a_case_folded_path_holds(self):
@@ -1615,13 +1664,12 @@ class TrustGateTests(unittest.TestCase):
         self.assertEqual(_codes(result), (TRUSTED,))
 
     def test_paths_the_owner_lifted_do_not_hold_with_the_floor_off(self):
-        # The scorer, the merge gate, the pipeline config, workflows and the
-        # security review merge normally.
+        # The merge gate's wrapper and skill, workflows and the security review
+        # merge normally; the scorer, the Python that decides the holds and the
+        # pipeline config are on the floor (owner decision Q-ENFORCE (A)).
         for path in (
-            f"{B}babysit_risk.py",
-            f"{B}babysit_merge.py",
-            f"{B}babysit_review_evidence.py",
-            ".github/workflows/pr-merge.yml",
+            "plugins/source-control/scripts/source-control-babysit-merge",
+            "plugins/source-control/skills/babysit-prs/SKILL.md",
             ".github/scripts/pr-merge/gate.mjs",
             ".github/workflows/pr-review-security-hosted.yml",
             ".github/standards/trusted-actors/README.md",
@@ -1679,6 +1727,7 @@ class ReviewFlagClassTests(unittest.TestCase):
             _input(
                 files=(_file(".gitmodules"),),
                 lanes=self._lanes(review=1),
+                high_paths=("**/.gitmodules",),
             )
         )
         self.assertIn("findings:claude-review", _codes(result))

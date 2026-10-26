@@ -90,7 +90,8 @@ every confirmation gate apply exactly as before. Removing anything the inventory
   checkout `clear` under the complete evidence bundle below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
-  above, not this structural mount veto);
+  above, not this structural mount veto; `--root-children` on a non-root mount target only lists
+  its immediate children and writes no snapshot, so the veto still covers removal);
 - no virtual-disk image file, matched by name and case-insensitively against the baseline
   `disk_image_name_globs` (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`; WSL's
   `ext4.vhdx` is covered by `*.vhdx`). The entry reports `virtual-disk` in `protected_reasons` and
@@ -597,15 +598,38 @@ the two surfaces reach different lanes. The **always-on engine gate** enforces i
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
 the **skill-frontmatter belt** (`powershell_decision`), denied outright in audit-only, for the **rest of
-the session after the skill is invoked**. Claude Code registers a skill's frontmatter `PreToolUse` hooks
-when the skill is invoked and keeps them registered session-wide; the skills reference states it plainly
-("Hooks that Claude Code registers when the skill is invoked and keeps running for the rest of the
-session"). There is no harness-level "while the skill is active" window for hooks. The asymmetry
+the process that invoked the skill**. There is no "while the skill is active" window for the belt. The asymmetry
 is easy to misread and is worth naming: a skill's `allowed-tools` and `disallowed-tools` grants DO clear
 on the user's next message, but its `hooks` do not, so "skill-scoped" is true of the tool grants and
 false of the belt. Consequences in both directions: the belt keeps enforcing over unrelated later work in
-the same session (a later `Remove-Item` is still prompted long after cleanup ended), and it cannot be
-retracted by finishing the cleanup. Only the session's end clears it.
+the same process (a later `Remove-Item` is still prompted long after cleanup ended), and it cannot be
+retracted by finishing the cleanup.
+
+**Treat a resumed process as one without the belt.** Our probe found the belt absent after
+`claude -p --resume`, so a resumed session has no deny-by-default Bash lane and no PowerShell deletion
+prompts from this plugin; the always-on engine gate, the permission mode and the auto-mode classifier
+remain. The plugin answers with a notice, not a gate: the `UserPromptExpansion` hook for
+`/disk-hygiene:clean` also writes a per-session marker (`clean-invoked/<session_id>.launched` under the
+plugin data directory, through the launcher's `--launch-marker`), and on a `SessionStart` whose `source`
+is `resume` the plugin's existing `SessionStart` entry (`hooks/resume-notice.mjs`) finds that marker and
+tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again, which
+registers the belt again. It relies on the model following the notice. The marker is written before
+the launcher resolves Python, so an expansion blocked for want of an interpreter still leaves it, and a
+later resume still warns; that errs toward no deletes. The marker is keyed on the session id, so a
+session that starts under a new id gets no notice.
+
+- **Pointer**: the probe (runs b, c and e) in
+  <https://github.com/melodic-software/claude-code-plugins/issues/5609#issuecomment-6388935329> and
+  [#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853); only headless
+  `-p --resume` was probed, not interactive resume, `--continue`, `/clear` or compaction. For how long
+  a skill's hooks stay registered, read
+  [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents); for
+  what a `SessionStart` hook can return, read
+  [SessionStart decision control](https://code.claude.com/docs/en/hooks#sessionstart-decision-control).
+- **As of**: 2026-10-25.
+- **Recheck trigger**: either section changes, or a probe of interactive resume, `/clear` or
+  compaction.
+
 An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees**, meaning every Bash engine `apply`
 and `handoff-apply` and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables
@@ -712,8 +736,12 @@ Headless default mode denied the call, `--bg` default mode parked at the permiss
 `--permission-mode bypassPermissions` and headless auto mode listed the call in
 `permission_denials` with the target intact, and an interactive `bypassPermissions` session showed
 the person a prompt and ran the delete only after they approved it. So the guard needs no gate that
-does not depend on the permission mode: in each mode its `ask` reaches a person or is denied. Not
-probed: the Windows PowerShell tool. **Basis:** the probe table in
+does not depend on the permission mode: in each mode its `ask` reaches a person or is denied. On the
+Windows PowerShell tool, the belt's `ask` on a manual-lane delete held in one headless auto-mode process
+(the call was denied and the target survived) but was absent after `claude -p --resume`, where the
+delete ran unprompted ([#5609 probe](https://github.com/melodic-software/claude-code-plugins/issues/5609#issuecomment-6388935329));
+the resume limit and the plugin's notice for it are stated under the kill
+switch's two surfaces above. **Basis:** the probe table in
 <https://github.com/melodic-software/claude-code-plugins/pull/5590> and
 <https://github.com/melodic-software/claude-code-plugins/pull/5590#issuecomment-5916629407>
 (Claude Code 2.1.285, Linux/WSL2, Bash tool, fresh scratch target);
@@ -732,7 +760,8 @@ resets bypass mode; closed as not planned 2026-04-20) and
 not enforced on the PowerShell tool in default mode; closed as not planned 2026-09-21) leave the
 behavior undocumented. **As of:** 2026-10-22 for the probes; 2026-09-30 for the two doc pages.
 **Recheck:** a Claude Code changelog entry that names PreToolUse `ask` or `bypassPermissions`, a
-change to the "Actions no mode auto-approves" list, or the PowerShell-tool probe tracked in #5609.
+change to the "Actions no mode auto-approves" list, or a probe of the PowerShell tool under interactive
+resume.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

@@ -78,13 +78,13 @@ A row the engine marks `skip` or `not-inspectable` is exactly that in the report
 | File | How to read | Notes |
 | --- | --- | --- |
 | `.claude/settings.json` | the engine, or `jq` | Project-level, checked in |
-| `.claude/settings.local.json` | the engine (structure and the four model and effort keys only) | Commonly deny-listed for the Read tool because it holds tokens. **Never echo secret values** |
+| `.claude/settings.local.json` | the engine (structure and the four model and effort keys only) | Treated as secret-bearing; a project may deny-list it for the Read tool, though the baseline does not require that. **Never echo secret values** |
 | `.mcp.json` | the engine, or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | the engine, or the Read tool | User-level defaults (optional; checked when it exists) |
 | start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. A pre-v2.1.211 Claude Code wrote the file to the start directory and the current one still reads what it left; the repository-root copy wins on a shared key, but **permission rules from both files stay in effect**. The dated record for that boundary is `audit-permission-state/reference/criteria.md` §Scopes |
 | `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows `%ProgramFiles%\ClaudeCode\`). Findings on it are report-only routing; managed policy is the administrator's, never edited by `--fix` |
 | managed policy outside the filesystem | not read | The Windows `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode` policy keys and the macOS `com.anthropic.claudecode` managed-preferences domain. `check-structure.sh` names them so an absent `managed-settings.json` is never read as "no managed policy deployed", but it does not read them |
-| `.claude/audit-pass.md` (three cascade layers) | the engine | The consumer's suppression record, keyed by `finding_id`. A finding it carries is reported as suppressed with its reason; only the team layer suppresses, a personal-only entry is reported as not applied, and a malformed entry is reported and never suppresses |
+| `docs/conventions/harness-config.yaml` (`suppressions`, the team layer of three cascade layers) | the engine | The consumer's suppression record, keyed by `finding_id`, in the convention home the repository binds (default `docs/conventions`). A finding it carries is reported as suppressed with its reason and the layer and file that supplied it; only the team layer suppresses, a personal-only entry is reported as not applied, and a malformed entry is reported and never suppresses. `suppressions.layers` in the engine's output names each file read |
 
 ### Reading settings.local.json safely
 
@@ -94,7 +94,7 @@ and never dump its contents. Supplemental jq recipes: [context/procedures.md](co
 "Reading settings.local.json safely".
 
 The counts are not guaranteed. Where the project's configuration blocks the read, whether a sandbox
-`denyRead` merged from the baseline `Read` deny or filesystem permissions, the engine reports the
+`denyRead` merged from a project's `Read` deny on the file or filesystem permissions, the engine reports the
 scope as `unreadable` and its rows as `not-inspectable` instead of failing. Record the file as not
 inspectable, carry that into the report, and do not reach for another reader to get the counts anyway.
 
@@ -202,7 +202,7 @@ category; **full per-check criteria in
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
 - **A, Schema & Structure**: engine-decided
-- **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); add any patterns the consuming repo's own rules declare as required
+- **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); report a missing `Read(./…)` row as present when `permissions.deny` carries the standards floor's bare spelling of it (same file, "Relation to the standards permission floor"); add any patterns the consuming repo's own rules declare as required
 - **C, MCP Servers**: documented reasons for disabled servers; launcher conventions
 - **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row). Event names are the engine's; for a `hook-event-page-not-read` row it left `not-inspectable`, read the live hooks page
 - **E, Plugins**: for each `dependency-disabled` finding, whether to enable the dependency or disable the plugins that need it; orphan-`true` and rename review. The engine merges `enabledPlugins` from the user, project and local files only (managed settings are not merged) and checks direct dependencies only
@@ -252,8 +252,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-effort-pins.sh" --docs-di
 It hashes three parts of the model-config page (the Levels column table, the level rows of the
 level-guidance table, and the resolution-list item that states each model's default level),
 compares the hash with [reference/effort-table.baseline](reference/effort-table.baseline), and
-lists every effort pin: `effort:` frontmatter in agents and skills, the lanes config, the lane
-launch lines, and Workflow literals in skill `context/` files and plugin `workflows/` scripts.
+lists every effort pin: `effort:` frontmatter in agents and skills, lane configs (JSON `"effort"`
+keys in skill `context/` files), the lane launch lines, and Workflow literals in skill `context/` files and plugin `workflows/` scripts.
 Report its lines verbatim. It never edits a pin. Exit 0: unchanged, and every pin names a listed level. Exit 1: the page changed
 (`reason=table-changed` on every pin) or a pin names a level the page does not list
 (`reason=level-not-in-table`). Exit 3: the page was unread or reshaped, which supports no claim
@@ -342,11 +342,13 @@ Then three short sections the engine's document already carries:
   judgment finding of its own, derive its identity with the engine (`audit-engine.sh anchor` and
   `audit-engine.sh finding-id`) and append the row in the same shape with `"tier": "judged"`.
 
-For any finding the operator decides to keep, print its `suppress:` line as a stanza they can paste
-into `.claude/audit-pass.md` (team layer): `check`, `claim`, `sites` with `surface` and
-`anchor/v1`, a non-empty `reason`, and today's `date`, keyed by the `finding_id` the engine printed.
-That is the declared route for session posture; the skill never infers posture from the
-environment.
+For a finding the operator keeps, print its `suppress:` line as a stanza to paste under
+`suppressions:` in `docs/conventions/harness-config.yaml` (team layer, in the bound convention home):
+`check`, `claim`, `sites` with `surface` and a quoted `"anchor/v1":` key, a non-empty `reason`, and
+today's `date`, keyed by the engine's `finding_id`. When `suppressions.layers` reports the team layer
+as a compatibility read, point the operator at `/harness-config:setup apply` first: once the YAML exists
+the engine ignores the older team file, so a YAML with only the new stanza un-suppresses every earlier
+entry. That is the declared route for session posture; the skill never infers posture from the environment.
 
 ### Severity guide
 
@@ -389,17 +391,15 @@ After all fixes:
 
 ### Refusals in auto mode
 
-Two operations are refused in auto mode. Writing the team-layer suppression record
-`.claude/audit-pass.md` is refused as `[Instruction Poisoning]`. Re-running `scripts/audit-engine.sh`
-for the after-fix summary is refused as `[Self-Modification]`. Never retry around a refusal. Hand the
-operator the fallback: they apply the `.claude/audit-pass.md` edit themselves, or run the engine
-re-run and paste its output back. Report the before/after comparison from what they return.
+Two operations are refused in auto mode. Writing the team-layer suppression record is refused as
+`[Instruction Poisoning]`; re-running `scripts/audit-engine.sh` for the after-fix summary, as
+`[Self-Modification]`. Never retry around a refusal. Hand the operator the fallback: they apply the
+suppression edit themselves, or run the engine and paste its output back. Report the before/after comparison from what they return.
 
-Claim: auto mode refuses those two operations under those two category names. Basis: an empirical
-`harness-config:audit@0.48.2` `--fix` run in auto mode on Claude Code 2.1.283, recorded in
-[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153). As of
-2026-09-27. Recheck when a Claude Code release changes auto-mode classifier categories, or a run
-where either refusal no longer fires.
+Claim: auto mode refuses those two operations under those two category names. Basis: an empirical `harness-config:audit@0.48.2`
+`--fix` auto-mode run on Claude Code 2.1.283, recorded in [melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153)
+when the team record lived under `.claude/`. As of 2026-09-27. Recheck when a release changes auto-mode classifier
+categories, either refusal stops firing, or an auto-mode run first writes `harness-config.yaml`.
 
 ### Fixes the skill can apply
 

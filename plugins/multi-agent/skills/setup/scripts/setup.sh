@@ -13,13 +13,13 @@
 #
 # Layers (reference/config.md):
 #   user   <home>/.claude/multi-agent.yaml
-#   team   the ```yaml config block of <root>/docs/conventions/multi-agent.md;
-#          else <root>/.claude/multi-agent.yaml when that file exists; else a
-#          new docs/conventions/multi-agent.md holding the block
+#   team   <root>/<home>/multi-agent.yaml, <home> being the convention home the
+#          repository binds, else docs/conventions. While that file is absent,
+#          the keys of the legacy team file the resolver still reads for one
+#          release seed it; the legacy file is left as it is.
 #   local  <root>/.claude/multi-agent.local.yaml
 # team and local are refused unless lib/config-root.sh classifies <root> as repo.
-# A file layer is rewritten whole, so comments in it are not kept; a docs
-# block has only its body replaced.
+# A layer file is rewritten whole, so comments in it are not kept.
 #
 # Options for tests: --root <dir> (default CLAUDE_PROJECT_DIR, else the git
 # toplevel), --home <dir> (default $HOME).
@@ -93,66 +93,70 @@ render() {
     }'
 }
 
-# Replace the body of the first ```yaml config block in a docs file, skipping
-# other fences the way the parser does.
-replace_block() { # replace_block <docs-file> <body-file>
-  awk -v BODY="$2" '
-    function emit_body(  l) { while ((getline l < BODY) > 0) print l; close(BODY) }
-    state == 2 { print; next }
-    state == 1 { if ($0 ~ /^```[ \t]*$/) { print; state = 2 } ; next }
-    other != "" {
-      if ($0 ~ /^`+[ \t]*$/ && match($0, /^`+/) && RLENGTH >= length(other)) other = ""
-      print; next
-    }
-    /^```yaml[ \t]+config[ \t]*$/ { print; emit_body(); state = 1; next }
-    { if (match($0, /^```+/)) other = substr($0, 1, RLENGTH); print }' "$1"
+# The convention home the repository binds, else docs/conventions.
+convention_home() {
+  local out
+  out="$(bash "$PLUGIN_DIR/lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" && printf '%s' "$out" ||
+    printf 'docs/conventions'
+}
+
+# A repository can commit a symlink at a team or local path, or at a legacy
+# file that seeds one; reading or writing through it would reach a file
+# outside the repository. Refuse <path> when it, or a directory above it
+# inside the repository, is a symlink.
+refuse_symlink() {
+  local p="$1"
+  while [[ "$p" == "$ROOT"/* ]]; do
+    [[ -L "$p" ]] && die "refusing $1: $p is a symlink"
+    p=$(dirname "$p")
+  done
 }
 
 apply() {
-  local target mode existing="" records body old_label
+  local target existing="" records body old_label seed="" seed_block=0
+  local legacy_md="$ROOT/docs/conventions/multi-agent.md" legacy_yaml="$ROOT/.claude/multi-agent.yaml"
   case "$LAYER" in
   user)
     [[ -n "$HOME_DIR" ]] || die "no home directory to hold the user layer"
-    target="$HOME_DIR/.claude/multi-agent.yaml" mode=file
+    target="$HOME_DIR/.claude/multi-agent.yaml"
     ;;
   team | local)
     [[ "$CLASS" == repo ]] ||
       die "the $LAYER layer is not applicable at a $CLASS root; run from the repository, or use --layer user"
     if [[ "$LAYER" == local ]]; then
-      target="$ROOT/.claude/multi-agent.local.yaml" mode=file
-    elif [[ -f "$ROOT/docs/conventions/multi-agent.md" ]] &&
-      [[ "$(awk -v BLOCK=1 -f "$PARSER" "$ROOT/docs/conventions/multi-agent.md")" == block$'\t'* ]]; then
-      target="$ROOT/docs/conventions/multi-agent.md" mode=block
-    elif [[ -f "$ROOT/.claude/multi-agent.yaml" ]]; then
-      target="$ROOT/.claude/multi-agent.yaml" mode=file
-    elif [[ -f "$ROOT/docs/conventions/multi-agent.md" ]]; then
-      target="$ROOT/docs/conventions/multi-agent.md" mode=append
+      target="$ROOT/.claude/multi-agent.local.yaml"
     else
-      target="$ROOT/docs/conventions/multi-agent.md" mode=new
+      target="$ROOT/$(convention_home)/multi-agent.yaml"
+      # Until the YAML exists, the legacy team file the resolver still reads
+      # seeds it, so the first write carries those keys over.
+      if [[ ! -f "$target" ]]; then
+        [[ -f "$legacy_md" ]] && refuse_symlink "$legacy_md"
+        if [[ -f "$legacy_md" ]] &&
+          [[ "$(awk -v BLOCK=1 -f "$PARSER" "$legacy_md")" == block$'\t'* ]]; then
+          seed="$legacy_md" seed_block=1
+        elif [[ -f "$legacy_yaml" ]]; then
+          refuse_symlink "$legacy_yaml"
+          seed="$legacy_yaml"
+        fi
+      fi
     fi
     ;;
   "") die "apply needs --layer user|team|local" ;;
   *) die "unknown layer '$LAYER' (user, team or local)" ;;
   esac
-  # A repository can commit a symlink at a team or local path; reading or
-  # writing through it would reach a file outside the repository.
-  if [[ "$LAYER" != user ]]; then
-    local p="$target"
-    while [[ "$p" == "$ROOT"/* ]]; do
-      [[ -L "$p" ]] && die "refusing $target: $p is a symlink"
-      p=$(dirname "$p")
-    done
-  fi
+  [[ "$LAYER" == user ]] || refuse_symlink "$target"
   ((${#PAIRS[@]})) || die "apply needs at least one <key>=<value>"
 
-  if [[ "$mode" == file && -f "$target" ]] || [[ "$mode" == block ]]; then
-    if [[ "$mode" == block ]]; then
-      records="$(awk -v BLOCK=1 -f "$PARSER" "$target")"
+  local source_file="$target"
+  [[ -f "$target" ]] || source_file="$seed"
+  if [[ -n "$source_file" && -f "$source_file" ]]; then
+    if [[ "$source_file" == "$seed" && "$seed_block" == 1 ]]; then
+      records="$(awk -v BLOCK=1 -f "$PARSER" "$source_file")"
     else
-      records="$(awk -f "$PARSER" "$target")"
+      records="$(awk -f "$PARSER" "$source_file")"
     fi || {
       printf 'setup: %s does not parse (%s); fix or remove it before apply\n' \
-        "$target" "$(awk -F '\t' '$1=="error"{print "line " $2 ": " $3}' <<<"$records")" >&2
+        "$source_file" "$(awk -F '\t' '$1=="error"{print "line " $2 ": " $3}' <<<"$records")" >&2
       exit 1
     }
     existing="$(awk -F '\t' '$1!="schema" && $1!="block"' <<<"$records")"
@@ -181,24 +185,7 @@ apply() {
   fi
 
   printf '%s\n' "$body" >"$tmp/body"
-  case "$mode" in
-  file) cp "$tmp/body" "$tmp/new" ;;
-  block) replace_block "$target" "$tmp/body" >"$tmp/new" ;;
-  *)
-    {
-      if [[ "$mode" == append ]]; then
-        cat "$target"
-        echo
-      else
-        printf '# Multi-agent conventions\n\n%s\n\n' \
-          "The team layer of the multi-agent role map. Keys: the multi-agent plugin's reference/config.md."
-      fi
-      echo '```yaml config'
-      cat "$tmp/body"
-      echo '```'
-    } >"$tmp/new"
-    ;;
-  esac
+  cp "$tmp/body" "$tmp/new"
   : >"$tmp/old"
   old_label=/dev/null
   [[ -f "$target" ]] && cp "$target" "$tmp/old" && old_label="$target"
@@ -209,7 +196,7 @@ apply() {
   fi
   if ((!WRITE)); then
     printf 'would write: %s (%s layer)\n' "$target" "$LAYER"
-    [[ "$mode" == file ]] && grep -q '#' "$tmp/old" &&
+    grep -q '#' "$tmp/old" &&
       printf 'note: the file is rewritten whole; its comments are not kept\n'
     grep -q '^  frontier_guard: false$' "$tmp/body" &&
       printf 'note: fanout.frontier_guard false lets fan-out stages run on a frontier session model\n'
@@ -223,7 +210,7 @@ apply() {
   fi
   printf 'wrote: %s (%s layer)\n' "$target" "$LAYER"
   printf 'stored:\n'
-  if [[ "$mode" == file ]]; then awk -f "$PARSER" "$target"; else awk -v BLOCK=1 -f "$PARSER" "$target"; fi |
+  awk -f "$PARSER" "$target" |
     awk -F '\t' '$1!="block" { print "  " $1 ": " $2 }'
 }
 

@@ -120,6 +120,10 @@ jobs:
             echo "::error::the upstream run id is not a run id"
             exit 1
           fi
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           # Every FAIL-shaped name, then the ones the readers take (the
           # grammar babysit_verify_evidence.NAME_RE holds, at most 194
           # characters, issues ascending and once each). A FAIL-shaped name
@@ -147,6 +151,14 @@ jobs:
           ARTIFACT_NAME: ${{ steps.verdict.outputs.name }}
           VERDICT_FILE: ${{ runner.temp }}/verdict/verdict.json
         run: node .base/.github/scripts/pr-unblock/verify-notes.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   dispatch:
     # A review run GitHub skipped (a draft PR) has reviewed nothing, and a
@@ -306,8 +318,10 @@ jobs:
   # too; one that
   # started earlier and is still in progress waits for its run, polled every
   # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
-  # but the trusted-actors list: the token can only read contents, runs and
-  # the PR and re-run a job.
+  # but the trusted-actors list and the api-budget library: the token can
+  # only read contents, runs and the PR and re-run a job. Each read's
+  # rate-limit reading is logged at the end of the job
+  # (.github/actions/log-api-budget).
   #
   # The re-run's attempt is started by github-actions[bot], which pr-verify's
   # trigger gate does not list, so just before the re-run the job uploads
@@ -335,8 +349,9 @@ jobs:
       pull-requests: read # the PR's state and live head
     steps:
       # The list the record check reads, from the default branch, never the
-      # PR head. A failed checkout leaves no list: ci-status is still re-run,
-      # unrecorded unless the review run is a first attempt.
+      # PR head, and the api-budget library. A failed checkout leaves no list:
+      # ci-status is still re-run, unrecorded unless the review run is a
+      # first attempt, and no reading is logged.
       - name: Check out the trusted-actors list
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -346,6 +361,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/standards/trusted-actors/
+            /.github/actions/log-api-budget/
           sparse-checkout-cone-mode: false
 
       - name: Find the ci-status to re-run
@@ -362,7 +378,15 @@ jobs:
           REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash
         run: |
+          # shellcheck source=/dev/null
+          . "$API_BUDGET_SH" 2>/dev/null || true
+          # budget <gh api -i output>: keeps its rate-limit reading for the
+          # job-end api-budget notice; nothing without the library.
+          budget() {
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$1" >/dev/null
+          }
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
             exit 1
@@ -394,16 +418,30 @@ jobs:
           # completion exists only while the other lane is running, and
           # maintenance-reconcile-lost-runs leaves a run where only ci-status
           # failed alone). Any other failure is read three times, then fails.
-          waited=0
+          # A path read again (the poll below) is sent as a conditional GET
+          # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
+          # 200's body back, as request-budget.mjs does. Its reading is kept,
+          # so the notice shows whether GitHub counted it.
+          waited=0 etag_path='' etag='' etag_body=''
           read_api() {
-            local attempt out hdr status left reset after wait
+            local attempt out hdr status left reset after wait cond
             for attempt in 1 2 3; do
-              if out=$(gh api -i "$3"); then
+              cond=()
+              [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
+              if out=$(gh api -i "$3" "${cond[@]}"); then
+                budget "$out"
                 printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
+                etag_path=$3 etag_body=${!1}
+                etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
                 return 0
               fi
+              budget "$out"
               hdr=$(sed '/^\r\?$/q' <<<"$out")
               status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
+              if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then
+                printf -v "$1" '%s' "$etag_body"
+                return 0
+              fi
               read -r left reset after < <(tr -d '\r' <<<"$hdr" | awk -F': *' '{ h[tolower($1)] = $2 }
                 END { print h["x-ratelimit-remaining"] "-", h["x-ratelimit-reset"] "-", h["retry-after"] "-" }')
               left=${left%-} reset=${reset%-} after=${after%-}
@@ -549,3 +587,11 @@ jobs:
           fi
           gh api -X POST "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/rerun" >/dev/null
           echo "Re-ran ci-status (job $JOB_ID)."
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

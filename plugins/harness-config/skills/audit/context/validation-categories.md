@@ -74,9 +74,12 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   convenience gap, never a security one. It also takes narrowing 3 mechanically wherever an enabled
   plugin ships `hooks/coverage.json`, checking all three preconditions (the hook is live under the
   lever reading, the pattern's tool is on the matcher, the pattern is named), and it retires any
-  finding the consumer's `.claude/audit-pass.md` record suppresses by `finding_id`. The model's
-  Category B work is what is left: narrowings 1 and 2, narrowing 3 for guards with no manifest, and
-  the consuming repo's own extra patterns
+  finding the consumer's suppression record (`docs/conventions/harness-config.yaml`) suppresses by
+  `finding_id`. The model's
+  Category B work is what is left: narrowings 1 and 2, narrowing 3 for guards with no manifest, a
+  missing `Read(./…)` row whose bare spelling from the standards floor is present (report it present;
+  required-permissions.md "Relation to the standards permission floor"), and the consuming repo's own
+  extra patterns
 
 ## Category C: MCP Servers
 

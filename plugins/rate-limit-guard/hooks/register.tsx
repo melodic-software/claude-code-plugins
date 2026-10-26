@@ -8,6 +8,8 @@ const PAUSE_EDGE = 95
 const FLOOR_MS = 300_000
 const WRITE_TIMER_MS = 60_000
 const REOFFER_MS = 5_000
+// A reset time read this much earlier than the recorded one belongs to another window.
+const RESET_SLACK_MS = 60_000
 const WINDOWS = [
   { kind: 'five_hour', name: '5-hour', short: '5h' },
   { kind: 'seven_day', name: '7-day', short: '7d' },
@@ -27,6 +29,10 @@ type Event = Level | 'reset'
 type Reading = Map<string, SessionRateLimit>
 // An event and the reading that produced it, so a late line states both from one reading.
 type Due = { event: Event; limit: SessionRateLimit | undefined }
+// The signed-in account in the state file: its UUID, and its email for a file with no UUID.
+type Identity = { uuid?: string; email?: string }
+// A change that voids the lines sent before it: the account, or the windows whose reset time moved earlier.
+type Voided = { cause: 'account' | 'reset'; kinds: string[] }
 type Config = {
   bad: string[]
   writes: boolean
@@ -61,6 +67,13 @@ type State = {
   rowSeen: boolean
   // Operator mode: events a shown suggestion offered, handed to Claude if no person takes them.
   handoff: Map<string, Due>
+  handoffVoided: Voided | undefined
+  // The account the latched state belongs to; a reading taken before it changed, until a new one arrives.
+  account: Identity | undefined
+  staleSig: string | undefined
+  voided: Voided | undefined
+  refreshSeq: number
+  appliedSeq: number
   restate: boolean
   restateIfLoud: boolean
   // An in-process /resume or /branch ended the last session; cleared by the first decided write.
@@ -71,7 +84,7 @@ type State = {
   bandShown: boolean
   lastResponseAtMs: number | undefined
   responseEmail: string | undefined
-  identityCache: { key: string; email: string | undefined } | undefined
+  identityCache: { key: string; identity: Identity } | undefined
   lastAttempt: { sig: string; at: number } | undefined
   loggedOnce: Set<string>
   writing: Promise<void>
@@ -180,8 +193,11 @@ const order = (kind: string) => WINDOWS.findIndex(w => w.kind === kind)
 // lines re-arm, only when the window resets (its reset time passes) or leaves the reading.
 // Returns the events the person is told of: a rise from a known level, or a reset from the edge.
 // A window's first reading is never one, so a fresh load or the reading after a reset stays quiet.
+// A window whose reset time reads earlier than the recorded one is taken as a new window, as after
+// an account change: its latched state is dropped, and a line voids what Claude was told of it.
 export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs: number) => {
   const changes: [string, Event][] = []
+  const moved: string[] = []
   for (const { kind } of WINDOWS) {
     const limit = reading.get(kind)
     let prev = st.levels.get(kind)
@@ -196,25 +212,79 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
     if (limit === undefined) continue
     const level = levelOf(limit.percentUsed, cfg)
     const resetsMs = limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
+    if (prev !== undefined && Number.isFinite(prev.resetsMs) && resetsMs < prev.resetsMs - RESET_SLACK_MS) {
+      if (prev.level !== 'quiet' || st.pending.has(kind) || st.handoff.has(kind)) moved.push(kind)
+      dropWindows(st, [kind])
+      prev = undefined
+    }
     if (prev !== undefined && RANK[level] <= RANK[prev.level]) continue
     st.levels.set(kind, { level, resetsMs: Number.isFinite(resetsMs) ? resetsMs : Infinity, limit })
     if (level === 'quiet') continue
     st.pending.set(kind, { event: level, limit })
     if (prev !== undefined) changes.push([kind, level])
   }
+  if (moved.length > 0) st.voided = mergeVoided(st.voided, { cause: 'reset', kinds: moved })
   return changes
 }
 
-// The events due now, one per window, without consuming them.
-const dueEvents = (st: State): [string, Due][] => {
+// An account change voids every window, so it outranks a moved reset time.
+const mergeVoided = (a: Voided | undefined, b: Voided | undefined): Voided | undefined =>
+  a === undefined || b === undefined
+    ? (a ?? b)
+    : a.cause === 'account'
+      ? a
+      : b.cause === 'account'
+        ? b
+        : { cause: 'reset', kinds: [...new Set([...a.kinds, ...b.kinds])] }
+
+// Drops what is latched for these windows: levels, pending and handed-off events, and queued toasts.
+const dropWindows = (st: State, kinds: readonly string[]) => {
+  for (const kind of kinds) {
+    st.levels.delete(kind)
+    st.pending.delete(kind)
+    st.handoff.delete(kind)
+  }
+  st.toastQueue = st.toastQueue.filter(([kind]) => !kinds.includes(kind))
+  st.heldToasts = st.heldToasts.filter(([kind]) => !kinds.includes(kind))
+}
+
+// The windows a reading reports, so an unchanged reading compares equal.
+const windowSig = (limits: readonly SessionRateLimit[]) =>
+  JSON.stringify(WINDOWS.map(({ kind }) => limits.find(l => l.kind === kind)).map(l => l && [l.percentUsed, l.resetsAt ?? null]))
+
+// The events due now, one per window, without consuming them. A window a voiding line covers is left to it.
+const dueEvents = (st: State, cfg: Config): [string, Due][] => {
   // After /clear or a fresh load mid-session, only a window at the edge is restated; after a
   // compaction, a resume or a /branch, each window past quiet. A quiet window is never restated.
-  // A restated level carries the reading that crossed into it.
-  const recorded = ([kind, w]: [string, { level: Level; limit: SessionRateLimit }]): [string, Due] => [kind, { event: w.level, limit: w.limit }]
-  const atEdge = st.restateIfLoud ? [...st.levels].filter(([, w]) => w.level === 'edge').map(recorded) : []
-  return st.restate
-    ? [...st.levels].filter(([kind, w]) => w.level !== 'quiet' && st.reading?.has(kind)).map(recorded)
-    : [...new Map<string, Due>([...st.pending.entries(), ...atEdge])]
+  // A restatement states the current reading, and none is made once that reading is below the level.
+  const restated = (edgeOnly: boolean): [string, Due][] =>
+    [...st.levels].flatMap(([kind, w]): [string, Due][] => {
+      const limit = st.reading?.get(kind)
+      if (w.level === 'quiet' || (edgeOnly && w.level !== 'edge') || limit === undefined) return []
+      return RANK[levelOf(limit.percentUsed, cfg)] < RANK[w.level] ? [] : [[kind, { event: w.level, limit }]]
+    })
+  const due = st.restate ? restated(false) : [...new Map<string, Due>([...st.pending.entries(), ...(st.restateIfLoud ? restated(true) : [])])]
+  return due.filter(([kind]) => !st.voided?.kinds.includes(kind))
+}
+
+// One line saying the account or a window changed and what Claude was told before no longer
+// applies, with the current reading; undefined when nothing was voided.
+const voidedLine = (st: State, cfg: Config): { line: string; levels: Level[] } | undefined => {
+  if (st.voided === undefined) return undefined
+  const { cause, kinds } = st.voided
+  const current = WINDOWS.flatMap(({ kind }): [string, SessionRateLimit, Level][] => {
+    const limit = st.staleSig === undefined && kinds.includes(kind) ? st.reading?.get(kind) : undefined
+    return limit === undefined ? [] : [[kind, limit, levelOf(limit.percentUsed, cfg)]]
+  })
+  const head =
+    cause === 'account'
+      ? 'the signed-in account changed, so earlier rate-limit lines in this session no longer apply.'
+      : "a window's reset time moved earlier than recorded, so earlier rate-limit lines for that window no longer apply."
+  const tail =
+    current.length > 0
+      ? `Current reading: ${current.map(([kind, limit, level]) => clause(kind, level, limit, cfg)).join('; ')}.`
+      : `No reading yet for this ${cause === 'account' ? 'account' : 'window'}.`
+  return { line: `rate-limit-guard: ${head} ${tail}`, levels: current.map(([, , level]) => level) }
 }
 
 // Follows any approach or edge line, once per carrier. Facts alone led Claude to stop launching agents
@@ -223,9 +293,11 @@ const OPTIONS =
   "rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
 
 const dueLines = (st: State, cfg: Config): string[] => {
-  const due = dueEvents(st).sort(([a], [b]) => order(a) - order(b))
-  const lines = due.map(([kind, d]) => `rate-limit-guard: ${clause(kind, d.event, d.limit, cfg)}.`)
-  return due.some(([, d]) => d.event === 'approach' || d.event === 'edge') ? [...lines, OPTIONS] : lines
+  const due = dueEvents(st, cfg).sort(([a], [b]) => order(a) - order(b))
+  const voided = voidedLine(st, cfg)
+  const lines = [...(voided ? [voided.line] : []), ...due.map(([kind, d]) => `rate-limit-guard: ${clause(kind, d.event, d.limit, cfg)}.`)]
+  const events: Event[] = [...(voided?.levels ?? []), ...due.map(([, d]) => d.event)]
+  return events.some(e => e === 'approach' || e === 'edge') ? [...lines, OPTIONS] : lines
 }
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
@@ -236,6 +308,7 @@ const withLines = <T extends { context?: readonly string[] }>($: EngineInterface
 
 const consume = (st: State) => {
   st.pending.clear()
+  st.voided = undefined
   st.restate = false
   st.restateIfLoud = false
   st.forceAutomatic = false
@@ -248,8 +321,55 @@ async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
   return (await $.session.surfaces()).length > 0
 }
 
+// Whether two identities are one account: by UUID when both have one, else by email; undefined when neither can tell.
+const sameAccount =(a: Identity, b: Identity) =>
+  a.uuid !== undefined && b.uuid !== undefined
+    ? a.uuid === b.uuid
+    : a.email !== undefined && b.email !== undefined
+      ? a.email === b.email
+      : undefined
+
+// The signed-in account changed: everything latched was the old account's. The reading held now
+// is the old account's too until a different one arrives, so it is kept out of the levels.
+function switchAccount($: EngineInterface, st: State) {
+  const told =
+    st.voided !== undefined ||
+    st.handoffVoided !== undefined ||
+    st.pending.size > 0 ||
+    st.handoff.size > 0 ||
+    [...st.levels.values()].some(w => w.level !== 'quiet')
+  dropWindows(st, WINDOWS.map(w => w.kind))
+  st.handoffVoided = undefined
+  st.voided = told ? { cause: 'account', kinds: WINDOWS.map(w => w.kind) } : undefined
+  st.staleSig = windowSig(st.limits)
+  clearNotice($, st)
+}
+
+async function currentIdentity($: EngineInterface, st: State) {
+  const home = await homeDir($)
+  const identity = home ? await readIdentity($, st, home) : undefined
+  return identity?.uuid === undefined && identity?.email === undefined ? undefined : identity
+}
+
 async function refresh($: EngineInterface, st: State, cfg: Config, limits?: readonly SessionRateLimit[]) {
-  const [now, rateLimits] = await Promise.all([$.clock.now(), limits ?? $.session.usage().then(u => u.rateLimits)])
+  const seq = ++st.refreshSeq
+  const [now, rateLimits, identity] = await Promise.all([
+    $.clock.now(),
+    limits ?? $.session.usage().then(u => u.rateLimits),
+    currentIdentity($, st).catch(() => undefined),
+  ])
+  // A refresh that started before the last one applied holds an older reading and identity.
+  if (seq < st.appliedSeq) return
+  st.appliedSeq = seq
+  // An unreadable identity is no evidence either way, so the recorded one stands; a field one
+  // read lacks is kept from the last, so a UUID that drops out and returns is still compared.
+  if (identity !== undefined) {
+    const same = st.account === undefined ? undefined : sameAccount(st.account, identity)
+    if (same === false) switchAccount($, st)
+    st.account = same === false ? identity : { ...st.account, ...identity }
+  }
+  const hasWindows = rateLimits.some(l => WINDOWS.some(w => w.kind === l.kind))
+  if (hasWindows && st.staleSig !== undefined && windowSig(rateLimits) !== st.staleSig) st.staleSig = undefined
   const reading = liveWindows(rateLimits, now)
   const changed = bandText(reading) !== bandText(st.reading)
   st.reading = reading
@@ -257,8 +377,7 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
   st.spend = rateLimits.find(l => l.kind === 'spend_limit')
   if (changed) $.ui.invalidate('ui.render')
   // No window reported is no reading, never a reset: the levels wait for the next reading.
-  if (rateLimits.some(l => WINDOWS.some(w => w.kind === l.kind))) st.toastQueue.push(...recordCrossings(st, reading, cfg, now))
-  return { now, reading }
+  if (hasWindows && st.staleSig === undefined) st.toastQueue.push(...recordCrossings(st, reading, cfg, now))
 }
 
 function clearNotice($: EngineInterface, st: State, kind?: Notice['kind']) {
@@ -278,7 +397,7 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   if (await operatorHolds($, st, cfg)) return []
   const lines = dueLines(st, cfg)
   // A restatement with no reading to restate waits for the first carrier that has one.
-  if (st.restate && (st.reading?.size ?? 0) === 0) return []
+  if ((st.restate || st.restateIfLoud) && (st.reading?.size ?? 0) === 0) return []
   consume(st)
   if (lines.length > 0 && st.notice?.kind === 'operator') {
     releaseHeld(st, st.rowSeen)
@@ -323,12 +442,12 @@ async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: bo
 const noticeShows = (st: State, surface: string) =>
   st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
-// The module's band row: 5h <x>% | 7d <y>%.
+// The module's band row: rate-limit-guard: 5h <x>% | 7d <y>%, led by the plugin's name so the row says whose it is.
 export const bandText = (reading: Reading | undefined) =>
-  WINDOWS.map(({ kind, short }) => {
+  `rate-limit-guard: ${WINDOWS.map(({ kind, short }) => {
     const limit = reading?.get(kind)
     return `${short} ${limit === undefined ? '-' : `${limit.percentUsed}%`}`
-  }).join(' | ')
+  }).join(' | ')}`
 
 // What /rate-limit-guard with no argument prints.
 async function statusText($: EngineInterface, st: State, cfg: Config) {
@@ -366,23 +485,26 @@ export const isEmailShaped = (value: unknown): value is string => {
 
 const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
 
-// The account in the state file, undefined when unreadable or malformed. The file is large and
-// rewritten often, so a parse is kept until the file's mtime or size changes.
-async function readIdentity($: EngineInterface, st: State, home: string) {
+const isIdShaped = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9-]{1,128}$/.test(value)
+
+// The account in the state file, undefined when unreadable; a field is left out when missing or
+// malformed. The file is large and rewritten often, so a parse is kept until its mtime or size changes.
+async function readIdentity($: EngineInterface, st: State, home: string): Promise<Identity | undefined> {
   const path = `${(await $.env.get('CLAUDE_CONFIG_DIR')) || home}/.claude.json`
   const stat = await $.fs.stat(path).catch(() => undefined)
   if (stat === undefined || stat.kind !== 'file') return undefined
   const key = `${path}|${stat.mtimeMs}|${stat.size}`
-  if (st.identityCache?.key === key) return st.identityCache.email
+  if (st.identityCache?.key === key) return st.identityCache.identity
   const text = await $.fs.read(path).catch(() => undefined)
   if (typeof text !== 'string') return undefined
-  let email: string | undefined
+  const identity: Identity = {}
   try {
-    const value: unknown = JSON.parse(text)?.oauthAccount?.emailAddress
-    email = isEmailShaped(value) ? value : undefined
+    const account = JSON.parse(text)?.oauthAccount
+    if (isIdShaped(account?.accountUuid)) identity.uuid = account.accountUuid
+    if (isEmailShaped(account?.emailAddress)) identity.email = account.emailAddress
   } catch {}
-  st.identityCache = { key, email }
-  return email
+  st.identityCache = { key, identity }
+  return identity
 }
 
 // An API response: its time, and the account it was for.
@@ -390,13 +512,13 @@ async function recordResponse($: EngineInterface, st: State, cfg: Config) {
   st.lastResponseAtMs = await $.clock.now()
   st.responseEmail = undefined
   const home = await homeDir($)
-  if (cfg.writes && home) st.responseEmail = await readIdentity($, st, home)
+  if (cfg.writes && home) st.responseEmail = (await readIdentity($, st, home))?.email
 }
 
 // Omit rather than guess: attribute only when the account now is the one read at the last response.
 async function accountEmail($: EngineInterface, st: State, home: string) {
   if (st.responseEmail === undefined) return undefined
-  const email = await readIdentity($, st, home)
+  const email = (await readIdentity($, st, home))?.email
   return email !== undefined && email === st.responseEmail ? email : undefined
 }
 
@@ -498,14 +620,15 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
 // notice row and offer again once the box is empty; where it cannot show, the line goes to Claude.
 // A first offer that cannot show leaves the changes to be toasted with the automatic line; a
 // re-offer comes after the row was up, so the person has seen them unless a survey hid the row.
-async function offer($: EngineInterface, st: State, first = false) {
+async function offer($: EngineInterface, st: State, cfg: Config, first = false) {
   if (st.notice?.kind !== 'operator') return true
   const { text } = st.notice
   const box = await $.prompt.read()
   if (box.text.trim() !== '') return false
   const { isShown } = await $.prompt.suggest({ text })
   if (isShown) {
-    st.handoff = new Map([...st.handoff, ...dueEvents(st)])
+    st.handoff = new Map([...st.handoff, ...dueEvents(st, cfg)])
+    st.handoffVoided = mergeVoided(st.handoffVoided, st.voided)
     consume(st)
     releaseHeld(st, true)
   } else {
@@ -534,6 +657,12 @@ export const register: Register = (on, options) => {
     heldToasts: [],
     rowSeen: false,
     handoff: new Map(),
+    handoffVoided: undefined,
+    account: undefined,
+    staleSig: undefined,
+    voided: undefined,
+    refreshSeq: 0,
+    appliedSeq: 0,
     restate: false,
     restateIfLoud: false,
     branched: false,
@@ -557,7 +686,7 @@ export const register: Register = (on, options) => {
       $.tool.register({
         name: 'status',
         description:
-          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`, where a loop lane that opted in to pausing pauses; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. The figures change only when an API response arrives. With the model_notices option on (off by default), rate-limit-guard also adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
+          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`, where a loop lane that opted in to pausing pauses; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. The figures change only when an API response arrives. With the model_notices option on (off by default), rate-limit-guard also adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge, and one line saying earlier lines no longer apply when the signed-in account changes. Read-only.",
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({
@@ -618,13 +747,15 @@ export const register: Register = (on, options) => {
     if (e.turnId === undefined) {
       st.origin = e.origin
       // An untaken suggestion goes to Claude at the next turn no person started; a person's turn drops it.
-      const handingOff = !isPersonTurn(st) && st.handoff.size > 0
+      const handingOff = !isPersonTurn(st) && (st.handoff.size > 0 || st.handoffVoided !== undefined)
       if (handingOff) {
         for (const [kind, due] of st.handoff) {
           if (!st.pending.has(kind) && (due.event === 'reset' || st.levels.has(kind))) st.pending.set(kind, due)
         }
+        st.voided = mergeVoided(st.voided, st.handoffVoided)
       }
       st.handoff.clear()
+      st.handoffVoided = undefined
       if (isPersonTurn(st) && st.notice?.kind === 'operator') releaseHeld(st, st.rowSeen)
       if (isPersonTurn(st) || handingOff) clearNotice($, st)
     }
@@ -656,9 +787,9 @@ export const register: Register = (on, options) => {
         st.heldToasts.push(...st.toastQueue.splice(0))
         st.rowSeen = false
         $.ui.invalidate('ui.render')
-        if (!(await offer($, st, true))) {
+        if (!(await offer($, st, cfg, true))) {
           st.reofferTimer ??= $.clock.every(REOFFER_MS, () => {
-            void offer($, st)
+            void offer($, st, cfg)
               .then(done => {
                 if (done) st.reofferTimer = stopTimer(st.reofferTimer)
               })

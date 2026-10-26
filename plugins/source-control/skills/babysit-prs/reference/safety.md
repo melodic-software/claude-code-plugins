@@ -848,21 +848,36 @@ A `--merge` run the gate holds does that rerun itself (`aiReviewReruns` in its J
 of these hold: the failed check is an AI review check on the pinned live head of an open, non-draft
 PR, or of a stack layer below it that the gate evaluated; the Actions job its `details_url` names
 emitted that check (the job's own check-run id, name and workflow match the check, and the check's
-id when the rollup carries one); its check run carries a `class=rate-limit` annotation; its job
-finished at least five hours ago;
+id when the rollup carries one); its check run carries a failure annotation the review evidence
+accepts a second attempt after, `class=rate-limit` or that lane's publish-review
+`failure-class=publish-failed` line on GitHub's API rate limit; its job finished at least five hours
+ago;
 and the run is on its first attempt. Five hours is the plan's session-limit window, so that window
 has reset whenever it started. A weekly limit outlasts it, and the rerun then fails again and stays
 failed, because an attempt above one is never rerun: at most one gate rerun per check per head. Any
 other failure class is never rerun, and a check-only run never reruns. The rerun only restarts the
-review; the PR still merges only once the check reports SUCCESS.
+review; the PR still merges only once the check reports SUCCESS. The review evidence also binds a
+second attempt after the lane's own `<lane>: failure-class=auth:` failure line (a rejected
+credential, which left no verdict), but the gate never starts that rerun: a person or session reruns
+it once the secret is fixed, since a rerun before then would spend the one attempt. A spent key
+already reports as `rate-limit`. It also binds a second attempt after a kill switch stopped the
+first: the caller's `kill-switch` job succeeded with its lane's `a kill switch stops this review (`
+(or `security review (`) notice, and the first attempt has no lane job, so the review never
+started. The gate never starts that rerun either, since it cannot read the switch: ci-status asks a
+person to rerun the run once the switch is off.
 
 - **Pointer**: the `class=<token>` contract in ci-workflows
   [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),
+  the publish-review failure line (`fail`) in ci-workflows
+  [`.github/actions/publish-review/publish.cjs`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/publish-review/publish.cjs),
+  the rate-limit messages in GitHub's
+  [rate limits for the REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
   and the session window under "What happens when you hit usage limits" in
   [Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
-- **As of**: 2026-10-09
-- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` class token, or a
-  change to the plan's session-limit window.
+- **As of**: 2026-10-25
+- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` class token or changes
+  publish-review's failure line, a change to GitHub's rate-limit messages, or a change to the
+  plan's session-limit window.
 
 Auto-merge stays off because `ci-status` is the only required check and does not wait on the
 review workflows, so an armed auto-merge could merge before AI review posts. None of these enables
@@ -1022,7 +1037,10 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), the
    promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
    options from the operator's managed and user settings, never from arguments or the
-   environment), and eligibility. A settings file, or a binding, probe root, evidence source or
+   environment), and eligibility. The cells are the effective rung's, never the pull request's
+   work class: rung C2 needs `C2-auto-merge`, rung C3 every C3 cell
+   (`promotion-unqualified:<rung>` otherwise); an unreadable or untrusted resolver refuses as
+   `promotion-unqualified:<reason>`. A settings file, or a binding, probe root, evidence source or
    checker it names, that the lane user can write, or replace through any directory above it,
    refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a
    surface in a sibling worktree refuses too. After a demotion record the resolver's
@@ -1031,8 +1049,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    Past an on rung, an in-flight refusal of a pull request that has no merge-queue entry of its
    own and is not a Dependabot pull request stops the reads there: the promotion evidence,
    eligibility, and step 4 are not read, `unattended.promoted` is `null` (`true` in the pr-merge
-   lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be after
-   the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
+   lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be
+   after the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
    is still read in full.
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
    an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
@@ -1049,8 +1067,19 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   A LOW score merges, and so does a MED one whose every reason is a class, size or reported
-   review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
+   No work class is read: the only class-named check is the trust hold, which refuses an issue
+   carrying `work-class: untrusted-provenance`, or one a non-human removed it from. Eligibility
+   also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a
+   write-access human wrote it and no non-human, or anyone through an App, retitled it
+   (`title-edited-by-non-human`) or edited its body since (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
+   or one applied the tracker's admission label (`agent-ready` unless `.work-item-tracker.json`
+   maps the `autonomous-eligible` role, read at the base branch) in person with no body edit or
+   title change after (`title-edited-after-label`). Either suffices, so a human's issue a
+   non-human edited or renamed is vouched for again once a person re-applies the label after the
+   edit. An issue the lanes App both filed and
+   admitted refuses as `issue-not-vouched:labeler-not-human` until a person re-adds the label;
+   this fails closed, and the pr-merge lane is unaffected. A LOW score merges, and so does a MED one whose
+   every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
    or SUGGESTION security finding are reported and do not hold; an unbound or missing review
    lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
    CRITICAL finding, and a change adding or widening a trusted-actors entry scores HIGH as
@@ -1060,9 +1089,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
    raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); which changes count is in that docstring. A C3 pull request also needs a
-   LOW blast-radius rating, which nothing supplies
-   yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
+   (`cost_decision`); which changes count is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
@@ -1070,8 +1097,8 @@ refusal dequeues every entry the identity enqueued; a queued identity entry that
 (`do-not-merge` or the human-gated label, `needs-human` by default, a body hold, a blocking
 comment from an owner, member or collaborator, the opt-in label removed, or put back after the
 enqueue by anyone but a human in person) leaves the queue, as
-does the assessed pull request's own entry when this run finds it ineligible, above the rung,
-unpromoted for its class, on a base that is not the default branch, or scored MED or HIGH
+does the assessed pull request's own entry when this run finds it ineligible, unpromoted for its
+rung (`promotion-unqualified:<rung>`, an unreadable resolver included), on a base that is not the default branch, or scored MED or HIGH
 (`risk:<score>`); one failed dequeue does not stop the others. An eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. When the identity's comment read before this run already says the same (score,
@@ -1139,8 +1166,10 @@ Named residuals:
 - Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
   counts as at or before it, and that gate merge reads as native and skips its read-back. So does
   an arm between the gate's disarm check and its enqueue.
-- The pull request's author can apply the opt-in and `work-class:` labels: label provenance asks
-  only that a human with write permission applied them in person, within write-access trust.
+- The pull request's author can apply the opt-in and admission labels, and remove the
+  untrusted-provenance label:
+  provenance asks only that a human with write permission did so in person, within write-access
+  trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`
   token.
 - The post-enqueue room check reuses the unverified count the gate read. An identity entry that

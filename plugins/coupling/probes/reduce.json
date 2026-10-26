@@ -1,0 +1,129 @@
+{
+  "skill": "coupling:reduce",
+  "plugin": "coupling",
+  "skill_dir": "plugins/coupling/skills/reduce",
+  "ranking_note": "Authored blind from the before description at commit fab13854328f, frozen before any description rewrite; protocol per /playbooks:skill-authoring ## Measurement. reduce is the plugin's only skill, so there is no same-plugin competitor; the near-miss negatives test quietness against the Skip-when routes.",
+  "competitors": [],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Every time I touch the billing module I end up editing orders and notifications as well. Go through src/ and figure out what ties them together, fix the easy ones safely, and write down the bigger ones so we can deal with them later."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our README, CONTRIBUTING.md and the docs site all point at each other's section numbers and restate the same version pins, so one edit turns into a hunt through every file. Can you cut down how much those documents depend on each other?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We just bumped the default request timeout from 30s to 45s. Find every spot in the repo that still mentions the old number (code, config, docs, tests) and tell me which ones really have to change and which are just coincidental 30s."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The web frontend and the API service share one giant constants file and always have to deploy at the same time. Help me loosen the ties between them so each app can ship on its own schedule."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We keep pasting the same lint config and helper scripts into four different repositories by hand, and they drift apart constantly. Look across the repos and get rid of that cross-repo copy-paste dependency."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do another round on the module dependency cleanup like last week. Pick up from wherever the previous pass left off and knock out the next handful of safe fixes."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "UserService builds its own database client and mailer inline, so none of our services can be tested in isolation. Go through the services layer and have those collaborators passed in rather than hardcoded."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Hostnames and port numbers are hardcoded across a dozen deploy scripts. Pull them out into one place so switching environments doesn't mean editing every script."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We renamed the product from Acme Sync to Acme Flow yesterday. Sweep the code, docs and CI for every place that still uses the old name and sort them into must-change, maybe, and leave-alone."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "In the payments package, functions take six positional args and several files depend on the same magic numbers meaning the same thing. Weaken those hidden agreements between modules wherever you can do it without changing behavior."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review PR #412 for me before I merge it. Does anything in the diff look wrong?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I've decided the storage layer needs one clean interface between the cache and the persistence backend. Help me design the API for that boundary."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Tidy up utils.py: rename the vague variables, extract a couple of helper functions, and delete the dead code."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our docs folder is full of duplicated paragraphs and filler. Trim the noise and merge the sections that repeat each other."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What's the difference between the adapter and facade patterns, and when would I pick one over the other?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The CSV export crashes with a UnicodeDecodeError when a filename contains an emoji. Can you fix it?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Look over my staged changes and flag any bugs before I push to main."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a bash script that backs up the Postgres database every night and deletes backups older than 14 days."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Clean up the formatting and inconsistent naming in the auth controller. No behavior changes, just make it easier to read."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain what dependency inversion means in SOLID, with a short Python example."
+    }
+  ]
+}

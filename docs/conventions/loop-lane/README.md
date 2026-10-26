@@ -46,11 +46,11 @@ attended queue. No lane crosses into another's authority.
 ### Autonomy ladder (merge authority)
 
 Merge authority is a configurable ladder with the safest rung shipped by default: **human merge for
-every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
-authorship test. A PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
-human, or a worker authored it; bot authorship alone is never sufficient. C3 and unclassified items
-stay human-gated regardless of author, by default. **No rung, no tracked config, and no invocation
-argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
+every PR except gate-proven C2-mechanical ones**. In the babysit loop's partition the exception is
+a *work-class* test, not an authorship test. There a PR qualifies only when the item classifies C2
+(mechanical), whether a bot, a human, or a worker authored it; bot authorship alone is never
+sufficient. C3 and unclassified items stay human-gated there regardless of author, by default. **In the babysit loop's partition, no rung, no
+tracked config, and no invocation argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
 promotion contract, under which they never promote: "No merge rung reaches these cells, and no
 evidence predicate exists for them"
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#suggested-default-predicates)).
@@ -58,6 +58,12 @@ The pr-merge lane reads no class: it merges a pull request the lanes App opened 
 issue on the verifier verdict at its head, and refuses fork pull requests, so C5 stays human there
 too ([the pr-merge lane](../pr-pipeline/README.md#the-pr-merge-lane),
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
+The unattended merge gate (`/source-control:babysit-prs`, `--unattended`) reads no class either,
+by [owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9668#issuecomment-6386299330):
+no class caps its rung, its promotion evidence is read by rung, not class (C2 needs
+`C2-auto-merge`, C3 every C3 cell), and its one class-named
+check is the trust hold, which refuses a pull request whose linked issue carries `work-class:
+untrusted-provenance` or had it removed by a non-human. Its rung and rung cap remain pacing caps.
 Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
 conflicts, answer review comments, and drive a PR to merge, and they are bounded by that C4/C5 floor
 regardless of rung name.
@@ -890,6 +896,42 @@ before any cycle work with a message naming the relaunch tokens, and only `shard
 seam, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
 offer to persist the answer; the headless path never waits on one.
 
+**Lane-editable config and the four sandbox conditions.** Every local lane reads some config at run
+time that the lane's own process could edit (audited in #7680). work-loop and attend-queue read
+the tracker binding `.work-item-tracker.json` from the checkout, including the role labels that
+admission matches on. The triage step they run reads `docs/conventions/work-items.yaml` and
+`docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given. The
+babysit loop reads its `babysit_loop_*` keys from the `source-control` config seam's user-global,
+team and local layers, and reads the team layer from the working tree when the checkout is the
+target repository. A deny rule makes such a file read-only to a lane only when at least these four
+conditions hold for that lane's session:
+
+1. the sandbox is enabled
+2. `allowUnsandboxedCommands` is `false`
+3. no command that can write the file is listed in `excludedCommands`
+4. every file-writing MCP tool the session loads is denied
+
+The deny rule itself is an `Edit` deny on the file, which the sandbox merges into its own write
+boundary; a sandbox `denyWrite` entry names the same path explicitly. The other escape surfaces,
+such as `failIfUnavailable` and `filesystem.disabled`, are in the
+[harness-config audit's escape-surface table](../../../plugins/harness-config/skills/audit/reference/required-permissions.md),
+which owns the full sandbox-boundary check. No tracked settings file or launch surface in this
+repository sets these for a local lane. The `lanes` launcher starts each lane with
+`--permission-mode auto` plus any per-lane `--settings` the operator adds. So treat each of these
+files as lane-editable until that lane's launch meets every condition. Some bounds hold anyway, and
+none of them depends on the sandbox:
+
+- the unattended merge gate reads its rung at the pull request's base SHA
+- the trusted internal bot list binds only from the target repository's default branch
+- the binding's local overlay accepts only lease, auth and `docs` keys, which keeps the overlay from
+  reshaping team state but does not stop a lane editing the team binding itself
+- rule admission reads its security binding from outside the repository
+
+Pointer: when judging whether a deny rule stops a lane writing a file, fetch [Configure sandboxing](https://code.claude.com/docs/en/sandboxing#configure-sandboxing)
+and [How permissions interact with sandboxing](https://code.claude.com/docs/en/permissions#how-permissions-interact-with-sandboxing)
+live. As of: 2026-10-26. Recheck trigger: either page changes which tools or processes the sandbox or
+a deny rule covers, or a lane launch surface starts setting sandbox settings.
+
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
 the adaptive cap: the cycle makes no further provider call, and the next try waits until the
@@ -1252,7 +1294,7 @@ a checklist of its own:
 | Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |
-| Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234; for local lanes, the research tracked in #7680 |
+| Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234. Not met for local lanes: each reads config it can edit, and §4 "Lane-editable config and the four sandbox conditions" names what makes a deny rule hold |
 | Read-only access, and a cap on each run | Not met for read-only access: CI lanes hold the write token their job needs and every tool, the gap [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) accepts and bounds with short-lived, scoped tokens (decision 3); for run limits per task class, the mechanism tracked in #7677 |
 
 Two related items sit outside the six rules: an external heartbeat for scheduled lanes (#7673) and

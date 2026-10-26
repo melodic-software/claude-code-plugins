@@ -20,7 +20,7 @@ without parking them in root `CLAUDE.md` (wrong scope: every session pays for ev
 ### Local tier resolution
 
 A participating plugin reads consumer gotchas from a `## Gotchas` section in its existing cascade
-file (for example `.claude/bugs.md`).
+file (for example `docs/conventions/bugs.md`).
 
 Layers follow the normal three-layer cascade (user-global, team, local overlay). Concatenation
 applies: every layer that exists is loaded and appended in layer order after the bundled gotchas.
@@ -44,7 +44,7 @@ model actually hit in that repository, never speculative advice.
 
 | Plugin | Consumer path | Status on `main` |
 |---|---|---|
-| `bugs` | `.claude/bugs.md` `## Gotchas` | wired: `/bugs:scan` and `/bugs:write` pre-compute `scripts/concat-gotchas.sh` |
+| `bugs` | `docs/conventions/bugs.md` `## Gotchas` (team; `.claude/bugs.md` while that file is absent, for one release) | wired: `/bugs:scan` and `/bugs:write` pre-compute `scripts/concat-gotchas.sh` |
 
 Plugins with an existing config surface (`source-control`, `codebase-health`) adopt the same shape
 in their owner docs when wired.

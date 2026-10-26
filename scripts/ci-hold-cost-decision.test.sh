@@ -470,18 +470,22 @@ export STUB_RUNS STUB_JOBS STUB_NOTES
 expect "an earlier trust-gate hold nobody trusted lifted keeps the label" no no no "is not cost-only"
 STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$STRANGER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
 expect "an untrusted removal of a trust-gate hold does not open the window" no no no "is not cost-only"
+STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(jq -c '.performed_via_github_app = {slug: "x"}' <<<"$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z)"),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
+expect "a removal an App made for a trusted person does not open the window" no no no "is not cost-only"
 STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
 expect "a trusted person's removal of the trust-gate hold opens a new window" yes yes yes
 
 reset
 STUB_COMMENTS="[$MARKER,$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
-expect "a lanes App escalation with no trusted removal since keeps the label" no no no "lanes App commented"
+expect "a lanes App escalation with no trusted removal since keeps the label" no no no "lanes App escalated"
 lifted
 expect "a lanes App escalation before the window does not keep the label" yes yes yes
 STUB_COMMENTS="[$MARKER,$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
-expect "a lanes App comment in the window keeps the label" no no no "lanes App commented"
-STUB_COMMENTS="[$MARKER,$(jq -c '.updated_at = "2026-10-23T13:22:00Z"' <<<"$(comment "$APP" 2026-10-23T05:39:35Z 'Edited.')")]"
-expect "a lanes App comment edited in the window keeps the label" no no no "lanes App commented"
+expect "a lanes App escalation in the window keeps the label" no no no "lanes App escalated"
+STUB_COMMENTS="[$MARKER,$(jq -c '.updated_at = "2026-10-23T13:22:00Z"' <<<"$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')")]"
+expect "a lanes App escalation edited in the window keeps the label" no no no "lanes App escalated"
+STUB_COMMENTS="[$MARKER,$(comment "$APP" 2026-10-23T13:22:00Z 'Replied to the review thread.')]"
+expect "a lanes App comment in the window that is no escalation does not keep the label" yes yes yes
 reset
 lifted
 export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:21:30Z"}]}}}}}'

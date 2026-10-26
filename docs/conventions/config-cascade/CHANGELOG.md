@@ -11,9 +11,20 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`corrections` (`findings-buffer`) gains a user-scope adapter binding.** Its Implementers row
+  declares two `userConfig` options, outside the file schema and read from user and managed
+  settings only, that bind a repository's own adapter in that repository alone; the team file and
+  overlay still name only adapters the plugin ships.
+- **`harness-config` (`audit-pass`) moves its team layer.** The Implementers row names the
+  `suppressions` mapping of `<home>/harness-config.yaml` as the team layer, with `.claude/audit-pass.md`
+  read only while that file is absent, for one release; the surface leaves the later-adoption list.
 - **`verification` gains Implementers and root-rule rows.** Its `proof_level` key lives in
   `docs/conventions/verification.yaml` over the plugin's `userConfig`, with a declared deviation:
   the stricter layer wins and the team file is read from the default branch.
+- **`bugs` moves its team layer.** Its keys live in `docs/conventions/bugs.yaml` (schema
+  `plugins/bugs/schemas/bugs.schema.json`) and its team `## Gotchas` in `docs/conventions/bugs.md`;
+  `.claude/bugs.md` is read for one release while the new file is absent. Its later-adoption row
+  goes.
 
 ## [2.0] - 2026-10-18
 

@@ -5,6 +5,41 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.1.3] - 2026-10-26
+
+### Added
+
+- **`reference/required-permissions.md` states how the baseline differs from the standards permission floor, and why.** Three sensitive-file rows use a `./` prefix where the floor uses the bare form. The engine matches rule strings exactly, so Category B now tells the model to report such a row as present when the bare spelling is in `permissions.deny`. The floor's wider deny list is something a project declares in its own rules. `git push` is an ask rule in the baseline and an allow rule in the floor, and the ask rule still prompts when both are present.
+
+### Fixed
+
+- **`audit` no longer requires a `Read(./.claude/settings.local.json)` deny.** The row is gone from the baseline in `reference/required-permissions.md`, and `context/procedures.md`, `reference/audit-checklist.md` and `SKILL.md` no longer call it part of the baseline. The standards repository's permission floor leaves the file off on purpose, because it holds personal project overrides and saved approvals, not credentials. A `Read` deny on it also blocks Edit and Write on the same path. When a session starts in a subdirectory, a relative rule does not reach the copy Claude Code keeps at the repository root. A project that keeps a secret in the file still carries the deny itself, and the audit still treats the file as secret-bearing when it inspects it. Category F's advice to move a token into the file now also names a project `Read` deny on it or a credential store, because the file keeps a secret out of git, not out of the session.
+
+## [2.1.2] - 2026-10-25
+
+### Changed
+
+- **The effort-pin check and the conflict criteria no longer cite another plugin's skill folder.** `check-effort-pins.sh` finds lane-config pins by their JSON `"effort"` key in any skill's `context/*.md`, not by a path into another plugin's skills folder, so a lane config is still listed where it lives and the check never depends on another plugin's internal layout. The conflict criteria's worked example names `/repo-hygiene:clean` instead of a path to its `SKILL.md`.
+
+## [2.1.1] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+## [2.1.0] - 2026-10-25
+
+### Added
+
+- `schemas/harness-config.schema.json`, the schema of a repository's `docs/conventions/harness-config.yaml`, the team layer of the plugin's settings; its `suppressions` mapping holds the deliberately kept findings of `/harness-config:audit` and `/harness-config:audit-pass`, keyed by `finding_id`.
+
+### Changed
+
+- **audit:** the engine reads the team suppression layer from the `suppressions` mapping of `<home>/harness-config.yaml` (`<home>` is the convention home the repository binds, else `docs/conventions`) with the shared YAML-subset parser, now carried as `lib/yaml-subset.awk`. The fenced block of `.claude/audit-pass.md` is read in its place only while that file is absent, for one release; with both present the old file is reported ignored, and a team YAML that does not parse drops the team layer instead of falling back to it.
+- **audit:** the engine's `suppressions` object gains `layers`, naming the file each layer was read from and its state, and each applied entry names its source file beside its layer.
+- **setup:** `check` probes and parses the team YAML and reports the old team file (WARN while the YAML is absent); `apply` writes the YAML from the old file's entries, unchanged, and scaffolds the YAML on request.
+- **audit, audit-pass:** the skills and references point at the team YAML for reading and recording a suppression.
+
 ## [2.0.0] - 2026-10-22
 
 ### Added

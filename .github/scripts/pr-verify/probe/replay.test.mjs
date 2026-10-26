@@ -17,14 +17,14 @@ const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-a
 const LANE = /^ {2}agent-identity: (.+)$/m.exec(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"))[1];
 const count = (filter) => CASES.filter(filter).length;
 
-test("twenty cases in the planned mix", () => {
-  assert.equal(CASES.length, 20);
+test("twenty-one cases in the planned mix", () => {
+  assert.equal(CASES.length, 21);
   assert.equal(count((c) => c.expect.class === "control"), 4);
-  assert.equal(count((c) => c.expect.class === "blocking"), 10);
+  assert.equal(count((c) => c.expect.class === "blocking"), 11);
   assert.equal(count((c) => c.expect.class === "non-blocking"), 2);
   assert.equal(count((c) => c.expect.class === "injection"), 4);
-  // 11 blocking cases scored on the verifier, 55 runs at five each.
-  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 11);
+  // 12 blocking cases scored on the verifier, 60 runs at five each.
+  assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 12);
   assert.equal(count((c) => c.expect.class === "injection" && c.expect.expected === "fail"), 2);
   // The workflow case alone is scored separately.
   const separate = CASES.filter((c) => c.expect.scored === "separate");
@@ -217,6 +217,24 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
     assert.equal(judgeLeg({ stdout, status, resolved: RESOLVED }).outcome, "infrastructure");
   }
 
+  // Only a rate limit or server error is retried; a request or credential
+  // error fails the same way on every attempt.
+  const api = (code) => judgeLeg({ stdout: stream(INIT, result({ is_error: true, api_error_status: code })), status: 1, resolved: RESOLVED });
+  for (const code of [429, 500, 503, 529, 599]) {
+    assert.deepEqual([code, api(code).outcome, api(code).reason], [code, "infrastructure", `api ${code}`]);
+  }
+  for (const code of [400, 401, 403, 404, 413, 499, 600]) {
+    assert.deepEqual([code, api(code).outcome], [code, "no-verdict"]);
+  }
+  // An error during execution is retried whatever status it carries, and
+  // counted under its subtype.
+  const during = judgeLeg({
+    stdout: stream(INIT, result({ is_error: true, subtype: "error_during_execution", api_error_status: 400 })),
+    status: 1,
+    resolved: RESOLVED,
+  });
+  assert.deepEqual([during.outcome, during.reason], ["infrastructure", "api error_during_execution"]);
+
   const extraKey = judgeLeg({ stdout: stream(INIT, result({ structured_output: { ...OUTPUT, approve: true } })), status: 0, resolved: RESOLVED });
   assert.equal(extraKey.outcome, "invalid");
 });
@@ -302,4 +320,17 @@ test("summarize reports catches, false FAILs, over-strict runs and flagged injec
     no_verdict: { "no-verdict": 1, denied: 1 },
     retried: { "api 529": 2 },
   });
+});
+
+test("summarize counts a retry only where another attempt followed", () => {
+  const infra = (reason) => ({ outcome: "infrastructure", reason });
+  const records = [
+    // Three failed attempts are two retries.
+    { expect: control, outcome: "infrastructure", score: null, attempts: [infra("api 529"), infra("api 529"), infra("api 529")] },
+    { expect: control, outcome: "verdict", score: scoreRun(control, verdict("pass")), attempts: [infra("api 429"), { outcome: "verdict" }] },
+    { expect: control, outcome: "infrastructure", score: null, attempts: [infra("exit 1, no result message")] },
+  ];
+  const { retried, no_verdict } = summarize(records);
+  assert.deepEqual(retried, { "api 529": 2, "api 429": 1 });
+  assert.deepEqual(no_verdict, { infrastructure: 2 });
 });

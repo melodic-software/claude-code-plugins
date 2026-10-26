@@ -35,7 +35,7 @@
     {
       "id": 3,
       "name": "track-flag-files-raw-intake",
-      "prompt": "Our .claude/bugs.md declares `filing_posture: allowed`. Hunt the entrypoints lane and file whatever you verify: --lane entrypoints --track",
+      "prompt": "Our docs/conventions/bugs.yaml declares `filing_posture: allowed`. Hunt the entrypoints lane and file whatever you verify: --lane entrypoints --track",
       "expected_output": "The posture gate resolves first — the team layer declares `filing_posture: allowed`, so filing is permitted rather than skipped against the bundled manual-only default. After reporting, verified findings are filed through /work-items:track add: a duplicate search over --state all runs first, each item body carries the five fields plus the provenance line 'Filed by /bugs:scan (lane: entrypoints)', and the needs-triage marker is the bare label `needs-triage` from the live set. No labels are created. If work-items is absent or no tracker binding resolves, filing is skipped with a printed notice and the run degrades to report-only.",
       "files": [],
       "narration": true,

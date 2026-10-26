@@ -19,8 +19,12 @@
 # a host temp tree is declined when a set root lies outside that tree, no wider
 # than block-hook-bypass's temp default (see spd_temp_declines). A generic
 # allowlist exempts dependency caches, .env examples, test fixtures, and
-# machine-local CC state. Disable entirely with the
-# secret_pattern_detection_enabled userConfig option set to false.
+# machine-local CC state. Two opt-in userConfig options exempt a local write
+# that holds a token: secret_pattern_detection_allowed_roots and
+# secret_pattern_detection_skip_gitignored (see "The user's path exemptions"
+# below). Disable
+# entirely with the secret_pattern_detection_enabled userConfig option set to
+# false.
 
 set -uo pipefail
 
@@ -110,8 +114,9 @@ secret_nul_refusal() {
   exit 2
 }
 
-# The fix line both lanes print. The allowlist is fixed globs in this file, not
-# an option, so a fixture that trips it is the user's call.
+# The fix line both lanes print. The allowlist is fixed globs in this file, and
+# the path options are the user's to set, so a fixture that trips it is the
+# user's call and the line names no option.
 SECRET_FIX="Remove the value; use an environment variable, settings.local.json or a secret manager. For a test fixture, ask the user."
 
 if ((HOOK_JQ_FIELDS_NUL)); then
@@ -647,6 +652,198 @@ secret_scan "$CONTENT"
 if [[ -z "$scan_out" ]]; then
   emit_tel "ok" '[]'
   exit 0
+fi
+
+# --- The user's path exemptions ---------------------------------------------
+# secret_pattern_detection_allowed_roots and
+# secret_pattern_detection_skip_gitignored exempt a local write the scan just
+# caught. Both are off by default, and then this block starts no process. They
+# are read from the hook's own environment (userConfig), never from the
+# payload, so only the user grants them. They are judged after the scan rather
+# than before it, so a write holding no token never pays to resolve its target.
+# The MCP lane exited above and never reaches here: its content leaves the
+# machine. git-hooks/pre-commit-content.sh reads neither option, so a commit
+# that adds an exempted file is still judged where that git hook is installed.
+
+# spd_exempt_target <file_path>: 0 when the exemptions may judge <file_path>,
+# with its slash spelling in spd_et. Refused: a relative path; on Windows any
+# spelling but a drive path, since the Write tool is Node and resolves `/c/x`
+# elsewhere than Git Bash does; on POSIX a backslash, a filename byte there; an
+# empty, `.` or `..` segment, so a target that reaches a root only through `..`
+# is never judged under it; a line break; and an existing file with a second
+# hard link or an unreadable link count, whose name says nothing about where
+# its bytes are stored.
+spd_et=""
+spd_exempt_target() {
+  local t="$1" links
+  spd_et=""
+  if ((spd_win)); then
+    t="${t//\\//}"
+    [[ "$t" == [A-Za-z]:/?* ]] || return 1
+  else
+    [[ "$t" == /?* && "$t" != *\\* ]] || return 1
+  fi
+  case "$t" in
+  *//* | */./* | */../* | */. | */.. | *[$'\n\r']*) return 1 ;;
+  *) ;; # a normalized spelling
+  esac
+  if [[ -f "$t" ]]; then
+    links=$(stat -L -c %h -- "$t" 2>/dev/null) || links=$(stat -L -f %l -- "$t" 2>/dev/null) || return 1
+    [[ "$links" == 1 ]] || return 1
+  fi
+  spd_et="$t"
+}
+
+# spd_exempt_anchor <absolute path>: spd_nearest_existing, ending at `/` when
+# nothing below it exists, and with a `C:` ancestor read as `C:/`: `C:` names
+# the drive's current directory, not its root.
+spd_exempt_anchor() {
+  if ! spd_nearest_existing "$1"; then
+    [[ "$1" == /* ]] || return 1
+    spd_ancestor=/
+    spd_sfx="$1"
+  fi
+  [[ "$spd_ancestor" =~ ^[A-Za-z]:$ ]] && spd_ancestor+=/
+  return 0
+}
+
+# spd_cmp_to <var> <physical path>: the spelling two paths are compared in,
+# hook::normalize_path_to's drive and case fold with no trailing slash. On
+# Windows a resolver answer under a mount (`/tmp/...`) is first mapped to its
+# long drive spelling with cygpath, since realpath answers in whichever
+# spelling the mount table gives; returns 1 when it cannot be. On POSIX a
+# backslash is a filename byte the fold would read as a separator, so a path
+# holding one is never compared.
+spd_cmp_to() {
+  local __sc_p="$2"
+  [[ "$__sc_p" != *[$'\n\r']* ]] || return 1
+  if ((spd_win)); then
+    if [[ ! "$__sc_p" =~ ^(/[A-Za-z]/|[A-Za-z]:/) ]]; then
+      __sc_p=$(cygpath -l -m -- "$__sc_p" 2>/dev/null) || return 1
+      [[ -n "$__sc_p" ]] || return 1
+    fi
+  else
+    [[ "$__sc_p" != *\\* ]] || return 1
+  fi
+  hook::normalize_path_to __sc_p "$__sc_p"
+  [[ "$__sc_p" == / ]] || __sc_p="${__sc_p%/}"
+  printf -v "$1" '%s' "$__sc_p"
+}
+
+# spd_canon_to <var> <existing directory>: its physical form, compared as
+# spd_cmp_to spells it. Returns 1 when it cannot be resolved, or when the
+# answer names another directory (a capture drops a trailing newline).
+spd_canon_to() {
+  local __sc_r
+  hook::_physical_cached_to __sc_r "$2" || return 1
+  [[ "$__sc_r" -ef "$2" ]] || return 1
+  spd_cmp_to "$1" "$__sc_r"
+}
+
+# spd_under_allowed_root: 0 when the real path of spd_et is strictly under an
+# entry of secret_pattern_detection_allowed_roots, so a link under a root that
+# points outside it is scanned and a link outside that lands under one is not.
+# An entry grants nothing when it is empty, relative, UNC, a drive path on a
+# host without drives, holds a glob character, a line break or a `..`
+# component, is not an existing directory, or resolves to a filesystem root, a
+# home directory or a directory holding one. With no home set, or one that
+# cannot be resolved, no entry can be shown not to hold home and none grants.
+spd_under_allowed_root() {
+  local roots="$spd_opt_roots" c r h a t phys held
+  local -a cand=() homes=()
+  while [[ -n "$roots" ]]; do
+    c="${roots%%,*}"
+    if [[ "$c" == "$roots" ]]; then roots=""; else roots="${roots#*,}"; fi
+    [[ "$c" != *[$'\n\r']* ]] || continue
+    c="${c#"${c%%[![:space:]]*}"}"
+    c="${c%"${c##*[![:space:]]}"}"
+    c="${c//\\//}"
+    [[ -n "$c" && "$c" != *[*?[]* && "$c" != //* && "/$c/" != */../* ]] || continue
+    [[ "$c" == / || "$c" =~ ^([A-Za-z]:|/[A-Za-z])/?$ ]] && continue
+    if ((spd_win)); then
+      [[ "$c" == /* || "$c" =~ ^[A-Za-z]:/ ]] || continue
+    else
+      [[ "$c" == /* ]] || continue
+    fi
+    [[ -d "$c" ]] && cand+=("$c")
+  done
+  ((${#cand[@]})) || return 1
+  for h in "${HOME:-}" "${USERPROFILE:-}"; do
+    [[ -n "$h" ]] && homes+=("${h//\\//}")
+  done
+  ((${#homes[@]})) || return 1
+  hook::_physical_prime "${cand[@]}" "${homes[@]}"
+  local -a held_homes=()
+  for h in "${homes[@]}"; do
+    [[ ("$h" == /* || "$h" =~ ^[A-Za-z]:/) && -d "$h" ]] || return 1
+    spd_canon_to held "$h" || return 1
+    held_homes+=("$held")
+  done
+  # The target, resolved without the cache so the file's own path never enters
+  # it: its nearest existing ancestor physically, the rest as spelled. Only the
+  # ancestor goes to spd_cmp_to's cygpath: a resolver answer in a mount spelling
+  # (a junction into /tmp) gets its long names only for a path that exists, so
+  # the components below are joined after it.
+  spd_exempt_anchor "$spd_et" || return 1
+  hook::physical_path_to phys "$spd_ancestor" || return 1
+  [[ "$phys" -ef "$spd_ancestor" ]] || return 1
+  spd_cmp_to t "$phys" || return 1
+  spd_cmp_to t "${t%/}$spd_sfx" || return 1
+  for c in "${cand[@]}"; do
+    spd_canon_to r "$c" || continue
+    [[ "$r" == / || "$r" =~ ^[A-Za-z]:/?$ || "$r" =~ ^/[A-Za-z]$ ]] && continue
+    # Home or a directory holding it, physically and along home as spelled,
+    # compared as directories the way the scope guard compares them.
+    for h in "${held_homes[@]}"; do
+      [[ "$h" == "$r" || "$h" == "$r"/* ]] && continue 2
+    done
+    for h in "${homes[@]}"; do
+      a="${h%/}"
+      while [[ "$a" == */* ]]; do
+        [[ "$c" -ef "$a" ]] && continue 3
+        a="${a%/*}"
+      done
+    done
+    [[ "$t" == "$r"/* ]] && return 0
+  done
+  return 1
+}
+
+# spd_gitignored <path>: 0 when the repository holding <path> ignores it, asked
+# from <path>'s nearest existing directory, so a home-rooted session and a file
+# in a directory not made yet are judged too. A file in no repository, a
+# tracked file (hook::file_is_gitignored records why check-ignore answers no
+# for one), a git error or no git all scan. A symlink is refused: an ignored
+# name for it says nothing about the file it writes. The components below the
+# directory entered do not exist, so none of them is a link. The answer grants
+# an exemption, so more of git's inherited environment is cleared than
+# hook::file_is_gitignored clears: the repository and index selection, and
+# configuration passed through the environment. That helper also needs the
+# file's own directory to exist.
+spd_gitignored() {
+  local t="$1" d base rel
+  [[ ! -L "$t" ]] || return 1
+  command -v git >/dev/null 2>&1 || return 1
+  d="${t%/*}" base="${t##*/}"
+  [[ -n "$base" ]] || return 1
+  spd_exempt_anchor "${d:-/}" || return 1
+  [[ -d "$spd_ancestor" ]] || return 1
+  rel=".$spd_sfx/$base"
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE GIT_PREFIX GIT_CONFIG \
+      GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
+    cd "$spd_ancestor" 2>/dev/null || exit 1
+    git check-ignore -q -- "$rel" 2>/dev/null
+  )
+}
+
+spd_opt_roots="${CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ALLOWED_ROOTS:-}"
+spd_opt_ignored="${CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_SKIP_GITIGNORED:-false}"
+if [[ -n "$spd_opt_roots" || "$spd_opt_ignored" == true ]] && spd_exempt_target "$FILE"; then
+  [[ -n "$spd_opt_roots" ]] && spd_under_allowed_root && exit 0
+  [[ "$spd_opt_ignored" == true ]] && spd_gitignored "$spd_et" && exit 0
 fi
 
 # --- Report violations ---

@@ -1,8 +1,9 @@
 {
   "schema": "audit-sessions.sweep-rules/v1",
-  "basis": "Thresholds are the per-session p90 of a 90-session spike on one machine (Claude Code 2.1.275-2.1.287, 2026-10-02), approved by the maintainer at plan Phase 6 entry; a session above a threshold is an outlier against that baseline, not wrong in absolute terms. A null threshold reports the metric without a finding.",
+  "basis": "Thresholds are a shipped reference baseline, the same for every installation: the per-session p90 of a 90-session spike on one reference machine (Claude Code 2.1.275-2.1.287, 2026-10-02), approved by the maintainer at plan Phase 6 entry, unless a rule's basis names another source; a session above a threshold is an outlier against that baseline, not wrong in absolute terms. Every number in a rule's basis comes from those reference measurements, not from the store being swept. A null threshold reports the metric without a finding.",
   "verified": "2026-10-02",
-  "recheck": "a Claude Code release changes a canary-fed metric, or the store's own p90 for a metric moves past its threshold by half",
+  "recheck": "a Claude Code release changes a canary-fed metric, or a swept store's own p90 for a thresholded metric exceeds stale_p90_factor times its threshold. The trigger is one-sided: a p90 below the threshold never fires it, and a threshold of 0 fires on any p90 above 0. sweep.py marks such a metric baseline_stale",
+  "stale_p90_factor": 1.5,
   "rules": [
     {
       "metric": "tokens.main",
@@ -112,7 +113,7 @@
       "route": "config-change",
       "suggested_skill": "/harness-ops:audit-performance",
       "confidence": "heuristic",
-      "basis": "a session's p90 Stop wait, read from stop_hook_summary records (store field stop_hooks.wait_ms_p90): per Stop run the slowest hookInfos[].durationMs, since matching hooks run in parallel and the person waits for the slowest. Internal-format read: that durationMs is each hook's own run time is inferred, not documented (Claude Code 2.1.241-2.1.288; across 7,843 multi-hook Stop records the observed wait was at least the max in every record, audit 2026-10-03). The earlier definition summed the hooks (stop_hooks.ms_p90, still stored). Threshold null until #6077 re-derives it on this definition. Route kept by owner decision (2026-10-11): /harness-ops:audit-performance is the skill that tunes hook cost, even though its engine does not read transcripts; recheck when #6033 (whether harness-ops summarizes recorded hook durations) is decided"
+      "basis": "a session's p90 Stop wait, read from stop_hook_summary records (store field stop_hooks.wait_ms_p90): per Stop run the slowest hookInfos[].durationMs, since matching hooks run in parallel and the person waits for the slowest. Internal-format read: that durationMs is each hook's own run time is inferred, not documented (Claude Code 2.1.241-2.1.288; across 7,843 multi-hook Stop records the observed wait was at least the max in every record, audit 2026-10-03). It reads every hookInfos entry, with no way to tell a background hook from a blocking one: async and asyncRewake hooks run in the background without blocking (https://code.claude.com/docs/en/hooks#run-hooks-in-the-background, read 2026-10-25), and whether such a Stop hook gets an entry, and what its durationMs then measures, is not checked against a transcript, so where one does the wait includes it and overstates the blocking cost. The earlier definition summed the hooks (stop_hooks.ms_p90, still stored). Threshold null until #6077 re-derives it on this definition. Route kept by owner decision (2026-10-11): /harness-ops:audit-performance is the skill that tunes hook cost, even though its engine does not read transcripts; recheck when #6033 (whether harness-ops summarizes recorded hook durations) is decided"
     },
     {
       "metric": "edits.churn_per_pr",

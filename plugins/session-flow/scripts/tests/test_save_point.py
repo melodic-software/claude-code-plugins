@@ -2479,6 +2479,7 @@ SHAPE3_SECTIONS = [
     "Pending commands",
     "Environment to re-establish",
     "Decisions in force",
+    "Suggested skills",
     "This session",
     "Prior sessions",
     "Standing preferences",
@@ -2501,6 +2502,7 @@ SHAPE3_VALUES = {
     "commands": "None. No command waits on the user.",
     "environment": "Branch `main`, clean tree; nothing to recreate.",
     "decisions": "- The thing over the other thing.",
+    "skills": "None. Remaining work runs inline.",
     "did": "did the thing",
     "left": "the rest",
     "rescan": "the re-scan read the lossless on-disk transcript",
@@ -2621,6 +2623,62 @@ def test_shape3_hop1_validates_with_sections_in_the_contract_order(tmp_path):
     edit(hop1, "## Observations\n", "## Observations held\n")
     renamed = strict(hop1)
     assert renamed.returncode == 1 and "headings:" in out(renamed), out(renamed)
+
+
+def test_shape3_written_before_suggested_skills_still_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    text = hop1.read_text(encoding="utf-8")
+    start = text.index("## Suggested skills\n")
+    legacy = text[:start] + text[text.index("## This session\n") :]
+    hop1.write_text(legacy, encoding="utf-8", newline="\n")
+    result = strict(hop1)
+    assert result.returncode == 0, out(result) + err(result)
+    assert "WARN" in out(result) and "Suggested skills" in out(result), out(result)
+
+
+@pytest.mark.parametrize("shape", ["2", "3"])
+def test_new_purpose_leads_the_brief_and_changes_nothing_else(tmp_path, shape):
+    texts: dict[str, str] = {}
+    emitted: dict[str, str] = {}
+    for arm, extra in (
+        ("plain", []),
+        ("purpose", ["--purpose", "review the design\n  with the platform team"]),
+    ):
+        base = tmp_path / arm
+        repo = make_repo(base)
+        made = run(*new_args(repo, base, "--no-previous", *extra, shape=shape))
+        assert made.returncode == 0, err(made)
+        path = Path(out(made).strip())
+        text = path.read_text(encoding="utf-8")
+        fill = shape3_fill if shape == "3" else model_fill
+        path.write_text(fill(text), encoding="utf-8", newline="\n")
+        checked = run("validate", str(path))
+        assert checked.returncode == 0, out(checked)
+        printed = run("emit", str(path))
+        assert printed.returncode == 0, err(printed)
+        here = real_posix(base)
+        texts[arm] = text.replace(here, "<base>")
+        emitted[arm] = out(printed).replace(here, "<base>")
+    plain = _sections_by_hand(texts["plain"])
+    tailored = _sections_by_hand(texts["purpose"])
+    assert list(tailored) == list(plain)
+    changed = {title for title in plain if plain[title] != tailored[title]}
+    assert changed == {"Resumption brief", "Suggested skills"}
+    brief = tailored["Resumption brief"].split("\n")
+    assert brief[0] == "Purpose: review the design with the platform team"
+    assert "Purpose:" not in plain["Resumption brief"]
+    assert "selected for the Purpose line" in tailored["Suggested skills"]
+    assert emitted["purpose"] == emitted["plain"]
+
+
+@pytest.mark.parametrize("purpose", ["see --> here", "a <!-- FILL: x — y --> b"])
+def test_new_refuses_a_purpose_that_breaks_the_slot_grammar(tmp_path, purpose):
+    repo = make_repo(tmp_path)
+    made = run(*new_args(repo, tmp_path, "--no-previous", "--purpose", purpose))
+    assert made.returncode == 2
+    assert "--purpose must not carry" in err(made)
+    assert not (repo / ".work" / "handoffs" / HOP1).exists()
 
 
 def test_shape3_validate_enforces_the_section_order(tmp_path):
@@ -3030,7 +3088,10 @@ def test_shape3_after_a_shape1_predecessor_points_at_its_root_and_validates(tmp_
     ("old", "new"),
     [
         (f"chain_root: {HOP1}", "chain_root: ../../../escaped.md"),
-        (f"chain_root: {HOP1}", "chain_root: 20260901T100000Z-handoff-x/../../../../escaped.md"),
+        (
+            f"chain_root: {HOP1}",
+            "chain_root: 20260901T100000Z-handoff-x/../../../../escaped.md",
+        ),
     ],
 )
 def test_shape3_new_refuses_a_chain_root_that_leaves_the_archive(tmp_path, old, new):
@@ -3058,7 +3119,9 @@ def test_shape3_a_retired_rule_id_is_never_offered_again(tmp_path):
     hop1 = s3_hop(repo, tmp_path)
     made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     hop2 = Path(out(made).strip())
-    hop2.write_text(shape3_fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
+    hop2.write_text(
+        shape3_fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
     edit(hop2, "- [R2] Never push to main.\n", "")
     assert strict(hop2).returncode == 0, out(strict(hop2))
     hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")

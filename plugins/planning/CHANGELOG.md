@@ -3,6 +3,124 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.110.0] - 2026-10-26
+
+### Added
+
+- `/planning:plan` publishes an approved plan at a reader depth: `step-by-step` (default, the whole PLAN.md), `standard` (the `## Brief`, the `## Design` section and a phase outline) or `guardrails` (the `## Brief` and the `## Design` section). The depth comes from a `--reader <depth>` argument, else the depth the plan recorded at its first publish, else the new `plan_reader` key in `docs/conventions/planning.yaml` or the plugin's user config, else `step-by-step`. A reduced depth renders a derived `PLAN.<depth>.md` that keeps the `Approval:` line and goes to `/work-items:track publish-plan` and the pull request paste; PLAN.md stays whole.
+- PLAN.md's `### Conventions followed` carries a `Net new:` line and a `Challenges a pattern:` line, which `/planning:design-handoff` fills.
+
+## [0.109.1] - 2026-10-26
+
+### Fixed
+
+- The interview page's question pane fixes several layout and accessibility papercuts ([#7970](https://github.com/melodic-software/claude-code-plugins/issues/7970)). The recommendation's full text shows once, in the Decide list's Rec row, which now keeps its code, links and emphasis, and the Thread no longer opens with a `Claude asked` line that repeated the question. The header names a group only when it differs from the stage. Why and Details toggle side by side, so opening one never moves the other. The side panels open pinned beside the question on a screen 1200 px or wider until you choose, a stored Pin choice still wins, and Esc still closes a panel only that default pinned. The Pin control reads `Pin beside`. `Finish: export and end the session` is a secondary control while anything is outstanding and the primary one at zero, enabled either way. The dialog's second button has a name before it shows. The light theme's faint label color is darker (`#5f6a7c`, at least 4.57:1 on every light background). A wide Decide pane shows its rows in two columns, and on a short screen the question gives the answer area more room, down to 41% of the pane, so the whole list fits unscrolled at 1568x744.
+
+## [0.109.0] - 2026-10-26
+
+### Added
+
+- The shared interview page gives the owner a Host Health panel, listed in Help and More, which no one else sees ([#9974](https://github.com/melodic-software/claude-code-plugins/issues/9974)). It shows what `share.sh logs --summary` reports for the whole kept log, in the same sections: top errors, refusals, network failures, action latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and feature use, rage taps and dead taps by control. It loads when the panel opens and again on Refresh. The panel reads the new owner-only `GET /api/owner/health`, which answers `{summary, sections}`. `logs --summary` now prints its last line, about repeats whose first entry has left the log, after a blank line like the other sections.
+
+## [0.108.0] - 2026-10-26
+
+### Added
+
+- The interview surface has a `propose` op for a new question an Ask opens: `id`, `title`, `short`, optional `group` and `fromSeq` (the Ask it answers). The question is `proposed` until the user answers it: the page shows a Needs-you card, `Claude proposes adding: <title>`, with Accept, Edit and Not this and no Decide list, which post a `proposal` event (`accept`, `edit` with the user's wording, or `decline`). The server derives the question `open` after an accept or edit and `archived` after a decline, and refuses a decision on it before then, and an accept until Claude writes its recommendation. The exports write no row for it until the user accepts or edits it (a declined one exports as a withdrawn row), `status` lists it apart from the live count, and a recommendation, alternatives, commitments or a terminal answer on it are refused until then.
+- The interview skill's surface guide says a reply to an Ask that opens new scope carries an `Understood as:` readback naming the proposed ids, and a question an Ask opens goes through `propose` before it gets a recommendation.
+
+## [0.107.1] - 2026-10-26
+
+### Fixed
+
+- `/planning:interview`: `round.sh export-brief` stamps every page export. With no restatement the TLDR reads `- Restatement: UNCONFIRMED (no restatement posted)`, and every export adds a `- Page title:` line. `check-open-questions.sh --brief` fails that stamp (`brief=unconfirmed`). It also fails a stamped export whose Goal is still the page title, or whose only criterion is `none recorded in the interview surface`, while any question is answered (`brief=placeholder`). Before, such a Brief passed the gate clean. A hand-written Brief with no `Restatement:` line still passes.
+
+## [0.107.0] - 2026-10-26
+
+### Added
+
+- **A changed or reopened interview answer reaches every direct dependent.** When a counted decision changes value (another decision, alternative key or answer text, or an accept of a revised recommendation) or is reopened, each direct dependent that holds a decision goes `stale` and each one without goes to the new `upstream-changed` state, with `changedBy` naming the changed questions. Re-answering a stale question with a different value marks its own dependents the same way, one hop per change; the automatic transitive cascade stays parked ([#9714](https://github.com/melodic-software/claude-code-plugins/issues/9714)).
+- **An `upstream-changed` question waits on Claude.** Under `frontierLock` `confirm` or `hard` the page keeps its Save locked and marks it `Upstream changed, not handled yet` on its rail card and detail pane, and the server answers its decisions 409 `upstream-changed`; accept-all leaves it out in every mode. The new `reconfirm` op (`round.sh reconfirm <id> --why ...`) clears it when the question stands as asked, and a `revise` of the question clears it too. `round.sh status` lists each one on an `upstream changed:` line (`upstreamChanged` in `--json`).
+
+### Changed
+
+- Answering an interview question again with the same value no longer marks its decided dependents stale.
+
+- **`interview-defenses.test.sh` digest re-pins no longer need a person.** Any session, a lane included, may re-pin a digest after reading the diff of the guarded text: `tests/repin.sh <pin-label> <reason>` runs with no terminal and no y/N prompt, rewrites the one sha256 literal, adds the reason above the pin, and prints `<label>: <old> -> <new>` for the commit message. The suite's failure messages and header drop the attended-only rule; the commit carries old -> new and why the defense holds, and the PR review judges it.
+
+## [0.106.1] - 2026-10-26
+
+### Fixed
+
+- The interview page no longer shows an answered question as needing you after a `revise` that changed only its title or short: the question stays off Show: Review and wears no `Revised after your answer` chip, matching `round.sh status`, which counts it closed. A revise history line now lists the fields it changed in `changed`.
+
+## [0.106.0] - 2026-10-25
+
+### Added
+
+- The interview page labels a question imported from a superseded-by-plan ledger row: "`/planning:plan` changed your answer. Was: X. Plan proposes: Y. Reconfirm the proposal or keep yours." shows until the user answers, with the Rec button recording `accept` and the `(was)` button the `was` alternative. A data dir without `meta.seededFrom` shows no banner ([#9722](https://github.com/melodic-software/claude-code-plugins/issues/9722)).
+
+## [0.105.0] - 2026-10-25
+
+### Added
+
+- `round.sh export-brief --into <PLAN.md>`, in place of `--out`, replaces only PLAN.md's `## Brief` section, from its heading to the next `#` or `##` heading outside a fenced block, and keeps every other byte of the file, its line endings included ([#9912](https://github.com/melodic-software/claude-code-plugins/issues/9912)). Text between `## Brief` and its first subheading, such as a start-fresh scope-change note, stays as written, and fenced blocks are read as `check-open-questions.sh` reads them. A PLAN.md that does not exist yet gets the whole export; one with no `## Brief` heading, more than one, or a fenced block that never closes is refused unchanged. The interview's wrap-up (`context/surface.md` step 2) uses it in place of merging the export by hand.
+
+### Fixed
+
+- `interview` (SKILL.md Steps 3 and 4, `context/loop.md`, `context/surface.md`) no longer implies the `--brief` gate catches a Brief edited after a Confirm: the gate reads only the `Restatement:` stamp, so the docs now say it cannot see such an edit and that the edit still needs a new `restate`, a fresh Confirm and another export.
+
+## [0.104.0] - 2026-10-25
+
+### Added
+
+- `scripts/check-plan-citations.sh` fails a PLAN.md whose `path:line` citation (a path from the repository root, then a line, a `start-end` range or a comma list of them) names a file, or a line, that does not exist at a named commit (default `HEAD`). It prints one `citation=` line per failure with its reason (`missing-path`, `not-a-file`, `line-zero`, `reversed` or `past-end`) and the full commit it checked at ([#10037](https://github.com/melodic-software/claude-code-plugins/issues/10037)). Citations inside code fences and on a line marked `<!-- citation-example -->` are skipped, and a fence left open exits 2. `/planning:plan`'s Step 4.7 outcome gate runs it, and the PLAN.md template carries a `Citations checked at:` line for the commit it printed.
+
+### Fixed
+
+- The shared interview lane says what to do when the watcher exits 4 after its run of empty waits: re-arm it with the command it prints while the session is still open.
+
+## [0.103.1] - 2026-10-25
+
+### Fixed
+
+- Harden the session bridge: the watcher exits after 40 consecutive empty waits (exit 4) so an orphaned watcher no longer keeps the server alive, the view bridge gates the wait and lease-release endpoints with a watcher-only token that the page never receives, and U+2028 and U+2029 are escaped in output lines. The README now states the single-user-workstation limit.
+
+## [0.103.0] - 2026-10-25
+
+### Added
+
+- Each interview round opens with a restate ([#9716](https://github.com/melodic-software/claude-code-plugins/issues/9716), gap G7): `add-round` with questions takes `restate` (`text` of at most 3 sentences, plus `decided` and `open` question id lists) and refuses a round without it, as R1 refuses a question without `commits`. It is stored per round in `rounds`, the page pins it as a card above the round's first question, and Activity gets a "Needs you" entry. A data dir without `rounds` still loads, renders and exports (`plugins/planning/surface/round.py`, `index.html`, `schema/`, `skills/interview/context/surface.md`).
+
+## [0.102.1] - 2026-10-25
+
+### Fixed
+
+- `round.sh export-brief` no longer writes a decision twice or exports a replaced one ([#9901](https://github.com/melodic-software/claude-code-plugins/issues/9901)). An answered row gets no Constraints line of its own when a line of the confirmed restatement's constraints or decisions recap names its `Q<N>` and holds its whole current answer; a recap line cut short, or taken before the answer changed, keeps the row's own line. A row a newer question superseded stays in the ledger and is no longer exported to Out-of-scope, which `/planning:plan` treats as approved, nor its commitments to Captured assumptions. The decisions line the replacing row leads ends `; replaces Q<N>`.
+
+## [0.102.0] - 2026-10-25
+
+### Added
+
+- The interview page shows drift between the ledger and the page while the interview runs ([#9719](https://github.com/melodic-software/claude-code-plugins/issues/9719)). `round.sh ledger-check [--ledger L]` compares the page with the ledger `import-ledger` seeded it from, as `export-ledger --diff` does, writes `meta.ledgerSync` (`{rev, rows}`) and adds an Activity Log line naming the first difference when the rows that disagree change; `wake.sh` runs it after each `apply` (`AFTER_APPLY=ledger-check` in `surface/session-bridge.conf`). The header reads `Ledger: N rows out of sync` or `Ledger in sync, rev N` and shows nothing for a data dir without the field. An accepted row with unticked commitments reads `Accepted, N to confirm` on the rail and the question's chip, and the meter's to-confirm count names each such row. `context/surface.md` and `surface/README.md` document the command, the field and the conf key.
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+### Fixed
+
+- The `/planning:interview` page header no longer reads `Idle` for up to 30 seconds while an event waits and no watcher is waiting or holding the lease. It now names the waiting question or event at once, as in `Not listening for Q3: type next` (or `Not listening for Q3: approve any prompt in the terminal, or type next` while no watcher has ever polled). A delivery left unhandled for ten minutes is named the same way. The question chips and the receipt line keep their 30-second grace ([#8170](https://github.com/melodic-software/claude-code-plugins/issues/8170)).
+
+- The session bridge now reports why its page server failed to start: `ensure-running` keeps the server's stderr in `.<name>-server.log` in the data dir, prints its last lines and exits non-zero.
+- `stop` ends the watcher whose command line names the full data-dir path, not one that shares the data dir's last path component, so it no longer stops another topic's watcher.
+
+## [0.101.1] - 2026-10-25
+
+### Fixed
+
+- **`interview` surface:** `export-brief` no longer drops three sections of a confirmed restatement. Its `decisions` recap becomes a `### Decisions` section, and its `deferred` and `planningOwned` bullets join `### Deferred questions` after the register's retired rows, tagged **arbiter: /planning:plan**, or **arbiter: USER-RESERVED** when a bullet leads with a user-reserved row's `Q<N>` or says USER-RESERVED, so `/planning:plan` sees them ([#9895](https://github.com/melodic-software/claude-code-plugins/issues/9895)).
+
 ## [0.101.0] - 2026-10-25
 
 ### Added

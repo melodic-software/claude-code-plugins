@@ -1,5 +1,58 @@
 # Changelog: session-flow plugin
 
+## [1.4.5] - 2026-10-25
+
+### Changed
+
+- `audit-sessions`' `redact.py` is now a generated copy of the repository's shared `lib/redact.py`, which the corrections plugin also carries; the code is unchanged and it gains a generated-file header. The header changes the collector digest, so the next `collect` run re-ingests every transcript once.
+
+## [1.4.4] - 2026-10-25
+
+### Changed
+
+- The handoff skill's phase-boundary owner record cites `/implementation:implement-dispatch` by its slash invocation instead of by a path into the implementation plugin's `skills/` folder.
+
+## [1.4.3] - 2026-10-25
+
+### Changed
+
+- The `hooks.stop_ms` basis now says the metric reads every `hookInfos` entry and cannot tell a background (`async` or `asyncRewake`) Stop hook from a blocking one, so where such a hook has an entry the wait overstates the blocking cost.
+
+### Fixed
+
+- `/session-flow:audit-sessions` no longer marks `tokens.main` and `tokens.sub` lost when one message's streamed records differ on input or cache usage. The API's `message_delta` usage is cumulative, so later records of a message can carry higher input and cache counts, and the dedup that keeps each message's last record is still right. The `invariant:usage_split` canary, which counted any such difference, is replaced by `invariant:usage_regress`, which counts a message whose last record falls below an earlier one on input or cache usage, the case where keeping the last record would undercount. Collecting re-ingests every session, since the collector changed.
+
+## [1.4.2] - 2026-10-25
+
+### Fixed
+
+- **A handoff purpose leads the Resumption brief again.** On shape 3 the brief slot told the writer to open with the write time and branch, and the purpose framing landed in Review before you continue, so the purpose argument no longer reliably led the brief or steered Suggested skills. `save_point.py new --purpose <text>` now writes the purpose as the brief's first line, `Purpose: <text>`, and points the brief and Suggested skills slots at it; sections, their order and the resume prompt are unchanged. The handoff skill and the structure doc's write procedure pass it when the invocation carried a purpose.
+
+## [1.4.1] - 2026-10-25
+
+### Changed
+
+- Handoff skill-eval case 9 (`purpose-argument-tailors-emphasis-only`) now ships the prior session state it assumes, as two synthetic fixtures under `evals/fixtures/` (the api-refactor work record and its draft endpoint design), and its prompt says that earlier work exists and names a working-directory memory dir when the run is outside a git work tree. Before, an empty eval sandbox left nothing to hand off, so runs refused or had their write denied instead of exercising the purpose argument. The expectations are unchanged.
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
+## [1.4.0] - 2026-10-25
+
+### Added
+
+- **`audit-sessions` checks its own baseline:** each metric in the sweep report now shows this store's p90 beside the shipped threshold, and a row is marked `baseline_stale` when that p90 exceeds 1.5 times the threshold. The recheck trigger in `sweep-rules.json` is now one-sided and computed (`stale_p90_factor`), and the mark is advisory, leaving the exit code unchanged ([#6077](https://github.com/melodic-software/claude-code-plugins/issues/6077)).
+
+### Fixed
+
+- **`audit-sessions` describes its thresholds correctly:** the skill and README call them a shipped reference baseline, not this machine's own. Unchecked reasons that quote a rule's basis now say those numbers were measured on the reference machine, and the canaries basis names its own population ([#6077](https://github.com/melodic-software/claude-code-plugins/issues/6077)).
+
+## [1.3.1] - 2026-10-25
+
+### Fixed
+
+- A shape-3 handoff hot file keeps its Suggested skills section again, so the handoff purpose argument still tailors the skills the next session is pointed at.
+- A shape-3 handoff written before that section returned still validates, with a warning, so continuing its chain keeps the predecessor checks strict.
+
 ## [1.3.0] - 2026-10-25
 
 ### Added

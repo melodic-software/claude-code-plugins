@@ -4,6 +4,16 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.6.3] - 2026-10-24
+
+Evidence only; the principle, the three anti-patterns, and the correct pattern are unchanged.
+
+- **Known gap: re-surveyed on Windows on Claude Code 2.1.309.** All 8 fresh sessions carried a
+  plugin `bin/` on `PATH`, so the intermittent non-delivery did not reproduce. The section records
+  the result and its limits, and says to re-survey with fresh sessions because snapshots no longer
+  outlive their session. The bundled-path guidance stands
+  ([#6760](https://github.com/melodic-software/claude-code-plugins/issues/6760)).
+
 ## [1.6.2] - 2026-10-11
 
 Changelog only; the convention text is unchanged.

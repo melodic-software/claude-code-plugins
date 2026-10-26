@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "git mv features/start-a-timer.md to features/start-a-timer/README.md, with States moved into Reset.",
+      "why": "names the folder feature file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Keep features/start-a-timer.md flat and only update its Drive.",
+      "why": "keeps the flat layout"
+    }
+  ]
+}

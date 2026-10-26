@@ -1,0 +1,125 @@
+{
+  "skill": "plugin-quality:report",
+  "plugin": "plugin-quality",
+  "skill_dir": "plugins/plugin-quality/skills/report",
+  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the plugin-quality audit and setup skills (same-plugin near-misses), implementation:report (its before description is identical to this one, so it competes directly for every dispatched-agent return), and the skills that border on returns and summaries: worker dispatch (implementation:implement-dispatch), orchestration briefs (session-flow:orchestrate), save-point handoffs (session-flow:handoff) and PR descriptions (source-control:pull-request).",
+  "competitors": [
+    "plugin-quality:audit",
+    "plugin-quality:setup",
+    "implementation:report",
+    "implementation:implement-dispatch",
+    "session-flow:orchestrate",
+    "session-flow:handoff",
+    "source-control:pull-request"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You are a worker launched by /plugin-quality:audit to exercise the commit skill. The run is finished; now compose your final message back to the orchestrator."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Subagent here, spawned by the plugin-quality audit to check three hook scripts. Checks are done. What shape should my closing reply to the parent take?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm the agent the plugin audit fanned out to. Wrap up: lead with what went wrong, then put the findings in the block the caller will parse."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Finishing my assigned slice as a dispatched plugin-quality worker. The parent will check each claim against the files, so write my return with that in mind."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Note from the plugin-quality orchestrator to its worker: when you finish, answer in the standard return shape for agents a plugin skill sends out."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Task complete on my side (the plugin-quality audit launched me to probe its setup command). Draft the reply my caller receives."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "As the spawned audit worker I have my results. Give me the final output layout: problems on top, then a single fenced block."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Dispatched by plugin-quality to stress the guardrails hooks; ready to hand results back up. Structure the return."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Last step of this subagent run for the plugin-quality audit: send my findings up to the skill that launched me, in the format it expects to parse."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The plugin-quality audit delegated this component check to me and I've finished it. Write my report to the orchestrator."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write me a short report on what we changed in this session."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draft a PR description for the branch I just pushed and open the pull request."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit the context-guard plugin now that I've used it today, and file a ticket for its owners."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fan this approved plan out to subagent workers and run the phases in parallel."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up plugin-quality in this repo and tell me which sink audit findings will go to."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Summarize this conversation so I can paste it into Slack for my team."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Save a checkpoint of where we are so I can clear and pick this up tomorrow."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the brief I should hand a subagent before I spawn it for this delegation-heavy refactor."
+    }
+  ]
+}

@@ -17,7 +17,7 @@ agent identity.
 `self_logins`, wherever a reader takes it, names only lane or bot self
 identities. Every login in it is non-human, as the Design's "Human" definition
 says, so a caller that passed the operator's own login would make the operator
-non-human for opt-in, class provenance and demotion clears.
+non-human for opt-in, trust-hold removals and demotion clears.
 """
 
 from __future__ import annotations
@@ -84,24 +84,17 @@ LOOP_MERGE_KEY = "babysit_loop_merge"
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
 
 RUNG_RANK = {"off": 0, "C2": 2, "C3": 3}
-CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3}
-# `babysit_loop_merge` values as a rung; C4 and C5 never merge unattended.
+# `babysit_loop_merge` values as a rung.
 LOOP_MERGE_RUNG = {
     "human-only": "off",
     "c2-mechanical": "C2",
     "c3-autonomous": "C3",
     "full-autonomy": "C3",
 }
-WORK_CLASS_LABELS = {
-    "work-class: read-only": "C1",
-    "work-class: mechanical": "C2",
-    "work-class: scoped": "C3",
-    # Structural risk shows in the diff the review lanes read: it merges as
-    # scoped work.
-    "work-class: structural": "C3",
-    "work-class: untrusted-provenance": "C5",
-}
-WORK_CLASS_PREFIX = "work-class:"
+# The trust hold: a pull request whose linked issue carries this label, or
+# had it removed by a non-human, waits for a human merge. No other class
+# label is read.
+UNTRUSTED_PROVENANCE_LABEL = "work-class: untrusted-provenance"
 
 OPT_IN_LABEL = "merge: agent-allowed"
 # The PR author's own hold, written in the body ("Do not merge this draft", or
@@ -176,7 +169,7 @@ class UnattendedPolicy:
     omission. `enabled` (Design T20) means the path is configured and no
     identity, credential, kill-switch or post-merge refusal stands; left None
     it follows `reason`. `promoted` is the promotion-evidence read for the
-    pull request's class, None when not read; a merge needs both.
+    effective rung's cells, None when not read; a merge needs both.
     `agent_identity` is the configured `merge.agent-identity` login, stripped
     of surrounding whitespace, or None when unset or blank. `details` carries
     the readers' answers for the report; `inputs` carries what the later steps
@@ -308,9 +301,12 @@ def resolve_bash(
 
 
 def _concern_values(
-    text: str, keys: list[tuple[str, bool]]
+    text: str,
+    keys: list[tuple[str, bool]],
+    run: Callable[..., Any] | None = None,
 ) -> dict[str, list[str]] | None:
-    """Each key's values from a YAML document through the shared reader.
+    """Each key's values from a YAML document through the shared reader,
+    run through `run` (default `run_command`).
 
     None when the reader rejects the document (`--strict` exit 3). Any other
     failure raises.
@@ -326,7 +322,7 @@ def _concern_values(
         for key, as_list in keys:
             argv = [bash, str(PARSER), "--strict", *(["--list"] if as_list else [])]
             try:
-                proc = run_command(
+                proc = (run or run_command)(
                     [*argv, str(document), key],
                     allowed_executables=(bash,),
                     check=False,
@@ -566,12 +562,10 @@ class PipelineConfig:
     # `review` lets the verdict merge it.
     dependabot_majors: str = "hold"
     # The pr-merge lane's risk switches under `merge.diff-check` (owner
-    # decision Q624): absent, the HIGH path floor and the C2 contradictions
-    # are off and there is no file cap (`max_changed_lines` None: no line
-    # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them.
+    # decision Q624): absent, the HIGH path floor is off and there is no file
+    # cap (`max_changed_lines` None: no line cap); a value other than true or
+    # false turns a switch on. The local babysit lane ignores them.
     high_path_floor: bool = False
-    c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
     # Absent, or anything but a whole number of at least 1, is 1. The gate
@@ -582,10 +576,11 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
-    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
-    # must have stood unchanged at the head before the gate adds the
-    # human-gated label; 0 is no minimum. Absent, or anything but a whole
-    # number, is `RISK_ESCALATION_MINUTES`.
+    # `merge.risk-escalation-minutes`: how long a reasons comment must have
+    # stood unchanged at the head before the gate adds the human-gated label
+    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # no minimum. Absent, or anything but a whole number, is
+    # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
     # one pull request at which it holds for a human whatever a later pass
@@ -800,7 +795,11 @@ def read_config_at(
         return value not in (None, "false")
 
     high_path_floor = switch("merge.diff-check.high-path-floor")
-    c2_contradictions = switch("merge.diff-check.c2-contradictions")
+    if scalar("merge.diff-check.c2-contradictions") not in (None, "false"):
+        notes.append(
+            "merge.diff-check.c2-contradictions is retired and has no effect:"
+            " no work class is read"
+        )
 
     report_only = scalar("merge.report-only")
     if report_only not in (None, "true", "false"):
@@ -910,7 +909,6 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
-        c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
@@ -985,7 +983,6 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         if "hold" in (base.dependabot_majors, main.dependabot_majors)
         else base.dependabot_majors,
         high_path_floor=base.high_path_floor or main.high_path_floor,
-        c2_contradictions=base.c2_contradictions or main.c2_contradictions,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
         max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
@@ -1054,7 +1051,6 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.report_only,
                     c.require_verifier_verdict,
                     c.high_path_floor,
-                    c.c2_contradictions,
                 )
             )
             and c.dependabot_mode in DEPENDABOT_MODES
@@ -1076,6 +1072,24 @@ def _cached_config(value: Any) -> PipelineConfig | None:
     return c if ok else None
 
 
+CONFIG_AT_SECTION = "config-at"
+
+
+def config_at(repo: str, sha: str) -> PipelineConfig:
+    """`read_config_at`, shared by the run's gate processes by commit: the
+    files at a commit never change, so a saved read of any age serves. Only a
+    read with no error and no note is saved, so a file that did not read is
+    read again."""
+    key = f"{repo}@{sha}"
+    cached = _cached_config(run_cache.get(CONFIG_AT_SECTION, key, None))
+    if cached is not None and cached.base_sha == sha:
+        return cached
+    config = read_config_at(repo, sha)
+    if not config.error and not config.notes:
+        run_cache.put(CONFIG_AT_SECTION, key, asdict(config))
+    return config
+
+
 def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConfig:
     """The config at the default branch head, saved once per cache window
     (`run_cache.MAX_AGE`) for the run's gate processes, never saving a failed
@@ -1089,7 +1103,7 @@ def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConf
         SHARED_HEAD_CONFIGS[repo] = cached.base_sha
         return cached
     _, head = _default_branch_head(repo, branch)
-    config = read_config_at(repo, head)
+    config = config_at(repo, head)
     if config.error:
         raise StopReadError(
             DEFAULT_BRANCH_UNREADABLE,
@@ -1393,6 +1407,17 @@ def _record_hold(issue: dict[str, Any], human: Callable[[Any], bool]) -> str | N
         return "closed-by-reference"
     if not human(close.get("actor")):
         return "closed-by-non-human"
+    return _edits_refusal(issue, human)
+
+
+def _edits_refusal(issue: dict[str, Any], human: Callable[[Any], bool]) -> str | None:
+    """Why an issue's edit history (`userContentEdits`, as `DEMOTION_RECORD`
+    reads it) is not all a human's, or None: it was read short, an edit was
+    deleted, or a non-human made an edit other than the author's original."""
+    edits = json_object(issue.get("userContentEdits"))
+    nodes = [json_object(node) for node in json_array(edits.get("nodes"))]
+    if edits.get("totalCount") != len(nodes):
+        return "edit-history-incomplete"
     if any(edit.get("deletedAt") or edit.get("diff") is None for edit in nodes):
         return "edit-history-deleted"
     # GitHub lists the original body as the author's edit at creation time,
@@ -1570,7 +1595,8 @@ ELIGIBILITY = (
     "pullRequest(number:$n){number body createdAt lastEditedAt isCrossRepository baseRefName "
     "author{__typename login} headRepositoryOwner{login} labels(first:100){totalCount nodes{name}} "
     "closingIssuesReferences(first:10){totalCount nodes{number lastEditedAt "
-    "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}"
+    "author{__typename login} repository{nameWithOwner} "
+    "labels(first:100){totalCount nodes{name}}}}}}}"
 )
 
 
@@ -1578,6 +1604,7 @@ ELIGIBILITY = (
 class Eligibility:
     eligible: bool
     reason: str | None
+    # Reported as `workClass` only; nothing decides on it.
     work_class: str | None = None
     issue: int | None = None
     # A Dependabot pull request's tier, in the pr-merge lane only.
@@ -1644,26 +1671,57 @@ def _timeline(
     return timelines[number]
 
 
-def _class_removed_by_non_human(
+UNTRUSTED = re.compile("untrusted", re.IGNORECASE | re.ASCII)
+
+
+def _untrusted(label: Any) -> bool:
+    """`label` names untrusted work: any label holding "untrusted" in any
+    ASCII case, so a variant spelling of the untrusted-provenance label
+    (another separator, a dash variant, no prefix) still holds. ASCII-only,
+    as the merge queue's jq `ascii_downcase` matches it, so the two agree."""
+    return UNTRUSTED.search(str(label or "")) is not None
+
+
+def _untrusted_removed_by_non_human(
     owner: str,
     name: str,
     number: int,
     human: Callable[[Any], bool],
     timelines: dict[int, list[dict[str, Any]]],
 ) -> bool:
-    """A `work-class:` label was ever removed by a non-human, or through an
-    App: removing a stricter class can leave a lower one standing."""
+    """The untrusted-provenance label was ever removed by a non-human, or
+    through an App: an agent cannot lift the trust hold."""
     return any(
         e.get("event") == "unlabeled"
-        and str(json_object(e.get("label")).get("name") or "").startswith(
-            WORK_CLASS_PREFIX
-        )
+        and _untrusted(json_object(e.get("label")).get("name"))
         and (
             not human(_rest_actor(e.get("actor")))
             or e.get("performed_via_github_app") is not None
         )
         for e in _timeline(owner, name, number, timelines)
     )
+
+
+def trust_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why the trust hold refuses the linked `issue` (a node read with its
+    `labels`), or None: labels that cannot be read whole, a label naming
+    untrusted work (`_untrusted`), or one ever removed by a non-human
+    (`_untrusted_removed_by_non_human`). A failed timeline read raises
+    `PolicyReadError`."""
+    labels = _label_names(issue)
+    if labels is None:
+        return "issue-labels-unreadable"
+    if any(_untrusted(label) for label in labels):
+        return "untrusted-provenance"
+    if _untrusted_removed_by_non_human(owner, name, issue["number"], human, timelines):
+        return "untrusted-provenance-removed-by-non-human"
+    return None
 
 
 def _claimed_before(
@@ -1732,6 +1790,135 @@ def _opt_in_refusal(
     return f"opt-in-label:{untrusted}" if untrusted else None
 
 
+TRACKER_CONFIG = ".work-item-tracker.json"
+ADMISSION_ROLE = "autonomous-eligible"
+DEFAULT_ADMISSION_LABEL = "agent-ready"
+
+
+def admission_label(owner: str, name: str, ref: str) -> str:
+    """The tracker's admission role label at `ref` (`agent-ready` unless
+    `.work-item-tracker.json` maps `autonomous-eligible`). Raises
+    `PolicyReadError` when the config cannot be read or parsed."""
+    text = _file_at(owner, name, TRACKER_CONFIG, quote(ref, safe=""))
+    if text is None:
+        return DEFAULT_ADMISSION_LABEL
+    try:
+        config = json.loads(text)
+    except ValueError as exc:
+        raise PolicyReadError(f"{TRACKER_CONFIG} at {ref} is not JSON: {exc}") from exc
+    roles = json_object(
+        json_object(json_object(config).get("config")).get("role_labels")
+    )
+    label = roles.get(ADMISSION_ROLE)
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    return DEFAULT_ADMISSION_LABEL
+
+
+def _vouch_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    labels: list[str],
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+    label: Callable[[], str],
+) -> str | None:
+    """Why no human vouched for the linked issue, or None: a human with write
+    access wrote it, no non-human edited its body since (`_edits_refusal`
+    over the `DEMOTION_RECORD` read) and none retitled it (`renamed`
+    timeline events by a non-human or through an App), or a human applied
+    the admission label in person with no body edit or title change after it
+    (`_label_provenance`, `renamed` timeline events). Either suffices; when
+    neither does, the author path's reason wins for a human-authored issue
+    with no admission label."""
+    authored: str | None = None
+    if human(issue.get("author")):
+        authored = _author_vouch_refusal(owner, name, issue, human, timelines)
+        if not authored:
+            return None
+    wanted = label().casefold()
+    applied = next((n for n in labels if n.casefold() == wanted), None)
+    if applied is None:
+        return authored or "issue-not-vouched:no-human-author-or-admission-label"
+    vouched = _label_vouch_refusal(owner, name, issue, applied, human, timelines)
+    return (authored or vouched) if vouched else None
+
+
+def _author_vouch_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why a write-access human's issue no longer carries their vouch, or
+    None: a non-human, or anyone through an App, retitled it or edited its
+    body."""
+    number = issue["number"]
+    if any(
+        e.get("event") == "renamed"
+        and (
+            not human(_rest_actor(e.get("actor")))
+            or e.get("performed_via_github_app") is not None
+        )
+        for e in _timeline(owner, name, number, timelines)
+    ):
+        return "issue-not-vouched:title-edited-by-non-human"
+    if not issue.get("lastEditedAt"):
+        return None
+    data = _graphql(DEMOTION_RECORD, f"issue #{number}", o=owner, r=name, n=number)
+    record = json_object(json_object(data.get("repository")).get("issue"))
+    if not record:
+        raise PolicyReadError(f"issue #{number}: the edit history is unreadable")
+    edited = _edits_refusal(record, human)
+    if not edited:
+        return None
+    return "issue-not-vouched:" + (
+        "body-edited-by-non-human" if edited == "edited-by-non-human" else edited
+    )
+
+
+def _label_vouch_refusal(
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    applied: str,
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why the admission label `applied` does not vouch for `issue`, or None."""
+    untrusted = _label_provenance(
+        owner,
+        name,
+        issue["number"],
+        applied,
+        issue.get("lastEditedAt"),
+        human,
+        timelines,
+    )
+    if untrusted:
+        return f"issue-not-vouched:{untrusted}"
+    events = _timeline(owner, name, issue["number"], timelines)
+    labeled = max(
+        (
+            _time(e.get("created_at"))
+            for e in events
+            if e.get("event") == "labeled"
+            and json_object(e.get("label")).get("name") == applied
+        ),
+        default=None,
+    )
+    if labeled is None:
+        return "issue-not-vouched:no-labeled-event"
+    if any(
+        e.get("event") == "renamed" and _time(e.get("created_at")) > labeled
+        for e in events
+    ):
+        return "issue-not-vouched:title-edited-after-label"
+    return None
+
+
 def recheck_opt_in(
     repo: str,
     number: int,
@@ -1769,17 +1956,21 @@ def eligibility(
     agent_identity: str | None,
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
+    admission: Callable[[], str] | None = None,
 ) -> Eligibility:
     """Whether a pull request may be considered for an unattended merge at all.
 
     In order: not a fork; not a dependency manager's; authored by the agent
     identity, or carrying `merge: agent-allowed` from a human; exactly one
     linked issue, in this repository (`_linked_issue`: its closing issue, else
-    its one `Refs:` issue); a work class whose every `work-class:`
-    label a human applied in person (the agent identity never counts, nor an
-    App acting for a human) with no body edit after it, the strictest one
-    counting, and no `work-class:` label ever removed by a non-human; and, for
+    its one `Refs:` issue); that issue's labels readable, with no
+    untrusted-provenance label and none ever removed by a non-human or
+    through an App (the trust hold; no work class is read); an issue a human
+    vouched for (`_vouch_refusal`: a write-access human wrote it, or one
+    applied the admission label in person with no body edit after); and, for
     a lane-authored PR, the identity's claim on that issue predating the PR.
+    `admission` overrides the admission label read (`admission_label` at the
+    pull request's base branch).
     """
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -1809,41 +2000,28 @@ def eligibility(
         if linked:
             return Eligibility(False, linked)
         issue_number = issue["number"]
-        labels = _label_names(issue)
-        if labels is None:
-            return Eligibility(False, "class-labels-unreadable")
-        class_labels = [
-            label for label in labels if label.startswith(WORK_CLASS_PREFIX)
-        ]
-        if not class_labels:
-            return Eligibility(False, "class-missing")
-        if any(label not in WORK_CLASS_LABELS for label in class_labels):
-            return Eligibility(False, "class-unknown")
-        for label in class_labels:
-            untrusted = _label_provenance(
-                owner,
-                name,
-                issue_number,
-                label,
-                issue.get("lastEditedAt"),
-                human,
-                timelines,
-            )
-            if untrusted:
-                return Eligibility(False, f"class-provenance:{untrusted}")
-        if _class_removed_by_non_human(owner, name, issue_number, human, timelines):
-            return Eligibility(False, "class-label-removed-by-non-human")
-        work_class = max(
-            (WORK_CLASS_LABELS[label] for label in class_labels),
-            key=lambda c: int(c[1]),
+        untrusted = trust_refusal(owner, name, issue, human, timelines)
+        if untrusted:
+            return Eligibility(False, untrusted)
+        vouch = _vouch_refusal(
+            owner,
+            name,
+            issue,
+            _label_names(issue) or [],
+            human,
+            timelines,
+            admission
+            or (lambda: admission_label(owner, name, str(pr.get("baseRefName")))),
         )
+        if vouch:
+            return Eligibility(False, vouch)
         if lane_authored and not _claimed_before(
             owner, name, issue_number, str(agent_identity), _time(pr.get("createdAt"))
         ):
             return Eligibility(False, "claim-missing")
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
-    return Eligibility(True, None, work_class, issue_number)
+    return Eligibility(True, None, issue=issue_number)
 
 
 def no_issue_here(refusal: str | None) -> bool:
@@ -1911,7 +2089,8 @@ def refs_issue(body: Any) -> tuple[int | None, str | None]:
 REFS_ISSUE = (
     "query PolicyRefsIssue($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issueOrPullRequest(number:$n){__typename ... on Issue{number lastEditedAt "
-    "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}"
+    "author{__typename login} repository{nameWithOwner} "
+    "labels(first:100){totalCount nodes{name}}}}}}"
 )
 
 
@@ -2235,8 +2414,8 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 # --- Eligibility in the pr-merge lane -----------------------------------------------------
 
 
-# Every lane pull request's class, as Dependabot's is: no `work-class:` label
-# is read. The diff-derived C2 checks in the risk score still apply.
+# The class every lane pull request reports, as Dependabot's does: report
+# data only, read from no label and deciding nothing.
 LANE_CLASS = "C2"
 
 
@@ -2406,6 +2585,122 @@ def lane_queued_at_head(
         return False
 
 
+# The adoption a person's ejected enqueue grants (`requeued_by_person`).
+REQUEUE_ADOPTION = "requeue-after-ejection"
+# The idle refusals a person's ejected enqueue may stand in for.
+FRESH_REFUSALS = ("updated-fresh", "head-fresh")
+
+
+def ejected_enqueue(repo: str, number: int) -> Any:
+    """`babysit_merge.read_merge_queue`'s `ejectedEnqueue` for the pull
+    request, or None when the queue cannot be read."""
+    from babysit_merge import read_merge_queue  # noqa: PLC0415 - import cycle
+
+    queue = read_merge_queue(repo, number)
+    return None if queue.get("readError") else queue.get("ejectedEnqueue")
+
+
+def requeued_by_person(
+    ejected: Any,
+    *,
+    human_ids: Collection[int],
+    head_last_seen: Callable[[], Any],
+    queued_at_head: Callable[[], bool],
+    quiet_since: Callable[[datetime], bool],
+) -> bool:
+    """Whether a person's merge-queue enqueue of this head stands in for the
+    idle wait (owner decision Q-REQ (a)): `ejected` (`ejected_enqueue`) is the
+    enqueue whose entry the queue removed for failed checks with no head
+    change since; its actor and its enqueuer are both a kind human id on the
+    trusted list (`human_ids`; never a login or a GitHub type, since GitHub
+    types an App's enqueuer a User); no other enqueue followed but the lane's
+    own entry at this head (`queued_at_head`); GitHub had seen this head on
+    the branch by the enqueue and not since (`head_last_seen`,
+    `_head_last_seen`), so it is the head the person queued; and no person has
+    spoken since the enqueue (`quiet_since`, `_quiet_since`), so a request to
+    wait, made before or after the run failed, keeps the idle rule. Anything
+    unreadable is False."""
+    item = json_object(ejected)
+    enqueue = json_object(item.get("enqueue"))
+    ids = [
+        json_object(enqueue.get(who)).get("databaseId") for who in ("actor", "enqueuer")
+    ]
+    if not all(type(i) is int and i in human_ids for i in ids):
+        return False
+    requeued = item.get("requeued")
+    if requeued is not False and not (requeued is True and queued_at_head()):
+        return False
+    try:
+        _time(item.get("removedAt"))  # a removal with no readable time refuses
+        enqueued = _time(enqueue.get("createdAt"))
+        return _time(head_last_seen()) <= enqueued and quiet_since(enqueued)
+    except PolicyReadError:
+        return False
+
+
+def _head_last_seen(owner: str, name: str, pr: Mapping[str, Any]) -> str:
+    """When GitHub last saw the pull request's head commit arrive on its head
+    branch: the newest `created_at` of GitHub Actions' check suites for that
+    commit whose `head_branch` is the pull request's. GitHub sets it when a
+    push arrives, unlike a commit's dates, which the pusher sets, and a head
+    pushed again (reset away and pushed back) gets a newer suite. No such
+    suite, a listing past one page, or an unreadable one raises."""
+    head = json_object(pr.get("head"))
+    sha, ref = str(head.get("sha") or ""), head.get("ref")
+    if not SHA_RE.fullmatch(sha) or not isinstance(ref, str) or not ref:
+        raise PolicyReadError(f"head {sha!r} on {ref!r} unreadable")
+    status, payload = _get(
+        f"repos/{owner}/{name}/commits/{sha}/check-suites"
+        f"?app_id={ACTIONS_APP_ID}&per_page=100"
+    )
+    listing = json_object(payload)
+    suites = json_array(listing.get("check_suites"))
+    if status != 200 or listing.get("total_count") != len(suites):
+        raise PolicyReadError(f"head {sha} check suites unreadable (status {status})")
+    seen = [
+        json_object(s).get("created_at")
+        for s in suites
+        if json_object(s).get("head_branch") == ref
+    ]
+    if not seen:
+        raise PolicyReadError(f"head {sha} has no check suite on {ref}")
+    return max(seen, key=_time)
+
+
+def _discussion(owner: str, name: str, number: int) -> list[dict[str, Any]]:
+    """Every comment, review and inline review comment on the pull request,
+    over REST."""
+    return [
+        item
+        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
+        for item in _paginated(
+            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
+            f"#{number} {kind.split('/')[-1]}",
+        )
+    ]
+
+
+def _quiet_since(
+    owner: str, name: str, number: int, identity: str, since: datetime
+) -> bool:
+    """Whether no person has commented, reviewed or commented inline on the
+    pull request at or after `since`, by when it was created, edited or
+    submitted. The agent identity, automation accounts and bots do not count;
+    a person's item with no readable time does. An unreadable discussion
+    raises."""
+    skip = {_login_key(identity), *AUTOMATION_LOGINS}
+    for item in _discussion(owner, name, number):
+        author = _rest_actor(item.get("user"))
+        login = str((author or {}).get("login") or "")
+        if actor_kind({"author": author}) != "human" or _login_key(login) in skip:
+            continue
+        stamps = [item.get(k) for k in ("created_at", "updated_at", "submitted_at")]
+        stamps = [s for s in stamps if s]
+        if not stamps or any(_time(s) >= since for s in stamps):
+            return False
+    return True
+
+
 def lane_eligibility(
     repo: str,
     number: int,
@@ -2421,21 +2716,25 @@ def lane_eligibility(
     human_gated: str | None = None,
     now: datetime | None = None,
     queued_at_head: Callable[[], bool] = lambda: False,
+    adoption_human_ids: Collection[int] = (),
+    ejected_enqueue: Callable[[], Any] = lambda: None,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request: not a fork or a
     dependency manager's, opened by the agent identity or adopted
     (`adoption_refusal`, with `adoption_idle_hours`, `adoption_owner_ids`,
     the resolved `human_gated` label and `queued_at_head`; None or empty
-    adopts nothing),
+    adopts nothing; a refusal only for not being idle is excused by
+    `requeued_by_person` over `ejected_enqueue()` and `adoption_human_ids`),
     exactly one linked
     issue in this repository (`_linked_issue`; the verifier verdict binds to
     it), and a diff
     touching no `merge.diff-check.denied-paths`. Such a pull request is
-    class `LANE_CLASS`; no `work-class:` label is read.
+    class `LANE_CLASS`; no `work-class:` label is read, but the linked issue
+    must clear the trust hold (`trust_refusal`, as `eligibility` reads it,
+    a human judged with `agent_identity`, `self_logins` and `permission`).
     `pr` is the REST record, whose `changed_files` the file listing must
     reach. Holds (a hold label, a `Hold:` line) are the gate's, and
-    adoption's too.
-    `self_logins` and `permission` are unused: no human read remains."""
+    adoption's too."""
     owner, name = _split_repo(repo)
     issue_number = None
     adoption = None
@@ -2451,9 +2750,10 @@ def lane_eligibility(
         # Anyone could name an issue in `Closes #N`; only a pull request the
         # lane opened, or one it adopted, counts.
         if not _lane_authored(node, agent_identity):
+            committed = lambda: _head_committed(owner, name, pr)  # noqa: E731
             not_adopted = adoption_refusal(
                 pr,
-                lambda: _head_committed(owner, name, pr),
+                committed,
                 idle_hours=adoption_idle_hours,
                 owner_ids=adoption_owner_ids,
                 human_gated=human_gated,
@@ -2462,12 +2762,37 @@ def lane_eligibility(
             )
             if not_adopted == AUTHOR_NOT_OWNER:
                 return Eligibility(False, "not-lane-authored")
-            if not_adopted:
+            if not_adopted in FRESH_REFUSALS and requeued_by_person(
+                ejected_enqueue(),
+                human_ids=adoption_human_ids,
+                head_last_seen=lambda: _head_last_seen(owner, name, pr),
+                queued_at_head=queued_at_head,
+                quiet_since=lambda since: _quiet_since(
+                    owner, name, number, str(agent_identity or ""), since
+                ),
+            ):
+                adoption = REQUEUE_ADOPTION
+            elif not_adopted:
                 return Eligibility(False, f"not-adopted:{not_adopted}")
-            adoption = f"idle-owner:{adoption_idle_hours}h"
+            else:
+                adoption = f"idle-owner:{adoption_idle_hours}h"
         issue, refusal = _linked_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
+            permission = permission or permission_reader(repo)
+            refusal = trust_refusal(
+                owner,
+                name,
+                issue,
+                lambda actor: is_human(
+                    actor,
+                    repo=repo,
+                    agent_identity=agent_identity,
+                    self_logins=self_logins,
+                    permission=permission,
+                ),
+                {},
+            )
         # An adopted pull request closing no issue here is its own intent,
         # the verifier judging its title and body (owner decision 2026-10-22),
         # when a person or a script wrote them (`spec_from_body_ids`: the
@@ -2759,8 +3084,7 @@ def dependabot_eligibility(
     `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
     pusher's), never demoted, always refused; a green `ci-status` on
     the head; and no human blocking comment. A running `ci-status` waits. The
-    class is C2 (mechanical), so the rung and its cap still bind it. No
-    closing issue and no denied-path rule: `ci-status` is the gate. The
+    rung and its cap still bind it. No closing issue and no denied-path rule: `ci-status` is the gate. The
     hold labels and a body hold are the gate's, as for every pull
     request."""
     owner, name = _split_repo(repo)
@@ -3172,16 +3496,8 @@ def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[s
     comment, and a stranger's text must not dequeue the identity's entry."""
     from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
 
-    corpus = [
-        item
-        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
-        for item in _paginated(
-            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
-            f"#{number} {kind.split('/')[-1]}",
-        )
-    ]
     found = set()
-    for item in corpus:
+    for item in _discussion(owner, name, number):
         author = _rest_actor(item.get("user"))
         login = str((author or {}).get("login") or "")
         if actor_kind({"author": author}) != "human" or _login_key(login) in {
@@ -3696,6 +4012,18 @@ def _changed_files(
     return tuple(files), complete
 
 
+# The most files GitHub's pull request files listing returns
+# (https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files).
+FILES_API_CAP = 3000
+
+
+def files_capped(pr: Mapping[str, Any]) -> bool:
+    """Whether the REST pull request record changes more files than the
+    listing returns (`FILES_API_CAP`), so no read ever lists them all."""
+    count = pr.get("changed_files")
+    return isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+
+
 def changed_files(
     repo: str, pr: Mapping[str, Any]
 ) -> tuple[tuple[ChangedFile, ...], bool]:
@@ -3882,10 +4210,10 @@ PROMOTION_RESOLVER = (
     / "resolve-promotion-evidence.mjs"
 )
 PROMOTABLE_CELLS = ("C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking")
-# The cells a work class needs effective-promoted (promotion-evidence-resolution.md
-# "Promotable cells and rung mapping"); C4 and C5 have none and never merge.
-CLASS_CELLS = {
-    "C1": ("C2-auto-merge",),
+# The cells a merge rung needs effective-promoted (promotion-evidence-resolution.md
+# "Promotable cells and rung mapping"); `off` has none and never merges. No
+# work class is read.
+RUNG_CELLS = {
     "C2": ("C2-auto-merge",),
     "C3": PROMOTABLE_CELLS,
 }
@@ -3954,8 +4282,8 @@ class Promotion:
     cells: Mapping[str, str] | None
     reason: str | None
 
-    def promoted(self, work_class: str | None) -> bool:
-        needed = CLASS_CELLS.get(work_class or "")
+    def promoted(self, rung: str | None) -> bool:
+        needed = RUNG_CELLS.get(rung or "")
         return bool(
             self.cells
             and needed
@@ -4182,11 +4510,15 @@ def shared_refusal(
     demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
     while it passes with a merge unverified), have no demotion record filed
     or changed since (`_demotion_changed`), and judge every merge the
-    post-merge check would judge now. The binding comes before the age, so a
-    candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and does not
-    replace the run's answer. The floor is compared under the shared answer's
-    demotion, which may be out of date; that changes only the reason and the
-    write-back, since any refusal reads afresh.
+    post-merge check would judge now. The demotion comes last, so
+    `demotion-changed` means nothing else refused (`lane_room` keeps such an
+    answer only when a fresh demotion read equals the shared one in every
+    field: the records, the newest record's creation and the newest clear
+    move the floor and the evidence window too). The binding comes before the
+    age, so a candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and
+    does not replace the run's answer. The floor is compared under the
+    shared answer's demotion, which may be out of date; that changes only the
+    reason and the write-back, since any refusal reads afresh.
 
     The check judges `branch` from the floor, never the base, so the answer
     holds for any base with that floor. A newer default-branch head changes
@@ -4223,33 +4555,32 @@ def shared_refusal(
     refusal = _shared_age_refusal(shared, age)
     if refusal:
         return refusal
-    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
-        return "demotion-changed"
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     head = payload.get("sha") if status == 200 and is_json_object(payload) else None
-    if head == shared.main_sha:
-        return None
-    counted = {
-        json_object(m).get("number")
-        for m in json_array(shared.gate.report.get("autoMerges"))
-    }
-    try:
-        merges = _merged_since(owner, name, branch, shared.floor)
-        if merges is None:
-            return "merged-history-truncated"
-        for pr in merges:
-            # Treating no actor as human counts a superset of the check's
-            # merges, so no merge it would judge is missed.
-            merge = derive_auto_merge(
-                pr,
-                lambda actor: False,
-                identity,
-                lane_merges_only=shared.lane_merges_only,
-            )
-            if isinstance(merge, AutoMerge) and merge.number not in counted:
-                return f"new-merge:#{merge.number}"
-    except PolicyReadError:
-        return "merged-unreadable"
+    if head != shared.main_sha:
+        counted = {
+            json_object(m).get("number")
+            for m in json_array(shared.gate.report.get("autoMerges"))
+        }
+        try:
+            merges = _merged_since(owner, name, branch, shared.floor)
+            if merges is None:
+                return "merged-history-truncated"
+            for pr in merges:
+                # Treating no actor as human counts a superset of the check's
+                # merges, so no merge it would judge is missed.
+                merge = derive_auto_merge(
+                    pr,
+                    lambda actor: False,
+                    identity,
+                    lane_merges_only=shared.lane_merges_only,
+                )
+                if isinstance(merge, AutoMerge) and merge.number not in counted:
+                    return f"new-merge:#{merge.number}"
+        except PolicyReadError:
+            return "merged-unreadable"
+    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+        return "demotion-changed"
     return None
 
 
@@ -4295,8 +4626,9 @@ def assess(
     `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
-    in-flight rule, the promotion evidence and the pull request's
-    eligibility and class: each refuses a merge, and all are reported, but
+    in-flight rule, the promotion evidence for the rung (`RUNG_CELLS`; no
+    work class is read) and the pull request's eligibility: each refuses a
+    merge, and all are reported, but
     an in-flight refusal of a pull request not in the merge queue stops the
     reads there.
 
@@ -4419,6 +4751,8 @@ def assess(
         config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
     )
     details["reportOnly"] = report_only
+    if config.notes:
+        details["configNotes"] = list(config.notes)
     if enabled_authority(config) != authority:
         return replace(stopped, reason=AUTHORITY_DIFFERS)
 
@@ -4546,8 +4880,9 @@ def assess(
     # Past an on rung, the in-flight refusal outranks every read below. With
     # no queue entry of its own, nothing below writes for this pull request
     # either (its risk comment and verifier escalation wait for a run below
-    # the merge.max-in-flight cap), so it skips them. A Dependabot pull request is read in
-    # full: its class decides the gate's dependency-manager hold.
+    # the merge.max-in-flight cap), so it skips them. A Dependabot pull request
+    # is read in full: its update tier decides the gate's dependency-manager
+    # hold.
     if (
         rung.rung != "off"
         and not flight.clear
@@ -4612,6 +4947,8 @@ def assess(
                 inputs["identity"],
                 str(json_object(pr.get("head")).get("sha") or ""),
             ),
+            adoption_human_ids=trusted[1],
+            ejected_enqueue=lambda: ejected_enqueue(repo, number),
             **readers,
         )
         promoted = True
@@ -4622,7 +4959,7 @@ def assess(
             else Promotion(None, "promotion-unread")
         )
         eligible = eligibility(repo, number, **readers)
-        promoted = promo.promoted(eligible.work_class)
+        promoted = promo.promoted(rung.rung)
     details.update(
         promotion={
             "cells": dict(promo.cells) if promo.cells is not None else None,
@@ -4649,12 +4986,10 @@ def assess(
             "verifier-verdict-not-required",
         ),
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
-        # The rung is a work-class ceiling: C4 and C5 never merge unattended.
-        (
-            CLASS_RANK.get(eligible.work_class or "", 99) > RUNG_RANK[rung.rung],
-            f"class-above-rung:{eligible.work_class}>{rung.rung}",
-        ),
-        (not promoted, f"promotion-unqualified:{eligible.work_class}"),
+        # The rung's promotion cells (owner decision Q21 option b): keyed by
+        # the rung, never by the pull request's work class. Here, so an entry
+        # queued while promoted leaves the queue once it lapses.
+        (not promoted, f"promotion-unqualified:{rung.rung}"),
     )
     inputs["own_refusal"] = next((text for refused, text in own if refused), None)
     refusals = (
@@ -4778,30 +5113,27 @@ def lane_room(
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
-    `post_merge` is `assess`'s: an answer refused only as `unverified-stale`
-    is kept when nothing it was read from has moved (`_still_current`, with
-    `runs_unchanged(shared, branch)` for its unverified merges' runs), else
-    read again as the gate reads it (`_recompute_shared`), and a readable
-    one stands in for `shared`.
+    `post_merge` is `assess`'s: an answer the gate would not reuse, for any
+    `shared_refusal`, is read again as the gate reads it
+    (`_recompute_shared`, with the room's self logins, none), and a readable
+    one stands in for `shared`. Two refusals are first kept: one refused only
+    as `unverified-stale` when nothing it was read from has moved
+    (`_still_current`, with `runs_unchanged(shared, branch)` for its
+    unverified merges' runs), and one refused only as `demotion-changed`
+    when `read_demotion` alone reads the shared demotion again.
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
     - The effective rung off stops (`rung-off:<input>`): `merge.rung`,
       `babysit_loop_merge`, the rung cap (`lane_rung_cap`, as `rung_cap`
-      reads it) and an active demotion, an unreadable record included. A lane
-      pull request's class is `LANE_CLASS`, which no rung above off is below,
-      so no class-above-rung refusal applies.
+      reads it) and an active demotion, an unreadable record included.
     - The merges in flight (`in_flight`, `merge.max-in-flight` at the head)
       are counted, not refused: the caller arms below the cap.
 
     Any read failure, a missing `shared` and an in-flight count that could
     not be read included, is `unreadable`. So is a `shared` the gate would
-    not reuse (`shared_refusal`): too old (a re-run job downloads the run's
-    first report, up to a day old), a demotion record filed or changed
-    since, or a lane merge landed since that it does not count. An
-    `unverified-stale` one is kept or read again instead, since a lane
-    merge's verifying run may have passed or failed since; a read that fails
-    or is not readable leaves it `unreadable`."""
+    not reuse (any `shared_refusal`) when there is no `post_merge` to read it
+    again, or that read fails or is not readable."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
     try:
@@ -4829,18 +5161,31 @@ def lane_room(
         authority=PR_MERGE,
         now=now,
     )
-    if unusable == "unverified-stale" and post_merge is not None:
-        # Kept when nothing it was read from moved, else read again.
+    if unusable and post_merge is not None:
+        # As the gate, any refusal reads afresh; an unverified-stale answer
+        # is first kept when nothing it was read from moved, a
+        # demotion-changed one when the demotion reads the same (an issue
+        # the lane opened that triage edited, most runs).
         try:
-            current = runs_unchanged is not None and _still_current(
-                repo, default, identity, shared, runs_unchanged
-            )
+            if unusable == "demotion-changed":
+                current = shared.demotion == read_demotion(
+                    repo,
+                    agent_identity=identity,
+                    self_logins=frozenset(),
+                    permission=permission_reader(repo),
+                )
+            else:
+                current = (
+                    unusable == "unverified-stale"
+                    and runs_unchanged is not None
+                    and _still_current(repo, default, identity, shared, runs_unchanged)
+                )
         except (RuntimeError, ValueError, OSError):
             current = False
         if not current:
             try:
                 fresh = _recompute_shared(
-                    repo, default, identity, shared.self_logins, post_merge, now
+                    repo, default, identity, frozenset(), post_merge, now
                 )
             except (RuntimeError, ValueError, OSError) as exc:
                 return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")

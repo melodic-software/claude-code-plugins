@@ -25,12 +25,11 @@ when evidence is unavailable, untrusted, partial, or forgeable
 Promotion evidence MUST be resolved through a **trusted seam**: an agent-unwritable bootstrap
 outside the target repository's blast radius, the same class of surface the autonomy setup skill
 names for security-binding resolution
-([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md) "Agent-unwritable bootstrap for
-security resolution"). Evidence read from repo-local, agent-writable, or otherwise forgeable
+(`/autonomy:setup`, "Agent-unwritable bootstrap for security resolution"). Evidence read from repo-local, agent-writable, or otherwise forgeable
 surfaces does **not** qualify: partial reads, stale snapshots, and operator-supplied JSON without
 provenance are treated as **unavailable** and fail-closed.
 
-[`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)
+The autonomy plugin's `check-security-binding.mjs` (shipped with `/autonomy:setup`) in
 evaluation mode (`--evidence`) owns the canonical resolution algorithm: bound ceiling, epoch-scoped
 contrary events (`gate-failure`, `reverted-merge`, `verification-divergence`), and prerequisite
 propagation. The loop lane invokes that resolution **through the trusted seam
@@ -48,7 +47,8 @@ Operators keep `--merge human-only` on launch lines; lifting it is the owner's c
 The resolver passes `--credential-roots` to the checker when the operator sets
 `promotion_evidence_credential_roots`; unset, a binding whose L2 proof rests on a filesystem
 credential probe fails closed even with a compliant bootstrap. Remaining work is tracked in [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588). The unattended
-merge path (`babysit_merge_policy.read_promotion`) additionally refuses any option value or
+merge gate (`/source-control:babysit-prs`, `--unattended`) needs the effective rung's cells from
+the table above, read by rung and never by work class, and additionally refuses any option value or
 settings file the lane can write, so on a single-user
 host user-scope settings never qualify there; only managed settings and surfaces owned by someone
 other than the lane identity can.

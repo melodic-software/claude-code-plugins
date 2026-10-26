@@ -7,19 +7,24 @@ name: maintenance-reconcile-lost-runs
 # current head, or a pr-verify run, ended cancelled, timed_out or
 # startup_failure, on its first attempt, is re-run once with this job's own
 # token. The attempt number is the record: a run at attempt 2 was already
-# re-run and is never touched again. A pr-verify run whose judge step started,
-# or none of whose jobs started, is left to a person, so a head is never judged
-# twice. A pr-verify run that ended startup_failure with no jobs is held for
-# a person, not re-run.
+# re-run and is never touched again. A pr-verify run is also re-run when its
+# first attempt failed: a judgment that broke after it started, or a run the
+# lanes kill switch stopped, which fails so that it is re-run once the switch
+# is off. A pr-verify run whose verdict write started (it runs only when the
+# judgment succeeded) is not re-run, even when the write or upload failed, so
+# a head is never judged twice; the summary names the hold. A pr-verify run none of whose jobs started is not
+# re-run: a newer run for the same head judges it.
 #
 # A CI run on the PR's current head that ended failure only from an outside
 # outage (each failed job hit its time limit, failed in an install step, or
-# lost its runner: infra-failure.mjs) has its failed jobs re-run, at most
-# twice per run, 15 then 30 minutes after the attempt ended, and only while
-# status.npmjs.org and githubstatus.com both show indicator none. A run with
+# lost its runner: infra-failure.mjs) has its failed jobs re-run once, at
+# attempt 1 only, 15 minutes after the attempt ended, and only while
+# status.npmjs.org and githubstatus.com both show indicator none; at attempt 2
+# pr-unblock's fix-ci takes it. A run with
 # any other failure has its failed jobs re-run once, at attempt 1 only, so a
-# flaky test the diff did not cause spends no model run; a second failure is
-# pr-unblock's fix-ci's.
+# flaky test the diff did not cause can pass. pr-unblock's fix-ci waits only on
+# a re-run already queued or going, or on an infra-only first failure's re-run
+# while it is due (infra-failure.mjs RERUN_DUE_MINUTES).
 #
 # A pr-require-checks run that passed on its first attempt is re-run once,
 # recorded, when the head's pr-verify pass predates a change to its spec (an
@@ -78,6 +83,10 @@ jobs:
       checks: read # a cut job's annotations: whether it lost its runner
       contents: read # check out main
       pull-requests: read # list the open PRs
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -155,3 +164,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

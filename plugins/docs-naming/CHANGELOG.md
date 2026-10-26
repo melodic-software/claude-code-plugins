@@ -3,6 +3,19 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-10-25
+
+### Changed
+
+- The bundled `generated` default is now empty. It named a regenerator inside the architecture plugin's skill folder, a path only this marketplace's own checkout has, so in any other repository the entry could not run. Declare generated files in the team layer, `.claude/docs-naming.json`.
+- In a repository whose team layer declares no `generated` entry, `docs/architecture/landscape.json` is no longer treated as generated. Before, a rename with a site in it stopped before anything moved, because its regenerator resolved to nothing, and `--regenerate-only` failed. Now the sweep and the realign edit its references like any other file's. To keep it regenerated instead of edited, declare it in the team layer with your own regenerate command.
+
+## [0.3.6] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.3.5] - 2026-10-22
 
 ### Changed

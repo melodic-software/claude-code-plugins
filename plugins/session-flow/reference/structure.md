@@ -66,7 +66,7 @@ Sections, in the one order `validate` checks:
 | 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below |
 | 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state |
 | 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT` |
-| 4 | Resumption brief | where the work stands and the single next action |
+| 4 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>`, which `new --purpose` writes |
 | 5 | Completion criteria | observable goal-states with met/unmet marks |
 | 6 | Remaining actions, in order | every action still to take |
 | 7 | Open questions | each with its options, a recommendation and what it unblocks |
@@ -75,10 +75,14 @@ Sections, in the one order `validate` checks:
 | 10 | Pending commands | every command waiting on the user, verbatim |
 | 11 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 12 | Decisions in force | the decisions the remaining actions depend on |
-| 13 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
-| 14 | Prior sessions | the last rows of the table, the newest describing the predecessor |
-| 15 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
-| 16 | Resume prompt | the rails block, as in shape 2; always last |
+| 13 | Suggested skills | which skills to invoke for the remaining work, as in shape 2; the purpose argument selects them |
+| 14 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
+| 15 | Prior sessions | the last rows of the table, the newest describing the predecessor |
+| 16 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
+| 17 | Resume prompt | the rails block, as in shape 2; always last |
+
+A shape-3 file written before `Suggested skills` joined this list still validates, with a warning;
+the next hop's skeleton adds the section.
 
 What the writer owns, since no script can judge it:
 
@@ -661,7 +665,9 @@ done
 # 5. Skeleton. Exactly one of --previous / --no-previous (see "Chain continuity").
 #    `new` reads CLAUDE_CODE_SESSION_ID itself and prints the file's absolute
 #    forward-slash path: reuse THAT string for every later step (fill, validate,
-#    emit, the directive); never recompute the path in bash.
+#    emit, the directive); never recompute the path in bash. When the invocation
+#    carried purpose text, add --purpose "$PURPOSE" (save-point.md, "The purpose
+#    argument tailors emphasis only").
 SAVE_POINT="${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py"
 FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_ROOT" --no-previous)
 #   or, continuing a prior handoff's task:
@@ -734,7 +740,7 @@ an interrupted write cannot leave a truncated handoff.
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
-after a shape-3 predecessor, a shape-3 hot file (frontmatter below, the 16 headings in order) and
+after a shape-3 predecessor, a shape-3 hot file (frontmatter below, the 17 headings in order) and
 its hop file holding the predecessor's sections other than Original goal and Resume prompt,
 copied with the Read and Write tools, never retyped; otherwise a shape-2 file (the 17 headings in
 order). Both end in the `## Resume prompt` section in the engine doc's full-path form. Mark the checklist box `validate: SKIPPED (no interpreter)`, and

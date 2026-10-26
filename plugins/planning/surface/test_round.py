@@ -56,6 +56,33 @@ def question(qid, **extra):
     return q
 
 
+STOCK_RESTATE = {
+    "text": "Earlier rounds are settled. These branches are open. This round turns on them.",
+    "decided": [],
+    "open": [],
+}
+
+
+def with_restates(data):
+    """`data` (a round file or an ops file) with STOCK_RESTATE on every add-round that adds questions and names no `restate`."""
+    if not isinstance(data, dict):
+        return data
+    if data.get("questions") and "restate" not in data:
+        return {**data, "restate": STOCK_RESTATE}
+    if isinstance(data.get("ops"), list):
+        ops = [
+            {**op, "restate": STOCK_RESTATE}
+            if isinstance(op, dict)
+            and op.get("op") == "add-round"
+            and op.get("questions")
+            and "restate" not in op
+            else op
+            for op in data["ops"]
+        ]
+        return {**data, "ops": ops}
+    return data
+
+
 def base_doc():
     """A v2.1-shaped questions.json: no schemaVersion, two groups, three questions."""
     return {
@@ -115,6 +142,9 @@ class DirCase(unittest.TestCase):
         return run_round(self.dir, *args, env=env)
 
     def file(self, name, data):
+        """Write `data` as JSON; a round with questions and no `restate` gets a stock one, so
+        tests about other things post rounds as a real session would (G7)."""
+        data = with_restates(data)
         path = self.tmp / name
         path.write_text(json.dumps(data), encoding="utf-8")
         return str(path)
@@ -570,6 +600,16 @@ class TestAffects(DirCase):
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], [])
+
+    def test_revise_line_records_the_fields_it_changed(self):
+        rc, out, err = self.rp("revise", "Q1", "--title", "New title?", "--short", "New short")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["title", "short"])
+        rc, out, err = self.rp(
+            "revise", "Q1", "--rec", "New.", "--affects", "none", "--keep-alternatives"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["recommendation"])
 
     def test_reply_without_rec_needs_no_affects(self):
         rc, out, err = self.rp("reply", "Q1", "--text", "Thread only.")
@@ -1215,6 +1255,71 @@ class TestRecChangeStampsPageSeq(DirCase):
         self.assertEqual(lines[0]["affects"], ["Q3"])
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+
+class TestReconfirm(DirCase):
+    """#9714: Q1's changed answer leaves its undecided dependent Q2 upstream-changed; `reconfirm`
+    clears it with a reviewSeq history line, refuses any other question, and a revise line carries
+    reviewSeq too."""
+
+    def setUp(self):
+        super().setUp()
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [
+                {"seq": 1, "id": "Q1", "kind": "accept", "alt": None, "text": "", "at": at},
+                {"seq": 2, "id": "Q1", "kind": "alt", "alt": "a", "text": "", "at": at},
+            ]
+        )
+
+    def upstream_changed(self):
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        return json.loads(out)["upstreamChanged"]
+
+    def test_status_names_it_and_reconfirm_clears_it(self):
+        self.assertEqual(self.upstream_changed(), [{"id": "Q2", "changedBy": ["Q1"]}])
+        rc, out, err = self.rp("status")
+        self.assertIn("upstream changed: Q2 (Q1 changed); revise or reconfirm it", out)
+        ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"], "why": "It holds either way."}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        line = self.q("Q2")["history"][-1]
+        self.assertEqual(
+            {k: line[k] for k in ("by", "kind", "text", "reviewSeq", "rev")},
+            {
+                "by": "claude",
+                "kind": "reconfirm",
+                "text": "Reconfirmed after Q1 changed: It holds either way.",
+                "reviewSeq": 2,
+                "rev": self.doc()["rev"],
+            },
+        )
+        self.assertNotIn("pageSeq", line)
+        self.assertEqual(self.upstream_changed(), [])
+        self.assertEqual(self.doc()["activity"][-1]["ids"], ["Q2"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_refusals_write_nothing(self):
+        out = self.assert_refused("reconfirm", "Q3", "--why", "Fine.")
+        self.assertIn("refused: Q3 not upstream-changed; nothing to reconfirm", out)
+        out = self.assert_refused("reconfirm", "Q2", "Q3", "--why", "Fine.")
+        self.assertIn("refused: Q3 not upstream-changed", out)
+        out = self.assert_refused("reconfirm", "Q2", "--why", "  ")
+        self.assertIn("refused: reconfirm needs a why", out)
+        out = self.assert_refused("reconfirm", "Q9", "--why", "Fine.")
+        self.assertIn("unknown question: Q9", out)
+        ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_a_revise_line_carries_review_seq_and_clears_it(self):
+        rc, out, err = self.rp("revise", "Q2", "--title", "Still the question?")
+        self.assertEqual(rc, 0, out + err)
+        line = self.q("Q2")["history"][-1]
+        self.assertEqual((line["kind"], line["reviewSeq"]), ("revise", 2))
+        self.assertNotIn("pageSeq", line)
+        self.assertEqual(self.upstream_changed(), [])
 
 
 class TestSupersedeRepoint(DirCase):
@@ -2831,6 +2936,122 @@ class TestArchive(DirCase):
         self.assertIn("Second group: 0 of 0 live answered; 1 archived", out)
 
 
+class TestPropose(DirCase):
+    """#9694: propose adds a question the user approves before it carries a recommendation."""
+
+    PROPOSE = {
+        "op": "propose",
+        "id": "Q4",
+        "group": "g1",
+        "short": "Pause on failure",
+        "title": "Should the rollout pause on a failed health check?",
+    }
+
+    def apply_ops(self, *ops):
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+        self.assertEqual(rc, 0, out + err)
+        return out + err
+
+    def state(self, qid):
+        from server import EMPTY_RESPONSES, load_json, question_states
+
+        r = load_json(self.dir / "responses.json", EMPTY_RESPONSES)
+        return question_states(self.doc(), r)[qid][0]
+
+    def ledger(self):
+        path = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(path))
+        self.assertEqual(rc, 0, out + err)
+        return path.read_text(encoding="utf-8")
+
+    def event(self, qid, kind, alt, text=""):
+        at = "2026-01-01T00:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": qid, "kind": kind, "alt": alt, "text": text, "at": at}]
+        )
+
+    def answer(self, alt, text=""):
+        self.event("Q4", "proposal", alt, text)
+
+    def refused(self, *ops):
+        before = self.raw()
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.raw(), before, "a refused op changed questions.json")
+        return out + err
+
+    def test_propose_adds_a_proposed_question_with_no_recommendation_and_no_register_row(self):
+        self.apply_ops(self.PROPOSE)
+        q = self.q("Q4")
+        self.assertEqual(self.state("Q4"), "proposed")
+        self.assertNotIn("recommendation", q)
+        self.assertNotIn("alternatives", q)
+        self.assertTrue(q["proposed"]["at"])
+        text = self.ledger()
+        self.assertNotIn("Q4", text)
+        self.assertNotIn("Should the rollout pause", text)
+        self.assertNotIn("Pause on failure", text)
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        g1 = json.loads(out)["groups"][0]
+        self.assertEqual((g1["proposed"], g1["open"], g1["live"]), (["Q4"], ["Q1", "Q2"], 2))
+
+    def test_an_accepted_proposal_writes_its_row(self):
+        self.apply_ops(self.PROPOSE)
+        self.answer("accept")
+        self.assertEqual(self.state("Q4"), "open")
+        self.assertIn("- Q4 | open |", self.ledger())
+
+    def test_a_declined_proposal_is_archived_and_writes_a_withdrawn_row(self):
+        self.apply_ops(self.PROPOSE)
+        self.answer("decline")
+        self.assertEqual(self.state("Q4"), "archived")
+        self.assertIn("- Q4 | withdrawn |", self.ledger())
+        self.assertIn("the user declined Claude's proposal", self.ledger())
+
+    def test_a_pending_proposal_keeps_the_register_numbers(self):
+        add = {"op": "add", "question": question("Q5", group="g1", dependsOn=[])}
+        self.apply_ops(self.PROPOSE, add)
+        text = self.ledger()
+        self.assertNotIn("- Q4 |", text)
+        self.assertIn("- Q5 | open |", text)
+        self.assertNotIn("[Q5]", text)
+
+    def test_a_recommendation_waits_on_the_users_accept(self):
+        self.apply_ops(self.PROPOSE)
+        rec = {
+            "op": "revise",
+            "id": "Q4",
+            "seq": 1,
+            "rec": "Yes.",
+            "affects": "none",
+            "commits": [],
+            "alternatives": [
+                {"key": "a", "text": "No"},
+                {"key": "b", "text": "Only in one region"},
+            ],
+        }
+        self.assertIn("has not accepted yet", self.refused(rec))
+        self.refused({"op": "record-terminal", "id": "Q4", "decision": "accept"})
+        self.answer("edit", "Should a failed health check pause every region?")
+        self.apply_ops(rec)
+        q = self.q("Q4")
+        self.assertEqual(q["recommendation"], "Yes.")
+        self.assertNotIn("revised", q)
+        self.assertNotIn("previousRecommendation", q)
+
+    def test_from_seq_must_name_an_ask(self):
+        self.event("Q1", "ask", None, "What about a pause?")
+        out = self.refused({**self.PROPOSE, "fromSeq": 7})
+        self.assertIn("names no ask event", out)
+        self.apply_ops({**self.PROPOSE, "fromSeq": 1})
+        self.assertEqual(self.q("Q4")["proposed"]["fromSeq"], 1)
+
+    def test_a_duplicate_id_or_a_missing_title_is_refused(self):
+        self.refused({**self.PROPOSE, "id": "Q1"})
+        self.refused({k: v for k, v in self.PROPOSE.items() if k != "title"})
+
+
 class TestLatency(DirCase):
     """status --latency: p50 and p95 of save-to-Delivered and save-to-reply."""
 
@@ -3971,6 +4192,107 @@ class TestSupersedeResolve(DirCase):
         self.assertEqual(list(self.tmp.glob("*.bak")), [])
 
 
+class TestLedgerCheck(DirCase):
+    """ledger-check, and wake.sh running it after apply, show ledger drift while the interview runs."""
+
+    def setUp(self):
+        super().setUp()
+        self.ledger = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        doc["meta"]["seededFrom"] = {
+            "ledger": str(self.ledger),
+            "at": "2026-01-01T00:00:00Z",
+            "rows": {},
+        }
+        self.write_doc(doc)
+
+    def drift_one_row(self):
+        text = self.ledger.read_text(encoding="utf-8")
+        row = next(x for x in text.splitlines() if x.startswith("- Q2 |"))
+        # Keep the status, round and title cells; the resolution cell is the last.
+        edited = "|".join(row.split("|")[:4]) + "| edited in the ledger"
+        self.ledger.write_text(text.replace(row, edited), encoding="utf-8")
+
+    def wake(self, *, ops=None):
+        """wake.sh copied beside a control script that runs round.py and a watch.sh that exits."""
+        scripts = self.tmp / "scripts"
+        scripts.mkdir(exist_ok=True)
+        shutil.copy(HERE / "wake.sh", scripts / "wake.sh")
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        (scripts / "session-bridge.conf").write_text(
+            conf.replace("CONTROL=round.sh", "CONTROL=ctl.sh"), encoding="utf-8"
+        )
+        (scripts / "ctl.sh").write_text(
+            f'exec "{sys.executable}" "{ROUND}" "$@"\n', encoding="utf-8"
+        )
+        (scripts / "watch.sh").write_text("exit 0\n", encoding="utf-8")
+        if ops:
+            (self.dir / "ops.json").write_text(json.dumps(ops), encoding="utf-8")
+        return subprocess.run(
+            ["bash", str(scripts / "wake.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def activity(self):
+        return [e["text"] for e in self.doc().get("activity", [])]
+
+    def test_the_conf_names_the_check(self):
+        conf = (HERE / "session-bridge.conf").read_text(encoding="utf-8")
+        self.assertIn("\nAFTER_APPLY=ledger-check\n", conf)
+
+    def test_matching_ledger_records_in_sync_and_logs_nothing(self):
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+        sync = self.doc()["meta"]["ledgerSync"]
+        self.assertEqual(sync, {"rev": self.doc()["rev"], "rows": []})
+        self.assertEqual(self.activity(), [])
+
+    def test_an_unchanged_result_writes_nothing(self):
+        self.rp("ledger-check")
+        before = self.raw()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.raw(), before)
+
+    def test_a_disagreeing_row_is_recorded_and_logged_once(self):
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
+        self.assertEqual(len(self.activity()), 1)
+        self.assertRegex(self.activity()[0], r"^Ledger out of sync, 1 row: Q2 ")
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(len(self.activity()), 1)
+
+    def test_a_page_without_a_ledger_is_not_checked(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_wake_logs_the_disagreeing_row_after_apply(self):
+        self.drift_one_row()
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        log = self.activity()
+        self.assertEqual(log[0], "Applied one op")
+        self.assertTrue(any(x.startswith("Ledger out of sync") and "Q2" in x for x in log), log)
+
+    def test_wake_with_a_matching_ledger_logs_no_drift(self):
+        r = self.wake(ops={"ops": [{"op": "activity", "text": "Applied one op"}]})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.activity(), ["Applied one op"])
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
+
+
 class TestConfirmationRecap(DirCase):
     """export-ledger --recap emits a recap that fits the restate cap on a long interview."""
 
@@ -4219,6 +4541,65 @@ class TestCliHygiene(DirCase):
 
         for op in r.OP_ARGS:
             self.assertIn(op, out)
+
+
+class TestRoundRestate(DirCase):
+    """G7: a round with questions opens with a restate, as R1 requires `commits`."""
+
+    def spec(self, **restate):
+        body = {"text": "Q1 is settled. Q4 is open. The round turns on Q4.", "decided": ["Q1"], "open": ["Q4"]}
+        body.update(restate)
+        return {"questions": [question("Q4", round=2)], "restate": body}
+
+    def post(self, spec, *extra):
+        path = self.tmp / "restate-round.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        return str(path)
+
+    def test_a_round_without_restate_is_refused_naming_the_field(self):
+        path = self.post({"questions": [question("Q4", round=2)]})
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("restate", out)
+
+    def test_more_than_three_sentences_is_refused(self):
+        path = self.post(self.spec(text="One. Two. Three. Four."))
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("restate", out)
+        self.assertIn("4 sentences", out)
+
+    def test_decided_and_open_must_name_known_questions(self):
+        path = self.post(self.spec(open=["Q99"]))
+        out = self.assert_refused("add-round", "--file", path)
+        self.assertIn("Q99", out)
+
+    def test_a_valid_restate_is_stored_on_the_round(self):
+        rc, out, err = self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual((entry["round"], entry["stage"]), (2, "interview"))
+        self.assertEqual(entry["restate"]["decided"], ["Q1"])
+        self.assertEqual(entry["restate"]["open"], ["Q4"])
+        self.assertIn("Q4 is open", entry["restate"]["text"])
+
+    def test_the_activity_feed_posts_a_needs_you_entry(self):
+        self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertTrue(self.doc()["activity"][-1].get("asks"))
+
+    def test_apply_refuses_a_round_without_restate(self):
+        path = self.post({"ops": [{"op": "add-round", "questions": [question("Q4")]}]})
+        out = self.assert_refused("apply", "--file", path)
+        self.assertIn("restate", out)
+
+    def test_a_round_without_questions_needs_no_restate(self):
+        path = self.post({"groups": [{"id": "g3", "title": "T"}]})
+        rc, out, err = self.rp("add-round", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("rounds", self.doc())
+
+    def test_a_file_without_rounds_still_validates(self):
+        self.assertNotIn("rounds", self.doc())
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
 
 
 if __name__ == "__main__":

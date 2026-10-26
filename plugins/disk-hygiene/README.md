@@ -23,8 +23,10 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
   ranking.
-- Filesystem roots, mount targets, OS-managed roots on every Windows volume (unless addressed only
-  via `--root-children` with an explicit child selection), user shell-folder roots,
+- Filesystem roots, mount targets (a non-root mount such as a tmpfs `/tmp` can only have its
+  immediate children listed, read-only, with `--root-children`), OS-managed roots on every Windows
+  volume (unless addressed only via `--root-children` with an explicit child selection), user
+  shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
   predicates cannot be disabled by policy. The sole VCS exception is the evidence mode for an
@@ -138,8 +140,10 @@ from the scopes a repo cannot forge:
 2026-10-11; recheck when that section changes which scopes the key is read from), register
 unconditionally, and fail closed to enabled.
 
-Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the session. Start a
-new session to clear it. The plugin-level engine gate fires inside subagents. The
+Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the process. Start a
+new session to clear it. A resumed session does not get it back: after `--resume` the belt is gone, so
+a `SessionStart` notice tells the model to make no delete or overwrite until the user types
+`/disk-hygiene:clean` again (#9853). The plugin-level engine gate fires inside subagents. The
 skill-frontmatter belt does not, and a fanned-out worker's Bash lane is not belt-guarded, so
 "evidence only" is an instruction to the worker, not an enforced denial. Our probe recorded in
 [#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565) observed the subagent
@@ -174,7 +178,8 @@ either; the failure table below states what happens then.
 (`skills/clean/scripts/engine_context.py`) runs when `/disk-hygiene:clean` expands and hands the
 skill the guard's absolute Python and authorized `--data-root`, resolved by the guard's own code, so
 a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
-guard still judges every call.
+guard still judges every call. The same row records the session id in a marker file, which the resume
+notice reads.
 
 An installed mod can stop this plugin's `PreToolUse` hooks from running, and can approve a call
 they blocked, so the guard is only as strong as the mods installed beside it.
@@ -268,8 +273,7 @@ launched.
   records nothing and changes no decision: the verdict is computed and emitted before the record is
   attempted, and the write path raises nothing.
 - **Not a replacement for telemetry.** A configured `HOOK_TELEMETRY_SINK` keeps receiving exactly
-  what it received before. The local record is the floor beneath it, for the ordinary case where no
-  sink exists.
+  what it received before. The local record covers the ordinary case where no sink exists.
 - **What is not recorded.** The plugin-level defer, the branch this hook takes for every Bash
   command that does not name the engine, writes nothing, which is what keeps the always-on path
   free. The watchdog's expiry path also writes nothing: that callback runs while the main thread is

@@ -3,6 +3,18 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4] - 2026-10-25
+
+### Fixed
+
+- `prerequisites.json` caps the `python` entry with `below: "3.14"`, so a host whose only Python is 3.14 is reported outdated instead of ready. The install hook runs only on Python 3.12 or 3.13.
+
+## [0.3.3] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.3.2] - 2026-10-22
 
 ### Changed
