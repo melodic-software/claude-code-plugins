@@ -1135,9 +1135,9 @@ count; an unread count leaves it unarmed with no comment, and the next run reads
 armed one is not disarmed on the count. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
 report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
-holds as a refusal does; one the gate would not reuse (`shared_refusal`: too old, a demotion record
-changed since, or a lane merge landed since that it does not count) is checked again as the gate
-does; one past the gate's
+holds as a refusal does; one the gate would not reuse, for any `shared_refusal`, is checked again
+as the gate does; one refused only because a demotion record was filed or changed since is first
+kept when the demotion records alone read as they were; one past the gate's
 two-minute reuse age only because a lane merge is still unverified is kept while main's head, its
 config commit, the demotion records and the unverified merges' full and canary runs are as they
 were (no run reached a conclusion since, no merge is past the six-hour dispatch deadline, and no

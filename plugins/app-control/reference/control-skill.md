@@ -13,6 +13,7 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 - Writing the Capture section
 - Feature files
 - Shared items
+- Steps files
 - Driver commands
 - Writing the driver CLI
 - Config
@@ -134,6 +135,42 @@ Each direct child of `shared/`, a folder or a file, is one item. A feature uses 
 feature file names `shared/<item>`; an item fewer than two features use belongs in that feature's
 own folder, and `/app-control:map check` reports it. Each item says why it is shared on a line
 `Why shared: <reason>`, in its `README.md` for a folder or in the file itself.
+
+## Steps files
+
+A feature may keep its Drive steps in a machine-readable steps file in its own folder, or in
+`shared/` when two or more features use it. The format, the file name and the field names are the
+project's choice; the contract fixes only what they mean. The feature's `## Drive` names the file,
+and its prose names steps by id and never repeats a selector the file holds. A feature whose steps
+include a `shared/` item names `shared/<item>` in its feature file, which is how Shared items counts
+its users.
+
+- **Step ids.** Every step has an id, unique among all the steps a run expands to, includes
+  included, and made of letters, digits, `-` and `_` only, prefix included. The prose and the
+  evidence file names name steps by those ids. A repeated id, or one with any other character,
+  stops the run before anything starts, naming the id.
+- **Includes.** A step list can include another steps file of this control skill, which expands
+  in place. The included file's real path must sit inside this control skill's directory; one
+  outside it stops the run. An include can carry:
+  - `prefix`: put before every included step id, so one file can be included twice with unique
+    ids. Two includes of one file without different prefixes repeat ids and stop the run. A
+    sign-in file included twice for one account is two attempts under the Sign-in floor.
+  - `with`: values that replace the included file's parameters for this include only. A name the
+    included file does not declare stops the run. A credential stays a variable name, never a
+    value.
+  - `kind`: added to every included step, such as `write` or `send`, so the safety floors treat
+    each one so. It adds to a step's own kind and never removes one.
+  - `finally`: the included steps are finally steps.
+- **Finally steps.** A failed step ends the steps that are not finally steps. Finally steps run
+  after the others, in order, whether or not a step before them failed; they are where a write's
+  reset goes. Every finally step runs even when an earlier one
+  fails, and each failure is reported beside the one that came first, never in its place. The
+  safety floors apply to them as to any step, and a refusal (exit 4) is reported, not retried. A
+  failed sign-in ends the other steps the same way; a finally step that would sign in again for
+  that account is refused under the Sign-in floor and reported as blocked.
+- **Optional steps.** An optional step is for a prompt or screen that appears on some runs only.
+  When its target is absent, the step is recorded as skipped and the run goes on; no retry and no
+  wait stands in for it. When its target is present, it runs and can fail like any other step.
 
 ## Driver commands
 
