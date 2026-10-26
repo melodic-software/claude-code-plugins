@@ -1128,6 +1128,11 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } }, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
   });
 
+  test("a parent waiting on an open sub-issue keeps its open pull requests, so admission-deferred stays", () => {
+    const result = decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: humanSpec(issueOf({ body: "Make the README better." })), pulls: [41], subIssues: [{ number: 8, state: "open" }] }));
+    assert.deepEqual(result, { verdict: "wait", reasons: ["open pull request #41 is for it", "sub-issue #8 is open"], pulls: [41] });
+  });
+
   test("a parent with an open sub-issue still refuses for a person when a hold applies", () => {
     const result = decide(facts({ verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" }, subIssues: [{ number: 8, state: "open" }] }));
     assert.equal(result.verdict, "refuse");
