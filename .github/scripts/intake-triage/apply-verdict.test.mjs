@@ -1189,6 +1189,22 @@ describe("run", () => {
     assert.deepEqual(earlierFlags([{ ...posted.body, id: 53, user: { id: LANES_APP } }], LANES_APP), []);
   });
 
+  test("a mechanical admission refusal names status: confirmed, the label admission wrote, never needs-decision", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => ({ outcome: "refused", reasons: ["no acceptance criteria"], status: "status: confirmed" }),
+      log: () => {},
+    });
+    const posted = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.match(posted?.body.body ?? "", /admission moved the issue to `status: confirmed`/);
+    assert.ok(!posted.body.body.includes("needs-decision"), posted.body.body);
+    assert.match(result.summary, /- Status: status: confirmed/);
+  });
+
   test("takes needs-triage off after the verdict's labels", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
     assert.equal((await go(fake)).outcome, "ready");
@@ -1291,6 +1307,78 @@ describe("run", () => {
     assert.ok(result.summary.includes("- Blocked by: #12 written; #13 skipped (not open)"), result.summary);
   });
 
+  describe("blockers the issue body names", () => {
+    const REPO = "https://api.github.com/repos/o/r";
+    const blockers = {
+      12: { id: 9012, number: 12, state: "open", repository_url: REPO },
+      13: { id: 9013, number: 13, state: "open", repository_url: REPO },
+      14: { id: 9014, number: 14, state: "closed", repository_url: REPO },
+    };
+    const edgePosts = (calls) => calls.filter(({ method, path }) => method === "POST" && path.endsWith("/dependencies/blocked_by")).map(({ body }) => body.issue_id);
+    // #8994's shape: the model's verdict names none, the body names one.
+    const body = "## Problem\n\n#13 is related.\n\nBlocked by: #12\n\n## Depends on\n- #14\n\n<!-- work-items:born-triaged -->\n";
+
+    test("get an edge before admission when the verdict's line names none", async () => {
+      const order = [];
+      const fake = fakeGitHub({ issue: { body }, comments: [laneComment()], blockers });
+      const github = async (method, path, payload) => {
+        if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
+          order.push(`edge ${payload.issue_id}`);
+        }
+        return fake.github(method, path, payload);
+      };
+      const result = await run({
+        env: ENV,
+        github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          order.push("admit");
+          return { outcome: "waiting", reasons: [] };
+        },
+        log: () => {},
+      });
+      assert.deepEqual(order, ["edge 9012", "admit"]);
+      assert.ok(result.summary.includes("- Blocked by: #12 written; #14 skipped (not open)"), result.summary);
+    });
+
+    test("join the verdict's, each number once", async () => {
+      const fake = fakeGitHub({
+        issue: { body: "Blocked by: #12, #13" },
+        comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12"] }))],
+        blockers,
+      });
+      await go(fake);
+      assert.deepEqual(edgePosts(fake.calls), [9012, 9013]);
+    });
+
+    test("get an edge on an escalated verdict, which admits nothing", async () => {
+      const fake = fakeGitHub({ issue: { body }, comments: [laneComment(ESCALATED_BODY)], blockers });
+      const result = await go(fake);
+      assert.equal(result.outcome, "needs-decision");
+      assert.deepEqual(edgePosts(fake.calls), [9012]);
+    });
+
+    test("get no edge on an untrusted-provenance verdict", async () => {
+      const fake = fakeGitHub({
+        issue: { body },
+        comments: [laneComment(laneBody({ cls: "work-class: untrusted-provenance" }))],
+        blockers,
+      });
+      await go(fake);
+      assert.deepEqual(edgePosts(fake.calls), []);
+    });
+
+    test("past the cap, a warning names how many got no edge", async () => {
+      const lines = [];
+      const many = Array.from({ length: 12 }, (_, index) => `#${index + 100}`).join(", ");
+      const fake = fakeGitHub({ issue: { body: `Blocked by: ${many}` }, comments: [laneComment()] });
+      await run({ env: ENV, github: fake.github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: (line) => lines.push(line) });
+      assert.ok(lines.some((line) => line.startsWith("::warning") && line.includes("names 2 blocker(s) past the first 10")), lines.join("\n"));
+      assert.equal(fake.calls.filter(({ method, path }) => method === "GET" && /^\/repos\/o\/r\/issues\/1[0-9]{2}$/.test(path)).length, 10);
+    });
+  });
+
   for (const [status, labels, own] of [
     [403, [], []],
     [429, [], []],
@@ -1352,6 +1440,44 @@ describe("run", () => {
     ]);
     assert.equal(forbidden.fail, true);
     assert.match(forbidden.line, /^::error title=apply-verdict::blocked-by edges not written: #12 not written \(GitHub answered 502\); #13 not written \(GitHub answered 403\);/);
+  });
+
+  for (const status of [403, 429]) {
+    test(`a ${status} on an escalated verdict's edge warns without failing the job and claims no held-back ${READY}`, async () => {
+      const fake = fakeGitHub({
+        issue: { body: "Blocked by: #12" },
+        comments: [laneComment(ESCALATED_BODY)],
+        blockers: { 12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" } },
+      });
+      const github = async (method, path, body) => {
+        if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
+          throw new GitHubError(status, "POST");
+        }
+        return fake.github(method, path, body);
+      };
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+      assert.equal(result.outcome, "needs-decision");
+      assert.deepEqual(result.missed, [{ number: 12, status }]);
+      const annotation = missedAnnotation(result.missed, result.undeleted, result.plan.ready);
+      assert.equal(annotation.fail, false);
+      assert.ok(annotation.line.startsWith("::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: #12 not written"), annotation.line);
+      assert.ok(!annotation.line.includes(`without ${READY}`) && !annotation.line.includes("admission waits"), annotation.line);
+      assert.equal(missedAnnotation(result.missed, result.undeleted, true).fail, status === 403, "a ready verdict keeps its behavior");
+    });
+  }
+
+  // A verdict that is not ready: with every edge missed, work-unblock sees none
+  // of the blockers; with an edge written and its rollback failed, it sees
+  // that partial set, so the warning keeps the partial-set clause.
+  test("a not-ready verdict's warning says work-unblock sees no blocker only when no edge stayed written", () => {
+    assert.deepEqual(missedAnnotation([{ number: 13, status: 502 }], [], false), {
+      fail: false,
+      line: "::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: #13 not written (GitHub answered 502); the verdict's labels are written, and work-unblock, which reads only native edges, does not see these blockers",
+    });
+    assert.deepEqual(missedAnnotation([{ number: 13, status: 502 }], [{ number: 12, status: 500 }], false), {
+      fail: false,
+      line: "::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: #13 not written (GitHub answered 502); #12 written and not deleted (GitHub answered 500), so work-unblock can admit the issue when that blocker closes before intake runs again; the verdict's labels are written, and work-unblock, which reads only native edges, does not see the blockers not written",
+    });
   });
 
   test("an edge the run wrote and could not delete is named, and fails the job on a 403", () => {

@@ -424,11 +424,16 @@ followed, inside a module by the helper's `flow` op and across modules by `_flow
 - a `return`, followed to every call of a function bound to one plain name;
 - an argument, followed into the callee's parameter, the callee being every function the name can
   hold, resolved back through parameters and object-literal arguments (`gn(e,{hook:n})` called as
-  `gn(x,{hook:!1})` holds no function);
+  `gn(x,{hook:!1})` holds no function); a destructured key's default (`{hook:n=d}`) counts whenever
+  the argument's value may be undefined (`undefined`, `void 0`, a missing argument, a variable with
+  no initializer, a `var` read before its initializer runs, an imported binding), a key the literal
+  lacks is read from `Object.prototype`, which the walk then trusts not to hold it, and a literal
+  setting its prototype (`__proto__:`) stays partial;
 - a method of the array: one that never changes it, with its callback's array parameter followed
   (`some`, `every`, `forEach`, `map`, `filter`, `find*`, `flatMap`, `reduce*`), or a name neither
   `Array.prototype` nor `Object.prototype` holds, whose call throws before anything runs;
-- an export, followed into every module importing that name, and again through a re-export;
+- an export, followed into every module whose import or re-export declaration takes that name, read
+  from the AST, and again through a re-export;
 - an argument to an imported function, followed into that function's parameter in the module the
   import's `from` path names in Bun's module table (an external, unknown or unexported source
   stays partial).
@@ -462,17 +467,21 @@ reference is `F.prototype.k` with a named key other than `constructor` (a call, 
 `F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
 given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
 built from a string: global `eval` other than a direct call, the global `Function` used other
-than for `typeof`, `instanceof` or a `.prototype` read (below), any member named `eval` or
-`Function`, and node:vm, since code in a new context still reaches this realm
-(`this.constructor.constructor("...")()` inside `runInNewContext`): any load of `vm` or
-`node:vm` except an import naming only `isContext`, and a runner's name (`runInThisContext`,
-`runInNewContext`, `runInContext`, `compileFunction`, `SourceTextModule`, `SyntheticModule`)
-read or destructured from any object. On each of 2.1.284 to 2.1.288 that is 4 modules
-using `Function` (lodash's `Function("return this")()`, a `new Function("")` probe, an unused
-syntax check, and ajv running the validator code it generates), 3 with a member `.eval(...)` (a CEL
-evaluator, the workflow runtime, a CLI command definition), and 1 with a direct `eval`
-(protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the workflow runtime, the plugin loader, a
-test kit). A load the scan cannot name (below) may load `node:vm`, so it is a sink too.
+than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `constructor` (every
+further member, past any call on the way, names another key, a computed one known not to spell
+it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
+of `instanceof`) or a build cleared below, any member named `eval` or `Function`, and node:vm,
+since code in a new context still reaches this realm (`this.constructor.constructor("...")()`
+inside `runInNewContext`): any load of `vm` or `node:vm` except an import naming only
+`isContext`, and a runner's name
+(`runInThisContext`, `runInNewContext`, `runInContext`, `compileFunction`, `SourceTextModule`,
+`SyntheticModule`) read or destructured from any object. On each of 2.1.284 to 2.1.288 that
+includes 4 modules calling `Function` (lodash's `Function("return this")()`, a
+`new Function("")` probe, an unused syntax check, and ajv running the validator code it
+generates), 3 with a member `.eval(...)` (a CEL evaluator, the workflow runtime, a CLI command
+definition), and 1 with a direct `eval` (protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the
+workflow runtime, the plugin loader, a test kit). A load the scan cannot name (below) may load
+`node:vm`, so it is a sink too.
 
 `Function(...)` and `new Function(...)` build a function from strings and run none of its body;
 only a call runs it. So a use of the global `Function` is no sink when the function it builds is
@@ -527,6 +536,8 @@ Stated assumptions, not checked:
 
 - Code built from strings is not analyzed, only counted as a sink (above), except a direct call
   of `Function` on constant strings, whose code is scanned as written.
+- Every function's `constructor` is `Function`, and only `Function.prototype` is checked for a
+  read of it: `(()=>0).constructor("...")()` builds code no rule counts.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
 - A spread is a copy of the elements, the reading both readers rest on: the sink rule does not
@@ -534,7 +545,7 @@ Stated assumptions, not checked:
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name without a computed key, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
+| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name without a computed key, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and at least the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 

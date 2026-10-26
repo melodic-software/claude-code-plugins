@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -28,6 +28,7 @@ test("the vectors file holds at least twelve well-formed vectors", () => {
   assert.ok(VECTORS.vectors.length >= 12);
   for (const vector of VECTORS.vectors) {
     assert.deepEqual(Object.keys(vector.input).sort(), ["body", "headers", "status", "url"], vector.name);
+    assert.ok(!("limit_cap" in vector) || Number.isInteger(vector.limit_cap), vector.name);
     assert.deepEqual(Object.keys(vector.expect).sort(), ["latched", "low", "pool", "reset", "reset_source"], vector.name);
     assert.ok(Object.keys(vector.input.headers).every((name) => name === name.toLowerCase()), vector.name);
   }
@@ -35,7 +36,7 @@ test("the vectors file holds at least twelve well-formed vectors", () => {
 
 for (const vector of VECTORS.vectors) {
   test(`vector: ${vector.name}`, () => {
-    assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR }), vector.expect);
+    assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR, limitCap: vector.limit_cap ?? null }), vector.expect);
   });
 }
 
@@ -60,6 +61,27 @@ test("defaults come from the schema: a changed schema default changes the module
     }
     assert.equal(changed["content-creation"]["per-minute"], 7);
     assert.equal(changed["github-token"]["per-minute"], undefined);
+  }));
+
+// GitHub documents GITHUB_TOKEN at 1,000 requests per hour per repository
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions);
+// the other pools plan to the limit their header reports.
+test("limit-cap defaults to 1000 for github-token only", () => {
+  const limits = apiLimits({ resolvedPath: "" });
+  assert.equal(limits["github-token"]["limit-cap"], 1000);
+  for (const name of ["lanes-app", "graphql", "owner-token", "content-creation"]) {
+    assert.equal(limits[name]["limit-cap"], undefined, name);
+  }
+});
+
+test("a resolved limit-cap caps another pool, and another github-token field keeps its cap", () =>
+  withDir((dir) => {
+    const path = join(dir, "resolved.json");
+    writeFileSync(path, JSON.stringify({ limits: { api: { "github-token": { "read-floor": 0.2 }, "lanes-app": { "limit-cap": 4000 } } } }));
+    const limits = apiLimits({ resolvedPath: path });
+    assert.equal(limits["github-token"]["limit-cap"], 1000);
+    assert.equal(limits["github-token"]["read-floor"], 0.2);
+    assert.equal(limits["lanes-app"]["limit-cap"], 4000);
   }));
 
 test("a resolved config's limits.api overrides the schema default for that field only", () =>
@@ -168,8 +190,23 @@ test("under the read floor: one warning, no failure, calls still go, belowFloor 
   assert.equal(latch.belowFloor("https://api.github.com/graphql"), false);
 });
 
+// github-token's default limit-cap of 1000 sets the floor at 100 left of the
+// planned 1000: 950 used of a header limit of 5000 leaves 50.
+test("the latch reads the pool's limit-cap: past the plan it warns, and a remaining above zero sends on", async () => {
+  const past = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600" }];
+  const gh = fakeGitHub([past, past]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await fetch(URL_B);
+  assert.equal(gh.sent.length, 2);
+  assert.equal(failed(), 0);
+  assert.equal(latch.belowFloor(URL_A), true);
+  assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
+});
+
 test("a 403 Resource not accessible keeps its old behavior: returned, no latch, no failure", async () => {
-  const refused = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000" }, { message: "Resource not accessible by integration" }];
+  const refused = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4950" }, { message: "Resource not accessible by integration" }];
   const gh = fakeGitHub([refused, [200]]);
   const { latch, lines, failed } = latchFor();
   const fetch = latch.guard(gh.fetch);
@@ -331,6 +368,33 @@ for (const vector of VECTORS.stop_file_errors) {
       undo();
     }));
 }
+
+// Every guarded answer leaves one reading for the job-end notice, under the
+// bucket API_BUDGET_TOKEN names; without that name it leaves none.
+test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none without it", async () =>
+  withDir(async (dir) => {
+    const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
+    process.env.RUNNER_TEMP = dir;
+    const ok = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" }];
+    const options = { now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null };
+    try {
+      delete process.env.API_BUDGET_TOKEN;
+      await createRateLimitLatch(options).guard(fakeGitHub([ok]).fetch)(URL_A);
+      assert.equal(readdirSync(dir).length, 0);
+      process.env.API_BUDGET_TOKEN = "github-token";
+      const gh = fakeGitHub([ok, [404, { ...ok[1], "x-ratelimit-remaining": "4989", "x-ratelimit-used": "11" }], [500]]);
+      const guarded = createRateLimitLatch(options).guard(gh.fetch);
+      for (const url of [URL_A, URL_A, URL_B]) {
+        await guarded(url);
+      }
+      assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1792751600 core\n404 5000 4989 11 1792751600 core\n500 na na na na na\n");
+    } finally {
+      for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }));
 
 // No lane script calls fetch outside the guard, except the files below, each
 // for its stated reason. A new raw fetch fails here until it is guarded or
