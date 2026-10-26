@@ -38,6 +38,7 @@ import { AGGREGATE_JOBS, FAILED, infraCause, infraOnly, RERUN_DUE_MINUTES, recon
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { prHold } from "./gate-source.mjs";
+import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -432,6 +433,10 @@ export async function dispatchCiFixes({
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
       continue;
@@ -444,6 +449,8 @@ export async function dispatchCiFixes({
     } catch (error) {
       if (error.rateLimited) {
         log(`::warning::#${node.number}: its ${checkName} run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+      } else if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its ${checkName} runs: ${error.message}; skipped, a later run retries`);
       } else {
         failed += 1;
         log(`::error::#${node.number}: could not read its ${checkName} runs (${error.message}); left for a later run`);
@@ -468,6 +475,10 @@ export async function dispatchCiFixes({
       // A rate limit is no reason to spend a model run: a later run retries.
       if (error.rateLimited) {
         log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+        continue;
+      }
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its required run's jobs: ${error.message}; skipped, a later run retries`);
         continue;
       }
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);

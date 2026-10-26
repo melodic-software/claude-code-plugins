@@ -2065,7 +2065,11 @@ leg hands off (`run-claude-cli`'s `handoff` output: a credit stop, or class `aut
 401 or 402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent`
 runs on the key, and `check-intent-subscription` runs on the token, on a new runner, only after
 `check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
-`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. The read runner's callers
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. With the org secret
+`FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
+credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
+that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
+with it empty, the subscription leg is the last. The read runner's callers
 do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
 and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). Each lane's workflow names
