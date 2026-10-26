@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.10.2] - 2026-10-26
+
+### Fixed
+
+- `/harness-ops:changelog` `status`, `diff` and `apply` read the changelog page's current `**X.Y.Z**` release headings again instead of reporting `range: not computed`; the older `<Update label>` blocks still parse. One parser, `scripts/changelog-releases.sh`, now serves the status script, the `fetch` slice and the behavior-probes `recheck`.
+
 ## [4.10.1] - 2026-10-26
 
 ### Changed
