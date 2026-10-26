@@ -52,6 +52,17 @@
 // reason and the head; a sweep that finds that comment for this escalation
 // and head only retries the removal. At most CLEARS_PER_RUN a run.
 //
+// enable-auto-merge's own person refusal comment (refusalBody, byte for byte)
+// on a lanes App pull request, the only pr-merge escalation there, whose
+// reason is the gate's verifier or risk answer (verifyHold's), is judged
+// again at the current head instead: the gate's reader (`evidence`, as
+// enable-auto-merge reads it, the room's rung cap passed as C3 so the scorer
+// answers at the config's rung) runs, and the label comes off as
+// `refusal-cleared` only when nothing refuses or what refuses is a lane's
+// (verifyClears `lane`). A person's refusal, a risk hold, an unread answer and
+// a failed read keep it; so does a hold or cost path, which no reader answer
+// clears. At most NATIVE_READS_PER_RUN reads a run.
+//
 // Environment:
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
 //   GITHUB_REPOSITORY    owner/repo
@@ -63,6 +74,8 @@
 //   LANES_BOT_LOGIN      the lanes App bot login (default
 //                        melodic-automation-lanes[bot])
 //   GITHUB_API_URL
+//   BABYSIT_VERIFY_GH_TOKEN  the gate reader's Actions token (the job's
+//                        GITHUB_TOKEN), as enable-auto-merge passes it
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -84,6 +97,7 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
+import { pythonVerify, REFUSAL_MARKER, refusalBody, verifyClears, verifyHold } from "./enable-auto-merge.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
@@ -110,6 +124,12 @@ const COMPARE_CAP = 300;
 const FILES_CAP = 3000;
 // Each clear lets the lanes run on the PR again (judgment).
 export const CLEARS_PER_RUN = 5;
+// Each reader run takes up to enable-auto-merge's VERIFY_TIMEOUT_MS; the
+// step's timeout-minutes (pr-merge.yml) allows this many (judgment).
+export const NATIVE_READS_PER_RUN = 3;
+const REFUSAL_CLEARED = "refusal-cleared";
+// verifyHold's reasons for an answer that refuses: the only ones re-judged.
+const JUDGED = ["pr-merge's gate holds it on its risk score (", "pr-merge's gate refuses its verifier verdict (", "pr-merge's lane does not take its issue link ("];
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
@@ -144,7 +164,9 @@ function mergeable(pull) {
 const keepNote = (label) => `To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
 
 export const clearedComment = (reason, head, why, label) =>
-  reason === HEAD_MOVED
+  reason === REFUSAL_CLEARED
+    ? `${clearedMarker(reason, head)}\nThe pr-merge lane left this pull request for a person, and at \`${head}\` that no longer holds (\`${REFUSAL_CLEARED}\`): ${why}. pr-merge removed \`${label}\`, so the next scheduled run judges it again. ${keepNote(label)}`
+    : reason === HEAD_MOVED
     ? `${clearedMarker(reason, head)}\nThe pr-merge lane escalated this pull request, and its head has moved (\`${HEAD_MOVED}\`): ${why}. pr-merge removed \`${label}\` so it judges \`${head}\` afresh, and escalates again if its refusal still holds. ${keepNote(label)}`
     : `${clearedMarker(reason, head)}\nThe pr-unblock lane escalated this pull request as \`${reason.replaceAll(",", "`, `")}\`, and that no longer holds at \`${head}\`: ${why}. pr-merge removed \`${label}\`, so the lanes run on it again. ${keepNote(label)}`;
 
@@ -160,6 +182,18 @@ function prMergeEscalations(appComments) {
     const named = [...String(body[body.indexOf(marker) + 1] ?? "").matchAll(AT_HEAD)].map((match) => match[1]);
     return [{ marker, head: named.length === 1 && SHA.test(named[0]) ? named[0] : null }];
   });
+}
+
+// enable-auto-merge's person refusal comment, when it is the only pr-merge
+// escalation in `merged` and verifyHold wrote its reason: { head, reason }.
+function nativeRefusal(appComments, merged, label) {
+  if (merged.length !== 1 || merged[0].marker !== REFUSAL_MARKER || merged[0].head === null) {
+    return null;
+  }
+  const newest = appComments.filter((item) => lines(item.body).slice(0, 2).includes(REFUSAL_MARKER)).at(-1);
+  const reason = lines(newest.body).slice(5, -1).join("\n");
+  const { head } = merged[0];
+  return JUDGED.some((prefix) => reason.startsWith(prefix)) && newest.body === refusalBody(true, reason, head, label) ? { head, reason } : null;
 }
 
 // Whether the lanes App comment written last at or before `since` that carries
@@ -183,7 +217,7 @@ function pairedWithPrMerge(appComments, since) {
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
-async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
+async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, verify, reads }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since, lifted } = labelHistory(timeline, label);
   if (!isApp(labeled?.actor, bot)) {
@@ -240,6 +274,27 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
     if (unread !== undefined) {
       return { reason: `the pr-merge comment carrying ${unread.marker} names no head this script can read` };
     }
+    const native = isApp(pull.user, bot) ? nativeRefusal(appComments, merged, label) : null;
+    if (native !== null) {
+      if (reads.left <= 0) {
+        return { reason: `enable-auto-merge's refusal waits: ${NATIVE_READS_PER_RUN} reader runs this run` };
+      }
+      reads.left -= 1;
+      let evidence;
+      try {
+        evidence = await verify({ number, headRefOid: pull.head.sha, baseRefOid: pull.base?.sha }, "C3");
+      } catch (error) {
+        return { reason: `the gate's reader did not answer: ${escapeCommand(error?.message ?? error)}` };
+      }
+      const held = verifyHold(evidence, pull.head.sha);
+      if (held !== null && verifyClears(evidence, pull.head.sha) !== "lane") {
+        return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
+      }
+      return cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
+        `it refused \`${native.head}\` (${native.reason})`,
+        held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
+      ]);
+    }
     if (merged.some(({ head }) => head === pull.head.sha)) {
       return { reason: `a pr-merge escalation names the current head ${pull.head.sha}` };
     }
@@ -257,15 +312,20 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
       why.push(cleared);
     }
   }
+  return cleared(timeline, bot, since, reasons, pull.head.sha, why);
+}
+
+// The clear of `reasons` at `head`, and whether its comment is already posted.
+function cleared(timeline, bot, since, reasons, head, why) {
   const recorded = reasons.join(",");
-  const marker = clearedMarker(recorded, pull.head.sha);
+  const marker = clearedMarker(recorded, head);
   const explained = timeline.some(
     (item) => item.event === "commented" && isApp(item.user, bot) && Date.parse(item.created_at) >= since && lines(item.body)[0] === marker,
   );
-  return { reason: null, recorded, head: pull.head.sha, why: why.join("; "), explained };
+  return { reason: null, recorded, head, why: why.join("; "), explained };
 }
 
-export async function main({ env = process.env, github } = {}) {
+export async function main({ env = process.env, github, verify } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -278,6 +338,8 @@ export async function main({ env = process.env, github } = {}) {
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
     const label = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    verify ??= pythonVerify(env);
+    const reads = { left: NATIVE_READS_PER_RUN };
     const tip = await github("GET", `/repos/${repo}/git/ref/heads/main`);
     const mainSha = tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
     if (!SHA.test(String(mainSha))) {
@@ -294,7 +356,7 @@ export async function main({ env = process.env, github } = {}) {
         continue;
       }
       try {
-        const result = await verdict({ github, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS });
+        const result = await verdict({ github, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
