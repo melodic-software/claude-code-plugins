@@ -76,7 +76,7 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@ba7af78d291f10bd75651857a0db2357c23df0fe # v0\.65\.12$' "$caller"; then
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@ba7af78d291f10bd75651857a0db2357c23df0fe # v0\.65\.13$' "$caller"; then
     ok "$file calls pr-review-cli v0.65.13 as job ${job%:} with publish: comments and hold-label: needs-human"
   else
     fail "$file lost its job id, publish: comments, hold-label or v0.65.13 pin"
