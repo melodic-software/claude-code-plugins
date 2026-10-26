@@ -1448,6 +1448,7 @@ PARSE_BODY='bps_cb() {
 hook::buffer_stdin_to INPUT || exit 0
 hook::jq_fields "$INPUT" ".tool_input.command" || exit 0
 hook::bash_parse_segments "${HOOK_JQ_FIELDS[0]}" bps_cb
+printf "%s:HD [%s]\n" "$PARSE_LABEL" "${HOOK_HEREDOC_BODIES[*]-}" >>"'"$SEEN"'"
 exit 0'
 stub parse-a.sh "PARSE_LABEL=a; PARSE_EXIT_ON=; ${PARSE_BODY}"
 stub parse-b.sh "PARSE_LABEL=b; PARSE_EXIT_ON=; ${PARSE_BODY}"
@@ -1470,6 +1471,7 @@ assert_eq "shared parse: the first guard sees what it sees alone" "$SHARE_ALONE"
 assert_eq "shared parse: a replaying guard sees the same segments" "$SHARE_ALONE" "$(share_by_label b)"
 assert_eq "shared parse: a third guard sees the same segments" "$SHARE_ALONE" "$(share_by_label c)"
 assert_contains "shared parse: the redirections ride along" "$SHARE_ALONE" "R:>&|2|1|0|0 R:>||out.log|0|0"
+assert_contains "shared parse: the heredoc body spans ride along" "$SHARE_ALONE" "HD [86 95 0 1 EOF]"
 assert_eq "shared parse: the event's command is walked once" "1" \
   "$(grep -cxF "$SHARE_WALK" "$SEEN.walks")"
 assert_eq "shared parse: a callback's re-parse is walked per guard, never cached" "3" \

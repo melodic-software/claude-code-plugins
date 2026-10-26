@@ -1,5 +1,28 @@
 # Changelog for the PR pipeline convention
 
+## [5.15.8] - 2026-10-26
+
+### Changed
+
+- The pr-merge merge job reuses this run's post-merge report by the lane room's reuse rule (`babysit_verify_evidence.py settle`, `babysit_merge_policy.settle_shared`) in place of its 6-minute age and same-main test (`REUSE_MINUTES`), which never passed because the report's age counts from before its 6-8 minute check. A report whose check judged (exit 0, 1 or 5) is reused when `settle` keeps it, including at a moved main with no new lane merge; any refusal or failed read runs the check as before (`.github/workflows/pr-merge.yml`). post-merge-dispatch keeps the commit whose code ran its check beside the report, and both the merge job's reuse and enable-auto-merge's lane room (`POSTMERGE_CODE_SHA`) refuse or read the report again when the babysit-prs scripts or `docs/conventions/pr-pipeline.yaml` differ at their own commit, or that commit is missing. The merge job reads the agent identity with yq only for a fresh check.
+
+### Fixed
+
+- An issue lane run whose scan job refused its output (a patch over its 262144-byte cap, a leak-scan block, a payload that does not match its record) is now handed back naming that refusal instead of "The run wrote no readable outcome file". The read runner's `scan-refusal` job now uploads its `scan-refused-<lane>-<activity>-<attempt>` marker in issue mode too, the write runner downloads the `resolve-issue` markers for `report-outcome`, and `report-outcome.mjs` reads them only for a run that left no readable outcome (`.github/workflows/pr-run-activity-read.yml`, `.github/workflows/pr-run-activity-write.yml`, `.github/scripts/work-resolve-issue/report-outcome.mjs`).
+
+## [5.15.7] - 2026-10-26
+
+### Fixed
+
+- The monitoring lane reads failed runs 100 to a page, up to 5 pages (`LIMITS.failedRunPages`), until it keeps 12 lane runs, so a page full of failing fork or pull-request runs no longer hides a failed run of this repository's own. When 5 full pages keep fewer, the read records a `failed runs` gap, which leaves signal 3's issue as it is.
+
+- The work-resolve-issue lane stops a run whose change needs a path `apply-issue-patch` refuses at its first write to that path, instead of after the whole run, when the push is refused. The run's file tools and shell redirects are denied `Edit` on each such path. `deny-rules.mjs` builds those rules from `protected-paths.mjs`'s `PATH_RULES` for the `issue` row in `patch-rules.json`, and they match no path that row would push, so a plugin's `settings.json` stays writable. The preamble names the patterns and tells the run to stop with `exit` `stopped` and a `reason` starting `patch-protected-path`. `report-outcome.mjs` then hands the issue back naming `patch-protected-path`, before the run's own words. `apply-issue-patch` still refuses every path itself, including writes the rules do not cover, such as a wrapper subprocess.
+
+- Lane scripts no longer fail an activity on one transient network error (undici `fetch failed`, `ECONNRESET`, `UND_ERR_SOCKET`). The shared client (`check-trusted-trigger.mjs` `retryServerErrors`) now times and resends a GraphQL POST whose document is a query, with no mutation, under its GET retry rules; a mutation is still sent once.
+- `apply-patch.mjs`, `address-feedback.mjs` (publish-feedback, apply-dependency-verdict, verify-notes), `report-outcome.mjs` and `post-statuses.mjs` send a read, a GraphQL query, or a write that repeats to the same state again after a network error or a 5xx: at most 3 attempts, with a full-jitter wait of a random share of 4 s, then 8 s. The writes resent are the Git Data blob, tree and commit creates, a ref update, a pull request close, an issue label add or remove, and a commit status. After a `POST /pulls` that fails on the network, `report-outcome` reads the open pull request back and creates it again only when there is none. A comment, an issue, a ref create and any mutation are sent once. The wrapper is `retry-fetch.mjs`, one identical copy in each script directory, since each script runs from a copy of its own directory.
+- `pr-unblock/dispatch.mjs` sends `Connection: close` on every request, so its workflow dispatch, which follows up to 5 x 10 s of waiting, goes out on a new connection rather than a pooled one GitHub may have dropped while it sat idle.
+- The hold-path floor (`merge-holds.mjs` `HOLD_PATH_FLOOR`, `babysit_risk.py` `HIGH_FLOOR`, ci-status `hold_patterns`, and both review lanes' `hold-paths`) now holds `.github/scripts/pr-unblock/retry-fetch.mjs` and `.github/scripts/work-resolve-issue/retry-fetch.mjs`, which the floored `address-feedback.mjs` and `report-outcome.mjs` import.
+
 ## [5.15.6] - 2026-10-26
 
 ### Fixed

@@ -801,7 +801,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml`, which runs those
   scripts and sets their environment, `docs/conventions/pr-pipeline.yaml`, and every module
   those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
-  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
+  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and
+  the `retry-fetch.mjs` copy in each of those two directories),
   and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which
   `enable-auto-merge.mjs` runs, with every `babysit-prs/scripts/` module they import
   (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more). `test_merge_holds_sync.py` derives
@@ -1236,6 +1237,10 @@ lane ran before this setting; the `enable-auto-merge` job arms them in both mode
 While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
 anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
 was turned on stops in the merge queue; owner and Dependabot pull requests are not affected.
+Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs the
+failed `ci-status` of each open lanes App pull request whose newest checks run the switch failed on
+its first attempt, at most three per run, merge-critical first; while the switch is on it reads
+nothing.
 `ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
 hold paths, so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request its body or a member holds` runs
@@ -2058,7 +2063,9 @@ the earlier one-issue-per-key form (a marker key without `family:`) is closed as
 comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
 label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
 no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
-cannot read is listed in the step summary and the other signals still run.
+cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
+to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
