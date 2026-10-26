@@ -36,6 +36,9 @@
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human or the lanes App;
+// - a `recurring` item's schedule row, read from the default branch's
+//   .github/recurring-schedule.json, does not set
+//   requires_operator_confirmation (operatorConfirmation);
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval, a run repeated N times, a measurement over time, or a
@@ -63,6 +66,7 @@
 // refuse: it never satisfies a criterion the fields, labels or API decide.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
@@ -104,6 +108,8 @@ export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // The one work class that holds an issue for a person (owner Q85, #9668).
 export const UNTRUSTED = "work-class: untrusted-provenance";
+// Marks a standing item linked to a .github/recurring-schedule.json row.
+const RECURRING = "recurring";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
 const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels"];
 
@@ -119,6 +125,32 @@ export function loadRules(path) {
     throw new Error(`${path}: \`task-list\` must be a string`);
   }
   return rules;
+}
+
+// The recurring schedule as parsed, or null when it cannot be read or parsed.
+// By default it is the one beside this script, the default branch's checkout.
+export function readSchedule(path = fileURLToPath(new URL("../../recurring-schedule.json", import.meta.url))) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+// Why a `recurring` item needs a person, or null: its schedule row (the one
+// titled `[Maintenance] {title}`) sets requires_operator_confirmation, which
+// autonomous lanes must skip, or the schedule was not read. Pure.
+export function operatorConfirmation({ schedule, labels, title }) {
+  if (!labels.includes(RECURRING)) {
+    return null;
+  }
+  if (!Array.isArray(schedule?.items)) {
+    return "it carries recurring and .github/recurring-schedule.json could not be read, so admission cannot tell whether its schedule row needs an operator's confirmation";
+  }
+  const row = schedule.items.find((item) => `[Maintenance] ${item?.title}` === title);
+  return row?.precondition?.requires_operator_confirmation === true
+    ? `its recurring schedule row ${row.id} needs an operator's confirmation (requires_operator_confirmation)`
+    : null;
 }
 
 // The issues and pull requests GitHub lists as blocking the issue at `base`
@@ -374,7 +406,7 @@ export function admissionSettled(labels, events, isMark) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -444,6 +476,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
     }
+  }
+  const confirm = operatorConfirmation({ schedule, labels, title: issue.title });
+  if (confirm) {
+    refuse.push(confirm);
   }
   if (refuse.length > 0) {
     return { verdict: "refuse", reasons: [...refuse, ...parked] };
@@ -619,7 +655,7 @@ export async function sayWhy(github, repository, base, comments, text) {
 // The body, the comment count and the first 100 comments, each with its
 // author, last editor and edit time: the first 100 comments are what pr-verify
 // reads, and it stops on an issue with more.
-const SPEC_COMMENTS = 100;
+export const SPEC_COMMENTS = 100;
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
     body lastEditedAt author { ...actor } editor { ...actor }
@@ -930,6 +966,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     // Read for the admission comment's own earlier copy (sayWhy).
     comments: await paginate(github, `${base}/comments`),
     spec,
+    schedule: readSchedule(),
     parent: typed && parent !== null ? { ...parent, decisionOpen } : null,
     blockers,
     trustedCloses,

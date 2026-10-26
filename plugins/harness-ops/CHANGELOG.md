@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.8] - 2026-10-26
+
+### Fixed
+
+- The `consume-restarts print-schedule` command prints `--permission-mode auto`, plus `--permission-prompts none` when the CLI is 2.1.259 or later, on every scheduled `claude -p` line, so the reader no longer inherits the user's `defaultMode`. Regenerate an existing schedule to pick this up.
+
+## [4.5.7] - 2026-10-25
+
+### Fixed
+
+- **inventory:** `--reader=parser` no longer reads changed lists as `literal` in these cases:
+  - A destructured parameter's key default (`function f({cb=d})`) now counts when the argument's value may be undefined (`undefined`, `void 0`, a `var` read before its initializer runs, an imported binding).
+  - A numeric key matches its literal key.
+  - A key the literal lacks is read from `Object.prototype`, which the sink rule then watches.
+  - A literal that sets its prototype with `__proto__:` reads partial.
+  - `Function.prototype` is exempt from the code-built-from-a-string sink only while its member chain, past any call, cannot reach `constructor` and ends discarded, tested, compared or written.
+  - An export is followed into every module whose parsed import or re-export declaration takes the name, so a comment beside `from` no longer hides an importer.
+
 ## [4.5.6] - 2026-10-25
 
 ### Fixed

@@ -4,7 +4,7 @@ A findings buffer is an append-only pool of observations that unattended scanner
 fixes on sight. A person reads the grouped view of the pool later. The buffer stores rows and
 returns them; it does not interpret them.
 
-The seam follows the shape of the tracker seam
+This contract follows the shape of the tracker seam
 (`plugins/work-items/tools/work-item-tracker/CONTRACT.md`): two verbs per adapter, a
 `capabilities.json` handshake, and the same exit codes.
 
@@ -117,6 +117,22 @@ adapter the plugin ships under `tools/findings-buffer/adapters/`. That directory
 physically inside `adapters/`, hold `append.sh` and `read.sh` as executable regular files, and carry
 a `capabilities.json` whose `schema_version` MAJOR is `1`. The binding is a file the repository
 writes, so it never names repository code: a path, or a name the plugin does not ship, is refused.
+
+Repository code runs only from the user-scope binding, the plugin's two `userConfig` options, read
+from the user `settings.json` (located from the plugin's own install path) and managed settings
+only, never from the environment, a project settings file or a session's `--settings` file.
+`findings_buffer_adapter_repository` is the absolute git common directory of the one repository
+it applies to; `findings_buffer_adapter_path` is the adapter directory relative to the checkout
+root. It applies when the current checkout's git common directory is that directory, so in the main
+checkout and every worktree of that repository and in no other repository, and then it wins over
+the repository's binding file. The checkout root must be one `git worktree list` reports for that
+directory, so a directory whose `.git` file merely names it is refused. The adapter directory must resolve physically inside the current
+checkout, it and the real location of each verb must not lie inside a git repository nested in it
+(a submodule or a clone under the tree), and it passes the same verb and `capabilities.json` checks. Git runs without the caller's `GIT_*`
+variables for these checks. A binding with one option set, a relative repository, an absolute
+path, or an adapter that fails a check is refused on stderr, and the repository's binding file
+applies instead.
+
 A missing or refused binding uses `local-file` and says so on stderr. Exits as in [Exit codes](#exit-codes); `3`
 also means `node` or `python3` is missing.
 

@@ -50,7 +50,7 @@ BRANCH="feat/x"
 # base): push-branch.sh's own read (`-q`, one line) and lane-push.sh's (`-R`,
 # two lines). `api --hostname github.com repos/...` is lane-push.sh's default-branch read. Lane cases add a git
 # stand-in that records a push instead of sending it. With PB_GITHUB_ROOT set,
-# the git stand-in sends a push for https://github.com/<path> to
+# the git stand-in sends a push or ls-remote for https://github.com/<path> to
 # $PB_GITHUB_ROOT/<path>, so a remote can carry a github.com URL (what
 # `git remote get-url` reports) and still push into a local bare repository.
 REAL_GIT="$(type -P git)"
@@ -87,7 +87,7 @@ for a in "\$@"; do
     pwd -P >"$LOG/push.cwd"
     exit 0
   fi
-  if [[ \$a == push && -n \${PB_GITHUB_ROOT:-} ]]; then
+  if [[ (\$a == push || \$a == ls-remote) && -n \${PB_GITHUB_ROOT:-} ]]; then
     exec "$REAL_GIT" -c "url.\$PB_GITHUB_ROOT/.insteadOf=https://github.com/" \
       -c "url.\$PB_GITHUB_ROOT/.insteadOf=ssh://git@github.com/" \
       -c "url.\$PB_GITHUB_ROOT/.insteadOf=git@github.com:" "\$@"
@@ -122,7 +122,9 @@ PUSH_BRANCH="$PLUGIN/skills/pull-request/scripts/push-branch.sh"
 
 # Build a working clone under $WORKDIR/$1 with `feat/x` checked out (one commit),
 # plus a bare remote per remaining `name` arg. The clone's `origin` is a bare
-# repo of its own so a real push has somewhere to land. Echoes the clone path.
+# repo of its own so a real push has somewhere to land. Every remote holds the
+# commit as `trunk`, its HEAD, so ls-remote reports a default branch, as a real
+# remote does. Echoes the clone path.
 make_clone() {
   local name="$1"
   shift
@@ -137,6 +139,10 @@ make_clone() {
   for extra in "$@"; do
     git init -q --bare "$base/$extra.git"
     git -C "$base/wc" remote add "$extra" "$base/$extra.git"
+  done
+  for bare in "$base"/*.git; do
+    git -C "$base/wc" push -q "$bare" "HEAD:refs/heads/trunk" 2>/dev/null
+    git -C "$bare" symbolic-ref HEAD refs/heads/trunk
   done
   echo "$base/wc"
 }
@@ -462,6 +468,112 @@ rm -f "$LOG"/*
 check "login read failed: exit 0 on the operator path" "$?" "0"
 check "login read failed: the remote received the branch by plain git" "$(has_branch "$WORKDIR/login-fail/origin")" "yes"
 check "login read failed: no identity preflight" "$([[ -f $LOG/preflight.argv ]] && echo ran || echo none)" "none"
+
+# 10. Never pushed: main, master, or the push remote's default branch as the
+#     remote reports it (ls-remote --symref), whatever the local <remote>/HEAD
+#     says. A failed ls-remote refuses. Each refusal pushes nothing.
+has_ref() {
+  if git -C "$1" rev-parse --verify --quiet "refs/heads/$2" >/dev/null 2>&1; then echo yes; else echo no; fi
+}
+# refuse_case <desc> <bare remote> <ref> <message> <cwd> [push-branch.sh args...]
+# runs push-branch.sh from <cwd>, with $STUB first on PATH when set. An empty
+# <ref> skips the "did not receive" check (the caller checks the tip itself).
+refuse_case() {
+  local desc="$1" bare="$2" ref="$3" want_msg="$4" cwd="$5"
+  shift 5
+  local rc=0 err
+  err=$(cd "$cwd" && PATH="${STUB:+$STUB:}$PATH" bash "$PUSH_BRANCH" "$@" 2>&1 >/dev/null) || rc=$?
+  check "$desc: exits non-zero" "$([[ $rc != 0 ]] && echo nonzero || echo zero)" "nonzero"
+  check "$desc: names why" "$([[ $err == *"$want_msg"*"; not pushing"* ]] && echo refused || echo "$err")" "refused"
+  [[ -z $ref ]] || check "$desc: the remote did not receive '$ref'" "$(has_ref "$bare" "$ref")" "no"
+}
+ALWAYS="(main and master are always refused)"
+STUB=""
+
+# main and master refuse on a remote with no HEAD yet: named, current, --dir.
+wc=$(make_clone always)
+bare="$WORKDIR/always/origin.git"
+git -C "$wc" branch -q -f main
+git -C "$wc" branch -q -f master
+refuse_case "always, main named" "$bare" main "'main' is refused $ALWAYS" "$wc" main
+refuse_case "always, master named" "$bare" master "'master' is refused $ALWAYS" "$wc" master
+git -C "$wc" checkout -q main
+refuse_case "always, main current" "$bare" main "'main' is refused $ALWAYS" "$wc"
+refuse_case "always, --dir on main" "$bare" main "'main' is refused $ALWAYS" "$WORKDIR" --dir "$wc"
+
+# The remote's default is trunk. Local origin/HEAD unset, then stale (main):
+# trunk refuses either way, main and master still refuse, a feature branch pushes.
+wc=$(make_clone remote-trunk)
+bare="$WORKDIR/remote-trunk/origin.git"
+git -C "$wc" branch -q trunk
+git -C "$wc" branch -q -f main
+git -C "$wc" branch -q -f master
+git -C "$wc" push -q origin "HEAD:refs/heads/trunk" 2>/dev/null
+git -C "$bare" symbolic-ref HEAD refs/heads/trunk
+remote_trunk=$(git -C "$bare" rev-parse refs/heads/trunk)
+git -C "$wc" commit -q --allow-empty -m "local trunk ahead"
+git -C "$wc" branch -q -f trunk HEAD
+refuse_case "remote trunk, local HEAD unset" "$bare" "" \
+  "'trunk' is the default branch of origin" "$wc" trunk
+git -C "$wc" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+refuse_case "remote trunk, local HEAD stale at main" "$bare" "" \
+  "'trunk' is the default branch of origin" "$wc" trunk
+check "remote trunk: the remote's trunk did not move" "$(git -C "$bare" rev-parse refs/heads/trunk)" "$remote_trunk"
+refuse_case "remote trunk, main" "$bare" main "'main' is refused $ALWAYS" "$wc" main
+refuse_case "remote trunk, master" "$bare" master "'master' is refused $ALWAYS" "$wc" master
+(cd "$wc" && bash "$PUSH_BRANCH" "$BRANCH") >/dev/null 2>&1
+check "remote trunk, control: a feature branch pushes" "$(has_ref "$bare" "$BRANCH")" "yes"
+
+# A remote whose default cannot be read refuses, even where the push URL works.
+wc=$(make_clone lsremote-fail)
+bare="$WORKDIR/lsremote-fail/origin.git"
+git -C "$wc" remote set-url origin "$WORKDIR/lsremote-fail/missing.git"
+git -C "$wc" remote set-url --push origin "$bare"
+refuse_case "ls-remote failed" "$bare" "$BRANCH" \
+  "the default branch of origin could not be read" "$wc" "$BRANCH"
+
+# A remote that answers ls-remote but advertises no HEAD symref (here a HEAD
+# naming no branch) has an unreadable default: refused like a failed read.
+wc=$(make_clone no-head)
+bare="$WORKDIR/no-head/origin.git"
+git -C "$bare" symbolic-ref HEAD refs/heads/absent
+refuse_case "remote advertises no HEAD" "$bare" "$BRANCH" \
+  "the default branch of origin could not be read" "$wc" "$BRANCH"
+
+# --check runs the same check and pushes nothing.
+wc=$(make_clone check-mode)
+bare="$WORKDIR/check-mode/origin.git"
+git -C "$wc" branch -q -f main
+refuse_case "--check main" "$bare" main "'main' is refused $ALWAYS" "$WORKDIR" --check --dir "$wc" main
+(cd "$WORKDIR" && bash "$PUSH_BRANCH" --check --dir "$wc") >/dev/null 2>&1
+check "--check, feature branch: exits 0" "$?" "0"
+check "--check, feature branch: nothing pushed" "$(has_ref "$bare" "$BRANCH")" "no"
+
+# --pr: a head in the base repository on main refuses, before the
+# head-repository check, and names the PR head. A fork head pushes to the
+# contributor's fork, not the base, so its main pushes (lane-push.sh's rule).
+# The stub answers "<head branch> <head repo> <base repo>".
+wc=$(make_clone default-pr)
+git -C "$wc" branch -q -f main
+git -C "$wc" remote set-url origin https://github.com/default-pr/origin.git
+STUB="$WORKDIR/default-pr/bin"
+mkdir -p "$STUB"
+cat >"$STUB/gh" <<'STUB'
+#!/usr/bin/env bash
+[[ "$1" == api ]] && echo example-user && exit 0
+[[ "$*" == *" 47 "* ]] && echo "main default-pr/origin default-pr/origin" && exit 0
+[[ "$*" == *" 48 "* ]] && echo "main default-pr/origin base-org/app" && exit 0
+exit 1
+STUB
+chmod +x "$STUB/gh"
+export PB_GITHUB_ROOT="$WORKDIR"
+refuse_case "--pr head main in the base repository" "$WORKDIR/default-pr/origin.git" main \
+  "PR '47' head 'main' is refused $ALWAYS" "$wc" --pr 47
+(cd "$wc" && PATH="$STUB:$PATH" bash "$PUSH_BRANCH" --pr 48) >/dev/null 2>&1
+check "--pr fork head main: exits 0" "$?" "0"
+check "--pr fork head main: the fork received main" "$(has_ref "$WORKDIR/default-pr/origin.git" main)" "yes"
+STUB=""
+unset PB_GITHUB_ROOT
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
