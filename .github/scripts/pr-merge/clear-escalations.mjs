@@ -38,15 +38,16 @@
 //
 // With no pr-unblock escalation since the label, a pr-merge escalation clears
 // as `head-moved` instead, but only when the marked lanes App comment written
-// last before the label is pr-merge's and came within PAIRED_MS of it, so a
-// label added for another reason is never read as pr-merge's. Then the
-// newest lanes App comment carrying each of
+// last before the label is pr-merge's and came within PAIRED_MS of it, or
+// carries pr-merge's escalation line (enable-auto-merge puts the label back
+// under a standing one), so a label added for another reason is never read
+// as pr-merge's. Then the newest lanes App comment carrying each of
 // pr-merge's own markers (PR_MERGE_MARKERS) names, in its `at head `<sha>``,
 // a head that is not the PR's current one. pr-merge then judges the new head
-// and escalates again if its refusal still holds. Under `merge.lane-prs:
-// native` pr-merge never judges a lanes App pull request, so one of those
-// keeps the label: nothing would escalate it again. A marker whose head does
-// not parse as 40-hex keeps the label, and so does any other marker, as above.
+// and escalates again if its refusal still holds: under `merge.lane-prs:
+// native` enable-auto-merge does, labeling it again only for a cause a person
+// must clear. A marker whose head does not parse as 40-hex keeps the label,
+// and so does any other marker, as above.
 //
 // Before the label comes off, the App posts one comment naming the cleared
 // reason and the head; a sweep that finds that comment for this escalation
@@ -58,8 +59,6 @@
 //   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
 //                        label (default .base/.work-item-tracker.json)
-//   LANE_PRS             merge.lane-prs as resolve-config resolved it; only
-//                        `native` keeps a lanes App PR's head-moved label
 //   LANES_BOT_LOGIN      the lanes App bot login (default
 //                        melodic-automation-lanes[bot])
 //   GITHUB_API_URL
@@ -164,11 +163,14 @@ function prMergeEscalations(appComments) {
 
 // Whether the lanes App comment written last at or before `since` that carries
 // any marker other than this script's own is pr-merge's alone, and was written
-// within PAIRED_MS of it: pr-merge writes its comment, then the label. A
-// comment's writes are its creation and its last edit; a tie fails closed.
+// within PAIRED_MS of it (pr-merge writes its comment, then the label) or
+// carries pr-merge's escalation line, under which enable-auto-merge puts a
+// missing label back with no new comment. A comment's writes are its
+// creation and its last edit; a tie fails closed.
 function pairedWithPrMerge(appComments, since) {
   let newest = -Infinity;
   let ours = false;
+  let escalated = false;
   for (const item of appComments) {
     const markers = lines(item.body).filter((line) => line.includes("<!--") && !CLEARED.test(line));
     const at = Math.max(...[item.created_at, item.updated_at].map(Date.parse).filter((time) => time <= since));
@@ -177,13 +179,14 @@ function pairedWithPrMerge(appComments, since) {
     }
     const mine = markers.some((line) => PR_MERGE_MARKERS.includes(line)) && markers.every(prMergeLine);
     ours = at > newest ? mine : ours && mine;
+    escalated = at > newest ? markers.includes(PR_MERGE_ESCALATION) : escalated && markers.includes(PR_MERGE_ESCALATION);
     newest = at;
   }
-  return ours && since - newest <= PAIRED_MS;
+  return ours && (since - newest <= PAIRED_MS || escalated);
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
-async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
+async function verdict({ github, repo, number, label, bot, mainSha }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since, lifted } = labelHistory(timeline, label);
   if (!isApp(labeled?.actor, bot)) {
@@ -243,9 +246,6 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
     if (merged.some(({ head }) => head === pull.head.sha)) {
       return { reason: `a pr-merge escalation names the current head ${pull.head.sha}` };
     }
-    if (lanePrs === "native" && isApp(pull.user, bot)) {
-      return { reason: "under merge.lane-prs native pr-merge does not judge a lanes App pull request's new head" };
-    }
     reasons = [HEAD_MOVED];
     why.push(`its escalation names head \`${[...new Set(merged.map(({ head }) => head))].join("`, `")}\`, and the head is now \`${pull.head.sha}\``);
   } else {
@@ -294,7 +294,7 @@ export async function main({ env = process.env, github } = {}) {
         continue;
       }
       try {
-        const result = await verdict({ github, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS });
+        const result = await verdict({ github, repo, number, label, bot, mainSha });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
