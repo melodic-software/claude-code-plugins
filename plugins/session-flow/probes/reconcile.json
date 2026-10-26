@@ -10,13 +10,6 @@
     "session-flow:running-retro",
     "session-flow:handoff"
   ],
-  "competitor_dirs": {
-    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
-    "session-flow:orient": "plugins/session-flow/skills/orient",
-    "session-flow:clean-stop": "plugins/session-flow/skills/clean-stop",
-    "session-flow:running-retro": "plugins/session-flow/skills/running-retro",
-    "session-flow:handoff": "plugins/session-flow/skills/handoff"
-  },
   "queries": [
     {
       "id": "pos-train-01",

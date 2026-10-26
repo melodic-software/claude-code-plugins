@@ -16,17 +16,21 @@
 // only once it ends, so a run still in that job has no waiting job and is not
 // counted: this job then does its work.
 //
-// A pending run's job does the work when the run is scheduled, or when its
-// actor id and its triggering actor's login are both a listed human's (the
-// job's "Check who started the run" step stops any other run). A scheduled or
+// A pending run's job does the work only when its "Check who started the
+// run" step lets it on, and this check counts a run by that step's rule, by
+// id, since a login can be released and registered by someone else: a
+// scheduled run's first attempt, a later attempt of one that a listed human
+// started (a re-run keeps the event, and a scheduled run's actor is often a
+// bot), or any other run whose actor and triggering actor are each a listed
+// human. A scheduled or
 // hand-started run counts only on main, since another branch runs its own
-// copy; pull_request_target and workflow_run runs always run main's. And its
+// copy; pull_request_target runs always run main's. And its
 // event must rank at least as high as this run's (RANKS). For `merge`, only a
 // scheduled run re-fires refused lane runs, and a pull_request_target run
 // starts no full CI run: pull_request_target, then workflow_dispatch, then
 // schedule. For `enable-auto-merge`, every run lists every lane pull request
 // and disarms one on a hold, and only a scheduled or hand-started one arms:
-// pull_request_target and workflow_run, then workflow_dispatch and schedule.
+// pull_request_target, then workflow_dispatch and schedule.
 //
 // Any failure answers `superseded=false`: the job does its work as it would
 // without this check. One REST call to list pending runs, then one jobs read
@@ -47,29 +51,21 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const RANKS = Object.freeze({
   merge: Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 2 }),
-  "enable-auto-merge": Object.freeze({ pull_request_target: 0, workflow_run: 0, workflow_dispatch: 1, schedule: 1 }),
+  "enable-auto-merge": Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 1 }),
 });
 const WAITING = new Set(["queued", "pending", "waiting", "requested"]);
 export const MAX_JOB_READS = 5;
-const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-// The who step's test: the run's actor id and its triggering actor's login
-// (case-insensitive) each belong to a listed human.
-function startedByHuman({ humans, logins }, run) {
-  const login = run.triggering_actor?.login;
-  return (
-    Number.isInteger(run.actor?.id) &&
-    humans.has(run.actor.id) &&
-    typeof login === "string" &&
-    humans.has(logins.get(login.toLowerCase()))
-  );
-}
+// The run's actor and its triggering actor (who last re-ran it) are each a
+// listed human, by id.
+const startedByHuman = ({ humans }, run) =>
+  [run.actor?.id, run.triggering_actor?.id].every((id) => Number.isInteger(id) && humans.has(id));
 
 // The pending runs whose job, if still waiting, does all this run's job does.
 export function eligible(runs, { runId, event, trusted, ranks }) {
@@ -80,8 +76,10 @@ export function eligible(runs, { runId, event, trusted, ranks }) {
       Object.hasOwn(ranks, run.event) &&
       ranks[run.event] >= ranks[event] &&
       // A dispatch on another branch runs that branch's copy of the workflow.
-      (run.event === "pull_request_target" || run.event === "workflow_run" || run.head_branch === "main") &&
-      (run.event === "schedule" || startedByHuman(trusted, run)),
+      (run.event === "pull_request_target" || run.head_branch === "main") &&
+      (run.event === "schedule"
+        ? run.run_attempt === 1 || trusted.humans.has(run.triggering_actor?.id)
+        : startedByHuman(trusted, run)),
   );
 }
 
@@ -97,7 +95,7 @@ export async function main({ env = process.env, actions } = {}) {
     if (!Object.hasOwn(ranks, event)) {
       throw new Error(`event ${event} has no rank`);
     }
-    if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
+    if (!REPOSITORY.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
     const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);

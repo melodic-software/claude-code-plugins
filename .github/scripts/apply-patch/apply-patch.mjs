@@ -66,6 +66,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
@@ -107,7 +108,8 @@ const PATH_RULES = {
   // as of 2026-10-22; recheck when that page names another location).
   codeowners: (s) => s.at(-1) === "codeowners" && (s.length === 1 || (s.length === 2 && [".github", "docs"].includes(s[0]))),
   gitmodules: (s) => s.at(-1) === ".gitmodules",
-  settings: (s) => /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
+  // A settings file outside plugins/, whose files are this repository's product.
+  settings: (s) => s[0] !== "plugins" && /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
 };
 const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
@@ -236,12 +238,15 @@ export const TARGETS = {
     movedHead: true,
     checkRef: () => "",
     // The push goes to this repository's branch only: a fork head throws.
+    // A body hold (merge-holds.mjs BODY_HOLD) stops a push to a PR the lanes
+    // App did not open; on the App's own PR it holds the merge, not a fix.
     async held(api, number, { holds, repository }) {
       const [pull, labels] = [await api.getPull(number), await api.listLabels(number)];
       if (pull.head?.repo?.full_name !== repository) {
         throw new Error(`the PR head is ${pull.head?.repo?.full_name ?? "unreadable"}, not ${repository}; the patch is not pushed`);
       }
-      return pull.draft !== false || labels.some((label) => holds.has(label.name));
+      const lanesApp = pull.user?.type === "Bot" && pull.user?.login === LANES_APP_LOGIN;
+      return pull.draft !== false || labels.some((label) => holds.has(label.name)) || (!lanesApp && BODY_HOLD.test(String(pull.body ?? "")));
     },
     async ready(api, ref, head) {
       const tip = await api.readBranch(ref);

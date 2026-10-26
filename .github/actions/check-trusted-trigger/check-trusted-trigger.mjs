@@ -89,26 +89,48 @@ export class GitHubError extends Error {
   }
 }
 
-// Wraps a fetch so a GET attempt is aborted after attemptTimeoutMs, and a GET
-// that GitHub answers 5xx, answers 200 with an empty body or with JSON that
-// does not parse, or that fails on the network (a timeout, "fetch failed", an
-// error with a cause code) is sent again after 2 s, 4 s and 8 s, each with
-// equal jitter (half fixed, half random). The time failed attempts took plus
-// the waits, summed over every call through one wrapper, is capped at 60 s: a
-// wait past the cap is not taken. With 20 s attempts, retrying adds at most
-// about 80 s to a client, inside the shortest step that runs one (3 minutes,
+// Wraps a fetch so an idempotent request (a GET, or a GraphQL query) has each
+// attempt aborted after attemptTimeoutMs, and is sent again after 2 s, 4 s and
+// 8 s, each with equal jitter (half fixed, half random), when GitHub answers it
+// 5xx, answers a GET 200 with an empty body or with JSON that does not parse,
+// or it fails on the network (a timeout, "fetch failed", an error with a cause
+// code). The time failed attempts took plus the waits, summed over every call
+// through one wrapper, is capped at 60 s: a wait past the cap is not taken,
+// though a call's first attempt always goes out. With 20 s attempts, retrying adds at most
+// about 80 s to one call, inside the shortest step that runs one (3 minutes,
 // pr-merge.yml's gate-check and clear-escalations). The last answer is
-// returned, or the last error thrown. A POST to /graphql whose document is a
-// query, with no mutation, is a read and is timed and sent again the same
-// way. Other writes are sent once: only reads are idempotent. A 4xx is the
-// caller's to handle, a rate limit is the rate guard's (rate-guard.mjs), whose
-// latch refuses any attempt while its pool is stopped, and any other
-// thrown error is raised at once. A retry line names an error's name and cause
-// code only: undici puts a whole header value, the token included, in some
-// messages. createGitHub and budgetedFetch both use it.
+// returned, or the last error thrown. Any other request, a mutation among
+// them, is sent once and never timed out; a 4xx is the caller's to handle, a
+// rate limit is the rate guard's (rate-guard.mjs), whose latch refuses any
+// attempt while its pool is stopped, and any other thrown error is raised at
+// once. A retry line names an error's name and cause code only: undici puts a
+// whole header value, the token included, in some messages. createGitHub and
+// budgetedFetch both use it.
 const SERVER_RETRY_DELAYS_MS = [2000, 4000, 8000];
 const SERVER_RETRY_BUDGET_MS = 60_000;
 const ATTEMPT_TIMEOUT_MS = 20_000;
+// A GraphQL query: a POST to /graphql whose document starts with `query` or
+// `{` past any `#` comments, holds no `mutation` or `subscription` word
+// anywhere in the raw text (so a `#` inside a string hides none), and whose
+// request names no operationName. A document can hold several operations and the
+// request pick one by name, so anything less than all three may run a mutation.
+const graphqlQuery = (url, init) => {
+  if (!String(url).endsWith("/graphql") || typeof init.body !== "string") {
+    return false;
+  }
+  try {
+    const request = JSON.parse(init.body);
+    const query = request?.query;
+    return (
+      typeof query === "string" &&
+      request.operationName === undefined &&
+      /^(query\b|\{)/.test(query.replace(/#[^\n]*/g, "").trim()) &&
+      !/\b(mutation|subscription)\b/.test(query)
+    );
+  } catch {
+    return false;
+  }
+};
 const networkFailure = (error) =>
   error?.name === "TimeoutError" ||
   error?.name === "AbortError" ||
@@ -137,22 +159,6 @@ async function brokenBody(response) {
     return true;
   }
 }
-// A POST to /graphql whose query is a query operation (or the `{ ... }`
-// shorthand) and names no mutation or subscription anywhere, comments and
-// strings included, so a `#` inside a string cannot hide one: a read.
-// Anything else, a body that does not parse included, is a write.
-export function isGraphQLRead(url, init = {}) {
-  if (init.method !== "POST" || !/\/graphql$/.test(String(url)) || typeof init.body !== "string") {
-    return false;
-  }
-  try {
-    const query = JSON.parse(init.body)?.query;
-    const text = typeof query === "string" ? query.replace(/#[^\n]*/g, "").trim() : "";
-    return /^(query\b|\{)/.test(text) && !/\b(mutation|subscription)\b/.test(query);
-  } catch {
-    return false;
-  }
-}
 export function retryServerErrors(
   fetchImpl,
   {
@@ -169,11 +175,11 @@ export function retryServerErrors(
   let spent = 0;
   return async function send(url, init = {}) {
     const method = init.method ?? "GET";
-    const read = method === "GET" || isGraphQLRead(url, init);
+    const idempotent = method === "GET" || (method === "POST" && graphqlQuery(url, init));
     for (let attempt = 0; ; attempt += 1) {
-      // Only a read is timed out: a write GitHub accepted slowly must not look
-      // failed, so writes keep only the caller's signal.
-      const timeout = read ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
+      // Only an idempotent request is timed out: a write GitHub accepted slowly
+      // must not look failed, so writes keep only the caller's signal.
+      const timeout = idempotent ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
       const signal = timeout && init.signal ? AbortSignal.any([init.signal, timeout]) : (timeout ?? init.signal);
       const started = now();
       let response;
@@ -189,7 +195,7 @@ export function retryServerErrors(
       spent += failed ? now() - started : 0;
       const delay = SERVER_RETRY_DELAYS_MS[attempt];
       const wait = delay === undefined ? 0 : Math.round(delay / 2 + (random() * delay) / 2);
-      if (!failed || !read || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
+      if (!failed || !idempotent || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
         if (error !== undefined) {
           throw error;
         }
@@ -565,7 +571,7 @@ async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
 // re-run keeps the event, so a stop here could otherwise turn an earlier red
 // check on the same SHA neutral: untrusted-rerunner has no skip mapping, and
 // a failed or malformed read stops with it too.
-async function readRerunner(github, repository, runId, runAttempt) {
+export async function readRerunner(github, repository, runId, runAttempt) {
   const refuse = "untrusted-rerunner";
   if (!RUN_ID.test(runId) || !RUN_ATTEMPT.test(runAttempt)) {
     throw new Stop(refuse);
@@ -585,10 +591,10 @@ async function checkRerunner({ github, repository, runId, runAttempt, pool, deni
   }
 }
 
-// The run at headSha ran the default branch's own code: no tag shares the
-// branch's name (a run on that tag would report the same head_branch; only a
-// 404 proves it absent), and headSha is the branch tip or behind it.
-async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+// The default branch's tip, read only while no tag shares the branch's name
+// (a run on that tag would report the same head_branch; only a 404 proves it
+// absent).
+export async function readDefaultBranchTip(github, repository, defaultBranch, reason) {
   let tagAbsent = false;
   try {
     await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
@@ -602,10 +608,22 @@ async function requireOnDefaultBranch(github, repository, defaultBranch, headSha
   if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
     throw new Stop(reason);
   }
-  const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tip.object.sha}`, reason);
+  return tip.object.sha;
+}
+
+// headSha is the tip `tipSha` or behind it.
+export async function requireBehindTip(github, repository, headSha, tipSha, reason) {
+  const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tipSha}`, reason);
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     throw new Stop(reason);
   }
+}
+
+// The run at headSha ran the default branch's own code: no tag shares the
+// branch's name, and headSha is the branch tip or behind it.
+async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+  const tip = await readDefaultBranchTip(github, repository, defaultBranch, reason);
+  await requireBehindTip(github, repository, headSha, tip, reason);
 }
 
 // What a record name says about this run: null when it does not list it,

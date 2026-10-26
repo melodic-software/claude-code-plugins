@@ -6,7 +6,9 @@ import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
+import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
 import { commitPulls as readCommitPulls, createGitHub, GitHubError, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -2047,6 +2049,80 @@ test("createGitHub never aborts a slow POST and sends it once", async () => {
   });
   assert.equal(await github("POST", "/repos/o/r/actions/workflows/pr-unblock.yml/dispatches", {}), null);
   assert.deepEqual(sent, ["POST"]);
+});
+
+// A GraphQL query is a read sent as a POST: it gets the GET attempt timeout and
+// its resends. Without the timeout the hung read never ends and the test times out.
+test("createGitHub aborts a GraphQL query that never answers and sends it again", { timeout: 5000 }, async () => {
+  const sent = [];
+  const slept = [];
+  const github = createGitHub({
+    token: "t",
+    apiUrl: "https://api.example",
+    fetchImpl: hung(sent),
+    attemptTimeoutMs: 5,
+    sleep: async (ms) => slept.push(ms),
+    random: () => 0,
+    log: () => {},
+  });
+  await assert.rejects(github("POST", "/graphql", { query: "query { viewer { login } }" }), (error) => error.name === "TimeoutError");
+  assert.equal(sent.length, 4);
+  assert.deepEqual(slept, [1000, 2000, 4000]);
+});
+
+test("createGitHub never aborts a slow GraphQL mutation and sends it once", async () => {
+  const sent = [];
+  const github = createGitHub({
+    token: "t",
+    apiUrl: "https://api.example",
+    fetchImpl: async (url, init) => {
+      sent.push(init.method);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      if (init.signal?.aborted) {
+        throw init.signal.reason;
+      }
+      return new Response('{"data":{}}', { status: 200 });
+    },
+    attemptTimeoutMs: 5,
+    sleep: async () => {},
+    log: () => {},
+  });
+  assert.deepEqual(await github("POST", "/graphql", { query: "mutation { a }" }), { data: {} });
+  assert.deepEqual(sent, ["POST"]);
+});
+
+test("createGitHub sends a GraphQL query answered 502 again and a GraphQL mutation answered 502 once", async () => {
+  const gh = flaky([{ status: 502 }, { status: 200, body: '{"data":{"n":1}}' }, { status: 502 }, { status: 200 }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  assert.deepEqual(await github("POST", "/graphql", { query: "query { n }" }), { data: { n: 1 } });
+  await assert.rejects(github("POST", "/graphql", { query: "mutation { a }" }), (error) => error instanceof GitHubError && error.status === 502);
+  assert.deepEqual(gh.sent, ["POST /graphql", "POST /graphql", "POST /graphql"]);
+  assert.deepEqual(gh.slept, [1000]);
+});
+
+// enable-auto-merge's withRetry resends a GraphQL call that fails on the
+// network up to three sends, and each send of a query goes through this
+// client's own four: 3 × 4 = 12 for a query, 3 × 1 = 3 for a mutation.
+test("withRetry over createGitHub sends a query that keeps failing on the network 12 times and a mutation 3 times", async () => {
+  for (const [query, sends] of [["query { n }", 12], ["mutation { a }", 3]]) {
+    const gh = flaky(Array.from({ length: 20 }, () => new TypeError("fetch failed")));
+    const github = withRetry(createGitHub({ ...gh.options, random: () => 0 }), { sleep: async () => {}, random: () => 0 });
+    await assert.rejects(github("POST", "/graphql", { query }), (error) => error.message === "fetch failed" && error.attempts === 3);
+    assert.equal(gh.sent.length, sends, query);
+  }
+});
+
+// A 502 that carries retry-after latches its pool (rate-guard.mjs classify:
+// a retry-after header stops every pool), so no resend and no later call
+// goes out.
+test("a GraphQL query answered 502 with retry-after is not sent again, and the next call sends nothing", async () => {
+  const gh = flaky([{ status: 502, headers: { "retry-after": "60" } }, { status: 200 }, { status: 200 }]);
+  const latch = createRateLimitLatch({ now: () => 0, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+  const github = createGitHub({ ...gh.options, random: () => 0, latch });
+  await assert.rejects(github("POST", "/graphql", { query: "query { n }" }), RateLimitStop);
+  assert.equal(gh.sent.length, 1);
+  await assert.rejects(github("GET", PULLS_PATH), RateLimitStop);
+  assert.equal(gh.sent.length, 1);
 });
 
 test("createGitHub counts the time a failed attempt took against the 60 s budget", async () => {

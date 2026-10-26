@@ -8,11 +8,6 @@
     "evals:methodology",
     "evals:validate"
   ],
-  "competitor_dirs": {
-    "evals:design": "plugins/evals/skills/design",
-    "evals:methodology": "plugins/evals/skills/methodology",
-    "evals:validate": "plugins/evals/skills/validate"
-  },
   "queries": [
     {
       "id": "pos-train-01",

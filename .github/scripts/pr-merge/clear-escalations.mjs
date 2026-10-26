@@ -38,19 +38,40 @@
 //
 // With no pr-unblock escalation since the label, a pr-merge escalation clears
 // as `head-moved` instead, but only when the marked lanes App comment written
-// last before the label is pr-merge's and came within PAIRED_MS of it, so a
-// label added for another reason is never read as pr-merge's. Then the
-// newest lanes App comment carrying each of
+// last before the label is pr-merge's and came within PAIRED_MS of it, or
+// carries pr-merge's escalation line (enable-auto-merge puts the label back
+// under a standing one), so a label added for another reason is never read
+// as pr-merge's. Then the newest lanes App comment carrying each of
 // pr-merge's own markers (PR_MERGE_MARKERS) names, in its `at head `<sha>``,
 // a head that is not the PR's current one. pr-merge then judges the new head
-// and escalates again if its refusal still holds. Under `merge.lane-prs:
-// native` pr-merge never judges a lanes App pull request, so one of those
-// keeps the label: nothing would escalate it again. A marker whose head does
-// not parse as 40-hex keeps the label, and so does any other marker, as above.
+// and escalates again if its refusal still holds: under `merge.lane-prs:
+// native` enable-auto-merge does, labeling it again only for a cause a person
+// must clear. A marker whose head does not parse as 40-hex keeps the label,
+// and so does any other marker, as above.
 //
 // Before the label comes off, the App posts one comment naming the cleared
 // reason and the head; a sweep that finds that comment for this escalation
 // and head only retries the removal. At most CLEARS_PER_RUN a run.
+//
+// Under `merge.lane-prs: native`, enable-auto-merge's own person refusal
+// comment (refusalBody, unedited) on a lanes App pull request, the only
+// pr-merge escalation there, naming the current head, is judged again at that
+// head only when its recorded cause is the lanes' (owner decision Q-CLEAR B):
+// a verifier or risk reason whose every code is on LANE_CAUSES, a label set
+// before its cause became a lane's. Then the gate's reader (`evidence`, as
+// enable-auto-merge reads it, the room's rung cap passed as C3 so the scorer
+// answers at the config's rung) runs, and the label comes off as
+// `refusal-cleared` when nothing refuses, or when every code refusing now is
+// on LANE_CAUSES too and the reader got at least as far as the recorded
+// cause: the link, then the verdict, then the risk score, each read only once
+// the one before passes. A person's recorded cause (an issue link, any code
+// off that list, an unknown one included) is never read and never lifted at
+// that head: a person removes the label, or a push clears it as head-moved
+// above and enable-auto-merge labels the new head again if the cause holds.
+// An unread answer and a failed read keep it; so does a hold or cost path,
+// which no reader answer clears. At most NATIVE_READS_PER_RUN reads a run,
+// starting at an offset that moves with the run number (rotated), so labels
+// past the cap are read on a later run.
 //
 // Environment:
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
@@ -59,10 +80,14 @@
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
 //                        label (default .base/.work-item-tracker.json)
 //   LANE_PRS             merge.lane-prs as resolve-config resolved it; only
-//                        `native` keeps a lanes App PR's head-moved label
+//                        `native` re-judges enable-auto-merge's refusal
 //   LANES_BOT_LOGIN      the lanes App bot login (default
 //                        melodic-automation-lanes[bot])
 //   GITHUB_API_URL
+//   GITHUB_RUN_NUMBER    where the sweep starts (rotated)
+//   BABYSIT_VERIFY_GH_TOKEN, BABYSIT_VERIFY_LISTING, BABYSIT_VERIFY_HEAD_REFS,
+//   BABYSIT_RUN_CACHE    the gate reader's Actions token and the run's shared
+//                        reads, as enable-auto-merge passes them
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -84,8 +109,9 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
+import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalBody, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
-const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
 // babysit_merge.py's verifier-refusal escalation, reasons comment, shared-copy
@@ -110,6 +136,38 @@ const COMPARE_CAP = 300;
 const FILES_CAP = 3000;
 // Each clear lets the lanes run on the PR again (judgment).
 export const CLEARS_PER_RUN = 5;
+// Each reader run takes up to enable-auto-merge's VERIFY_TIMEOUT_MS; the
+// step's timeout-minutes (pr-merge.yml) allows this many (judgment).
+export const NATIVE_READS_PER_RUN = 3;
+const REFUSAL_CLEARED = "refusal-cleared";
+// The causes the lanes clear, by READER_HOLDS kind: the only recorded ones
+// this script lifts at the same head, and the only ones a lift tolerates
+// refusing now. Every other code, an unknown one included, is a person's. babysit_risk.PERSON_CODES (#10249) is
+// to become the single source; until then the list is explicit, so it fails
+// closed.
+// - risk (an entry ending in ":" is a prefix): babysit_risk.py's holding MED
+//   codes files-incomplete (:938) and evidence-unbound:<lane> (:978-998), and
+//   the manifest review (:598). Not the reader's `unreadable: …` score.
+//   files-incomplete and the manifest review join their items with "; ", so
+//   a reason with two or more items reads as unknown codes and stays.
+// - verdict: babysit_verify_evidence.py's FAIL, EARLIER_FAIL and SPEC_CHANGED,
+//   which a push clears. Not untrusted-spec or repeated-fail (a person's),
+//   too-old (it recurs at the same head; #10249 makes it a person's), missing
+//   or unreadable (no answer), or ineligible (always paired with a link
+//   answer, which verifyHold reads first).
+// - link: none; an issue link is a person's.
+export const LANE_CAUSES = Object.freeze({
+  link: Object.freeze([]),
+  verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:spec-changed"]),
+  risk: Object.freeze(["files-incomplete", "evidence-unbound:", "manifest-review-required"]),
+});
+
+// Whether the `kind` reason (verifyHold's) names only causes the lanes clear:
+// each "; "-separated code on LANE_CAUSES[kind].
+function laneCause(kind, reason) {
+  const codes = reason.slice(READER_HOLDS[kind].length, -1).split("; ").map((part) => part.split(": ")[0]);
+  return codes.every((code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry)));
+}
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
@@ -144,7 +202,9 @@ function mergeable(pull) {
 const keepNote = (label) => `To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
 
 export const clearedComment = (reason, head, why, label) =>
-  reason === HEAD_MOVED
+  reason === REFUSAL_CLEARED
+    ? `${clearedMarker(reason, head)}\nThe pr-merge lane left this pull request for a person, and at \`${head}\` that no longer holds (\`${REFUSAL_CLEARED}\`): ${why}. pr-merge removed \`${label}\`, so the next scheduled run judges it again. ${keepNote(label)}`
+    : reason === HEAD_MOVED
     ? `${clearedMarker(reason, head)}\nThe pr-merge lane escalated this pull request, and its head has moved (\`${HEAD_MOVED}\`): ${why}. pr-merge removed \`${label}\` so it judges \`${head}\` afresh, and escalates again if its refusal still holds. ${keepNote(label)}`
     : `${clearedMarker(reason, head)}\nThe pr-unblock lane escalated this pull request as \`${reason.replaceAll(",", "`, `")}\`, and that no longer holds at \`${head}\`: ${why}. pr-merge removed \`${label}\`, so the lanes run on it again. ${keepNote(label)}`;
 
@@ -162,13 +222,49 @@ function prMergeEscalations(appComments) {
   });
 }
 
+// enable-auto-merge's person refusal comment, when it is the only pr-merge
+// escalation in `merged`, names `head`, verifyHold wrote its reason, and
+// nothing edited it since (enable-auto-merge posts a person's anew):
+// { kind, reason }, kind a READER_HOLDS key.
+function nativeRefusal(appComments, merged, label, head) {
+  if (merged.length !== 1 || merged[0].marker !== REFUSAL_MARKER || merged[0].head !== head) {
+    return null;
+  }
+  const newest = appComments.filter((item) => lines(item.body).slice(0, 2).includes(REFUSAL_MARKER)).at(-1);
+  if (!(Date.parse(newest.updated_at) <= Date.parse(newest.created_at))) {
+    return null;
+  }
+  const reason = lines(newest.body).slice(5, -1).join("\n");
+  const kind = Object.keys(READER_HOLDS).find((key) => reason.startsWith(READER_HOLDS[key]));
+  return kind !== undefined && refusalBody(true, reason, head, label) === newest.body ? { kind, reason } : null;
+}
+
+// Whether the reader's `evidence` at `head` lifts the `kind` refusal, whose
+// recorded cause the caller has found the lanes' (laneCause): nothing
+// refuses, or what refuses now is the lanes' too and the reader got at least
+// as far as the recorded cause. It reads the link, then the verdict, then the
+// risk score (READER_HOLDS order), each only once the one before passes, so a
+// refusal that stops earlier hides the recorded cause.
+function liftsRefusal(kind, evidence, head) {
+  const held = verifyHold(evidence, head);
+  if (held === null) {
+    return true;
+  }
+  const order = Object.keys(READER_HOLDS);
+  const now = order.find((key) => held.startsWith(READER_HOLDS[key]));
+  return order.indexOf(now) >= order.indexOf(kind) && laneCause(now, held);
+}
+
 // Whether the lanes App comment written last at or before `since` that carries
 // any marker other than this script's own is pr-merge's alone, and was written
-// within PAIRED_MS of it: pr-merge writes its comment, then the label. A
-// comment's writes are its creation and its last edit; a tie fails closed.
+// within PAIRED_MS of it (pr-merge writes its comment, then the label) or
+// carries pr-merge's escalation line, under which enable-auto-merge puts a
+// missing label back with no new comment. A comment's writes are its
+// creation and its last edit; a tie fails closed.
 function pairedWithPrMerge(appComments, since) {
   let newest = -Infinity;
   let ours = false;
+  let escalated = false;
   for (const item of appComments) {
     const markers = lines(item.body).filter((line) => line.includes("<!--") && !CLEARED.test(line));
     const at = Math.max(...[item.created_at, item.updated_at].map(Date.parse).filter((time) => time <= since));
@@ -177,13 +273,14 @@ function pairedWithPrMerge(appComments, since) {
     }
     const mine = markers.some((line) => PR_MERGE_MARKERS.includes(line)) && markers.every(prMergeLine);
     ours = at > newest ? mine : ours && mine;
+    escalated = at > newest ? markers.includes(PR_MERGE_ESCALATION) : escalated && markers.includes(PR_MERGE_ESCALATION);
     newest = at;
   }
-  return ours && since - newest <= PAIRED_MS;
+  return ours && (since - newest <= PAIRED_MS || escalated);
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
-async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
+async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, verify, reads }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since, lifted } = labelHistory(timeline, label);
   if (!isApp(labeled?.actor, bot)) {
@@ -240,11 +337,35 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
     if (unread !== undefined) {
       return { reason: `the pr-merge comment carrying ${unread.marker} names no head this script can read` };
     }
+    // A refusal at an old head takes the head-moved path below.
+    const native = lanePrs === "native" && isApp(pull.user, bot) ? nativeRefusal(appComments, merged, label, pull.head.sha) : null;
+    // A person's recorded cause stays until a person removes the label or the
+    // head moves (owner decision Q-CLEAR B): no reader answer lifts it.
+    if (native !== null && !laneCause(native.kind, native.reason)) {
+      return { reason: `enable-auto-merge's refusal at ${pull.head.sha} is one a person clears (${native.reason})` };
+    }
+    if (native !== null) {
+      if (reads.left <= 0) {
+        return { reason: `enable-auto-merge's refusal waits: ${NATIVE_READS_PER_RUN} reader runs this run` };
+      }
+      reads.left -= 1;
+      let evidence;
+      try {
+        evidence = await verify({ number, headRefOid: pull.head.sha, baseRefOid: pull.base?.sha }, "C3");
+      } catch (error) {
+        return { reason: `the gate's reader did not answer: ${escapeCommand(error?.message ?? error)}` };
+      }
+      const held = verifyHold(evidence, pull.head.sha);
+      if (!liftsRefusal(native.kind, evidence, pull.head.sha)) {
+        return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
+      }
+      return cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
+        `it refused this head (${native.reason})`,
+        held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
+      ]);
+    }
     if (merged.some(({ head }) => head === pull.head.sha)) {
       return { reason: `a pr-merge escalation names the current head ${pull.head.sha}` };
-    }
-    if (lanePrs === "native" && isApp(pull.user, bot)) {
-      return { reason: "under merge.lane-prs native pr-merge does not judge a lanes App pull request's new head" };
     }
     reasons = [HEAD_MOVED];
     why.push(`its escalation names head \`${[...new Set(merged.map(({ head }) => head))].join("`, `")}\`, and the head is now \`${pull.head.sha}\``);
@@ -257,15 +378,20 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs }) {
       why.push(cleared);
     }
   }
+  return cleared(timeline, bot, since, reasons, pull.head.sha, why);
+}
+
+// The clear of `reasons` at `head`, and whether its comment is already posted.
+function cleared(timeline, bot, since, reasons, head, why) {
   const recorded = reasons.join(",");
-  const marker = clearedMarker(recorded, pull.head.sha);
+  const marker = clearedMarker(recorded, head);
   const explained = timeline.some(
     (item) => item.event === "commented" && isApp(item.user, bot) && Date.parse(item.created_at) >= since && lines(item.body)[0] === marker,
   );
-  return { reason: null, recorded, head: pull.head.sha, why: why.join("; "), explained };
+  return { reason: null, recorded, head, why: why.join("; "), explained };
 }
 
-export async function main({ env = process.env, github } = {}) {
+export async function main({ env = process.env, github, verify } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -278,6 +404,8 @@ export async function main({ env = process.env, github } = {}) {
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
     const label = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    verify ??= pythonVerify(env);
+    const reads = { left: NATIVE_READS_PER_RUN };
     const tip = await github("GET", `/repos/${repo}/git/ref/heads/main`);
     const mainSha = tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
     if (!SHA.test(String(mainSha))) {
@@ -288,13 +416,13 @@ export async function main({ env = process.env, github } = {}) {
     );
     let failed = 0;
     let cleared = 0;
-    for (const { number } of held) {
+    for (const { number } of rotated(held, Number(env.GITHUB_RUN_NUMBER))) {
       if (cleared >= CLEARS_PER_RUN) {
         console.log(`clear-escalations: #${number} not checked: ${CLEARS_PER_RUN} cleared this run`);
         continue;
       }
       try {
-        const result = await verdict({ github, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS });
+        const result = await verdict({ github, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;

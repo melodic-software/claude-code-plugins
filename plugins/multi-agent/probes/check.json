@@ -9,12 +9,6 @@
     "multi-agent:audit-defaults",
     "multi-agent:setup"
   ],
-  "competitor_dirs": {
-    "discovery:check": "plugins/discovery/skills/check",
-    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites",
-    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults",
-    "multi-agent:setup": "plugins/multi-agent/skills/setup"
-  },
   "queries": [
     {
       "id": "pos-train-01",

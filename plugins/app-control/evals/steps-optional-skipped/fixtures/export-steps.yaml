@@ -1,0 +1,10 @@
+steps:
+  - id: open-billing
+    action: goto /billing
+  - id: accept-cookies
+    optional: true
+    action: click button "Accept cookies"
+  - id: press-export
+    action: click button "Export"
+  - id: check-download
+    action: expect download invoices.csv

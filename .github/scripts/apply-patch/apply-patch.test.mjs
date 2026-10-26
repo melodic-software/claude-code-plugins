@@ -116,8 +116,14 @@ test("refuses .gitmodules", () => {
   assert.deepEqual(refusalsOf(entry(".gitmodules")), ["gitmodules"]);
 });
 
-test("refuses plugins/p/settings.local.json", () => {
-  assert.deepEqual(refusalsOf(entry("plugins/p/settings.local.json")), ["settings"]);
+test("admits a settings file anywhere under plugins/", () => {
+  for (const path of ["plugins/p/settings.local.json", "Plugins/harness-ops/skills/behavior-probes/cases/c/settings.json"]) {
+    assert.deepEqual(refusalsOf(entry(path)), [], path);
+  }
+});
+
+test("refuses a settings file that leaves plugins/ through a .. segment", () => {
+  assert.deepEqual(refusalsOf(entry("plugins/../.claude/settings.json")), ["settings"]);
 });
 
 test("refuses a symbolic link, mode 120000", () => {
@@ -837,6 +843,36 @@ test("a hold label set while the model worked drops the patch uncommitted", asyn
   const api = fakeApi(fix.repo, fix.head, { labels: [{ name: "needs-human" }] });
   assert.deepEqual(await pushWith(fix, api), { outcome: "held" });
   assert.deepEqual(writes(api), []);
+});
+
+// #8998: a `Hold:` line opening a body line, in any case, after any
+// whitespace (NBSP included), with a bare CR ending a line, holds a PR the
+// lanes App did not open; on the lanes App's own PR it holds the merge only.
+const OWNER = { login: "maintainer", type: "User" };
+const LANES_BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
+const bodyPull = (user, body) => ({ draft: false, head: { repo: { full_name: "o/r" } }, user, body });
+
+test("a Hold: line in an owner PR's body drops the patch uncommitted", async (t) => {
+  for (const body of ["Fixes it.\n\nHold: until the release", "hold: wait", "Fixes it.\n Hold: wait", "Fixes it.\rHold: wait", "Fixes it.\r\n  HOLD: wait"]) {
+    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+    const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, body) });
+    assert.deepEqual(await pushWith(fix, api), { outcome: "held" }, JSON.stringify(body));
+    assert.deepEqual(writes(api), [], JSON.stringify(body));
+  }
+});
+
+test("a Hold: line in the lanes App's own PR body does not hold the patch", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(LANES_BOT, "Closes #1\n\nHold: a human merges this") });
+  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
+  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
+});
+
+test("an owner PR body that only mentions Hold: mid-line pushes", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, "Fixes the Hold: parser.") });
+  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
+  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
 });
 
 // --- the credential scan: any shape refuses the whole patch ---

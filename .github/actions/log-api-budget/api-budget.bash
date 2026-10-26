@@ -5,7 +5,8 @@
 # is one line in $RUNNER_TEMP/api-budget/<token>:
 #   <status> <limit> <remaining> <used> <reset epoch> <resource>
 # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
-# lines. Never fails the caller.
+# lines. Never fails the caller, except that a stop the rate guard below
+# cannot record ends the step.
 #
 #   api_budget_read <token> <file>
 #                               gh api -i output: the header block at the start
@@ -21,11 +22,31 @@
 # exhausted, no gh call goes to that pool before its reset for the rest of the
 # job; each refusal returns 1 with an error naming the reset, and so does a
 # call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
-# gh's status, so no caller resends a write GitHub accepted. Its stops are
+# gh's status, so no caller resends a write GitHub accepted, unless its stop
+# cannot be recorded, which ends the step first (below). Its stops are
 # lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
-# it) goes in $RUNNER_TEMP/api-budget/guessed too.
+# it) goes in $RUNNER_TEMP/api-budget/guessed too. Readers take only lines
+# shaped `^([a-z_]+|\*) [0-9]{1,12}$` and ended by a newline, as
+# rate-guard.mjs does, so a fragment a short write left spoils only the line
+# it runs into. A missing stop file holds no stop; one that exists but cannot
+# be read holds every pool until 999999999999, with an error naming it.
+#
+# Most calls run in $(...) subshells, whose variables never reach the shell
+# that started them, so the file is what carries a stop from one call to the
+# next. A stop the file cannot take (no space, no permission) would leave
+# every later call free to reach the exhausted pool. So the step ends there:
+# the error names the pool, API_BUDGET_UNRECORDED refuses every later call in
+# this shell, and from a subshell every shell from its parent up to the
+# step's shell ($$) is sent TERM, so no caller's retry loop in a capture
+# around it sends again. A caller may hold a subshell's stderr in a file it
+# reads only after the call, so both error lines go to a copy of the stderr
+# the step had when api_budget_wrap_gh ran. Callers must not trap TERM or run
+# the wrapper under a nested bash -c, whose $$ is the inner shell: either
+# leaves the step running.
+#
 #   api_budget_classify         jq filter: rate-guard.mjs's classify over
-#                               {status, headers, body, now (ms), pool, floor}
+#                               {status, headers, body, now (ms), pool, floor,
+#                               cap}
 #   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
 #                               code_search or core, `any` for a non-api call
 #   api_budget_stop_until <pool>
@@ -36,14 +57,19 @@
 #                               reads gh api -i output and stops its pool when
 #                               it is exhausted, returning 1 unless the
 #                               answer is a 2xx; under
-#                               API_BUDGET_READ_FLOOR of the limit left, warns
-#                               once (unset: no floor; ci-status sets it to
-#                               the schema's read-floor default)
+#                               API_BUDGET_READ_FLOOR of the planned budget
+#                               left, warns once (unset: no floor; ci-status
+#                               sets it to the schema's read-floor default);
+#                               the plan is the header's limit, at most
+#                               API_BUDGET_LIMIT_CAP (unset: no cap; ci-status
+#                               sets github-token's limit-cap default)
 #   api_budget_emit <token>...  the hub collector's notice for each refused
 #                               (403/429) reading and for the last reading of
 #                               each resource, core last; cost is
 #                               the rise in used since the first earlier reading
 #                               with the same reset and resource, else na
+#   api_budget_emit_content     the notice for the job's content-creating
+#                               writes: count and most in any 60 s
 #
 # pr-require-checks.yml's ci-status job carries this file verbatim in its
 # API_BUDGET_SH env (it has no checkout of this directory);
@@ -86,11 +112,13 @@ api_budget_read() {
 
 api_budget_wrap_gh() {
   API_BUDGET_GH_TOKEN=$1
+  [[ -n ${API_BUDGET_ERR_FD:-} ]] || exec {API_BUDGET_ERR_FD}>&2
   # shellcheck disable=SC2329 # called by the script that sources this file
   gh() {
     local arg out pool rc=0
     pool=$(api_budget_pool "$@")
     api_budget_refuse "$pool" "gh $*" || return 1
+    ! api_budget_is_content "$@" || api_budget_count_content
     if [[ ${1:-} != api ]]; then
       api_budget_pass "$@"
       return
@@ -155,15 +183,30 @@ api_budget_pool() {
 }
 
 api_budget_stop_until() {
-  local file=${RUNNER_TEMP:-/tmp}/api-budget/stop
-  [[ -s $file ]] || return 0
-  awk -v pool="$1" -v now="$(date +%s)" '($1 == pool || $1 == "*" || pool == "any") && $2 ~ /^[0-9]+$/ && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
-    END { if (max) print max }' "$file"
+  local file=${RUNNER_TEMP:-/tmp}/api-budget/stop up
+  if [[ ! -e $file ]]; then
+    # Missing (ENOENT) only when the nearest path part above it that exists
+    # is a directory it can search; else ENOTDIR or EACCES.
+    up=$file
+    while [[ $up == */* ]]; do
+      up=${up%/*}
+      [[ -e ${up:-/} ]] && break
+    done
+    [[ -d ${up:-/} && -x ${up:-/} ]] && return 0
+  fi
+  if [[ -d $file ]] || ! { : <"$file"; } 2>/dev/null; then
+    echo "::error::the rate guard's stop file $file cannot be read, so every GitHub API pool counts as stopped" >&2
+    echo 999999999999
+    return 0
+  fi
+  # The x ends an unterminated last line in a non-digit, so it never matches.
+  { cat -- "$file"; printf x; } | awk -v pool="$1" -v now="$(date +%s)" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && ($1 == pool || $1 == "*" || pool == "any") && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
+    END { if (max) print max }'
 }
 
 api_budget_guessed() {
   local file=${RUNNER_TEMP:-/tmp}/api-budget/guessed
-  [[ -s $file ]] && awk -v t="$1" '$2 == t { found = 1 } END { exit !found }' "$file"
+  [[ -s $file ]] && awk -v t="$1" '/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 == t { found = 1 } END { exit !found }' "$file"
 }
 
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
@@ -171,6 +214,10 @@ api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
 
 api_budget_refuse() {
   local until
+  if [[ -n ${API_BUDGET_UNRECORDED:-} ]]; then
+    echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$API_BUDGET_UNRECORDED") stop could not be recorded, so this step sends no further call" >&2
+    return 1
+  fi
   until=$(api_budget_stop_until "$1")
   [[ -z $until ]] && return 0
   echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
@@ -178,13 +225,29 @@ api_budget_refuse() {
 }
 
 api_budget_stop() {
-  local dir=${RUNNER_TEMP:-/tmp}/api-budget
-  if mkdir -p "$dir" 2>/dev/null; then
-    echo "$1 $2" >>"$dir/stop"
-    [[ $3 != fallback ]] || echo "$1 $2" >>"$dir/guessed"
+  local dir=${RUNNER_TEMP:-/tmp}/api-budget lines
+  lines=("::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
+  # One printf per line: the line and its newline go in one write.
+  if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
+    { [[ $3 != fallback ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
+    printf '%s\n' "${lines[@]}" >&2
+    return 1
   fi
-  echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}" >&2
-  return 1
+  API_BUDGET_UNRECORDED=$1
+  lines+=("::error::GitHub's $(api_budget_label "$1") stop could not be recorded in $dir; later calls would reach the exhausted pool, so this step ends")
+  { printf '%s\n' "${lines[@]}" >&"${API_BUDGET_ERR_FD:-2}"; } 2>/dev/null || printf '%s\n' "${lines[@]}" >&2
+  if ((BASH_SUBSHELL > 0)); then
+    # Each parent up to $$, from /proc/<pid>/stat's ppid; only $$ when the
+    # walk cannot reach it.
+    local pid=$BASHPID stat up=()
+    while ((pid != $$)) && read -r stat 2>/dev/null <"/proc/$pid/stat"; do
+      read -r _ pid _ <<<"${stat##*) }"
+      up+=("$pid")
+    done
+    ((pid == $$)) || up=("$$")
+    kill -s TERM "${up[@]}" 2>/dev/null
+  fi
+  exit 1
 }
 
 # shellcheck disable=SC2016 # a jq program
@@ -203,14 +266,16 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
   | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
       | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql
   | ($rem == 0 or $ra != null or $msg or $gql or $many) as $latched
-  | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $rem < $in.floor * $lim) as $low
+  | (if $in.cap != null and $lim != null then ([$lim, $in.cap] | min) else $lim end) as $planned
+  | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $planned - ($lim - $rem) < $in.floor * $planned) as $low
   | if ($latched | not) then {latched: false, low: $low, reset_source: null, reset: null, pool: null}
     else (($in.now / 1000) | floor) as $n
     | [(if $ra != null then [$n + $ra, "retry-after"] else empty end),
        (if $rem == 0 and $reset != null then [$reset, "x-ratelimit-reset"] else empty end)] as $c
     | (if ($c | length) > 0 then ($c | reduce .[1:][] as $x (.[0]; if $x[0] > .[0] then $x else . end)) else null end) as $best
     | (if $best != null and $best[0] > $n then $best
-       else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end) as $at
+       else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end
+       | .[0] |= ([., 999999999999] | min)) as $at
     | (($h["x-ratelimit-resource"] // "") | tostring) as $res
     | {latched: true, low: $low, reset_source: $at[1], reset: $at[0],
        pool: (if $ra != null or $secondary or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
@@ -221,11 +286,11 @@ api_budget_observe() {
   start=$(awk 'NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { exit } { sub(/\r$/, "") } NR > 1 && $0 == "" { print NR; exit }' "$file")
   [[ -n $start ]] || return 0
   verdict=$(jq -rn --rawfile raw "$file" --argjson start "$start" --arg pool "$pool" --argjson now "$(($(date +%s) * 1000))" \
-    --arg floor "${API_BUDGET_READ_FLOOR:-}" '($raw | split("\n")) as $l
+    --arg floor "${API_BUDGET_READ_FLOOR:-}" --arg cap "${API_BUDGET_LIMIT_CAP:-}" '($raw | split("\n")) as $l
     | ($l[0] | split(" ")[1] | tonumber) as $status
     | ([$l[1:$start - 1][] | sub("\r$"; "") | capture("^(?<k>[^:]+):[ \t]*(?<v>.*)$") | {(.k | ascii_downcase): .v}] | add // {}) as $headers
     | {status: $status, headers: $headers, body: ($l[$start:] | join("\n")), now: $now, pool: $pool,
-       floor: ($floor | tonumber? // null)}
+       floor: ($floor | tonumber? // null), cap: ($cap | tonumber? // null)}
     | '"$API_BUDGET_CLASSIFY"' | "\(.latched) \(.low) \(.reset_source) \(.reset) \(.pool)"' 2>/dev/null) || return 0
   read -r latched low source reset stop <<<"$verdict"
   if [[ $latched == true ]]; then
@@ -239,6 +304,67 @@ api_budget_observe() {
     : >"$dir/low-$pool"
     echo "::warning::GitHub's $pool API has under its read floor left; reads continue" >&2
   fi
+}
+
+# A gh call that creates or changes content GitHub's content-creation limit
+# counts, as rate-guard.mjs's isContentWrite judges a request: a gh api write
+# (-X POST, PATCH or PUT, or a field with no -X, which gh sends as POST) to an
+# issue, pull request, comment, review or label path, a graphql mutation, or
+# a gh issue or pr command that writes.
+api_budget_is_content() {
+  local method='' fields='' mutation='' path='' arg prev=''
+  case "${1:-} ${2:-}" in
+    "issue create" | "issue comment" | "issue edit" | "issue close" | "issue reopen" | \
+      "pr create" | "pr comment" | "pr edit" | "pr review" | "pr close" | "pr reopen" | "label create") return 0 ;;
+    api\ *) ;;
+    *) return 1 ;;
+  esac
+  for arg in "${@:2}"; do
+    # A value joined to its flag (--method=POST, -XPOST, -fquery=...) is read
+    # as the separated form.
+    if [[ -z $prev ]]; then
+      case $arg in
+        --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
+        -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} arg=${arg#=} ;;
+        *) ;;
+      esac
+    fi
+    case $prev in
+      -X | --method) method=${arg^^} ;;
+      -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
+      --input) fields=1 ;;
+      -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) ;;
+      *) [[ $arg == -* || -n $path ]] || path=$arg ;;
+    esac
+    case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) prev=$arg ;; *) prev= ;; esac
+  done
+  [[ -n $method ]] || { [[ -n $fields ]] && method=POST; } || method=GET
+  [[ $method == POST || $method == PATCH || $method == PUT ]] || return 1
+  if [[ $path == graphql ]]; then
+    [[ -n $mutation ]]
+    return
+  fi
+  [[ /${path#/} =~ ^/repos/[^/]+/[^/]+/(issues|pulls)(/[0-9]+(/(comments|labels|reviews|assignees|requested_reviewers))?|/[0-9]+/comments/[0-9]+/replies|/comments/[0-9]+)?/?(\?|$) ]]
+}
+
+api_budget_count_content() {
+  local dir=${RUNNER_TEMP:-}/api-budget
+  [[ -n ${RUNNER_TEMP:-} ]] && mkdir -p "$dir" 2>/dev/null && date +%s >>"$dir/content-creation"
+  return 0
+}
+
+# The job's content-creating writes, from the lines rate-guard.mjs and the gh
+# wrapper append: the count and the most in any sixty seconds. Nothing without
+# a write.
+api_budget_emit_content() {
+  local file=${RUNNER_TEMP:-}/api-budget/content-creation where workflow=${GITHUB_WORKFLOW_REF:-}
+  [[ -n ${RUNNER_TEMP:-} && -s $file ]] || return 0
+  workflow=${workflow%%@*}
+  workflow=${workflow#*/*/}
+  where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
+  sort -n "$file" | awk -v where="$where" '/^[0-9]+$/ { t[++n] = $1; while (t[n] - t[j + 1] >= 60) j++; if (n - j > max) max = n - j }
+    END { if (n) printf "::notice title=api-budget::content-creation %s count=%d max-per-minute=%d\n", where, n, max }'
+  return 0
 }
 
 api_budget_emit() {

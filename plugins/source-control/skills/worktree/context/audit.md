@@ -24,9 +24,15 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 
 ## Step 2b: Orphaned project- and local-scope plugin install records
 
-`cleanup` reaps these at teardown, but only for a teardown it performs. Every worktree removed
-without that step left its records behind, and they accumulate indefinitely because nothing else
-reaps a record whose path is gone. Audit is where they become visible.
+`cleanup` reaps these at teardown, but only for a teardown it performs. A worktree Claude Code
+removes itself (a `--worktree` session exit, `ExitWorktree`, a background-session delete) is reaped
+by this plugin's `WorktreeRemove` hook (`hooks/worktree-remove-gate.sh`), which leaves the worktree
+on disk when it has uncommitted or untracked work or the reap fails. Subagent and workflow-agent
+worktrees are not: Claude Code keeps them and runs no `WorktreeRemove` hook, so they stay until
+`cleanup` removes them. Pointer: [hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove);
+as of 2026-10-26; recheck when that section changes which removals fire the event. Every worktree
+removed some other way left its records behind, and they accumulate indefinitely because nothing
+else reaps a record whose path is gone. Audit is where they become visible.
 
 **Read-only. This step reports; it never removes a record.** That is the whole boundary: a
 project-scope record for a live repository on an unmounted network share or a detached external

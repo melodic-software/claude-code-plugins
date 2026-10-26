@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "0.103.1",
+  "version": "0.110.0",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -48,6 +48,13 @@
       "description": "Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value.",
       "default": "local",
       "options": ["local", "tracker"]
+    },
+    "plan_reader": {
+      "type": "string",
+      "title": "Plan reader depth",
+      "description": "How much of an approved plan /planning:plan publishes: step-by-step (default, the whole plan), standard (Brief, design, phase outline) or guardrails (Brief and design). A --reader argument overrides it per run; a repository's docs/conventions/planning.yaml plan_reader key overrides this value.",
+      "default": "step-by-step",
+      "options": ["guardrails", "standard", "step-by-step"]
     },
     "phase_order": {
       "type": "string",

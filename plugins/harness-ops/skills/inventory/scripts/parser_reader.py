@@ -347,11 +347,19 @@ class ParserReader:
         """Where the module `src[lo:hi]` may write one of `names` on an object
         that could be a built-in prototype (the helper's `sinks` op), each
         (kind, name, offset in `src`). A module that does not parse, calls
-        `eval` directly, or holds a character outside the BMP is one hit."""
+        `eval` directly, or holds a character outside the BMP is one hit.
+        Answers are memoized per reader, since every spread asks again."""
+        key = ("sinks", id(src), lo, tuple(names))
+        cached = self._answers.get(key)
+        if cached is not None:
+            return cached["hits"]
         res = self._send("sinks", src, lo, hi, names=names)
         if res.get("unreadable"):
-            return [("unreadable", None, lo)]
-        return [(kind, name, at + lo) for kind, name, at in res["hits"]]
+            hits = [("unreadable", None, lo)]
+        else:
+            hits = [(kind, name, at + lo) for kind, name, at in res["hits"]]
+        self._answers[key] = {"hits": hits}
+        return hits
 
     def set_module_paths(self, src: str, paths: dict[int, str]) -> None:
         """File `src`'s module paths by module start (`read_bundle`)."""
@@ -417,6 +425,21 @@ class ParserReader:
         cached = self._answers[key]
         assert cached is not None
         return cached["files"]
+
+    def imports(self, src: str, lo: int, hi: int) -> list[tuple[str, str]] | None:
+        """Each name the module `src[lo:hi]` imports or re-exports by name
+        (`import{x}from f`, `export{x}from f`) with the path `f`, read from
+        its declarations, or None when it does not parse."""
+        key = ("imports", id(src), lo)
+        if key not in self._answers:
+            res = self._send("imports", src, lo, hi)
+            names = None if res.get("unreadable") else res["names"]
+            self._answers[key] = {
+                "names": None if names is None else [(n, f) for n, f in names]
+            }
+        cached = self._answers[key]
+        assert cached is not None
+        return cached["names"]
 
     def namespace(
         self, src: str, lo: int, hi: int, file: str, name: str
@@ -504,10 +527,12 @@ class ParserReader:
         self, src: str, lo: int, hi: int, name: str, offset: int
     ) -> dict[str, Any] | None:
         """Every place that may change the variable `name` read at `offset`
-        resolves to in the module `src[lo:hi]`, from the AST: `writes` and
-        `mutations`, each a list of (kind, offset, top), and `declares`,
-        whether `offset` names a plain declarator of it. None whenever
-        `binding` would be, and for a module that calls `eval` directly.
+        resolves to in the module `src[lo:hi]`, from the AST: `writes`,
+        `mutations` and `reads` (the spreads and value-only member reads,
+        which change nothing but look names up on the prototypes), each a
+        list of (kind, offset, top), and `declares`, whether `offset` names
+        a plain declarator of it. None whenever `binding` would be, and for
+        a module that calls `eval` directly.
         """
         key = ("writes", id(src), lo, name, offset)
         if key in self._answers:
@@ -519,7 +544,7 @@ class ParserReader:
                 "declares": bool(res["declares"]),
                 **{
                     field: [(k, w + lo, top) for k, w, top in res[field]]
-                    for field in ("writes", "mutations")
+                    for field in ("writes", "mutations", "reads")
                 },
             }
         self._answers[key] = answer

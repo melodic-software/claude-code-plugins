@@ -16,12 +16,14 @@
           {"$ref": "#/$defs/revise"},
           {"$ref": "#/$defs/add"},
           {"$ref": "#/$defs/add-round"},
+          {"$ref": "#/$defs/propose"},
           {"$ref": "#/$defs/group"},
           {"$ref": "#/$defs/group-order"},
           {"$ref": "#/$defs/meta"},
           {"$ref": "#/$defs/note-reply"},
           {"$ref": "#/$defs/handle"},
           {"$ref": "#/$defs/archive"},
+          {"$ref": "#/$defs/reconfirm"},
           {"$ref": "#/$defs/replace-visual"},
           {"$ref": "#/$defs/archive-visual"},
           {"$ref": "#/$defs/record-terminal"},
@@ -168,6 +170,20 @@
         }
       }
     },
+    "propose": {
+      "description": "Add a question the user approves before it is asked, such as new scope an Ask opened. It carries no recommendation, alternatives or commitments and is `proposed` until a `proposal` event answers it: the page shows `Claude proposes adding: <title>` with Accept, Edit and Not this, the exports write no row for it (a declined one exports as a withdrawn row), and a recommendation, alternatives, commitments or a terminal answer on it are refused until the user accepts or edits it. `fromSeq` is the seq of the Ask it answers and must name an ask event. Refused: a missing or duplicate `id`, a missing `title` or `short`, an unknown `group`.",
+      "type": "object",
+      "required": ["op", "id", "title", "short"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["propose"]},
+        "id": {"type": "string"},
+        "title": {"$ref": "#/$defs/line"},
+        "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
+        "group": {"type": "string"},
+        "fromSeq": {"type": "integer"}
+      }
+    },
     "group": {
       "type": "object",
       "required": ["op", "id"],
@@ -237,6 +253,17 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["archive"]},
+        "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "why": {"$ref": "#/$defs/line"}
+      }
+    },
+    "reconfirm": {
+      "description": "State that each question in `ids` stands as asked after an answer it depends on changed or was reopened: it writes a history line on each with `reviewSeq`, and the server clears the question's `upstream-changed` state, which unlocks Save under frontierLock confirm or hard. A `revise` of the question clears it too. Refused for an unknown id, a question that is not upstream-changed, and a blank `why`.",
+      "type": "object",
+      "required": ["op", "ids", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["reconfirm"]},
         "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
         "why": {"$ref": "#/$defs/line"}
       }
