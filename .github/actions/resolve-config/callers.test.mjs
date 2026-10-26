@@ -430,6 +430,17 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   }
 });
 
+test("intake-triage.yml: the model may apply duplicate, which admission refuses, and is told to name the candidate and not park a duplicate", () => {
+  const intake = workflow("intake-triage.yml").jobs["intake-triage"];
+  assert.ok(intake.with["allowed-labels"].trim().split("\n").includes("duplicate"));
+  const rules = JSON.parse(read("./admission-rules.json"));
+  assert.ok(rules["refuse-labels"].includes("duplicate"));
+  const text = intake.with.instructions.replace(/\s+/g, " ");
+  assert.match(text, /DUPLICATE\. When an open issue asks for the same thing, apply the `duplicate` label/);
+  assert.match(text, /name the candidate by number/);
+  assert.match(text, /apply no `status: needs-decision`/);
+});
+
 test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select, push or scan-refusal job, with a gated head", () => {
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
