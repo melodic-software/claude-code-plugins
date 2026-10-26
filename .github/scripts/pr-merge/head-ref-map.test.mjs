@@ -13,7 +13,9 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { main, nextMap } from "./head-ref-map.mjs";
+import { forgetMainTip, main, nextMap, onMain } from "./head-ref-map.mjs";
+
+import { mainCall } from "./on-main.fixture.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const dir = mkdtempSync(join(tmpdir(), "head-ref-map-"));
@@ -35,6 +37,7 @@ let n = 0;
 // requests: each API call, and two per `gh run download` (it lists the run's
 // artifacts, then fetches the archive).
 async function readRun({ pages = [[]], maps = {}, offMain = [], fail } = {}) {
+  forgetMainTip();
   n += 1;
   const path = join(dir, `in-${n}.json`);
   const calls = [];
@@ -44,8 +47,8 @@ async function readRun({ pages = [[]], maps = {}, offMain = [], fail } = {}) {
     if (fail) throw fail;
     const page = /\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=(\d+)$/.exec(url)?.[1];
     if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
-    const base = /\/compare\/([0-9a-f]{40})\.\.\.refs\/heads\/main\?per_page=1$/.exec(url)?.[1];
-    if (base) return { status: offMain.includes(base) ? "diverged" : "ahead" };
+    const onMain = mainCall(url, { offMain });
+    if (onMain !== undefined) return onMain;
     const id = /\/actions\/runs\/(\d+)\/artifacts\?per_page=100$/.exec(url)?.[1];
     assert.ok(id, `unexpected call ${url}`);
     const artifacts = id in maps ? [{ name: "pr-merge-head-refs", expired: false }] : [{ name: "pr-merge-summary", expired: false }];
@@ -71,7 +74,7 @@ async function readRun({ pages = [[]], maps = {}, offMain = [], fail } = {}) {
   };
 }
 
-test("the newest trusted run's map is read in five requests", async () => {
+test("the newest trusted run's map is read in seven requests", async () => {
   const result = await readRun({
     pages: [[wf(999, "schedule"), wf(8, "pull_request_target"), wf(7, "schedule"), wf(6, "workflow_dispatch")]],
     maps: { 8: mapOf({ 1: "forged" }), 7: mapOf({ 30: "feat/other", 40: "" }), 6: mapOf({ 1: "old" }) },
@@ -79,9 +82,9 @@ test("the newest trusted run's map is read in five requests", async () => {
   // This run (999) is skipped, and a pull_request_target run is never asked.
   assert.deepEqual(result.downloads, [7]);
   assert.deepEqual(result.written, { version: 1, repo: REPO, head_refs: { 30: "feat/other", 40: "" } });
-  // The run listing, run 7's artifact filter, the compare of its head commit
-  // with main, and its download.
-  assert.equal(result.requests, 5);
+  // The run listing, run 7's artifact filter, the tag named main (absent),
+  // main's tip, the compare of run 7's head commit with it, and its download.
+  assert.equal(result.requests, 7);
 });
 
 test("a run whose head commit is not on main is passed over", async () => {
@@ -141,7 +144,7 @@ test("the next map keeps listed entries and adds this run's downloads", () => {
     repo: REPO,
   });
   // 50 has expired; 60 recorded no head ref; 70 is another repository's key;
-  // 80 came from the restored actions/cache entry, never a download; 90 was
+  // 80 came from the last run's carried run cache, never a download; 90 was
   // downloaded but is no longer listed.
   assert.deepEqual(refs, { 30: "feat/other", 40: "feat/x", 60: "" });
 });
@@ -220,4 +223,28 @@ test("the gate reads the carried map", async () => {
   const run = spawnSync("python3", ["-c", load, out, REPO], { cwd: scripts, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(JSON.parse(run.stdout), { 30: "a", 31: "" });
+});
+
+// The tag named main and main's tip are read once per process, however many
+// runs are checked; a failed read is remembered too, and refuses every run.
+test("onMain reads the tag named main and main's tip once per process", async () => {
+  const calls = [];
+  const actions = async (method, url) => {
+    calls.push(url);
+    return mainCall(url);
+  };
+  forgetMainTip();
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(7) }), true);
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(8) }), true);
+  assert.equal(calls.filter((u) => u.endsWith("/git/ref/tags/main")).length, 1);
+  assert.equal(calls.filter((u) => u.endsWith("/git/ref/heads/main")).length, 1);
+  assert.equal(calls.filter((u) => u.includes("/compare/")).length, 2);
+  forgetMainTip();
+  const tagged = async (method, url) => {
+    calls.push(url);
+    return mainCall(url, { mainTag: true });
+  };
+  assert.equal(await onMain({ repo: REPO, actions: tagged, sha: sha(7) }), false);
+  // Still refused with a client that would answer 404: the refusal holds.
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(7) }), false);
 });
