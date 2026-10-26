@@ -27,8 +27,9 @@
 // criteria as a task list. On an issue a listed human filed, admit.mjs and
 // pr-verify count the newest refinement as spec while it is unedited (owner
 // decision Q78); on any other issue its criteria count only once a listed
-// human posts them as their own. Only when that text already holds a task list
-// (admit.mjs hasTrustedCriteria) does it ask for one more triage, which runs
+// human posts them as their own. Only when that text, with this refinement
+// counted as posted, holds a task list (admit.mjs hasTrustedCriteria) does it
+// ask for one more triage, which runs
 // admission again: it takes the lanes App's `status: needs-decision` off, or,
 // for a `status: ready` issue admission has not taken, keeps the labels, adds
 // `needs-triage`, and sets the job's `redispatch` output. Otherwise the labels
@@ -42,7 +43,7 @@
 // question whether to close the issue. It never adds `agent-ready` or
 // `needs-human`, and files no issue. It lifts no App needs-decision while the
 // App's verdict comment lists a flag other than intent, or records that an
-// earlier flag is unknown (apply-verdict earlierFlags); that hold stays for a
+// earlier flag is unknown (admit.mjs earlierFlags); that hold stays for a
 // person.
 //
 // A split the model judges sound names exactly the held item numbers; the
@@ -83,8 +84,8 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
-import { earlierFlags, LANES_APP_LOGIN, MARKER, ownVerdict } from "./apply-verdict.mjs";
+import { ADMIT_MARKER, decisionStays, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
 export { REFINE_MARKER };
@@ -164,28 +165,6 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
     return null;
   }
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
-}
-
-// Why the lanes App may not lift `status: needs-decision`, or null: someone
-// else set it, or the App's verdict comment lists a flag other than the intent
-// a refinement resolves, or records that an earlier flag is unknown
-// (apply-verdict earlierFlags null). Once lifted, a re-triage sees no hold and
-// so carries no earlier flag. No such comment lifts: refine's own question
-// hold writes none.
-async function decisionStays(github, base, comments, appId) {
-  const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
-  if (setter !== appId) {
-    return `a person set its ${NEEDS_DECISION}`;
-  }
-  if (!ownVerdict(comments, appId)) {
-    return null;
-  }
-  const flags = earlierFlags(comments, appId);
-  if (flags === null) {
-    return `its ${NEEDS_DECISION} stands: whether an earlier verdict flagged is unknown`;
-  }
-  const stops = flags.filter((flag) => flag !== "intent");
-  return stops.length > 0 ? `its ${NEEDS_DECISION} stands for flagged: ${stops.join(", ")}` : null;
 }
 
 // Up to four plain lowercase words from the title, each 4 or more letters or
@@ -527,11 +506,7 @@ export function render(output, { body, from, checks = [], retriage = false } = {
   );
   section("Sources read", output.sources.map((item) => `- ${line(item)}`));
   parts.push(
-    !output.exact
-      ? "<sub>Automated refinement by the lanes App. Answer with a comment whose first line is `**Decision recorded.**`.</sub>"
-      : retriage
-        ? "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>"
-        : "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
+    !output.exact ? REFINE_FOOTERS.questions : retriage ? REFINE_FOOTERS.retriage : REFINE_FOOTERS.confirm,
   );
   return parts.join("\n");
 }
@@ -603,8 +578,8 @@ export function splitBody(body, taskList, moved) {
 // edit leaves the held items in place for the next triage to hold and split
 // again, reusing that comment.
 // `humans` and `rules` decide whether an exact refinement asks for a
-// re-triage (admit.mjs hasTrustedCriteria); a failed read of the spec throws
-// before any label write.
+// re-triage (admit.mjs hasTrustedCriteria, over the spec with this refinement
+// posted); a failed read of the spec throws before any label write.
 export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -648,14 +623,20 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "split", redispatch: true };
   }
   const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });
-  // Admission reads criteria only from a listed human's text, so a re-triage
-  // without them would refuse again: one read, before any label write.
+  // Admission reads criteria only from a listed human's text and, on an issue
+  // a listed human filed, the newest unedited refinement, so a re-triage
+  // without them would refuse again. It judges the spec as it will read once
+  // this refinement is posted, as the newest comment: one read, before any
+  // label write. Past admission's comment window the refinement is unread
+  // and admission refuses, so it asks for no triage.
   const untrusted = async () => {
-    if (hasTrustedCriteria(await specOf(github, repository, number), humans, rules["task-list"], appId)) {
+    const spec = await specOf(github, repository, number);
+    const refinement = { body: render(output, { body: issue.body, retriage: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
+    if (spec.commentCount < SPEC_COMMENTS && hasTrustedCriteria({ ...spec, comments: [...spec.comments, refinement] }, humans, rules["task-list"], appId)) {
       return false;
     }
     await post();
-    log(`refine: #${number} is exact; no listed human's text holds a task list yet, so the labels stay and no triage is asked`);
+    log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
   if (!output.exact) {
@@ -670,7 +651,8 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "needs-decision", redispatch: false };
   }
   // A `status: ready` issue admission has not taken (no needs-decision, no
-  // agent-ready) is triaged again when a listed human's text holds criteria.
+  // agent-ready) is triaged again when the text admission counts, with this
+  // refinement posted, holds criteria.
   if (!labels.includes(NEEDS_DECISION)) {
     if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
       await post();

@@ -788,6 +788,12 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],
             ),
+            ("Function.prototype.constructor(s)();", ["function-constructor"]),
+            # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
+            ("Function.prototype[k](s)();", ["unknown-load", "function-constructor"]),
+            ("var P=Function.prototype;", ["function-constructor"]),
+            ("Function.prototype.valueOf().constructor(s)();", ["function-constructor"]),
+            ("Function.prototype instanceof H;", ["function-constructor"]),
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
@@ -849,6 +855,17 @@ class TestFlowQuery(unittest.TestCase):
         self.assertIsNone(self.reader.exports("var =;", 0, 6))
         star = 'export*from"/b.js";export var a=1;'
         self.assertIsNone(self.reader.exports(star, 0, len(star)))
+
+    def test_imports_lists_every_name_taken_by_name(self) -> None:
+        src = (
+            'import{a,b as c}/*x*/from"/a.js";import d from"/b.js";'
+            'import*as e from"/c.js";export{f as g}from/*y*/"/d.js";export*from"/e.js";'
+        )
+        self.assertEqual(
+            self.reader.imports(src, 0, len(src)),
+            [("a", "/a.js"), ("b", "/a.js"), ("f", "/d.js")],
+        )
+        self.assertIsNone(self.reader.imports("var =;", 0, 6))
 
 
 class TestModuleTable(unittest.TestCase):
