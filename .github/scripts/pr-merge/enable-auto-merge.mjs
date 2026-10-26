@@ -58,9 +58,11 @@
 //   arms; at the cap it arms nothing more. A room that cannot be read (no
 //   post-merge report, a failed read) holds as a refusal does: nothing is
 //   armed and every armed lanes App pull request is disarmed. A report the
-//   gate would not reuse is checked again as the gate does; one past its
-//   reuse age only for a lane merge still unverified is first kept while
-//   nothing it was read from has moved. A held room raises one warning annotation and step-summary line
+//   gate would not reuse, for any reason, is checked again as the gate does;
+//   one past its reuse age only for a lane merge still unverified is first
+//   kept while nothing it was read from has moved, and one refused only for
+//   a demotion record filed or changed since is first kept when the
+//   demotion records alone read as they were. A held room raises one warning annotation and step-summary line
 //   naming why and each lane pull request left unarmed or, report-only,
 //   that a disarm would have turned off, and one error and summary line
 //   naming each one still armed because its disarm failed.
@@ -215,7 +217,10 @@ export function describe(error) {
 // each socket after its answer, so no request goes out on a pooled one that
 // sat idle through a verifier read and that GitHub has since closed. A GET is
 // left to createGitHub's own retry (retryServerErrors), which resends only
-// GETs; a REST write such as the refusal comment is never resent, since a
+// GETs and GraphQL queries, so a query can go out up to three times four. This
+// retry's waits, and the first send of each resend, fall outside that helper's
+// 60 s budget; the step's 18-minute timeout (pr-merge.yml) is the outer cap.
+// A REST write such as the refusal comment is never resent, since a
 // lost answer would post it twice. A resent arm is pinned to the same expectedHeadOid, so it can arm
 // only the head the run read. When the lost answer was a success, the resend
 // may arm or disarm a pull request already in that state; should GitHub

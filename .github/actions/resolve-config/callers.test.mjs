@@ -1370,14 +1370,21 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 // the secret passed, so the role and the secret are checked together. The one
 // exception is the central fallback token, the same org secret for every role,
 // which only a call of a ci-workflows reusable with a fallback job may pass
-// (intake-triage.yml and pr-review-cli.yml from v0.65.12, ci-workflows#890).
+// (intake-triage.yml and pr-review-cli.yml from v0.65.12, ci-workflows#890),
+// or a job that runs the fallback leg itself, passing it to run-claude-cli as
+// fallback-token. Any job may ask only whether it is set.
 const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@[0-9a-f]{40}$/;
+const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
+const readsFallback = (job) =>
+  (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
+  (job.steps ?? []).some((step) => isLauncherStep(step, "run-claude-cli") && step.with?.["fallback-token"] === FALLBACK_VALUE) ||
+  (claudeReads(job).includes(FALLBACK_SECRET) && !claudeReads(withoutPresenceChecks(job)).includes(FALLBACK_SECRET));
 test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
   const jobs = claudeSecretJobs();
   for (const { role, lane, key } of catalogLanes()) {
     const { job } = jobs.get(key);
-    const fallback = FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === `\${{ secrets.${FALLBACK_SECRET} }}`;
+    const fallback = readsFallback(job);
     for (const name of lane.currentSecrets) {
       assert.ok([role.keySecret, role.tokenSecret, ...(fallback ? [FALLBACK_SECRET] : [])].includes(name), `${key} reads ${name}`);
     }
@@ -1545,7 +1552,8 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   const { jobs } = workflow("pr-run-activity-read.yml");
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
   const step = (id) => jobs.run.steps.find((s) => s.id === id);
-  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe";
+  const launcher = step("act-key").uses;
+  assert.match(launcher, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/, "a full SHA pin of run-claude-cli");
   for (const [id, input, secret] of [
     ["act-key", "api-key", "claude-api-key"],
     ["act-token", "subscription-token", "claude-code-oauth-token"],

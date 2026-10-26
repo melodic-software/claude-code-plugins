@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.3] - 2026-10-26
+
+### Changed
+
+- `babysit_verify_evidence.py lane-room` no longer runs the full post-merge check when the only reason the gate would not reuse the run's answer is `demotion-changed`, which any issue the lanes App opens and triage then edits sets. It reads the demotion records alone (`read_demotion`) and keeps the answer when they read as the answer recorded them; a demotion that turned active or moved still runs the full check, so a real demotion still holds the rung off. `shared_refusal` now checks the demotion last, so `demotion-changed` is reported only when nothing else refuses: a lane merge the answer does not count reports `new-merge:#<n>` first.
+
+## [3.4.2] - 2026-10-26
+
+### Fixed
+
+- `babysit_verify_evidence.py lane-room` no longer reports the lane's room unreadable when the gate would not reuse the run's post-merge answer for a reason other than `unverified-stale`: too old, from the future, a demotion record filed or changed since (`demotion-changed`), or a lane merge it does not count (`new-merge:#<n>`). As the gate does, it reads the answer again (`_recompute_shared`, demotion included), so a demotion filed since still holds the rung off and a failure found since still refuses. Only an `unverified-stale` answer may still be kept unchanged when nothing it was read from has moved. With no check to run, or a check that fails or cannot be read, the room stays unreadable.
+
+- `/source-control:babysit-prs` binds a review lane's second attempt after the first failed on a rejected Claude credential (the lane's own `failure-class=auth` failure line), as it already did after a usage limit or a spent key, which the lane reports as `rate-limit`. Such a re-run was refused as `rerun-not-allowed`, so a pull request whose review was re-run after a credential outage stayed held. The merge gate still re-runs a review only after a rate limit, so a re-run before the secret is fixed cannot spend the one allowed attempt.
+
 ## [3.4.1] - 2026-10-26
 
 ### Fixed
