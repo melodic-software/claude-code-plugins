@@ -567,6 +567,7 @@ jobs:
         env:
           # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
+          ACTOR_ID: ${{ github.actor_id }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           STOP_NOTICE: nothing checked here, the next scheduled run checks every candidate
         run: node .base/.github/scripts/pr-merge/who.mjs
@@ -1564,6 +1565,7 @@ jobs:
         env:
           # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
+          ACTOR_ID: ${{ github.actor_id }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           STOP_NOTICE: the next scheduled run arms what this one would
         run: node .base/.github/scripts/pr-merge/who.mjs
