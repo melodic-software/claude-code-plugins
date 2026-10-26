@@ -196,12 +196,28 @@ plan -- plugins/animation/requirements.txt
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
 check "the animation lock test-python installs is a Python pin" $?
 
-# A suite suite-seconds.txt does not list weighs the median of the listed Python
+# A suite suite-seconds.txt does not list weighs the mean of the listed Python
 # suites (200 and 100: 150), not 5 s, so a heavy new suite cannot hide on one leg.
 mk plugins/u/test_u.py "assert True"
 plan -- plugins/p/p.py plugins/q/test_q.py plugins/u/test_u.py
 grep -q 'python: 3 suite(s), 450 suite-seconds, 3 leg(s)' "$ERR"
-check "an unlisted Python suite counts the median of the listed ones, so 200 + 100 + 150 take 3 legs" $?
+check "an unlisted Python suite counts the mean of the listed ones, so 200 + 100 + 150 take 3 legs" $?
+
+# The real file's spread: most Python suites take 1 s and a few take minutes,
+# so their median is 1 s. Twenty 1 s rows beside 200 and 100 have a mean of
+# 320/22, which rounds to 15; an unlisted suite weighs that, never under 5 s.
+cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
+for i in $(seq 1 20); do printf 'plugins/one/test_one%s.py 1\n' "$i"; done >>"$repo/scripts/suite-seconds.txt"
+plan -- plugins/u/test_u.py
+grep -q 'python: 1 suite(s), 15 suite-seconds, 1 leg(s)' "$ERR"
+check "with many 1 s rows an unlisted Python suite still weighs their mean (15), above the 5 s default" $?
+# With only 1 s rows the mean is 1, and the 5 s default is the floor.
+grep -v 'test_[pq][.]py' "$repo/scripts/suite-seconds.txt" >"$scratch/light.txt"
+cp "$scratch/light.txt" "$repo/scripts/suite-seconds.txt"
+plan -- plugins/u/test_u.py
+grep -q 'python: 1 suite(s), 5 suite-seconds, 1 leg(s)' "$ERR"
+check "an unlisted Python suite never weighs less than the 5 s default" $?
+cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
 rm -f "$repo/plugins/u/test_u.py"
 
 # 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 5.

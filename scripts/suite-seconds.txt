@@ -11,8 +11,9 @@
 # 40362414991 and 40366757371: a shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
-# listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
-# selected suite runs on some leg whatever this file says.
+# listed counts the mean of the listed suites of its runner, rounded and at
+# least 5 s. Wrong numbers cost leg balance, never coverage: every selected
+# suite runs on some leg whatever this file says.
 .claude/hooks/cloud-bootstrap-author.test.sh 1
 .claude/hooks/cloud-bootstrap-plugins.test.sh 4
 .claude/hooks/hook-telemetry-sink.test.sh 1
