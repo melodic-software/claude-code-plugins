@@ -35,7 +35,8 @@ trap 'rm -rf "$WORK"' EXIT
 GATED="$WORK/gated"
 NOGATE="$WORK/nogate"
 NOORIGIN="$WORK/noorigin"
-mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows"
+RENAMED="$WORK/renamed"
+mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows" "$RENAMED/.github/workflows"
 # The scope guard keys on a workflow that `uses:` the pr-contract composite
 # step, so an EMPTY workflow file no longer satisfies it.
 PR_CONTRACT_WF='jobs:
@@ -45,6 +46,14 @@ PR_CONTRACT_WF='jobs:
 '
 printf '%s' "$PR_CONTRACT_WF" >"$GATED/.github/workflows/ci.yml"
 printf '%s' "$PR_CONTRACT_WF" >"$NOORIGIN/.github/workflows/ci.yml"
+# Only the composite's renamed path, pr-require-checks/check-contract.
+printf '%s' 'jobs:
+  ci-status:
+    steps:
+      - uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+' >"$RENAMED/.github/workflows/ci.yml"
+git -C "$RENAMED" init -q
+git -C "$RENAMED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$GATED" init -q
 git -C "$GATED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$NOGATE" init -q
@@ -96,6 +105,7 @@ ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidenc
 
 run 0 "valid body passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$GOOD")"
 run 2 "missing Related blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 2 "a workflow wiring only pr-require-checks/check-contract enforces" "$(payload "$RENAMED" $CREATE $OWNER $REPO "$NO_RELATED")"
 run 2 "empty Related blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"
 run 2 "missing keyword blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
 run 2 "#3205 body (no ## Fix) is blocked" "$(payload "$GATED" $CREATE $OWNER $REPO "$ISSUE_3205")"
