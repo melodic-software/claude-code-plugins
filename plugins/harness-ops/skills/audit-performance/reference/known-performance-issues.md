@@ -471,8 +471,9 @@ and 1.54M live Token objects put `Toke` at 2,850 MB paged, `SeAt` 592 MB, `SeTd`
 wcifs attribution does not hold on that host, although it runs WSL2 and loads the same filter.
 Separately, on the host of the 2026-09-18 attribution runs, `SPI_GETFOREGROUNDLOCKTIMEOUT` read
 2,147,483,647 ms live while `HKCU\Control Panel\Desktop\ForegroundLockTimeout` held the 200,000
-default, which is the always-armed precondition the foreground-lock write-up names. What set it is
-unknown, and the A/B that would confirm the mechanism there is written and has not been run.
+default, which is the always-armed precondition the foreground-lock write-up names. The logon reset
+described in "The per-logon workaround" below is the likely cause; the A/B that would confirm the
+mechanism there is written and has not been run.
 
 **Four service arms came back NO CANDIDATE.** On 2026-09-18 the elevated runbook below was run
 four times over the NVIDIA display container, Razer Game Manager, THX spatial audio and Wispr
@@ -534,6 +535,43 @@ measurement, which the runbook takes under a fixed spawn load rather than at res
 charged it. Both thresholds are calibrated on this one host's two states, ten times its
 clean-boot count and a fifteenth of its leaking count. A second host's readings, healthy or
 leaking, are the recheck trigger for them.
+
+### The per-logon workaround, on trial on melo-lap-001
+
+The foreground-lock write-up's workaround does not survive a logon. A second write-up,
+[gunrgbcr/windows-token-leak-logon-fix](https://github.com/gunrgbcr/windows-token-leak-logon-fix),
+reads `win32kfull!LoadCPUserPreferences` as storing 2,147,483,647 into the live value at every
+logon, whatever `HKCU\Control Panel\Desktop\ForegroundLockTimeout` holds. Its fix is to set the
+live value to 0 again after each logon from a window the user opened, since a background process
+is refused. melo-lap-001 shows the same refusal: from a background process the set returned error
+87 with the live value at 2,147,483,647.
+
+- **Where it lives:** dotfiles. Host data `windowsPrefs.hosts.melo-lap-001.foregroundLockTimeoutAtLogon`
+  renders `AppData/Local/PowerShell/foreground-lock.ps1`, which the PowerShell profile's deferred
+  init runs in every interactive terminal. When the value differs it sets it, live only, and
+  appends one line to `%LOCALAPPDATA%\PowerShell\foreground-lock.log`. Deleting the key ends the
+  trial; the next logon restores 2,147,483,647 by itself.
+- **Side effect:** any application may take the foreground.
+- **Baseline, 2026-10-26, before the workaround:** build 26300.9711 (`win32kfull.sys`
+  10.0.26100.9711), uptime 121.3 h, 67,752 live Token objects against 1,948 Token handles,
+  213,373 system handles, 1,991 MB paged pool, live timeout 2,147,483,647, no input for 35 to
+  44 min. The arms from the 2026-09-23 method (60 s idle baseline, 300 spawns, 60 s reclaim wait)
+  settled at +5.98 per spawn for `bash_5ext` (1,793 for 300) and +1.04 for `cmd_child` (312 for
+  300), against null arms of +54 and +12. So the leak and its one-per-creator count are unchanged
+  on the 2026-10-13 build.
+- **After-measurement:** the same arms after a logon with the workaround active, then again at
+  day 7, with the log showing one successful set per logon. Expect about 0 per spawn. Results go
+  on melodic-software/claude-code-plugins#4372.
+
+**Drift record.** *Claim:* the live timeout is reset at logon and a non-foreground set is
+refused; with the lock armed, build 26300.9711 still leaks one Token per creator. *Basis:* the
+gunrgbcr README and `flt_fix.py`, read through the GitHub API on 2026-10-26; a 2026-10-07
+independent observation of registry 0 against live 2,147,483,647 on 26300.9550
+([bentoner/windows-token-leak#1](https://github.com/bentoner/windows-token-leak/issues/1));
+melo-lap-001's own error-87 refusal and arm run on 2026-10-26. No Microsoft acknowledgement or fix
+appeared in release health, the in-window KB notes, or MS Q&A 5952454 as of that date. *As of:*
+2026-10-26. *Recheck trigger:* the day-7 after-measurement on #4372, a Windows update whose notes
+name win32k foreground or token handling, or Microsoft replying on any of those threads.
 
 ### Attribution runbook (the engine never does this)
 
