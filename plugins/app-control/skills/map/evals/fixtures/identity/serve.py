@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 CODE = "fixture-code"
 SESSION = "session=signed-in"
-SHELL_CHARS = "$`'\"\\;|<>"
+SHELL_CHARS = "$`'\"\\;|<>&()%^"
 
 
 def make_handler(role, identity):
@@ -219,6 +219,7 @@ def self_test():
             "http://127.0.0.1:x",
             "http://127.0.0.1:1/$(id)",
             "http://127.0.0.1:1/a;b",
+            "http://127.0.0.1:1/a&b",
         ):
             try:
                 code = subprocess.run(

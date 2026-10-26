@@ -170,7 +170,8 @@ its users.
     value.
   - `kind`: added to every included step, such as `write` or `send`, so the safety floors treat
     each one so. It adds to a step's own kind and never removes one. The run passes it to each
-    included step's `cli/` command as `--kind <kind>`.
+    included step's `cli/` command as `--kind <kind>`, and blocks an included step that is not a
+    `cli:` step when the include adds `write` or `send`, since no CLI can hold it to that kind.
   - `finally`: the included steps are finally steps.
 - **Finally steps.** A failed step ends the steps that are not finally steps. Finally steps run
   after the others, in order, whether or not a step before them failed; they are where a write's
@@ -208,10 +209,12 @@ CLI through it. Otherwise write a script in the language the repository already 
 - accepts `--kind write` and `--kind send` on every command, which only tightens: the command is
   then held to that kind's floors as well as its own;
 - loads code only from inside its control-skill folder, plus dependencies pinned by a lockfile
-  inside that folder, so the pin check in [Integrated apps](#integrated-apps) covers what it runs;
-- writes nothing inside its control-skill folder (no bytecode, caches or temp files), so the
-  untracked check in [Integrated apps](#integrated-apps) (Checkout off the pin) does not stop a
-  second run.
+  inside that folder that carries an integrity hash for each and names no file, path or link
+  dependency;
+- writes nothing inside its control-skill folder (no bytecode, caches or temp files), and turns
+  bytecode off itself (for Python, `-B` or `sys.dont_write_bytecode = True` before any import), so
+  the untracked check in [Integrated apps](#integrated-apps) (Checkout off the pin) does not stop
+  a second run.
 
 A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
 or external system needs `cli/`: each such step is a `cli/` command, never a click or a raw request
@@ -274,8 +277,11 @@ A `## Launch` or `## Ready` command names these urls by placeholder: `<environme
 selected entry's `url`, `<<service> service url>` for a dependency service's. The run splits the
 command into arguments first, fills each placeholder as exactly one argument, and runs the command
 without a shell. The value must parse as an `http` or `https` URL and hold no whitespace, no
-control character and none of `$`, `` ` ``, `'`, `"`, `\`, `;`, `|`, `<` and `>`; a value that does not, or a placeholder that is not a whole argument, stops the run
-before it launches anything, naming the placeholder and the value.
+control character and none of `$`, `` ` ``, `'`, `"`, `\`, `;`, `|`, `<`, `>`, `&`, `(`, `)`, `%`
+and `^`; a value that does not, or a placeholder that is not a whole argument, stops the run
+before it launches anything, naming the placeholder and the value. A command with a placeholder
+whose program is a `.cmd` or `.bat` file stops the run the same way, since Windows runs those
+through a shell.
 
 ## Integrated apps
 
@@ -290,8 +296,10 @@ environments; this control skill never copies them. The hub lists each one above
 - **Include by reference.** A steps-file include names `<app>:<path>`, a steps file inside that
   app's control skill, and expands as any include does. An included `cli:` step runs the owning
   app's `cli/`, from its checkout, with that app's config layers, never this control skill's, and
-  with an environment holding only `PATH`, `HOME`, the locale variables (`LANG`, `LC_*`) and the
-  credential variables that app's committed config names. The run passes it `--environment` with
+  with an environment holding only `PATH`, `HOME`, the locale variables (`LANG`, `LC_*`),
+  `GIT_NO_REPLACE_OBJECTS=1` and the credential variables that app's committed config names,
+  leaving out any name this control skill's own `credentials` lists and any of `PATH`, `HOME`,
+  `BASH_ENV`, `NODE_OPTIONS`, `LD_*`, `DYLD_*`, `PYTHON*` and `GIT_*`. The run passes it `--environment` with
   the `environment` of the selected entry's service for that app, stops before launching when no
   such service exists, and stops when the command's `--json` names another environment.
 - **Checkout.** For an app in another repository, `checkouts.<app>` holds the path of its local
@@ -300,16 +308,19 @@ environments; this control skill never copies them. The hub lists each one above
   committed-only rule above does not apply.
 - **Pin.** For the same app, `pins.<app>` in this control skill's committed config holds the full
   commit id (40 or 64 lowercase hex characters) of that app's control skill this one was written
-  against; a ref name or a short id is not a pin. `/app-control:map` writes a pin only for a commit
-  that `git merge-base --is-ancestor` shows is reachable from that repository's remote default
-  branch after a fetch, and reports the commit's subject.
+  against; a ref name or a short id is not a pin. `/app-control:map` writes a pin only after
+  `git -C <checkout> fetch <the hub line's repository URL> HEAD` and
+  `git -C <checkout> merge-base --is-ancestor <sha> FETCH_HEAD` show the commit is on that
+  repository's default branch, and reports the commit's subject; that fetch may write the
+  checkout's objects and `FETCH_HEAD`, nothing else.
   That app's environments, floors and `writes` are read from its own committed config at the pin,
   `git -C <checkout> show <sha>:.claude/skills/control-<app>/config/defaults.json`.
 - **Missing checkout.** When the setting is unset, its path does not exist, or the path holds no
   `.claude/skills/control-<app>/SKILL.md`, the run stops before launching anything and prints the
   setting's name and the repository to clone.
 - **Checkout off the pin.** After that check, before launching anything, and again right before
-  each included `cli:` call and before launching that app, the run stops unless all of these hold
+  each included `cli:` call, before launching that app and before running its `## Ready`, the run
+  stops unless all of these hold
   for `<dir>`, that app's `.claude/skills/control-<app>/`:
   - `pins.<app>` is set at HEAD and is 40 or 64 lowercase hex characters, checked before any git
     command;
@@ -320,11 +331,14 @@ environments; this control skill never copies them. The hub lists each one above
     assume-unchanged or other index flag hides a change;
   - every path in `git ls-tree -r <sha> -- <dir>` exists, and every file found by walking `<dir>`
     is that app's `config/local.json` or a path in that tree whose `git hash-object --no-filters`
-    equals the tree's blob id; a symlink must equal the tree's link text and resolve inside
-    `<dir>`.
+    equals the tree's blob id, as is or after turning CRLF into LF (the only normalization); a
+    symlink must equal the tree's link text and resolve inside `<dir>`;
+  - no path in `<dir>` has a `filter` attribute (`git check-attr filter`).
 
-  Each git command runs as `git -C <checkout> -c core.fsmonitor=false`, with every `GIT_*`
-  environment variable unset and `--end-of-options` before a revision. When `pins.<app>` is unset
+  Each git command runs as `git --no-replace-objects -C <checkout> -c core.fsmonitor=false`, with
+  every `GIT_*` environment variable unset and `--end-of-options` before a revision. The check
+  trusts the checkout's object store: it proves the folder equals the pinned commit as that store
+  records it. When `pins.<app>` is unset
   the run prints the setting's name and to commit `pins.<app>`, for example through
   `/app-control:map`; otherwise it prints the setting's name, the pinned SHA and
   `fetch or check out`. The run passes no revision to that app's CLI; this check is what makes its
@@ -359,14 +373,18 @@ caller reads exit 4 as refused by a floor, never as a failure to retry.
   for an account. The CLI keeps no state between calls, so the caller that owns the run (whatever runs the
   feature's `## Drive` steps) keeps the per-run count: it calls `sign-in` for an account at most once, and a failed attempt stops the run,
   with no switch to another account.
-- **Write grants.** Every write command takes `--step <id>`: the step's id in its own control
-  skill's steps files, without an include's prefix, or the `cli/` command's name for a feature
-  without a steps file. The CLI finds that step in its steps files at HEAD (`git show HEAD:`) and
-  refuses unless the step's `cli:` command and fixed arguments equal the command being run, a
-  `{parameter}` matching any one argument. It then looks the key up in the committed `writes` of
-  the selected environment, or of the `systems` entry it writes to. A missing or unknown `--step`,
-  a command that differs from the step's, a key not listed, `never`, and `attended` without
-  `--attended` are refused.
+- **Write grants.** Every write command takes `--step <id>`. Each key binds to one command: a
+  step id to that step's `cli:` command in the control skill's own steps files at HEAD
+  (`git show HEAD:`), and a key naming no step only to the `cli/` command of that name. No step id
+  equals a `cli/` command name, and a step's `cli:` holds none of the reserved flags
+  `--environment`, `--step`, `--kind`, `--json`, `--attended` and `--yes`. A binding matches the
+  command being run when, leaving out the reserved flags and their values, every other argument
+  matches in count and order, a `{parameter}` matching any one argument that does not start with
+  `-`. The CLI refuses unless the `--step` key is listed in the committed `writes` of the selected
+  environment, or of the `systems` entry it writes to, and its binding matches; it then applies
+  the strictest grant among every listed key whose binding matches (`never`, then `attended`,
+  then `unattended`). A missing, unknown or unlisted `--step`, a binding that does not match,
+  `never`, and `attended` without `--attended` are refused.
 - **Production.** An environment marked `production: true` in committed config is read-only. A
   write to it runs only when committed config grants that write's `--step` key (`attended` or
   `unattended` in its `writes`) and the command carries `--yes`, which a caller passes only after the person said yes in
