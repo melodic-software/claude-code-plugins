@@ -156,7 +156,9 @@ item but a hard stop on every private repository's hosted CI once the pool is go
 **They are now steps, not jobs.** Every shared-library gate, the generator's `--check` and
 `--check-bump` (see the amendment above), runs as a step of `check-plugins`, the job that holds the
 plugin contracts across files, which performs that same deepen and base fetch once for every bump
-check. Adding a fourteenth shared source therefore adds a step to an existing job, and adding a job
+check. The `--check` step runs in `check-catalog`, split from `check-plugins` to keep each job
+within its 3-minute timeout; the bump checks stay in `check-plugins`. Adding a fourteenth shared
+source therefore adds a step to an existing job, and adding a job
 is the thing to justify rather than the default.
 
 One thing was lost and is worth naming rather than glossing. The old **job** name

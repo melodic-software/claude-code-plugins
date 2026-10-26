@@ -106,10 +106,10 @@ concurrency:
 # JOBS ARE NAMED <verb>-<domain>, AND THE JOB ID IS THE CHECK NAME. The verb
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
-# what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
+# what: `repo`, `shell`, `plugins`, `catalog`, `skills`, or the ecosystem a test job runs
 # (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
-# `select-tests`, nine working jobs,
-# `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
+# `select-tests`, ten working jobs,
+# `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
 # `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
 # verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
@@ -117,7 +117,8 @@ concurrency:
 # step keeps its `id`, its aggregator key, in whichever job it runs.
 #
 # A DOMAIN IS A JOB ONLY WHEN THAT SHORTENS THE CRITICAL PATH BY MORE THAN A
-# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain. The
+# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain, or
+# when a job that outgrows its timeout is split (see the timeout rule). The
 # three test lanes are jobs for a different reason: each runs only when the
 # change selects suites of its ecosystem, and skips otherwise, so a change to
 # shell code starts no Python or Node runner and a C# or docs change starts
@@ -134,7 +135,11 @@ concurrency:
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# 110 / 120, 3; check-skills at most 585 / 645, the wall of a measured job
+# and check-catalog, split from one job whose wall was 99 to 125 s over the
+# seven scheduled runs of 2026-10-23 to 10-26 and 83 to 123 s over eight
+# merge groups of 10-26: about 66 and 77, the sums of their steps (setup and
+# checkout included) in the 125 s run, 3 each;
+# check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
 # suite among them, plus about 55 s of setup), 9; test-python per leg about
@@ -1497,14 +1502,17 @@ jobs:
 
   # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
   # catalog presence and enablement, option docs, the changelog and vendor-bump
-  # gates, the hook-declaration gates, `claude plugin validate`, the
-  # rendered-view HTML assets, the performance counter ceilings, and the
-  # shared-library copy gates with their delivery checks.
+  # gates, the hook-declaration gates, the performance counter ceilings, the
+  # cross-plugin drift check, and the delivery checks of the shared-library
+  # copies. The steps that read the root npm install (`claude plugin validate`
+  # and the rendered-view HTML assets), with the copy and prerequisite gates
+  # moved beside them, are `check-catalog`'s: as one job the two took up to
+  # 125 s against a 3-minute cap that holds a p95 of at most 120.
   #
   # The hook, catalog and changelog gates run first, on Python with the pinned
-  # requirements. Node and the root npm install follow, gated like the steps
-  # that read them. The manifest schema steps run last: their composite leaves
-  # uv on PATH for every later step.
+  # requirements, then the manifest schema steps, whose composite leaves uv on
+  # PATH for every later step. Node follows for the counter ceilings, gated
+  # like the steps that read it.
   #
   # The shared-library bump checks need base history: `download-full-history`
   # runs once, at the top, and every bump check below resolves
@@ -1925,10 +1933,159 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh manifest-duplicate-keys {0}
         run: python3 scripts/check-manifest-duplicate-keys.py
 
+      # Node for the counter ceilings, whose hook rows start each hook through
+      # its node launcher. They read no root npm install: that is
+      # `check-catalog`'s. Gated like that step, so a docs-only diff does not
+      # pay for it.
+      - name: Set up Node
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      # The shared-library delivery checks (ADR 0019): a change to a canonical
+      # bumps every carrying plugin. That the copies match their canonical is
+      # checked in `check-catalog`. The bump checks need a base ref, so they
+      # return early off a pull request rather than diffing against a ref that
+      # does not exist.
+      - name: Verify carrying plugins bumped when a generated copy's canonical changed
+        if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
+      - name: Verify contract, changelog, and carrying plugins bumped together
+        if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
+
+      - name: Check for unregistered or drifted cross-plugin source clusters
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: scripts/check-cross-plugin-source-drift.sh --check
+
+      # Counter ceilings from .performance/ratchets.json: each counter's command
+      # runs and the step fails when one rises above its checked-in ceiling.
+      # Counters only, never durations, so the answer does not move with runner
+      # load. A lower count is lowered in the file by hand in the same PR
+      # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. The hook counters run through scripts/hook-census.sh under
+      # strace, so its suite runs first here: no other lane runs a scripts/
+      # suite that needs strace. The counts depend on the image's bash, git, jq
+      # and coreutils, so the versions are printed beside every check: an ABOVE
+      # after an image bump reads in one log. The js-complexity-share counter
+      # runs lizard from the pinned install above (.github/requirements-ci.txt),
+      # and its version is printed the same way.
+      - name: Check performance counter ceilings
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: |
+          bash scripts/hook-census.test.sh
+          bash scripts/hook-census.sh --versions
+          echo "lizard $(lizard --version)"
+          python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
+
+      - name: Report not applicable to a docs-only diff
+        if: needs.select-tests.outputs.run_tests == 'false'
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the shared-library bump checks, the cross-plugin drift check and the counter ceilings cannot be affected — reporting success."
+
+      - name: Aggregate hygiene results
+        if: always()
+        env:
+          # The feed's rules are stated on the one in `lint-repo`; the docs-only
+          # gate pins them on every job.
+          # Gates that run as `uses:` actions, whose output
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
+          # the job's own check-run annotations (checks: read), else points at
+          # the step log.
+          CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ github.token }}
+          STEP_LOG_CHECKS: marketplace-schema plugin-schema
+          CHECK_RESULTS: |
+            userconfig-argv=${{ steps.userconfig_argv.outcome }}
+            hook-exec-form=${{ steps.hook_exec_form.outcome }}
+            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
+            cant-fail-scan=${{ steps.cant_fail_scan.outcome }}
+            hooks-description=${{ steps.hooks_description.outcome }}
+            summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
+            plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
+            plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
+            plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
+            changelog-parity=${{ steps.changelog_parity_check.outcome }}
+            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
+            changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
+            changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
+            changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
+            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
+            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
+            vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
+            marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
+        run: scripts/aggregate-hygiene-results.sh
+
+  # THE PLUGIN CHECKS THAT READ THE ROOT NPM INSTALL: `claude plugin validate`
+  # over the plugins and the catalog (with the contract, catalog, cheatsheet
+  # and native-overlap drift checks and the mod tests scripts/validate-plugins.sh
+  # runs) and the rendered-view HTML assets, plus the shared-library copy and
+  # declared-prerequisite gates, which moved with them and need Node at most.
+  #
+  # ITS OWN JOB BECAUSE OF THE 3-MINUTE CAP. Inside `check-plugins` these
+  # steps took 54 s of a job that ran 99 to 125 s on the scheduled runs of
+  # 2026-10-23 to 10-26, and 1.5 x 125 is over 180. Apart, each job's steps,
+  # its own setup and checkout included, summed to under 80 s on the slowest
+  # of those runs. Neither job sets the critical path, which `check-skills`
+  # holds: this is the split the timeout rule asks of a job that outgrows its
+  # cap, not a domain that shortens the critical path.
+  #
+  # Every step, the checkout included, is gated like the steps that read the
+  # install, so a docs-only diff pays for no checkout or install. None is a
+  # `continue-on-error` gate: each fails the job directly, so this job has no
+  # aggregator feed.
+  #
+  # The job skips only on a contract-only event or a draft (see `lint-repo`).
+  check-catalog:
+    needs: [select-tests]
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The plugin validation diffs against the lane base and against
+      # origin/<base_ref>, which this fetches on a pull request.
+      - name: Fetch base
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+
+      # The pinned interpreter for the native-overlap registry checks
+      # scripts/validate-plugins.sh runs. They read no package, so nothing is
+      # installed into it.
+      - name: Set up Python
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+
       # The root npm install, for the steps below that read it: htmlhint and the
-      # claude CLI from node_modules/.bin, and node for the prerequisite gate
-      # and the counter ceilings. Gated like those steps,
-      # so a docs-only diff does not pay for it.
+      # claude CLI from node_modules/.bin, and node for the prerequisite gate.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -1989,12 +2146,10 @@ jobs:
           fi
 
       # The shared-library gates (ADR 0019). Every per-plugin copy is generated
-      # from one canonical source by scripts/sync-shared-copies.sh.
-      # CI only verifies: the copies match their canonical, and a change to a
-      # canonical bumps every carrying plugin. The libraries' own suites are
-      # corpus suites, reached by the selector. The bump checks need a base
-      # ref, so they return early off a pull request rather than diffing against a ref
-      # that does not exist.
+      # from one canonical source by scripts/sync-shared-copies.sh, and CI only
+      # verifies that the copies match their canonical. That a change to a
+      # canonical bumps every carrying plugin is checked in `check-plugins`. The
+      # libraries' own suites are corpus suites, reached by the selector.
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
@@ -2004,92 +2159,10 @@ jobs:
       - name: Check plugin prerequisites are declared
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
-      - name: Verify carrying plugins bumped when a generated copy's canonical changed
-        if: needs.select-tests.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
-      - name: Verify contract, changelog, and carrying plugins bumped together
-        if: needs.select-tests.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
-
-      - name: Check for unregistered or drifted cross-plugin source clusters
-        if: needs.select-tests.outputs.run_tests == 'true'
-        run: scripts/check-cross-plugin-source-drift.sh --check
-
-      # Counter ceilings from .performance/ratchets.json: each counter's command
-      # runs and the step fails when one rises above its checked-in ceiling.
-      # Counters only, never durations, so the answer does not move with runner
-      # load. A lower count is lowered in the file by hand in the same PR
-      # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job. A runner image change can also lower a count: the check log then
-      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
-      # in a PR. The hook counters run through scripts/hook-census.sh under
-      # strace, so its suite runs first here: no other lane runs a scripts/
-      # suite that needs strace. The counts depend on the image's bash, git, jq
-      # and coreutils, so the versions are printed beside every check: an ABOVE
-      # after an image bump reads in one log. The js-complexity-share counter
-      # runs lizard from the pinned install above (.github/requirements-ci.txt),
-      # and its version is printed the same way.
-      - name: Check performance counter ceilings
-        if: needs.select-tests.outputs.run_tests == 'true'
-        run: |
-          bash scripts/hook-census.test.sh
-          bash scripts/hook-census.sh --versions
-          echo "lizard $(lizard --version)"
-          python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
       - name: Report not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the plugin validation, the shared-library sync gates and the counter ceilings cannot be affected — reporting success."
-
-      - name: Aggregate hygiene results
-        if: always()
-        env:
-          # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
-          CHECK_RUN_ID: ${{ job.check_run_id }}
-          GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: marketplace-schema plugin-schema
-          CHECK_RESULTS: |
-            userconfig-argv=${{ steps.userconfig_argv.outcome }}
-            hook-exec-form=${{ steps.hook_exec_form.outcome }}
-            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
-            cant-fail-scan=${{ steps.cant_fail_scan.outcome }}
-            hooks-description=${{ steps.hooks_description.outcome }}
-            summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
-            plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
-            plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
-            plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
-            changelog-parity=${{ steps.changelog_parity_check.outcome }}
-            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
-            changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
-            changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
-            changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
-            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
-            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
-            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
-            vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
-            marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
-            plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
-            manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
-        run: scripts/aggregate-hygiene-results.sh
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies and the declared prerequisites cannot be affected — reporting success."
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
@@ -3055,6 +3128,7 @@ jobs:
       - lint-repo
       - lint-shell
       - check-plugins
+      - check-catalog
       - check-skills
       - test-bash
       - test-python
