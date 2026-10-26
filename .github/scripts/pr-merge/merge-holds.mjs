@@ -605,12 +605,13 @@ function laneThread(lane, item) {
   return (author.login === "github-actions" || author.login === "github-actions[bot]") && LANE_FOOTER.exec(last)?.[1] === lane;
 }
 
-// The lane job's one review record for `sha` as { summary, whole }, else null.
+// The lane job's one review record for `sha` as { findings, summary, whole,
+// completed }, else null.
 function reviewOf(lane, sha, job) {
   const found = (notes(job) ?? []).filter((item) => item.title === "claude-lane-review-complete");
   const match = found.length === 1 ? REVIEW_RECORD.exec(String(found[0].message ?? "")) : null;
   if (match === null || match[1] !== lane || match[2] !== sha || Number(match[3]) < Number(match[4])) return null;
-  return { summary: Number(match[3]) - Number(match[4]), whole: match[5] === "whole" };
+  return { findings: Number(match[3]), summary: Number(match[3]) - Number(match[4]), whole: match[5] === "whole", completed: seconds(job.completed_at) };
 }
 
 // Whether a review lane lifts its own `needs-human` hold (owner decision
@@ -641,8 +642,12 @@ function reviewOf(lane, sha, job) {
 //   no severity line to read). A held review that left a summary finding
 //   needs a whole review of `head`.
 // - No thread of those lanes is open with a severity other than SUGGESTION
-//   (the Q26 B bar): open is unresolved, or resolved by anyone but a trusted
-//   person while GitHub does not mark it outdated. A severity line missing or
+//   (the Q26 B bar). A thread is closed only when resolved, by a trusted
+//   person, or by anyone when it was opened before the lane's newest review
+//   of `head` completed and that review was whole and found nothing, and no
+//   other review of `head` reported a finding, so re-running a review until
+//   it comes back clean never closes one (never looser than the merge gate's
+//   babysit_review_evidence._open_findings). A severity line missing or
 //   repeated counts as CRITICAL. A list cut short keeps the label.
 export function laneLift(input) {
   const { head, label, events, comments, deleted, threads, lanes } = input ?? {};
@@ -667,6 +672,8 @@ export function laneLift(input) {
   // Every hold a lane recorded in the window, and each lane's newest review of head.
   const holds = [];
   const latest = {};
+  // Whether any review of head, in any run or attempt, reported a finding.
+  const spent = {};
   for (const [lane, check] of Object.entries(LANE_CHECKS)) {
     const runs = lanes[lane];
     if (!Array.isArray(runs)) return keep(`the ${lane} runs do not read`);
@@ -682,6 +689,9 @@ export function laneLift(input) {
         }
       }
     }
+    spent[lane] = runs.some(
+      (entry) => entry?.head_sha === head && entry.jobs.some((one) => one?.name === check && (reviewOf(lane, head, one)?.findings ?? 0) > 0),
+    );
     const newest = runs.filter((entry) => entry?.head_sha === head).sort((a, b) => b.id - a.id)[0];
     const jobs = (newest?.jobs ?? []).filter((entry) => entry?.name === check);
     latest[lane] = jobs.sort((a, b) => (b.run_attempt ?? 0) - (a.run_attempt ?? 0) || b.id - a.id)[0] ?? null;
@@ -722,9 +732,12 @@ export function laneLift(input) {
   const nodes = threads?.nodes;
   if (!Array.isArray(nodes) || !Number.isInteger(threads.totalCount) || threads.totalCount > nodes.length) return keep("the review threads do not read whole");
   const open = nodes.find((item) => {
-    if (!judged.some((lane) => laneThread(lane, item))) return false;
+    const owners = judged.filter((lane) => laneThread(lane, item));
+    if (owners.length === 0) return false;
     const by = item.resolvedBy;
-    const closed = item.isResolved === true && ((by?.__typename === "User" && humans.has(by.databaseId)) || item.isOutdated === true);
+    const created = seconds(item.comments.nodes[0].createdAt);
+    const readPast = (lane) => reviewed[lane].whole && reviewed[lane].findings === 0 && !spent[lane] && created < reviewed[lane].completed;
+    const closed = item.isResolved === true && ((by?.__typename === "User" && humans.has(by.databaseId)) || owners.every(readPast));
     const severities = [...String(item.comments.nodes[0].body ?? "").matchAll(SEVERITY)].map((match) => match[1]);
     return !closed && !(severities.length === 1 && severities[0] === "SUGGESTION");
   });

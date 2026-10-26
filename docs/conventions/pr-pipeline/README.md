@@ -1813,8 +1813,10 @@ them on every `pull_request` run, contract-only runs included:
   the lanes' check-run notices record is `critical-security` alone at an older head; no lanes App
   escalation or comment deletion; each holding lane and the security lane completed a review of
   the head that recorded no hold and no summary finding (a held review's summary finding needs a
-  whole review); and no lane thread is open above SUGGESTION, open meaning unresolved, or resolved
-  by anyone but a trusted person while not outdated. A run on a head that changes a review-lane
+  whole review); and no lane thread is open above SUGGESTION. A thread is closed only once resolved,
+  by a trusted person, or by anyone when the lane's newest review of the head was whole, found
+  nothing, completed after the thread opened, and no other review of the head reported a finding
+  (never looser than the merge gate's reader). A run on a head that changes a review-lane
   workflow, and anything unread, keeps the label. The step re-derives the lift on every run, so
   the hold-lift check above skips; once a later head's review is not clean, that check fails until
   it is. A cost hold clears only through the owner's cost decision, and a label a person, the lanes

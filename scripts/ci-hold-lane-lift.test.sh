@@ -254,11 +254,24 @@ reset
 STUB_PR="$(jq -c --arg o "$OLD" '.head.sha = $o' <<<"$STUB_PR")"
 export STUB_PR
 expect "a pull request whose head moved since the event keeps the label" no no no "the head moved"
+# The cheap exits: each is decided by the events read alone.
+one_read() {
+  if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 1 ]]; then ok "$1: the events are the step's one read"; else fail "$1: read more than the events: '$(cat "$TMP_ROOT/log")'"; fi
+}
 reset
 STUB_EVENTS='[]'
 export STUB_EVENTS
-expect "a pull request that never carried the label stops after the events read" no no no "never added"
-if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 1 ]]; then ok "with no label event the events are the step's one read"; else fail "read more than the events: '$(cat "$TMP_ROOT/log")'"; fi
+expect "a pull request that never carried the label keeps nothing to lift" no no no "no label was added"
+one_read "no label"
+STUB_EVENTS="[$(event labeled "$OWNER" 2026-10-26T12:00:30Z)]"
+expect "a person's label stops after the events read" no no no "someone other than a review lane"
+one_read "a person's label"
+STUB_EVENTS="[$(event labeled "$APP" 2026-10-26T12:00:30Z)]"
+expect "a lanes App label stops after the events read" no no no "someone other than a review lane"
+one_read "a lanes App label"
+STUB_EVENTS="[$(event labeled "$LANE" 2026-10-26T12:00:30Z),$(event unlabeled "$OWNER" 2026-10-26T12:30:00Z)]"
+expect "a hold a trusted person already lifted stops after the events read" no no no "no label was added"
+one_read "a lifted hold"
 reset
 export LANES_APP_ID=''
 expect "an unset lanes App id keeps the label" no no no

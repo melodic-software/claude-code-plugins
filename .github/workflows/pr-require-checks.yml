@@ -3510,17 +3510,19 @@ jobs:
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
-      # the full run records `success`. Under an explicit permissions block every
+      # the full run records `success`. The cost-hold and lane-lift steps list
+      # the review lanes' runs and jobs. Under an explicit permissions block every
       # unlisted scope defaults to none; write covers the read.
       actions: write
-      # The cost-hold step reads the review lanes' hold notices from their
-      # check-run annotations.
+      # The cost-hold and lane-lift steps read the review lanes' hold and
+      # review notices from their check-run annotations.
       checks: read
       contents: read
       # check-contract upserts the advisory linkage comment and moves the linkage
       # label; ci-status records the `ci-lanes` commit status the carry-forward
-      # branch reads back on the next contract-only event. The cost-hold step
-      # comments and removes the human-gated label.
+      # branch reads back on the next contract-only event. The cost-hold and
+      # lane-lift steps comment and remove the human-gated label; lane-lift
+      # also reads the review threads.
       pull-requests: write
       statuses: write
     steps:
@@ -4058,7 +4060,8 @@ jobs:
       # escalation and no comment deletion in it; each holding lane and the
       # security lane completed a review of this head that recorded no hold and
       # no summary finding; and no thread of theirs is open above SUGGESTION
-      # (the Q26 B bar). Runs on a head that changes a review-lane workflow,
+      # (the Q26 B bar), a thread a non-person resolved closing only under a
+      # clean whole review of this head that read past it. Runs on a head that changes a review-lane workflow,
       # which could forge a notice, keep the hold, as in the step above.
       # Then it outputs cleared=true, which a re-run at this head derives
       # again, so the hold-lift step below skips, and, with the label on,
@@ -4115,13 +4118,19 @@ jobs:
           humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
           events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
           jq -s 'add // []' <<<"$events" >"$tmp/events.json" || keep "the events do not parse"
-          # The cheap read first: most pull requests never carried the label.
-          jq -e --arg label "$label" 'any(.[]; .event == "labeled" and .label.name == $label)' "$tmp/events.json" >/dev/null ||
-            keep "the label was never added"
+          # The window opens at the newest removal a trusted person made directly.
           since=$(jq --arg label "$label" --argjson humans "$humans" '[.[] | select(.label.name == $label
             and .event == "unlabeled" and .performed_via_github_app == null
             and (.actor.id as $id | $humans | index($id))) | .created_at | fromdateiso8601] | max // -1' \
             "$tmp/events.json") || keep "the events do not parse"
+          # The cheap read first: most pull requests never carried a label only
+          # the lanes' hold writer (github-actions[bot], id 41898282) added.
+          added=$(jq -r --arg label "$label" --argjson since "$since" '[.[] | select(.label.name == $label
+            and .event == "labeled" and (.created_at | fromdateiso8601) > $since)]
+            | if length == 0 then "no label was added since a trusted person last removed it"
+              elif any(.[]; .actor.id != 41898282 or .actor.type != "Bot") then "someone other than a review lane added the label"
+              else "lane" end' "$tmp/events.json") || keep "the events do not parse"
+          [ "$added" = lane ] || keep "$added"
           pr=$(read_api "repos/$repo/pulls/$PR_NUMBER") || keep "the pull request is unreadable"
           # A late or re-run event for an older head must not lift the label off a newer one.
           [ "$(jq -r '.head.sha // ""' <<<"$pr")" = "$HEAD_SHA" ] || keep "the head moved since this event"

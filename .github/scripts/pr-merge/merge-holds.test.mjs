@@ -693,7 +693,7 @@ function liftInput(change = {}) {
       "claude-review": [run(10, NEW, [job(CODE_CHECK, at(9), [record(NEW, { lane: "claude-review" })], { id: 101 })])],
       [SEC]: [
         run(20, OLD, [job(SEC_CHECK, at(1), [record(OLD, { findings: 1, inline: 1 }), holdNote(OLD)], { id: 201 })]),
-        run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW, { scope: `incremental since=${OLD}` })], { id: 211 })]),
+        run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW)], { id: 211 })]),
       ],
     },
     ...change,
@@ -701,6 +701,7 @@ function liftInput(change = {}) {
 }
 const withSec = (runs) => liftInput({ lanes: { ...liftInput().lanes, [SEC]: runs } });
 const oldRun = liftInput().lanes[SEC][0];
+const incremental = run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW, { scope: `incremental since=${OLD}` })], { id: 211 })]);
 
 test("laneLift lifts the lane's own hold at an older head once it reviews the new head clean", () => {
   const verdict = laneLift(liftInput());
@@ -726,8 +727,9 @@ test("laneLift keeps the label on an open CRITICAL or IMPORTANT security finding
     assert.equal(verdict.lift, false, severity);
     assert.match(verdict.reason, /open finding/);
   }
-  // Resolved by a bot with the flagged lines unchanged is still open.
-  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("IMPORTANT", { resolved: true, resolvedBy: { __typename: "Bot", login: "x" } })] } })).lift, false);
+  // Resolved by a bot, with no clean whole review of the head, is still open.
+  const botIncremental = { threads: { totalCount: 1, nodes: [thread("IMPORTANT", { resolved: true, resolvedBy: { __typename: "Bot", login: "x" } })] } };
+  assert.equal(laneLift(liftInput({ ...botIncremental, lanes: { ...liftInput().lanes, [SEC]: [oldRun, incremental] } })).lift, false);
   // A severity line that does not read counts as blocking.
   assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("HIGH")] } })).lift, false);
   // An open SUGGESTION does not keep it; a trusted person's resolution closes one.
@@ -735,6 +737,24 @@ test("laneLift keeps the label on an open CRITICAL or IMPORTANT security finding
   assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("CRITICAL", { resolved: true, resolvedBy: { __typename: "User", databaseId: TRUSTED } })] } })).lift, true);
   // A summary finding at the new head has no severity line to read.
   assert.equal(laneLift(withSec([oldRun, run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW, { findings: 1, inline: 0 })], { id: 211 })])])).lift, false);
+  // A thread a bot resolved closes only under a clean whole review of the
+  // head that read past it, as the merge gate's reader closes one.
+  const botResolved = { totalCount: 1, nodes: [thread("CRITICAL", { resolved: true, outdated: true, resolvedBy: { __typename: "Bot", login: "x" } })] };
+  assert.equal(laneLift(liftInput({ threads: botResolved })).lift, true);
+  const underIncremental = laneLift(liftInput({ threads: botResolved, lanes: { ...liftInput().lanes, [SEC]: [oldRun, incremental] } }));
+  assert.equal(underIncremental.lift, false);
+  assert.match(underIncremental.reason, /open finding/);
+  // An earlier review of the head that reported a finding: re-running until clean closes nothing.
+  const rerun = run(21, NEW, [
+    job(SEC_CHECK, at(8), [record(NEW, { findings: 1, inline: 1 })], { id: 211 }),
+    job(SEC_CHECK, at(10), [record(NEW)], { id: 212, run_attempt: 2 }),
+  ]);
+  const spentHead = laneLift(liftInput({ threads: botResolved, lanes: { ...liftInput().lanes, [SEC]: [oldRun, rerun] } }));
+  assert.equal(spentHead.lift, false);
+  assert.match(spentHead.reason, /open finding/);
+  // A thread opened after the clean review completed was not read by it.
+  const late = { totalCount: 1, nodes: [{ ...botResolved.nodes[0], comments: { nodes: [{ ...botResolved.nodes[0].comments.nodes[0], createdAt: at(11) }] } }] };
+  assert.equal(laneLift(liftInput({ threads: late })).lift, false);
   // A thread list cut short keeps it.
   assert.equal(laneLift(liftInput({ threads: { totalCount: 101, nodes: [] } })).lift, false);
   assert.equal(laneLift(liftInput({ threads: null })).lift, false);
@@ -797,7 +817,7 @@ test("laneLift keeps the label until the lane's review of the new head is comple
   assert.match(laneLift(retried).reason, /has not completed/);
   // A held review that left summary findings needs a whole review to lift it.
   const summary = run(20, OLD, [job(SEC_CHECK, at(1), [record(OLD, { findings: 1 }), holdNote(OLD)], { id: 201 })]);
-  assert.match(laneLift(withSec([summary, liftInput().lanes[SEC][1]])).reason, /left a summary finding, and its review of .* is not whole/);
+  assert.match(laneLift(liftInput({ threads: { totalCount: 0, nodes: [] }, lanes: { ...liftInput().lanes, [SEC]: [summary, incremental] } })).reason, /left a summary finding, and its review of .* is not whole/);
   assert.equal(laneLift(withSec([summary, run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW)], { id: 211 })])])).lift, true);
 });
 
