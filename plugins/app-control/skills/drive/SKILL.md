@@ -87,9 +87,13 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
    and stop that feature rather than guess a file.
 9. An include from an integrated app resolves through the contract's "Integrated apps", and its
-   control skill is read from disk at that app's checkout like any other. A missing checkout, or one
-   off its committed pin, stops that feature with the message that section gives, at each point it
-   names. An included `cli:` step runs that app's `cli/`, not this one's, as that section says.
+   control skill is read from disk at that app's checkout like any other. A missing checkout stops
+   that feature with the message that section gives. At each point its "Checkout off the pin"
+   names, the recheck before every included `cli:` call among them, run
+   `python3 -I ${CLAUDE_PLUGIN_ROOT}/scripts/verify_pin.py <checkout> <app> <sha>`, with `<sha>`
+   the `pins.<app>` value from this control skill's committed config or `""` when it is unset. A
+   non-zero exit stops that feature with the message the script prints. An included
+   `cli:` step runs that app's `cli/`, not this one's, as that section says.
 
 The bundled `run` skill and how it defers to a project skill:
 <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when

@@ -342,7 +342,10 @@ environments; this control skill never copies them. The hub lists each one above
   the run prints the setting's name and to commit `pins.<app>`, for example through
   `/app-control:map`; otherwise it prints the setting's name, the pinned SHA and
   `fetch or check out`. The run passes no revision to that app's CLI; this check is what makes its
-  config, floors, steps and `cli/` the pinned ones.
+  config, floors, steps and `cli/` the pinned ones. [`scripts/verify_pin.py`](../scripts/verify_pin.py)
+  implements this check. `python3 -I scripts/verify_pin.py <checkout> <app> <sha>`, where `<sha>`
+  is `pins.<app>` at HEAD or an empty string when it is unset, exits 0 when every condition holds
+  and otherwise exits non-zero, printing the message above and the condition that failed.
 - **Floors.** An included step runs under the owning app's committed floors, enforced by its CLI.
   This control skill cannot loosen them, and tightens an included step only through the include's
   `kind` or by not including it. The caller's per-run sign-in count spans both apps.
