@@ -96,16 +96,6 @@ on:
   push:
     branches: [main]
 
-  # The issue lane finished, and may have opened a pull request: only the
-  # enable-auto-merge job runs on it, and as on any event run it only disarms
-  # on a hold. Only a scheduled or hand-started run reads the verdict and
-  # arms (enable-auto-merge.mjs READER_EVENTS), so a new pull request waits
-  # up to one scheduled interval to be armed. The run is the main copy of
-  # this file and checks out no code from the issue run.
-  workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [work-resolve-issue]
-    types: [completed]
-
 permissions: {}
 
 defaults:
@@ -403,7 +393,7 @@ jobs:
     # On the schedule and a hand-started run it waits for post-merge-dispatch
     # and reuses its report (the post-merge check below). Where that job is
     # skipped or fails, !cancelled() keeps this one subject to its own
-    # condition below, which still skips push, workflow_run, forks and other
+    # condition below, which still skips push, forks and other
     # branches. The job joins its concurrency group only once
     # post-merge-dispatch ends.
     needs: [post-merge-dispatch]
@@ -416,7 +406,6 @@ jobs:
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
-      && github.event_name != 'workflow_run'
       && (github.event_name != 'pull_request_target'
       || github.event.pull_request.head.repo.full_name == github.repository)
     # One run at a time, and a running one is never cancelled: a cancelled run
@@ -1405,10 +1394,9 @@ jobs:
   # into main that carries no hold, and turns it off on
   # one that now carries a hold (a `Hold:` line, do-not-merge, the human-gated
   # label). Every event is a wake-up: the script lists the pull requests
-  # itself. The issue lane finishing arms the pull request it opened; a listed
-  # human's edit, unlabel or ready disarms or arms at once; the schedule
-  # catches what the events missed, such as a run the lanes App started, which
-  # the broker refuses. Only the scheduled run and a hand-started one arm, on
+  # itself. A listed human's edit, unlabel or ready disarms at once; the
+  # schedule arms a new pull request and catches what the events missed.
+  # Only the scheduled run and a hand-started one arm, on
   # the issue link (one closing issue, or one plain `Refs:` issue) and verdict
   # pr-merge's gate would take at the head, with no hold on the gate's risk
   # score (babysit_verify_evidence.py `evidence --lane-link --lane-reviews`,
@@ -1424,15 +1412,13 @@ jobs:
     # and reads its report; on every other event that job is skipped, and
     # !cancelled() runs this one anyway.
     needs: [post-merge-dispatch]
-    # An issue run that skipped every job (a label other than agent-ready)
-    # opened nothing. A pull request event wakes it only for a lanes App pull
+    # A pull request event wakes it only for a lanes App pull
     # request (its author's id is AUTOMATION_LANES_APP_SENDER_ID), the only
     # kind it arms: any other event's job is skipped before it joins the
     # group, so its check reads skipped, never pending behind the queue.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
-      && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'skipped')
       && (github.event_name != 'pull_request_target'
       || (github.event.pull_request.head.repo.full_name == github.repository
       && format('{0}', github.event.pull_request.user.id) == vars.AUTOMATION_LANES_APP_SENDER_ID))
