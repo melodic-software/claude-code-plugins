@@ -1,0 +1,16 @@
+{
+  "claim": "Under dontAsk with the write lane's tool lists, Read(//proc/**) denies a Grep of the /proc/self directory filtered by the glob environ.",
+  "tags": ["Read rule", "deny rule", "Grep", "disallowedTools", "allowedTools", "dontAsk", "/proc"],
+  "permission_mode": "dontAsk",
+  "tool_rules": "lane-write-tools.json",
+  "verdict_only": true,
+  "platforms": ["linux"],
+  "requires": ["git"],
+  "target": {
+    "tool": "Grep",
+    "input_match": "^(?=.*\"path\": \"/proc/self/?\")(?=.*\"glob\": \"environ\")",
+    "example": { "pattern": "PATH=", "path": "/proc/self", "glob": "environ", "output_mode": "files_with_matches" }
+  },
+  "outcome": "deny",
+  "control": "lane-permissions/grep-in-checkout-runs"
+}

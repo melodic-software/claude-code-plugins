@@ -27,7 +27,8 @@ Subcommands (standard library only):
       --dry-run runs every scaffold but replaces `claude` with a fake that emits
       the stream the case expects, so it costs nothing. --live spends money and
       is never the default. Results go to <out>/results.jsonl; under --live the
-      raw stream of each run goes to <out>/raw/, outside the repository.
+      raw stream of each run goes to <out>/raw/, outside the repository, except
+      for a verdict-only case, which saves no stream and no tool output text.
       --max-runs defaults to 20 under --live; a dry run has no run ceiling.
 
   table RESULTS
@@ -36,7 +37,7 @@ Subcommands (standard library only):
   rejudge --out DIR [--cases DIR]
       Re-read the streams a live run saved under DIR/raw/ against the current
       expect.json files and rewrite DIR/results.jsonl, so a corrected
-      expectation needs no new model run.
+      expectation needs no new model run. A verdict-only case keeps its row.
 
   recheck --changelog FILE (--range A..B | --range X | --since X) [--cases DIR]
       List the cases whose tags appear in a changelog item of the range, one
@@ -75,6 +76,11 @@ DEFAULT_SUITE_RUNS = 20
 DEFAULT_TIMEOUT = 300
 DRY_RUN_VERSION = "0.0.0-dry-run"
 TEXT_CLIP = 300
+# Case fields passed to the CLI as tool rule lists, comma-joined.
+TOOL_LISTS = (
+    ("allowed_tools", "--allowedTools"),
+    ("disallowed_tools", "--disallowedTools"),
+)
 
 # The user CLAUDE.md still loads under --setting-sources project,local, and it can
 # make the model refuse before the permission layer is asked. A refusal is
@@ -136,6 +142,22 @@ def load_case(cases_dir: Path, case_dir: Path) -> dict:
         expect = json.loads((case_dir / "expect.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise CaseError(f"{case_id}: expect.json unreadable: {exc}") from exc
+    shared = expect.get("tool_rules")
+    if shared is not None:
+        # A list set shared by several cases, kept once in cases/lib/.
+        if not isinstance(shared, str) or Path(shared).name != shared:
+            raise CaseError(f"{case_id}: tool_rules names a file in cases/lib/")
+        try:
+            rules = json.loads((cases_dir / "lib" / shared).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise CaseError(
+                f"{case_id}: tool_rules {shared} unreadable: {exc}"
+            ) from exc
+        if not isinstance(rules, dict) or not any(f in rules for f, _ in TOOL_LISTS):
+            raise CaseError(f"{case_id}: tool_rules {shared} sets no tool list")
+        for field, _ in TOOL_LISTS:
+            if field in rules:
+                expect.setdefault(field, rules[field])
     expect["id"] = case_id
     expect["area"] = case_id.split("/", 1)[0]
     expect["dir"] = case_dir
@@ -170,6 +192,15 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
         problems.append(f"{cid}: target.example does not match target.input_match")
     if not isinstance(case.get("tags"), list) or not case.get("tags"):
         problems.append(f"{cid}: tags must be a non-empty list")
+    for field, _ in TOOL_LISTS:
+        rules = case.get(field)
+        if rules is not None and not (
+            isinstance(rules, list)
+            and all(isinstance(r, str) and r and "," not in r for r in rules)
+        ):
+            problems.append(f"{cid}: {field} must be a list of rules with no comma")
+    if not isinstance(case.get("verdict_only", False), bool):
+        problems.append(f"{cid}: verdict_only must be true or false")
     if case.get("outcome") in NEGATIVE:
         control = by_id.get(case.get("control", ""))
         if control is None:
@@ -365,7 +396,11 @@ def verdict(case: dict, obs: dict) -> dict:
         **row,
         "observed": shown["outcome"],
         "reason_type": shown["reason_type"],
-        "text": " ".join(shown["text"].split())[:TEXT_CLIP],
+        # A verdict-only case's tool output may be what its denial should have
+        # kept out, so its row carries none.
+        "text": ""
+        if case.get("verdict_only")
+        else " ".join(shown["text"].split())[:TEXT_CLIP],
         "verdict": "pass" if passed else "fail",
         "note": ""
         if len(seen) == 1
@@ -430,7 +465,7 @@ def kill_tree(process: subprocess.Popen) -> None:
 
 
 def build_argv(claude: str, case: dict, settings_file: Path, model: str) -> list[str]:
-    return [
+    argv = [
         claude,
         "-p",
         "--output-format",
@@ -452,6 +487,10 @@ def build_argv(claude: str, case: dict, settings_file: Path, model: str) -> list
         "--append-system-prompt",
         DRIVER_PROMPT,
     ]
+    for field, flag in TOOL_LISTS:
+        if case.get(field):
+            argv += [flag, ",".join(case[field])]
+    return argv
 
 
 def live_runner(model: str, timeout: int, raw_dir: Path):
@@ -487,7 +526,8 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
                 stdout, _ = process.communicate(timeout=30)
             except subprocess.TimeoutExpired:
                 stdout = ""
-        (raw_dir / raw_name(case["id"])).write_text(stdout or "", encoding="utf-8")
+        if not case.get("verdict_only"):
+            (raw_dir / raw_name(case["id"])).write_text(stdout or "", encoding="utf-8")
         return list((stdout or "").splitlines())
 
     return run
@@ -581,10 +621,24 @@ def raw_name(case_id: str) -> str:
     return case_id.replace("/", "__") + ".jsonl"
 
 
-def rejudge(cases: list[dict], raw_dir: Path) -> list[dict]:
-    """Re-read saved live streams against the current expect.json; costs nothing."""
+def rejudge(
+    cases: list[dict], raw_dir: Path, prior: dict[str, dict] | None = None
+) -> list[dict]:
+    """Re-read saved live streams against the current expect.json; costs nothing.
+
+    A verdict-only case saved no stream, so it keeps its row from the live run
+    (prior, by case id) unchanged."""
     rows = []
     for case in cases:
+        if case.get("verdict_only"):
+            if case["id"] in (prior or {}):
+                print(
+                    f"{'kept':<12} {case['id']}  verdict-only: the live run saved "
+                    "no stream to re-read, so its row stands",
+                    file=sys.stderr,
+                )
+                rows.append(prior[case["id"]])
+            continue
         raw = raw_dir / raw_name(case["id"])
         if raw.is_file():
             lines = raw.read_text(encoding="utf-8").splitlines()
@@ -648,10 +702,19 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             case_dir,
             json_escape=False,
         )
-        return {
-            **row,
-            **verdict(case, parse_stream(runner(case, cwd, settings_file, prompt))),
+        resolved = {
+            **case,
+            **{
+                field: [
+                    substitute(rule, workdir, case_dir, json_escape=False)
+                    for rule in case[field]
+                ]
+                for field, _ in TOOL_LISTS
+                if case.get(field)
+            },
         }
+        lines = runner(resolved, cwd, settings_file, prompt)
+        return {**row, **verdict(case, parse_stream(lines))}
     finally:
         if keep:
             print(f"kept {case['id']}: {workdir}", file=sys.stderr)
@@ -716,6 +779,14 @@ def exit_code(rows: list[dict]) -> int:
 
 
 # ---------------------------------------------------------------- table, recheck
+
+
+def read_rows(results: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in results.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def table(rows: list[dict]) -> str:
@@ -831,12 +902,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "table":
-        rows = [
-            json.loads(line)
-            for line in args.results.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        print(table(rows))
+        print(table(read_rows(args.results)))
         return 0
 
     try:
@@ -857,7 +923,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if problems else 0
 
     if args.command == "rejudge":
-        rows = rejudge(cases, args.out / "raw")
+        results = args.out / "results.jsonl"
+        prior = (
+            {row["id"]: row for row in read_rows(results)} if results.is_file() else {}
+        )
+        rows = rejudge(cases, args.out / "raw", prior)
         if not rows:
             print(f"error: no saved streams under {args.out / 'raw'}", file=sys.stderr)
             return 2
