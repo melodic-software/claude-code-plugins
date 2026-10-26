@@ -1,5 +1,5 @@
 ---
-description: "Attend the loop-lane human queue: drives escalated items to resolution and lists untriaged intake beside them, handing each intake row to /work-items:triage. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
+description: "Attend the loop-lane human queue: drives escalated items to resolution and lists untriaged intake beside them, handing each intake row to /work-items:triage, then works parked needs-human items one at a time. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. None: the skill takes no arguments and polls escalations and untriaged intake for the bound repository.
+Arguments: `$ARGUMENTS`. None: the skill takes no arguments and polls escalations, untriaged intake, and parked human-gated items for the bound repository.
 
 ## Shared tracker context
 
@@ -61,7 +61,7 @@ Build a single merged view, oldest first, each row tagged by kind:
    from an operator-**parked** one; both wear the same role label, so the label alone never
    qualifies a row. A marker counts only from that file's trusted escalation authors (its
    "Trusted escalation authors" section); a marker from anyone else is a suspected spoof, reported
-   with its author and never listed as a row. Items here are issues **and open pull requests**:
+   with its author, and never makes the item an `[escalated]` or `[ratify]` row. Items here are issues **and open pull requests**:
    an adapter whose item listing returns issues only documents a "List pull requests" operation,
    so run that too (CI lanes escalate on pull requests). Marker kinds `escalated` (a worker question) and `routed-advisory` (a
    workflow-bot advisory routed by the worker loop's intake sweep) both list here;
@@ -77,6 +77,10 @@ Build a single merged view, oldest first, each row tagged by kind:
    already triaged, that wait on a blocker closed as won't-do. List them so the operator sees
    them, but take no claim and make no change from this lane; the operator decides (drop the
    edge, re-scope, or close) outside it.
+5. **`[human-gated]`**. The remainder: open issues and pull requests carrying the human-gated role
+   label with no escalation marker from a trusted author, so parked rather than escalated. Each
+   should meet `/work-items:triage`'s human-gated label test; an issue that fails it and carries a
+   recommendation is the sweep's (`/work-items:triage sweep`), which the operator can run first.
 
 Lane-infrastructure items never enter the view, with one exception. The composed triage view
 already excludes the per-lane telemetry tracking issues (`/work-items:triage`, "Scope: raw intake
@@ -92,8 +96,9 @@ period and what counts as ratification are owned by the work-loop references
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age,
-ratifications unblock the waiting worker loop). `[won't-do]` rows are listed after the worked
-rows and are never worked or claimed here.
+ratifications unblock the waiting worker loop). `[human-gated]` rows follow every other worked
+row whatever their age, since they can be most of the backlog. `[won't-do]` rows are listed after
+the worked rows and are never worked or claimed here.
 
 ## Row claim (before any mutation)
 
@@ -159,7 +164,8 @@ held lease via `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` (the `clai
 
 **Brief before asking.** This lane works rows across many items in one pass, so the operator's
 context from the previous row never carries over. Before any operator-facing decision question in
-this loop, an `[intake]` recommendation, an `[escalated]` question, or a `[ratify]` prompt,
+this loop, an `[intake]` recommendation, an `[escalated]` or `[human-gated]` question, or a
+`[ratify]` prompt,
 restate (1) which item (number + one-line title), (2) the decision being asked, and (3) the
 consequence of each option **you present**, then ask. An open-ended question presents no option set
 to enumerate consequences for. State instead what the answer will determine, and never narrow a
@@ -186,6 +192,16 @@ answer without stopping the pass to ask which item is in front of them.
   request, but leave its body alone: the body update above is for issues. When the answer removes
   the human blocker, remove the human-gated role label alone.
   Merging it stays outside this lane.
+- **`[human-gated]` rows, one at a time.** State how many there are, then offer the oldest one
+  alone; offer the next only after that row's disposition is written or the operator skips it,
+  and stop when the operator does. Never put two items in one question. Each row takes the
+  `[escalated]` interview shape: claim, restate the brief above with the part of the label test
+  the item meets as the question it waits on (from its brief or human-gated comment), interview,
+  write the answer back as a comment, update the body, then the flip rules below; a pull request
+  takes the pull-request shape above. An item whose answer still meets the test keeps the label,
+  with the answer and its completion route recorded as a comment. An issue whose dimensions set a
+  split size or an uncertainty mode other than `run` never takes the flip: its route is
+  `/work-items:decompose`, or the research or probe its triage comment names.
 - **`[ratify]` rows for `kind=ratify-c3`**. Restate the brief above, then present the classification and the intended
   dispatch from the marker comment and the consequence of ratifying versus declining. On operator
   ratification, record it as a reply comment and flip the item per the rule below; on decline, leave
@@ -354,8 +370,9 @@ because we do not rely on a `${…}` token resolving in a supporting file or in 
 ## Gotchas
 
 - **The label alone is not an escalation.** `needs-human` (or its remap) marks parked items too;
-  only the machine-marked escalation comment qualifies a row as `[escalated]`. Listing every
-  human-gated item as if the worker escalated it buries real questions under parked ones.
+  only the machine-marked escalation comment qualifies a row as `[escalated]`. Parked items list
+  as `[human-gated]`, after every escalation: mixing them in buries real questions under parked
+  ones.
 - **Never flip without clearing.** Applying the autonomous-eligible role while the human-gated
   role remains would leave the item excluded from `list-frontier --autonomous` anyway, the flip
   is one edit that applies one role and removes the other.

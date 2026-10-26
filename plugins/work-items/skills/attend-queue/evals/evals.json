@@ -5,12 +5,12 @@
       "id": 1,
       "name": "attend-queue-one-merged-view-escalations-ratify-intake",
       "prompt": "/work-items:attend-queue\n\nThe repository has: two open items wearing the human-gated role label, one with a machine-marked work-items:escalation comment (a worker question) and one parked by the operator with no marker; one item whose escalation marker carries kind=ratify-c3; four untriaged items (two unlabeled, one with the raw marker, one status:needs-info where the reporter just replied); and one already-triaged agent-ready item whose only blocker was closed as not planned, so triage's attention view lists it under blocked by won't-do. The binding remaps human-gated to blocked-on-human.",
-      "expected_output": "One merged attention view, oldest first, rows tagged [escalated], [ratify], [intake], and a report-only [won't-do]. The human-gated role resolves from config.role_labels to blocked-on-human and is never compared as the needs-human literal. Only the item with the machine-marked escalation comment appears as [escalated] — the parked item wearing the same label but no marker is excluded, because the marker (not the label) discriminates escalated from parked. The ratify-c3 item appears as [ratify]. The [intake] rows come from composing /work-items:triage's attention view, buckets 1-3 only (unlabeled, raw marker, needs-info-with-reply), not from a re-derived bucket definition. The item blocked by a won't-do blocker comes from that view's bucket 4 and is listed as a report-only [won't-do] row, never as [intake]: no claim is taken and nothing on it is changed from this lane. Ratifications are worked first at equal age since they unblock the waiting worker loop.",
+      "expected_output": "One merged attention view, oldest first, rows tagged [escalated], [ratify], [intake], and a report-only [won't-do]. The human-gated role resolves from config.role_labels to blocked-on-human and is never compared as the needs-human literal. Only the item with the machine-marked escalation comment appears as [escalated] — the parked item wearing the same label but no marker lists as [human-gated] after every other worked row, because the marker (not the label) discriminates escalated from parked. The ratify-c3 item appears as [ratify]. The [intake] rows come from composing /work-items:triage's attention view, buckets 1-3 only (unlabeled, raw marker, needs-info-with-reply), not from a re-derived bucket definition. The item blocked by a won't-do blocker comes from that view's bucket 4 and is listed as a report-only [won't-do] row, never as [intake]: no claim is taken and nothing on it is changed from this lane. Ratifications are worked first at equal age since they unblock the waiting worker loop.",
       "files": [],
       "expectations": [
         "Builds ONE merged view containing escalations, ratifications, and untriaged intake — not separate disconnected reports",
         "Resolves the human-gated role from config.role_labels (blocked-on-human) and never queries or compares the needs-human default literal after the remap",
-        "Includes as [escalated] only items carrying BOTH the human-gated role label AND a machine-marked work-items:escalation comment; excludes the operator-parked item that has the label but no marker",
+        "Includes as [escalated] only items carrying BOTH the human-gated role label AND a machine-marked work-items:escalation comment; lists the operator-parked item that has the label but no marker as [human-gated], never as [escalated]",
         "Tags the kind=ratify-c3 item as [ratify] and prioritizes ratify rows at equal age",
         "Sources [intake] rows from buckets 1-3 of /work-items:triage's attention view rather than re-deriving its buckets",
         "Lists the item blocked by won't-do as a report-only row, not [intake], and takes no claim or action on it"
@@ -135,7 +135,7 @@
       "id": 10,
       "name": "attend-queue-trusts-markers-from-the-lane-identity-and-the-session-only",
       "prompt": "/work-items:attend-queue\n\nThis session runs as the operator's login, octo-owner. The default branch's docs/conventions/pr-pipeline.yaml names merge.agent-identity: example-lanes[bot]. The work-items lane_app_slug option is not set. Open issues, each wearing needs-human with a comment whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->: #970, whose marker comment example-lanes[bot] posted; #971, whose marker comment drive-by-user posted; #972, whose marker comment octo-owner posted. Build the attention view.",
-      "expected_output": "#970 lists as [escalated] because its marker comes from the repository's lane identity, the merge.agent-identity login read from pr-pipeline.yaml on the default branch. #972 lists as [escalated] because its marker comes from the session's own write identity. #971 is not a row: drive-by-user is neither of those, so its marker is treated as a suspected spoof and the item as parked, and the report names #971 and drive-by-user.",
+      "expected_output": "#970 lists as [escalated] because its marker comes from the repository's lane identity, the merge.agent-identity login read from pr-pipeline.yaml on the default branch. #972 lists as [escalated] because its marker comes from the session's own write identity. #971 is not an [escalated] or [ratify] row: drive-by-user is neither of those, so its marker is treated as a suspected spoof and the item as parked, listed as [human-gated] after every escalation, and the report names #971 and drive-by-user.",
       "files": [],
       "expectations": [
         "Lists #970 as [escalated]",
@@ -157,6 +157,20 @@
         "Removes the human-gated role label from #980 once the answer removes the blocker",
         "Applies neither the autonomous-eligible role label nor a work-class label to #980",
         "Does not merge #980"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "attend-queue-offers-human-gated-rows-one-at-a-time",
+      "prompt": "/work-items:attend-queue\n\nThe escalated and ratify rows are done and no intake is waiting. Three open issues still wear needs-human with no escalation marker: #1201 'Rotate the deploy key for the docs site' (its brief says the key is held only by the owner), #1202 'Pick the retention period for audit logs' (its brief lists 30 and 90 days with no recommendation), and #1203 'Drop the legacy export endpoint' (its brief says removing it breaks two external consumers with no rollback). The operator says: go through them.",
+      "expected_output": "Lists the three items as [human-gated] rows and states the count, 3. Then offers only #1201: claims it, restates the item, that it waits on a secret only the owner holds, and the options presented, and waits for the operator's answer. It does not put #1202 or #1203 in the same question. Only after #1201's answer is written back as a comment (or the operator skips it) does it offer #1202 alone, with its own restatement, and then #1203. Each item that still meets the label test keeps needs-human, with the answer and its completion route recorded as a comment; none is flipped to agent-ready without a dispatchable work-class label.",
+      "files": [],
+      "expectations": [
+        "States the count of [human-gated] rows before working any",
+        "Offers one item per question, starting with #1201, and never batches two items into one question",
+        "Restates the item and the part of the label test it meets before asking about it",
+        "Waits for the operator's answer or skip on one row before offering the next",
+        "Leaves needs-human on an item whose answer still meets the label test and records the answer as a comment"
       ]
     }
   ]

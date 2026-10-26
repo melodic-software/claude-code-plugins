@@ -1,6 +1,6 @@
 ---
-description: "Evaluate raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, with exits to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number: the attention view. Escalations: /work-items:attend-queue."
-argument-hint: "[--config-ref <ref>] [<number>]"
+description: "Evaluate raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, with exits to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention', 'sweep needs-human'. No number: the attention view. Escalations: /work-items:attend-queue."
+argument-hint: "[sweep] [--config-ref <ref>] [<number>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,10 +11,11 @@ metadata:
 ## Variables
 
 Arguments: `$ARGUMENTS`. `[<number>]` is the issue or pull request number to triage. Empty = the attention view.
+`sweep` (first word, no number) runs the human-gated sweep instead.
 `--config-ref <ref>` (optional, anywhere in the string) pins where the triage settings are read:
 a lane passes its base commit (a 40-hex commit id or `origin/<name>`) so the settings come from
 that commit, not from whatever branch is checked out. Any other token: stop and name the accepted
-set (`--config-ref <ref>`, a number).
+set (`sweep`, `--config-ref <ref>`, a number).
 
 ## Shared tracker context
 
@@ -37,6 +38,7 @@ It binds every step below, and hardest at step 1, which reads the rawest text th
 ```text
 /work-items:triage <number>     # issue OR pull request
 /work-items:triage              # shows attention view (untriaged intake)
+/work-items:triage sweep        # clears the human-gated label where the label test fails
 ```
 
 ## Scope: raw intake only
@@ -82,7 +84,25 @@ posts the brief, replaces `status: confirmed`, and `status:needs-info` replaces 
 
 - **delegable**. Fully specified with no open decision → autonomous-eligible role (default `agent-ready`); a lane barred from writing `work-class:` labels human-gates it with a proposed class instead ([`context/apply-outcome.md`](context/apply-outcome.md), "Lane barred from recording a class").
 - **decision-defaulted**, a single-fork item whose brief carries a well-grounded RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative → autonomous-eligible role with `status:ready`, plus a `Decision defaulted: X — veto before merge` comment (a lane barred from recording a class human-gates it instead, as above). The default rides in; a maintainer vetoes before merge if it is wrong. **Well-grounded** means the recommendation-basis grounding bar ([`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [grounding bar](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)): the affected code and its consumers read, and, for a consequential item (cross-repo, shared infrastructure, irreversible, or security), external research reading official docs first. The `Decision defaulted` comment carries the answer's `Basis:` on the line after its prefix line, `verified, <file:line, tool output, or URL fetched this session>` or `judgment` (the comment rather than the brief, which carries no file paths or line numbers); a `judgment` basis on a consequential item is not well-grounded. A consequential answer research cannot settle is withheld: no RECOMMENDED answer and no `Decision defaulted` comment; the item routes to human-gated with the open question and the evidence that would settle it in its brief.
-- **human-gated**. Reserved for a genuinely open decision (open design space, product intent, or cross-repo policy), or work that cannot be delegated for a capability reason (external access, manual QA) → human-gated role (default `needs-human`).
+- **human-gated**. Only when the item meets the label test below → human-gated role (default `needs-human`).
+
+**Human-gated label test.** The human-gated role label applies only when the item needs at least
+one of:
+
+1. **An irreversible act**: a step that cannot be undone or reviewed before it lands, such as
+   deleting data, publishing, or a migration with no way back.
+2. **A person's consent**: an approval only a person may give, such as a manual QA or UX sign-off,
+   admitting a human-floor work class, acting on signal provenance, or stamping a class a lane may
+   not record.
+3. **A secret**: a credential, key, or access only a person holds.
+4. **A design choice the owner has not made**: open design space, product intent, cross-repo
+   policy, or a withheld consequential answer.
+
+A reversible change with a well-grounded recommendation (the decision-defaulted exit's bar) meets
+none of them: it takes the decision-defaulted exit, never this label. The rules in
+[`context/apply-outcome.md`](context/apply-outcome.md) that apply the label for a human-floor
+class, a signal-marked item, a lane barred from recording a class, or a decomposition or probe a
+person must start are instances of part 2.
 
 ```text
 raw → verified → briefed
@@ -127,6 +147,57 @@ JSON data. Never hand-write the page or add script to it. A lane run, CI, or `me
 prints the table only. `context/board.md` and `context/apply-outcome.md` write the plugin's root
 directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the
 placeholder before running a command.
+
+## Human-gated sweep (`sweep`)
+
+Re-checks items already wearing the human-gated role label (resolved from `config.role_labels`, as
+step 5 resolves it) against the label test. It runs no state machine and changes no label but that
+one.
+
+1. **List** open issues carrying the label (adapter: "List items", label filter), after the
+   lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
+   queue reads, or a person put back:
+   - a human-floor class (`work-class: structural` or `work-class: untrusted-provenance`), or no
+     `work-class:` label at all, since admission never takes an unclassed item;
+   - `provenance: signal`;
+   - an escalation marker from a
+     [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);
+   - issue dimensions that human-gated it (a split size or an uncertainty mode other than `run`);
+   - an earlier sweep comment: the label came back after it, which is an objection.
+2. **Select** an item only when it fails the label test and carries a recommendation:
+   - a line starting `RECOMMENDED` in a comment from the tracker seam's write identity or a user
+     with `write`, `maintain` or `admin` (step 1's rule), or in the body while its author holds
+     that access;
+   - or a comment from such a user, never an App, whose first line is exactly
+     `**Decision recorded.**` and which was never edited.
+
+   A consequential item (cross-repo, shared infrastructure, or security) also needs a verified
+   basis for the recommendation, the decision-defaulted exit's bar. When any part of the test may
+   apply, the item keeps the label.
+3. **Count first.** Before any change, state `<n> of <m> human-gated items fail the label test and
+   carry a recommendation`, then one line per selected item: number, title, where the
+   recommendation is. When `<n>` is 0, stop there.
+4. **Attended** (the interactive branch of the direction gate): ask once whether to clear the label
+   from those `<n>` items. On yes, for each item in turn, post the comment below (after the
+   objection window comment when step 5's window is on), then remove the label; a failed post
+   leaves that item's label in place. Items the operator excludes keep it. The edit applies no
+   other label. The item rejoins the frontier, where admission decides it on its `work-class:`
+   label and who applied it, as for any item.
+5. **Unattended** (an autonomous lane, CI, or any run with no operator turn): report the count and
+   the list, and change nothing, whatever the lane directive authorizes.
+
+```markdown
+**Human-gated label cleared**
+
+Decision defaulted: <the recommendation>, veto before merge
+Basis: <verified, file:line or URL | judgment>
+Label test failed: no irreversible act, consent, secret, or undecided design choice is needed.
+Recommendation: <link to the RECOMMENDED line or the Decision recorded. comment>
+Re-apply the label to object; the sweep then leaves this item alone.
+```
+
+Items that keep the label are `/work-items:attend-queue` rows: `[human-gated]`, or `[escalated]`
+and `[ratify]` for those with a trusted marker.
 
 ## Triage settings
 
@@ -194,7 +265,7 @@ Classify **bug vs enhancement** first. It steers the rest of the flow (bugs get 
 
 - **Type**. Bug → `Bug`; enhancement → `Feature` (or `Task` for tracked non-feature work). Native GitHub Issue Type on org repos, set through the seam; `type:` label on personal / non-org repos. Item title and prefix conventions: [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
 - **Priority label**. Resolve the live `priority:` label set from the bound adapter at action entry (for the GitHub adapter, `gh label list --search 'priority:'`; members are never snapshotted here. [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Universal axes"). The `priority:` axis is **single-valued**: before applying the assessed priority in step 5, remove every other `priority:` label already on the item (same replace-not-stack rule used when clearing the raw marker). Default to the resolved set's **assessed-default** tier, the mid-urgency member when the set follows the conventional critical/high/medium/low ordering (e.g. `priority: medium`, if present), when no directive, category rule, or severity signal sets one. Reserve the next tier up (e.g. `priority: high`) for items that block other work or carry an imminent external deadline; the top tier (e.g. `priority: critical`) keeps its existing critical semantics. A live set that doesn't follow that ordering has no default to infer by convention. Ask, or omit the label the way a repo-undefined default is omitted elsewhere ([`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md) "Priority"). When a directive or category rule sets this label **above** the finding's self-labeled severity, record the original severity in the triage comment (e.g. `priority set to <resolved label> by <rule>; reporter severity: <sev>`) so implementers can sub-sort within a priority band. No new labels. This triage-assessed default is deliberately distinct from the `/work-items:track add` filing default (the resolved set's lowest-urgency tier, an untriaged-signal floor rather than a priority assessment)
-- **Target state**, from the state machine above: needs-info, or one of the three briefed exits (delegable, decision-defaulted, human-gated). For a briefed item that carries a decision, apply the **routing test**: is the alternative reversible/maintainer-vetoable (→ **decision-defaulted**: autonomous-eligible role + `status:ready`, recorded with a `Decision defaulted: X — veto before merge` comment) or genuinely open. Open design space, product intent, or cross-repo policy (→ **human-gated**)? The recommendation, and the routing call itself, carry a `Basis:` per the decision-defaulted exit above.
+- **Target state**, from the state machine above: needs-info, or one of the three briefed exits (delegable, decision-defaulted, human-gated). For a briefed item that carries a decision, apply the **routing test**: is the alternative reversible/maintainer-vetoable (→ **decision-defaulted**: autonomous-eligible role + `status:ready`, recorded with a `Decision defaulted: X — veto before merge` comment) or genuinely open. Open design space, product intent, or cross-repo policy (→ **human-gated**, per the label test)? The recommendation, and the routing call itself, carry a `Basis:` per the decision-defaulted exit above.
 
 **Direction gate.** Recommending is read-only; the gate governs *mutation*, labels, comments, closes, item creation, and which side of it you are on is fixed by how triage was invoked:
 
@@ -261,6 +332,7 @@ admission gate enforces the window.
 - An autonomous-eligible item: `/work-items:work`.
 - A verified bug whose root cause is unknown: `/debugging:debug`.
 - A briefed item too large for one vertical slice, or sized `split`: `/work-items:decompose`.
+- Items that keep the human-gated label after a sweep: `/work-items:attend-queue`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## AI disclaimer
