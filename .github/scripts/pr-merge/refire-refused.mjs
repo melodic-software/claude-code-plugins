@@ -46,8 +46,8 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { GitHubError, createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
 
-const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const DEPENDABOT_ID = 49699333;
 // github-actions[bot], the actor of a run a GITHUB_TOKEN dispatch started.
 const ACTIONS_BOT_ID = 41898282;

@@ -16,6 +16,7 @@ import json
 import pathlib
 import sys
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
@@ -133,6 +134,9 @@ class LaneRoom(unittest.TestCase):
         fresh_demotion: policy.Demotion | None = None,
     ) -> policy.LaneRoom:
         seen: dict[str, object] = {}
+        reads = mock.Mock(
+            return_value=fresh_demotion or policy.Demotion(False, None, ())
+        )
 
         def in_flight(repo: str, **kwargs: object) -> policy.InFlight:
             seen.update(kwargs)
@@ -168,11 +172,7 @@ class LaneRoom(unittest.TestCase):
                 return_value=("main", head),
             ),
             mock.patch.object(policy, "permission_reader"),
-            mock.patch.object(
-                policy,
-                "read_demotion",
-                return_value=fresh_demotion or policy.Demotion(False, None, ()),
-            ),
+            mock.patch.object(policy, "read_demotion", reads),
             mock.patch.object(policy, "merged_since_floor", return_value=fresh_floor),
         ):
             kwargs = {"post_merge": post_merge} if post_merge is not None else {}
@@ -185,7 +185,7 @@ class LaneRoom(unittest.TestCase):
                 now=now,
                 **kwargs,  # type: ignore[arg-type]
             )
-        self.seen = seen
+        self.seen, self.reads = seen, reads
         return result
 
     def test_a_clear_lane_counts_its_merges_in_flight_against_the_cap(self) -> None:
@@ -239,17 +239,16 @@ class LaneRoom(unittest.TestCase):
             (room.refusal, room.unreadable, room.count, room.cap), (None, None, 5, 5)
         )
 
-    # The gate's reuse refusals other than unverified-stale (shared_refusal):
-    # past SHARED_MAX_AGE (a re-run job reads the run's first report), from
-    # the future, and a demotion record filed or changed since, inside the
-    # two minutes the gate reuses a pending answer for.
+    # Reuse refusals the room reads afresh (shared_refusal): past
+    # SHARED_MAX_AGE (a re-run job reads the run's first report) and from the
+    # future.
     UNUSABLE = {
         "stale": dict(now=FLOOR + policy.SHARED_MAX_AGE + timedelta(seconds=1)),
         "future": dict(now=FLOOR - timedelta(seconds=1)),
-        "demotion changed": dict(
-            demotion_changed=True, now=FLOOR + timedelta(minutes=1)
-        ),
     }
+    # A demotion record filed or changed since, inside the two minutes the
+    # gate reuses a pending answer for.
+    DEMOTION_CHANGED = dict(demotion_changed=True, now=FLOOR + timedelta(minutes=1))
 
     def test_an_answer_the_gate_would_not_reuse_is_read_again(self) -> None:
         # The gate reads afresh on any refusal (assess); so does the room,
@@ -287,34 +286,99 @@ class LaneRoom(unittest.TestCase):
         self.assertEqual(len(recheck.asked), 1)
         runs.assert_not_called()
 
-    def test_a_demotion_read_again_holds_the_room_off(self) -> None:
+    def test_a_no_op_demotion_edit_keeps_the_answer(self) -> None:
+        # Triage editing an issue the lane opened refuses the answer as
+        # `demotion-changed`; a demotion read alone that finds it unchanged
+        # keeps it, so the room does not pay the full post-merge check.
         recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+        answer = shared()
         room = self.room(
+            answer,
             post_merge=recheck.post_merge,
-            fresh_demotion=policy.Demotion(True, "record-open", (8,)),
-            **self.UNUSABLE["demotion changed"],  # type: ignore[arg-type]
+            **self.DEMOTION_CHANGED,  # type: ignore[arg-type]
         )
-        self.assertEqual(room.refusal, "rung-off:demotion")
+        self.assertEqual(
+            (room.refusal, room.unreadable, room.count, room.cap), (None, None, 2, 5)
+        )
+        self.assertEqual(recheck.asked, [], "no full post-merge check")
+        self.reads.assert_called_once()
+        self.assertEqual(self.reads.call_args.kwargs["self_logins"], frozenset())
+        # Counted from the kept answer: its floor and its verified merges.
+        self.assertEqual(self.seen["merged_since"], FLOOR)
+        self.assertIs(self.seen["verified"], answer.gate.verified)
+
+    def test_a_demotion_that_moved_reads_the_answer_again(self) -> None:
+        # Active, the rung is off; inactive with other records or another
+        # clear, the floor may differ. Either way the full read runs.
+        cases = {
+            "active": (
+                policy.Demotion(True, "record-open", (8,)),
+                "rung-off:demotion",
+            ),
+            "another record": (policy.Demotion(False, None, (9,)), None),
+            # The same records with another clear or newest record: the
+            # keep binds every field, not the record numbers alone.
+            "another clear": (
+                policy.Demotion(False, None, (), cleared_at=NEW_FLOOR),
+                None,
+            ),
+            "another newest record": (
+                policy.Demotion(False, None, (), newest_created=NEW_FLOOR),
+                None,
+            ),
+        }
+        for name, (demotion, refusal) in cases.items():
+            with self.subTest(name):
+                recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+                room = self.room(
+                    post_merge=recheck.post_merge,
+                    fresh_demotion=demotion,
+                    **self.DEMOTION_CHANGED,  # type: ignore[arg-type]
+                )
+                self.assertEqual((room.refusal, room.unreadable), (refusal, None))
+                self.assertEqual(recheck.asked, [(NEW_FLOOR, IDENTITY)])
+
+    def test_an_answer_bound_to_other_self_logins_is_read_with_none(self) -> None:
+        # The room binds no self logins, so a fresh read uses none and the
+        # in-flight count excludes none: not the answer's own.
+        answer = replace(shared(), self_logins=frozenset({"lane-self[bot]"}))
+        recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+        room = self.room(answer, post_merge=recheck.post_merge)
+        self.assertEqual((room.refusal, room.unreadable), (None, None))
+        self.assertEqual(recheck.asked, [(NEW_FLOOR, IDENTITY)])
+        self.assertEqual(self.reads.call_args.kwargs["self_logins"], frozenset())
+        self.assertEqual(self.seen["self_logins"], frozenset())
 
     def test_an_unusable_answer_with_no_fresh_read_is_unreadable(self) -> None:
         cases = {
-            "no check": None,
-            "check raises": Recheck(error=RuntimeError("runs 502")).post_merge,
-            "check unreadable": Recheck(
-                policy.PostMergeGate("runs-unreadable", {"readable": False}, None)
-            ).post_merge,
+            "no check": (None, self.UNUSABLE["stale"], "stale"),
+            "no check, demotion changed": (
+                None,
+                self.DEMOTION_CHANGED,
+                "demotion-changed",
+            ),
+            "check raises": (
+                Recheck(error=RuntimeError("runs 502")).post_merge,
+                self.UNUSABLE["stale"],
+                "stale",
+            ),
+            "check unreadable": (
+                Recheck(
+                    policy.PostMergeGate("runs-unreadable", {"readable": False}, None)
+                ).post_merge,
+                self.UNUSABLE["stale"],
+                "stale",
+            ),
         }
-        for name, post_merge in cases.items():
+        for name, (post_merge, kwargs, reason) in cases.items():
             with self.subTest(name):
                 room = self.room(
                     post_merge=post_merge,
-                    **self.UNUSABLE["demotion changed"],  # type: ignore[arg-type]
+                    **kwargs,  # type: ignore[arg-type]
                 )
                 self.assertIsNone(room.refusal)
                 self.assertTrue(
-                    str(room.unreadable).startswith(
-                        "post-merge answer demotion-changed"
-                    ),
+                    str(room.unreadable).startswith(f"post-merge answer {reason}"),
                     room.unreadable,
                 )
                 self.assertFalse(self.seen, "no in-flight read")
@@ -340,6 +404,7 @@ class LaneRoom(unittest.TestCase):
             (room.refusal, room.unreadable),
             (None, "post-merge answer new-merge:#7"),
         )
+        self.assertFalse(self.seen, "no in-flight read after an unusable answer")
         # Bound as the gate binds a candidate at the default branch head.
         self.assertEqual(
             {

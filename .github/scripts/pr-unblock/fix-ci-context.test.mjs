@@ -211,6 +211,42 @@ test("timed_out and startup_failure count as failing", async () => {
   );
 });
 
+// #9828's head c1184e03: test-bash (3) ended cancelled past its 9-minute
+// limit, beside the failed ci-status aggregate. Its recorded annotations
+// carry the time limit, so it is fixable and the model reads the cause; a
+// fail-fast sibling cancelled with only the cancel note is not.
+const TIME_LIMITED = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
+const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
+
+test("a check cancelled past its time limit counts as failing, with the time-limit note in its context", async () => {
+  const reads = [];
+  const api = fakeApi({
+    checkRuns: [run(11, "test-bash (3)", "cancelled"), run(12, "test-bash (1)", "cancelled"), run(13, "ci-status", "failure")],
+    annotations: { 11: TIME_LIMITED, 12: CANCEL_ONLY },
+  });
+  const listAnnotations = api.listAnnotations;
+  api.listAnnotations = async (id) => {
+    reads.push(id);
+    return listAnnotations(id);
+  };
+  const result = await selectWith(api);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(
+    result.file.checks.map((check) => check.name),
+    ["test-bash (3)"],
+  );
+  assert.match(result.file.checks[0].annotations[0].message, /^The job has exceeded the maximum execution time of 9m0s$/);
+  // Each cancelled check's annotations are read once.
+  assert.deepEqual(reads, [11, 12]);
+});
+
+test("a head whose only cancelled checks carry no time-limit note stays not-applicable", async () => {
+  const api = fakeApi({ checkRuns: [run(12, "test-bash (1)", "cancelled"), run(13, "ci-status", "failure")], annotations: { 12: CANCEL_ONLY } });
+  const result = await selectWith(api);
+  assert.equal(result.decision, "skip");
+  assert.equal(result.skipReason, "not-applicable");
+});
+
 test("the round cap escalates before any context is written", async () => {
   const commits = [fixCommit(), fixCommit(), fixCommit()];
   const result = await selectWith(fakeApi({ commits }));

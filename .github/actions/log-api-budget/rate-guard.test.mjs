@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, w
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, classify, createRateLimitLatch, entryOf, poolOf, RateLimitStop } from "./rate-guard.mjs";
+import { apiLimits, classify, createRateLimitLatch, entryOf, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
 const SCHEMA_PATH = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
@@ -28,6 +28,7 @@ test("the vectors file holds at least twelve well-formed vectors", () => {
   assert.ok(VECTORS.vectors.length >= 12);
   for (const vector of VECTORS.vectors) {
     assert.deepEqual(Object.keys(vector.input).sort(), ["body", "headers", "status", "url"], vector.name);
+    assert.ok(!("limit_cap" in vector) || Number.isInteger(vector.limit_cap), vector.name);
     assert.deepEqual(Object.keys(vector.expect).sort(), ["latched", "low", "pool", "reset", "reset_source"], vector.name);
     assert.ok(Object.keys(vector.input.headers).every((name) => name === name.toLowerCase()), vector.name);
   }
@@ -35,7 +36,7 @@ test("the vectors file holds at least twelve well-formed vectors", () => {
 
 for (const vector of VECTORS.vectors) {
   test(`vector: ${vector.name}`, () => {
-    assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR }), vector.expect);
+    assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR, limitCap: vector.limit_cap ?? null }), vector.expect);
   });
 }
 
@@ -60,6 +61,27 @@ test("defaults come from the schema: a changed schema default changes the module
     }
     assert.equal(changed["content-creation"]["per-minute"], 7);
     assert.equal(changed["github-token"]["per-minute"], undefined);
+  }));
+
+// GitHub documents GITHUB_TOKEN at 1,000 requests per hour per repository
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions);
+// the other pools plan to the limit their header reports.
+test("limit-cap defaults to 1000 for github-token only", () => {
+  const limits = apiLimits({ resolvedPath: "" });
+  assert.equal(limits["github-token"]["limit-cap"], 1000);
+  for (const name of ["lanes-app", "graphql", "owner-token", "content-creation"]) {
+    assert.equal(limits[name]["limit-cap"], undefined, name);
+  }
+});
+
+test("a resolved limit-cap caps another pool, and another github-token field keeps its cap", () =>
+  withDir((dir) => {
+    const path = join(dir, "resolved.json");
+    writeFileSync(path, JSON.stringify({ limits: { api: { "github-token": { "read-floor": 0.2 }, "lanes-app": { "limit-cap": 4000 } } } }));
+    const limits = apiLimits({ resolvedPath: path });
+    assert.equal(limits["github-token"]["limit-cap"], 1000);
+    assert.equal(limits["github-token"]["read-floor"], 0.2);
+    assert.equal(limits["lanes-app"]["limit-cap"], 4000);
   }));
 
 test("a resolved config's limits.api overrides the schema default for that field only", () =>
@@ -168,8 +190,23 @@ test("under the read floor: one warning, no failure, calls still go, belowFloor 
   assert.equal(latch.belowFloor("https://api.github.com/graphql"), false);
 });
 
+// github-token's default limit-cap of 1000 sets the floor at 100 left of the
+// planned 1000: 950 used of a header limit of 5000 leaves 50.
+test("the latch reads the pool's limit-cap: past the plan it warns, and a remaining above zero sends on", async () => {
+  const past = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600" }];
+  const gh = fakeGitHub([past, past]);
+  const { latch, lines, failed } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  await fetch(URL_A);
+  await fetch(URL_B);
+  assert.equal(gh.sent.length, 2);
+  assert.equal(failed(), 0);
+  assert.equal(latch.belowFloor(URL_A), true);
+  assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
+});
+
 test("a 403 Resource not accessible keeps its old behavior: returned, no latch, no failure", async () => {
-  const refused = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000" }, { message: "Resource not accessible by integration" }];
+  const refused = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4950" }, { message: "Resource not accessible by integration" }];
   const gh = fakeGitHub([refused, [200]]);
   const { latch, lines, failed } = latchFor();
   const fetch = latch.guard(gh.fetch);
@@ -391,4 +428,94 @@ test("every lane script that calls fetch goes through the rate guard, or is list
   });
   assert.deepEqual(raw.filter((file) => !(file in UNGUARDED)), []);
   assert.deepEqual(Object.keys(UNGUARDED).filter((file) => !raw.includes(file)), [], "a listed file no longer needs its exception");
+});
+
+test("isContentWrite counts the issue, pull request, comment, review and label writes, and GraphQL mutations", () => {
+  const repo = "https://api.github.com/repos/o/r";
+  for (const [url, method] of [
+    [`${repo}/issues`, "POST"],
+    [`${repo}/issues/7`, "PATCH"],
+    [`${repo}/issues/7/comments`, "POST"],
+    [`${repo}/issues/7/labels`, "POST"],
+    [`${repo}/issues/comments/9`, "PATCH"],
+    [`${repo}/pulls`, "POST"],
+    [`${repo}/pulls/7/reviews`, "POST"],
+    [`${repo}/pulls/7/comments/9/replies`, "POST"],
+  ]) {
+    assert.equal(isContentWrite(url, method), true, `${method} ${url}`);
+  }
+  for (const [url, method] of [
+    [`${repo}/issues/7/comments`, "GET"],
+    [`${repo}/issues/7/labels/x`, "DELETE"],
+    [`${repo}/statuses/abc`, "POST"],
+    [`${repo}/actions/workflows/x.yml/dispatches`, "POST"],
+  ]) {
+    assert.equal(isContentWrite(url, method), false, `${method} ${url}`);
+  }
+  const graphql = "https://api.github.com/graphql";
+  assert.equal(isContentWrite(graphql, "POST", JSON.stringify({ query: " mutation($id: ID!) { x }" })), true);
+  assert.equal(isContentWrite(graphql, "POST", JSON.stringify({ query: "query { viewer { login } }" })), false);
+});
+
+test("a guarded content write is counted in the job's content-creation file, a read is not", async () =>
+  withDir(async (dir) => {
+    const saved = process.env.RUNNER_TEMP;
+    process.env.RUNNER_TEMP = dir;
+    try {
+      const gh = fakeGitHub([[201], [200]]);
+      const options = { now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null };
+      const fetch = createRateLimitLatch(options).guard(gh.fetch);
+      await fetch("https://api.github.com/repos/o/r/issues/7/comments", { method: "POST", body: "{}" });
+      await fetch("https://api.github.com/repos/o/r/issues/7/comments");
+      assert.equal(readFileSync(join(dir, "api-budget", "content-creation"), "utf8"), `${VECTORS.vector_now}\n`);
+    } finally {
+      if (saved === undefined) delete process.env.RUNNER_TEMP;
+      else process.env.RUNNER_TEMP = saved;
+    }
+  }));
+
+test("a guard given a token records its readings under that name, and one without under API_BUDGET_TOKEN", async () =>
+  withDir(async (dir) => {
+    const saved = { RUNNER_TEMP: process.env.RUNNER_TEMP, API_BUDGET_TOKEN: process.env.API_BUDGET_TOKEN };
+    process.env.RUNNER_TEMP = dir;
+    process.env.API_BUDGET_TOKEN = "lanes-app";
+    try {
+      const gh = fakeGitHub([[200], [200], [200]]);
+      const latch = createRateLimitLatch({ now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+      const app = latch.guard(gh.fetch);
+      const actions = latch.guard(gh.fetch, { token: "github-token" });
+      await app("https://api.github.com/repos/o/r/issues/7");
+      await actions("https://api.github.com/repos/o/r/actions/runs");
+      await actions("https://api.github.com/repos/o/r/actions/runs");
+      const lines = (name) => readFileSync(join(dir, "api-budget", name), "utf8").trim().split("\n").length;
+      assert.equal(lines("lanes-app"), 1);
+      assert.equal(lines("github-token"), 2);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }));
+
+// label-unblocked's ACTIONS_TOKEN client runs in a lanes-app step: its guard
+// plans to github-token's limit-cap of 1000, not lanes-app's header limit.
+test("a guard given a token plans to that token's limits.api entry, not API_BUDGET_TOKEN's", async () => {
+  const saved = process.env.API_BUDGET_TOKEN;
+  process.env.API_BUDGET_TOKEN = "lanes-app";
+  try {
+    const past = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-reset": "1792751600" }];
+    const limits = () => ({ "github-token": { "read-floor": 0.1, "limit-cap": 1000 }, "lanes-app": { "read-floor": 0.1 } });
+    const warned = async (options) => {
+      const lines = [];
+      const latch = createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits, stopFile: null });
+      await latch.guard(fakeGitHub([past]).fetch, options)(URL_A);
+      return lines.length;
+    };
+    assert.equal(await warned({ token: "github-token" }), 1);
+    assert.equal(await warned(), 0);
+  } finally {
+    if (saved === undefined) delete process.env.API_BUDGET_TOKEN;
+    else process.env.API_BUDGET_TOKEN = saved;
+  }
 });

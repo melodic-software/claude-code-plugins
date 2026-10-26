@@ -744,7 +744,6 @@ scripts/check-shell-portability.test.sh 23
 scripts/check-silent-revert.test.sh 20
 scripts/check-silent-skips.test.sh 1
 scripts/check-skill-count-claims.test.sh 1
-scripts/check-skill-description-voice.test.sh 1
 scripts/check-skill-leaf-names.test.sh 1
 scripts/check-skill-portability.test.sh 2
 scripts/check-skill-precompute-compose.test.sh 1

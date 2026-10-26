@@ -1867,6 +1867,32 @@ class TestClientLog(LogCase):
         self.assertIn("entry-19", (d / "server.log").read_text(encoding="utf-8"))
 
 
+class TestHostHealth(LogCase):
+    """README "Logs", "Host Health": GET /api/owner/health answers the owner what `logs --summary --json` prints for the
+    whole kept log, and the sections its plain text prints; anyone else 403 owner-only."""
+
+    def test_the_owner_reads_the_summary_and_its_sections(self):
+        _, ann = self.join("Ann")
+        self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "TypeError: x is undefined", "fp": "1a2b3c4d"}, ann)[0], 200)
+        code, _, out = self.get(server.HEALTH, self.owner)
+        self.assertEqual(code, 200, out)
+        code, want, err = share(self.d, "logs", "--summary", "--json")
+        self.assertEqual(code, 0, err)
+        self.assertEqual({"ok": True, **out["summary"]}, want)
+        self.assertEqual([(g["message"], g["count"]) for g in out["summary"]["errors"]], [("TypeError: x is undefined", 1)])
+        self.assertEqual(out["sections"][1]["title"], "Top errors:")
+        self.assertTrue(out["sections"][1]["lines"][0].startswith("1x error: TypeError: x is undefined "), out["sections"][1])
+
+    def test_anyone_but_the_owner_is_refused(self):
+        _, ann = self.join("Ann")
+        lee_pid, lee = self.join("Lee")
+        self.leader(lee_pid)
+        for who in (None, ann, lee):
+            with self.subTest(who=who):
+                code, _, out = self.get(server.HEALTH, who)
+                self.assertEqual((code, out["error"]), (403, "owner-only"))
+
+
 class TestTunnelWatch(unittest.TestCase):
     def test_an_exited_tunnel_is_restarted_with_a_new_link_the_owner_sees(self):
         d = tmpdir(self)
