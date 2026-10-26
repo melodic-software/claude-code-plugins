@@ -176,8 +176,9 @@ proportion"). System recall covers only tests the session created or changed (DT
 
 ### Judge runs and the model sweep
 
-`metrics.sh --sweep` runs the frozen judge over every row for 7 arms: `sonnet` at `low`, `medium`,
-`high` and `xhigh`, and `opus` at `low`, `medium` and `high`. Haiku is not in the sweep yet; it would join with one arm per effort level the live [model config](https://code.claude.com/docs/en/model-config#adjust-effort-level) lists for it, or one arm with no effort setting when it lists none. The
+`metrics.sh --sweep` runs the frozen judge over every row for 10 arms: `sonnet` at `low`, `medium`,
+`high` and `xhigh`, `opus` at `low`, `medium` and `high`, and `haiku` at `low`, `medium` and `high`
+(results under Haiku below). The
 runs go through `judge::run` and `judge::validate`, the functions the hooks use, so the sweep
 scores what a session would see relayed. Each row's verdict is kept in
 `sweep/<model>-<effort>.tsv`, and each run's cost and wall time in `sweep/<model>-<effort>.runs.tsv`.
@@ -220,8 +221,7 @@ arm and recorded in
 [`probes.md`](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/tautological-tests/probes.md); a shorter debounce is considered if the wait stays long.
 
 On every new model in a class, re-run `metrics.sh --sweep` and change the default only when the
-sweep says so: the settings hold class aliases, so a new version needs no code change. Add Haiku
-per the arm rule above.
+sweep says so: the settings hold class aliases, so a new version needs no code change.
 
 ## Results
 
@@ -389,3 +389,39 @@ against $0.0155 and p95 12.6 s against 11.8 s. The fallback is the best `opus` a
 under the consensus labels: all three tie with `opus` `high`, and `low` has the lowest p95
 (15.3 s). Both classes run at the one effort, so the fallback runs at `medium`, and
 `opus` `medium` is also tied-best (71/78).
+
+### Haiku
+
+Swept 2026-10-26 on Claude Code 2.1.310, Claude Haiku 5.5 (`claude-haiku-5-5`), after #6044
+reported identical tests getting FLAG in one run and PASS in the next. Haiku 5.5 accepts all five
+effort levels
+([Effort, Recommended effort levels for Claude Haiku 5.5](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-haiku-5-5),
+read 2026-10-26); the sweep runs `low`, `medium` and `high`, the range the other classes'
+arms cover below `xhigh`. The judge prompt changed after the first commit to `labels.tsv`
+(the `holdout-only` line above), so every figure here is on the 29 `holdout` rows, and the
+`sonnet` and `opus` sweep files above predate that change. For a same-prompt control,
+`sonnet` `medium` and `opus` `medium` (the shipped default and fallback) were run again in the
+same session; their files are not kept, so the 78-row tables above still reproduce.
+
+| model | effort | accuracy | FLAG precision [95% CI] | FLAG recall [95% CI] | coverage | cost per row | wall per run, median | wall per run, p95 | wall per arm | McNemar p vs most accurate |
+|---|---|---|---|---|---|---|---|---|---|---|
+| sonnet | medium | 0.9655 (28/29) | 0.5000 [0.0945, 0.9055] (1/2) | 1.0000 [0.2065, 1.0000] (1/1) | 1.0000 (22/22) | $0.0486 | 7.9 s | 14.3 s | 492.2 s | 1.0000 |
+| opus | medium | 0.8621 (25/29) | 0.3333 [0.0615, 0.7923] (1/3) | 1.0000 [0.2065, 1.0000] (1/1) | 0.9091 (20/22) | $0.1349 | 14.1 s | 37.3 s | 991.3 s | 0.2500 |
+| haiku | low | 0.6897 (20/29) | 0.3333 [0.0615, 0.7923] (1/3) | 1.0000 [0.2065, 1.0000] (1/1) | 0.7273 (16/22) | $0.0040 | 8.0 s | 16.9 s | 518.9 s | 0.0078 |
+| haiku | medium | 0.8621 (25/29) | 0.5000 [0.0945, 0.9055] (1/2) | 1.0000 [0.2065, 1.0000] (1/1) | 0.9091 (20/22) | $0.0048 | 9.7 s | 25.8 s | 660.9 s | 0.2500 |
+| haiku | high | 0.7586 (22/29) | 0.0000 [0.0000, 0.7935] (0/1) | NA (0/0) | 0.7727 (17/22) | $0.0073 | 12.3 s | 41.2 s | 980.2 s | 0.0312 |
+
+Run-to-run variance over all 78 rows, the first run and two more (`metrics.sh --rerun`):
+
+| run | model | effort | rows whose verdict changed |
+|---|---|---|---|
+| rerun | haiku | medium | 0.3333 (26/78) |
+| rerun (control) | sonnet | medium | 0.0897 (7/78) |
+
+Decision: `haiku` is not a judge class. `low` and `high` are significantly less accurate than
+the most accurate arm (McNemar p 0.0078 and 0.0312). `medium` does not differ at 0.05 on 29 rows
+(p 0.2500), but it changed its verdict on a third of the rows across three runs, against 9% for
+the shipped default, which is the inconsistency #6044 reported. `/testing:audit`'s judge pass
+already picks only `sonnet` or `opus`; `judge-lib.sh` no longer falls back to `haiku` either.
+The default stays `sonnet` `medium`, fallback `opus` `medium`. Re-run these arms when a new
+Haiku version ships.

@@ -1,0 +1,78 @@
+seed-s3	FLAG	haiku	high	
+seed-g7	PASS	haiku	high	
+seed-t3	UNKNOWN	haiku	high	the proposed diff does not apply
+seed-m2	PASS	haiku	high	
+seed-m3	PASS	haiku	high	
+seed-m5	PASS	haiku	high	
+seed-m6	UNKNOWN	haiku	high	
+seed-m7	UNKNOWN	haiku	high	
+seed-s5	UNKNOWN	haiku	high	
+seed-g10	PASS	haiku	high	
+adv-1	FLAG	haiku	high	
+adv-2	FLAG	haiku	high	
+adv-3	UNKNOWN	haiku	high	the proposed diff does not apply
+adv-4	FLAG	haiku	high	
+adv-5	PASS	haiku	high	
+adv-6	PASS	haiku	high	
+adv-7	UNKNOWN	haiku	high	
+adv-8	FLAG	haiku	high	
+u01-1	FLAG	haiku	high	
+u01-2	UNKNOWN	-	-	no verdict for this block
+u02-1	PASS	haiku	high	
+u03-1	PASS	haiku	high	
+u03-2	PASS	haiku	high	
+u03-3	PASS	haiku	high	
+u03-4	PASS	haiku	high	
+u03-5	PASS	haiku	high	
+u04-1	PASS	haiku	high	
+u05-1	PASS	haiku	high	
+u05-2	PASS	haiku	high	
+u05-3	PASS	haiku	high	
+u05-4	UNKNOWN	haiku	high	a quoted line is in no file of the repository
+u05-5	PASS	haiku	high	
+u06-1	PASS	haiku	high	
+u07-1	PASS	haiku	high	
+u08-1	FLAG	haiku	high	
+u09-1	UNKNOWN	haiku	high	a quoted line is in no file of the repository
+u10-1	UNKNOWN	haiku	high	the proposed diff does not apply
+u11-1	PASS	haiku	high	
+u12-1	UNKNOWN	haiku	high	a quoted line is in no file of the repository
+u13-1	PASS	haiku	high	
+u13-2	PASS	haiku	high	
+u14-1	PASS	haiku	high	
+u14-2	PASS	haiku	high	
+u15-1	UNKNOWN	haiku	high	the proposed diff does not apply
+u16-1	UNKNOWN	haiku	high	the proposed diff does not apply
+u17-1	PASS	haiku	high	
+u18-1	UNKNOWN	haiku	high	the proposed diff does not apply
+u19-1	UNKNOWN	haiku	high	
+u20-1	PASS	haiku	high	
+u21-1	PASS	haiku	high	
+u22-1	UNKNOWN	haiku	high	
+u23-1	PASS	haiku	high	
+u24-1	PASS	haiku	high	
+u25-1	PASS	haiku	high	
+u25-2	PASS	haiku	high	
+u26-1	PASS	haiku	high	
+u27-1	PASS	haiku	high	
+u28-1	PASS	haiku	high	
+u28-2	PASS	haiku	high	
+u28-3	UNKNOWN	haiku	high	the proposed diff does not apply
+u28-4	UNKNOWN	haiku	high	the proposed diff does not apply
+u29-1	PASS	haiku	high	
+u30-1	PASS	haiku	high	
+u31-1	PASS	haiku	high	
+u32-1	FLAG	haiku	high	
+u33-1	PASS	haiku	high	
+u33-2	PASS	haiku	high	
+u34-1	PASS	haiku	high	
+u35-1	UNKNOWN	haiku	high	a quoted line is in no file of the repository
+u36-1	PASS	haiku	high	
+u37-1	PASS	haiku	high	
+u37-2	PASS	haiku	high	
+u37-3	PASS	haiku	high	
+u37-4	PASS	haiku	high	
+u38-1	UNKNOWN	haiku	high	a quoted line is in no file of the repository
+u38-2	UNKNOWN	haiku	high	
+u38-3	UNKNOWN	haiku	high	
+u39-1	PASS	haiku	high	

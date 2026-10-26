@@ -374,17 +374,21 @@ assert_contains "a row reports accuracy, precision, recall, coverage and cost" "
   '| sonnet | low | 1.0000 (3/3) | 1.0000 [0.3424, 1.0000] (2/2) | 1.0000 [0.3424, 1.0000] (2/2) | 1.0000 (3/3) | $0.0067 |'
 check "every arm ties, so sonnet is chosen" "grep -q '^chosen: sonnet ' <<<\"\$out\""
 check "and the fallback is opus" "grep -q '^fallback: opus ' <<<\"\$out\""
-check "the stub ran once per case file per arm" "[[ \$(stub_calls) -eq 14 ]]"
+check "the haiku arms are in the sweep table" "[[ \$(grep -cE '^\\| haiku \\| (low|medium|high) \\|' <<<\"\$out\") -eq 3 ]]"
+check "the stub ran once per case file per arm" "[[ \$(stub_calls) -eq 20 ]]"
 args="$(for i in $(seq 1 "$(stub_calls)"); do stub_args "$i"; done)"
 assert_contains "runs through judge::run (its system prompt flag)" "$args" "--system-prompt"
 assert_contains "runs through judge::run (its read-only tools)" "$args" $'--tools\nRead,Grep,Glob'
-for m in sonnet opus; do
+for m in sonnet opus haiku; do
   assert_contains "arm model $m reached the judge" "$args" $'--model\n'"$m"
 done
 for e in low medium high xhigh; do
   assert_contains "arm effort $e reached the judge" "$args" $'--effort\n'"$e"
 done
-assert_not_contains "no haiku arm" "$args" $'--model\nhaiku'
+# judge::class maps the current Haiku model ID (claude-haiku-5-5, the models
+# overview's Claude API ID) to the haiku class, as it does the alias.
+cls="$(bash -c 'source "$1/scanner-run.sh" && source "$1/judge-lib.sh" && judge::class claude-haiku-5-5 && judge::class haiku' _ "$HERE/../../../../hooks")"
+assert_contains "judge::class resolves claude-haiku-5-5 and the alias to haiku" "$cls" $'haiku\nhaiku'
 assert_not_contains "the judge never sees the labels" "$args" "labels.tsv"
 assert_not_contains "the judge never sees a case id" "$args" "case-1"
 check "the judge reads the case under its real name" "grep -q 'Judge these test blocks in .*/add.test.ts (block' <<<\"\$args\""
