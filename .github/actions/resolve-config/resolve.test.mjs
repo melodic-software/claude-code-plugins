@@ -294,41 +294,31 @@ test("rejection 9: an activity named report is rejected", () => {
   assertRejected(() => run(fixture("reserved-report.yaml")), "reserved-name");
 });
 
-// Forced denied paths
+// Denied paths: the config's own, nothing forced (owner direction
+// 2026-10-24: a trusted path alone holds nothing).
 
-const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
-
-test("forced denied paths are added when the config sets no merge section", () => {
+test("no denied path is added when the config sets no merge section", () => {
   assert.deepEqual(
     run(fixture("valid.yaml")).merge["diff-check"]["denied-paths"],
-    [CONFIG_PATH, TRUSTED_ACTORS],
+    [],
   );
 });
 
-test("forced denied paths are added after the config's own, once each", () => {
+test("the config's own denied paths resolve once each, with nothing added", () => {
   const config = edited((doc) => {
     doc.merge = {
       rung: "C2",
       "diff-check": {
-        "denied-paths": [".claude/**", CONFIG_PATH],
+        "denied-paths": [".claude/**", CONFIG_PATH, ".claude/**"],
         "max-changed-lines": 400,
       },
     };
   });
   const resolved = run(config);
   assert.deepEqual(resolved.merge["diff-check"], {
-    "denied-paths": [".claude/**", CONFIG_PATH, TRUSTED_ACTORS],
+    "denied-paths": [".claude/**", CONFIG_PATH],
     "max-changed-lines": 400,
   });
-});
-
-test("the denied config path is the one the run read", () => {
-  const configPath = "tests/invalid/pr-pipeline.yaml";
-  assert.ok(
-    run(fixture("valid.yaml"), { configPath }).merge["diff-check"][
-      "denied-paths"
-    ].includes(configPath),
-  );
 });
 
 // Defaults

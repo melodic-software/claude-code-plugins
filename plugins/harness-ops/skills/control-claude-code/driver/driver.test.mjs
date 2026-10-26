@@ -78,8 +78,53 @@ test('a ttl that is not a whole number of seconds is refused before any install'
 test('an unknown verb is a usage error naming the verbs', async () => {
   await assert.rejects(main(['dance']), {
     code: 2,
-    message: 'verbs: launch, wait-for, type, screenshot, record, stop, doctor',
+    message: 'verbs: launch, wait-for, type, screenshot, record, stop, doctor, ready, log',
   });
+});
+
+test('print mode runs the launch command line in stream-json with the prompt last', () => {
+  const { argv, env } = driver.buildPrint({ pluginDir: '/p' }, { ANTHROPIC_API_KEY: 'k' }, 'say ok');
+  assert.deepEqual(argv, [
+    'claude',
+    '--restricted',
+    '--strict-mcp-config',
+    '--plugin-dir',
+    '/p',
+    '-p',
+    '--output-format',
+    'stream-json',
+    '--verbose',
+    'say ok',
+  ]);
+  assert.equal('ANTHROPIC_API_KEY' in env, false);
+});
+
+test('a print-mode prompt that reads as a flag is refused', () => {
+  assert.throws(() => driver.buildPrint({ pluginDir: '/p' }, {}, '--dangerously-skip-permissions'), { code: 2 });
+});
+
+test('ready and log name what they lack before claude starts', async () => {
+  await assert.rejects(main(['ready', '--out', '/tmp/x.jsonl']), { code: 2, message: 'ready needs --plugin-dir <dir>' });
+  await assert.rejects(main(['ready', '--plugin-dir', '/p']), { code: 2, message: 'ready needs --out <path.jsonl>' });
+  await assert.rejects(main(['log', '--plugin-dir', HERE, '--out', join(RUNTIME, 'x.jsonl')]), { code: 2, message: 'print mode needs a prompt' });
+  await assert.rejects(main(['log', 'hi', '--plugin-dir', join(RUNTIME, 'absent'), '--out', join(RUNTIME, 'x.jsonl')]), {
+    code: 2,
+    message: `--plugin-dir ${join(RUNTIME, 'absent')} does not exist`,
+  });
+  await assert.rejects(main(['log', 'hi', '--plugin-dir', HERE, '--out', join(RUNTIME, 'x.jsonl'), '--timeout', 'soon']), {
+    code: 2,
+    message: '--timeout takes a whole number of milliseconds',
+  });
+});
+
+test('the control skill config keeps local.json out of git and ships every floor at its safe value', () => {
+  const config = join(HERE, '..', 'config');
+  assert.deepEqual(readFileSync(join(config, '.gitignore'), 'utf8').split(/\r?\n/).filter(Boolean), ['local.json']);
+  const defaults = JSON.parse(readFileSync(join(config, 'defaults.json'), 'utf8'));
+  assert.equal(typeof defaults.pluginDir, 'string');
+  assert.ok(defaults.pluginDir.length > 0);
+  assert.deepEqual(defaults.credentials, {});
+  assert.deepEqual(defaults.safety, { recipients: {}, signInAttempts: {}, production: {}, unattendedWrites: false });
 });
 
 test('the Windows repair line enters the install dir instead of passing it to npm.cmd', () => {
@@ -428,6 +473,199 @@ export const TuiTest = { ephemeral: () => ({
     assert.deepEqual(running.filter(isAlive), [], 'stop leaves no holder running');
   } finally {
     for (const pid of holders().filter(isAlive)) process.kill(pid);
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+// ---- print mode, run against a stub claude ----
+
+const initLine = (source) =>
+  JSON.stringify({ type: 'system', subtype: 'init', apiKeySource: source, claude_code_version: '9.9.9', plugins: [{ name: 'demo', path: '/p' }] });
+
+// A claude that records its argv and the key it was given, prints the init event, then runs `rest`.
+function stubClaude(box, source, rest) {
+  const script = [
+    '#!/bin/sh',
+    `printf '%s\\n' "$@" > "${box.root}/argv"`,
+    `printf '%s' "\${ANTHROPIC_API_KEY-unset}" > "${box.root}/key"`,
+    `printf '%s\\n' '${initLine(source)}'`,
+    rest,
+  ].join('\n');
+  writeFileSync(join(box.bin, 'claude'), `${script}\n`, { mode: 0o755 });
+}
+
+// The plugin under test: a directory whose manifest carries `name`.
+function pluginDir(box, name = 'demo') {
+  const dir = join(box.root, 'plugin');
+  mkdirSync(join(dir, '.claude-plugin'), { recursive: true });
+  writeFileSync(join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify({ name }));
+  return dir;
+}
+
+async function quietly(fn) {
+  const lines = [];
+  const log = console.log;
+  console.log = (s) => lines.push(s);
+  try {
+    return { result: await fn(), text: lines.join('\n') };
+  } finally {
+    console.log = log;
+  }
+}
+
+test('ready stops claude at the init event and passes on apiKeySource "none"', posixOnly, async () => {
+  const box = sandbox();
+  // exec, so stopping the stub stops the process holding its stdout
+  stubClaude(box, 'none', 'exec sleep 30');
+  const out = join(box.root, 'init.jsonl');
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'from-parent';
+  try {
+    const started = Date.now();
+    const { result, text } = await withPath(box.bin, () =>
+      quietly(() => main(['ready', '--plugin-dir', pluginDir(box), '--out', out, '--deps-dir', box.deps])),
+    );
+    assert.equal(result, 0);
+    assert.ok(Date.now() - started < 20_000, 'claude was stopped, not waited out');
+    assert.match(text, /apiKeySource: none/);
+    assert.match(text, /plugins: demo/);
+    assert.match(text, /session 'default': not running/);
+    assert.doesNotMatch(text, /refused/);
+    assert.equal(readFileSync(out, 'utf8').trim(), initLine('none'));
+    assert.equal(readFileSync(join(box.root, 'key'), 'utf8'), 'unset');
+    assert.deepEqual(readFileSync(join(box.root, 'argv'), 'utf8').trim().split('\n').slice(-5), [
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      'Reply with the single word ok.',
+    ]);
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('ready exits 1 when the init event names an API key', posixOnly, async () => {
+  const box = sandbox();
+  stubClaude(box, 'apiKeyHelper', 'exec sleep 30');
+  try {
+    const { result, text } = await withPath(box.bin, () =>
+      quietly(() => main(['ready', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'init.jsonl'), '--deps-dir', box.deps])),
+    );
+    assert.equal(result, 1);
+    assert.match(text, /refused: apiKeySource is "apiKeyHelper"/);
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('ready exits 1 when the init event does not list the plugin under test', posixOnly, async () => {
+  const box = sandbox();
+  stubClaude(box, 'none', 'exec sleep 30');
+  try {
+    const dir = pluginDir(box, 'other');
+    const { result, text } = await withPath(box.bin, () =>
+      quietly(() => main(['ready', '--plugin-dir', dir, '--out', join(box.root, 'init.jsonl'), '--deps-dir', box.deps])),
+    );
+    assert.equal(result, 1);
+    assert.match(text, /refused: the init event does not list the plugin at /);
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('ready exits 1 when claude prints no init event', posixOnly, async () => {
+  const box = sandbox();
+  writeFileSync(join(box.bin, 'claude'), '#!/bin/sh\necho not json\nexit 0\n', { mode: 0o755 });
+  try {
+    const { result, text } = await withPath(box.bin, () =>
+      quietly(() => main(['ready', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'init.jsonl'), '--deps-dir', box.deps])),
+    );
+    assert.equal(result, 1);
+    assert.match(text, /init: no init event$/m);
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('ready gives up on a claude that prints nothing once --timeout passes', posixOnly, async () => {
+  const box = sandbox();
+  writeFileSync(join(box.bin, 'claude'), '#!/bin/sh\nexec sleep 30\n', { mode: 0o755 });
+  try {
+    const started = Date.now();
+    const args = ['ready', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'init.jsonl'), '--deps-dir', box.deps, '--timeout', '500'];
+    const { result, text } = await withPath(box.bin, () => quietly(() => main(args)));
+    assert.equal(result, 1);
+    assert.match(text, /init: no init event within 500 ms/);
+    assert.ok(Date.now() - started < 20_000, 'claude was stopped at the timeout');
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('log keeps the whole stream-json run and exits with claude', posixOnly, async () => {
+  const box = sandbox();
+  const result = JSON.stringify({ type: 'result', subtype: 'success' });
+  stubClaude(box, 'none', `printf '%s\\n' '${result}'\nexit 0`);
+  const out = join(box.root, 'run.jsonl');
+  try {
+    const { result: status } = await withPath(box.bin, () =>
+      quietly(() => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', out])),
+    );
+    assert.equal(status, 0);
+    assert.deepEqual(readFileSync(out, 'utf8').trim().split('\n'), [initLine('none'), result]);
+    assert.equal(readFileSync(join(box.root, 'argv'), 'utf8').trim().split('\n').at(-1), 'run /demo');
+    assert.equal(statSync(out).mode & 0o777, 0o600);
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('log exits 1 and names the exit when claude fails', posixOnly, async () => {
+  const box = sandbox();
+  stubClaude(box, 'none', 'exit 3');
+  try {
+    const { result, text } = await withPath(box.bin, () =>
+      quietly(() => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl')])),
+    );
+    assert.equal(result, 1);
+    assert.match(text, /claude exit 3, apiKeySource none/);
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('log stops claude and every process it started when the init event names an API key', posixOnly, async () => {
+  const box = sandbox();
+  // No exec: the sleep is a child of the stub and holds its stdout, as a wrapper's child would.
+  stubClaude(box, 'ANTHROPIC_API_KEY', 'sleep 30');
+  const out = join(box.root, 'run.jsonl');
+  try {
+    const started = Date.now();
+    const { result, text } = await withPath(box.bin, () =>
+      quietly(() => main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', out])),
+    );
+    assert.equal(result, 1);
+    assert.ok(Date.now() - started < 20_000, 'claude was stopped, not waited out');
+    assert.match(text, /refused: apiKeySource is "ANTHROPIC_API_KEY"/);
+    assert.equal(readFileSync(out, 'utf8').trim(), initLine('ANTHROPIC_API_KEY'));
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('log reports a claude missing from PATH', posixOnly, async () => {
+  const box = sandbox();
+  const saved = process.env.PATH;
+  process.env.PATH = box.bin;
+  try {
+    await assert.rejects(main(['log', 'run /demo', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'run.jsonl')]), {
+      message: 'claude is not on PATH',
+    });
+  } finally {
+    process.env.PATH = saved;
     rmSync(box.root, { recursive: true, force: true });
   }
 });

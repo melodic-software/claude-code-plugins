@@ -13,10 +13,11 @@ Contract enforced here (encoded as code, not convention):
   check that governs the merge, and the exact blockers, so the caller can react.
 - A merge only happens with `--merge` AND only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
-  workflow run when its check run carries a `class=rate-limit` annotation, five
-  hours after the failure, once per run on the pinned live head. No other
-  failure class is re-run, and the re-run never counts as a pass: auto-merge
-  still arms only on SUCCESS.
+  workflow run when its check run carries a failure annotation the review
+  evidence binds a re-run after (`class=rate-limit`, or the lane's publish
+  failure on GitHub's API rate limit), five hours after the failure, once per
+  run on the pinned live head. No other failure class is re-run, and the
+  re-run never counts as a pass: auto-merge still arms only on SUCCESS.
 - Merges use the repository's allowed method (squash preferred) and NEVER pass
   `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
   resolve or reply to review threads, force-push, or change settings.
@@ -193,6 +194,7 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
+    low_headroom,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -296,14 +298,18 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 
 # An AI review check that failed on the Claude usage limit carries a
 # `class=rate-limit` annotation on its check run (ci-workflows
-# `.github/actions/report-lane-outcome`). Under `--merge` the gate re-runs that
-# check's workflow run once the limit has reset, instead of holding on it until
-# a person re-runs it. "Reset" is conservative: the shortest plan limit is a
-# five-hour session window (https://support.claude.com/en/articles/11145838,
-# checked 2026-10-09), so five hours after the failure that window has reset
-# whenever it started. A weekly limit outlasts it; the re-run then fails again
-# and stays failed, since a run is re-run at most once.
-RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# `.github/actions/report-lane-outcome`); one whose review post hit GitHub's
+# API rate limit carries the lane's publish failure line. Under `--merge` the
+# gate re-runs that check's workflow run once the limit has reset, instead of
+# holding on it until a person re-runs it, on exactly the annotations
+# `review_evidence.rate_limited` accepts, so the re-run's attempt binds
+# (`review_evidence.rerun_binds` accepts more: a rejected credential or a
+# kill-switch stop, which the gate leaves to a person).
+# "Reset" is conservative: the shortest plan limit is a five-hour session
+# window (https://support.claude.com/en/articles/11145838, checked
+# 2026-10-09), so five hours after the failure that window has reset whenever
+# it started. A weekly limit outlasts it; the re-run then fails again and
+# stays failed, since a run is re-run at most once.
 RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
 ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
 
@@ -387,10 +393,16 @@ def rerun_rate_limited_review(
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         report["reason"] = f"could not read the job: {type(exc).__name__}: {exc}"
         return report
-    if not any(
-        RATE_LIMIT_CLASS_RE.search(str(json_object(a).get("message") or ""))
-        for a in annotations
-    ):
+    segment = str(job.get("name") or "").rsplit(" / ", 1)[-1]
+    lane = next(
+        (
+            lane
+            for lane, (_, suffix) in review_evidence.LANES.items()
+            if suffix == segment
+        ),
+        "",
+    )
+    if not review_evidence.rate_limited(lane, {"annotations": annotations}):
         report["reason"] = "failure class is not rate-limit; never re-run"
         return report
     proc = gh_capture(
@@ -2170,10 +2182,45 @@ MERGE_QUEUE_QUERY = (
     "mergeQueueEntry{state position} autoMergeRequest{enabledAt} "
     f"timelineItems(last:{merge_policy.MAX_QUEUE_EJECTIONS_LIMIT},itemTypes:["
     "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
-    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}}}}}"
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}} "
+    "queueEvents:timelineItems(last:3,itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT,"
+    "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason createdAt} "
+    "... on AddedToMergeQueueEvent{createdAt "
+    "actor{__typename ... on User{databaseId} ... on Bot{databaseId}} "
+    "enqueuer{login databaseId}}}}}}}"
 )
 # A head change: a pushed commit or a force push.
 HEAD_CHANGES = ("PullRequestCommit", "HeadRefForcePushedEvent")
+ADDED = "AddedToMergeQueueEvent"
+REMOVED = "RemovedFromMergeQueueEvent"
+
+
+def _ejected_enqueue(pr: dict[str, Any]) -> dict[str, Any] | None:
+    """The enqueue whose entry the merge queue then removed for failed checks,
+    with no head change since, read from the newest queue events and head
+    changes (`queueEvents`, oldest first): `{"enqueue": that
+    AddedToMergeQueueEvent, "removedAt": the removal's time, "requeued":
+    whether one newer enqueue follows the removal}`. None for any other order,
+    a malformed item, or no such removal. Head changes sort as
+    `_failed_ejections` reads them."""
+    nodes = json_object(pr.get("queueEvents")).get("nodes")
+    if not is_json_array(nodes):
+        return None
+    newest = [json_object(node) for node in reversed(nodes)]
+    requeued = bool(newest) and newest[0].get("__typename") == ADDED
+    removal, enqueue = (newest[requeued:] + [{}, {}])[:2]
+    if (
+        removal.get("__typename") != REMOVED
+        or removal.get("reason") != "failed_checks"
+        or enqueue.get("__typename") != ADDED
+    ):
+        return None
+    return {
+        "enqueue": enqueue,
+        "removedAt": removal.get("createdAt"),
+        "requeued": requeued,
+    }
 
 
 def _failed_ejections(pr: dict[str, Any]) -> int | None:
@@ -2260,6 +2307,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "position": entry.get("position") if entry else None,
         "failedEjections": _failed_ejections(pr),
         "lastRemovalReason": _last_removal_reason(pr),
+        "ejectedEnqueue": _ejected_enqueue(pr),
     }
 
 
@@ -3193,7 +3241,7 @@ def score_unattended(
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps HIGH_FLOOR and both caps.
+    # keeps the manifest review and both caps. HIGH_FLOOR holds in both.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
@@ -3338,7 +3386,14 @@ def _floor_held(risk: babysit_risk.RiskResult) -> bool:
 
 def _marker_lines(text: Any) -> list[str]:
     """The first two lines, where a lane comment carries its markers."""
-    return [line.rstrip("\r") for line in str(text or "").split("\n", 2)[:2]]
+    return [line.rstrip() for line in str(text or "").split("\n", 2)[:2]]
+
+
+def _normalized(text: Any) -> str:
+    """A comment body as compared for "unchanged": GitHub can return it with
+    CRLF endings or trailing whitespace, which must not read as a change."""
+    lines = str(text or "").replace("\r\n", "\n").split("\n")
+    return "\n".join(line.rstrip() for line in lines).rstrip()
 
 
 def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
@@ -3401,7 +3456,7 @@ def _stood_unchanged(comment: dict[str, Any], body: str, minutes: int) -> bool:
     """Whether `comment` already reads `body` (the same score, reasons and
     head) and has for at least `minutes`, timed from its last change: a
     rewrite of its reasons restarts the time."""
-    if str(comment.get("body") or "") != body:
+    if _normalized(comment.get("body")) != _normalized(body):
         return False
     changed = parse_github_timestamp(
         str(comment.get("updated_at") or comment.get("created_at") or "")
@@ -3416,19 +3471,22 @@ def upsert_marker_comment(
     body: str,
     comments: list[dict[str, Any]] | None,
     marker: str = RISK_MARKER,
+    post_changed: bool = False,
 ) -> str:
     """Post or rewrite the identity's one comment whose first or second line
     is `marker` (the reasons comment, Design T14, by default): `unchanged` when
     the newest one already says this, else
-    `updated` or `created`. Raises `RuntimeError` on a failed read or write."""
+    `updated` or `created`. With `post_changed`, a changed body is posted as a
+    new comment instead of rewriting the newest. Raises `RuntimeError` on a
+    failed read or write."""
     if comments is None:
         comments = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
         )
     newest = _newest_marker_comment(comments, identity, marker)
-    if newest is not None:
-        if str(newest.get("body") or "") == body:
-            return "unchanged"
+    if newest is not None and _normalized(newest.get("body")) == _normalized(body):
+        return "unchanged"
+    if newest is not None and not post_changed:
         args = [
             "api",
             "-X",
@@ -3580,12 +3638,14 @@ def _fail_summary(
 ) -> str | None:
     """The summary of the head FAIL a `verify:repeated-fail` refusal names,
     read through the gate's verdict reader; None for any other refusal, with
-    no FAIL at the head, or when the record cannot be read."""
+    no FAIL at the head, when the record cannot be read, or below the read
+    floor: the quote is report-only, and the escalation stands without it."""
     fail = json_object(verify.get("headFail"))
     reader = inputs.get("verify_reader")
     run_id, name = fail.get("run"), fail.get("artifact")
     if (
-        verify.get("refusal") != verify_evidence.REPEATED_FAIL
+        low_headroom()
+        or verify.get("refusal") != verify_evidence.REPEATED_FAIL
         or not isinstance(reader, verify_evidence.Reader)
         or not isinstance(run_id, int)
         or not isinstance(name, str)
@@ -3605,10 +3665,12 @@ def escalate(
     marker: str,
     inputs: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """The escalation contract (loop-lane README §2): one comment carrying
+    """The escalation contract (loop-lane README §2): a comment carrying
     `marker`, then the tracker's human-gated role label on the pull request,
     added only when no label matches it case-insensitively. The comment goes
-    first so a label never stands unexplained; a failed label is retried by
+    first so a label never stands unexplained, and a changed one is posted
+    new: an edit notifies no one and keeps the old date. An unchanged one is
+    not posted again; a failed label is retried by
     the next run, which finds the comment unchanged. A label a person removed
     after that comment last changed is not a failed write but a lift
     (`_lifted_by_person`): it stays off, as `lifted`, until the comment
@@ -3621,7 +3683,7 @@ def escalate(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
         )
     comment = upsert_marker_comment(
-        repo, number, identity, body, comments, marker=marker
+        repo, number, identity, body, comments, marker=marker, post_changed=True
     )
     try:
         label = human_gated_label(repo)
@@ -3956,8 +4018,15 @@ def unattended_writes(
                 repo, policy, body, head, prior
             )
             escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
+            text = _normalized((prior or {}).get("body"))
+            # An escalated comment at this head stays escalated when its
+            # reasons change, so the label never stands beside a comment that
+            # no longer says why.
             if prior is not None and (
-                str(prior.get("body") or "") == escalated
+                text == _normalized(escalated)
+                or (
+                    text.endswith(RISK_ESCALATION_LINE) and f" at head `{head}`" in text
+                )
                 or _stood_unchanged(prior, body, minutes)
             ):
                 escalation = escalate(
@@ -3984,7 +4053,7 @@ def unattended_writes(
     elif not stopped and risk is not None and inputs.get("comments") is not None:
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
-        text = str((prior or {}).get("body") or "")
+        text = _normalized((prior or {}).get("body"))
         # Every whole-review record stays, so the cap counts across heads.
         cleared = whole_review.with_records(
             risk_cleared_body(head), whole_review.record_lines(text)
@@ -3992,7 +4061,7 @@ def unattended_writes(
         if (
             prior is not None
             and f" at head `{head}`" in text
-            and text != cleared
+            and text != _normalized(cleared)
             and not text.endswith(RISK_ESCALATION_LINE)
         ):
             try:
@@ -4051,7 +4120,7 @@ def _whole_review_record(
     comment is not escalated, with no record at this head and fewer than
     `MAX_TOGGLES` in all (record lines and the identity's conversions to
     draft on the timeline), is recorded when this sweep's limits allow it."""
-    text = str((prior or {}).get("body") or "")
+    text = _normalized((prior or {}).get("body"))
     lines = whole_review.record_lines(text)
     kept = whole_review.with_records(body, lines)
     if whole_review.recorded(text, head):

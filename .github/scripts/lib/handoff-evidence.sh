@@ -3,8 +3,9 @@
 # this run's jobs through the Actions API, never from a call's outputs (its run
 # job runs head code and can forge them). Run by every job that decides on a
 # handoff: pr-unblock.yml's handoff jobs and fix-ci-unreported,
-# pr-refine.yml's fix-docs-handoff, and work-resolve-issue.yml's
-# resolve-issue-handoff.
+# pr-refine.yml's fix-docs-handoff, work-resolve-issue.yml's
+# resolve-issue-handoff, and each lane's <subscription>-handoff job before its
+# third call.
 #
 # Facts, each over the calls in CALLS (true when any call holds it):
 #   allowed  the call's broker-allowed job succeeded: pr-run-activity-read.yml

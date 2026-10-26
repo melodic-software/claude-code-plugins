@@ -3,6 +3,68 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.8.0] - 2026-10-26
+
+### Added
+
+- **lanes:** a new optional `lane_app_slug` option holds the GitHub App slug the lanes run `gh` under. The `consume-restarts` invocation passes it to `restart-consumer.sh` as `--app-slug`, and the `telemetry-upsert.sh` guidance passes it on every call, so an operator whose lanes write under an App installation token no longer has to type `--app-slug` on each run. The README options table lists it.
+
+### Changed
+
+- **lanes:** `restart-consumer.sh` and `telemetry-upsert.sh` read an unrendered `${user_config.lane_app_slug}` placeholder as no slug instead of refusing it with exit 3, so the always-passed option is harmless when unset. `restart-consumer.sh` also accepts an empty `--app-slug` value, which it used to refuse with exit 3, and reads it as no slug, as `telemetry-upsert.sh` already did. A bare trailing `--app-slug` with no value is still refused.
+
+## [4.7.0] - 2026-10-26
+
+### Added
+
+- **`CC_OTEL_HOT_TOTAL_MAX_MB` caps the hot OTEL store files together.** Each prune now trims
+  `cc-logs.json`, `cc-metrics.json` and `cc-traces.json` to at most 1024 MiB in total by default
+  (`0` disables), dropping the oldest lines across all three to cold first. Before this, only the
+  per-file `CC_OTEL_HOT_MAX_MB` cap applied, so three files each under it could together pass the
+  1 GiB hot budget provisioning checks. `operator-setup-retention.md` documents the knob.
+
+### Fixed
+
+- **`CC_OTEL_HOT_MAX_MB` with a leading zero** (`08`) is read as base 10 instead of failing as octal.
+
+## [4.6.1] - 2026-10-26
+
+### Fixed
+
+- **The parser reader's flow check trusts the engine's implicit lookups.** A spread of the array now trusts `@@iterator` and `next`; `slice`, `map`, `filter`, `concat`, `flat` and `flatMap` trust `constructor` and `@@species`, and `concat` trusts `@@isConcatSpreadable`; a member read used as a value trusts its key (the array's own `length` and literal elements excepted), and one whose computed key names nothing is no longer followed. A spread or value-only read of the array now reaches the sink check even when nothing mutates it, so a module patching any of those names reads the list `partial` under `--reader=parser` instead of a wrong `literal`. Fail-closed: a bundle that may write `Symbol.iterator` or `next` on an object the sink rule cannot show is no prototype (2.1.287's yallist writes `Symbol.iterator` on one) now reads every spread-built list `partial` under the parser.
+
+## [4.6.0] - 2026-10-26
+
+### Added
+
+- **control-claude-code:** the control skill `/app-control:drive` reads to run Claude Code's terminal UI with a plugin loaded. Its hub names Launch, Ready, Capture (screenshot, video, and logs as stream-json) and Cleanup, marks it for attended runs only, and never signs in or switches accounts. `config/defaults.json` holds `pluginDir`. Feature folders cover a mod's band, toast and panel, skill invocation, hook output, slash commands, the permission dialog, and Claude Desktop through `claude plugin test`; every Claude Desktop entry point is `not driven: terms`.
+- **control-claude-code driver:** two verbs that run Claude Code in print mode with the launch's flags and environment and write its stream-json to `--out`. `ready` prints doctor's lines, whether the session answers, and the init event's version, plugins and `apiKeySource`. It stops Claude Code once the init event arrives, and exits 1 unless `apiKeySource` is `none` and the init event lists the plugin under test. `log <prompt>` keeps the whole run, and stops Claude Code early when the init event names an API key. Both stop Claude Code and every process it started at `--timeout`.
+
+## [4.5.9] - 2026-10-26
+
+### Fixed
+
+- **changelog:** the native-drift pass no longer refiles a recheck item on every apply for a store row whose marker comes from the docs. A row lists such markers in the new optional `native.docs_markers`, and the pass leaves them out of the marker comparison; any other marker change still fires.
+- **audit-native-overlap:** the store self-check rejects a `native.docs_markers` entry that the row's `native.markers` does not also record.
+
+## [4.5.8] - 2026-10-26
+
+### Fixed
+
+- The `consume-restarts print-schedule` command prints `--permission-mode auto`, plus `--permission-prompts none` when the CLI is 2.1.259 or later, on every scheduled `claude -p` line, so the reader no longer inherits the user's `defaultMode`. Regenerate an existing schedule to pick this up.
+
+## [4.5.7] - 2026-10-25
+
+### Fixed
+
+- **inventory:** `--reader=parser` no longer reads changed lists as `literal` in these cases:
+  - A destructured parameter's key default (`function f({cb=d})`) now counts when the argument's value may be undefined (`undefined`, `void 0`, a `var` read before its initializer runs, an imported binding).
+  - A numeric key matches its literal key.
+  - A key the literal lacks is read from `Object.prototype`, which the sink rule then watches.
+  - A literal that sets its prototype with `__proto__:` reads partial.
+  - `Function.prototype` is exempt from the code-built-from-a-string sink only while its member chain, past any call, cannot reach `constructor` and ends discarded, tested, compared or written.
+  - An export is followed into every module whose parsed import or re-export declaration takes the name, so a comment beside `from` no longer hides an importer.
+
 ## [4.5.6] - 2026-10-25
 
 ### Fixed

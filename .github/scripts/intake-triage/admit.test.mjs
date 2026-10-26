@@ -4,7 +4,7 @@ import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader 
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 
@@ -16,6 +16,7 @@ const APP = 337595936;
 const humans = new Set([HUMAN]);
 const READY = "status: ready";
 const NEEDS_DECISION = "status: needs-decision";
+const CONFIRMED = "status: confirmed";
 
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
   "\n",
@@ -117,13 +118,13 @@ describe("decide", () => {
       }
     });
 
-    test("admit() reads the authors and refuses an App-only spec to status: needs-decision", async () => {
+    test("admit() reads the authors and parks an App-only spec at status: confirmed, as no person must answer it", async () => {
       const { github, calls } = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
       const result = await admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => assert.fail("a refusal reads no status"), log: () => {} });
-      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC] });
+      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC], status: CONFIRMED });
       const writes = calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}`);
       assert.deepEqual(writes, ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/comments"]);
-      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [NEEDS_DECISION] });
+      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [CONFIRMED] });
     });
   });
 
@@ -210,7 +211,7 @@ describe("decide", () => {
     ],
   ];
   for (const [name, input, reason] of refusals) {
-    test(`refuses for a person on ${name}`, () => {
+    test(`refuses on ${name}`, () => {
       const result = decide(facts(input));
       assert.equal(result.verdict, "refuse");
       assert.match(result.reasons.join("; "), reason);
@@ -339,6 +340,40 @@ describe("decide", () => {
     const text = refusalText("Size large is not one of small, medium");
     assert.match(text, /^Not admitted to the issue lane: Size large is not one of small, medium\. /);
     assert.doesNotMatch(text, /agent-ready/);
+  });
+
+  // A standing recurring item links to its schedule row by `[Maintenance] {title}`.
+  describe("a recurring item whose schedule row needs an operator", () => {
+    const row = (id, precondition) => ({ id, title: "Re-run the ablation", cadence: "quarterly", ...(precondition && { precondition }) });
+    const recurring = issueOf({ title: "[Maintenance] Re-run the ablation", labels: [{ name: READY }, { name: "recurring" }] });
+    const CONFIRM = "its recurring schedule row ablation needs an operator's confirmation (requires_operator_confirmation)";
+
+    test("is refused when its row sets requires_operator_confirmation", () => {
+      const schedule = { items: [row("ablation", { id: "frontier-release-since-last-checked", requires_operator_confirmation: true })] };
+      assert.deepEqual(decide(facts({ issue: recurring, schedule })), { verdict: "refuse", reasons: [CONFIRM] });
+    });
+
+    test("is admitted when its row has no such flag, or no row matches its title", () => {
+      for (const items of [[row("ablation")], [row("ablation", { id: "x", requires_operator_confirmation: false })], [{ ...row("other"), title: "Something else" }], []]) {
+        assert.deepEqual(decide(facts({ issue: recurring, schedule: { items } })), { verdict: "admit", reasons: [] }, JSON.stringify(items));
+      }
+    });
+
+    test("is refused when the schedule could not be read", () => {
+      for (const schedule of [null, undefined, { rows: [] }]) {
+        const result = decide(facts({ issue: recurring, schedule }));
+        assert.equal(result.verdict, "refuse", String(schedule));
+        assert.match(result.reasons.join(), /recurring-schedule\.json could not be read/);
+      }
+      // Without the recurring label nothing is read.
+      assert.deepEqual(decide(facts({ schedule: null })), { verdict: "admit", reasons: [] });
+    });
+
+    test("readSchedule answers null for a missing or malformed file and reads the default branch's schedule", () => {
+      assert.equal(readSchedule(fileURLToPath(new URL("./no-such-schedule.json", import.meta.url))), null);
+      assert.equal(readSchedule(fileURLToPath(new URL("./admit.mjs", import.meta.url))), null);
+      assert.ok(Array.isArray(readSchedule().items));
+    });
   });
 
   test("skips an issue already agent-ready, or without status: ready", () => {
@@ -644,7 +679,7 @@ describe("admit", () => {
     });
   }
 
-  test("a refusal swaps status: ready for needs-decision and posts the reason", async () => {
+  test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
     const fake = fakeGitHub({
       issue: issueOf({ body: "Make the README better." }),
     });
@@ -652,14 +687,14 @@ describe("admit", () => {
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done.length, 3);
-    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /);
     assert.ok(done[2].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
     assert.match(done[2], /no trusted-human acceptance criteria/);
   });
 
-  test("a Windows-host done-when item stays out of the lane: needs-decision and a recommended split, never agent-ready", async () => {
+  test("a Windows-host done-when item stays out of the lane: needs-decision, which refine splits from, and a recommended split, never agent-ready", async () => {
     const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
@@ -670,8 +705,25 @@ describe("admit", () => {
     assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
   });
 
-  test("a refusal whose needs-decision write fails keeps status: ready, so admission-deferred never stands alone", async () => {
-    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(NEEDS_DECISION);
+  test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    const done = writes(fake.calls);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
+  });
+
+  test("a refusal with a person reason among mechanical ones still sets needs-decision", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    assert.match(result.reasons.join(), /no trusted-human acceptance criteria/);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
+
+  test("a refusal whose status: confirmed write fails keeps status: ready, so admission-deferred never stands alone", async () => {
+    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(CONFIRMED);
     const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: DEFERRED }] }), failOn });
     await assert.rejects(() => go(fake), /failed with status 500/);
     assert.ok(!writes(fake.calls).some((call) => call.startsWith("DELETE ")), writes(fake.calls).join("\n"));
@@ -1067,6 +1119,24 @@ describe("size split sub-issues", () => {
     ];
     assert.deepEqual(decide(facts({ subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
     assert.deepEqual(decide(facts({ subIssues: [subIssues[1]] })), { verdict: "admit", reasons: [] });
+  });
+
+  test("a parent with an open sub-issue waits on it instead of refusing for a mechanical reason or a pending split", () => {
+    const subIssues = [{ number: 8, state: "open" }];
+    const noCriteria = { ...humanSpec(issueOf({ body: "Make the README better." })) };
+    assert.deepEqual(decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: noCriteria, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+    assert.deepEqual(decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } }, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+  });
+
+  test("a parent waiting on an open sub-issue keeps its open pull requests, so admission-deferred stays", () => {
+    const result = decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: humanSpec(issueOf({ body: "Make the README better." })), pulls: [41], subIssues: [{ number: 8, state: "open" }] }));
+    assert.deepEqual(result, { verdict: "wait", reasons: ["open pull request #41 is for it", "sub-issue #8 is open"], pulls: [41] });
+  });
+
+  test("a parent with an open sub-issue still refuses for a person when a hold applies", () => {
+    const result = decide(facts({ verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" }, subIssues: [{ number: 8, state: "open" }] }));
+    assert.equal(result.verdict, "refuse");
+    assert.equal(result.hold, true);
   });
 
   // fakeGitHub answers one issue's text; these reads add the parent's text,

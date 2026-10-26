@@ -89,24 +89,47 @@ export class GitHubError extends Error {
   }
 }
 
-// Wraps a fetch so a GET attempt is aborted after attemptTimeoutMs, and a GET
-// that GitHub answers 5xx, answers 200 with an empty body or with JSON that
-// does not parse, or that fails on the network (a timeout, "fetch failed", an
-// error with a cause code) is sent again after 2 s, 4 s and 8 s, each with
-// equal jitter (half fixed, half random). The time failed attempts took plus
-// the waits, summed over every call through one wrapper, is capped at 60 s: a
-// wait past the cap is not taken. With 20 s attempts, retrying adds at most
-// about 80 s to a client, inside the shortest step that runs one (3 minutes,
+// Wraps a fetch so an idempotent request (a GET, or a GraphQL query) has each
+// attempt aborted after attemptTimeoutMs, and is sent again after 2 s, 4 s and
+// 8 s, each with equal jitter (half fixed, half random), when GitHub answers it
+// 5xx, answers a GET 200 with an empty body or with JSON that does not parse,
+// or it fails on the network (a timeout, "fetch failed", an error with a cause
+// code). The time failed attempts took plus the waits, summed over every call
+// through one wrapper, is capped at 60 s: a wait past the cap is not taken,
+// though a call's first attempt always goes out. With 20 s attempts, retrying adds at most
+// about 80 s to one call, inside the shortest step that runs one (3 minutes,
 // pr-merge.yml's gate-check and clear-escalations). The last answer is
-// returned, or the last error thrown. Only GETs are idempotent; a 4xx is the
-// caller's to handle, a rate limit is the rate guard's (rate-guard.mjs), whose
-// latch refuses any attempt while its pool is stopped, and any other
-// thrown error is raised at once. A retry line names an error's name and cause
-// code only: undici puts a whole header value, the token included, in some
-// messages. createGitHub and budgetedFetch both use it.
+// returned, or the last error thrown. Any other request, a mutation among
+// them, is sent once and never timed out; a 4xx is the caller's to handle, a
+// rate limit is the rate guard's (rate-guard.mjs), whose latch refuses any
+// attempt while its pool is stopped, and any other thrown error is raised at
+// once. A retry line names an error's name and cause code only: undici puts a
+// whole header value, the token included, in some messages. createGitHub and
+// budgetedFetch both use it.
 const SERVER_RETRY_DELAYS_MS = [2000, 4000, 8000];
 const SERVER_RETRY_BUDGET_MS = 60_000;
 const ATTEMPT_TIMEOUT_MS = 20_000;
+// A GraphQL query: a POST to /graphql whose document starts with `query` or
+// `{`, holds no `mutation` or `subscription` word anywhere, and whose request
+// names no operationName. A document can hold several operations and the
+// request pick one by name, so anything less than all three may run a mutation.
+const graphqlQuery = (url, init) => {
+  if (!String(url).endsWith("/graphql") || typeof init.body !== "string") {
+    return false;
+  }
+  try {
+    const request = JSON.parse(init.body);
+    const query = request?.query;
+    return (
+      typeof query === "string" &&
+      request.operationName === undefined &&
+      /^\s*(query\b|\{)/.test(query) &&
+      !/\b(mutation|subscription)\b/.test(query)
+    );
+  } catch {
+    return false;
+  }
+};
 const networkFailure = (error) =>
   error?.name === "TimeoutError" ||
   error?.name === "AbortError" ||
@@ -151,10 +174,11 @@ export function retryServerErrors(
   let spent = 0;
   return async function send(url, init = {}) {
     const method = init.method ?? "GET";
+    const idempotent = method === "GET" || (method === "POST" && graphqlQuery(url, init));
     for (let attempt = 0; ; attempt += 1) {
-      // Only a GET is timed out: a write GitHub accepted slowly must not look
-      // failed, so writes keep only the caller's signal.
-      const timeout = method === "GET" ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
+      // Only an idempotent request is timed out: a write GitHub accepted slowly
+      // must not look failed, so writes keep only the caller's signal.
+      const timeout = idempotent ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
       const signal = timeout && init.signal ? AbortSignal.any([init.signal, timeout]) : (timeout ?? init.signal);
       const started = now();
       let response;
@@ -170,7 +194,7 @@ export function retryServerErrors(
       spent += failed ? now() - started : 0;
       const delay = SERVER_RETRY_DELAYS_MS[attempt];
       const wait = delay === undefined ? 0 : Math.round(delay / 2 + (random() * delay) / 2);
-      if (!failed || method !== "GET" || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
+      if (!failed || !idempotent || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
         if (error !== undefined) {
           throw error;
         }
@@ -183,7 +207,7 @@ export function retryServerErrors(
           : broken
             ? `answered ${response.status} with an empty or unparsable body`
             : `answered ${response.status}`;
-      log(`::warning::GET ${url} ${what}; sending it again in ${wait} ms (retry ${attempt + 1} of ${SERVER_RETRY_DELAYS_MS.length})`);
+      log(`::warning::${method} ${url} ${what}; sending it again in ${wait} ms (retry ${attempt + 1} of ${SERVER_RETRY_DELAYS_MS.length})`);
       spent += wait;
       await sleep(wait);
     }
@@ -192,7 +216,7 @@ export function retryServerErrors(
 
 // One function every API read and write goes through; tests replace it.
 // keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
-// judge, instead of raising on any. A GET answered 5xx is sent again
+// judge, instead of raising on any. A read answered 5xx is sent again
 // (retryServerErrors). A call while the rate guard's latch holds its pool
 // throws RateLimitStop without a request.
 export function createGitHub({
@@ -546,7 +570,7 @@ async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
 // re-run keeps the event, so a stop here could otherwise turn an earlier red
 // check on the same SHA neutral: untrusted-rerunner has no skip mapping, and
 // a failed or malformed read stops with it too.
-async function readRerunner(github, repository, runId, runAttempt) {
+export async function readRerunner(github, repository, runId, runAttempt) {
   const refuse = "untrusted-rerunner";
   if (!RUN_ID.test(runId) || !RUN_ATTEMPT.test(runAttempt)) {
     throw new Stop(refuse);
