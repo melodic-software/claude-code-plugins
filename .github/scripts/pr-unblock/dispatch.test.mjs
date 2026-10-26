@@ -666,6 +666,22 @@ test("a workflow_run_id that is not 1 to 15 digits without a leading zero counts
   }
 });
 
+test("a check-run read GitHub still answers 5xx after its retries skips that PR with a warning; any other error fails", async () => {
+  const { api, lines, run } = harness({ pages: [[pr(97), pr(98)]] });
+  const listCheckRuns = api.listCheckRuns;
+  let error = Object.assign(new Error("GET check-runs returned 503"), { status: 503 });
+  api.listCheckRuns = async (query) => {
+    if (query.sha === pr(97).headRefOid) {
+      throw error;
+    }
+    return listCheckRuns(query);
+  };
+  assert.deepEqual(await run(), { dispatched: [{ number: 98, workflowRunId: "9098" }], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#97:") && line.includes("503")));
+  error = Object.assign(new Error("GET check-runs returned 401"), { status: 401 });
+  assert.equal((await run()).failed, 1);
+});
+
 test("a 15-digit workflow_run_id is accepted", async () => {
   const { run } = harness({
     pages: [[pr(91)]],
@@ -860,6 +876,72 @@ test("main still exits 1 on a run listing that fails for any other reason", asyn
   const { api, code } = await mainWithFailedListing(new Error("GET runs returned 404"));
   assert.equal(code, 1);
   assert.deepEqual(api.calls.dispatch, []);
+});
+
+// main with fix-docs candidates whose history reads go through the real
+// adapter and budgetedFetch to GitHub's scripted GraphQL answers: `answers`
+// maps a PR number to the responses its reads get, in order; a PR left out is
+// answered with an empty history.
+async function mainWithHistoryAnswers(answers, pulls) {
+  const sent = new Map();
+  const fetch = async (_url, init) => {
+    const { number } = JSON.parse(init.body).variables;
+    sent.set(number, (sent.get(number) ?? 0) + 1);
+    const answer = answers.get(number)?.shift();
+    if (answer) {
+      return answer();
+    }
+    const data = { rateLimit: { cost: 1, remaining: 4999 }, repository: { pullRequest: { commits: { nodes: [] } } } };
+    return new Response(JSON.stringify({ data }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+  const budget = budgetedFetch({ fetch, log: () => {}, sleep: async () => {}, random: () => 0, latch });
+  const adapter = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
+  const api = { ...fakeApi({ pages: [[]], docsPulls: pulls }), readDocsFixHistory: adapter.readDocsFixHistory };
+  const lines = [];
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    const code = await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+    );
+    return { api, code, lines, sent };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const badGateway = () => new Response("bad gateway", { status: 502 });
+
+test("a fix-docs history read answered 502 twice is sent again and the PR dispatched", async () => {
+  const { api, code, sent } = await mainWithHistoryAnswers(new Map([[191, [badGateway, badGateway]]]), [docsPull(191)]);
+  assert.equal(sent.get(191), 3);
+  assert.deepEqual(dispatchedNumbers(api), ["191"]);
+  assert.equal(code, 0);
+});
+
+test("a fix-docs history read that keeps answering 502 skips that PR with a warning, dispatches the others, and exits 0", async () => {
+  const always = Array.from({ length: 10 }, () => badGateway);
+  const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[192, always]]), [docsPull(192), docsPull(193)]);
+  assert.equal(sent.get(192), 4, "the first send and the three bounded retries");
+  assert.deepEqual(dispatchedNumbers(api), ["193"]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("#192") && line.includes("502")));
+  assert.ok(!lines.some((line) => line.startsWith("::error::")));
+  assert.equal(code, 0);
+});
+
+test("a rate-limited fix-docs history read is sent once and fails the run", async () => {
+  const reset = Math.floor(Date.now() / 1000) + 19 * 60;
+  const limited = () =>
+    new Response('{"message":"API rate limit exceeded for installation."}', {
+      status: 403,
+      headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset), "x-ratelimit-resource": "graphql" },
+    });
+  const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[194, [limited, limited]]]), [docsPull(194)]);
+  assert.equal(sent.get(194), 1);
+  assert.deepEqual(dispatchedNumbers(api), []);
+  assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("#194")));
+  assert.equal(code, 1);
 });
 
 test("the adapter marks a run listing budgetedFetch gave up on as rate limited, and a refusal as not", async () => {
