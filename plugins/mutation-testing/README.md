@@ -1,8 +1,8 @@
 # mutation-testing
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. It measures whether a test
-suite can actually *detect* faults, not merely *execute* code. Three skills, one concern: proving the
-tests are checking something.
+suite can actually *detect* faults, not merely *execute* code. The three skills share one concern,
+proving the tests check something.
 
 | Skill | What it does |
 |---|---|
@@ -56,7 +56,8 @@ about it, and a coverage report will call that file healthy.
 
 - `.claude/mutation-testing.md`. Tool, invocation command, diff target, mutate globs, operator set,
   timeout, measured baseline suite time, optional mutant cap, and an optional `test-command` whose
-  `{tests}` placeholder `audit --exercised` fills with the test paths.
+  `{tests}` placeholder `audit --exercised` fills with the test paths (for `dotnet test`, with one
+  test project and a class filter per run).
 - `.claude/mutation-testing-arid.md`, the arid-node suppression record, shaped by the marketplace's
   finding-suppression convention: a mapping keyed by a derived `finding_id`, every entry carrying all
   five required keys (`check`, `claim`, `sites`, `reason`, `date`) with the id derived from its own
