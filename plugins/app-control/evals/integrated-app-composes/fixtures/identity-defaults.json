@@ -1,7 +1,7 @@
 {
   "environment": "staging",
   "environments": {
-    "local": {
+    "dev": {
       "url": "http://127.0.0.1:9100"
     },
     "staging": {

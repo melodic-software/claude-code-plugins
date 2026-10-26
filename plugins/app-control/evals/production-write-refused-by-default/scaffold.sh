@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seeds the shop control skill with a refund write, a staging environment that grants it attended,
-# and a production environment with no write grant, all committed.
+# and a production environment that also grants it attended, all committed.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

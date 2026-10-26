@@ -6,7 +6,7 @@
       "services": {
         "identity": {
           "app": "identity",
-          "environment": "local"
+          "environment": "dev"
         }
       }
     }
