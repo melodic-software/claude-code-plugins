@@ -345,8 +345,18 @@ jobs:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
+      fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
+      # Whether the third call can run, never the token. resolve-conflicts-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last. It runs first, so a failed read still sets it.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -386,6 +396,7 @@ jobs:
       lane: pr-unblock
       activity: resolve-conflicts
       fallback: handoff
+      fallback-ready: ${{ needs.resolve-conflicts-handoff.outputs.fallback-ready }}
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -395,6 +406,71 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether resolve-conflicts-subscription handed off to the fallback token, read from this run's
+  # jobs by handoff-evidence.sh, never from a resolve-conflicts-subscription output: its broker
+  # allowed it, its run job succeeded and its scan job never ran. It runs
+  # only when resolve-conflicts-handoff found the fallback token set, so with the token empty
+  # nothing starts that did not before. A failed read starts no third call.
+  resolve-conflicts-subscription-handoff:
+    needs: [resolve-conflicts-handoff, resolve-conflicts-subscription]
+    if: ${{ !cancelled() && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-handoff.outputs.fallback-ready == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether resolve-conflicts-subscription handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-conflicts-subscription
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+  # The third call, on the central fallback subscription's token alone: it
+  # runs only on resolve-conflicts-subscription-handoff's read, after resolve-conflicts-subscription's subscription leg handed off (a
+  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
+  # hands off.
+  resolve-conflicts-fallback:
+    needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-handoff, resolve-conflicts-subscription, resolve-conflicts-subscription-handoff]
+    if: ${{ !cancelled() && needs.resolve-conflicts-handoff.outputs.fallback-ready == 'true' && needs.resolve-conflicts-subscription-handoff.outputs.handed-off == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: resolve-conflicts
+      fallback: fallback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      head-sha: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
+      merge-base-sha: ${{ needs.resolve-conflicts-select.outputs.base-sha }}
+      merge-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
+      timeout-minutes: 60
+    secrets:
+      fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs under patch-rules.json's merge-base row, a
@@ -408,13 +484,13 @@ jobs:
   # leg answers a conflicted round: the fallback call when it ran, else the
   # first, and every model-call input below is that leg's scan job's.
   apply-conflict-patch:
-    needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription]
+    needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription, resolve-conflicts-fallback]
     if: >-
       ${{ !cancelled()
       && (needs.resolve-conflicts-select.outputs.merge-state == 'clean'
       || needs.resolve-conflicts-select.outputs.proceed == 'true'
-      && ((needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'written'
-      || (needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'empty')) }}
+      && ((needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'written'
+      || (needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'empty')) }}
     permissions:
       contents: read
       pull-requests: read
@@ -434,10 +510,10 @@ jobs:
       trusted-base: default-tip
       # The scan job's outputs alone, never a run job's, from the one leg;
       # empty for a clean merge, which no model call answered.
-      patch-state: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '' }}
-      patch-sha256: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-sha256 || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-sha256 || '' }}
-      patch-attempt: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-attempt || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-attempt || '' }}
-      reply-attempt: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-reply-attempt || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-reply-attempt || '' }}
+      patch-state: ${{ needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-sha256 || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-sha256 || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-attempt || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-attempt || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-attempt || '' }}
+      reply-attempt: ${{ needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-reply-attempt || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-reply-attempt || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-reply-attempt || '' }}
       patch-activity: resolve-conflicts
       patch-prepare: merge-base
       # The head, pinned base, merge state and conflict tree the select job
@@ -459,11 +535,11 @@ jobs:
   # unresolved-conflict when one says the scan refused
   # (conflict-scan-refusal.mjs). No marker escalates nothing.
   conflict-scan-refusal:
-    needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription]
+    needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription, resolve-conflicts-fallback]
     if: >-
       ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true'
-      && (needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') != 'written'
-      && (needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') != 'empty' }}
+      && (needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') != 'written'
+      && (needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') != 'empty' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -748,8 +824,18 @@ jobs:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
+      fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
+      # Whether the third call can run, never the token. address-feedback-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last. It runs first, so a failed read still sets it.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -789,6 +875,7 @@ jobs:
       lane: pr-unblock
       activity: address-feedback
       fallback: handoff
+      fallback-ready: ${{ needs.address-feedback-handoff.outputs.fallback-ready }}
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -798,6 +885,71 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether address-feedback-subscription handed off to the fallback token, read from this run's
+  # jobs by handoff-evidence.sh, never from a address-feedback-subscription output: its broker
+  # allowed it, its run job succeeded and its scan job never ran. It runs
+  # only when address-feedback-handoff found the fallback token set, so with the token empty
+  # nothing starts that did not before. A failed read starts no third call.
+  address-feedback-subscription-handoff:
+    needs: [address-feedback-handoff, address-feedback-subscription]
+    if: ${{ !cancelled() && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-handoff.outputs.fallback-ready == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether address-feedback-subscription handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: address-feedback-subscription
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+  # The third call, on the central fallback subscription's token alone: it
+  # runs only on address-feedback-subscription-handoff's read, after address-feedback-subscription's subscription leg handed off (a
+  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
+  # hands off.
+  address-feedback-fallback:
+    needs: [address-feedback-select, address-feedback, address-feedback-handoff, address-feedback-subscription, address-feedback-subscription-handoff]
+    if: ${{ !cancelled() && needs.address-feedback-handoff.outputs.fallback-ready == 'true' && needs.address-feedback-subscription-handoff.outputs.handed-off == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: address-feedback
+      fallback: fallback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      feedback-context-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
+      feedback-context-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
+      head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
+      timeout-minutes: 60
+    secrets:
+      fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs under patch-rules.json's review-threads
@@ -812,15 +964,15 @@ jobs:
     # After adjudicate-feedback too, so the push lands right before the reply
     # job: a review run on the pushed head that finishes while this run still
     # goes would find it in progress, skip, and start no next round.
-    needs: [address-feedback-select, address-feedback, address-feedback-subscription, adjudicate-feedback]
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-feedback]
     # One leg answers the round: the fallback call when it ran, else the
     # first, and every model-call input below is that leg's, so one leg's
     # patch never pairs with the other's replies and an empty field never
     # falls through. A patch with no replies is not pushed.
     if: >-
       ${{ !cancelled()
-      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '') == 'written'
-      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != '' }}
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '') == 'written'
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != '' }}
     permissions:
       contents: read
       pull-requests: read
@@ -839,9 +991,9 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       # The scan job's outputs alone, never a run job's, from the one leg.
-      patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
-      patch-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-sha256 || '' }}
-      patch-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-attempt || '' }}
+      patch-state: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-attempt || '' }}
       patch-activity: address-feedback
       patch-prepare: review-threads
       # The head the select job read, from a job that ran no head code.
@@ -852,7 +1004,7 @@ jobs:
       # only threads a trusted person with write access asked to fix, or a
       # lane escalation put the label on (gate-source.mjs).
       patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
-      reply-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
+      reply-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
   # The adjudicator, after the model job and before the reply job, only when
   # the answering leg's scan job read an INCORRECT reply (feedback-disputed);
@@ -871,11 +1023,11 @@ jobs:
   # name fails this upload and reads as none. No verdict for a thread, a
   # skipped job or an empty key escalates it as feedback-unadjudicated.
   adjudicate-feedback:
-    needs: [address-feedback-select, address-feedback, address-feedback-subscription]
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
-      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
-      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
+      && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     permissions:
@@ -917,7 +1069,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: feedback-replies-pr-unblock-address-feedback-${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
+          name: feedback-replies-pr-unblock-address-feedback-${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
           path: ${{ runner.temp }}/adjudicate-input
 
       - name: Stage the disputed threads
@@ -930,7 +1082,7 @@ jobs:
           THREADS_FILE: ${{ runner.temp }}/adjudicate-input/threads.json
           THREADS_SHA256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
           REPLIES_FILE: ${{ runner.temp }}/adjudicate-input/replies.jsonl
-          REPLIES_SHA256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
+          REPLIES_SHA256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
           OUT_DIR: ${{ runner.temp }}/adjudicate
         run: node .base/.github/scripts/pr-unblock/adjudicate-feedback.mjs prepare
 
@@ -1200,7 +1352,7 @@ jobs:
   # whenever the select job proceeded, whatever the model and push jobs did,
   # so every round is counted; a hostile model job cannot skip it.
   publish-feedback:
-    needs: [address-feedback-select, address-feedback, address-feedback-subscription, apply-feedback-patch, adjudicate-feedback]
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, apply-feedback-patch, adjudicate-feedback]
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
     permissions:
       contents: read
@@ -1227,9 +1379,9 @@ jobs:
       # apply-feedback-patch reads; only the scan job, which ran no model or
       # head code, sets these outputs. The scan's refusal arrives as the
       # scan-refusal job's marker artifact, which the reply job downloads.
-      review-replies-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
-      review-replies-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
-      review-patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
+      review-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
+      review-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
+      review-patch-state: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
       # The adjudicator's verdicts on the INCORRECT replies, and their SHA-256,
       # set only once its upload succeeded.
       review-adjudication-attempt: ${{ needs.adjudicate-feedback.outputs.attempt }}
@@ -1476,8 +1628,18 @@ jobs:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
+      fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
+      # Whether the third call can run, never the token. review-dependency-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last. It runs first, so a failed read still sets it.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1517,6 +1679,7 @@ jobs:
       lane: pr-unblock
       activity: review-dependency
       fallback: handoff
+      fallback-ready: ${{ needs.review-dependency-handoff.outputs.fallback-ready }}
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -1526,6 +1689,71 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether review-dependency-subscription handed off to the fallback token, read from this run's
+  # jobs by handoff-evidence.sh, never from a review-dependency-subscription output: its broker
+  # allowed it, its run job succeeded and its scan job never ran. It runs
+  # only when review-dependency-handoff found the fallback token set, so with the token empty
+  # nothing starts that did not before. A failed read starts no third call.
+  review-dependency-subscription-handoff:
+    needs: [review-dependency-handoff, review-dependency-subscription]
+    if: ${{ !cancelled() && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-handoff.outputs.fallback-ready == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether review-dependency-subscription handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: review-dependency-subscription
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+  # The third call, on the central fallback subscription's token alone: it
+  # runs only on review-dependency-subscription-handoff's read, after review-dependency-subscription's subscription leg handed off (a
+  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
+  # hands off.
+  review-dependency-fallback:
+    needs: [review-dependency-select, review-dependency, review-dependency-handoff, review-dependency-subscription, review-dependency-subscription-handoff]
+    if: ${{ !cancelled() && needs.review-dependency-handoff.outputs.fallback-ready == 'true' && needs.review-dependency-subscription-handoff.outputs.handed-off == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: review-dependency
+      fallback: fallback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      dependency-context-attempt: ${{ needs.review-dependency-select.outputs.context-attempt }}
+      dependency-context-sha256: ${{ needs.review-dependency-select.outputs.context-sha256 }}
+      head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+      timeout-minutes: 60
+    secrets:
+      fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs under patch-rules.json's dependency-review
@@ -1538,15 +1766,15 @@ jobs:
   # does not need it: a patch that does not land leaves no fix commit, and
   # the verdict job hands the PR to a person as dependency-fix-not-landed.
   apply-dependency-patch:
-    needs: [review-dependency-select, review-dependency, review-dependency-subscription]
+    needs: [review-dependency-select, review-dependency, review-dependency-subscription, review-dependency-fallback]
     # One leg answers the round: the fallback call when it ran, else the
     # first, and every model-call input below is that leg's scan job's, so
     # one leg's patch never pairs with the other's verdict and an empty
     # field never falls through.
     if: >-
       ${{ !cancelled()
-      && (needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '') == 'written'
-      && (needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-verdict || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-verdict || '') == 'fix' }}
+      && (needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '') == 'written'
+      && (needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-verdict || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-verdict || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-verdict || '') == 'fix' }}
     permissions:
       contents: read
       pull-requests: read
@@ -1565,17 +1793,17 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       # The scan job's outputs alone, never a run job's, from the one leg.
-      patch-state: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
-      patch-sha256: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-sha256 || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-sha256 || '' }}
-      patch-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-attempt || '' }}
+      patch-state: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-attempt || '' }}
       patch-activity: review-dependency
       patch-prepare: dependency-review
       # The head the select job read, from a job that ran no head code.
       patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
       # The scanned verdict the row's dependency-verdict requirement reads.
-      patch-verdict-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
-      patch-verdict-sha256: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
-      reply-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-reply-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-reply-attempt || '' }}
+      patch-verdict-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
+      patch-verdict-sha256: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
+      reply-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-reply-attempt || '' }}
 
   # The verdict job, a script with no model: it holds pull-requests and
   # issues write and acts on the verdict: the round marker, a close (never a
@@ -1584,7 +1812,7 @@ jobs:
   # so every round is counted; a hostile model job cannot skip it. Neither
   # job merges.
   apply-dependency-verdict:
-    needs: [review-dependency-select, review-dependency, review-dependency-subscription, apply-dependency-patch]
+    needs: [review-dependency-select, review-dependency, review-dependency-subscription, review-dependency-fallback, apply-dependency-patch]
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
     permissions:
       contents: read
@@ -1614,9 +1842,9 @@ jobs:
       # scan-refusal job's marker artifact, which the verdict job downloads. The verdict's
       # attempt names the model run in the round marker, so "Re-run failed
       # jobs" on this job alone still downloads it.
-      dependency-run-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
-      dependency-verdict-sha256: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
-      dependency-patch-state: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
+      dependency-run-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
+      dependency-verdict-sha256: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
+      dependency-patch-state: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
 
   # fix-ci is four jobs, so no model ever holds a write token. This one runs
   # only base code with a read-only token and checks out no PR head: it hands
@@ -1803,8 +2031,18 @@ jobs:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
+      fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
+      # Whether the third call can run, never the token. fix-ci-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last. It runs first, so a failed read still sets it.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1847,6 +2085,7 @@ jobs:
       lane: pr-unblock
       activity: fix-ci
       fallback: handoff
+      fallback-ready: ${{ needs.fix-ci-handoff.outputs.fallback-ready }}
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -1856,6 +2095,71 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether fix-ci-subscription handed off to the fallback token, read from this run's
+  # jobs by handoff-evidence.sh, never from a fix-ci-subscription output: its broker
+  # allowed it, its run job succeeded and its scan job never ran. It runs
+  # only when fix-ci-handoff found the fallback token set, so with the token empty
+  # nothing starts that did not before. A failed read starts no third call.
+  fix-ci-subscription-handoff:
+    needs: [fix-ci-handoff, fix-ci-subscription]
+    if: ${{ !cancelled() && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-handoff.outputs.fallback-ready == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether fix-ci-subscription handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci-subscription
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+  # The third call, on the central fallback subscription's token alone: it
+  # runs only on fix-ci-subscription-handoff's read, after fix-ci-subscription's subscription leg handed off (a
+  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
+  # hands off.
+  fix-ci-fallback:
+    needs: [fix-ci-context, fix-ci, fix-ci-handoff, fix-ci-subscription, fix-ci-subscription-handoff]
+    if: ${{ !cancelled() && needs.fix-ci-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-subscription-handoff.outputs.handed-off == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: fix-ci
+      fallback: fallback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      timeout-minutes: 60
+    secrets:
+      fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs, a script with no model that runs no head
@@ -1869,12 +2173,12 @@ jobs:
   # else the first, and every input is that leg's scan job's, never a run
   # job's; a call that handed off left none.
   apply-patch:
-    needs: [fix-ci-context, fix-ci, fix-ci-subscription]
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-fallback]
     if: >-
       ${{ !cancelled()
-      && ((needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'written'
-      || (needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'empty'
-      || (needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-collect-refused || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-collect-refused || '') == 'true') }}
+      && ((needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'written'
+      || (needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'empty'
+      || (needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-collect-refused || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-collect-refused || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
       contents: read
       pull-requests: read
@@ -1892,9 +2196,9 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '' }}
-      patch-sha256: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-sha256 || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-sha256 || '' }}
-      patch-attempt: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-attempt || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-attempt || '' }}
+      patch-state: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-sha256 || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-sha256 || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
       # The head fix-ci-context gated, from a job that ran no head code; the
@@ -1907,7 +2211,7 @@ jobs:
       # true drops the human-gated label from the holds: another lane's
       # escalation put it on (fix-ci-context.mjs).
       patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
-      reply-attempt: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
+      reply-attempt: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
 
   # fix-ci's one retry one model rung up, in this same run: when apply-patch
   # skipped rung-up (the run changed nothing and escalated only unfixed or
@@ -1959,8 +2263,18 @@ jobs:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
+      fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
+      # Whether the third call can run, never the token. fix-ci-rung-up-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last. It runs first, so a failed read still sets it.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1998,6 +2312,7 @@ jobs:
       lane: pr-unblock
       activity: fix-ci
       fallback: handoff
+      fallback-ready: ${{ needs.fix-ci-rung-up-handoff.outputs.fallback-ready }}
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -2010,13 +2325,79 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
+  # Whether fix-ci-rung-up-subscription handed off to the fallback token, read from this run's
+  # jobs by handoff-evidence.sh, never from a fix-ci-rung-up-subscription output: its broker
+  # allowed it, its run job succeeded and its scan job never ran. It runs
+  # only when fix-ci-rung-up-handoff found the fallback token set, so with the token empty
+  # nothing starts that did not before. A failed read starts no third call.
+  fix-ci-rung-up-subscription-handoff:
+    needs: [fix-ci-rung-up-handoff, fix-ci-rung-up-subscription]
+    if: ${{ !cancelled() && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-handoff.outputs.fallback-ready == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether fix-ci-rung-up-subscription handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci-rung-up-subscription
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+  # The third call, on the central fallback subscription's token alone: it
+  # runs only on fix-ci-rung-up-subscription-handoff's read, after fix-ci-rung-up-subscription's subscription leg handed off (a
+  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
+  # hands off.
+  fix-ci-rung-up-fallback:
+    needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff, fix-ci-rung-up-subscription, fix-ci-rung-up-subscription-handoff]
+    if: ${{ !cancelled() && needs.fix-ci-rung-up-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-rung-up-subscription-handoff.outputs.handed-off == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: fix-ci
+      fallback: fallback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      model-rung: "1"
+      timeout-minutes: 60
+    secrets:
+      fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
   apply-patch-rung-up:
-    needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-subscription]
+    needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-subscription, fix-ci-rung-up-fallback]
     if: >-
       ${{ !cancelled()
-      && ((needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'written'
-      || (needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'empty'
-      || (needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-collect-refused || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-collect-refused || '') == 'true') }}
+      && ((needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'written'
+      || (needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'empty'
+      || (needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-collect-refused || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-collect-refused || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
       contents: read
       pull-requests: read
@@ -2034,16 +2415,16 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '' }}
-      patch-sha256: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-sha256 || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-sha256 || '' }}
-      patch-attempt: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-attempt || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-attempt || '' }}
+      patch-state: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-patch-sha256 || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-sha256 || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-patch-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
-      reply-attempt: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
+      reply-attempt: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
 
   # A fix-ci round whose every call posted no check (a run that forged a
   # handoff, or a report job that failed) would leave nothing for
@@ -2054,7 +2435,7 @@ jobs:
   # allowed the lane: a kill switch, read there with its repository shadow,
   # or a broker refusal is no merge blocker and spends no restart.
   fix-ci-unreported:
-    needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-rung-up, fix-ci-rung-up-subscription]
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-fallback, fix-ci-rung-up, fix-ci-rung-up-subscription, fix-ci-rung-up-fallback]
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -2080,7 +2461,7 @@ jobs:
         id: posted
         env:
           GH_TOKEN: ${{ github.token }}
-          CALLS: fix-ci fix-ci-subscription fix-ci-rung-up fix-ci-rung-up-subscription
+          CALLS: fix-ci fix-ci-subscription fix-ci-fallback fix-ci-rung-up fix-ci-rung-up-subscription fix-ci-rung-up-fallback
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted allowed
 
       - name: Post the check run

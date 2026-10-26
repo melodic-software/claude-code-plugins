@@ -154,9 +154,19 @@ jobs:
       actions: read # this run's jobs and their steps
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
+      fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
       allowed: ${{ steps.posted.outputs.allowed }}
     steps:
+      # Whether the third call can run, never the token. fix-docs-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last. It runs first, so a failed read still sets it.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -203,6 +213,7 @@ jobs:
       lane: pr-refine
       activity: fix-docs
       fallback: handoff
+      fallback-ready: ${{ needs.fix-docs-handoff.outputs.fallback-ready }}
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -211,6 +222,70 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether fix-docs-subscription handed off to the fallback token, read from this run's
+  # jobs by handoff-evidence.sh, never from a fix-docs-subscription output: its broker
+  # allowed it, its run job succeeded and its scan job never ran. It runs
+  # only when fix-docs-handoff found the fallback token set, so with the token empty
+  # nothing starts that did not before. A failed read starts no third call.
+  fix-docs-subscription-handoff:
+    needs: [fix-docs-handoff, fix-docs-subscription]
+    if: ${{ !cancelled() && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-handoff.outputs.fallback-ready == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether fix-docs-subscription handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-docs-subscription
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+  # The third call, on the central fallback subscription's token alone: it
+  # runs only on fix-docs-subscription-handoff's read, after fix-docs-subscription's subscription leg handed off (a
+  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
+  # hands off.
+  fix-docs-fallback:
+    needs: [fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
+    if: ${{ !cancelled() && needs.fix-docs-handoff.outputs.fallback-ready == 'true' && needs.fix-docs-subscription-handoff.outputs.handed-off == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-refine
+      activity: fix-docs
+      fallback: fallback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      post-decline: false
+      timeout-minutes: 60
+    secrets:
+      fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # fix-docs's push job: the apply-patch activity under patch-rules.json's
@@ -223,10 +298,10 @@ jobs:
   # head code. The head is fix-docs-head's, read by a job that ran no head
   # code; apply-patch still applies onto the head its own gate reads.
   apply-docs-patch:
-    needs: [fix-docs-head, fix-docs, fix-docs-subscription]
+    needs: [fix-docs-head, fix-docs, fix-docs-subscription, fix-docs-fallback]
     if: >-
       ${{ !cancelled()
-      && (needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '') == 'written' }}
+      && (needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '') == 'written' }}
     permissions:
       contents: read
       pull-requests: read
@@ -244,12 +319,12 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '' }}
-      patch-sha256: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-sha256 || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-sha256 || '' }}
-      patch-attempt: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-attempt || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-attempt || '' }}
+      patch-state: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-sha256 || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-sha256 || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-docs
       patch-head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
       # true drops the human-gated label from the holds: a lane escalation
       # put it on (lane-hold.mjs).
       patch-fix-requested: ${{ needs.fix-docs-head.outputs.lane-escalated }}
-      reply-attempt: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}
+      reply-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}
