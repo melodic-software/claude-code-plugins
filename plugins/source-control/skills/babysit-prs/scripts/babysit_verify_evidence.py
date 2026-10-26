@@ -45,13 +45,16 @@ from a completed, successful one. Any other artifact is ignored.
   reverse, a key that is missing or holds anything else, linked issues that
   differ or cannot be read, and a FAIL record that cannot be read or records
   another pull request, head or verdict keep `verify:earlier-fail`. It is
-  cleared too when every counted FAIL there and every counted pass at the
-  head record the title and body each judged (`intent_sha256`), no pass's
-  equals a FAIL's, and the pull request body's last edit was a trusted
-  person's, made after every such FAIL's run was created and before every
-  pass's (`_body_fix_pass`): the FAIL was about text a person then fixed,
-  which the lane cannot do for itself. An edit that cannot be read keeps
-  `verify:earlier-fail`. Any
+  cleared too when every counted FAIL there judged the pull request's own
+  title and body as its spec (`intent` `pull-request`), every such FAIL and
+  every counted pass at the head record the title and body each judged
+  (`intent_sha256`), no pass's equals a FAIL's, and the pull request body's
+  last edit was a trusted person's, made after every such FAIL's run was
+  created and before every pass's (`_body_fix_pass`). A local agent session
+  acting as that person counts as that person, so only a FAIL whose spec was
+  the body clears this way; a FAIL judged against an issue keeps
+  `verify:earlier-fail` whoever edits the body, as does an edit that cannot
+  be read. Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -1790,15 +1793,20 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]],
         passes: list[tuple[int, str, Any]],
     ) -> bool:
-        """Every counted FAIL at `sha` for pull request `number` and every
-        counted pass at the head record the title and body each judged
+        """Every counted FAIL at `sha` for pull request `number` judged the
+        pull request's own title and body as its spec (`intent`
+        `pull-request`, write-verdict.mjs), every such FAIL and every counted
+        pass at the head record the title and body each judged
         (`intent_sha256`), no pass's equals a FAIL's, and the body's last
         edit (`lastEditedAt`, `editor`) was made by a User on the trusted
         list's humans (`_trusted_actor`) after every such FAIL's run was
-        created and before every pass's: a person fixed the text the FAIL was
-        about. The lanes App's edit never counts, so the lane cannot buy a
-        pass by rewriting its own body. A record, edit or time that cannot
-        be read is False."""
+        created and before every pass's. A local agent session acting as
+        that person passes the editor check too, so the intent limit is what
+        makes the clear safe: the FAIL was about the body, and only a person
+        or a script writes a body that is the spec (resolve-pr.mjs
+        `bodyIsIntent`), so a FAIL judged against an issue keeps the refusal
+        whoever edits the body. The lanes App's edit never counts. A record,
+        edit or time that cannot be read is False."""
         fails = fail_artifacts.get(sha, [])
         if not passes or not fails:
             return False
@@ -1810,6 +1818,7 @@ class Reader:
                     record.get("pr") != number
                     or record.get("head_sha") != sha
                     or record.get("verdict") != "fail"
+                    or record.get("intent") != INTENT_PULL_REQUEST
                     or not _text_digest(record)
                 ):
                     return False

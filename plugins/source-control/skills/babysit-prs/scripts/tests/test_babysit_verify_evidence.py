@@ -1045,10 +1045,32 @@ BODY_FIXED_AT = "2026-10-14T12:00:00Z"  # between the FAIL's run and the pass's
 
 
 class ATrustedBodyFixClearsABodyFailOnTheSameChange(unittest.TestCase):
-    """A FAIL about the pull request's text is cleared at a head of the same
-    change by passes that judged another title and body, when a trusted
-    person made the body's last edit after every FAIL there and before every
-    pass: the lane cannot buy the pass by editing its own body (#10049)."""
+    """A FAIL whose spec was the pull request's own title and body (`intent`
+    `pull-request`) is cleared at a head of the same change by passes that
+    judged another title and body, when a trusted person made the body's
+    last edit after every FAIL there and before every pass. A local agent
+    session acting as that person counts too, so the clear is limited to a
+    FAIL whose spec the body was: a FAIL judged against an issue keeps the
+    refusal whoever edits the body."""
+
+    @staticmethod
+    def own(sha: str, verdict: str, digest: Any) -> dict[str, Any]:
+        """A verdict that judged the pull request's own title and body,
+        recording `digest` (None: the key is absent)."""
+        digests = {"intent_sha256": digest} if digest is not None else {}
+        return record(
+            sha=sha,
+            verdict=verdict,
+            linked_issues=[],
+            spec_kind="pull-request",
+            intent="pull-request",
+            **digests,
+        )
+
+    @staticmethod
+    def read(fake: FakeGitHub) -> ve.Evidence:
+        """The gate's evidence with the live title and body the pass judged."""
+        return read(fake, pull(title="feat: x", body="the body a person fixed"))
 
     def body_fix(
         self,
@@ -1058,37 +1080,72 @@ class ATrustedBodyFixClearsABodyFailOnTheSameChange(unittest.TestCase):
         edited: str | None = BODY_FIXED_AT,
         editor: dict[str, Any] | None = HUMAN,
     ) -> FakeGitHub:
-        """A FAIL at EARLIER and a pass at the head, both judged as a `Refs:`
-        slice of the same change (so the whole-spec clear never applies),
-        recording `fail_digest` and `pass_digest` (None: the key is absent),
-        and the body last edited at `edited` by `editor`."""
+        """A FAIL at EARLIER and a pass at the head of the same change, both
+        judged against the pull request's own title and body (it closes no
+        issue), recording `fail_digest` and `pass_digest`, and the body last
+        edited at `edited` by `editor`."""
         fake = ACountedPassAtTheHeadClearsAnEarlierFail.earlier_fail()
         fake.diffs[EARLIER] = fake.diffs[HEAD]
         fake.closing = []
-        fake.body = "Refs: #7"
-        fake.refs = {7: REPO}
         fake.body_edited = edited
         fake.body_editor = editor
-        for name, sha, verdict, digest in (
-            (named(HEAD, "pass"), HEAD, "pass", pass_digest),
-            (named(EARLIER, "fail"), EARLIER, "fail", fail_digest),
-        ):
-            digests = {"intent_sha256": digest} if digest is not None else {}
-            fake.records[name] = record(
-                sha=sha, verdict=verdict, spec_kind="refs", **digests
-            )
+        fake.records[named(HEAD, "pass")] = self.own(HEAD, "pass", pass_digest)
+        fake.records[named(EARLIER, "fail")] = self.own(EARLIER, "fail", fail_digest)
         return fake
 
     def test_a_trusted_persons_body_fix_clears_a_fail_of_the_same_change(
         self,
     ) -> None:
-        evidence = read(self.body_fix())
+        evidence = self.read(self.body_fix())
         self.assertIsNone(evidence.refusal)
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
 
+    def test_a_fail_judged_against_an_issue_keeps_the_refusal(self) -> None:
+        # The #10049 shape: a `Refs:` slice FAIL and pass, a trusted body
+        # edit between them, other text digests. The body was not the spec,
+        # and a local agent session edits it as the same person.
+        for kind, intent in (("refs", "issues"), ("closes", "issues"), ("refs", None)):
+            with self.subTest(kind=kind, intent=intent):
+                fake = self.body_fix()
+                fake.body = "Refs: #7"
+                fake.refs = {7: REPO}
+                if kind == "closes":
+                    fake.body, fake.closing = None, [(7, REPO)]
+                for name, sha, verdict, digest in (
+                    (named(HEAD, "pass"), HEAD, "pass", FIXED_BODY),
+                    (named(EARLIER, "fail"), EARLIER, "fail", FAILED_BODY),
+                ):
+                    kinds = {"intent": intent} if intent is not None else {}
+                    fake.records[name] = record(
+                        sha=sha,
+                        verdict=verdict,
+                        spec_kind=kind,
+                        intent_sha256=digest,
+                        **kinds,
+                    )
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                # The same records with the FAIL's spec the body clear.
+                fake.records[named(EARLIER, "fail")] |= {
+                    "intent": "pull-request",
+                    "spec_kind": "pull-request",
+                    "linked_issues": [],
+                }
+                self.assertIsNone(read(fake).refusal)
+
+    def test_a_fail_whose_intent_is_not_the_body_keeps_the_refusal(self) -> None:
+        for intent in ("issues", None, "Pull-Request", ["pull-request"]):
+            with self.subTest(intent=intent):
+                fake = self.body_fix()
+                fail = fake.records[named(EARLIER, "fail")]
+                if intent is None:
+                    del fail["intent"]
+                else:
+                    fail["intent"] = intent
+                self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
+
     def test_no_body_edit_keeps_the_fail(self) -> None:
         fake = self.body_fix(edited=None, editor=None)
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_an_edit_by_anyone_but_a_listed_person_keeps_the_fail(self) -> None:
         for editor in (
@@ -1101,7 +1158,7 @@ class ATrustedBodyFixClearsABodyFailOnTheSameChange(unittest.TestCase):
         ):
             with self.subTest(editor=editor):
                 fake = self.body_fix(editor=editor)
-                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_an_edit_not_between_the_fail_and_the_pass_keeps_the_fail(
         self,
@@ -1115,11 +1172,11 @@ class ATrustedBodyFixClearsABodyFailOnTheSameChange(unittest.TestCase):
         ):
             with self.subTest(edited=edited):
                 fake = self.body_fix(edited=edited)
-                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_the_same_judged_text_keeps_the_fail(self) -> None:
         fake = self.body_fix(FIXED_BODY, FIXED_BODY)
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_a_verdict_with_no_text_digest_keeps_the_fail(self) -> None:
         for fail_digest, pass_digest in (
@@ -1131,26 +1188,24 @@ class ATrustedBodyFixClearsABodyFailOnTheSameChange(unittest.TestCase):
         ):
             with self.subTest(failed=fail_digest, passed=pass_digest):
                 fake = self.body_fix(fail_digest, pass_digest)
-                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_one_pass_with_no_text_digest_keeps_the_fail(self) -> None:
         fake = self.body_fix()
         fake.artifacts.append(artifact(named(HEAD, "pass-notes"), 3))
         fake.runs[3] = run(3)
-        fake.records[named(HEAD, "pass-notes")] = record(spec_kind="refs")
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        fake.records[named(HEAD, "pass-notes")] = self.own(HEAD, "pass", None)
+        self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
         fake.records[named(HEAD, "pass-notes")]["intent_sha256"] = FIXED_BODY
-        self.assertIsNone(read(fake).refusal)
+        self.assertIsNone(self.read(fake).refusal)
 
     def test_one_fail_that_judged_the_fixed_text_keeps_the_fail(self) -> None:
         fake = self.body_fix()
         name = named(EARLIER, "fail") + "-" + "0" * 16
         fake.artifacts.append(artifact(name, 3))
         fake.runs[3] = judged(3, OLDER_START)
-        fake.records[name] = record(
-            sha=EARLIER, verdict="fail", spec_kind="refs", intent_sha256=FIXED_BODY
-        )
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        fake.records[name] = self.own(EARLIER, "fail", FIXED_BODY)
+        self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_the_edit_must_follow_every_fail_and_precede_every_pass(self) -> None:
         # A second FAIL at the head judged after the edit, and a second pass
@@ -1167,30 +1222,28 @@ class ATrustedBodyFixClearsABodyFailOnTheSameChange(unittest.TestCase):
                 sha, digest = (
                     (EARLIER, FAILED_BODY) if verdict == "fail" else (HEAD, FIXED_BODY)
                 )
-                fake.records[name] = record(
-                    sha=sha, verdict=verdict, spec_kind="refs", intent_sha256=digest
-                )
-                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                fake.records[name] = self.own(sha, verdict, digest)
+                self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_a_fail_record_of_another_judgment_keeps_the_fail(self) -> None:
         for field_name, value in (("pr", 99), ("head_sha", HEAD), ("verdict", "pass")):
             with self.subTest(field=field_name):
                 fake = self.body_fix()
                 fake.records[named(EARLIER, "fail")][field_name] = value
-                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_a_record_or_edit_that_cannot_be_read_keeps_the_fail(self) -> None:
         fake = self.body_fix()
         del fake.records[named(EARLIER, "fail")]
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
         fake = self.body_fix()
         fake.fail = {"graphql"}
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
     def test_the_fail_must_still_precede_the_pass(self) -> None:
         fake = self.body_fix(edited="2026-10-15T00:00:02Z")
         fake.runs[2] = judged(2, "2026-10-15T00:00:01Z")
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.read(fake).refusal, "verify:earlier-fail")
 
 
 def rename(old: str, new: str) -> str:

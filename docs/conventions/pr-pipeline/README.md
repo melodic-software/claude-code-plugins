@@ -1623,10 +1623,13 @@ head:
   `fail` records: a closing pass is judged against the whole spec, which holds the `Refs:` slice
   that failed. The reverse, a missing or other kind, linked issues that differ or cannot be read,
   or a `fail` record that cannot be read keeps the refusal. It also clears when every counted `fail`
-  there and every counted pass at the head record the title and body each judged
+  there judged the pull request's own title and body as its spec (`intent` `pull-request`), every
+  such `fail` and every counted pass at the head record the title and body each judged
   (`intent_sha256`), no pass's equals a `fail`'s, and the pull request body's last edit was made by
   a `kind: human` id on the trusted list after every such `fail`'s run was created and before every
-  pass's: the `fail` was about text a person then fixed. The lanes App's or any other account's
+  pass's. A local agent session acting as that person's account counts as that person, so the
+  `intent` limit is what makes this safe: only a person or a script writes a body that is the spec.
+  A `fail` judged against an issue (`refs` or `closes`), the lanes App's or any other account's
   edit, no edit, an edit outside that window, equal or missing digests, or an edit that cannot be
   read keeps the refusal. A pass judged
   before a later `fail` never clears it. Any other failed read of a run time or a diff refuses as the next item does;

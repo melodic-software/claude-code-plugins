@@ -357,7 +357,8 @@ import { buildVerdict, prText, sha256Hex } from %s;
 const ids = { pr: "41", baseSha: "b".repeat(40), runId: "1", headRef: "feat/x", linkedIssues: [] };
 console.log(JSON.stringify(JSON.parse(process.argv[1]).map(({ head, verdict, pull }) =>
   buildVerdict({ ...ids, headSha: head, bodySha256: sha256Hex(prText(pull)),
-    output: JSON.stringify({ verdict, summary: "s", notes: [] }) }).intent_sha256)));
+    specText: [{ number: 41, source: "pull-request", spec_kind: "pull-request", body: prText(pull), comments: [] }],
+    output: JSON.stringify({ verdict, summary: "s", notes: [] }) }))));
 """
 REFS_NODE = """
 import { refsIssue } from %s;
@@ -442,18 +443,25 @@ class TheGateReadsTheTextDigestTheWriterRecords(unittest.TestCase):
         )
         failed, fixed, empty = json.loads(proc.stdout)
         # The text `_pass_refusal` hashes live for a pull-request intent.
-        for digest, (title, body) in (
+        for written, (title, body) in (
             (failed, ("feat: x", "old")),
             (fixed, ("feat: x", "fixed")),
             (empty, ("feat: x", "")),
         ):
             live = hashlib.sha256(f"{title}\n\n{body}".encode()).hexdigest()
-            self.assertEqual(digest, live)
-        body_fix = gate.ATrustedBodyFixClearsABodyFailOnTheSameChange()
-        self.assertIsNone(gate.read(body_fix.body_fix(failed, fixed)).refusal)
-        self.assertEqual(
-            gate.read(body_fix.body_fix(fixed, fixed)).refusal, "verify:earlier-fail"
-        )
+            self.assertEqual(written["intent_sha256"], live)
+            self.assertEqual(written["intent"], ve.INTENT_PULL_REQUEST)
+
+        def evidence(fail: dict[str, Any], passed: dict[str, Any]) -> Any:
+            """The gate on the writer's own FAIL and pass records."""
+            fake = gate.ATrustedBodyFixClearsABodyFailOnTheSameChange().body_fix()
+            fake.records[gate.named(gate.EARLIER, "fail")] = fail
+            fake.records[gate.named(gate.HEAD, "pass")] = passed
+            live = gate.pull(title="feat: x", body="fixed")
+            return gate.read(fake, live).refusal
+
+        self.assertIsNone(evidence(failed, fixed))
+        self.assertEqual(evidence(fixed, fixed), "verify:earlier-fail")
 
 
 QUEUE_CHECK = RESOLVER.parents[1] / "pr-merge/merge-holds.mjs"
