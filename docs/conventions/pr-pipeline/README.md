@@ -2430,19 +2430,27 @@ runs daily and sorts every branch; its rules and tests are in
    or a lane branch with no pull request whose issue closed. A lane run's stop or resume marker
    on the issue does not keep the branch once the issue is closed.
 
-The job prints how many it will delete, then deletes at most `max-deletes-per-run`, in listing
-order. It reserves four calls per planned delete from its call budget before evaluating, and stops
-evaluating once it has found `max-deletes-per-run` deletable branches or spent the rest of the
-budget. Each run starts at a different point in the listing, moved by the run number and wrapping
-around, so branches kept early in the listing do not hide the later ones from every run. Before each delete it re-reads the tip and the open pull requests from and into the branch,
-skips it when the tip moved or one opened, and appends `{repo, branch, sha, rule, issue, pr,
-deletedAt}` to the step summary and the run's `branch-cleanup-ledger-<run>-<attempt>` artifact. The
-delete is `DELETE git/refs/heads/<branch>` with the job's own `GITHUB_TOKEN` (`contents: write`,
-`issues` and `pull-requests` read); the API takes no expected SHA, so the delete also removes a push that lands between the re-read
-and the delete; the pusher's own copy restores it. The ledger SHA restores the deleted tip:
-`git push origin <sha>:refs/heads/<branch>`. A scheduled run
-deletes; a manual run is a dry-run unless `dry-run` is set to false, and in dry-run the client
-refuses every request but `GET`. The kill switch stops it.
+Two jobs run it. The plan job, whose token writes nothing (`contents`, `issues` and
+`pull-requests` read), sorts the branches, prints how many it will delete, and hands at most
+`max-deletes-per-run` candidates, in listing order, to the delete job as the run's
+`branch-cleanup-candidates-<run>-<attempt>` artifact. It leaves the delete job one call plus five
+per planned delete from its call budget before evaluating, and stops evaluating once it has found
+`max-deletes-per-run` deletable branches or spent the rest of the budget. Each run starts at a
+different point in the listing, moved by the run number and wrapping around, so branches kept
+early in the listing do not hide the later ones from every run.
+
+The delete job alone holds `contents: write` (with `pull-requests` read) and reads no issue or pull
+request text: it refuses a candidate list for another repository, over the cap, or with an entry
+outside the rule's shape. Before each delete it re-reads the tip and the open pull requests from
+and into the branch, skips it when the tip moved or one opened, and appends `{repo, branch, sha,
+rule, issue, pr, deletedAt}` to the step summary and the run's
+`branch-cleanup-ledger-<run>-<attempt>` artifact. The delete is one GraphQL `updateRefs` per
+branch whose `beforeOid` is the listed tip and whose `afterOid` is all zeros, so GitHub checks the
+tip and deletes in one step; a push that lands after the re-read makes GitHub refuse the delete,
+and the branch is reported as skipped. The ledger SHA restores the deleted tip:
+`git push origin <sha>:refs/heads/<branch>`. A scheduled run deletes; a manual run is a dry-run
+unless `dry-run` is set to false, and a dry-run starts no delete job. The kill switch, checked by
+each job, stops it.
 
 | Key | Default | What it sets |
 |---|---|---|

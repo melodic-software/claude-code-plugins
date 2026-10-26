@@ -1,23 +1,29 @@
 name: maintenance-delete-stale-branches
 
 # Deletes the branches of this repository whose work is finished: a branch
-# lives as long as its issue is open (owner decisions W-7 and #8958). Daily it
-# sorts every branch by the branch-cleanup rule
+# lives as long as its issue is open (owner decisions W-7 and #8958). Daily the
+# plan job sorts every branch by the branch-cleanup rule
 # (docs/conventions/pr-pipeline/README.md, "Branch cleanup"): a branch whose
 # pull request closed or merged and whose linked issue closed is deleted; one
 # with an open issue, an open pull request, a protection or ruleset, or that
 # is the default, release/*, dependabot/* or gh-readonly-queue/* branch is
-# never deleted; anything else is listed for a person. It prints how many it will delete first and deletes at most
-# `branch-cleanup.max-deletes-per-run`. Before each delete it re-reads the tip
-# and the open pull requests, and appends {repo, branch, sha, rule, issue, pr,
-# deletedAt} to the ledger: the step summary and the branch-cleanup-ledger
-# artifact. A deleted branch is restored from its ledger SHA with
+# never deleted; anything else is listed for a person. It reads issue and pull
+# request text with a token that writes nothing, prints how many it will
+# delete, and hands at most `branch-cleanup.max-deletes-per-run` candidates to
+# the delete job as an artifact. The delete job, the only one that writes,
+# reads that list and no issue or pull request text. Before each delete it
+# re-reads the tip and the open pull requests, and appends {repo, branch, sha,
+# rule, issue, pr, deletedAt} to the ledger: the step summary and the
+# branch-cleanup-ledger artifact. The delete is a GraphQL updateRefs whose
+# beforeOid is the listed tip, so a push that lands after the re-read makes
+# GitHub refuse it. A deleted branch is restored from its ledger SHA with
 # `git push origin <sha>:refs/heads/<branch>`. No model, and no branch code is
 # checked out. Rules: .github/scripts/branch-cleanup/.
 #
 # The schedule deletes; a manual run is a dry-run unless dry-run is set to
-# false. How to stop it: set the organization or repository lanes kill-switch
-# variable to anything but "false".
+# false, and a dry-run starts no delete job. How to stop it: set the
+# organization or repository lanes kill-switch variable to anything but
+# "false"; each job checks it.
 
 on:
   schedule:
@@ -40,14 +46,16 @@ defaults:
     shell: bash
 
 jobs:
-  clean:
+  plan:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: write # list branches, compare, delete a branch ref
+      contents: read # list branches, compare, read rules
       issues: read # read linked issues
       pull-requests: read # read each branch's pull requests
+    outputs:
+      planned: ${{ steps.plan.outputs.planned }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -87,16 +95,104 @@ jobs:
 
       # A workflow token's REST limit is per repository per hour
       # (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api);
-      # cleanup.mjs reserves 4 calls for each of the max-deletes-per-run
-      # deletes and evaluates branches with the rest, stopping at the cap.
-      - name: Delete stale branches
+      # cleanup.mjs leaves the delete job 1 call plus 5 for each of the
+      # max-deletes-per-run deletes and evaluates branches with the rest,
+      # stopping at the cap.
+      - name: Plan the deletes
+        id: plan
         if: steps.kill.outputs.proceed == 'true'
         env:
+          STAGE: plan
           GITHUB_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           BASE_PATH: .base
           CALL_BUDGET: "600"
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.dry-run) || 'false' }}
+          CANDIDATES_PATH: ${{ runner.temp }}/branch-cleanup-candidates.json
+        run: node .base/.github/scripts/branch-cleanup/cleanup.mjs
+
+      - name: Upload the candidate list
+        if: steps.plan.outputs.planned != '' && steps.plan.outputs.planned != '0'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/branch-cleanup-candidates.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  delete:
+    needs: plan
+    if: >-
+      github.ref == 'refs/heads/main'
+      && needs.plan.outputs.planned != ''
+      && needs.plan.outputs.planned != '0'
+      && (github.event_name != 'workflow_dispatch' || !inputs.dry-run)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # re-read a branch tip, delete a branch ref
+      pull-requests: read # re-read a branch's open pull requests
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      # Checked again: the switch may have flipped since the plan job.
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing deleted"
+
+      # The delete stage checks the list against the configured cap.
+      - name: Install resolve-config's dependencies
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      # This run's own plan job wrote it; the delete stage still refuses a
+      # list over the cap or with an entry it does not expect.
+      - name: Download the candidate list
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/branch-cleanup-candidates
+
+      - name: Delete stale branches
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          STAGE: delete
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_PATH: .base
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.dry-run) || 'false' }}
+          CANDIDATES_PATH: ${{ runner.temp }}/branch-cleanup-candidates/branch-cleanup-candidates.json
           LEDGER_PATH: ${{ runner.temp }}/branch-cleanup-ledger.jsonl
         run: |
           : > "$LEDGER_PATH"

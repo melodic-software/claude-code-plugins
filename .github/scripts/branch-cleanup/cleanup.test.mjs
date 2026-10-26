@@ -1,10 +1,10 @@
-// cleanup() against a fake GitHub: hand-built branches, pull requests and
+// plan() and remove() against a fake GitHub: hand-built branches, pull requests and
 // issues, with each expected verdict taken from the branch-cleanup rule
 // (docs/conventions/pr-pipeline/README.md, "Branch cleanup").
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { cleanup, client } from "./cleanup.mjs";
+import { DELETE_REF, ZERO_OID, client, deleteBudget, plan, readList, remove } from "./cleanup.mjs";
 import { linkedIssues } from "./rules.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -16,20 +16,31 @@ const sha = (c) => c.repeat(40);
 // `branches` are { name, sha, protected }; `pulls` are keyed by branch name;
 // `issues` and `comments` by number; `ahead` maps a SHA to its commits ahead
 // of main; `rules` maps a branch to its ruleset rules; `moves` maps a branch
-// to the tip a re-read returns; `openLater` names branches whose open PR
-// appears only at the delete-time re-read.
-function world({ branches, pulls = {}, issues = {}, comments = {}, ahead = {}, rules = {}, moves = {}, openLater = [] }) {
+// to the tip a re-read returns; `movesAtDelete` maps a branch to the tip it
+// holds once the delete-time re-read is done; `openLater` names branches whose
+// open PR appears only at the delete-time re-read. The GraphQL updateRefs
+// fake refuses, as GitHub does, an update whose beforeOid is not the tip,
+// returning HTTP 200 with an errors list; `call` throws on it as the client
+// does.
+function world({ branches, pulls = {}, issues = {}, comments = {}, ahead = {}, rules = {}, moves = {}, movesAtDelete = {}, openLater = [] }) {
   const writes = [];
-  const call = async (method, path) => {
-    if (method !== "GET") {
-      writes.push({ method, path });
-      return null;
+  const reread = new Set();
+  const tip = (name) => (reread.has(name) && movesAtDelete[name]) || moves[name] || branches.find((b) => b.name === name)?.sha;
+  const respond = (method, path, body) => {
+    if (method === "POST" && path === "/graphql") {
+      const { name, beforeOid, afterOid, repositoryId } = body.variables;
+      const branch = name.slice("refs/heads/".length);
+      if (body.query !== DELETE_REF || repositoryId !== "R_repo" || afterOid !== ZERO_OID) throw new Error(`unexpected mutation ${JSON.stringify(body)}`);
+      if (tip(branch) !== beforeOid) return { errors: [{ message: `refs/heads/${branch} is at ${tip(branch)}, not ${beforeOid}` }] };
+      writes.push({ method, path, name: branch, beforeOid });
+      return { data: { updateRefs: { clientMutationId: null } } };
     }
+    if (method !== "GET") throw new Error(`unexpected ${method} ${path}`);
     const url = new URL(`https://api.test${path}`);
     const p = url.pathname;
     const q = url.searchParams;
     let m;
-    if (p === `/repos/${REPO}`) return { default_branch: "main" };
+    if (p === `/repos/${REPO}`) return { default_branch: "main", node_id: "R_repo" };
     if (p === `/repos/${REPO}/branches`) {
       return q.get("page") === "1" ? branches.map((b) => ({ name: b.name, protected: !!b.protected, commit: { sha: b.sha } })) : [];
     }
@@ -46,22 +57,40 @@ function world({ branches, pulls = {}, issues = {}, comments = {}, ahead = {}, r
     if ((m = /^\/repos\/[^/]+\/[^/]+\/rules\/branches\/(.+)$/.exec(p))) return rules[decodeURIComponent(m[1])] ?? [];
     if ((m = /^\/repos\/[^/]+\/[^/]+\/git\/ref\/heads\/(.+)$/.exec(p))) {
       const name = m[1].split("/").map(decodeURIComponent).join("/");
-      const branch = branches.find((b) => b.name === name);
-      return { object: { sha: moves[name] ?? branch.sha } };
+      const sha = tip(name);
+      reread.add(name);
+      return sha ? { object: { sha } } : null;
     }
     throw new Error(`unexpected GET ${path}`);
   };
-  return { call, writes };
+  // The same answers as the client gives: a GraphQL errors list throws.
+  const call = async (method, path, body) => {
+    const answer = respond(method, path, body);
+    if (answer?.errors) throw new Error(`POST /graphql: ${answer.errors.map((e) => e.message).join("; ")}`);
+    return answer;
+  };
+  return { call, respond, writes };
 }
 
+// Both stages, the candidate list passed through JSON as the artifact carries it.
 async function run(w, { dryRun = false, config = {} } = {}) {
   const ledger = [];
-  const result = await cleanup(
-    { REPOSITORY: REPO, DRY_RUN: dryRun ? "true" : "false" },
-    { call: w.call, clock: () => NOW, loadConfig: () => config, append: (e) => ledger.push(e), log: () => {} },
-  );
-  const verdict = (name) => result.results.find((r) => r.name === name);
-  return { ...result, ledger, verdict, deletes: w.writes.filter((x) => x.method === "DELETE").map((x) => x.path) };
+  const env = { REPOSITORY: REPO, DRY_RUN: dryRun ? "true" : "false" };
+  const planned = await plan(env, { call: w.call, loadConfig: () => config, log: () => {} });
+  const list = JSON.parse(JSON.stringify(planned.list));
+  const removed = await remove(env, { call: w.call, clock: () => NOW, loadConfig: () => config, append: (e) => ledger.push(e), list, log: () => {} });
+  const verdict = (name) => planned.results.find((r) => r.name === name);
+  return { ...planned, ...removed, ledger, verdict, deletes: w.writes.map((x) => deletePath(x.name)) };
+}
+
+// The real client over a stubbed fetch that answers from a world.
+function stubFetch(t, w, onWrite = () => {}) {
+  t.mock.method(globalThis, "fetch", async (url, { method, body }) => {
+    const path = String(url).slice("https://api.test".length);
+    const answer = w.respond(method, path, body === undefined ? undefined : JSON.parse(body));
+    if (method !== "GET" && !answer?.errors) onWrite(answer, path, JSON.parse(body));
+    return answer === null ? new Response(null, { status: 404 }) : Response.json(answer);
+  });
 }
 
 const closedIssue = (closedAt) => ({ state: "closed", closed_at: closedAt });
@@ -75,7 +104,7 @@ const mergedPull = (number, head, at, body = "") => ({
   head: { sha: head },
   body,
 });
-const deletePath = (name) => `/repos/${REPO}/git/refs/heads/${name}`;
+const deletePath = (name) => `refs/heads/${name}`;
 const lane = (issue) => `work-resolve-issue/issue-${issue}-100-1`;
 
 test("a lane branch whose issue is open is kept, however old its merged PR", async () => {
@@ -256,6 +285,8 @@ test("linkedIssues reads same-repository closing and Refs links only", () => {
 
 // The real client over a stubbed fetch, so its call budget applies (#8959
 // review: evaluation spent the whole budget and every delete then failed).
+// The plan stage gets the budget less the delete stage's share; the delete
+// stage gets that share.
 test("300 deletable branches under a 600-call budget: the run deletes the cap of 25", async (t) => {
   const branches = [];
   const pulls = {};
@@ -266,16 +297,17 @@ test("300 deletable branches under a 600-call budget: the run deletes the cap of
     pulls[name] = [mergedPull(i, tip, OLD)];
   }
   const w = world({ branches, pulls });
-  t.mock.method(globalThis, "fetch", async (url, { method }) => {
-    const body = await w.call(method, String(url).slice("https://api.test".length));
-    if (method !== "GET") return new Response(null, { status: 204 });
-    return body === null ? new Response(null, { status: 404 }) : Response.json(body);
-  });
+  stubFetch(t, w);
   const env = { REPOSITORY: REPO, DRY_RUN: "false", CALL_BUDGET: "600", GITHUB_API_URL: "https://api.test" };
-  const call = client(env, { pace: async () => {}, dryRun: false });
-  const result = await cleanup(env, { call, clock: () => NOW, loadConfig: () => ({}), append: () => {}, log: () => {} });
+  const planCall = client(env, { pace: async () => {}, dryRun: true });
+  const planned = await plan(env, { call: planCall, loadConfig: () => ({}), log: () => {} });
+  assert.equal(planned.planned.length, 25);
+  const call = client(env, { pace: async () => {}, dryRun: false, budget: deleteBudget(planned.planned.length) });
+  const result = await remove(env, { call, clock: () => NOW, loadConfig: () => ({}), append: () => {}, list: planned.list, log: () => {} });
   assert.equal(result.deleted.length, 25);
   assert.equal(w.writes.length, 25);
+  assert.ok(600 - planCall.remaining() + (deleteBudget(25) - call.remaining()) <= 600);
+  for (const write of w.writes) assert.equal(write.beforeOid, branches.find((b) => b.name === write.name).sha);
 });
 
 // #8976 review: kept branches ahead of the deletable ones spent the
@@ -291,15 +323,9 @@ test("493 kept branches ahead of 8 deletable: successive runs reach and delete a
     pulls[name] = [mergedPull(i, tip, OLD, i <= 493 ? "Closes #7000" : "")];
   }
   const w = world({ branches, pulls, issues: { 7000: openIssue } });
-  t.mock.method(globalThis, "fetch", async (url, { method }) => {
-    const path = String(url).slice("https://api.test".length);
-    const body = await w.call(method, path);
-    if (method !== "GET") {
-      const name = decodeURIComponent(path.slice(`/repos/${REPO}/git/refs/heads/`.length));
-      branches.splice(branches.findIndex((b) => b.name === name), 1);
-      return new Response(null, { status: 204 });
-    }
-    return body === null ? new Response(null, { status: 404 }) : Response.json(body);
+  stubFetch(t, w, (_answer, _path, body) => {
+    const name = body.variables.name.slice("refs/heads/".length);
+    branches.splice(branches.findIndex((b) => b.name === name), 1);
   });
   for (let runNumber = 1; runNumber <= 5; runNumber += 1) {
     const env = {
@@ -309,9 +335,62 @@ test("493 kept branches ahead of 8 deletable: successive runs reach and delete a
       GITHUB_API_URL: "https://api.test",
       GITHUB_RUN_NUMBER: String(runNumber),
     };
-    const call = client(env, { pace: async () => {}, dryRun: false });
-    await cleanup(env, { call, clock: () => NOW, loadConfig: () => ({}), append: () => {}, log: () => {} });
+    const planned = await plan(env, { call: client(env, { pace: async () => {}, dryRun: true }), loadConfig: () => ({}), log: () => {} });
+    const call = client(env, { pace: async () => {}, dryRun: false, budget: deleteBudget(planned.planned.length) });
+    await remove(env, { call, clock: () => NOW, loadConfig: () => ({}), append: () => {}, list: planned.list, log: () => {} });
   }
   assert.equal(w.writes.length, 8);
   assert.equal(branches.length, 493);
+});
+
+test("the delete sends one updateRefs per branch, beforeOid the listed tip and afterOid all zeros", async () => {
+  const w = world({ branches: [{ name: "feat/merged", sha: sha("2") }], pulls: { "feat/merged": [mergedPull(4, sha("2"), OLD)] } });
+  const r = await run(w);
+  assert.deepEqual(w.writes, [{ method: "POST", path: "/graphql", name: "feat/merged", beforeOid: sha("2") }]);
+  assert.equal(r.deleted.length, 1);
+});
+
+// #8958 item 1: the re-read and the delete are no longer two steps a push can
+// land between.
+test("a tip that moved after the delete-time re-read is not deleted and is reported as skipped", async () => {
+  const w = world({
+    branches: [{ name: "feat/raced", sha: sha("2") }],
+    pulls: { "feat/raced": [mergedPull(4, sha("2"), OLD)] },
+    movesAtDelete: { "feat/raced": sha("7") },
+  });
+  const r = await run(w);
+  assert.deepEqual(r.deletes, []);
+  assert.deepEqual(r.deleted, []);
+  assert.equal(r.skipped.length, 1);
+  assert.equal(r.skipped[0].name, "feat/raced");
+  assert.match(r.skipped[0].reason, /^the tip moved to 7{40} before the delete/);
+});
+
+test("the client throws on a GraphQL errors list answered with HTTP 200", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json({ errors: [{ message: "refused" }] }));
+  const call = client({ GITHUB_API_URL: "https://api.test" }, { pace: async () => {}, dryRun: false, budget: 1 });
+  await assert.rejects(call("POST", "/graphql", { query: DELETE_REF, variables: {} }), /POST \/graphql: refused/);
+});
+
+test("the plan stage's client refuses a write", async () => {
+  const call = client({}, { pace: async () => {}, dryRun: true });
+  await assert.rejects(call("POST", "/graphql", {}), /dry-run refuses POST/);
+});
+
+test("the delete stage refuses a list for another repository, over the cap, or with a bad entry", () => {
+  const good = { name: "feat/x", sha: sha("a"), rule: "pr-merged", issue: null, pr: 4 };
+  const ctx = { repo: REPO, cap: 2, defaultBranch: "main" };
+  assert.deepEqual(readList({ repo: REPO, planned: [good] }, ctx), [good]);
+  assert.throws(() => readList({ repo: "other/repo", planned: [good] }, ctx), /another repository/);
+  assert.throws(() => readList({ repo: REPO, planned: [good, { ...good, name: "b" }, { ...good, name: "c" }] }, ctx), /over the cap/);
+  for (const bad of [
+    { ...good, name: "main" },
+    { ...good, name: "release/plugins" },
+    { ...good, sha: "abc" },
+    { ...good, rule: "anything" },
+    { ...good, issue: "#4" },
+  ]) {
+    assert.throws(() => readList({ repo: REPO, planned: [bad] }, ctx), /refuses/, JSON.stringify(bad));
+  }
+  assert.throws(() => readList({ repo: REPO, planned: [good, good] }, ctx), /refuses/);
 });
