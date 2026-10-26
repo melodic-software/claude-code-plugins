@@ -1855,6 +1855,7 @@ jobs:
           # (address-feedback.mjs scanRefusal, report-outcome.mjs).
           SCAN_REFUSED_DIR: ${{ (inputs.review-replies || inputs.dependency-verdict || inputs.issue-number != '') && format('{0}/scan-refused', runner.temp) || '' }}
           SCAN_REFUSED_READ: ${{ steps.scan-refused.outcome }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
           # apply-patch only; empty otherwise. The select step checked the
           # patch before the mint; the script checks its SHA-256 again.
           PREPARE: ${{ steps.config.outputs.prepare }}

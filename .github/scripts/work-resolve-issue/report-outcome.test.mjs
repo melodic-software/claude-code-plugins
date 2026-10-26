@@ -702,6 +702,7 @@ function env(dir) {
     GITHUB_API_URL: "https://api.example",
     GITHUB_SERVER_URL: "https://example",
     GITHUB_RUN_ID: "123",
+    GITHUB_RUN_ATTEMPT: "1",
     TRACKER_CONFIG: join(dir, "absent.json"),
     RUNNER_CHECKS: existsSync(join(dir, "runner-checks")) ? readFileSync(join(dir, "runner-checks"), "utf8") : "",
   };
@@ -802,7 +803,7 @@ test("main on done with apply-issue-patch's escalation reason hands the issue ba
 // scan-refused-<attempt>.txt marker instead. The
 // hand-back names the refusal, not a missing outcome file; the marker's text
 // picks one fixed sentence and never reaches the comment.
-async function scanRefusedComment({ outcome = null, marker = null, name = "scan-refused-1.txt", read = "success" } = {}) {
+async function scanRefusedComment({ outcome = null, marker = null, name = "scan-refused-1.txt", read = "success", attempt = "1" } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "outcome-"));
   try {
     if (outcome) {
@@ -820,7 +821,7 @@ async function scanRefusedComment({ outcome = null, marker = null, name = "scan-
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), SCAN_REFUSED_DIR: refusedDir, SCAN_REFUSED_READ: read }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), GITHUB_RUN_ATTEMPT: attempt, SCAN_REFUSED_DIR: refusedDir, SCAN_REFUSED_READ: read }, fetch }), 0);
     assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
     assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
     return calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
@@ -837,7 +838,7 @@ test("main hands back a run whose scan refused an oversize patch naming the patc
 });
 
 test("main hands back a run whose scan refused any other output naming the scan refusal", async () => {
-  const comment = await scanRefusedComment({ marker: "output", name: "scan-refused-2-rung-up.txt" });
+  const comment = await scanRefusedComment({ marker: "output", name: "scan-refused-2-rung-up.txt", attempt: "2" });
   assert.ok(comment.includes("The scan job refused the run's output, so nothing was published. The run's log names why."), comment);
   assert.doesNotMatch(comment, /no readable outcome file|262144|too-large/);
 });
@@ -851,6 +852,18 @@ test("a forged scan refusal marker's text never reaches the hand-back", async ()
 test("a file that is not a scan refusal marker is no refusal", async () => {
   const comment = await scanRefusedComment({ marker: "patch", name: "scan-refused-0.txt" });
   assert.ok(comment.includes("no readable outcome file"), comment);
+});
+
+test("an earlier attempt's refusal marker is no refusal of the current attempt", async () => {
+  const comment = await scanRefusedComment({ marker: "patch", name: "scan-refused-1.txt", attempt: "2" });
+  assert.ok(comment.includes("no readable outcome file"), comment);
+  assert.doesNotMatch(comment, /scan job refused|262144/i);
+});
+
+test("with no readable run attempt no refusal marker is read", async () => {
+  const comment = await scanRefusedComment({ marker: "patch", attempt: "" });
+  assert.ok(comment.includes("no readable outcome file"), comment);
+  assert.doesNotMatch(comment, /scan job refused|262144/i);
 });
 
 test("a readable outcome wins over a scan refusal marker", async () => {

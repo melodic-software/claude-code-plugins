@@ -100,7 +100,8 @@
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
 //   GITHUB_OUTPUT       --find-prior: the step output file
-//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
+//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
+//                       (the attempt whose scan-refusal markers are read)
 import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import process from "node:process";
@@ -259,15 +260,19 @@ export function readHoldPaths(path) {
 // reads them; the runner copies only this script's directory, so it cannot
 // import that one. `patch` when a marker names a patch over its cap, `output`
 // for any other, '' for none or an unreadable directory: a failed download
-// claims no refusal here, since the hand-back would name a false cause. A
+// claims no refusal here, since the hand-back would name a false cause. Only
+// the current attempt's markers count (the download pattern spans every
+// attempt's), and with no readable attempt none does. A
 // marker's text only picks one of the fixed sentences below, so a forged one
 // puts nothing of its own in the comment.
-const MARKER_FILE = /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/;
-export function readScanRefusal(dir) {
+const ATTEMPT = /^[1-9][0-9]{0,4}$/;
+export function readScanRefusal(dir, attempt) {
+  if (!ATTEMPT.test(attempt ?? "")) return "";
+  const markerFile = new RegExp(`^scan-refused-${attempt}(-rung-up)?\\.txt$`);
   let kinds;
   try {
     kinds = readdirSync(dir)
-      .filter((name) => MARKER_FILE.test(name) && lstatSync(join(dir, name)).isFile())
+      .filter((name) => markerFile.test(name) && lstatSync(join(dir, name)).isFile())
       .map((name) => readFileSync(join(dir, name), "utf8").trim());
   } catch {
     return "";
@@ -1330,7 +1335,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // that branch (a re-run attempt of the run that made it).
     let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
     // A run whose scan refused its output left no outcome: say so.
-    const refusal = !reuse && outcome?.unread && env.SCAN_REFUSED_DIR ? readScanRefusal(env.SCAN_REFUSED_DIR) : "";
+    const refusal = !reuse && outcome?.unread && env.SCAN_REFUSED_DIR ? readScanRefusal(env.SCAN_REFUSED_DIR, env.GITHUB_RUN_ATTEMPT) : "";
     if (refusal) {
       outcome = { ...stopped(SCAN_REFUSALS[refusal]), unread: true };
     }
