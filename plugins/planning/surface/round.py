@@ -15,6 +15,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
   record-terminal record an answer the user gave in the terminal
   archive         archive off-path questions with a reason (the server derives their state)
+  reconfirm       clear upstream-changed questions that stand as asked after an upstream answer
+                  changed (a revise clears the mark too)
   apply           run a list of ops from one JSON file, as one atomic write; warns on stderr when no
                   watcher holds the lease
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
@@ -50,7 +52,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 status, lease, doctor and validate take --json: one JSON object on stdout in place of the text lines
 (the text output is unchanged without it; exit codes are the same).
   status --json    {groups: [{id, title, total, closed, live, answered, toConfirm[{id, short,
-                   commitments[]}], open[], archived[], superseded[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
+                   commitments[]}], open[], archived[], superseded[], waiting[{id, short, hold, waitsOn}]}],
+                   upstreamChanged[{id, changedBy[]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
                    handledSeq, unhandled[]}; with --latency: {latency: {saveToDelivered|saveToReply:
                    {n, p50, p95}}}
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
@@ -112,6 +115,7 @@ from server import (  # noqa: E402
     SCHEMA_VERSION,
     Settings,
     check_alt,
+    derive_states,
     is_handled,
     load_json,
     open_prereqs,
@@ -155,6 +159,7 @@ LOGGED_OPS = {
     "add",
     "add-round",
     "archive",
+    "reconfirm",
     "replace-visual",
     "archive-visual",
     "record-terminal",
@@ -1260,7 +1265,6 @@ def op_revise(d, doc, a):
         if a.rec is not None:
             line["alternatives"] = "kept" if kept else "rewritten"
             line["pageSeq"] = snapshot.get("seq", 0)
-            line["rev"] = doc["rev"] + 1
         lines.append(line)
     if moved:
         lines.append(
@@ -1277,6 +1281,8 @@ def op_revise(d, doc, a):
             {"at": now(), "by": "claude", "kind": "group", "text": f"Group: {regroup}."}
         )
         changed.append(f"group ({regroup})")
+    for line in lines:  # a revision clears the question's upstream-changed mark (server.derive_states)
+        line.update(reviewSeq=snapshot.get("seq", 0), rev=doc["rev"] + 1)
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
     q.setdefault("history", []).extend(lines)
@@ -1361,6 +1367,37 @@ def op_archive(d, doc, a):
             {"at": at, "by": "claude", "kind": "archive", "text": f"Archived: {a.why}"}
         )
     return qs, f"archived {', '.join(a.ids)}"
+
+
+def op_reconfirm(d, doc, a):
+    """Record that upstream-changed questions stand as asked after the answers they depend on
+    changed: a history line with `reviewSeq` (the page's seq now), which the server reads as
+    clearing the mark. Refuses a question that is not upstream-changed."""
+    why = capped("reconfirm why", (a.why or "").strip(), LINE_CAP)
+    if not why:
+        sys.exit("refused: reconfirm needs a why")
+    ids = list(dict.fromkeys(a.ids or []))
+    qs = [find(doc, qid) for qid in ids]
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    by = derive_states(doc, r)[3]
+    idle = [qid for qid in ids if qid not in by]
+    if idle:
+        sys.exit(
+            f"refused: {', '.join(idle)} not upstream-changed; nothing to reconfirm"
+        )
+    at = now()
+    for q in qs:
+        q.setdefault("history", []).append(
+            {
+                "at": at,
+                "by": "claude",
+                "kind": "reconfirm",
+                "text": f"Reconfirmed after {', '.join(by[q['id']])} changed: {why}",
+                "reviewSeq": r.get("seq", 0),
+                "rev": doc["rev"] + 1,
+            }
+        )
+    return qs, f"reconfirmed {', '.join(ids)}"
 
 
 def op_bump(d, doc, a):
@@ -1826,6 +1863,7 @@ OP_ARGS = {
     "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
+    "reconfirm": (op_reconfirm, {"ids": None, "why": None}),
     "replace-visual": (op_replace_visual, {"visual": None}),
     "archive-visual": (op_archive_visual, {"ids": None, "why": None}),
     "record-terminal": (
@@ -2050,6 +2088,16 @@ def cmd_status(d, a):
                 ],
             }
         )
+    by = derive_states(doc, r)[3]
+    data["upstreamChanged"] = [
+        {"id": q["id"], "changedBy": by[q["id"]]}
+        for q in doc["questions"]
+        if q["id"] in by
+    ]
+    lines.extend(
+        f"upstream changed: {u['id']} ({', '.join(u['changedBy'])} changed); revise or reconfirm it"
+        for u in data["upstreamChanged"]
+    )
     data["meta"] = None
     if doc["questions"]:
         stamp = doc["meta"].get("setInRound")
@@ -2914,6 +2962,15 @@ def main(argv=None):
     s.add_argument("ids", nargs="+", metavar="id")
     s.add_argument("--why", required=True, help="why the questions left the path")
     s.set_defaults(fn=write_op(op_archive, "archive"))
+
+    s = sub.add_parser(
+        "reconfirm", help="clear upstream-changed: the questions stand as asked"
+    )
+    s.add_argument("ids", nargs="+", metavar="id")
+    s.add_argument(
+        "--why", required=True, help="why each still stands after the upstream change"
+    )
+    s.set_defaults(fn=write_op(op_reconfirm, "reconfirm"))
 
     s = sub.add_parser(
         "apply",
