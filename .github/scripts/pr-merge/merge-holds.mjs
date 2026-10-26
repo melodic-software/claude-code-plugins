@@ -76,6 +76,9 @@ import { pathToFileURL } from "node:url";
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
 export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+// The lanes App's bot login. A `Hold:` line on its own pull request holds the
+// merge, not a fix pushed to it (apply-patch.mjs's held()).
+export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // report-outcome.mjs HOLD_LINE on a line of its own, which
 // enable-auto-merge.test.mjs checks; it holds whoever wrote the body.
 export const LANE_HOLD = /(?:^|[\r\n])Hold: a human merges this[^\S\r\n]*(?:[\r\n]|$)/;
