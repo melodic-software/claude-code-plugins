@@ -1466,6 +1466,20 @@ describe("run", () => {
     });
   }
 
+  // A verdict that is not ready: with every edge missed, work-unblock sees none
+  // of the blockers; with an edge written and its rollback failed, it sees
+  // that partial set, so the warning keeps the partial-set clause.
+  test("a not-ready verdict's warning says work-unblock sees no blocker only when no edge stayed written", () => {
+    assert.deepEqual(missedAnnotation([{ number: 13, status: 502 }], [], false), {
+      fail: false,
+      line: "::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: #13 not written (GitHub answered 502); the verdict's labels are written, and work-unblock, which reads only native edges, does not see these blockers",
+    });
+    assert.deepEqual(missedAnnotation([{ number: 13, status: 502 }], [{ number: 12, status: 500 }], false), {
+      fail: false,
+      line: "::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: #13 not written (GitHub answered 502); #12 written and not deleted (GitHub answered 500), so work-unblock can admit the issue when that blocker closes before intake runs again; the verdict's labels are written, and work-unblock, which reads only native edges, does not see the blockers not written",
+    });
+  });
+
   test("an edge the run wrote and could not delete is named, and fails the job on a 403", () => {
     const warned = missedAnnotation([{ number: 13, status: 429 }], [{ number: 12, status: 500 }]);
     assert.equal(warned.fail, false);

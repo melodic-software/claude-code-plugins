@@ -560,18 +560,18 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
   if (missed.length === 0) {
     return null;
   }
-  if (!ready) {
-    return {
-      fail: false,
-      line: `::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: ${[...missedEdges(missed), ...undeletedEdges(undeleted)].join("; ")}; the verdict's labels are written, and work-unblock, which reads only native edges, does not see these blockers`,
-    };
-  }
   const edges = [
     ...missedEdges(missed),
     ...(undeleted.length
       ? [`${undeletedEdges(undeleted).join("; ")}, so work-unblock can admit the issue when that blocker closes before intake runs again`]
       : []),
   ].join("; ");
+  if (!ready) {
+    return {
+      fail: false,
+      line: `::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: ${edges}; the verdict's labels are written, and work-unblock, which reads only native edges, does not see ${undeleted.length ? "the blockers not written" : "these blockers"}`,
+    };
+  }
   return [...missed, ...undeleted].some(({ status }) => status === 403)
     ? {
         fail: true,
