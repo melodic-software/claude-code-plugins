@@ -951,6 +951,11 @@ describe("unrunnableCriteria", () => {
     // A comment-only deliverable (#6636).
     ["a comment on this issue", "One comment on this issue with the versions released per plugin over the last 14 days.", /comment instead/],
     ["no file changed", "No file is changed.", /comment instead/],
+    ["a result recorded in a comment on this issue", "The script's output is recorded in a comment on this issue.", /comment instead/],
+    // Live CLI items the corpus diff flagged (#7135, #9930).
+    ["claude plugin test passing", "`claude plugin test` passes for each touched plugin; skill, eval and drift checks pass.", /Claude Code CLI/],
+    ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install core@melodic-software` both exit 0.", /Claude Code CLI/],
+    ["a run of claude plugin install", "Run `claude plugin install testing@melodic-software` in a fresh config directory.", /Claude Code CLI/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {
@@ -993,6 +998,14 @@ describe("unrunnableCriteria", () => {
     ["a code comment", "A code comment in `admit.mjs` explains the new kind."],
     ["a PR body line", "The PR body says which items moved."],
     ["a file change limit", "No file outside `plugins/tdd` is changed."],
+    ["a file change limit worded as no file is changed outside", "No file is changed outside `plugins/tdd`."],
+    ["a file change limit under a path", "No file is changed under .github/."],
+    ["a script posting a comment on this issue", "work-unblock posts a comment on this issue saying why."],
+    ["claude plugin install shown in a README", "The README's install section shows `claude plugin install testing@melodic-software`."],
+    ["claude plugin install named in a file", "The marketplace.json entry installs with `claude plugin install x`."],
+    ["measure-invocation score", "`bash plugins/skill-quality/scripts/measure-invocation.sh score plugins/tdd/probes` exits 0."],
+    ["measure-invocation compare", "`measure-invocation.sh compare baseline.json treatment.json` reports the delta."],
+    ["measure-invocation emit-plugin-eval", "`measure-invocation.sh emit-plugin-eval plugins/tdd/probes evals/` writes the cases."],
   ];
   for (const [name, line, hosts] of negatives) {
     test(`passes ${name}`, () => {

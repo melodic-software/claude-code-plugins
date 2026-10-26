@@ -255,8 +255,9 @@ const UNRUNNABLE = [
     new RegExp(
       [
         String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
-        // The trigger probes and plugin evals a measured skill rewrite reports.
-        String.raw`(?:\bmeasure-invocation(?!\.test\b)|\/evals:plugin-eval)\b${FREE}`,
+        // The trigger probes and plugin evals a measured skill rewrite reports;
+        // the harness's validate, score, compare and emit-plugin-eval run no model.
+        String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`,
         String.raw`\bPR body\b[^.;]{0,120}\bbefore and (?:the )?after\b[^.;]{0,60}\b(?:numbers|trigger rates?|scores?)\b`,
       ].join("|"),
       "i",
@@ -265,7 +266,7 @@ const UNRUNNABLE = [
   // The lane's Bash runs only named wrappers, and a nested CLI gets no credential.
   [
     "a live Claude Code CLI run",
-    /\bclaude (?:-p|--print)\b|\bclaude plugin (?:test|install|update|configure)\b|\bheadless (?:claude|Claude Code)\b|^a recorded probe\b|\b(?:probe|measured result)\b[^.;]{0,80}\bClaude Code version\b|\b(?:on|with) (?:a|the) (?:named|measured|probed) Claude Code version\b/i,
+    /\bclaude (?:-p|--print)\b|\brun\b[^,;:]{0,40}\bclaude plugin (?:test|install|update|configure)\b|\bclaude plugin (?:test|install|update|configure)\b[^,;:.]{0,60}\b(?:exits?|pass(?:es)?|succeeds?|fails?|prints?|returns?)\b|\bheadless (?:claude|Claude Code)\b|^a recorded probe\b|\b(?:probe|measured result)\b[^.;]{0,80}\bClaude Code version\b|\b(?:on|with) (?:a|the) (?:named|measured|probed) Claude Code version\b/i,
   ],
   [
     "a repeated run",
@@ -296,7 +297,7 @@ const UNRUNNABLE = [
   // resolve-issue cannot write the tracker, and its pull request is the deliverable.
   [
     "a comment instead of a file change",
-    /\b(?:a|one) comment on this issue\b|^no file is changed\b/i,
+    /^(?:a|one) comment on this issue\b|\b(?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
   ],
 ];
 // The lane can always reach these; a page elsewhere needs resolve-issue's
