@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "topic/sql-joins: closed, 4 learning records, last touched 2026-10-13. Run /education:teach resume sql-joins if you want to reopen it.",
+      "why": "closed, with only a reopen pointer"
+    },
+    {
+      "answer": "| Mode | Topic | Records | State |\n|---|---|---|---|\n| topic | sql-joins | 4 | closed |",
+      "why": "closed state in a table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "topic/sql-joins: 4 records, frontier FULL OUTER JOIN, INNER JOIN due for review.",
+      "why": "reports it as an active mission"
+    },
+    {
+      "answer": "sql-joins (closed): next up is window functions, and LEFT JOIN is due for a review session.",
+      "why": "near miss: says closed but still plans the next lesson"
+    }
+  ]
+}

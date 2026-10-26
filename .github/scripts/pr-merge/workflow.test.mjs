@@ -946,14 +946,19 @@ const restoresOf = (stepTexts, seen = new Set()) =>
     const action = ["action.yml", "action.yaml"].map((f) => new URL(`${local.replace(/\/$/, "")}/${f}`, root)).find((u) => existsSync(u));
     return action ? restoresOf(stepsIn(readFileSync(action, "utf8")), seen) : [];
   });
+// A grant of id-token: write, at any indentation and quoted or not, or write-all.
+const grantsIdToken = (text) =>
+  /^[ \t]*id-token:[ \t]*['"]?write['"]?[ \t]*(?:#.*)?$/m.test(text) || /^[ \t]*permissions:[ \t]*['"]?write-all\b/m.test(text);
 function tokenJobRestores(text) {
-  const head = text.slice(0, text.indexOf("\njobs:\n"));
-  const workflowIdToken = /\npermissions:\n(?: {2}.*\n)*? {2}id-token: write/.test(`${head}\n`);
-  const body = text.slice(text.indexOf("\njobs:\n") + 6);
+  const at = text.search(/^jobs:[ \t]*$/m);
+  const workflowGrant = grantsIdToken(text.slice(0, at));
+  const body = text.slice(at).replace(/^jobs:.*\n/, "");
+  // Job ids sit at the first indentation under jobs:, whatever it is.
+  const indent = /^([ \t]+)[A-Za-z0-9_-]+:/m.exec(body)?.[1] ?? "  ";
   return body
-    .split(/\n(?= {2}[A-Za-z0-9_-]+:\n)/)
-    .map((block) => ({ id: /^ {2}([A-Za-z0-9_-]+):/m.exec(block)?.[1], block }))
-    .filter(({ id, block }) => id && (workflowIdToken || /\n {6}id-token: write/.test(block) || /request-lane-token|create-github-app-token/.test(block)))
+    .split(new RegExp(`\\n(?=${indent}[A-Za-z0-9_-]+:)`))
+    .map((block) => ({ id: new RegExp(`^${indent}([A-Za-z0-9_-]+):`, "m").exec(block)?.[1], block }))
+    .filter(({ id, block }) => id && (workflowGrant || grantsIdToken(block) || /request-lane-token|create-github-app-token/.test(block)))
     .flatMap(({ id, block }) => restoresOf(stepsIn(block)).map((r) => ({ job: id, ...r })));
 }
 
@@ -981,4 +986,19 @@ test("no token-holding job in pr-merge.yml restores a cache", () => {
     assert.deepEqual(tokenJobRestores(withStep(job, composite)).map((r) => [r.job, r.prefix]), [[job, true]], job);
   }
   assert.deepEqual(tokenJobRestores(withStep("gate-check", exact)), []);
+});
+
+test("a token grant is found at any indentation", () => {
+  const restore = (pad) => `${pad}- name: Restore\n${pad}  uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n${pad}  with:\n${pad}    key: k\n${pad}    restore-keys: k-\n`;
+  // Jobs at four spaces, their permissions at eight and ten.
+  const wide = `on: push\njobs:\n    holder:\n        permissions:\n          id-token: write\n        steps:\n${restore("          ")}    other:\n        permissions:\n          contents: read\n        steps:\n${restore("          ")}`;
+  assert.deepEqual(tokenJobRestores(wide).map((r) => [r.job, r.prefix]), [["holder", true]]);
+  // Jobs at two spaces, the grant at eight, quoted.
+  const deep = `on: push\njobs:\n  holder:\n    permissions:\n        id-token: 'write'\n    steps:\n${restore("      ")}`;
+  assert.deepEqual(tokenJobRestores(deep).map((r) => r.job), ["holder"]);
+  // A workflow-level grant, and write-all, cover every job.
+  for (const grant of ["permissions:\n    id-token: write\n", "permissions: write-all\n"]) {
+    const top = `on: push\n${grant}jobs:\n  plain:\n    steps:\n${restore("      ")}`;
+    assert.deepEqual(tokenJobRestores(top).map((r) => r.job), ["plain"], grant);
+  }
 });
