@@ -1,10 +1,10 @@
 # Goal: Edit and Write guardrails fires (#4390)
 
-Status: agent-written draft, not an agreed goal. `/performance:goal` is
-human-gated and no human ran it: Done-when, Realistic and Ideal below were
-written by an agent. The k × S targets are pending a human `/performance:goal`
-run with the Windows harness numbers. The ceilings are what was measured on
-this host, not targets. Tracked on #4390.
+Status: agent-set targets. Agents set and lower these targets from
+measurements; no human `/performance:goal` run gates them. The Write|Edit|NotebookEdit PreToolUse row's target is the
+`guardrails-pretooluse-write-edit-spawns` ceiling in `.performance/ratchets.json`,
+measured on the CI runner and only ever lowered; raising it, or changing what a
+blocking guard blocks, stays the owner's call. Tracked on #4390.
 
 The census rows and the Floor line below were measured while the hook rows were
 shell form (`sh`, then bash). Since 0.41.3 every row is exec form: node starts
@@ -41,13 +41,13 @@ Realistic:  the oracle floor in the table, not a lower number
 Ideal:      k × S, k from docs/conventions/hook-budget/README.md
 Percentiles: p50, p95 over n=22 (house convention; p95 floor is 20)
 Scaling:    n/a for the Bash payload (fixed command). The PostToolUse finding reads git history, which grows with the repo; the deleted-path set is keyed by HEAD and is not re-walked on the warm fire (growth of that walk is 0 across repeats at one HEAD).
-Done when:  each row is at or under its ceiling, verdicts on the existing corpus are unchanged, and no row is made async. Merge is in scope. Ideal wall k × S is not the success test: it is below the floor, recorded under Claim.
+Done when:  the PreToolUse Write|Edit|NotebookEdit row has a CI spawn ratchet whose goal records Ideal k × S, each row is at or under its ceiling, verdicts on the existing corpus are unchanged, and no row is made async. Merge is in scope. Ideal wall k × S is not the success test: it is below the floor, recorded under Claim.
 ```
 
 | Event | Census row | Programs (successful execs) | spawns | Wall p50 (direct bash) | k | Ideal |
 | --- | --- | --- | ---: | ---: | ---: | --- |
 | PreToolUse Bash `git status --short` | `block-no-verify.sh` | sh, bash. 0 clones | 2 | 21.29 ms (31.8 S) | 2 | 2 × S |
-| PreToolUse Edit and Write, benign README | `secret-pattern-detection.sh` | sh, bash, grep, 2× git. Replacement: not attempted | 13 | 20.32 ms (30.4 S) | 5 execs | 5 × S |
+| PreToolUse Edit and Write, benign README | `secret-pattern-detection.sh` | sh, bash, grep, 2× git. Replacement: not attempted | 13 | 20.32 ms (30.4 S) | 5 execs; 1 in exec form (CI ratchet `guardrails-pretooluse-write-edit-spawns`) | 1 × S |
 | PostToolUse Edit `.md`, deleted-path finding, cold | `cli-flag-verify.sh` | sh, bash, 5× git | 19 | 23.98 ms (35.8 S) | 7 execs | 7 × S |
 | Same finding, second fire at that HEAD | `--seed` | history walk omitted | 13 |  |  |  |
 | PostToolUse Edit `.md`, no finding | same row, existing path | sh, bash, 2× git | 9 |  |  |  |
