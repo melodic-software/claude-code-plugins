@@ -422,13 +422,17 @@ function trustedHumans(env) {
 }
 
 // The head's changed paths, null when a page did not read, and `capped`
-// when the listing reached MAX_FILE_PAGES, which no later read completes.
+// when the listing has a page past MAX_FILE_PAGES, which no later read
+// completes. Exactly MAX_FILE_PAGES full pages read one page more to tell.
 async function changedFiles(github, slug, number) {
   const paths = [];
-  for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
+  for (let page = 1; page <= MAX_FILE_PAGES + 1; page += 1) {
     const rows = await github("GET", `/repos/${slug}/pulls/${number}/files?per_page=100&page=${page}`);
     if (!Array.isArray(rows)) {
       return { paths: null, capped: false };
+    }
+    if (page > MAX_FILE_PAGES) {
+      return rows.length === 0 ? { paths, capped: false } : { paths: null, capped: true };
     }
     for (const row of rows) {
       paths.push(String(row?.filename), ...(row?.previous_filename ? [String(row.previous_filename)] : []));
@@ -1127,6 +1131,12 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       if (action === "none") {
         if (reason !== "not the lanes App's") {
           console.log(`enable-auto-merge: #${pull.number} left: ${escapeCommand(reason)}`);
+        }
+        // A lane's refusal noted at this head that no longer stands (it
+        // cleared, or another hold now leaves the pull request unarmed):
+        // its failing status is withdrawn, as an arm withdraws it.
+        if (reads && write && clears !== "lane" && clears !== "person" && sinceAt(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid) !== undefined) {
+          statuses.push({ sha: pull.headRefOid, state: "success", description: "its lanes refusal no longer stands" });
         }
         await note(pull, detail, { clears, reason, comment });
         continue;

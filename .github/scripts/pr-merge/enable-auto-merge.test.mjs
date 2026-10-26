@@ -395,7 +395,13 @@ test("a refusal a lane clears is commented on, with no label", async () => {
 // A listing past the page cap never reads whole, so its hold and cost paths
 // are never checked: a person's. A page that did not read is read again.
 test("a listing past the page cap is a person's refusal; one that did not read is a lane's; neither arms", async () => {
-  const files = Array.from({ length: 300 }, (_, index) => ({ filename: `docs/${index}.md` }));
+  // Exactly 300 files is not past the cap: one more page reads empty, and
+  // it arms.
+  const exactly = Array.from({ length: 300 }, (_, index) => ({ filename: `docs/${index}.md` }));
+  const full = await run([pull(1, { files: exactly })]);
+  assert.deepEqual(full.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(full.notes, []);
+  const files = Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` }));
   const { code, notes, writes } = await run([pull(1, { files })]);
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
@@ -430,6 +436,14 @@ test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has
   const armed = await run([pull(3)], {}, { now });
   assert.deepEqual(armed.writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
   assert.deepEqual(armed.statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
+  // A lane's refusal that cleared while something else leaves it unarmed
+  // (here a member's veto) withdraws its failing status too.
+  const vetoed = pull(4, {
+    discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z")), said("kyle-sexton", "do not merge", "2026-10-23T10:30:00Z")] },
+  });
+  const held = await run([vetoed], {}, { now });
+  assert.deepEqual(held.writes, []);
+  assert.deepEqual(held.statuses, [{ sha: HEAD, state: "success", description: "its lanes refusal no longer stands" }]);
   // Report-only hands the status job nothing.
   assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
 });
