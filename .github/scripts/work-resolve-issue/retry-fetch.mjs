@@ -33,7 +33,7 @@ export function isGraphQLRead(url, init = {}) {
   try {
     const query = JSON.parse(init.body)?.query;
     const text = typeof query === "string" ? query.replace(/#[^\n]*/g, "").trim() : "";
-    return /^(query\b|\{)/.test(text) && !/\b(mutation|subscription)\b/.test(text);
+    return /^(query\b|\{)/.test(text) && !/\b(mutation|subscription)\b/.test(query);
   } catch {
     return false;
   }

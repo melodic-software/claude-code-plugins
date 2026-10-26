@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { retryFetch } from "./retry-fetch.mjs";
+import { isGraphQLRead, retryFetch } from "./retry-fetch.mjs";
 
 // Each script directory that runs from a copy of itself holds its own copy.
 test("apply-patch and pr-unblock hold the same retry-fetch.mjs as this directory", () => {
@@ -79,6 +79,11 @@ test("a GraphQL query is sent again; a mutation, or a query document holding one
   await assert.rejects(h.send("https://api/graphql", { method: "POST", body: body("mutation { addStar(input: {}) { clientMutationId } }") }), TypeError);
   await assert.rejects(h.send("https://api/graphql", { method: "POST", body: body("query A { x } mutation B { y }") }), TypeError);
   assert.equal(h.sent.length, 6);
+});
+
+test("a mutation after a # inside a string is still a write", () => {
+  const init = { method: "POST", body: JSON.stringify({ query: 'query A { x(s: "#") } mutation B { y }' }) };
+  assert.equal(isGraphQLRead("https://api/graphql", init), false);
 });
 
 test("a retry line names the error and its cause code, never its message", async () => {
