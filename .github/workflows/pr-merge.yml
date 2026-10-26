@@ -1421,7 +1421,9 @@ jobs:
       # A pr-unblock escalation adds the human-gated label with a reason. On
       # the schedule, this takes off a label the lanes App set once that
       # reason no longer holds at the PR's head (workflow-staged, a conflict
-      # reason, feedback-protected-path), after a comment naming the reason
+      # or conflict-patch reason, feedback-protected-path, a ci-fix stop once
+      # trusted pushes moved the head and its checks pass, read with this
+      # job's own token and the base trusted-actor list), after a comment naming the reason
       # and the head: never a label a person set, and never after anyone but
       # the App commented or reviewed since it went on. At most five a run, and not
       # while the lane is report-only or after the gate's rate-limit stop.
@@ -1447,6 +1449,7 @@ jobs:
           API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
       - name: Log the API budget at job end
