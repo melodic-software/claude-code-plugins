@@ -1059,7 +1059,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1344,7 +1344,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1396,7 +1396,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1611,10 +1611,11 @@ jobs:
           always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
+          log-file: ${{ steps.act-key.outputs.log-file || steps.act-token.outputs.log-file }}
           lane: >-
             ${{ inputs.issue-number != '' && inputs.fallback == 'handoff'
             && format('{0} (key {1} handed off)', inputs.lane, steps.launch.outputs.key-name)
@@ -2957,7 +2958,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
 
       - name: Isolate the runner
         id: isolate
@@ -2976,7 +2977,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3002,7 +3003,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:

@@ -762,9 +762,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!h.replyTo) return h.kind !== "revise"; // a heads-up: Claude spoke first and nothing of yours follows it
     return !!events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase"));
   }
-  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a reply recording the decision itself is not
+  const WORDING = new Set(["title", "short"]);
+  const wordingOnly = h => h.kind === "revise" && (Array.isArray(h.changed) ? h.changed.length > 0 && h.changed.every(f => WORDING.has(f)) : /^Revised (?:title|short)(?:, (?:title|short))*\.$/.test(String(h.text || ""))); // a line from before revise recorded changed reads its default text
+  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a reply recording the decision itself, and a revise of only the title or short, are not
     const d = counted(q), recorded = x => x.kind !== "revise" && events().some(e => e.seq === x.replyTo && DEC.has(e.kind));
-    const h = d && historyOf(q).find(x => talks(x) && !recorded(x));
+    const h = d && historyOf(q).find(x => talks(x) && !recorded(x) && !wordingOnly(x));
     return h && String(h.at) > String(d.updatedAt) ? h : null;
   }
   const waitingReply = q => events().some(e => e.id === q.id && (e.kind === "ask" || e.kind === "rephrase") && !e.withdrawn && !answered(q, e.seq)); // your ask or rephrase has no later reply from Claude
@@ -1238,6 +1240,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : personOf(d) ? d.text : "deferred";
     return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text, who: personOf(d)}; // who: a new name typed over the kept one stays person-held
   }
+  function planChange(q){ // an imported superseded-by-plan row: the plan's proposal against the answer it displaced (the `was` alternative)
+    const row = ((((S.doc.meta || {}).seededFrom || {}).rows) || {})[q.id];
+    if (!row || row.status !== "superseded-by-plan") return null;
+    const was = (q.alternatives || []).find(a => a.key === "was"), pair = Array.isArray(row.proposal) ? row.proposal : [];
+    const proposes = pair[0] || q.recommendation, old = pair[1] || (was && was.text);
+    return proposes && old ? {proposes: String(proposes), was: String(old)} : null;
+  }
   function altsOf(q){ return (q.alternatives || []).filter(a => !a.restates); } // the server flags an alternative that restates the recommendation: it folds into Accept
   function choicesOf(q){
     const r = reconfirmOf(q), c = r ? [r] : [], w = withheld(q); // a withheld question has nothing to accept, with or without a note or condition
@@ -1275,6 +1284,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
+    const planned = planChange(q);
+    if (planned && !(d && d.decision && !d.aside)) h += '<div class="banner" id="planban"><b>/planning:plan changed your answer.</b> Was: ' + inline(planned.was) + ". Plan proposes: " + inline(planned.proposes) + ". Reconfirm the proposal or keep yours.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';

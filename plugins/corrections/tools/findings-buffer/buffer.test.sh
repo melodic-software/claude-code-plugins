@@ -38,10 +38,14 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 N=0
 # The core runs only adapters shipped under the plugin's own adapters/, so the cases run a copy of
-# the plugin with their fake adapters installed there.
-cp -R "$REPO_ROOT/plugins/corrections" "$TEST_TMPDIR/plugin"
-BUFFER="$TEST_TMPDIR/plugin/tools/findings-buffer/buffer.sh"
-ADAPTERS="$TEST_TMPDIR/plugin/tools/findings-buffer/adapters"
+# the plugin with their fake adapters installed there. The copy sits in a marketplace install
+# layout, so it reads the user-scope binding from $CONFIG/settings.json.
+CONFIG="$TEST_TMPDIR/config"
+PLUGIN_COPY="$CONFIG/plugins/cache/mkt/corrections/1.0.0"
+mkdir -p "$(dirname "$PLUGIN_COPY")"
+cp -R "$REPO_ROOT/plugins/corrections" "$PLUGIN_COPY"
+BUFFER="$PLUGIN_COPY/tools/findings-buffer/buffer.sh"
+ADAPTERS="$PLUGIN_COPY/tools/findings-buffer/adapters"
 
 # new_repo: sets R to a new empty git repository.
 new_repo() {
@@ -195,7 +199,7 @@ check "redaction failure: append exits non-zero" test "$RC" -ne 0
 check "redaction failure: nothing reaches the adapter or the local file" \
   test ! -e "$ADAPTERS/ok/captured.jsonl" -a ! -e "$R/.work/buffer/findings.jsonl"
 
-# 7. A binding never runs repository code: only a plugin adapter name is accepted.
+# 7. A committed binding never runs repository code: only a plugin adapter name is accepted.
 new_repo
 fake_adapter "$R/evil" 0
 fake_adapter "$R/tools/evil" 0
@@ -219,6 +223,103 @@ DETAIL="exit $RC; stderr: $ERR"
 check "a plugin adapter name that links outside adapters/: append uses local-file and says so" \
   used_local "$RC" "$R" "$ERR"
 check "a plugin adapter name that links outside adapters/: it never runs" test ! -e "$R/evil/captured.jsonl"
+
+# 8. A user-scope binding runs the repository's own adapter, in that repository only.
+# user_bind <repository> <path>: the user-scope binding, in the install's user settings.
+user_bind() {
+  jq -n --arg r "$1" --arg p "$2" \
+    '{pluginConfigs: {"corrections@mkt": {options: {findings_buffer_adapter_repository: $r, findings_buffer_adapter_path: $p}}}}' \
+    >"$CONFIG/settings.json"
+}
+# refused_user <rc> <repo> <stderr>: the user-scope binding was refused and the append used local-file.
+refused_user() { used_local "$1" "$2" "$3" && grep -q "user-scope adapter binding is refused" <<<"$3"; }
+
+new_repo
+A="$R"
+fake_adapter "$A/tools/mine" 0
+user_bind "$A/.git" tools/mine
+run "$A" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $ERR"
+check "user-scope binding: append exits 0" test "$RC" -eq 0
+check "user-scope binding: the repository's adapter runs" grep -q '"unused variable"' "$A/tools/mine/captured.jsonl"
+check "user-scope binding: nothing lands in the local file" test ! -e "$A/.work/buffer/findings.jsonl"
+
+new_repo
+B="$R"
+fake_adapter "$B/tools/mine" 0
+run "$B" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $ERR"
+check "a binding made for repository A, in B with the same layout: append uses local-file" used_local "$RC" "$B" "$ERR"
+check "a binding made for repository A, in B with the same layout: B's adapter never runs" \
+  test ! -e "$B/tools/mine/captured.jsonl"
+
+rm -f "$A/tools/mine/captured.jsonl"
+git -C "$A" add -A
+git -C "$A" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit -qm fixture
+W="$TEST_TMPDIR/worktree-of-a"
+git -C "$A" worktree add -q "$W"
+run "$W" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $ERR"
+check "a binding made for repository A applies in a worktree of A" \
+  test "$RC" -eq 0 -a -s "$W/tools/mine/captured.jsonl"
+
+# A plain directory whose .git file names A's git directory is not a checkout A registers.
+H="$TEST_TMPDIR/claims-a"
+mkdir -p "$H"
+printf 'gitdir: %s\n' "$A/.git" >"$H/.git"
+fake_adapter "$H/tools/mine" 0
+run "$H" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $ERR"
+check "a directory whose .git file names A's git directory: refused, append uses local-file and says so" \
+  refused_user "$RC" "$H" "$ERR"
+check "a directory whose .git file names A's git directory: its adapter never runs" test ! -e "$H/tools/mine/captured.jsonl"
+
+# A repository-written value for the user-scope keys is never read: not from the team file, a
+# project settings file or the CLAUDE_PLUGIN_OPTION_* environment.
+rm -f "$CONFIG/settings.json"
+new_repo
+fake_adapter "$R/tools/mine" 0
+mkdir -p "$R/docs/conventions" "$R/.claude"
+printf 'findings_buffer:\n  adapter_repository: %s\n  adapter_path: tools/mine\n' "$R/.git" \
+  >"$R/docs/conventions/findings-buffer.yaml"
+jq -n --arg r "$R/.git" \
+  '{pluginConfigs: {"corrections@mkt": {options: {findings_buffer_adapter_repository: $r, findings_buffer_adapter_path: "tools/mine"}}}}' \
+  >"$R/.claude/settings.json"
+CLAUDE_PLUGIN_OPTION_FINDINGS_BUFFER_ADAPTER_REPOSITORY="$R/.git" CLAUDE_PLUGIN_OPTION_FINDINGS_BUFFER_ADAPTER_PATH=tools/mine \
+  run "$R" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $ERR"
+check "repository-written user-scope keys: append uses local-file" used_local "$RC" "$R" "$ERR"
+check "repository-written user-scope keys: the repository's adapter never runs" test ! -e "$R/tools/mine/captured.jsonl"
+
+# The adapter must resolve inside the checkout and outside any repository nested in it.
+new_repo
+fake_adapter "$TEST_TMPDIR/outside" 0
+ln -s "$TEST_TMPDIR/outside" "$R/out"
+mkdir -p "$R/vendor/nested"
+git -C "$R/vendor/nested" init -q
+fake_adapter "$R/vendor/nested/adapter" 0
+ln -s "$R/vendor/nested/adapter" "$R/into"
+fake_adapter "$R/tools/abs" 0
+# A tracked adapter directory whose append.sh links into a repository nested inside it.
+fake_adapter "$R/tools/split" 0
+mkdir -p "$R/tools/split/sub"
+git -C "$R/tools/split/sub" init -q
+mv "$R/tools/split/append.sh" "$R/tools/split/sub/append.sh"
+ln -s sub/append.sh "$R/tools/split/append.sh"
+for path in out into vendor/nested/adapter tools/split "$R/tools/abs"; do
+  user_bind "$R/.git" "$path"
+  run "$R" append < <(printf '%s\n' "$ROW")
+  DETAIL="exit $RC; stderr: $ERR"
+  check "a user-scope binding to ${path#"$R/"}: refused, append uses local-file and says so" refused_user "$RC" "$R" "$ERR"
+done
+check "a refused user-scope binding never runs" \
+  test ! -e "$TEST_TMPDIR/outside/captured.jsonl" -a ! -e "$R/vendor/nested/adapter/captured.jsonl" \
+    -a ! -e "$R/tools/split/captured.jsonl" -a ! -e "$R/tools/abs/captured.jsonl"
+jq -n '{pluginConfigs: {"corrections@mkt": {options: {findings_buffer_adapter_path: "tools/abs"}}}}' >"$CONFIG/settings.json"
+run "$R" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $ERR"
+check "a user-scope binding with one option set: refused, append uses local-file and says so" refused_user "$RC" "$R" "$ERR"
+rm -f "$CONFIG/settings.json"
 
 # Usage.
 new_repo
