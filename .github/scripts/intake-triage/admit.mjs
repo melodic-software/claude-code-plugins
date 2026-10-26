@@ -376,10 +376,21 @@ const pathTokens = (text) =>
     )
     .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
 
-// The paths the task-list items in `body` name that apply-patch refuses under
-// `names` (issuePushRefusals), in order, each once. Pure.
+// A line that opens its own list item, such as a nested evidence bullet.
+const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
+
+// The paths the task-list items in `body`, with the wrapped text below each up
+// to its first nested bullet, name that apply-patch refuses under `names`
+// (issuePushRefusals), in order, each once. Pure.
 export function unpushablePaths(body, taskList, names) {
-  const paths = taskItems(body, taskList).flatMap(({ text }) => pathTokens(text).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))));
+  const lines = String(body ?? "").split("\n");
+  const wrapped = (more) => {
+    const end = more.findIndex((index) => BULLET.test(lines[index]));
+    return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
+  };
+  const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
+    pathTokens([text, ...wrapped(more)].join("\n")).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
+  );
   return [...new Set(paths)];
 }
 
@@ -449,7 +460,8 @@ export function admissionSettled(labels, events, isMark) {
 // a person-held label (the owner's 2026-10-26 rule keeps a person out of
 // every other refusal), or done-when items a lane run cannot perform, which
 // refine splits only from needs-decision (refine.mjs splitOf). Pure but for
-// `pushRefusals`, read from patch-rules.json when not given.
+// `pushRefusals`, read from patch-rules.json when not given; a file that does
+// not read throws out of decide, so no issue is admitted on a guess.
 export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
