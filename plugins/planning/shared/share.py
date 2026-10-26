@@ -601,14 +601,20 @@ def logged_at(line):
         return None
 
 
-def cmd_logs(d, a):
-    """The newest LOG_TAIL lines of server.log and its rotated files, oldest first, or with --summary what they add up
-    to (summarize); it needs no running server."""
+def log_lines(d):
+    """Every line of server.log and its rotated files, oldest first."""
     rotated = sorted((f for f in d.glob(LOG + ".*") if _digits(f.suffix[1:])), key=lambda f: int(f.suffix[1:]), reverse=True)
     lines = []
     for f in [*rotated, d / LOG]:
         with contextlib.suppress(OSError):
             lines += [line for line in f.read_text(encoding="utf-8", errors="replace").split("\n") if line]  # not splitlines(): only a newline ends an entry
+    return lines
+
+
+def cmd_logs(d, a):
+    """The newest LOG_TAIL lines of server.log and its rotated files, oldest first, or with --summary what they add up
+    to (summarize); it needs no running server."""
+    lines = log_lines(d)
     if a.since is not None:
         cut = datetime.datetime.now() - datetime.timedelta(minutes=a.since)
         lines = [line for line in lines if (logged_at(line) or cut) >= cut]
@@ -789,39 +795,39 @@ def summarize(lines):
     }
 
 
-def summary_text(s):
-    """summarize's counts as plain text, for a person to read."""
+def summary_sections(s):
+    """summarize's counts as sections for a person to read: [{title, lines}], with an empty title for lines that stand
+    alone. summary_text prints them; the owner's Host Health panel shows them (README "Logs")."""
     ms = lambda v: "over 10 s" if v is None else f"{v} ms"  # noqa: E731
     pct = lambda r: "-" if r is None else f"{r * 100:.1f}%"  # noqa: E731
     devs = lambda d: ", ".join(f"{k} {n}" for k, n in sorted(d.items()))  # noqa: E731
-    sm = s["summaries"]
-    out = [f"Summaries: {sm['count']} in {sm['batches']} batches from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings)."
-           + (f" {sm['dropped']} more did not fit in their batch." if sm["dropped"] else ""), "", "Top errors:"]
-    out += [f"  {g['count']}x {g['kind']}: {g['message'][:120]} {g['source']} ({devs(g['devices'])}; {devs(g['browsers'])}), first {g['firstSeen']}, last {g['lastSeen']}"
-            for g in s["errors"]] or ["  none"]
-    out += ["", "Refusals by route and code (the server's own entries):"]
-    out += [f"  {r['route']} {r['code']}: {r['count']}" for r in s["refusals"]] or ["  none"]
-    out += ["", "Network failures and unanswered actions:"]
-    out += [f"  {r['route']} {r['code']}: {r['count']}" for r in s["network"]] or ["  none"]
-    out += ["", "Action latency, tap to answer (p50 and p95 as the upper edge of their bucket), with the server's own time:"]
-    out += [f"  {route}: {r['actions']} actions, p50 up to {ms(r['p50Ms'])}, p95 up to {ms(r['p95Ms'])}; server p50 {r['serverP50Ms']} ms, p95 {r['serverP95Ms']} ms; "
-            f"rollbacks {r['rollbacks']} ({pct(r['rollbackRate'])})" for route, r in s["latency"].items()] or ["  none"]
-    rb = s["rollbacks"]
-    out += [f"  Rollback rate: {rb['count']} of {rb['actions']} actions ({pct(rb['rate'])})", ""]
-    rc = s["reconnect"]
-    out += [f"Reconnect gaps after the page shows again: {rc['count']}, {rc['over10s']} over 10 s, worst {'-' if rc['worstMs'] is None else ms(rc['worstMs'])} ({devs(rc['byDevice'])})", "", "Layout anomalies by device:"]
-    out += [f"  {a['anomaly']} at {a['at']}, {a['device']}: {a['count']}" for a in s["layout"]] or ["  none"]
-    out.append("")
-    for name in ("inp", "lcp"):
-        v = s[name]
-        p75 = "-" if v["p75Ms"] is None else f"{v['p75Ms']} ms"
-        out.append(f"{name.upper()} p75: {p75} over {v['pages']} page views ({devs(v['byDevice'])}); API missing on {v['missing']}")
+    sec = lambda title, lines: {"title": title, "lines": lines or ["none"]}  # noqa: E731
+    sm, rb, rc = s["summaries"], s["rollbacks"], s["reconnect"]
+    out = [sec("", [f"Summaries: {sm['count']} in {sm['batches']} batches from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings)."
+                    + (f" {sm['dropped']} more did not fit in their batch." if sm["dropped"] else "")]),
+           sec("Top errors:", [f"{g['count']}x {g['kind']}: {g['message'][:120]} {g['source']} ({devs(g['devices'])}; {devs(g['browsers'])}), first {g['firstSeen']}, last {g['lastSeen']}"
+                               for g in s["errors"]]),
+           sec("Refusals by route and code (the server's own entries):", [f"{r['route']} {r['code']}: {r['count']}" for r in s["refusals"]]),
+           sec("Network failures and unanswered actions:", [f"{r['route']} {r['code']}: {r['count']}" for r in s["network"]]),
+           sec("Action latency, tap to answer (p50 and p95 as the upper edge of their bucket), with the server's own time:",
+               [f"{route}: {r['actions']} actions, p50 up to {ms(r['p50Ms'])}, p95 up to {ms(r['p95Ms'])}; server p50 {r['serverP50Ms']} ms, p95 {r['serverP95Ms']} ms; "
+                f"rollbacks {r['rollbacks']} ({pct(r['rollbackRate'])})" for route, r in s["latency"].items()])]
+    out[-1]["lines"].append(f"Rollback rate: {rb['count']} of {rb['actions']} actions ({pct(rb['rate'])})")
+    out += [sec("", [f"Reconnect gaps after the page shows again: {rc['count']}, {rc['over10s']} over 10 s, worst {'-' if rc['worstMs'] is None else ms(rc['worstMs'])} ({devs(rc['byDevice'])})"]),
+            sec("Layout anomalies by device:", [f"{a['anomaly']} at {a['at']}, {a['device']}: {a['count']}" for a in s["layout"]]),
+            sec("", [f"{name.upper()} p75: {'-' if s[name]['p75Ms'] is None else str(s[name]['p75Ms']) + ' ms'} over {s[name]['pages']} page views ({devs(s[name]['byDevice'])}); API missing on {s[name]['missing']}"
+                     for name in ("inp", "lcp")])]
     for k, title in (("use", "Feature use, taps by component:"), ("rage", "Rage taps (three quick taps on one control) by component:"),
                      ("dead", "Dead taps (a tap that changed nothing on the page) by component:")):
-        out += ["", title] + ([f"  {x['component']}: {x['count']}" for x in s["features"][k]] or ["  none"])
+        out.append(sec(title, [f"{x['component']}: {x['count']}" for x in s["features"][k]]))
     if s["repeatsUnmatched"]:
-        out.append(f"Repeats whose first entry is no longer in the log: {s['repeatsUnmatched']}")
-    return "\n".join(out)
+        out.append(sec("", [f"Repeats whose first entry is no longer in the log: {s['repeatsUnmatched']}"]))
+    return out
+
+
+def summary_text(s):
+    """summarize's counts as plain text, for a person to read: summary_sections, a titled section's lines indented."""
+    return "\n\n".join("\n".join([x["title"], *(f"  {line}" for line in x["lines"])] if x["title"] else x["lines"]) for x in summary_sections(s))
 
 
 class Parser(argparse.ArgumentParser):

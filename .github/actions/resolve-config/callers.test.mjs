@@ -1941,6 +1941,22 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
   );
 });
 
+// limit-stop.mjs reads a stop only from the lane record on the check run's
+// first summary line; without it, a refused credential or a usage limit on a
+// read activity reads as a plain failure (the 2026-10-25 outage: three
+// resolve-conflicts runs on one head in 23 minutes, then the cap).
+test("pr-run-activity-read.yml: the posted check carries the lane record's class and reset", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  assert.equal(jobs.run.outputs["record-class"], "${{ steps.lane-record.outputs.failure-class }}");
+  assert.equal(jobs.run.outputs["record-resets"], "${{ steps.lane-record.outputs.resets-at }}");
+  const post = jobs.report.steps.find((s) => s.name === "Post the check run");
+  assert.equal(post.with["lane-class"], "${{ needs.run.outputs.record-class }}");
+  assert.equal(post.with["lane-resets"], "${{ needs.run.outputs.record-resets }}");
+  // The same action, at the same pin, as the write workflow whose record limit-stop.mjs already reads.
+  const writeRecord = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-record");
+  assert.equal(jobs.run.steps.find((s) => s.id === "lane-record").uses, writeRecord.uses);
+});
+
 // A caller whose handoff job read only that the first call posted no check
 // passes fallback handoff; the run job's input check must let it through.
 test("pr-run-activity-read.yml: the fallback input takes empty, credit-stop, no-key, handoff or fallback, and nothing else", () => {

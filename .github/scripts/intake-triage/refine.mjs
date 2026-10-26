@@ -84,7 +84,7 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, decisionStays, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, CONFIRMED, decisionStays, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
@@ -649,6 +649,20 @@ export async function applyRefinement({ github, repository, number, appId, human
     await post();
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
+  }
+  // Admission parks a refusal no person must answer at status: confirmed
+  // (admit.mjs): it resumes like the App's own needs-decision below.
+  const parked = !labels.includes(NEEDS_DECISION) && !labels.includes(READY) && !labels.includes(AGENT_READY) && labels.includes(CONFIRMED) &&
+    comments.some((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
+  if (parked) {
+    if (await untrusted()) {
+      return { outcome: "exact", redispatch: false };
+    }
+    await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    await removeLabel(github, base, CONFIRMED);
+    await post(true);
+    log(`refine: #${number} is exact; ${CONFIRMED} lifted and triage asked again`);
+    return { outcome: "exact", redispatch: true };
   }
   // A `status: ready` issue admission has not taken (no needs-decision, no
   // agent-ready) is triaged again when the text admission counts, with this

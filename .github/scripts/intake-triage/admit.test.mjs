@@ -16,6 +16,7 @@ const APP = 337595936;
 const humans = new Set([HUMAN]);
 const READY = "status: ready";
 const NEEDS_DECISION = "status: needs-decision";
+const CONFIRMED = "status: confirmed";
 
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
   "\n",
@@ -117,13 +118,13 @@ describe("decide", () => {
       }
     });
 
-    test("admit() reads the authors and refuses an App-only spec to status: needs-decision", async () => {
+    test("admit() reads the authors and parks an App-only spec at status: confirmed, as no person must answer it", async () => {
       const { github, calls } = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
       const result = await admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => assert.fail("a refusal reads no status"), log: () => {} });
-      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC] });
+      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC], status: CONFIRMED });
       const writes = calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}`);
       assert.deepEqual(writes, ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/comments"]);
-      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [NEEDS_DECISION] });
+      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [CONFIRMED] });
     });
   });
 
@@ -210,7 +211,7 @@ describe("decide", () => {
     ],
   ];
   for (const [name, input, reason] of refusals) {
-    test(`refuses for a person on ${name}`, () => {
+    test(`refuses on ${name}`, () => {
       const result = decide(facts(input));
       assert.equal(result.verdict, "refuse");
       assert.match(result.reasons.join("; "), reason);
@@ -678,7 +679,7 @@ describe("admit", () => {
     });
   }
 
-  test("a refusal swaps status: ready for needs-decision and posts the reason", async () => {
+  test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
     const fake = fakeGitHub({
       issue: issueOf({ body: "Make the README better." }),
     });
@@ -686,14 +687,14 @@ describe("admit", () => {
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done.length, 3);
-    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /);
     assert.ok(done[2].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
     assert.match(done[2], /no trusted-human acceptance criteria/);
   });
 
-  test("a Windows-host done-when item stays out of the lane: needs-decision and a recommended split, never agent-ready", async () => {
+  test("a Windows-host done-when item stays out of the lane: needs-decision, which refine splits from, and a recommended split, never agent-ready", async () => {
     const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
@@ -704,8 +705,25 @@ describe("admit", () => {
     assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
   });
 
-  test("a refusal whose needs-decision write fails keeps status: ready, so admission-deferred never stands alone", async () => {
-    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(NEEDS_DECISION);
+  test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    const done = writes(fake.calls);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
+  });
+
+  test("a refusal with a person reason among mechanical ones still sets needs-decision", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    assert.match(result.reasons.join(), /no trusted-human acceptance criteria/);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
+
+  test("a refusal whose status: confirmed write fails keeps status: ready, so admission-deferred never stands alone", async () => {
+    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(CONFIRMED);
     const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: DEFERRED }] }), failOn });
     await assert.rejects(() => go(fake), /failed with status 500/);
     assert.ok(!writes(fake.calls).some((call) => call.startsWith("DELETE ")), writes(fake.calls).join("\n"));

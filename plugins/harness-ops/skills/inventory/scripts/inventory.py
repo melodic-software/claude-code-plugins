@@ -2269,17 +2269,22 @@ def _parsed_written_elsewhere(src: str, ident: str, pos: int) -> bool:
     may change. A reference other than a spread into an array or call and a
     member read used as a value may let the array change later, so the
     array is then followed (`_flow_holds`) and counts as written unless
-    every place it reaches is known safe. Text in strings and comments is
-    no reference, and a write the parser resolves to another binding is
-    that binding's. A name the parser cannot answer for counts as
-    written."""
+    every place it reaches is known safe. A spread or a member read used as
+    a value changes nothing itself, but it is followed too, since the
+    engine looks names up on the prototypes for it (`@@iterator`, the key
+    read) and a module may patch them (`_sink_hit`). Text in strings and
+    comments is no reference, and a write the parser resolves to another
+    binding is that binding's. A name the parser cannot answer for counts
+    as written."""
     assert _PARSER is not None
     found = _PARSER.writes(src, *_chunk_span(src, pos), ident, pos)
     if found is None or not found["declares"]:
         return True
     if any(w != pos for _, w, _ in found["writes"]):
         return True
-    return bool(found["mutations"]) and not _flow_holds(src, ident, pos)
+    if not (found["mutations"] or found["reads"]):
+        return False
+    return not _flow_holds(src, ident, pos)
 
 
 # How many module-level steps `_flow_holds` takes before it gives up.
@@ -2304,7 +2309,10 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
     Any hop it cannot follow, and more than FLOW_HOPS of them, is false, as
     is a bundle with a sink for a name the walk trusted (the built-in
     methods it called on the array, a name it relied on the prototypes not
-    holding, the lookups of a coercion): a module that may write one of
+    holding, a key it read as a value, and what the engine looks up for a
+    spread, a method building a new array or a coercion: `@@iterator`,
+    `next`, `constructor`, `@@species`, `@@isConcatSpreadable`,
+    `@@toPrimitive` and the rest): a module that may write one of
     those names on an object that could be a built-in prototype
     (`_sink_hit`)."""
     assert _PARSER is not None
@@ -2351,8 +2359,8 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
 
 def _sink_hit(src: str, names: list[str]) -> tuple[str, str | None, int] | None:
     """The first place any module may write one of `names` (the built-in
-    methods and coercions the flow trusted) on an object that could be a
-    built-in prototype, or None. See the helper's `sinks` op."""
+    methods, keys and engine lookups the flow trusted) on an object that
+    could be a built-in prototype, or None. See the helper's `sinks` op."""
     assert _PARSER is not None
     for lo, hi in _module_spans(src):
         hits = _PARSER.sinks(src, lo, hi, names)

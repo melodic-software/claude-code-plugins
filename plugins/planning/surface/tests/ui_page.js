@@ -373,6 +373,29 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.click("#choices .choice.rec"); await page.waitForTimeout(150);
     ok("#9714: Save is enabled again", await page.$eval("[data-save]", el => !el.disabled), await text("#saveHint"));
   }
+  if (PHASE === 17) { // #9694: the shell proposed Q14, Q15 and Q16; a proposal is one Needs-you card and no Decide list until the user answers it
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    const stateOf = async id => ((await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === id) || {}).state;
+    const chip = await text('.qbtn[data-q="Q14"] .qmeta');
+    await pick("Q14");
+    const card = await page.evaluate(() => { const c = document.getElementById("proposal");
+      return {text: c ? c.textContent.replace(/\s+/g, " ").trim() : "", buttons: c ? [...c.querySelectorAll("button[data-proposal]")].map(b => b.textContent) : [], decide: !document.getElementById("answer").hidden || !!document.querySelector("#dscroll .choice")}; });
+    ok("#9694: a proposed question renders a card containing Claude proposes adding: with Accept, Edit and Not this and no Decide list", /Claude proposes adding: Should the rollout pause on a failed health check\?/.test(card.text) && JSON.stringify(card.buttons) === '["Accept","Edit","Not this"]' && !card.decide && /Proposed/.test(chip), JSON.stringify(card) + " " + chip);
+    let n0 = (await events()).length;
+    await page.click('#proposal [data-proposal="accept"]'); await page.waitForTimeout(900);
+    let ev = await events(), last = ev[ev.length - 1] || {};
+    ok("#9694: Accept posts one proposal event, the question becomes open and the Decide list returns", ev.length === n0 + 1 && last.id === "Q14" && last.kind === "proposal" && last.alt === "accept" && await stateOf("Q14") === "open" && !(await page.$("#proposal")) && await page.$eval("#answer", el => !el.hidden), JSON.stringify(last));
+    await pick("Q15"); await page.click('#proposal [data-proposal="open-edit"]'); await page.waitForTimeout(150);
+    await page.fill("#propText", "Should a failed health check pause every region?"); n0 = (await events()).length;
+    await page.click('#proposal [data-proposal="edit"]'); await page.waitForTimeout(900);
+    ev = await events(); last = ev[ev.length - 1] || {};
+    ok("#9694: Edit then Send edit posts the user's wording and the question becomes open", ev.length === n0 + 1 && last.id === "Q15" && last.alt === "edit" && last.text === "Should a failed health check pause every region?" && await stateOf("Q15") === "open", JSON.stringify(last));
+    await pick("Q16"); n0 = (await events()).length;
+    await page.click('#proposal [data-proposal="decline"]'); await page.waitForTimeout(900);
+    ev = await events(); last = ev[ev.length - 1] || {};
+    ok("#9694: Not this posts a decline and the question is archived", ev.length === n0 + 1 && last.id === "Q16" && last.alt === "decline" && await stateOf("Q16") === "archived", JSON.stringify(last));
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

@@ -413,8 +413,8 @@ activities:
     # off on an armed one that now carries a hold or while the gate holds the
     # lane off; auto-merge a person turned off stays off. No
     # model. The enable-auto-merge job of .github/workflows/pr-merge.yml runs
-    # it when the issue lane finishes, on a listed human's PR edit, and on the
-    # schedule.
+    # it on a listed human's PR edit, unlabel or ready, and on the schedule,
+    # which arms.
     script: .github/scripts/pr-merge/enable-auto-merge.mjs
     effect: merge
     gating: advisory

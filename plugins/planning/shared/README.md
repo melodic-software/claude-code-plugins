@@ -297,6 +297,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/decision/keep` | `{qid}` | Keeps a possibly reopened decision ([Answering](#answering), "Possibly reopened") |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
+| `GET /api/owner/health` | | The Host Health panel's read ([Logs](#logs)): `{summary, sections}` for the whole kept log |
 | `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
 | `/api/live/approve` | `{id, attest?}` | Starts a pending live prototype ([Prototype page](#prototype-page), "Live"): `starting`, then `running` with the https origin the server's live starter answers. A port needs `attest: true` (400 `bad-field`, field `attest`). 403 `live-off` while the live tier is off, 409 `wrong-status` unless it is pending or once the session ended, 404 `not-found` for no such entry; 503 `live-unavailable` while cloudflared is missing (it stays pending), 400 `bad-field` for a build folder that gained a link or hidden name or a refused port ([Live transport](#live-transport)), 502 `live-failed` when the start fails or answers no https origin (it stays pending, and what began is stopped) |
 | `/api/live/stop` | `{id}` | Ends a live prototype, started or not: `ended`, reason `stopped`, its url gone; the server stops what its starter began. 409 `wrong-status` once ended |
@@ -919,6 +920,13 @@ device with the count of page views missing the API, taps, rage taps and dead ta
 batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
 `--since`. A `rep:<fp>` count in an older log still adds to its fingerprint's count. `logs --errors` leaves batches out.
+
+**Host Health.** The owner's Help and More list Host Health, which no one else sees: a panel showing that
+summary for the whole kept log, in the sections the plain text prints, read when it opens and again on Refresh.
+It reads `GET /api/owner/health` (auth class owner; a request without the owner's credential 403 `owner-only`), which answers
+`{summary, sections}`: `summary` the object `logs --summary --json` prints, without `ok`, and `sections` a list of
+`{title, lines}`, the title empty for lines that stand alone. Usage counts reach it only in a `summary-batch`, every
+10 minutes, so a one-guest session's counts, written at shutdown, never show while it runs.
 
 ## Themes
 

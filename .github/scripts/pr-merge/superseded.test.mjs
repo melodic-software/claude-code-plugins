@@ -219,19 +219,13 @@ test("a failed jobs read does the work, with a warning", async () => {
   assert.match(run.stdout, /^::warning title=superseded::.*status 502/m);
 });
 
-test("enable-auto-merge: a pending issue-lane or edit run a listed human started supersedes either", async () => {
-  for (const [event, next] of [
-    ["pull_request_target", "workflow_run"],
-    ["workflow_run", "pull_request_target"],
-    ["workflow_run", "workflow_run"],
-  ]) {
-    const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
-    assert.equal(run.superseded, true, `${event} by ${next}`);
-  }
+test("enable-auto-merge: a pending edit run a listed human started supersedes another", async () => {
+  const run = await check({ job: "enable-auto-merge", event: "pull_request_target", runs: [pending(600, "pull_request_target")] });
+  assert.equal(run.superseded, true);
 });
 
 test("enable-auto-merge: a scheduled and a hand-started run, which both arm, supersede each other and every event run", async () => {
-  for (const event of ["schedule", "workflow_dispatch", "pull_request_target", "workflow_run"]) {
+  for (const event of ["schedule", "workflow_dispatch", "pull_request_target"]) {
     for (const next of ["schedule", "workflow_dispatch"]) {
       const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
       assert.equal(run.superseded, true, `${event} by ${next}`);
@@ -241,10 +235,8 @@ test("enable-auto-merge: a scheduled and a hand-started run, which both arm, sup
 
 test("enable-auto-merge: an event run, which never arms, supersedes no scheduled or hand-started run", async () => {
   for (const event of ["schedule", "workflow_dispatch"]) {
-    for (const next of ["pull_request_target", "workflow_run"]) {
-      const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
-      assert.equal(run.superseded, false, `${event} by ${next}`);
-    }
+    const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, "pull_request_target")] });
+    assert.equal(run.superseded, false, event);
   }
 });
 
@@ -253,14 +245,4 @@ test("enable-auto-merge: a waiting merge job, or an enable-auto-merge job a cond
     const run = await check({ job: "enable-auto-merge", runs: [pending(600, "schedule")], jobs: { 600: jobs } });
     assert.equal(run.superseded, false);
   }
-});
-
-test("enable-auto-merge: an issue-lane run the lanes App started stops at the who step, so it supersedes nothing", async () => {
-  const run = await check({ job: "enable-auto-merge", event: "workflow_run", runs: [pending(600, "workflow_run", LANES_BOT)] });
-  assert.equal(run.superseded, false);
-});
-
-test("a merge job is never superseded by an issue-lane run, whose merge job never runs", async () => {
-  const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_run")] });
-  assert.equal(run.superseded, false);
 });

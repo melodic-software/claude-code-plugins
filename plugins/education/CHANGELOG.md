@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1] - 2026-10-26
+
+### Fixed
+
+- **`/education:illustrate` draws parts that hang off one center as a hub, even when each part has details.** The skill picks a diagram's kind by how its parts relate, not by how much each part says: a person's other bands are a `hub` with their details in `text`, and `compare` is only for options weighed against each other on the same points. ([#6169](https://github.com/melodic-software/claude-code-plugins/issues/6169))
+
 ## [0.19.0] - 2026-10-22
 
 ### Added

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // enable-auto-merge.mjs: turns on GitHub's native auto-merge for the lanes
 // App's open pull requests into main, and turns it off on one that now carries
-// a hold. No model. pr-merge.yml's enable-auto-merge job runs it when the issue
-// lane finishes, when a listed human edits, unlabels or readies a pull
-// request, and on the schedule, which arms any the other events missed.
+// a hold. No model. pr-merge.yml's enable-auto-merge job runs it when a listed
+// human edits, unlabels or readies a pull request, and on the schedule, which
+// arms.
 //
 // A pull request is armed only when all of these hold:
 // - The lanes App opened it (merge.agent-identity), into main, from a branch
@@ -46,7 +46,7 @@
 //   scheduled run and
 //   a hand-started one read them (READER_EVENTS), last, for a pull request
 //   every other rule would arm or keep armed, sharing one artifact listing
-//   and run cache in the run. An event run (the issue lane, a person's edit,
+//   and run cache in the run. An event run (a person's edit,
 //   unlabel or ready) never arms and reads no verdict: it only disarms on a
 //   hold, so a pull request waits up to one scheduled interval to be armed.
 //   ci-status disarms an armed lanes App pull request on each push to its

@@ -1473,13 +1473,11 @@ test("only the scheduled run and a hand-started one read the verdict and arm", (
 });
 
 test("an event run arms nothing and reads neither discussion nor verdict for an unarmed pull request", async () => {
-  for (const event of ["workflow_run", "pull_request_target"]) {
-    const { code, writes, verified, lines } = await run([pull(1)], { EVENT_NAME: event });
-    assert.equal(code, 0);
-    assert.deepEqual(writes, []);
-    assert.deepEqual(verified, []);
-    assert.ok(lines.some((line) => /#1 left: only a scheduled or hand-started run arms it/.test(line)), event);
-  }
+  const { code, writes, verified, lines } = await run([pull(1)], { EVENT_NAME: "pull_request_target" });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(verified, []);
+  assert.ok(lines.some((line) => /#1 left: only a scheduled or hand-started run arms it/.test(line)));
 });
 
 test("an event run still disarms an armed pull request that now holds", async () => {

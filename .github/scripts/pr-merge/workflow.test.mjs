@@ -182,16 +182,18 @@ test("pr-require-checks.yml never cancels a dispatched or scheduled run", () => 
   assert.match(group, /github\.event\.pull_request\.number \|\| github\.run_id/);
 });
 
-// The native-merge plan's arm-merge item: the lanes App token arms a lane
-// pull request as soon as the issue lane finishes, in pr-merge.yml, the one
-// caller the token broker mints `merge` for; the merge job's gate never runs
-// on that event.
-test("the issue lane finishing wakes only the enable-auto-merge job", () => {
-  assert.match(merge, /\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[work-resolve-issue\]\n {4}types: \[completed\]\n/);
-  assert.match(job("merge"), /\n {6}&& github\.event_name != 'workflow_run'\n/);
+// Only a scheduled or hand-started run arms (enable-auto-merge.mjs
+// READER_EVENTS), and a pull request the issue lane just opened is not armed,
+// so the issue lane finishing would give the job nothing to do: no
+// workflow_run trigger wakes it.
+test("no workflow_run trigger wakes pr-merge, and the enable-auto-merge job skips push", () => {
+  const on = merge.slice(merge.indexOf("\non:\n"), merge.indexOf("\npermissions:"));
+  assert.doesNotMatch(on, /\n {2}workflow_run:/);
+  const condition = (body) => /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(body)[1];
+  assert.doesNotMatch(condition(job("merge")), /workflow_run/);
   const arm = job("enable-auto-merge");
-  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1];
-  assert.match(armIf, /github\.event_name != 'workflow_run' \|\| github\.event\.workflow_run\.conclusion != 'skipped'/);
+  const armIf = condition(arm);
+  assert.doesNotMatch(armIf, /workflow_run/);
   // A push to main is a merge landing, never a new lane pull request.
   assert.match(armIf, /github\.event_name != 'push'/);
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);

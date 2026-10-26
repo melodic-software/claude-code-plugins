@@ -16,6 +16,7 @@
           {"$ref": "#/$defs/revise"},
           {"$ref": "#/$defs/add"},
           {"$ref": "#/$defs/add-round"},
+          {"$ref": "#/$defs/propose"},
           {"$ref": "#/$defs/group"},
           {"$ref": "#/$defs/group-order"},
           {"$ref": "#/$defs/meta"},
@@ -167,6 +168,20 @@
           "description": "Let `meta.title` replace the interview title; without it a different title is dropped with a warning.",
           "type": "boolean"
         }
+      }
+    },
+    "propose": {
+      "description": "Add a question the user approves before it is asked, such as new scope an Ask opened. It carries no recommendation, alternatives or commitments and is `proposed` until a `proposal` event answers it: the page shows `Claude proposes adding: <title>` with Accept, Edit and Not this, the exports write no row for it (a declined one exports as a withdrawn row), and a recommendation, alternatives, commitments or a terminal answer on it are refused until the user accepts or edits it. `fromSeq` is the seq of the Ask it answers and must name an ask event. Refused: a missing or duplicate `id`, a missing `title` or `short`, an unknown `group`.",
+      "type": "object",
+      "required": ["op", "id", "title", "short"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["propose"]},
+        "id": {"type": "string"},
+        "title": {"$ref": "#/$defs/line"},
+        "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
+        "group": {"type": "string"},
+        "fromSeq": {"type": "integer"}
       }
     },
     "group": {

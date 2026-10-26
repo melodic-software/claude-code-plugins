@@ -71,7 +71,9 @@
 #                    traversal value can't redirect the API to another repo.
 #   --app-slug SLUG  The GitHub App whose installation token gh runs under; the
 #                    detection then reads comments written by SLUG[bot]. Must be
-#                    a GitHub App slug ([a-z0-9][a-z0-9-]*), else exit 3.
+#                    a GitHub App slug ([a-z0-9][a-z0-9-]*), else exit 3. An
+#                    empty value or an unrendered `${user_config.*}`
+#                    placeholder means no slug.
 #   --dry-run       Resolve + report the action (create/update + target id) but
 #                    perform no write.
 #   --help
@@ -269,6 +271,9 @@ done
   err "--body-file is required"
   exit 3
 }
+# An unrendered `${user_config.lane_app_slug}` placeholder means the option is
+# unset; treat it, like an empty value, as no slug.
+[[ "$APP_SLUG" == "\${user_config."* ]] && APP_SLUG=""
 if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
   exit 3

@@ -3611,5 +3611,73 @@ class TestSettleBurstCap(unittest.TestCase):
         self.assertLess(took, 1.2 + 0.3)
 
 
+class TestProposal(OpsCase):
+    """#9694: a proposed question is `proposed` until a proposal event answers it: accept or edit
+    make it `open`, decline makes it `archived`, and no decision lands on it before then."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_1_a_proposed_question_takes_no_decision(self):
+        self.apply_ops(
+            {"op": "propose", "id": "P1", "short": "Pause", "title": "Pause on failure?"},
+            {"op": "propose", "id": "P2", "short": "Pager", "title": "Page on-call?"},
+            {"op": "propose", "id": "P3", "short": "Scope", "title": "One region?"},
+        )
+        self.assertEqual(
+            self.states(),
+            {"A": "open", "P1": "proposed", "P2": "proposed", "P3": "proposed"},
+        )
+        code, data = self.post({"id": "P1", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+
+    def test_2_accept_makes_it_open_and_a_second_answer_is_refused(self):
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "accept"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P1"], "open")
+        # Claude has written no recommendation yet, so there is nothing to accept.
+        code, data = self.post({"id": "P1", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "decline"})
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data["error"], "proposal answered")
+        self.assertEqual(self.states()["P1"], "open")
+
+    def test_3_decline_archives_it(self):
+        code, data = self.post({"id": "P2", "kind": "proposal", "alt": "decline"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P2"], "archived")
+        code, data = self.post({"id": "P2", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+
+    def test_4_an_edit_needs_its_wording(self):
+        for text in (" ", "Every region?\nOr one?"):
+            code, data = self.post({"id": "P3", "kind": "proposal", "alt": "edit", "text": text})
+            self.assertEqual(code, 400, data)
+        self.assertEqual(self.states()["P3"], "proposed")
+        code, data = self.post(
+            {"id": "P3", "kind": "proposal", "alt": "edit", "text": "Every region?"}
+        )
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P3"], "open")
+
+    def test_5_only_a_proposed_question_takes_a_proposal(self):
+        code, data = self.post({"id": "A", "kind": "proposal", "alt": "accept"})
+        self.assertEqual(code, 400, data)
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "maybe"})
+        self.assertEqual(code, 400, data)
+
+    def test_6_the_log_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        r = self.state()["responses"]
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(any("state" in q for q in doc["questions"]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -191,15 +191,17 @@ on an **OS-owned schedule** (its `print-schedule` action emits the registration
 commands; registering them is an operator action). For `consume-restarts`, run:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/restart-consumer.sh" --data-dir "${CLAUDE_PLUGIN_DATA}" $ARGUMENTS
+bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/restart-consumer.sh" --data-dir "${CLAUDE_PLUGIN_DATA}" --app-slug '${user_config.lane_app_slug}' $ARGUMENTS
 ```
 
 The script strips the leading `consume-restarts` token itself; the next token is
 its sub-action. `check` (read-only report, the default), `run` (relaunch), or
 `print-schedule` (emit the registration commands), and later tokens its options.
 Print the output verbatim. Only telemetry comments written by the lanes' own
-account count; when the lanes write under a GitHub App token, pass
-`--app-slug <slug>`. Relaunches delegate to `lane-launcher.sh restart`, so
+account count; when the lanes write under a GitHub App token, the `lane_app_slug`
+option supplies `--app-slug` above (an `--app-slug` in the arguments wins, since
+the later flag does). Left unset, the empty or unrendered value reads as no
+slug. Relaunches delegate to `lane-launcher.sh restart`, so
 each lane's prompt, model, effort, and settings come from the same config this
 skill already uses. **The consumer's polling tick is not lane pacing**: lanes
 stay self-paced via `ScheduleWakeup`, and a tick where no configured lane has a
@@ -403,8 +405,10 @@ each, the summary below is a pointer, not a copy.
   second. Given `--issue N --marker STR --body-file PATH`, it writes a
   machine-detectable sentinel as the comment's first line, finds that sentinel
   across all comments and PATCHes it, adopting or creating a comment when none
-  carries it. Under a GitHub App installation token pass `--app-slug SLUG`, so the
-  adoption fallback reads comments written by `SLUG[bot]`; with no resolvable
+  carries it. Pass `--app-slug '${user_config.lane_app_slug}'` on every call, so
+  under a GitHub App installation token the adoption fallback reads comments
+  written by `SLUG[bot]`; the script reads an empty or unrendered value as no
+  slug. With no resolvable
   write identity it writes nothing and exits 4. The marker grammar, the `<lane>@<instance>` writer-identity rule,
   the body-file containment and size limits, the pre-write and read-back checks,
   and every exit code are in the script's `--help` header. Two rules the caller
