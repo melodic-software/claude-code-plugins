@@ -237,6 +237,8 @@ Refs #<parent-item> (if source was an existing item)
 
 <The one observable change a user gets when this vertical slice merges, end to end.>
 
+Demo: <the Demo line approved at Step 3>
+
 Problem: <the Brief's Problem, copied>
 Goal: <the Brief's Goal paragraph, copied>
 - Intent (why, in the user's words): <copied>
@@ -279,6 +281,8 @@ Fill the sections this way:
   gets the single line `- none: on the frontier now`.
 - **Outcome** describes behavior, not a per-layer task list, and names no file paths: paths move
   before the item is picked up.
+- **Demo** carries the item's Demo line as the user confirmed or replaced it at Step 3, so the
+  picker knows what to run or show after merge. Redact it as Outcome is: no file paths.
 - **Problem**, **Goal** and **Constraints** carry the why to a session that works one item alone. Fill them
   only when no spec container was approved and the source PLAN.md has a `## Brief`: copy its
   Problem, its Goal paragraph with the Intent, Vision and When-goals-conflict lines, and its
@@ -310,7 +314,7 @@ Fill the sections this way:
   adds carries none. A criterion sharpened at Step 3 carries its approved wording; one left out as
   met appears in no item.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion with its id, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, the approved Demo line, every acceptance criterion with its id, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos. Stamp the Issue Type only: add no `work-class:` label, and write no status field; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 
