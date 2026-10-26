@@ -2710,7 +2710,7 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
   assert.equal(runs(ctx("cancelled"), true), true, "a cancelled scan");
   assert.equal(runs(ctx("success")), false);
   assert.equal(runs(ctx("skipped")), false);
-  assert.equal(runs(ctx("failure", "", "7")), false, "issue mode has no reply or verdict job");
+  assert.equal(runs(ctx("failure", "", "7")), true, "issue mode: report-outcome names the refusal");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure")), "output", "a failed scan whose outputs did not arrive");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure", "patch")), "patch");
   const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
@@ -2721,14 +2721,27 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
   const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
   const download = steps.find((step) => step.id === "scan-refused");
   const script = steps.find((step) => step.id === "act-script");
-  for (const [mode, activity] of [["inputs.review-replies", "address-feedback"], ["inputs.dependency-verdict", "review-dependency"]]) {
-    const values = { "inputs.review-replies": mode === "inputs.review-replies", "inputs.dependency-verdict": mode === "inputs.dependency-verdict", "inputs.lane": "pr-unblock", "runner.temp": "/t" };
-    const name = sub(upload.with.name, { ...ctx("failure"), "inputs.activity": activity });
+  for (const [mode, activity, lane, issue] of [
+    ["inputs.review-replies", "address-feedback", "pr-unblock", ""],
+    ["inputs.dependency-verdict", "review-dependency", "pr-unblock", ""],
+    ["", "resolve-issue", "work-resolve-issue", "7"],
+  ]) {
+    const values = {
+      "inputs.review-replies": mode === "inputs.review-replies",
+      "inputs.dependency-verdict": mode === "inputs.dependency-verdict",
+      "inputs.issue-number": issue,
+      "inputs.lane": lane,
+      "runner.temp": "/t",
+      "steps.lane-token.outputs.token": "t",
+      "steps.config.outputs.kind": "script",
+    };
+    const name = sub(upload.with.name, { ...ctx("failure", "", issue), "inputs.lane": lane, "inputs.activity": activity });
     const pattern = sub(download.with.pattern, values);
     assert.ok(pattern.endsWith("-*") && name.startsWith(pattern.slice(0, -1)), `${activity}: ${pattern} matches ${name}`);
+    assert.equal(evaluate(download.if, values), true, activity);
     assert.equal(sub(download.with.path, values), "/t/scan-refused", activity);
   }
-  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}");
+  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict || inputs.issue-number != '') && format('{0}/scan-refused', runner.temp) || '' }}");
   assert.equal(download["continue-on-error"], true);
   assert.equal(download.with["merge-multiple"], true);
   assert.equal(script.env.SCAN_REFUSED_READ, "${{ steps.scan-refused.outcome }}");

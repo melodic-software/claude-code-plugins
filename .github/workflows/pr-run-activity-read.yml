@@ -2897,21 +2897,21 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  # PR mode: the scan job's refusal, as an artifact a job that succeeds
-  # uploads. A failed scan fails the caller's job for this whole workflow, and
-  # no documentation says a failed job's outputs reach a workflow_call
-  # caller, so the reply and verdict jobs download this marker by name
-  # instead (address-feedback.mjs scanRefusal). The scan's own result decides
-  # it (a failed or cancelled scan published nothing); the scan's outputs
-  # only name an oversize patch. It reads nothing from the run job, so head
+  # The scan job's refusal, as an artifact a job that succeeds uploads. A
+  # failed scan fails the caller's job for this whole workflow, and no
+  # documentation says a failed job's outputs reach a workflow_call caller,
+  # so the reply and verdict jobs download this marker by name instead
+  # (address-feedback.mjs scanRefusal), and in issue mode so does
+  # report-outcome, which names the refusal in the issue's hand-back. The
+  # scan's own result decides it (a failed or cancelled scan published
+  # nothing); the scan's outputs only name an oversize patch. It reads nothing from the run job, so head
   # code can only fail the scan or add a marker, either of which hands the
   # round to a person. always(), since cancelled() is true once the scan was
   # cancelled, and !cancelled() would skip that arm.
   scan-refusal:
     needs: scan
     if: >-
-      always() && inputs.issue-number == ''
-      && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
+      always() && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
