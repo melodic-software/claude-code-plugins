@@ -875,6 +875,7 @@ const runBudgetedGate = (
       cursor: read("gate-cursor/cursor.json"),
       stepSummary: read("step-summary"),
       summary: JSON.parse(read("pr-merge-summary.json") || "null"),
+      output: read("output"),
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -923,6 +924,54 @@ test("a candidate stopped at its read limit is reported unknown, never ready, an
     ],
   );
   assert.deepEqual(JSON.parse(run.cursor), { last: 5, deferred: 7 });
+});
+
+// Owner rule: stop calling a pool once rate-limited until reset. After the
+// gate stops on one (exit 75), no later step of the job calls GitHub, nor the
+// gate-check job, whose own stop file would not hold the stop.
+test("after the gate's rate-limit stop, no later merge-job step calls GitHub", () => {
+  const gate = `if [[ $* == *'#7' ]]; then echo '{"error": "rate limited"}'; exit 75; fi\n` + REFUSING_GATE;
+  const run = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate });
+  assert.equal(run.status, 1, run.stderr);
+  assert.deepEqual(run.gated, ["o/r#7"]);
+  assert.match(run.output, /^rate-limited=true$/m);
+  for (const limited of ["true", ""]) {
+    const context = (path) => {
+      if (path === "github.event_name") return "schedule";
+      if (path === "steps.gate.outcome") return "failure";
+      if (path === "steps.gate.outputs.rate-limited") return limited;
+      if (path === "steps.lane-token.outputs.token") return "t";
+      if (path === "steps.mode.outputs.report-only") return "false";
+      return "";
+    };
+    for (const name of ["Hand the gate's rows to the check writer", "Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) {
+      assert.equal(stepRuns(step(name), context, "failure"), limited !== "true", `${name} with rate-limited=${limited}`);
+    }
+  }
+  // The refusal count still writes its summary, with no read of the run.
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-count-"));
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\necho 2026-10-26T00:00:00Z\n`);
+    writeFileSync(join(bin, "node"), `#!/usr/bin/env bash\necho "RUN_STARTED_AT=$RUN_STARTED_AT" >"${dir}/node"\n`);
+    for (const file of ["gh", "node"]) chmodSync(join(bin, file), 0o755);
+    const sweep = join(dir, "sweep.json");
+    writeFileSync(sweep, '{"refusal_counts": {}}');
+    for (const limited of ["true", ""]) {
+      rmSync(join(dir, "gh"), { force: true });
+      const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(existsSync(join(dir, "gh")), limited !== "true", `gh with LIMITED=${limited}`);
+      assert.equal(readFileSync(join(dir, "node"), "utf8").trim(), `RUN_STARTED_AT=${limited === "true" ? "" : "2026-10-26T00:00:00Z"}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // The candidates the next run's rotation.mjs orders from a cursor.
@@ -1076,7 +1125,7 @@ test("each candidate's check run is written by its own job, the only one holding
   assert.equal(text.match(/\n {6}checks: write\n/g)?.length, 1);
   const upload = step("Hand the gate's rows to the check writer");
   assert.ok(steps.findIndex((s) => s.name === "Run the merge gate on each candidate") < steps.findIndex((s) => s.name === "Hand the gate's rows to the check writer"));
-  assert.match(upload, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped' && steps\.mode\.outputs\.report-only == 'false'\n/);
+  assert.match(upload, /\n {8}if: >-\n {10}always\(\) && steps\.gate\.outcome != 'skipped' && steps\.mode\.outputs\.report-only == 'false'\n {10}&& steps\.gate\.outputs\.rate-limited != 'true'\n/);
   assert.match(upload, /\n {10}name: pr-merge-gate-rows\n {10}path: \$\{\{ runner\.temp \}\}\/pr-merge-summary\.json\n/);
   assert.match(job, /\n {6}gate-rows: \$\{\{ steps\.rows\.outcome == 'success' \}\}\n/);
 

@@ -1181,7 +1181,11 @@ jobs:
           done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt) \(.deferred == true)"' "$RUNNER_TEMP/candidates.json")
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
-          [ -z "${limited:-}" ] || exit 1
+          # The later steps that call GitHub read this and send nothing.
+          if [ -n "${limited:-}" ]; then
+            echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       # The next run's starting point (rotation.mjs reads it), uploaded even
       # when the job is cancelled, since cursor.json is rewritten after each
@@ -1341,6 +1345,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           LIVE: ${{ steps.mode.outputs.live }}
           GATE_OUTCOME: ${{ steps.gate.outcome }}
+          LIMITED: ${{ steps.gate.outputs.rate-limited }}
           SUMMARY_PATH: ${{ runner.temp }}/pr-merge-summary.json
           HELD_PATH: ${{ runner.temp }}/held.json
           CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
@@ -1348,7 +1353,11 @@ jobs:
           SWEEP_SUMMARY_TO: ${{ runner.temp }}/pr-merge-sweep.json
         run: |
           set -euo pipefail
-          RUN_STARTED_AT=$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) || RUN_STARTED_AT=
+          # After the gate's rate-limit stop, no read: the start stays unknown.
+          RUN_STARTED_AT=
+          if [ "$LIMITED" != true ]; then
+            RUN_STARTED_AT=$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) || RUN_STARTED_AT=
+          fi
           export RUN_STARTED_AT
           node .base/.github/scripts/pr-merge/sweep-summary.mjs
           jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
@@ -1365,10 +1374,13 @@ jobs:
           if-no-files-found: ignore
 
       # The gate-check job below writes each candidate's check run from these
-      # rows. Not while the lane is report-only.
+      # rows. Not while the lane is report-only, nor after the gate's
+      # rate-limit stop: that job's own stop file would not hold it.
       - name: Hand the gate's rows to the check writer
         id: rows
-        if: always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false'
+        if: >-
+          always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false'
+          && steps.gate.outputs.rate-limited != 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1386,12 +1398,14 @@ jobs:
       # most five a run, and once per PR per version of the file the
       # broker named, recorded in a marker comment first. It runs after the
       # gate, which refuses a PR with a failing check, and not while the lane
-      # is report-only. Rules: .github/scripts/pr-merge/refire-refused.mjs.
+      # is report-only or after the gate's rate-limit stop. Rules:
+      # .github/scripts/pr-merge/refire-refused.mjs.
       - name: Re-fire lane runs refused as workflow-modified
         if: >-
           always() && github.event_name == 'schedule'
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
+          && steps.gate.outputs.rate-limited != 'true'
         env:
           LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1408,13 +1422,14 @@ jobs:
       # reason, feedback-protected-path), after a comment naming the reason
       # and the head: never a label a person set, and never after anyone but
       # the App commented or reviewed since it went on. At most five a run, and not
-      # while the lane is report-only.
+      # while the lane is report-only or after the gate's rate-limit stop.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
         if: >-
           always() && github.event_name == 'schedule'
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
+          && steps.gate.outputs.rate-limited != 'true'
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
