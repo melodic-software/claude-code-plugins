@@ -3,7 +3,8 @@
 // (lib/config-cascade.mjs, ADR 0075): the schema default, the team file <home>/corrections.yaml and
 // the personal overlay <home>/corrections.local.yaml, <home> from the convention-home pointer line.
 //   {"min_occurrences": N, "layer": "defaults" | "team" | "local", "path": file relative to the project | null}
-// A value the schema refuses is named on stderr and dropped: an invalid team value falls to the
+// A value the schema refuses is named on stderr (the first five per layer, then a count of the rest)
+// and dropped: an invalid team value falls to the
 // default, an invalid personal value leaves the team value standing. A declined, not-applicable or
 // broken pointer line leaves both files unread, said on stderr.
 // Usage: codify-settings.mjs [--project DIR]   (default: the git root of the current directory)
@@ -19,8 +20,17 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN = "corrections";
 const KEY = "recurrence.min_occurrences";
 const DEFAULT_HOME = "docs/conventions";
+const SHOWN = 5;
 
 const say = (text) => process.stderr.write(`codify-settings: ${text}\n`);
+
+/** Each layer's first SHOWN errors on stderr, then a count of the rest, so a file of unknown keys cannot flood it. */
+function sayErrors(layers) {
+  for (const { name, path, errors } of layers) {
+    for (const error of errors.slice(0, SHOWN)) say(error);
+    if (errors.length > SHOWN) say(`${name}${path ? ` (${path})` : ""}: and ${errors.length - SHOWN} more`);
+  }
+}
 
 function gitRoot(dir) {
   const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
@@ -61,7 +71,7 @@ try {
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }
-for (const layer of out.layers) for (const error of layer.errors) say(error);
+sayErrors(out.layers);
 const layer = out.provenance[KEY] ?? "defaults";
 const value = out.values.recurrence?.min_occurrences ?? fallback;
 const file = out.layers.find((l) => l.name === layer)?.path;

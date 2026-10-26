@@ -34,10 +34,21 @@
 #                   A plan with no such line passes. Failures are listed as
 #                   `invalid=<line>:<reason>`, the reason one of kind, until, for,
 #                   missing-phase, not-later, last-phase or outside-phase
+#   criteria        every acceptance criterion id maps to a phase. A criterion is a
+#                   list item under an `Acceptance criteria` heading; its id opens
+#                   the item after any checkbox or bold, `AC` then digits
+#                   (`- AC3: ...`). A phase names the ids it satisfies on a
+#                   `**Satisfies:** AC1, AC3` line (a list marker before it is
+#                   allowed); one outside a phase section maps nothing. Fails on a
+#                   criterion id no phase satisfies (`unmapped=`), a satisfied id no
+#                   criterion defines (`unknown=`), a criterion with no id once any
+#                   has one (`without-id=<line>`) and an id defined twice
+#                   (`duplicate=`). Pass prints `ids=<n> mapped=<n>`. A plan with no
+#                   id anywhere passes `ids=0`, with a `warning=criteria-without-ids`
+#                   line when it has criteria; an item reading `none ...` is not one
 #
-# "Every brief acceptance criterion maps to a phase, and no phase does
-# Out-of-scope work" is judgment and stays in the skill's prose; this gate does
-# not claim it.
+# "No phase does Out-of-scope work, and every phase traces to a criterion" is
+# judgment and stays in the skill's prose; this gate does not claim it.
 #
 # Headings inside fenced code blocks are ignored. A fence closes only on the same
 # character with at least the opening length and no info string, so a three-backtick
@@ -153,6 +164,7 @@ structural="$(
     /^#+[ \t]/ {
       heading = $0
       in_table = 0
+      in_ac = (tolower(heading) ~ /^#+[ \t]+acceptance criteria[ \t:]*$/)
       if (heading ~ /^###[ \t]+Phase[ \t]+([0-9]+(\.[0-9]+)?[A-Za-z]?|[IVXLC]+)[ \t]*:/) {
         flush_phase()
         phases++
@@ -183,6 +195,26 @@ structural="$(
       text = $0
       sub(/^[ \t]*([-*+][ \t]+)?\*\*Planned breakage:\*\*[ \t]*/, "", text)
       breakage_text[breakages] = text
+    }
+    in_ac && /^ ?[-*+][ \t]+/ {
+      text = $0
+      sub(/^ ?[-*+][ \t]+/, "", text)
+      sub(/^\[[ xX]\][ \t]+/, "", text)
+      sub(/^[*_]+/, "", text)
+      if (match(text, /^AC[0-9]+/) && substr(text, RLENGTH + 1, 1) !~ /[A-Za-z0-9]/) {
+        id = substr(text, 1, RLENGTH)
+        if (id in ac_def) ac_dup = ac_dup " " id
+        else { ac_n++; ac_order[ac_n] = id; ac_def[id] = 1 }
+      } else if (tolower(text) !~ /^none([^a-z]|$)/) ac_noid = ac_noid " " NR
+    }
+    in_phase && /^[ \t]*([-*+][ \t]+)?\*\*Satisfies:\*\*/ {
+      text = $0
+      sub(/^[ \t]*([-*+][ \t]+)?\*\*Satisfies:\*\*/, "", text)
+      while (match(text, /AC[0-9]+/)) {
+        id = substr(text, RSTART, RLENGTH)
+        text = substr(text, RSTART + RLENGTH)
+        if (!(id in sat)) { sat_n++; sat_order[sat_n] = id; sat[id] = 1 }
+      }
     }
     {
       if (in_phase && $0 ~ /Sanity Check/) phase_sanity = 1
@@ -255,6 +287,18 @@ structural="$(
       printf "id_without_row=%s\n", no_row
       printf "row_without_tag=%s\n", no_tag
       for (i = 1; i <= bare_n; i++) printf "bare_tag=%s\n", bare_tag[i]
+      for (i = 1; i <= ac_n; i++) {
+        if (ac_order[i] in sat) ac_mapped++
+        else ac_unmapped = ac_unmapped " " ac_order[i]
+      }
+      for (i = 1; i <= sat_n; i++) if (!(sat_order[i] in ac_def)) ac_unknown = ac_unknown " " sat_order[i]
+      printf "ac_ids=%d\n", ac_n
+      printf "ac_cited=%d\n", sat_n
+      printf "ac_mapped=%d\n", ac_mapped
+      printf "ac_unmapped=%s\n", ac_unmapped
+      printf "ac_unknown=%s\n", ac_unknown
+      printf "ac_noid=%s\n", ac_noid
+      printf "ac_dup=%s\n", ac_dup
     }
   ' "$plan"
 )" || die "could not parse: $plan"
@@ -273,6 +317,13 @@ id_without_row="$(field id_without_row)"
 row_without_tag="$(field row_without_tag)"
 breakages="$(field breakages)"
 breakage_invalid="$(field breakage_invalid)"
+ac_ids="$(field ac_ids)"
+ac_cited="$(field ac_cited)"
+ac_mapped="$(field ac_mapped)"
+ac_unmapped="$(field ac_unmapped)"
+ac_unknown="$(field ac_unknown)"
+ac_noid="$(field ac_noid)"
+ac_dup="$(field ac_dup)"
 
 failed=0
 report() {
@@ -335,6 +386,25 @@ if [[ -z "${breakage_invalid// /}" ]]; then
 else
   invalid="${breakage_invalid# }"
   report planned-breakage fail "invalid=${invalid// /,}"
+fi
+
+commas() { sed 's/^ //; s/ /,/g' <<<"$1"; }
+if [[ "$ac_ids" -eq 0 && "$ac_cited" -eq 0 ]]; then
+  report criteria pass "ids=0"
+  if [[ -n "${ac_noid// /}" ]]; then
+    printf 'warning=criteria-without-ids count=%s (no acceptance criterion carries an AC<n> id, so none is traced to a phase)\n' "$(wc -w <<<"$ac_noid" | tr -d ' ')"
+  fi
+else
+  detail="ids=$ac_ids mapped=$ac_mapped"
+  [[ -z "${ac_unmapped// /}" ]] || detail+=" unmapped=$(commas "$ac_unmapped")"
+  [[ -z "${ac_unknown// /}" ]] || detail+=" unknown=$(commas "$ac_unknown")"
+  [[ -z "${ac_noid// /}" ]] || detail+=" without-id=$(commas "$ac_noid")"
+  [[ -z "${ac_dup// /}" ]] || detail+=" duplicate=$(commas "$ac_dup")"
+  if [[ "$detail" == "ids=$ac_ids mapped=$ac_mapped" ]]; then
+    report criteria pass "$detail"
+  else
+    report criteria fail "$detail"
+  fi
 fi
 
 readonly max_path_hits=20

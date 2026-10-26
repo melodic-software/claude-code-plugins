@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.1] - 2026-10-26
+
+### Changed
+
+- `babysit_gh.py` reads its `limits.api` defaults (`writer-pause`, `read-floor`, and github-token's `limit-cap`, which replaces the `GITHUB_TOKEN_LIMIT_CAP` constant) from `.github/actions/log-api-budget/rate-limits.json` instead of the pipeline schema, with the same values. A missing or invalid file still refuses every call, and a default that is not a number now does too.
+- `babysit_risk.HIGH_FLOOR` also holds `.github/actions/log-api-budget/rate-limits.json`, the rate-limit defaults `rate-guard.mjs` reads, so a change to one waits for a person.
+
+## [3.8.0] - 2026-10-26
+
+### Added
+
+- `/source-control:pull-request create` builds the `Summary` section's Problem and intent line from the linked item's `Problem:` and `- Intent (why, in the user's words):` lines when no local plan is found, reading the body from the GitHub issue read or, with a work-item tracker bound, `/work-items:track view`. A found plan still wins; the item text is framed as data and gets the plan line's shape and scrub, minus any closing keyword or `@` mention.
+
+## [3.7.1] - 2026-10-26
+
+### Changed
+
+- `babysit_verify_evidence.py evidence --shared-listing` judges on the run's saved artifact listing at any age and allows on it without listing again, so a run that passes it lists once for all its pull requests. Without the flag, the gate's two-minute bound and its own listing before an allow are unchanged.
+
 ## [3.7.0] - 2026-10-26
 
 ### Added
