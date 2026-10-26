@@ -615,6 +615,7 @@ for (const [reason, why] of [
   ["patch-protected-path", /a path the issue lane may not push/],
   ["patch-invalid", /not a valid patch/],
   ["patch-not-applied", /did not apply/],
+  ["patch-apply-failed", /failed before it committed or refused the patch/],
 ]) {
   test(`done whose patch apply-issue-patch refused (${reason}) hands back naming the reason, not an empty run`, () => {
     const plan = decideDone({ branch: "", escalation: reason, runUrl: "https://example/o/r/actions/runs/123" });
@@ -632,6 +633,13 @@ test("a refused patch on a resumed run hands back instead of opening the PR from
   assert.equal(plan.action, "hand-back");
   assert.ok(plan.comment.includes("`patch-protected-path`"), plan.comment);
   assert.ok(plan.comment.includes("Partial work is on the branch `work-resolve-issue/issue-77-100-1`"), plan.comment);
+});
+
+// A failure after apply-issue-patch made its branch (a later step) leaves the
+// branch's plan as it was.
+test("patch-apply-failed changes no plan for a run whose branch apply-issue-patch made", () => {
+  const branch = "work-resolve-issue/issue-77-100-1";
+  assert.deepEqual(decideDone({ branch, escalation: "patch-apply-failed" }), decideDone({ branch }));
 });
 
 test("patch-empty changes no plan: a done run with no commit, a resumed run, or a pushback", () => {

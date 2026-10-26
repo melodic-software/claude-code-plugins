@@ -47,7 +47,8 @@
 //             PR always carries the hold line, so a human reads them.
 //   refused  a done run whose patch apply-issue-patch refused
 //             (ESCALATION_REASON patch-protected-path, patch-invalid or
-//             patch-not-applied) hands back like stopped, naming the reason;
+//             patch-not-applied), or whose apply job failed before giving one
+//             (patch-apply-failed), hands back like stopped, naming the reason;
 //             patch-empty changes nothing, as the run committed nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
 //             (DIMENSION_SKIP): comments the next step with an
@@ -379,6 +380,7 @@ export const PATCH_REASONS = {
   "patch-protected-path": "the patch changes a path the issue lane may not push: a workflow, a CODEOWNERS file, submodule config or a settings file",
   "patch-invalid": "the run's output was not a valid patch to push: missing, too large, made on another commit, or carrying a credential shape",
   "patch-not-applied": "the patch did not apply to the commit the run started from",
+  "patch-apply-failed": "apply-issue-patch failed before it committed or refused the patch",
 };
 
 // The step that must come before the lane can run an issue its dimensions
@@ -686,7 +688,8 @@ export function decide({
   }
   // apply-issue-patch refused the run's patch: its work never landed, so no
   // PR opens, from a resumed branch either.
-  if (outcome.exit === "done" && escalation && escalation !== "patch-empty") {
+  // patch-apply-failed is only the job's result, so a branch it did make wins.
+  if (outcome.exit === "done" && escalation && escalation !== "patch-empty" && !(escalation === "patch-apply-failed" && branch)) {
     return handBack({
       outcome: stopped(
         `The run reported done, but apply-issue-patch did not commit its patch (\`${escalation}\`): ${PATCH_REASONS[escalation]}. The run's log names the path or check.`,

@@ -1992,7 +1992,8 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
-  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
+  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`), or whose apply job failed before
+  giving a reason (`patch-apply-failed`, which the caller sets from the job's result), hands the issue to a person naming
   that reason, and opens no PR, from a resumed branch either. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip

@@ -719,5 +719,8 @@ jobs:
       app-label: agent-ready
       reuse-branch: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
-      # Why apply-issue-patch committed nothing, so the hand-back names it.
-      escalation-reason: ${{ needs.apply-issue-patch.outputs.escalation-reason }}
+      # Why apply-issue-patch committed nothing, so the hand-back names it;
+      # a failed job that gave no reason crashed before committing or refusing.
+      escalation-reason: >-
+        ${{ needs.apply-issue-patch.outputs.escalation-reason
+        || needs.apply-issue-patch.result == 'failure' && 'patch-apply-failed' || '' }}

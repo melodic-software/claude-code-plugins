@@ -4996,9 +4996,14 @@ test("pr-run-activity-write.yml: the reply job reads run.json from the select jo
 test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalation reason", () => {
   const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
   assert.ok(job.needs.includes("apply-issue-patch"));
-  const context = (reason) => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason });
+  const context = (reason, result = "success") => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason, "needs.apply-issue-patch.result": result });
   assert.equal(evaluate(job.with["escalation-reason"], context("patch-protected-path")), "patch-protected-path");
   assert.equal(evaluate(job.with["escalation-reason"], context("")), "");
+  // Runs 40355135920 and 40354760854: apply-issue-patch crashed before giving
+  // a reason, and the hand-back said the run committed nothing.
+  assert.equal(evaluate(job.with["escalation-reason"], context("", "failure")), "patch-apply-failed");
+  assert.equal(evaluate(job.with["escalation-reason"], context("patch-not-applied", "failure")), "patch-not-applied");
+  assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped")), "");
 });
 
 test("pr-run-activity-write.yml: a patch-* escalation reason passes the input check in issue mode only", () => {
@@ -5015,7 +5020,7 @@ test("pr-run-activity-write.yml: a patch-* escalation reason passes the input ch
           : { EVENT_NAME: "workflow_dispatch", PR_NUMBER: "42", TRUSTED_BASE: "pr-base" }),
       },
     }).status;
-  for (const reason of ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]) {
+  for (const reason of ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path", "patch-apply-failed"]) {
     assert.equal(status(reason, true), 0, `${reason} in issue mode`);
     assert.equal(status(reason, false), 1, `${reason} in PR mode`);
   }
