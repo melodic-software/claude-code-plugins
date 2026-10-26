@@ -23,7 +23,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=186 [e]=20 [journey]=235 [live]=18 [page]=83)
+declare -A CHECKS=([ab]=97 [c]=186 [e]=20 [journey]=235 [live]=18 [page]=106)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -445,7 +445,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$pg" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
     bash "$here/round.sh" --dir "$pg" ensure-running --port 0 >/dev/null
     gport=$(sed -n 's/^PORT=//p' "$pg/.interview-session.env" | tr -d '\r')
-    gphases=14
+    gphases=17
     for n in $(seq 1 "$gphases"); do
       sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
     done
@@ -487,6 +487,20 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     grun 13
     printf '%s' '{"frontierLock": "hard"}' >"$pg/settings.json"
     grun 14
+    # Phases 15 and 16 (#9714): Q13 on Q11 has no answer; phase 15 changes Q11's answer under the
+    # default confirm lock, the shell then reconfirms Q13, and phase 16 reads it unlocked.
+    printf '%s' '{"frontierLock": "confirm"}' >"$pg/settings.json"
+    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q13", "group": "g1", "stage": "interview", "round": 3, "short": "Rollback owner", "title": "Who can roll the first region back?", "recommendation": "The on-call engineer.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "The release owner"}, {"key": "b", "text": "Anyone on the team"}]}}]}' >"$pg/ops/up.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/up.json" >/dev/null || bad "page: the upstream-changed question was refused"
+    grun 15
+    bash "$here/round.sh" --dir "$pg" reconfirm Q13 --why "The rollback owner does not turn on the rollout width." >/dev/null || bad "page: reconfirm refused"
+    grun 16
+    # Phase 17 (#9694): three proposals the page accepts, edits and declines.
+    printf '%s' '{"ops": [{"op": "propose", "id": "Q14", "group": "g1", "short": "Health-check pause", "title": "Should the rollout pause on a failed health check?"},
+    {"op": "propose", "id": "Q15", "group": "g1", "short": "Pause scope", "title": "Should a pause stop one region?"},
+    {"op": "propose", "id": "Q16", "group": "g1", "short": "Pager", "title": "Should a pause page the on-call engineer?"}]}' >"$pg/ops/propose.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/propose.json" >/dev/null || bad "page: the propose ops were refused"
+    grun 17
     bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
   }

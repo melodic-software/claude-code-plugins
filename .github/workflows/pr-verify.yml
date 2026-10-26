@@ -23,8 +23,12 @@ name: pr-verify
 # when check-intent's key leg handed off (run-claude-cli's handoff output:
 # a credit stop, or class auth with API status 401 or 402) with no permission
 # denial, or its key is empty; then check-intent writes no verdict and does
-# not fail, so one job per run judges. The second job repeats every step from
-# a fresh checkout. From check-intent it reads only four outputs, each
+# not fail. With the org secret FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the
+# subscription leg hands off the same way (a limit stop, a credit stop, or a
+# 401 or 402) and the check-intent-fallback job judges once on that token, on
+# a third VM; with it empty, nothing hands off past the subscription job. So
+# one job per run judges. Each later job repeats every step from a fresh
+# checkout. From check-intent the second reads only four outputs, each
 # compared to a fixed string in its `if` or in the fallback-reason expression
 # that picks one of three literals; none of them is written into a `run:`
 # script, and it takes no artifact or cache. run-claude-cli sets handoff and
@@ -41,6 +45,9 @@ on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [pr-require-checks]
     types: [completed]
+    # Branches of the checks run. Only a pull_request run is judged, so a
+    # merge-queue or main run would only start a run that skips.
+    branches-ignore: [main, 'gh-readonly-queue/**']
 
 permissions: {}
 
@@ -113,6 +120,10 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -125,6 +136,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -155,6 +167,8 @@ jobs:
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
@@ -213,7 +227,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
       - name: Isolate the runner
         if: steps.agree.outcome == 'success'
@@ -263,7 +277,7 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -322,7 +336,7 @@ jobs:
       # it, and auth as auth.
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -374,6 +388,14 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
       # A clean handoff or an empty key hands the judgment on; any other
       # run that passed the gates and left no verdict fails here.
       - name: Fail without a verdict
@@ -405,6 +427,10 @@ jobs:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
       actions: read # the upstream run, and verdicts already uploaded
+    outputs:
+      handoff: ${{ steps.judge.outputs.handoff }}
+      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+      leg-clean: ${{ steps.sub-leg.outputs.clean }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -442,6 +468,10 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -454,6 +484,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
@@ -484,6 +515,8 @@ jobs:
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
@@ -523,13 +556,15 @@ jobs:
           model-route: verify-pr
           output-path: ${{ runner.temp }}/pr-verify-models.json
 
-      # Only whether the secret is set leaves this step, never its value.
+      # Only whether the secrets are set leaves this step, never a value.
       - name: Check the credential
         id: credential
         if: steps.agree.outcome == 'success'
         env:
           PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           SECRET_NAME: PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN
+          # Whether the fallback leg can run, never the token.
+          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           if [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
@@ -537,12 +572,17 @@ jobs:
             echo "::warning::$SECRET_NAME is empty; this job does not judge."
             echo "present=false" >>"$GITHUB_OUTPUT"
           fi
+          if [ "$FALLBACK_PRESENT" = true ]; then
+            echo "fallback-ready=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "fallback-ready=false" >>"$GITHUB_OUTPUT"
+          fi
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
       - name: Isolate the runner
         if: steps.agree.outcome == 'success'
@@ -578,7 +618,10 @@ jobs:
 
       # continue-on-error keeps a launcher failure, which run-claude-cli
       # reports by failing this step, from ending the job before the outcome
-      # step; "Fail without a verdict" carries the red. One leg of
+      # step; "Fail without a verdict" carries the red. With the fallback
+      # token set, a limit stop, a credit stop or a 401 or 402 hands off,
+      # which skips the verdict steps, and a clean one the outcome step too:
+      # the fallback job judges and records the run instead. One leg of
       # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
       # the outcome step repeats, and that fits in the job's 30. The model may
       # share its job with the upload: it has Read alone and the job token can
@@ -590,7 +633,7 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -621,11 +664,30 @@ jobs:
             Agent
             mcp__*
           json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "10"
 
+      # After a handoff, the denial check: a denial on the subscription leg
+      # means no verdict, so the fallback job runs only on this step's
+      # clean=true; continue-on-error lets the report record the stop, and
+      # "Fail without a verdict" carries the red. run-claude-cli warns of a
+      # refused token itself.
+      - name: Check the subscription leg
+        id: sub-leg
+        if: steps.judge.outputs.handoff == 'true'
+        continue-on-error: true
+        env:
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+          HANDOFF_REASON: ${{ steps.judge.outputs.handoff-reason }}
+        run: |
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
+
+      # One lane record per run: a clean handoff is recorded by the fallback
+      # job; a handoff with a denial on the subscription leg, here.
       - name: Report the judgment's outcome
-        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -678,6 +740,344 @@ jobs:
             jq '.summary |= gsub("`"; "'"'"'") | .notes |= map(gsub("`"; "'"'"'"))' "$VERDICT_FILE"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+      # A clean handoff hands the judgment on; any other run that passed the
+      # gates and left no verdict, an empty token included, fails here.
+      - name: Fail without a verdict
+        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success' && steps.sub-leg.outcome != 'success'
+        run: |
+          echo "::error::the judgment left no verdict for this head"
+          exit 1
+
+  # The fallback leg, the central fallback subscription, as its own job on a
+  # new VM, only after the subscription job handed off (a limit stop, a
+  # credit stop, or a 401 or 402, with the fallback token set) with no
+  # permission denial. Its steps repeat the subscription job's but for the
+  # credential, the leg check and the fallback reason (workflow.test.mjs holds
+  # them equal). It reads three outputs of the subscription job, each compared
+  # to a fixed string in its `if` or the fallback-reason expression, never
+  # written into a `run:` script. It is the last leg and never hands off: an
+  # empty subscription token fails the subscription job instead.
+  check-intent-fallback:
+    needs: check-intent-subscription
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && needs.check-intent-subscription.outputs.handoff == 'true'
+      && needs.check-intent-subscription.outputs.leg-clean == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out main; read the PR's commits for the diff
+      pull-requests: read # the PR, its comments and reviews
+      actions: read # the upstream run, and verdicts already uploaded
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The run fails, so the lost-run reconciler re-runs it once the switch
+      # is off and the head is judged then.
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
+          exit 1
+
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list. A re-run github-actions[bot] started passes
+      # only as the lost-run reconciler's recorded re-run of this run.
+      - name: Check the trigger
+        id: gate
+        if: steps.kill.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
+      - name: Resolve the pull request
+        id: pr
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          mkdir -p "$(dirname "$SPEC_FILE")"
+          VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
+          LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
+          node .base/.github/scripts/pr-verify/resolve-pr.mjs
+
+      # The gate and the resolver read the PR separately; both must name the
+      # same PR at the run's head, or nothing is judged.
+      - name: Assert the gate and the resolver agree
+        id: agree
+        if: steps.pr.outputs.proceed == 'true'
+        env:
+          GATE_PR: ${{ steps.gate.outputs.pr-number }}
+          GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+        run: |
+          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
+            echo "::error::the trigger gate and the resolver name different pull requests or heads"
+            exit 1
+          fi
+
+      - name: Select the trusted PR text
+        if: steps.agree.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.pr.outputs.pr-number }}
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          output-path: ${{ github.workspace }}/pr-verify-data/context.json
+          github-token: ${{ github.token }}
+
+      # A blobless fetch of the two commits into its own repository outside
+      # the workspace. git diff reads no attributes or diff drivers from it,
+      # so nothing in the PR runs; the patch is a data file.
+      - name: Write the diff
+        if: steps.agree.outcome == 'success'
+        env:
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          BASE_SHA: ${{ steps.pr.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          DATA: ${{ github.workspace }}/pr-verify-data
+          SRC: ${{ runner.temp }}/pr-verify-src
+        run: |
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir -p "$DATA"
+          git init -q "$SRC"
+          git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
+          git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
+            '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
+          echo "diff: $(wc -l <"$DATA/diff.patch") lines"
+
+      # The judgment's model, turns and effort: the verify-pr route of the
+      # base config's models block.
+      - name: Resolve the verifier's model
+        id: models
+        if: steps.agree.outcome == 'success'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: verify-pr
+          output-path: ${{ runner.temp }}/pr-verify-models.json
+
+      # Only whether the secret is set leaves this step, never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.agree.outcome == 'success'
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          SECRET_NAME: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+          # Whether the fallback leg can run, never the token.
+          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" = true ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::$SECRET_NAME is empty; this job does not judge."
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          fi
+          if [ "$FALLBACK_PRESENT" = true ]; then
+            echo "fallback-ready=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "fallback-ready=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated.
+      - name: Apply the Claude managed settings
+        if: steps.agree.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+
+      - name: Isolate the runner
+        if: steps.agree.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: true
+
+      # Files, not step outputs: run-claude-cli reads both. A `default` model
+      # resolves to an empty model, which the launcher cannot pass. started-at
+      # lets the outcome step tell a step timeout from other failures.
+      - name: Write the prompt and schema
+        id: prompt
+        if: steps.agree.outcome == 'success'
+        env:
+          DATA: ${{ github.workspace }}/pr-verify-data
+          MODEL: ${{ steps.models.outputs.model }}
+          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-verify-schema.json
+        run: |
+          if [ -z "$MODEL" ]; then
+            echo "::error::the verify-pr profile's model is default, which run-claude-cli cannot pass; name an alias"
+            exit 1
+          fi
+          prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
+          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//PR_FILE/$DATA/pr.json}
+          prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
+          prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      # continue-on-error keeps a launcher failure, which run-claude-cli
+      # reports by failing this step, from ending the job before the outcome
+      # step; "Fail without a verdict" carries the red. The fallback leg
+      # never hands off. One leg of
+      # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
+      # the outcome step repeats, and that fits in the job's 30. The model may
+      # share its job with the upload: it has Read alone and the job token can
+      # only read.
+      # Under dontAsk only the allow rule's directory is readable; the deny
+      # rules hold if the tools or the working directory change.
+      - name: Judge the pull request
+        id: judge
+        if: steps.credential.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "10"
+
+      - name: Report the judgment's outcome
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        with:
+          outcome: ${{ steps.judge.outcome }}
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          log-file: ${{ steps.judge.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
+          # Why this job ran, for the run's one lane record.
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+
+      # The structured output, in the last result message of the execution
+      # file, is untrusted model text: read from the file and checked by the
+      # script, never interpolated into a command.
+      - name: Write the verdict
+        id: verdict
+        if: steps.judge.outcome == 'success'
+        env:
+          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          BASE_SHA: ${{ steps.pr.outputs.base-sha }}
+          HEAD_REF: ${{ steps.pr.outputs.head-ref }}
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs
+
+      - name: Upload the verdict
+        if: steps.verdict.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.verdict.outputs.name }}
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+          if-no-files-found: error
+
+      - name: Summarize the verdict
+        if: steps.verdict.outcome == 'success'
+        env:
+          VERDICT_FILE: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+        run: |
+          {
+            echo "### Verifier verdict"
+            echo
+            echo '```json'
+            jq '.summary |= gsub("`"; "'"'"'") | .notes |= map(gsub("`"; "'"'"'"))' "$VERDICT_FILE"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
       - name: Fail without a verdict
         if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success'

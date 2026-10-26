@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/billing/export/steps.yaml"
+          }
+        }
+      ],
+      "why": "read the steps file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/billing/export/README.md"
+          }
+        }
+      ],
+      "why": "read only the prose, which names no step marked optional"
+    }
+  ]
+}

@@ -1257,6 +1257,71 @@ class TestRecChangeStampsPageSeq(DirCase):
         self.assertEqual(rc, 0, out + err)
 
 
+class TestReconfirm(DirCase):
+    """#9714: Q1's changed answer leaves its undecided dependent Q2 upstream-changed; `reconfirm`
+    clears it with a reviewSeq history line, refuses any other question, and a revise line carries
+    reviewSeq too."""
+
+    def setUp(self):
+        super().setUp()
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [
+                {"seq": 1, "id": "Q1", "kind": "accept", "alt": None, "text": "", "at": at},
+                {"seq": 2, "id": "Q1", "kind": "alt", "alt": "a", "text": "", "at": at},
+            ]
+        )
+
+    def upstream_changed(self):
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        return json.loads(out)["upstreamChanged"]
+
+    def test_status_names_it_and_reconfirm_clears_it(self):
+        self.assertEqual(self.upstream_changed(), [{"id": "Q2", "changedBy": ["Q1"]}])
+        rc, out, err = self.rp("status")
+        self.assertIn("upstream changed: Q2 (Q1 changed); revise or reconfirm it", out)
+        ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"], "why": "It holds either way."}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        line = self.q("Q2")["history"][-1]
+        self.assertEqual(
+            {k: line[k] for k in ("by", "kind", "text", "reviewSeq", "rev")},
+            {
+                "by": "claude",
+                "kind": "reconfirm",
+                "text": "Reconfirmed after Q1 changed: It holds either way.",
+                "reviewSeq": 2,
+                "rev": self.doc()["rev"],
+            },
+        )
+        self.assertNotIn("pageSeq", line)
+        self.assertEqual(self.upstream_changed(), [])
+        self.assertEqual(self.doc()["activity"][-1]["ids"], ["Q2"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_refusals_write_nothing(self):
+        out = self.assert_refused("reconfirm", "Q3", "--why", "Fine.")
+        self.assertIn("refused: Q3 not upstream-changed; nothing to reconfirm", out)
+        out = self.assert_refused("reconfirm", "Q2", "Q3", "--why", "Fine.")
+        self.assertIn("refused: Q3 not upstream-changed", out)
+        out = self.assert_refused("reconfirm", "Q2", "--why", "  ")
+        self.assertIn("refused: reconfirm needs a why", out)
+        out = self.assert_refused("reconfirm", "Q9", "--why", "Fine.")
+        self.assertIn("unknown question: Q9", out)
+        ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_a_revise_line_carries_review_seq_and_clears_it(self):
+        rc, out, err = self.rp("revise", "Q2", "--title", "Still the question?")
+        self.assertEqual(rc, 0, out + err)
+        line = self.q("Q2")["history"][-1]
+        self.assertEqual((line["kind"], line["reviewSeq"]), ("revise", 2))
+        self.assertNotIn("pageSeq", line)
+        self.assertEqual(self.upstream_changed(), [])
+
+
 class TestSupersedeRepoint(DirCase):
     """add --supersedes names the live questions that depend on the superseded one, and moves them
     behind --repoint."""
@@ -2869,6 +2934,122 @@ class TestArchive(DirCase):
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("Second group: 0 of 0 live answered; 1 archived", out)
+
+
+class TestPropose(DirCase):
+    """#9694: propose adds a question the user approves before it carries a recommendation."""
+
+    PROPOSE = {
+        "op": "propose",
+        "id": "Q4",
+        "group": "g1",
+        "short": "Pause on failure",
+        "title": "Should the rollout pause on a failed health check?",
+    }
+
+    def apply_ops(self, *ops):
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+        self.assertEqual(rc, 0, out + err)
+        return out + err
+
+    def state(self, qid):
+        from server import EMPTY_RESPONSES, load_json, question_states
+
+        r = load_json(self.dir / "responses.json", EMPTY_RESPONSES)
+        return question_states(self.doc(), r)[qid][0]
+
+    def ledger(self):
+        path = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(path))
+        self.assertEqual(rc, 0, out + err)
+        return path.read_text(encoding="utf-8")
+
+    def event(self, qid, kind, alt, text=""):
+        at = "2026-01-01T00:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": qid, "kind": kind, "alt": alt, "text": text, "at": at}]
+        )
+
+    def answer(self, alt, text=""):
+        self.event("Q4", "proposal", alt, text)
+
+    def refused(self, *ops):
+        before = self.raw()
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.raw(), before, "a refused op changed questions.json")
+        return out + err
+
+    def test_propose_adds_a_proposed_question_with_no_recommendation_and_no_register_row(self):
+        self.apply_ops(self.PROPOSE)
+        q = self.q("Q4")
+        self.assertEqual(self.state("Q4"), "proposed")
+        self.assertNotIn("recommendation", q)
+        self.assertNotIn("alternatives", q)
+        self.assertTrue(q["proposed"]["at"])
+        text = self.ledger()
+        self.assertNotIn("Q4", text)
+        self.assertNotIn("Should the rollout pause", text)
+        self.assertNotIn("Pause on failure", text)
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        g1 = json.loads(out)["groups"][0]
+        self.assertEqual((g1["proposed"], g1["open"], g1["live"]), (["Q4"], ["Q1", "Q2"], 2))
+
+    def test_an_accepted_proposal_writes_its_row(self):
+        self.apply_ops(self.PROPOSE)
+        self.answer("accept")
+        self.assertEqual(self.state("Q4"), "open")
+        self.assertIn("- Q4 | open |", self.ledger())
+
+    def test_a_declined_proposal_is_archived_and_writes_a_withdrawn_row(self):
+        self.apply_ops(self.PROPOSE)
+        self.answer("decline")
+        self.assertEqual(self.state("Q4"), "archived")
+        self.assertIn("- Q4 | withdrawn |", self.ledger())
+        self.assertIn("the user declined Claude's proposal", self.ledger())
+
+    def test_a_pending_proposal_keeps_the_register_numbers(self):
+        add = {"op": "add", "question": question("Q5", group="g1", dependsOn=[])}
+        self.apply_ops(self.PROPOSE, add)
+        text = self.ledger()
+        self.assertNotIn("- Q4 |", text)
+        self.assertIn("- Q5 | open |", text)
+        self.assertNotIn("[Q5]", text)
+
+    def test_a_recommendation_waits_on_the_users_accept(self):
+        self.apply_ops(self.PROPOSE)
+        rec = {
+            "op": "revise",
+            "id": "Q4",
+            "seq": 1,
+            "rec": "Yes.",
+            "affects": "none",
+            "commits": [],
+            "alternatives": [
+                {"key": "a", "text": "No"},
+                {"key": "b", "text": "Only in one region"},
+            ],
+        }
+        self.assertIn("has not accepted yet", self.refused(rec))
+        self.refused({"op": "record-terminal", "id": "Q4", "decision": "accept"})
+        self.answer("edit", "Should a failed health check pause every region?")
+        self.apply_ops(rec)
+        q = self.q("Q4")
+        self.assertEqual(q["recommendation"], "Yes.")
+        self.assertNotIn("revised", q)
+        self.assertNotIn("previousRecommendation", q)
+
+    def test_from_seq_must_name_an_ask(self):
+        self.event("Q1", "ask", None, "What about a pause?")
+        out = self.refused({**self.PROPOSE, "fromSeq": 7})
+        self.assertIn("names no ask event", out)
+        self.apply_ops({**self.PROPOSE, "fromSeq": 1})
+        self.assertEqual(self.q("Q4")["proposed"]["fromSeq"], 1)
+
+    def test_a_duplicate_id_or_a_missing_title_is_refused(self):
+        self.refused({**self.PROPOSE, "id": "Q1"})
+        self.refused({k: v for k, v in self.PROPOSE.items() if k != "title"})
 
 
 class TestLatency(DirCase):
