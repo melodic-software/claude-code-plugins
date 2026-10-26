@@ -134,7 +134,9 @@ a trusted human's `workflow_dispatch`:
 - It skips a PR whose head already has a `pr-unblock / resolve-conflicts` check run from the
   GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`, or a
   `Skipped: awaiting-human` (a skip while held), a limit stop past its reset or a failure, until
-  `limits.limit-stops-per-head` of those last three stand on the head.
+  `limits.limit-stops-per-head` of those last three stand on the head. A limit stop is a run its
+  lane record marks `class=rate-limit` or `class=auth` (a refused credential); until it resets the
+  dispatcher logs a notice naming the class and the reset time.
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
@@ -2150,7 +2152,7 @@ with defaults.
 
 | Key | Default | What it sets |
 |---|---|---|
-| `fallback-reset` | 5 | Hours after a limit stop that names no reset time before the limit counts as reset. |
+| `fallback-reset` | 5 | Hours after a limit stop that names no reset time (every `auth` stop) before the limit counts as reset. |
 | `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
