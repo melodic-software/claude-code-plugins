@@ -2165,6 +2165,13 @@ config themselves. A config the resolver refuses fails the two dispatchers befor
 the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
+In pr-merge, a rate limit that stops any of `post-merge-dispatch`'s GitHub calls (its post-merge
+check, its full-run dispatch or its re-run) fails that job red and goes to the `merge` and
+`enable-auto-merge` jobs as its `rate-limited` output, naming the pool and the reset. Each of them
+then ends red at its first step and sends nothing to GitHub. This holds for any pool and for the
+rest of that run, even once the reset has passed: a run is short and the next scheduled run starts
+the sweep again, so stopping is safe and costs at most one sweep.
+
 ## WIP cap
 
 The optional `wip` block sizes the issue lane's work in progress from the lane merge rate. The WIP
