@@ -358,6 +358,17 @@ test("enable-auto-merge's step timeouts fit inside its job's", () => {
   assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
 });
 
+// The merge job's sizing comment: about a minute before the loop, then the
+// longer of the gate budget (10) plus a candidate's read limit (4) and a
+// deferred candidate's ceiling (20), plus one read's own timeout (4); the
+// escalation clear's own timeout comes on top.
+test("the merge job's ceiling covers the gate's sweep and the escalation clear", () => {
+  const gate = job("merge");
+  const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
+  const clear = Number(/- name: Clear escalations whose reason no longer holds\n[\s\S]*?\n {8}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
+  assert.ok(total >= 1 + Math.max(10 + 4, 20) + 4 + clear, `${total} minutes for the gate and a ${clear}-minute clear`);
+});
+
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
   const arm = job("enable-auto-merge");
   const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
