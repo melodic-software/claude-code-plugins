@@ -13,6 +13,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -28,6 +29,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_policy as policy  # noqa: E402
 import babysit_postmerge as pm  # noqa: E402
 import babysit_verify_evidence as ve  # noqa: E402
+
+# CheckCodeUnchanged builds git fixtures: clear any ambient git environment
+# first (scripts/check-fixture-git-isolation.sh).
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
 
 REPO = "example-org/example-repo"
 IDENTITY = "agent-lanes[bot]"
