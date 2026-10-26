@@ -78,7 +78,7 @@ upstream text. Copy the pin marker and trigger wording from that read; never fro
 3. **Fill each row** with the [record template](templates/record.md)'s columns:
    - **What it does**: the idea's function, in a sentence of your own about the mechanism.
    - **Upstream problem**: the problem, motivation and goal behind the idea, in your own words,
-     labelled **Stated** when the upstream says it and **Inference** when you derived it from the
+     labeled **Stated** when the upstream says it and **Inference** when you derived it from the
      mechanism. A **Stated** label carries a link to where the upstream says it: the file (and
      line) at the pin, or the post or issue that says it.
    - **Our problem**: the matching problem in this repository, or `none`. Ground it: search this
@@ -91,10 +91,10 @@ upstream text. Copy the pin marker and trigger wording from that read; never fro
    compare each row with the upstream file it links; a run of five or more shared words that is
    not a name means the cell followed the upstream's wording: delete it and write it again from
    the mechanism.
-5. **Licence notice.** Read the licence at the pin (a LICENSE file, a manifest field, the host's
-   reported licence) and record what each says, any disagreement between them, and that no
-   upstream text or code is copied, with the record parts: pointer to the licence file at the pin,
-   as-of date, recheck trigger. A source with no licence found is ideas only; say so.
+5. **License notice.** Read the license at the pin (a LICENSE file, a manifest field, the host's
+   reported license) and record what each says, any disagreement between them, and that no
+   upstream text or code is copied, with the record parts: pointer to the license file at the pin,
+   as-of date, recheck trigger. A source with no license found is ideas only; say so.
 6. **Write** `<dir>/<file>` from the template. Where the repository has a link checker for upstream
    records (`scripts/check-upstream-drift.sh --links --page <file>`), run it on the new file and
    fix what it reports.

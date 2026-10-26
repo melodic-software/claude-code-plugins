@@ -3,7 +3,7 @@
 # Upstream source: <owner>/<repo> (<scope, when one is set>)
 
 This page records what this repository takes from, adapts, already has, or rejects in
-[<owner>/<repo>](https://github.com/<owner>/<repo>) (<licence as read>). Rows hold our decisions
+[<owner>/<repo>](https://github.com/<owner>/<repo>) (<license as read>). Rows hold our decisions
 in our own words; read upstream at each row's link for what it says.
 
 <!-- A repository source: the pin marker line and the trigger line, both in the forms the -->
@@ -25,15 +25,16 @@ derived it from the mechanism. Disposition is `take`, `adapt`, `already have` or
 reason.
 
 <!-- A page source: the idea column names the page section and links its anchor. -->
+<!-- A Stated source links the file and line at the pin, or the post or issue that says it. -->
 | Idea (link at the pin) | What it does | Upstream problem, motivation, goal | Our problem | Disposition |
 |---|---|---|---|---|
-| [`<unit>`](https://github.com/<owner>/<repo>/tree/<40-hex sha>/<path>) | <the mechanism, our sentence> | <our statement>. **Stated** ([source](<file and line at the pin, or the post or issue>)) or **Inference** | <our matching problem, citing the owning surface by path, or `none`> | **<disposition>:** <reason; for `already have`, our surface; for `adapt`, what changes> |
+| [`<unit>`](https://github.com/<owner>/<repo>/tree/<40-hex sha>/<path>) | <the mechanism, our sentence> | <our statement>. **Stated** ([source](https://github.com/<owner>/<repo>/blob/<40-hex sha>/<path>#L<line>)) or **Inference** | <our matching problem, citing the owning surface by path, or `none`> | **<disposition>:** <reason; for `already have`, our surface; for `adapt`, what changes> |
 
-## Licence notice
+## License notice
 
-<What the licence file, the manifest field and the host each say, any disagreement, and that no
-upstream text or code is copied. With no licence found: ideas only.>
+<What the license file, the manifest field and the host each say, any disagreement, and that no
+upstream text or code is copied. With no license found: ideas only.>
 
-- **Pointer**: <the licence file at the pin, or the place its absence was checked>
+- **Pointer**: <the license file at the pin, or the place its absence was checked>
 - **As of**: YYYY-MM-DD
-- **Recheck trigger**: <the licence file or manifest field changes, or a tracking issue changes state>
+- **Recheck trigger**: <the license file or manifest field changes, or a tracking issue changes state>

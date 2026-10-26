@@ -3,9 +3,9 @@
   "evals": [
     {
       "id": 1,
-      "name": "rows-carry-labelled-problems-and-no-upstream-text",
+      "name": "rows-carry-labeled-problems-and-no-upstream-text",
       "prompt": "/knowledge:absorb-upstream https://github.com/acme/agent-skills --scope skills\n\nThe repository has three skills under skills/: plan-review, commit-guard and slide-maker. Its LICENSE file is MIT.",
-      "expected_output": "Resolves the record directory to docs/upstream from the default layer and says so, pins the default branch head as a full 40-hex commit, and writes docs/upstream/acme-agent-skills-skills.md with the pin marker, the convention's recheck trigger, an attribution table with one row per skill, and a licence notice with pointer, as-of date and recheck trigger. Each row states what the idea does and its upstream problem in the run's own words, labelled Stated or Inference, links the unit at the pin, names our matching problem or none, and gives one of take, adapt, already have or reject with a reason.",
+      "expected_output": "Resolves the record directory to docs/upstream from the default layer and says so, pins the default branch head as a full 40-hex commit, and writes docs/upstream/acme-agent-skills-skills.md with the pin marker, the convention's recheck trigger, an attribution table with one row per skill, and a license notice with pointer, as-of date and recheck trigger. Each row states what the idea does and its upstream problem in the run's own words, labeled Stated or Inference, links the unit at the pin, names our matching problem or none, and gives one of take, adapt, already have or reject with a reason.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -16,7 +16,7 @@
         "Every row's upstream problem cell carries a Stated or Inference label",
         "Every row's disposition is one of take, adapt, already have or reject, followed by a reason",
         "No row contains a quoted upstream phrase or sentence",
-        "The licence notice has Pointer, As of and Recheck trigger lines"
+        "The license notice has Pointer, As of and Recheck trigger lines"
       ]
     },
     {
