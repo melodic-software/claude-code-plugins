@@ -404,6 +404,20 @@ def rerun_rate_limited_review(
     if not review_evidence.rate_limited(lane, {"annotations": annotations}):
         report["reason"] = "failure class is not rate-limit; never re-run"
         return report
+    # The binding takes attempt 2 only after an attempt 1 that concluded
+    # failure (review_evidence.rerun_binds), so the re-run must too.
+    try:
+        conclusion = json_object(
+            gh_json(["api", f"repos/{repo}/actions/runs/{run_id}/attempts/1"])
+        ).get("conclusion")
+    except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        report["reason"] = f"could not read the attempt: {type(exc).__name__}: {exc}"
+        return report
+    if conclusion != "failure":
+        report["reason"] = (
+            f"attempt 1 concluded {conclusion!r}, so a re-run would not bind"
+        )
+        return report
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/actions/runs/{run_id}/rerun"]
     )

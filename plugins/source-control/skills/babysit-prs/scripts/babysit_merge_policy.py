@@ -4496,7 +4496,9 @@ def shared_refusal(
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
     `demotion-changed` means nothing else refused (`lane_room` keeps such an
-    answer when the demotion reads the same). The binding comes before the
+    answer only when a fresh demotion read equals the shared one in every
+    field: the records, the newest record's creation and the newest clear
+    move the floor and the evidence window too). The binding comes before the
     age, so a candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and
     does not replace the run's answer. The floor is compared under the
     shared answer's demotion, which may be out of date; that changes only the
