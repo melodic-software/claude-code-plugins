@@ -20,7 +20,7 @@ none
 
 ## Drive
 
-Run the steps in [steps.yaml](steps.yaml): open order 1001's billing page, then refund it with the
+Run the steps in `steps.yaml`: open order 1001's billing page, then refund it with the
 `issue-refund` step.
 
 ## Gotchas

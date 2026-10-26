@@ -20,7 +20,7 @@ none: the feature reads only.
 
 ## Drive
 
-Run the steps in [steps.yaml](steps.yaml): sign in through the identity server's own steps, open
+Run the steps in `steps.yaml`: sign in through the identity server's own steps, open
 the history page, check the first order.
 
 ## Gotchas
