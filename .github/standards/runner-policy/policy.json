@@ -385,6 +385,32 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "role": "intake",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version",
+        "claude-args",
+        "issue-number",
+        "allowed-author-ids",
+        "allowed-bot-sender-ids",
+        "role"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.INTAKE_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -1122,6 +1148,27 @@
       }
     },
     "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@4fbceb4b75ffd568dfa5db31de0d0e753c0c64e6": {
+      "routing": "hosted-only",
+      "fixedRunsOn": ["ubuntu-24.04"],
+      "allowedInputs": [
+        "lane",
+        "publish",
+        "role",
+        "model-args",
+        "allowed-bot-sender-ids",
+        "allowed-author-ids",
+        "docs-only-paths",
+        "incremental-review",
+        "cli-version",
+        "hold-label",
+        "hold-paths"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8": {
       "routing": "hosted-only",
       "fixedRunsOn": ["ubuntu-24.04"],
       "allowedInputs": [
