@@ -570,7 +570,7 @@ async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
 // re-run keeps the event, so a stop here could otherwise turn an earlier red
 // check on the same SHA neutral: untrusted-rerunner has no skip mapping, and
 // a failed or malformed read stops with it too.
-async function readRerunner(github, repository, runId, runAttempt) {
+export async function readRerunner(github, repository, runId, runAttempt) {
   const refuse = "untrusted-rerunner";
   if (!RUN_ID.test(runId) || !RUN_ATTEMPT.test(runAttempt)) {
     throw new Stop(refuse);

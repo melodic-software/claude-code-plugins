@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.8.0] - 2026-10-26
+
+### Added
+
+- **lanes:** a new optional `lane_app_slug` option holds the GitHub App slug the lanes run `gh` under. The `consume-restarts` invocation passes it to `restart-consumer.sh` as `--app-slug`, and the `telemetry-upsert.sh` guidance passes it on every call, so an operator whose lanes write under an App installation token no longer has to type `--app-slug` on each run. The README options table lists it.
+
+### Changed
+
+- **lanes:** `restart-consumer.sh` and `telemetry-upsert.sh` read an unrendered `${user_config.lane_app_slug}` placeholder as no slug instead of refusing it with exit 3, so the always-passed option is harmless when unset. `restart-consumer.sh` also accepts an empty `--app-slug` value, which it used to refuse with exit 3, and reads it as no slug, as `telemetry-upsert.sh` already did. A bare trailing `--app-slug` with no value is still refused.
+
+## [4.7.0] - 2026-10-26
+
+### Added
+
+- **`CC_OTEL_HOT_TOTAL_MAX_MB` caps the hot OTEL store files together.** Each prune now trims
+  `cc-logs.json`, `cc-metrics.json` and `cc-traces.json` to at most 1024 MiB in total by default
+  (`0` disables), dropping the oldest lines across all three to cold first. Before this, only the
+  per-file `CC_OTEL_HOT_MAX_MB` cap applied, so three files each under it could together pass the
+  1 GiB hot budget provisioning checks. `operator-setup-retention.md` documents the knob.
+
+### Fixed
+
+- **`CC_OTEL_HOT_MAX_MB` with a leading zero** (`08`) is read as base 10 instead of failing as octal.
+
 ## [4.6.1] - 2026-10-26
 
 ### Fixed

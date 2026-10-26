@@ -336,6 +336,13 @@ export function createRateLimitLatch({
     until,
     check,
     observe,
+    // Takes in the stops another process (a reader child) wrote to the job's
+    // stop file since this latch started.
+    reload() {
+      for (const [pool, reset] of readStops(stopFile, log)) {
+        stops.set(pool, Math.max(stops.get(pool) ?? 0, reset));
+      }
+    },
     belowFloor: (url) => low.get(poolOf(url)) === true,
     // A fetch that checks the latch before each request and reads each answer,
     // keeping its reading under API_BUDGET_TOKEN (recordReading). That one
