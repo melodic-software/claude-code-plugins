@@ -5,7 +5,7 @@
       "why": "closing names all four parts"
     },
     {
-      "answer": "**Before first tool call:** Auditing the repo in four parts.\n\n**Closing message:** Lint: <n> config files. Workflows: <n>, each listed with its trigger. TODO: <n> markers. Licence headers missing in <n> files.",
+      "answer": "**Before first tool call:** Auditing the repo in four parts.\n\n**Closing message:** Lint: <n> config files. Workflows: <n>, each listed with its trigger. TODO: <n> markers. License headers missing in <n> files.",
       "why": "bold labels and British spelling"
     }
   ],

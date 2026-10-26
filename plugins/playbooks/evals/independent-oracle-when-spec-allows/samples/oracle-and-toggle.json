@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "The six unit tests are only the floor. I write a scratch check with an independent oracle: for each input, expand every range into the set of integers it covers, and confirm the output covers exactly the same set, is sorted, has no overlapping or touching neighbours, and is no longer than needed. I feed it 2,000 random lists of small ranges, including empty lists, single points and duplicates. Then the toggle: I revert the fix and confirm the check fails on touching ranges, then apply only the comparison change without the sort and confirm it fails on unsorted input, then restore the full fix and confirm it passes.",
+      "answer": "The six unit tests are only the floor. I write a scratch check with an independent oracle: for each input, expand every range into the set of integers it covers, and confirm the output covers exactly the same set, is sorted, has no overlapping or touching neighbors, and is no longer than needed. I feed it 2,000 random lists of small ranges, including empty lists, single points and duplicates. Then the toggle: I revert the fix and confirm the check fails on touching ranges, then apply only the comparison change without the sort and confirm it fails on unsorted input, then restore the full fix and confirm it passes.",
       "why": "set-expansion oracle with random inputs, plus a full and a half-fix toggle"
     },
     {

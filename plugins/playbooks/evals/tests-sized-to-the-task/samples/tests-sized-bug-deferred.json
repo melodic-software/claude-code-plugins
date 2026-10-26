@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "I add a --since option in cli/filters.py that parses the ISO date and skips lines whose timestamp is earlier. I add one test to tests/test_filters.py, about ten lines like its neighbours, feeding three lines around the cutoff and asserting only the newer two come out. Follow-up, not fixed here: parse_retry_delay in utils/backoff.py returns milliseconds while both callers treat it as seconds; --since does not depend on it, so I leave it for a separate change.",
+      "answer": "I add a --since option in cli/filters.py that parses the ISO date and skips lines whose timestamp is earlier. I add one test to tests/test_filters.py, about ten lines like its neighbors, feeding three lines around the cutoff and asserting only the newer two come out. Follow-up, not fixed here: parse_retry_delay in utils/backoff.py returns milliseconds while both callers treat it as seconds; --since does not depend on it, so I leave it for a separate change.",
       "why": "one focused test, bug reported as a follow-up"
     },
     {
