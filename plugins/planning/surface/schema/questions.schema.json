@@ -431,9 +431,16 @@
           "description": "Set by a recommendation change: its `why` as given, else true"
         },
         "archived": {"$ref": "#/$defs/archived"},
+        "proposed": {
+          "description": "Written by the propose op: the question waits on the user's approval and carries no recommendation until they accept or edit it with a `proposal` event. `fromSeq` is the Ask it answers.",
+          "type": "object",
+          "required": ["at"],
+          "additionalProperties": false,
+          "properties": {"at": {"type": "string"}, "fromSeq": {"type": "integer"}}
+        },
         "state": {
-          "enum": ["open", "stale", "upstream-changed", "upstream-pending", "archived"],
-          "description": "Derived by the server from dependsOn, decision events, history and archived; never written by Claude"
+          "enum": ["open", "stale", "upstream-changed", "upstream-pending", "archived", "proposed"],
+          "description": "Derived by the server from dependsOn, decision events, history, archived and proposal events (`proposed` until the user answers the proposal, `archived` once they decline it); never written by Claude"
         },
         "answered": {
           "type": "boolean",

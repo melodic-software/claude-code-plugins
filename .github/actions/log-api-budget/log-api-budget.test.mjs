@@ -194,7 +194,7 @@ test("api_budget_classify decides every rate-guard vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   const floor = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
   for (const vector of vectors.vectors) {
-    const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor };
+    const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor, cap: vector.limit_cap ?? null };
     const out = bash(tmpdir(), 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) });
     assert.deepEqual(JSON.parse(out.stdout), vector.expect, `${vector.name}: ${out.stderr}`);
   }
@@ -527,6 +527,30 @@ test("gh guard: under the read floor it warns once and keeps sending", () =>
     assert.match(out.stderr, /reads continue\n/);
     assert.equal(out.status, 0);
   }));
+
+// 950 used of a header limit of 5000 leaves 50 of a planned 1000, under a
+// floor of 100; without the cap the same reading is far over its floor.
+test("gh guard: API_BUDGET_LIMIT_CAP plans the floor to the cap, and only the header's remaining stops", () =>
+  withDir((dir) => {
+    const capped = guarded(dir, ["200 4050 - {}", "200 4050 - {}"], "gh api repos/o/r >/dev/null; gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1", API_BUDGET_LIMIT_CAP: "1000" });
+    assert.equal(capped.calls.length, 2);
+    assert.equal(capped.stderr.match(/::warning::/g)?.length, 1);
+    assert.equal(capped.status, 0);
+  }));
+
+test("gh guard: with no API_BUDGET_LIMIT_CAP the floor is a share of the header limit", () =>
+  withDir((dir) => {
+    const out = guarded(dir, ["200 4050 - {}"], "gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1" });
+    assert.equal(out.stderr, "");
+  }));
+
+// ci-status runs on GITHUB_TOKEN, so its cap is github-token's limit-cap
+// default, pinned here as the floor is below.
+test("ci-status sets the shell limit cap to github-token's limit-cap default", () => {
+  const cap = /\n {6}API_BUDGET_LIMIT_CAP: "?([0-9]+)"?\n/.exec(CI);
+  assert.ok(cap, "ci-status sets API_BUDGET_LIMIT_CAP");
+  assert.equal(Number(cap[1]), apiLimits({ resolvedPath: "" })["github-token"]["limit-cap"]);
+});
 
 // ci-status has no checkout of the schema, so its wrapper's floor is set in
 // the job env, pinned here to the schema default the Node guard reads.

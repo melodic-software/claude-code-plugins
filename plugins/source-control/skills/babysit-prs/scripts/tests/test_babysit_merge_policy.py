@@ -5152,8 +5152,9 @@ class ForeignPaths(unittest.TestCase):
                 )
 
     def test_some_paths_are_never_the_authors_own(self) -> None:
-        # The HIGH path floor always scores, even in a standards-sync PR whose
-        # every commit is its own; everything else is the author's own.
+        # The HIGH path floor (owner decision Q-FLOOR (B)) always scores, even
+        # in a standards-sync PR whose every commit is its own; everything
+        # else, the trusted-actor list included, is the author's own.
         changed = frozenset(
             {
                 ".github/workflows/pr-merge.yml",
@@ -5177,20 +5178,13 @@ class ForeignPaths(unittest.TestCase):
                 ".github/scripts/pr-verify/resolve-pr.mjs",
             }
         )
-        own = {
+        own = changed - {
             ".github/workflows/pr-merge.yml",
-            ".github/workflows/release-publish-plugins.yml",
-            ".claude/settings.json",
-            "config/settings.local.json",
-            "package.json",
-            "plugins/x/package-lock.json",
-            ".github/requirements-ci.txt",
-            "docs/x.md",
-            "plugins/x/skills/y/SKILL.md",
-            "AGENTS.md",
-            "plugins/x/hooks/h.sh",
-            "plugins/x/.claude-plugin/plugin.json",
-            ".github/scripts/pr-verify/resolve-pr.mjs",
+            ".github/actions/check-trusted-trigger/action.yml",
+            ".github/actions/resolve-config/resolve.mjs",
+            "CODEOWNERS",
+            "docs/CODEOWNERS",
+            ".gitmodules",
         }
         for user in (
             {"login": "melodic-standards-sync[bot]", "id": 300666570, "type": "Bot"},

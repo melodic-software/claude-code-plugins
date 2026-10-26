@@ -992,9 +992,7 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
         # Failed as a slice of one issue, then relinked to close a different
         # issue on the same diff.
-        self.assertEqual(
-            read(self.closing_another(8)).refusal, "verify:earlier-fail"
-        )
+        self.assertEqual(read(self.closing_another(8)).refusal, "verify:earlier-fail")
 
     def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
         self.assertEqual(
@@ -1907,8 +1905,12 @@ class TheNewestPassDecides(unittest.TestCase):
         # Run 1 created first but re-attempted after the edit; run 2 created
         # later but started before it. The later start judged the live spec.
         fake = self.fake(second=True)
-        fake.runs[1] = run(1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z")
-        fake.runs[2] = run(2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z")
+        fake.runs[1] = run(
+            1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z"
+        )
+        fake.runs[2] = run(
+            2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z"
+        )
         self.assertIsNone(read(fake).refusal)
 
     def test_every_pass_decides_when_a_start_time_is_missing(self) -> None:
@@ -2770,6 +2772,11 @@ def evidence(
     )
 
 
+# A manifest the floor switch's manifest review holds; the floor itself holds
+# no path.
+MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
+
+
 def changed(path: str, additions: int = 1) -> unattended.ChangedFile:
     """A modified regular file in the diff."""
     return unattended.ChangedFile(
@@ -3283,7 +3290,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.config, denied_paths=(), max_changed_lines=None
         )
         self.unlabeled_lane_pr(real_denied_paths=True)
-        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        gate = "plugins/source-control/scripts/source-control-babysit-merge"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
         # The workflow's patch adds no cost line, so the cost hold passes it.
         self.files = (
@@ -3312,17 +3319,17 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.config = dataclasses.replace(
             self.config, high_path_floor=True, max_changed_files=8,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
-    def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
+    def test_the_lane_scores_a_manifest_from_the_config_high(self) -> None:
         self.config = dataclasses.replace(self.config, high_path_floor=True)
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["high-path:**/.gitmodules"])
+        self.assertEqual(codes, ["manifest-review-required"])
 
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
@@ -3382,13 +3389,13 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         self.config = dataclasses.replace(
             self.config, high_path_floor=False, max_changed_files=None,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_the_local_floor_holds_whatever_the_switch_says(self) -> None:
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         for on in (False, True):
             with self.subTest(high_path_floor=on):
                 self.config = dataclasses.replace(self.config, high_path_floor=on)
@@ -4130,11 +4137,37 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         import babysit_gh as gh
 
         def answer(cmd: list[str], **kwargs: Any) -> Any:
-            return fake(
-                cmd[1:],
+            # The fake answers without headers, so the guard's `-i` is dropped.
+            args = [a for i, a in enumerate(cmd[1:]) if (i, a) != (1, "-i")]
+            base, _, number = (args[1] if args[:1] == ["api"] else "").partition(
+                "&page="
+            )
+            proc = fake(
+                ["api", base, "--paginate", "--slurp"]
+                if number or base in paged
+                else args,
                 env_overrides=kwargs.get("env_overrides"),
                 binary=kwargs.get("binary"),
             )
+            if not (number or base in paged) or proc.returncode != 0:
+                return proc
+            # A paged read goes page by page: serve the fake's slurped pages
+            # one at a time, linked as GitHub links them.
+            pages, at = json.loads(proc.stdout), int(number or 1)
+            link = (
+                f'Link: <https://api.github.com/{base}&page={at + 1}>; rel="next"\r\n'
+                if at < len(pages)
+                else ""
+            )
+            body = json.dumps(pages[at - 1])
+            return subprocess.CompletedProcess(
+                cmd, 0, f"HTTP/2.0 200 OK\r\n{link}\r\n{body}", ""
+            )
+
+        paged = {
+            f"repos/{REPO}/actions/artifacts?per_page=100",
+            f"repos/{REPO}/pulls/{PR}/commits?per_page=100",
+        }
 
         gh.reset_gh_call_counts()
         with mock.patch.object(gh, "run_command", side_effect=answer):
