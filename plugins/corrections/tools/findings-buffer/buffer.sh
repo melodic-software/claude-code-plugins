@@ -3,8 +3,9 @@
 #   buffer.sh append < rows.jsonl
 #   buffer.sh read [--since <UTC ISO-8601>]
 # append redacts each row's string values, caps the row, sets obs_id and ts, and hands the rows to
-# the adapter bound in <home>/findings-buffer.yaml (personal overlay findings-buffer.local.yaml;
-# default local-file). When that append fails, the rows go to the local-file adapter instead.
+# the bound adapter: the user-scope binding for this repository, else the one in
+# <home>/findings-buffer.yaml (personal overlay findings-buffer.local.yaml; default local-file).
+# When that append fails, the rows go to the local-file adapter instead.
 # read merges the bound adapter's rows with the local-file rows and drops repeat obs_ids.
 # Exit: 0 ok, 1 failure, 2 usage or a malformed row, 3 not in a repository or node/python3 missing.
 set -uo pipefail

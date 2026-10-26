@@ -155,9 +155,10 @@ test("recordReading appends the same line shape, na for a missing or malformed v
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
   }));
 
-test("the action emits each named token, writes the summary and the costs output, and reads no /rate_limit", () =>
+test("the action emits each named token, writes the summary, the call count and the costs output, and reads no /rate_limit", () =>
   withDir((dir) => {
-    readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }));
+    // Two calls GitHub counted, then a conditional GET answered 304.
+    readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
     const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
     writeFileSync(join(dir, "summary"), "");
     writeFileSync(join(dir, "output"), "");
@@ -173,10 +174,15 @@ test("the action emits each named token, writes the summary and the costs output
         TOKENS: "lanes-app\ngithub-token",
       },
     });
-    assert.equal(out, `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n`);
+    assert.equal(
+      out,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+        "api-calls github-token=2 not-modified=1\n",
+    );
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
-      `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\ngithub-token-cost=28\n`,
+      `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
+        "api-calls github-token=2 not-modified=1\ngithub-token-cost=28\n",
     );
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "costs=github-token-cost=28\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);

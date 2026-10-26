@@ -20,7 +20,7 @@ Reason for parking: the owner's scope guard, "we want these to be, in most cases
 | Composer extras: attachments (paste or drop images and video), link detection, markdown with code highlighting, slash autocomplete for skills and `@` for question ids, dragging a note onto a question | Park |
 | Hold sends; typed debounce | Park |
 | Server as sole writer of both files; SSE deltas with `Last-Event-ID`; a server idle exit | Park |
-| The stale cascade (automatic transitive re-staling) | Park |
+| The stale cascade (automatic transitive re-staling) | Park; the one-hop form is built: #9714. A changed or reopened answer marks each direct dependent `stale` or `upstream-changed`, and a re-answer that changes value moves it one hop further |
 | Size-signal line and split proposal cards on the page | Park |
 | A minimum text size inside SVG | Park |
 | Monitor, plugin-monitor and channel wake rungs | Park |

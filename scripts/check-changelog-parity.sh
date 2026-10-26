@@ -307,14 +307,14 @@ changelog_versions() {
     grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?'
 }
 
-# Version headings present at the fork point but absent at head. Uses
+# Version headings present at the fork point but absent from $3, the head body. Uses
 # changelog_versions on both sides so plugin, convention, and two-component
 # heading forms share one reader. Reads the base blob with command substitution
 # (never process substitution) so a git failure fails closed. A changelog that
 # is new at the fork point is a legitimate pass — probe with git cat-file -e
 # first so "absent" is not conflated with "git failed".
 missing_preserved_headings() {
-  local merge_base="$1" changelog="$2"
+  local merge_base="$1" changelog="$2" head_body="$3"
   local base_body missing v
   declare -A head_seen
 
@@ -329,7 +329,7 @@ missing_preserved_headings() {
   mapfile -t base_versions < <(printf '%s\n' "$base_body" | changelog_versions -)
   ((${#base_versions[@]} > 0)) || return 0
 
-  mapfile -t head_versions < <(changelog_versions "$changelog")
+  mapfile -t head_versions < <(printf '%s\n' "$head_body" | changelog_versions -)
   for v in ${head_versions[@]+"${head_versions[@]}"}; do head_seen["$v"]=1; done
 
   missing=""
@@ -343,7 +343,7 @@ missing_preserved_headings() {
   return 0
 }
 
-# "<added> <copied>" per line: an entry of $1 whose version is in $2 (space
+# "<added> <copied>" per line: an entry of $1 (a file, or - for stdin) whose version is in $2 (space
 # separated added versions) and whose trimmed body, at least MIN_REPEATED_BODY
 # characters, equals another entry's body, fenced code included.
 repeated_added_bodies() {
@@ -561,6 +561,30 @@ if ! changed_files::into diff_paths "$merge_base..$head_commit" --include-delete
   echo "check-changelog-parity: the diff from $merge_base to $head_commit failed; refusing to pass without checking." >&2
   exit 2
 fi
+
+# The branch's own files are read at $head_commit, never from the working tree:
+# on a pull_request checkout the tree is the synthetic merge, which carries every
+# release the base made after the fork point. Read through it, a fragment-mode
+# plugin main released reads as a version move or heading this branch made.
+# head_has <path>: 0 when the path (file or directory) exists at $head_commit.
+head_has() {
+  local listing
+  if ! listing="$(git ls-tree --name-only "$head_commit" -- "$1")"; then
+    echo "check-changelog-parity: 'git ls-tree $head_commit -- $1' failed; refusing to pass without checking." >&2
+    exit 2
+  fi
+  [[ -n "$listing" ]]
+}
+# head_show <path> <out-var>: the file's content at $head_commit.
+head_show() {
+  local -n head_show_out="$2"
+  # shellcheck disable=SC2034  # a nameref: this assignment writes the caller's variable
+  if ! head_show_out="$(git show "$head_commit:$1")"; then
+    echo "check-changelog-parity: 'git show $head_commit:$1' failed; refusing to pass without checking." >&2
+    exit 2
+  fi
+}
+head_version_of() { git show "$head_commit:$1" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true; }
 for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   case "$path" in
   plugins/*/.claude-plugin/plugin.json)
@@ -657,9 +681,12 @@ if [[ "$mode" == "--check-preserved" ]]; then
     ((${#base_versions[@]} > 0)) || continue
 
     head_versions=()
-    if [[ -f "$changelog" ]]; then
-      mapfile -t head_versions < <(changelog_versions "$changelog")
-    elif [[ ! -d "${changelog%/CHANGELOG.md}" ]]; then
+    changelog_at_head=""
+    if head_has "$changelog"; then
+      changelog_at_head=1
+      head_show "$changelog" head_body
+      mapfile -t head_versions < <(printf '%s\n' "$head_body" | changelog_versions -)
+    elif ! head_has "${changelog%/CHANGELOG.md}"; then
       # The whole plugin/convention directory went with it — a removal, not an
       # absorbed section. A rename lands here too: the old path's directory is
       # gone, and the new path is new at the fork point (skipped above). A
@@ -689,7 +716,7 @@ if [[ "$mode" == "--check-preserved" ]]; then
       # remediation: telling an author whose whole file is gone to restore a
       # heading "above the entry that replaced it" names an entry that does not
       # exist.
-      if [[ -f "$changelog" ]]; then
+      if [[ -n "$changelog_at_head" ]]; then
         echo "  A released section's heading vanished. The usual cause is a CHANGELOG merge-forward resolved by writing the new release under the PREVIOUS release's heading — absorbing it — or by RELABELLING that heading to the new version; git leaves no conflict marker behind for either. Restore the heading with its own notes above the entry that replaced it." >&2
       else
         echo "  The changelog itself was deleted while its directory survived. Restore $changelog with every release note it carried at $merge_base." >&2
@@ -726,8 +753,9 @@ fi
 # touched_changelogs is already unique (the seen_changelog guard where it is
 # built), so each changelog is inspected exactly once.
 for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
-  [[ -f "$changelog" ]] || continue
-  missing_headings="$(missing_preserved_headings "$merge_base" "$changelog")" ||
+  head_has "$changelog" || continue
+  head_show "$changelog" head_body
+  missing_headings="$(missing_preserved_headings "$merge_base" "$changelog" "$head_body")" ||
     exit 2
   if [[ -n "$missing_headings" ]]; then
     echo "ABSORBED CHANGELOG HEADING: $changelog lost release section heading(s) vs the fork point (a merge-forward may have fused two releases into one section):" >&2
@@ -748,7 +776,7 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   declare -A base_has=()
   for v in $(printf '%s\n' "$base_body" | changelog_versions -); do base_has["$v"]=1; done
   added_versions=""
-  for v in $(changelog_versions "$changelog"); do
+  for v in $(printf '%s\n' "$head_body" | changelog_versions -); do
     [[ -n "${base_has[$v]:-}" ]] || added_versions+="$v "
   done
   if [[ -n "$added_versions" && "$changelog" == plugins/* ]]; then
@@ -777,7 +805,7 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
       [[ -n "$added" ]] || continue
       echo "REPEATED CHANGELOG BODY: $changelog entry [$added] has the same body as [$copied]; describe what changed in this release." >&2
       repeated=$((repeated + 1))
-    done < <(repeated_added_bodies "$changelog" "$added_versions")
+    done < <(printf '%s\n' "$head_body" | repeated_added_bodies - "$added_versions")
   fi
 done
 
@@ -793,7 +821,7 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     case $? in
     0)
       if [[ -n "${bumped_candidate[$name]:-}" ]]; then
-        head_version="$(version_of "$manifest")"
+        head_version="$(head_version_of "$manifest")"
         fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
         if [[ -n "$fork_version" && "$head_version" != "$fork_version" ]]; then
           echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set moves its version $fork_version -> $head_version." >&2
@@ -820,7 +848,7 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   # Absent at base => new plugin in this change set; the static --check owns
   # whether its initial CHANGELOG.md exists, not the bump gate.
   [[ -n "$base_version" ]] || continue
-  head_version="$(version_of "$manifest")"
+  head_version="$(head_version_of "$manifest")"
   fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
 
   # A branch that changes shipped plugin files but leaves the manifest version
@@ -910,7 +938,13 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
       END { exit !found }
     '
   }
-  if [[ -f "$changelog" ]] && has_heading <"$changelog"; then
+  changelog_at_head=""
+  head_body=""
+  if head_has "$changelog"; then
+    changelog_at_head=1
+    head_show "$changelog" head_body
+  fi
+  if [[ -n "$changelog_at_head" ]] && has_heading <<<"$head_body"; then
     # The release entry must be ADDED by this change set, not merely present:
     # a heading that already existed in the changelog at $base means the bump
     # reused a pre-existing entry and shipped no new release note. Require it
@@ -930,7 +964,7 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   # not just dots.
   # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE metachar being escaped, not a shell expansion
   esc="$(printf '%s' "$head_version" | sed -E 's/[][\\.|$(){}?+*^]/\\&/g')"
-  if found="$([[ -f "$changelog" ]] && grep -m1 -E "^##[[:space:]]+${esc}([[:space:]]|\$)" "$changelog")"; then
+  if found="$([[ -n "$changelog_at_head" ]] && grep -m1 -E "^##[[:space:]]+${esc}([[:space:]]|\$)" <<<"$head_body")"; then
     echo "CHANGELOG FORMAT: $name $head_version is documented as '${found}' but must use the bracketed Keep-a-Changelog heading '## [$head_version]'." >&2
     malformed=$((malformed + 1))
   else
