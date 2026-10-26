@@ -117,16 +117,15 @@ into another.
   `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` sees neither `ACTIONS_ID_TOKEN_REQUEST_URL` nor
   `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, while `GH_TOKEN` and `GITHUB_TOKEN` stay present because the
   scrub keeps them by design. The model therefore cannot request its own OIDC token to mint from
-  the broker through that subprocess. P7 did not test MCP servers or the action process. No step
-  of the job runs a PR-head test file: on a skill whose effect is not `read`, the schema refuses
-  `scripts/run-test-file.sh` and skill-quality's `check-skill.sh` in `verify-scripts`, and the
-  scripts that run the checkout's test files in `checks` and `self-checks`
+  the broker through that subprocess. P7 did not test MCP servers or the action process. The P7
+  run also showed the minted token scoped to the sandbox repository only, and after revoke
+  `DELETE /installation/token` returned 204 and `GET /installation/repositories` returned 401.
+  No step of the job runs a PR-head test file: on a skill whose effect is not `read`, the schema
+  refuses `scripts/run-test-file.sh` and skill-quality's `check-skill.sh` in `verify-scripts`, and
+  the scripts that run the checkout's test files in `checks` and `self-checks`
   (`verify-scripts.test.mjs`, `self-checks.test.mjs`); the job stages no test-file runner
   (`callers.test.mjs`). A read skill runs them in `pr-run-activity-read.yml`, whose run job holds
-  no OIDC token or lane token. The same
-  run showed the minted token scoped to the sandbox repository only, and
-  after revoke `DELETE /installation/token` returned 204 and `GET /installation/repositories`
-  returned 401.
+  no OIDC token or lane token.
 - Accepted residual, effect skew: the job runs trusted actions, the skill and the script from the
   PR's base SHA, while the broker's grant comes from the default-branch tip. The client's effect
   check fails a skewed job red. Follow-up, decided and not built: run the job's trusted actions
