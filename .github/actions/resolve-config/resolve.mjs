@@ -960,7 +960,7 @@ const limitsOf = (limits = {}) => ({
   "fix-docs-per-run": limits["fix-docs-per-run"] ?? 2,
   "admission-factor": limits["admission-factor"] ?? 0.8,
   "admission-min-per-hour": limits["admission-min-per-hour"] ?? 1,
-  // As set: rate-guard.mjs fills it from the schema's defaults.
+  // As set: rate-guard.mjs fills it from rate-limits.json beside it.
   api: limits.api ?? {},
 });
 

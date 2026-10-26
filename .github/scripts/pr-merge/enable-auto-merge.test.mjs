@@ -317,6 +317,7 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/check-kill-switch/check-kill-switch.mjs",
     ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/rate-limits.json",
     ".github/CODEOWNERS",
     "vendor/.gitmodules",
     ".github/scripts/pr-merge/merge-holds.mjs",

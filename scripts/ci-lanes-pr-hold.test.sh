@@ -299,6 +299,7 @@ expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held
 for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-config/resolve.mjs \
   .github/actions/check-trusted-trigger/.x.mjs .github/actions/request-lane-token/action.yml \
   .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/log-api-budget/rate-guard.mjs \
+  .github/actions/log-api-budget/rate-limits.json \
   .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs \
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
   plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py .github/workflows/pr-require-checks.yml \
