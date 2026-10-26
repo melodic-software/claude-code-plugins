@@ -2180,7 +2180,7 @@ label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status:
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
 | `pause-from` | empty | UTC date or date-time from which runs pause over the WIP cap or the held cap, and new admissions over the queued cap; empty never pauses. This repository sets 2026-10-22. |
 
-A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
+A held lane PR carries `needs-human` or `do-not-merge` in any case, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, at or over the queued cap, or with a held PR past the alarm age, the check
