@@ -125,6 +125,12 @@ out=$(bash "$SCRIPT" --dir "$REPO/plugins" --base main)
 assert_contains "run from a subdirectory, an untracked file elsewhere still warns" "$out" \
   "protected-path notes/new.md:"
 
+branch unsafe-path
+write "plugins/p/my file.md" "x"
+commit unsafe
+assert_contains "a path with an unsafe segment warns with the merge's unsafe-path code" "$(run)" \
+  "protected-path plugins/p/my file.md: the guarded merge holds it for a person (high-path:**)"
+
 branch manifest
 write plugins/p/.claude-plugin/plugin.json '{"name": "p", "version": "1.0.0"}'
 commit manifest

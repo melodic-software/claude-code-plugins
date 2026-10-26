@@ -10,8 +10,9 @@ staged, unstaged and untracked changes alike) and prints one line per finding:
     SKILL.md, the plugin's `evals/` for an agent body. The skill criteria ship
     a cut only with eval evidence of no loss.
   protected-path <path>: a changed path in `babysit_risk.HIGH_FLOOR` or the
-    configured `merge.diff-check.denied-paths` (`--denied-path`), which the
-    guarded merge holds for a person, or a plugin or marketplace manifest
+    configured `merge.diff-check.denied-paths` (`--denied-path`), or with a
+    segment `babysit_risk.normalize_path` calls unsafe, which the guarded
+    merge holds for a person, or a plugin or marketplace manifest
     (`babysit_risk.is_manifest_path`), which it compares base against head.
     The path rules are imported from babysit_risk, never restated.
   note: a configured denied-path set the merge cannot read, so it matches only
@@ -99,8 +100,10 @@ def protected_paths(paths: list[str], denied: list[str]) -> list[str]:
     lines = [f"note: {problem}; only the floor is matched" for problem in problems]
     patterns = tuple(dict.fromkeys((*risk.HIGH_FLOOR, *configured)))
     for path in sorted(paths):
-        normalized, _ = risk.normalize_path(path)
+        normalized, safe = risk.normalize_path(path)
         hits = [f"high-path:{p}" for p in patterns if risk.glob_match(p, normalized)]
+        if not safe:
+            hits.insert(0, risk.UNSAFE_PATH_CODE)
         if hits:
             lines.append(
                 f"protected-path {path}: the guarded merge holds it for a person"
