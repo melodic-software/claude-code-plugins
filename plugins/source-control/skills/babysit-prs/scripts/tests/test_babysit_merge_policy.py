@@ -4465,8 +4465,8 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         )
 
     def test_the_lanes_recorded_toggle_at_the_head_keeps_adoption(self) -> None:
-        # Issue #9137: the record, the draft toggle and the whole review it
-        # starts refresh `updated_at`; the next sweep still adopts the PR.
+        # The record, the draft toggle and the whole review it starts
+        # refresh `updated_at`; the next sweep still adopts the PR.
         review = {"user": {"login": "claude[bot]", "type": "Bot"}}
         review["submitted_at"] = "2026-10-11T14:00:00Z"
         self.assertIsNone(self.toggled([self.reasons()], [review]))
