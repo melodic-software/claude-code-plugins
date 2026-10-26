@@ -257,16 +257,11 @@ const laneNote = (reason) =>
     reason,
     "```",
   ].join("\n");
-// A reader refusal (issue link, verdict, risk score) is one clear-escalations
-// takes the label off for at the same head; any other a person removes.
-const READER_REASON = /^pr-merge's (?:lane does not take its issue link|gate refuses its verifier verdict|gate holds it on its risk score) \(/;
-const PERSON_WHO = "fix the reason, then remove the label, and the next scheduled run judges it again.";
-const READER_WHO = "fix the reason, and pr-merge takes the label off once the head moves or, under `merge.lane-prs: native`, once a scheduled run reads the reason gone at this head; the next scheduled run then judges it again.";
-const personNote = (reason, who = READER_REASON.test(reason) ? READER_WHO : PERSON_WHO) =>
+const personNote = (reason) =>
   [
     "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
     "<!-- babysit-merge-risk -->",
-    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: ${who}`,
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`,
     "",
     "```text",
     reason,
@@ -464,21 +459,6 @@ test("an unchanged person's refusal is not posted again", () => {
     { bot: LANES.login, label: "needs-human" },
   );
   assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
-});
-
-// A person's reader refusal posted in the earlier wording still stands: no
-// second comment, and the label goes back as for the current wording.
-test("a person's reader refusal in its earlier wording is not posted again", () => {
-  const reason = "pr-merge's gate holds it on its risk score (security-finding: 1 CRITICAL)";
-  const writes = refusalWrites(
-    { headRefOid: HEAD },
-    [lanesSaid(personNote(reason, PERSON_WHO))],
-    { clears: "person", reason },
-    { bot: LANES.login, label: "needs-human" },
-  );
-  assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
-  assert.match(refusalBody(true, reason, HEAD, "needs-human"), /pr-merge takes the label off/);
-  assert.doesNotMatch(refusalBody(true, reason, HEAD, "needs-human"), /then remove the label/);
 });
 
 test("a lane's refusal over a person's comment still edits it, with no label", () => {

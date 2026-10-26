@@ -560,52 +560,77 @@ test("enable-auto-merge's label comes off when the reader now reads a refusal th
   }
 });
 
+// Owner decision Q-CLEAR B: a label whose recorded cause is a person's is
+// never lifted at the head it was raised at, whatever the reader answers; a
+// person removes it, or a push clears it as head-moved. It is not read.
+const PERSON_CLASS = [
+  SECURITY,
+  risk("trust-gate:trusted-actors: widens the trusted actors"),
+  COST,
+  risk("high-path:**: a symlink"),
+  risk("high-path:.github/workflows/**: .github/workflows/ci.yml"),
+  UNTRUSTED_SPEC,
+  REPEATED,
+  UNTRUSTED,
+  // A link reason, the reader's own unread link included.
+  "pr-merge's lane does not take its issue link (unreadable: timed out)",
+  // Off the lane list: a refusal that recurs at the same head, or one the
+  // reader always pairs with a link answer.
+  "pr-merge's gate refuses its verifier verdict (verify:too-old)",
+  "pr-merge's gate refuses its verifier verdict (verify:ineligible)",
+  // A code not known to be a lane's, matched whole, or a person's beside a lane's.
+  risk("a-new-code: x"),
+  risk("files-incomplete-x: d"),
+  "pr-merge's gate refuses its verifier verdict (verify:fail-x)",
+  risk("evidence-unbound:claude-review: not bound: x; security-finding: 1 open"),
+];
+
+test("a person-class label is never removed at its head, even when nothing refuses", async () => {
+  for (const reason of PERSON_CLASS) {
+    for (const evidence of [clean, reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed"), refusing("verify:fail")]) {
+      const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
+      const { code, logs } = await run(w, NATIVE);
+      assert.equal(code, 0, `${reason}\n${logs.join("\n")}`);
+      assert.deepEqual(w.reads, [], reason);
+      assert.deepEqual(w.writes(), [], reason);
+      assert.match(logs.join("\n"), /one a person clears/, reason);
+    }
+  }
+});
+
+test("a lane-class label comes off at its head once nothing refuses", async () => {
+  for (const reason of [
+    SPEC_CHANGED,
+    "pr-merge's gate refuses its verifier verdict (verify:fail)",
+    "pr-merge's gate refuses its verifier verdict (verify:earlier-fail)",
+    UNBOUND,
+    risk("files-incomplete: the changed-file listing did not read whole"),
+    risk("manifest-review-required: plugins/x/.claude-plugin/plugin.json"),
+  ]) {
+    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
+    const { code, logs } = await run(w, NATIVE);
+    assert.equal(code, 0, logs.join("\n"));
+    assert.equal(w.reads.length, 1, reason);
+    assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->`, reason);
+    assert.deepEqual(w.writes()[1], DELETE, reason);
+  }
+});
+
 // A risk score is read only when the verdict passes (babysit_verify_evidence.py
-// `evidence`), so a refusal or an unread answer hides it: the label stays.
-test("a risk, verifier or issue-link label stays when the reader's answer no longer shows its cause", async () => {
+// `evidence`), so a refusal or an unread answer hides a lane's recorded cause:
+// the label stays.
+test("a lane-class label stays when the reader's answer no longer shows its cause", async () => {
   for (const [reason, evidence] of [
-    [SECURITY, refusing("verify:unreadable")],
-    [SECURITY, refusing("verify:missing")],
-    [SECURITY, refusing("verify:fail")],
-    [SECURITY, ineligible("not-agent-ready")],
-    [SECURITY, (pull) => ({ ...clean(pull), reviews: "unreadable: no agent identity" })],
-    [REPEATED, refusing("verify:unreadable")],
-    [REPEATED, refusing("verify:missing")],
-    [REPEATED, ineligible("not-agent-ready")],
-    [REPEATED, (pull) => ({ ...clean(pull), reviews: "unreadable: the lane's rung is off" })],
-    [UNTRUSTED, ineligible("not-agent-ready")],
-    [UNTRUSTED, refusing("verify:fail")],
     [SPEC_CHANGED, refusing("verify:unreadable")],
-    // A person's recorded cause clears only when nothing refuses: an unbound
-    // review or a partial file listing never read it, and a verdict that is not
-    // a pass never checks the spec's trust.
-    [SECURITY, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-security-review: not bound: threads-unread" })],
-    [COST, (pull) => ({ ...clean(pull), reviews: "files-incomplete: the changed-file listing did not read whole" })],
-    [UNTRUSTED_SPEC, refusing("verify:fail")],
-    [REPEATED, refusing("verify:fail")],
-    // An issue link the trust hold refused, under a lane-class risk answer.
-    [UNTRUSTED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-not-allowed")],
-    // A recorded code not known to be a lane's counts as a person's: an
-    // unknown one, a configured high path, or a person's beside a lane's.
-    [risk("a-new-code: x"), reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
-    [risk("high-path:.github/workflows/**: .github/workflows/ci.yml"), reviewsNow("files-incomplete: the listing did not read whole")],
-    [risk("evidence-unbound:claude-review: not bound: x; security-finding: 1 open"), reviewsNow("evidence-unbound:claude-review: not bound: x")],
-    // A lane's recorded cause still needs the answer read whole.
+    [SPEC_CHANGED, refusing("verify:missing")],
     [UNBOUND, reviewsNow("unreadable: no agent identity")],
     [SPEC_CHANGED, reviewsNow("unreadable: no agent identity")],
     [UNBOUND, refusing("verify:fail")],
     [SPEC_CHANGED, ineligible("not-agent-ready")],
-    // A link reason is never a lane's, the reader's own unread link included;
-    // a code is matched whole; a lane cause recorded never lifts a person's now.
-    ["pr-merge's lane does not take its issue link (unreadable: timed out)", reviewsNow("files-incomplete: the listing did not read whole")],
-    [risk("files-incomplete-x: d"), reviewsNow("files-incomplete: the listing did not read whole")],
-    [risk("trust-gate:trusted-actors: widens"), reviewsNow("files-incomplete: the listing did not read whole")],
-    ["pr-merge's gate refuses its verifier verdict (verify:fail-x)", refusing("verify:fail")],
+    // A lane cause recorded never lifts a person's now.
     [risk("files-incomplete: the listing did not read whole"), reviewsNow("high-path:infra/**: infra/main.tf")],
-    // Off the lane list: a refusal that recurs at the same head, or one the
-    // reader always pairs with a link answer.
-    ["pr-merge's gate refuses its verifier verdict (verify:too-old)", refusing("verify:fail")],
-    ["pr-merge's gate refuses its verifier verdict (verify:ineligible)", refusing("verify:fail")],
+    [UNBOUND, reviewsNow("security-finding: 1 open CRITICAL finding")],
+    [SPEC_CHANGED, refusing("verify:untrusted-spec")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
     await run(w, NATIVE);
@@ -669,23 +694,6 @@ test("a pr-merge person comment not in enable-auto-merge's exact shape, or edite
     assert.deepEqual(w.writes(), []);
     assert.deepEqual(w.reads, []);
   }
-});
-
-// The person text an earlier enable-auto-merge posted still names the cause.
-test("enable-auto-merge's refusal in its earlier wording is judged again", async () => {
-  const earlier = [
-    "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
-    "<!-- babysit-merge-risk -->",
-    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`,
-    "",
-    "```text",
-    UNBOUND,
-    "```",
-  ].join("\n");
-  const w = world({ timeline: mergeEscalated(earlier), author: BOT, evidence: clean });
-  await run(w, NATIVE);
-  assert.equal(w.reads.length, 1);
-  assert.deepEqual(w.writes().at(-1), DELETE);
 });
 
 // Main's head-moved rule (#9826): no read; enable-auto-merge judges the new
@@ -768,7 +776,7 @@ test("labels past the read cap are read on a later run", async () => {
   const numbers = Array.from({ length: NATIVE_READS_PER_RUN + 1 }, (_, i) => 7 + i);
   const read = new Set();
   for (let runNumber = 1; runNumber <= numbers.length; runNumber += 1) {
-    const w = world({ timeline: nativeEscalated(SECURITY), author: BOT, evidence: (pull) => ({ ...clean(pull), reviews: "security-finding: 1 open CRITICAL finding" }), numbers });
+    const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: reviewsNow("unreadable: no agent identity"), numbers });
     await run(w, { ...NATIVE, GITHUB_RUN_NUMBER: String(runNumber) });
     assert.equal(w.reads.length, NATIVE_READS_PER_RUN);
     for (const { pull } of w.reads) {
