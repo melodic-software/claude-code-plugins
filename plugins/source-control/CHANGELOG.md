@@ -3,6 +3,69 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.5.4] - 2026-10-26
+
+### Fixed
+
+- The `pr-body-linkage-gate` and `pr-linkage-mcp-gate` hooks enforce again in a repository that wires in the contract composite at its current path, `.github/actions/pr-require-checks/check-contract`. Their scope guard matched only the old `.github/actions/pr-contract` path, so after the composite's rename neither hook fired anywhere that had moved to the new one. Both paths now count.
+
+## [3.5.3] - 2026-10-26
+
+### Fixed
+
+- The babysit scripts stop calling GitHub once a rate-limit pool is exhausted. A response with `x-ratelimit-remaining: 0`, a `retry-after`, any 429, a 403 naming a rate limit or abuse detection, a GraphQL error message naming one on any status, or a GraphQL `RATE_LIMITED` error latches that pool (every pool, for a secondary limit): no later call to it is sent before its reset, and the process exits red with one `::error` naming the pool and the reset. Below a pool's `writer-pause` share no write is sent, and below its `read-floor` share the report-only FAIL summary quote in a verifier escalation is skipped. For the `github-token` pool the read floor counts against GitHub's documented 1,000 requests an hour per repository when the header reports more: the calls spent (limit minus remaining) are taken from 1,000. The shares are `limits.api` in `docs/conventions/pr-pipeline.yaml`; a block present but unreadable refuses every call, and with no such file (an installed plugin, a consumer repository) only the signals latch, with no margins (`babysit_gh.py`). In a GitHub Actions job each stop is also appended to the job's stop file (`$RUNNER_TEMP/api-budget/stop`, lines `<pool> <reset epoch>`) that the lanes' JavaScript guard and gh wrapper share, and a stop recorded there by any earlier step or process refuses its pool (every pool, for `*`) until its reset, so the next process sends nothing either. A stop the file cannot take (no space, no permission) is reported with an `::error` naming the pool, and the process still refuses that pool. A missing stop file holds no stop; one that exists but cannot be read (a directory in its place, no permission) refuses every pool, with one `::error` naming the file and the error. The reader takes only whole lines shaped `<pool> <1-12 digits>` split on `\n`, so a CRLF line or a short write's fragment is skipped, as `rate-guard.vectors.json`'s `stop_files` cases pin for every port. A computed reset past 12 digits (a huge `retry-after`) is written as 999999999999, the largest the readers take. A paginated REST read (`gh api --paginate --slurp`) now goes one guarded page at a time along each page's `Link: rel="next"`, so a page that spends its pool stops the next page and every later call; the gh-calls count then shows each page as its own call, without the `+paginate` mark. A copy of the scripts installed at a path too shallow for the repository root now imports, with no margins, instead of failing with an `IndexError`.
+
+## [3.5.2] - 2026-10-26
+
+### Fixed
+
+- `/source-control:worktree status` outside a repository now runs its cross-repository block to completion under zsh and leaves no temp files: `worktree-discover.sh --remove-input-files` deletes the two rendered input files and their directory on every exit, so the block is the bare helper call with no `status=$?` (read-only in zsh) and no `rm` (which leaked the directory when denied).
+
+## [3.5.1] - 2026-10-26
+
+### Fixed
+
+- `/source-control:babysit-prs` binds a review lane's second attempt after a kill switch stopped the first: the caller's `kill-switch` job succeeded and wrote its lane's `a kill switch stops this review (` or `security review (` notice, and the first attempt has no lane job, so the review never started. ci-status tells a person to re-run such a run once the switch is off, and that re-run was refused as `rerun-not-allowed`. A kill-switched run on an earlier head also no longer unbinds the lane as `no-lane-job`. The lane-run collector reads the kill-switch job's annotations only for an attempt with no lane job. The merge gate does not start this re-run, because it cannot read the switch.
+
+## [3.5.0] - 2026-10-26
+
+### Changed
+
+- `babysit_risk.HIGH_FLOOR` holds only a narrow floor (owner decision Q-FLOOR (B)): `.github/actions/resolve-config/**`, `.github/actions/request-lane-token/**`, `.github/actions/check-trusted-trigger/**`, `.github/actions/check-kill-switch/**`, `.github/actions/log-api-budget/rate-guard.mjs`, `**/CODEOWNERS`, `**/.gitmodules` and the files that enforce it (owner decision [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)): `.github/scripts/pr-merge/merge-holds.mjs`, `.github/scripts/pr-merge/enable-auto-merge.mjs`, `.github/scripts/pr-merge/superseded.mjs`, `.github/scripts/pr-merge/clear-escalations.mjs`, `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`, `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml` (which runs those scripts and sets their environment), `docs/conventions/pr-pipeline.yaml`, and every module those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `.github/scripts/pr-unblock/gate-source.mjs`, `.github/scripts/pr-unblock/thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs`, `.github/scripts/work-resolve-issue/limits.mjs`), and the Python that decides the holds (`babysit_risk.py` and `babysit_verify_evidence.py`, which `enable-auto-merge.mjs` runs, with the 16 `plugins/source-control/skills/babysit-prs/scripts/` modules they import, `babysit_merge.py` and `babysit_merge_policy.py` among them), which `test_merge_holds_sync.py` derives from their imports and requires on the floor, and it scores HIGH whatever `high-path-floor` says, which now turns off only the manifest review. The trusted-actor directory left the floor: the trust gate holds a widening of the list. No other path scores HIGH for being trusted alone; a configured denied path, the trust gate and the cost hold still do.
+- `plugins/multi-agent/reference/defaults.yaml` is no longer a `COST_PATHS` entry; the infrastructure-as-code entries stay.
+
+## [3.4.3] - 2026-10-26
+
+### Changed
+
+- `babysit_verify_evidence.py lane-room` no longer runs the full post-merge check when the only reason the gate would not reuse the run's answer is `demotion-changed`, which any issue the lanes App opens and triage then edits sets. It reads the demotion records alone (`read_demotion`) and keeps the answer when they read as the answer recorded them; a demotion that turned active or moved still runs the full check, so a real demotion still holds the rung off. `shared_refusal` now checks the demotion last, so `demotion-changed` is reported only when nothing else refuses: a lane merge the answer does not count reports `new-merge:#<n>` first.
+
+## [3.4.2] - 2026-10-26
+
+### Fixed
+
+- `babysit_verify_evidence.py lane-room` no longer reports the lane's room unreadable when the gate would not reuse the run's post-merge answer for a reason other than `unverified-stale`: too old, from the future, a demotion record filed or changed since (`demotion-changed`), or a lane merge it does not count (`new-merge:#<n>`). As the gate does, it reads the answer again (`_recompute_shared`, demotion included), so a demotion filed since still holds the rung off and a failure found since still refuses. Only an `unverified-stale` answer may still be kept unchanged when nothing it was read from has moved. With no check to run, or a check that fails or cannot be read, the room stays unreadable.
+
+- `/source-control:babysit-prs` binds a review lane's second attempt after the first failed on a rejected Claude credential (the lane's own `failure-class=auth` failure line), as it already did after a usage limit or a spent key, which the lane reports as `rate-limit`. Such a re-run was refused as `rerun-not-allowed`, so a pull request whose review was re-run after a credential outage stayed held. The merge gate still re-runs a review only after a rate limit, so a re-run before the secret is fixed cannot spend the one allowed attempt.
+
+## [3.4.1] - 2026-10-26
+
+### Fixed
+
+- **pull-request:** `push-branch.sh` refuses, before any push, when the branch it would push (named, current, or the `--pr` head) is `main`, `master`, or the push remote's default branch as `git ls-remote --symref` reports it, and refuses when that read fails or names no default branch. A `--pr` head in a fork of the base repository is exempt, as in `lane-push.sh`: that push goes to the contributor's fork. Its new `--check` runs only that check. `create` pushes with `--dir <checkout>`, reads the PR's head branch from that checkout, and runs `--check` before opening the PR, so a working directory that reset to the main checkout no longer pushes `main` or opens a PR from it.
+
+## [3.4.0] - 2026-10-26
+
+### Added
+
+- The pr-merge gate adopts a person's pull request without the `adoption.idle-hours` wait when a person put it in the merge queue and the queue removed it for failed checks with no head change since. Four conditions apply:
+  - the enqueue's `actor` and `enqueuer` ids must both be `kind: human` on the trusted-actor list;
+  - GitHub must have seen this head on the branch by the enqueue and not since (its newest GitHub Actions check suite on the PR's branch is no later than that enqueue);
+  - no person may have commented, reviewed or commented inline since the enqueue;
+  - an unreadable queue, check-suite listing or discussion keeps the idle rule.
+
+  The gate then re-enqueues the pull request under every existing rule, including the `merge.max-queue-ejections` cap and the head pin, and records `eligibility.adoption` as `requeue-after-ejection`. `read_merge_queue` reports that enqueue and the removal's time as `ejectedEnqueue`.
+
 ## [3.3.3] - 2026-10-25
 
 ### Changed

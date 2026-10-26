@@ -1,6 +1,6 @@
 {
   "name": "harness-ops",
-  "version": "4.5.7",
+  "version": "4.8.0",
   "description": "Claude Code operations: audit-skill-visibility (skills the listing budget hides), inventory (every invocable surface), audit-install-state, audit-performance (slowness), audit-mod-posture (mods and the guard), audit-native-overlap (skills duplicating built-ins), observability (telemetry), known-issues, changelog, behavior-probes, prerequisites, check, machine-profile, plugins (update the fleet), morning-brief, lanes (background loop sessions), setup. Plus opt-in hook event logs.",
   "author": {
     "name": "Melodic Software",
@@ -174,6 +174,11 @@
       "description": "Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2.",
       "default": 2,
       "min": 1
+    },
+    "lane_app_slug": {
+      "type": "string",
+      "title": "Lane GitHub app slug",
+      "description": "Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^[a-z0-9][a-z0-9-]*$."
     }
   }
 }

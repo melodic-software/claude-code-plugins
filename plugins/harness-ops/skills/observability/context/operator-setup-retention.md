@@ -39,7 +39,8 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
 Hot is far larger than cold because log lines carry inline API bodies. Measured on melo-lap-001
 on 2026-09-28: 7 days of logs held 790 MB; unpruned, `cc-logs.json` reached 2.8 GB and
 `cc-metrics.json` 361 MB. Recheck if the store traffic mix changes (for example body capture
-turned off). The size cap below bounds each hot file even when every line is inside the age windows.
+turned off). The two size caps below bound each hot file and the hot files together, even when every
+line is inside the age windows.
 
 ### Retention knobs
 
@@ -48,6 +49,7 @@ turned off). The size cap below bounds each hot file even when every line is ins
 | `CC_OTEL_RETENTION_DAYS` | `7` | Hot window for structure events (everything that is not an `api_*_body` record). Older lines drop from hot, compacted to cold first. |
 | `CC_OTEL_BODY_RETENTION_DAYS` | `2` | Hot window for `api_request_body` / `api_response_body` records. Must not exceed the structure window (exit 2, reject rather than clamp). Aged body records are stripped in place; they never reach cold. |
 | `CC_OTEL_HOT_MAX_MB` | `1024` | Size cap per hot file in MiB; `0` disables. A file over the cap drops its oldest lines, compacted to cold first, until it fits, even inside the age windows. Must be a non-negative integer (exit 2 otherwise). |
+| `CC_OTEL_HOT_TOTAL_MAX_MB` | `1024` | Size cap in MiB on the three hot files together, the budget provisioning's `-Test` checks; `0` disables. Over it, the oldest lines across all three drop, compacted to cold first, until the files together fit, even inside the age windows. Each file is cut at the latest of its age cutoff, its per-file cap cutoff and this cap's cutoff, so whichever bound is tightest wins. Must be a non-negative integer (exit 2 otherwise). |
 | `CC_OTEL_COLD_KEEP_USER_PROMPTS` | off | `=1` keeps `user_prompt` bodies + the `prompt` and `prompt_text` attributes un-scrubbed in the cold tier. Default scrubs both (prompt frequency/timing analytics survive either way). |
 | `CC_OTEL_COLD_KEEP_CONTENT` | `1` (keep) | `=0` NULLs the other content-class columns (response text, tool payloads, command strings, error text, configuration text, `user_email`, absolute paths; listed in [privacy.md](privacy.md#otel-cold-tier-content-boundary)) and scrubs their attributes in the cold tier, logs, spans and metrics alike. Any other value keeps them. |
 
@@ -66,8 +68,10 @@ external prune is the only size and age bound. Basis:
 ("File Rotation and Append Option"). Verified 2026-09-29 against that page as fetched that day;
 recheck when the exporter README drops the restriction.
 
-`--dry-run` also prints `hot_max_mb=` and, per file over the cap, a `size_prune cutoff_epoch_seconds=`
-line, plus `size_pruned_files=` in the final `action=dry-run` line. It reports per file: `kept=` / `dropped=` (whole-line drops) / `surgery=` (lines
+`--dry-run` also prints `hot_max_mb=` and `hot_total_max_mb=`, a `hot_total: size_prune cutoff_epoch_seconds=`
+line when the total cap moves the cutoff past the age cutoff, and, per file that drops lines inside
+the age windows to fit a size cap, a `size_prune cutoff_epoch_seconds=` line, plus `size_pruned_files=`
+in the final `action=dry-run` line. It reports per file: `kept=` / `dropped=` (whole-line drops) / `surgery=` (lines
 that would lose their body records) / `body_dropped=` (whole-line drops that carried bodies)
 / `would_compact=` (parseable dropped lines, what the cold COPY would receive).
 

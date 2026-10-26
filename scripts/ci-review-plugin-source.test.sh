@@ -22,6 +22,9 @@ const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
 const REUSABLE = "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@";
+// Inputs the reusable reads as path globs for the prompt or a docs-only skip,
+// never as a path to load: a plugins/ glob there loads nothing.
+const GLOB_INPUTS = new Set(["hold-paths", "docs-only-paths"]);
 
 // The problems with one caller's jobs, or [] when it is sound.
 function problems(jobs) {
@@ -35,8 +38,8 @@ function problems(jobs) {
     found.push(`job ${id} uses '${job.uses}', not ${REUSABLE}<40-hex SHA>`);
   }
   for (const [key, value] of Object.entries(job.with ?? {})) {
-    if (/plugin/i.test(key) || /plugins?\//i.test(String(value))) {
-      found.push(`job ${id} passes ${key}: '${value}', a plugin path`);
+    if (/plugin/i.test(key) || (!GLOB_INPUTS.has(key) && /plugins?\//i.test(String(value)))) {
+      found.push(`job ${id} passes ${key}: ${JSON.stringify(value)}, a plugin path`);
     }
   }
   return found;
@@ -50,10 +53,10 @@ for (const file of ["pr-review-hosted.yml", "pr-review-security-hosted.yml"]) {
 }
 
 // The check itself rejects each shape it guards against.
-const sha = "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8";
+const sha = "0123456789abcdef0123456789abcdef01234567";
 const call = (uses, inputs) => ({ review: { uses, with: inputs } });
 for (const [name, jobs] of [
-  ["a tag ref", call(`${REUSABLE}v0.65.11`, {})],
+  ["a tag ref", call(`${REUSABLE}v0.65.12`, {})],
   ["a short SHA", call(`${REUSABLE}${sha.slice(0, 12)}`, {})],
   ["another repository's copy", call(`someone/ci-workflows/.github/workflows/pr-review-cli.yml@${sha}`, {})],
   ["a plugin-dirs input", call(`${REUSABLE}${sha}`, { "plugin-dirs": "plugins/review" })],
@@ -65,6 +68,8 @@ for (const [name, jobs] of [
 }
 say(problems(call(`${REUSABLE}${sha}`, { lane: "code", "hold-label": "needs-human" })).length === 0,
   "the check accepts a SHA-pinned call with no plugin path");
+say(problems(call(`${REUSABLE}${sha}`, { "hold-paths": "plugins/*/hooks/**\nplugins/review/**" })).length === 0,
+  "the check accepts plugins/ globs in hold-paths, which only the prompt reads");
 EOF
 )
 status=$?

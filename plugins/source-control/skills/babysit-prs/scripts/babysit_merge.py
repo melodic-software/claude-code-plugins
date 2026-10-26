@@ -194,6 +194,7 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
+    low_headroom,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -301,7 +302,9 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 # API rate limit carries the lane's publish failure line. Under `--merge` the
 # gate re-runs that check's workflow run once the limit has reset, instead of
 # holding on it until a person re-runs it, on exactly the annotations
-# `review_evidence.rate_limited` accepts, so the re-run's attempt binds.
+# `review_evidence.rate_limited` accepts, so the re-run's attempt binds
+# (`review_evidence.rerun_binds` accepts more: a rejected credential or a
+# kill-switch stop, which the gate leaves to a person).
 # "Reset" is conservative: the shortest plan limit is a five-hour session
 # window (https://support.claude.com/en/articles/11145838, checked
 # 2026-10-09), so five hours after the failure that window has reset whenever
@@ -2179,10 +2182,45 @@ MERGE_QUEUE_QUERY = (
     "mergeQueueEntry{state position} autoMergeRequest{enabledAt} "
     f"timelineItems(last:{merge_policy.MAX_QUEUE_EJECTIONS_LIMIT},itemTypes:["
     "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
-    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}}}}}"
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}} "
+    "queueEvents:timelineItems(last:3,itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT,"
+    "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason createdAt} "
+    "... on AddedToMergeQueueEvent{createdAt "
+    "actor{__typename ... on User{databaseId} ... on Bot{databaseId}} "
+    "enqueuer{login databaseId}}}}}}}"
 )
 # A head change: a pushed commit or a force push.
 HEAD_CHANGES = ("PullRequestCommit", "HeadRefForcePushedEvent")
+ADDED = "AddedToMergeQueueEvent"
+REMOVED = "RemovedFromMergeQueueEvent"
+
+
+def _ejected_enqueue(pr: dict[str, Any]) -> dict[str, Any] | None:
+    """The enqueue whose entry the merge queue then removed for failed checks,
+    with no head change since, read from the newest queue events and head
+    changes (`queueEvents`, oldest first): `{"enqueue": that
+    AddedToMergeQueueEvent, "removedAt": the removal's time, "requeued":
+    whether one newer enqueue follows the removal}`. None for any other order,
+    a malformed item, or no such removal. Head changes sort as
+    `_failed_ejections` reads them."""
+    nodes = json_object(pr.get("queueEvents")).get("nodes")
+    if not is_json_array(nodes):
+        return None
+    newest = [json_object(node) for node in reversed(nodes)]
+    requeued = bool(newest) and newest[0].get("__typename") == ADDED
+    removal, enqueue = (newest[requeued:] + [{}, {}])[:2]
+    if (
+        removal.get("__typename") != REMOVED
+        or removal.get("reason") != "failed_checks"
+        or enqueue.get("__typename") != ADDED
+    ):
+        return None
+    return {
+        "enqueue": enqueue,
+        "removedAt": removal.get("createdAt"),
+        "requeued": requeued,
+    }
 
 
 def _failed_ejections(pr: dict[str, Any]) -> int | None:
@@ -2269,6 +2307,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "position": entry.get("position") if entry else None,
         "failedEjections": _failed_ejections(pr),
         "lastRemovalReason": _last_removal_reason(pr),
+        "ejectedEnqueue": _ejected_enqueue(pr),
     }
 
 
@@ -3202,7 +3241,7 @@ def score_unattended(
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps HIGH_FLOOR and both caps.
+    # keeps the manifest review and both caps. HIGH_FLOOR holds in both.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
@@ -3599,12 +3638,14 @@ def _fail_summary(
 ) -> str | None:
     """The summary of the head FAIL a `verify:repeated-fail` refusal names,
     read through the gate's verdict reader; None for any other refusal, with
-    no FAIL at the head, or when the record cannot be read."""
+    no FAIL at the head, when the record cannot be read, or below the read
+    floor: the quote is report-only, and the escalation stands without it."""
     fail = json_object(verify.get("headFail"))
     reader = inputs.get("verify_reader")
     run_id, name = fail.get("run"), fail.get("artifact")
     if (
-        verify.get("refusal") != verify_evidence.REPEATED_FAIL
+        low_headroom()
+        or verify.get("refusal") != verify_evidence.REPEATED_FAIL
         or not isinstance(reader, verify_evidence.Reader)
         or not isinstance(run_id, int)
         or not isinstance(name, str)
