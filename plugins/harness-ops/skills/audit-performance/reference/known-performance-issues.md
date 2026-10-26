@@ -538,13 +538,17 @@ leaking, are the recheck trigger for them.
 
 ### The per-logon workaround, on trial on melo-lap-001
 
-The foreground-lock write-up's workaround does not survive a logon. A second write-up,
-[gunrgbcr/windows-token-leak-logon-fix](https://github.com/gunrgbcr/windows-token-leak-logon-fix),
-reads `win32kfull!LoadCPUserPreferences` as storing 2,147,483,647 into the live value at every
-logon, whatever `HKCU\Control Panel\Desktop\ForegroundLockTimeout` holds. Its fix is to set the
-live value to 0 again after each logon from a window the user opened, since a background process
-is refused. melo-lap-001 shows the same refusal: from a background process the set returned error
-87 with the live value at 2,147,483,647.
+We reapply the workaround after every logon rather than once, from the first interactive
+terminal, because a one-time setting did not hold on this host. melo-lap-001's own probe (the
+rendered `foreground-lock.ps1` run from a background process over the WSL hop, 2026-10-26)
+logged `before=2147483647 after=2147483647 set=False error=87`.
+
+- **Pointer**: for why the live value reverts at logon and which callers may set it, read the
+  [gunrgbcr/windows-token-leak-logon-fix README](https://github.com/gunrgbcr/windows-token-leak-logon-fix#why-setting-it-to-0-doesnt-stick)
+  live; correlate with
+  [bentoner/windows-token-leak#1](https://github.com/bentoner/windows-token-leak/issues/1).
+  **As of**: 2026-10-26. **Recheck trigger**: either source changes its account of the logon
+  reset, or a Windows update's notes name win32k foreground or token handling.
 
 - **Where it lives:** dotfiles. Host data `windowsPrefs.hosts.melo-lap-001.foregroundLockTimeoutAtLogon`
   renders `AppData/Local/PowerShell/foreground-lock.ps1`, which the PowerShell profile's deferred
@@ -563,15 +567,10 @@ is refused. melo-lap-001 shows the same refusal: from a background process the s
   day 7, with the log showing one successful set per logon. Expect about 0 per spawn. Results go
   on melodic-software/claude-code-plugins#4372.
 
-**Drift record.** *Claim:* the live timeout is reset at logon and a non-foreground set is
-refused; with the lock armed, build 26300.9711 still leaks one Token per creator. *Basis:* the
-gunrgbcr README and `flt_fix.py`, read through the GitHub API on 2026-10-26; a 2026-10-07
-independent observation of registry 0 against live 2,147,483,647 on 26300.9550
-([bentoner/windows-token-leak#1](https://github.com/bentoner/windows-token-leak/issues/1));
-melo-lap-001's own error-87 refusal and arm run on 2026-10-26. No Microsoft acknowledgement or fix
-appeared in release health, the in-window KB notes, or MS Q&A 5952454 as of that date. *As of:*
-2026-10-26. *Recheck trigger:* the day-7 after-measurement on #4372, a Windows update whose notes
-name win32k foreground or token handling, or Microsoft replying on any of those threads.
+**Probe record.** The baseline and the error-87 refusal come from `measure.py` (the
+2026-09-23 `arms.py` plus the live timeout per row) and the rendered `foreground-lock.ps1`, both
+run on melo-lap-001 on 2026-10-26. **As of**: 2026-10-26. **Recheck trigger**: the day-7
+after-measurement on #4372.
 
 ### Attribution runbook (the engine never does this)
 
