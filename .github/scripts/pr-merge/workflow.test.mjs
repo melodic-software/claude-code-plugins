@@ -311,7 +311,7 @@ test("the merge and enable-auto-merge jobs' kept-file readers share their reads"
 
 test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
   const arm = job("enable-auto-merge");
-  const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
+  const step = /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
   assert.ok(step, "the arm step names its timeout");
   // The room read, then the verdict budget and the last read it starts.
   assert.ok(LANE_ROOM_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
@@ -401,6 +401,29 @@ test("enable-auto-merge's step timeouts fit inside its job's", () => {
   const steps = [...arm.matchAll(/\n {8}timeout-minutes: ([0-9]+)\n/g)].map((m) => Number(m[1]));
   assert.ok(steps.length >= 4, "the post-merge check, the cache restore, the arm step and the budget step name timeouts");
   assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
+});
+
+// pr-unblock's report-conflict-status precedent: statuses: write only on a
+// job that holds no lane token and runs only main's script.
+test("the pr-merge/unarmed statuses are posted by a job of their own, with statuses: write and nothing it could run from a pull request", () => {
+  const arm = job("enable-auto-merge");
+  assert.match(arm, /\n {4}outputs:\n {6}unarmed-statuses: \$\{\{ steps\.arm\.outputs\.unarmed-statuses \}\}\n/);
+  assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
+  assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
+  const post = job("unarmed-status");
+  assert.match(post, /^ {4}needs: \[enable-auto-merge\]\n/);
+  // It runs whenever enable-auto-merge handed it statuses, after a failed
+  // step too, and only then.
+  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \}\}\n/);
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(post)[1];
+  assert.deepEqual(
+    [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
+    ["contents: read", "statuses: write"],
+  );
+  assert.doesNotMatch(post, /lane-token|request-lane-token|id-token/);
+  assert.match(post, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  // The statuses reach the script through its environment, never the shell.
+  assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
 });
 
 // The merge job's sizing comment: about a minute before the loop, then the

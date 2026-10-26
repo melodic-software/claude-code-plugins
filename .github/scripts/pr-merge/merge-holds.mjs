@@ -293,19 +293,23 @@ export const REVIEW_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) =>
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`
 // or HOLD_PATH_FLOOR. Null `holdPaths` or `files` (unreadable) holds it.
-export function pathHold(files, holdPaths) {
+export const pathHold = (files, holdPaths) => pathHoldKind(files, holdPaths)?.reason ?? null;
+
+// pathHold's answer with its kind: `hold-path` for a changed file a hold
+// path matches, `unread` for a list that could not be read or checked.
+export function pathHoldKind(files, holdPaths) {
   if (!Array.isArray(holdPaths)) {
-    return "the hold paths could not be read";
+    return { kind: "unread", reason: "the hold paths could not be read" };
   }
   if (!Array.isArray(files)) {
-    return "its changed files could not all be read";
+    return { kind: "unread", reason: "its changed files could not all be read" };
   }
   if (typeof posix.matchesGlob !== "function") {
-    return "this Node has no path.matchesGlob, so its hold paths cannot be checked";
+    return { kind: "unread", reason: "this Node has no path.matchesGlob, so its hold paths cannot be checked" };
   }
   const globs = [...holdPaths, ...HOLD_PATH_FLOOR];
   const held = files.find((path) => globs.some((glob) => matchesHoldPath(path, glob)));
-  return held === undefined ? null : `it changes ${held}, a hold path`;
+  return held === undefined ? null : { kind: "hold-path", reason: `it changes ${held}, a hold path` };
 }
 
 // Why the changed `files` hold it for the owner's cost decision, or null when

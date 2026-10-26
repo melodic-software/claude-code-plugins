@@ -22,8 +22,10 @@ import babysit_risk
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
+    Reason,
     Risk,
     RiskInput,
+    holding,
     holds,
     normalize_path,
     score,
@@ -1495,6 +1497,91 @@ class HoldsTests(unittest.TestCase):
 
     def test_an_unread_listing_holds(self):
         self.assertTrue(self._holds(files_complete=False))
+
+
+class PersonReasonsTests(unittest.TestCase):
+    """Owner rule 2026-10-26: a person clears only a security issue, a trust
+    or provenance hold, or a cost hold; the lanes clear every other holding
+    reason by judging again."""
+
+    def test_person_reasons_are_security_trust_cost_and_high_paths(self):
+        person = (
+            "security-finding",
+            "trust-gate:trusted-actors",
+            "cost-review-required",
+            "high-path:**",
+            "high-path:**/.gitmodules",
+            "files-capped",
+        )
+        lane = (
+            "evidence-unbound:claude-review",
+            "evidence-unbound:unknown",
+            "files-incomplete",
+            "manifest-review-required",
+            "lines-over",
+        )
+        reasons = [Reason(code, Risk.HIGH, "d") for code in person + lane]
+        self.assertEqual(
+            tuple(r.code for r in babysit_risk.person_reasons(reasons)), person
+        )
+
+    def test_an_unbound_review_holds_for_the_lanes_and_a_finding_for_a_person(self):
+        unbound = score(
+            _input(lanes=(_lane("claude-review", bound=False), BOTH_LANES_CLEAN[1]))
+        )
+        self.assertTrue(holds(unbound))
+        self.assertEqual(babysit_risk.person_reasons(holding(unbound)), [])
+        finding = score(
+            _input(
+                lanes=(
+                    BOTH_LANES_CLEAN[0],
+                    _lane("claude-security-review", open_findings=1),
+                )
+            )
+        )
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(finding))],
+            ["security-finding"],
+        )
+
+    def test_a_carried_security_finding_on_an_unbound_lane_holds_for_a_person(self):
+        # The binder's unbound shape when an earlier bound review left a
+        # blocking finding open (babysit_review_evidence._carried_blocking;
+        # bound through the binder in CarriedBlockingTests there).
+        lane = LaneEvidence("claude-security-review", False, "no-run", None, False, 2)
+        result = score(_input(lanes=(BOTH_LANES_CLEAN[0], lane)))
+        codes = [r.code for r in babysit_risk.person_reasons(holding(result))]
+        self.assertEqual(codes, ["security-finding"])
+
+    def test_a_size_reason_holds_nothing_so_no_one_is_needed(self):
+        # lines-over, files-over and no-patch are MED reasons an unattended
+        # merge passes (MERGEABLE_MED): they never hold, so they never sit
+        # unarmed waiting for a lane or a person.
+        result = score(
+            _input(
+                max_changed_lines=10,
+                max_changed_files=1,
+                files=(
+                    _file("plugins/foo/a.md", additions=50),
+                    _file("plugins/foo/logo.png", has_patch=False),
+                ),
+            )
+        )
+        codes = {r.code for r in result.reasons}
+        self.assertTrue({"lines-over", "files-over"} <= codes, codes)
+        self.assertTrue(any(c.startswith("no-patch:") for c in codes), codes)
+        self.assertFalse(holds(result), result.reasons)
+        self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
+
+    def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
+        capped = score(_input(files_complete=False, files_capped=True))
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(capped))],
+            ["files-capped"],
+        )
+        unread = score(_input(files_complete=False))
+        self.assertTrue(holds(unread))
+        self.assertEqual(babysit_risk.person_reasons(holding(unread)), [])
 
 
 class SecurityBlockingTests(unittest.TestCase):
