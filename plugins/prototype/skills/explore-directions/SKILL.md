@@ -114,9 +114,10 @@ Constraints:
 - **No remote fetch by construction.** Vendor everything inline so the page opens straight from
   `file://`. No external scripts, fonts, or data fetches. Enforce this rather than trusting it:
   emit a restrictive CSP meta tag in the page `<head>` so the browser blocks any remote resource:
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">`.
-  Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script);
-  only remote origins, CDNs, web fonts, `fetch`/XHR, are forbidden.
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:">`.
+  Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script),
+  and so do `data:` images and fonts (an existing app's inlined assets, below);
+  only remote origins, CDNs, remote web fonts, `fetch`/XHR, are forbidden.
 - **Ephemeral placement.** Generate the mockup via the platform's temp primitive, never a tracked
   path and never inside the repo. On Unix/Linux/Git Bash, create a private run directory and write
   the page inside it, echoing the directory in the same call:
