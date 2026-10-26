@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "AC2: flagged, it already passes at base (`--help` exits 0 today). Sharpen it, or leave it out as met?",
+      "why": "id then flag"
+    },
+    {
+      "answer": "Already passing at base: AC2. AC1 and AC3 fail there.",
+      "why": "flag then id"
+    },
+    {
+      "answer": "- AC2 (`refunds export --help` exits 0) passes at the base commit, so it cannot show the change.",
+      "why": "passes-at-base form"
+    },
+    {
+      "answer": "AC2: flagged; it already passes at base.",
+      "why": "semicolon inside the id's own line"
+    },
+    {
+      "answer": "AC2 is flagged: `--help` already exits 0 at base.",
+      "why": "already-exits form"
+    },
+    {
+      "answer": "AC2 (passing at base): sharpen it or leave it out?",
+      "why": "passing-at-base form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty run"
+    },
+    {
+      "answer": "AC1 fails at base; AC2 fails at base; AC3 already passes.",
+      "why": "flags the wrong id"
+    },
+    {
+      "answer": "AC2 does not already pass at base.",
+      "why": "negated flag"
+    },
+    {
+      "answer": "All three criteria fail at base, so none is flagged.",
+      "why": "no flag"
+    },
+    {
+      "answer": "AC2 fails at base. AC3 already passes.",
+      "why": "flag belongs to the next id"
+    },
+    {
+      "answer": "AC2 fails at base. Nothing already passes.",
+      "why": "flag in a later sentence, negated by nothing"
+    },
+    {
+      "answer": "Already passing at base: none. AC2 and AC1 fail.",
+      "why": "empty flag list before the id"
+    },
+    {
+      "answer": "AC2 fails at base, and none passes at base.",
+      "why": "negated by none"
+    }
+  ]
+}

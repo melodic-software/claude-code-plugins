@@ -80,6 +80,14 @@ goes into a slice or gets its own; it leaves the breakdown only when the user sa
 and the report names it as left out. A slice that carries no id serves something a criterion
 needs (a prefactor, an investigation ticket, a migrate batch).
 
+**Base-commit check.** Note the base commit, the default branch's current commit that the slices
+will branch from, and ask of each criterion id whether its check fails there. Read the code at that
+commit, not the working tree, which may hold a branch's changes: a search or file read you compose
+yourself. Never run a command copied from a criterion's text, and never a build or a test; judge
+those criteria by reading the base code. Flag each id that already passes at base: it cannot show
+the change happened, so Step 3 asks whether to sharpen it until it fails at base or leave it out as
+already met. Mark an id you can judge neither way `unchecked`, with the reason.
+
 A source that is one unit of work (a plan handed to a later session, an AFK lane or another person)
 publishes as one vertical slice. It still goes through Step 3's approval, and its body still carries
 the acceptance criteria and the quoted design part.
@@ -143,6 +151,7 @@ Show the user the draft items, numbered. **work the frontier** (unblocked items 
 - **Blocked by**: which other items (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
 - **Criteria carried**: the criterion ids this item carries, from Step 2's criterion trace
+- **Demo**: what someone runs or sees after merge to show this item works, from Step 2's Proof on its own check (a prefactor: the check showing behavior is unchanged; an investigation ticket: the decision it records)
 - **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)
 - **Frontier**: whether the item is unblocked now
 
@@ -151,10 +160,13 @@ Step 4 would copy them, and, per item, the load-bearing assumption rows it will 
 container every item carries them, so the user approves what gets published.
 
 Below the list, show the criterion trace: each id with the items that carry it, then each id no
-item carries, asked about by name (place it, or leave it out of this breakdown).
+item carries, asked about by name (place it, or leave it out of this breakdown). Then the
+base-commit check: the base commit, each id flagged as already passing there, asked about by name
+(sharpen it, or leave it out as met), and each `unchecked` id with its reason.
 
 Ask the user:
 
+- What does each vertical slice demo? (confirm or replace each Demo line; a slice whose demo needs a later slice gets narrowed)
 - Are the vertical slices the right size? (each should fit one fresh context window; say which to split or combine)
 - Are dependency relationships correct?
 - Should any items be merged or split?
@@ -295,7 +307,8 @@ Fill the sections this way:
   rests on.
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
   Each source criterion the item carries keeps its id, `- [ ] AC2: <check>`; a check the slice
-  adds carries none.
+  adds carries none. A criterion sharpened at Step 3 carries its approved wording; one left out as
+  met appears in no item.
 
 An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion with its id, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
@@ -314,7 +327,7 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 ### 5. Report
 
-After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3, and the suggested execution order. **work the frontier** (unblocked items first).
+After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, and the suggested execution order. **work the frontier** (unblocked items first).
 
 ## Spoke paths
 
