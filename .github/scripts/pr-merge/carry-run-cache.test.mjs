@@ -9,7 +9,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { carry, main } from "./carry-run-cache.mjs";
+import { carry, main, read } from "./carry-run-cache.mjs";
+import { forgetMainTip } from "./head-ref-map.mjs";
+import { mainCall } from "./on-main.fixture.mjs";
 
 const REPO = "example-org/example-repo";
 const NOW = Date.parse("2026-10-19T12:00:00+00:00");
@@ -171,5 +173,251 @@ test("carries file to file, and writes nothing when the file is missing or unrea
     "carried-on-branch": {},
   });
   assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0");
+  assert.equal(readFileSync(output, "utf8"), "carried=true\nkept=true\n");
+});
+
+// `read`, before the gate: the carried file comes only from the
+// pr-merge-run-cache and pr-merge-verify-run-cache artifacts, each of the
+// newest scheduled or hand-started pr-merge.yml run on main other than this
+// one whose head commit is on main (rotation.mjs newestTrustedRun,
+// head-ref-map.mjs onMain), as #9416's head-ref map does; never from
+// actions/cache, which any job in main's cache scope can write (#9455).
+const wf = (id, event, headSha = String(id).padStart(40, "a")) => ({
+  id,
+  event,
+  head_branch: "main",
+  path: ".github/workflows/pr-merge.yml",
+  head_sha: headSha,
+});
+
+// `files` holds each run's pr-merge-run-cache file and `verify` each run's
+// pr-merge-verify-run-cache file.
+async function readRun(t, { pages = [[]], files = {}, verify = {}, offMain = [], fail, planted, mainTag = false } = {}) {
+  forgetMainTip();
+  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-read-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const to = join(dir, "pr-merge-carried.json");
+  if (planted !== undefined) writeFileSync(to, planted);
+  const downloads = [];
+  const actions = async (method, url) => {
+    if (fail) throw fail;
+    const page = /\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=(\d+)$/.exec(url)?.[1];
+    if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
+    const onMain = mainCall(url, { offMain, mainTag });
+    if (onMain !== undefined) return onMain;
+    const id = /\/actions\/runs\/(\d+)\/artifacts\?per_page=100$/.exec(url)?.[1];
+    assert.ok(id, `unexpected call ${url}`);
+    const artifacts = [
+      ...(id in files ? [{ name: "pr-merge-run-cache", expired: false }] : []),
+      ...(id in verify ? [{ name: "pr-merge-verify-run-cache", expired: false }] : []),
+    ];
+    return { total_count: artifacts.length, artifacts };
+  };
+  const download = (id, name = "pr-merge-run-cache") => {
+    if (name === "pr-merge-verify-run-cache") {
+      downloads.push(`verify:${id}`);
+      return verify[id];
+    }
+    assert.equal(name, "pr-merge-run-cache");
+    downloads.push(id);
+    return files[id];
+  };
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(String(line)));
+  await read({ env: { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "999", CARRY_TO: to }, actions, download });
+  t.mock.restoreAll();
+  return { written: existsSync(to) ? readFileSync(to, "utf8") : undefined, downloads, logs };
+}
+
+test("read takes the carried file from the newest trusted run on main only", async (t) => {
+  const kept = JSON.stringify({
+    "carried-run-record": { [`${REPO}|7`]: entry(origin(7)) },
+    "skip-unchanged": { 12: { at: AT, value: { reason: "risk:MED" } } },
+  });
+  const result = await readRun(t, {
+    // This run (999) and a pull_request_target run are never asked; run 9's
+    // head commit is not on main.
+    pages: [[wf(999, "schedule"), wf(10, "pull_request_target"), wf(9, "workflow_dispatch"), wf(8, "schedule")]],
+    files: { 10: "{}", 9: "{}", 8: kept },
+    offMain: [wf(9).head_sha],
+  });
+  assert.deepEqual(result.downloads, [8]);
+  // Written as kept, skip-unchanged included: babysit_merge_skip.py filter
+  // reads that section from this file, and the run cache takes the carried-*
+  // sections through carry() in the next step.
+  assert.equal(result.written, kept);
+});
+
+test("read removes a file already at its path and never reads it", async (t) => {
+  const planted = JSON.stringify({ "carried-on-branch": { [`${REPO}|${MAIN_SHA}...main`]: entry(true) } });
+  for (const options of [
+    { planted },
+    { planted, pages: [[wf(8, "schedule")]], files: { 8: "not json" } },
+    { planted, pages: [[wf(8, "schedule")]], files: { 8: "[]" } },
+    { planted, fail: new Error("HTTP 502") },
+  ]) {
+    const result = await readRun(t, options);
+    assert.equal(result.written, undefined);
+  }
+});
+
+test("read warns on a file it cannot use, and is quiet when no run has one", async (t) => {
+  const quiet = await readRun(t, { pages: [[wf(8, "schedule")]] });
+  assert.ok(!quiet.logs.some((line) => line.startsWith("::warning")));
+  const bad = await readRun(t, { pages: [[wf(8, "schedule")]], files: { 8: "not json" } });
+  assert.ok(bad.logs.some((line) => line.startsWith("::warning::the pr-merge-run-cache file was not carried: ")));
+});
+
+test("read takes no file while a tag shares main's name", async (t) => {
+  // A run on a tag named main reports head_branch main, so only the tag's
+  // absence (a 404) lets a run count (check-trusted-trigger.mjs
+  // requireOnDefaultBranch).
+  const options = { pages: [[wf(8, "schedule")]], files: { 8: "{}" } };
+  assert.deepEqual((await readRun(t, options)).downloads, [8]);
+  const result = await readRun(t, { ...options, mainTag: true });
+  assert.deepEqual(result.downloads, []);
+  assert.equal(result.written, undefined);
+});
+
+// The merge gate reads no lane verdict, so only enable-auto-merge's reader
+// fills run-record; it uploads what it kept as pr-merge-verify-run-cache, and
+// `read` adds that file's carried-* sections, and nothing else, to the merge
+// job's file, whose other sections babysit_merge_skip.py reads.
+const skip = { 12: { at: AT, value: { reason: "risk:MED" } } };
+const mergeFile = JSON.stringify({
+  "carried-run-record": { [`${REPO}|7`]: entry(origin(7)) },
+  "carried-fail-head-ref": {},
+  "carried-on-branch": {},
+  "skip-unchanged": skip,
+});
+const verifyFile = JSON.stringify({
+  "carried-run-record": { [`${REPO}|9`]: entry(origin(9)) },
+  "carried-fail-head-ref": { [`${REPO}|90`]: entry({ head_ref: "feat/z" }) },
+  "carried-on-branch": {},
+  // Never taken from this file: only the merge job's refusals are skipped.
+  "skip-unchanged": { 13: { at: AT, value: { reason: "risk:HIGH" } } },
+  "run-record": { [`${REPO}|11`]: entry(origin(11)) },
+});
+
+test("read adds the verify file's carried sections to the merge file, every other section as it was", async (t) => {
+  const result = await readRun(t, {
+    pages: [[wf(9, "schedule"), wf(8, "schedule")]],
+    files: { 8: mergeFile },
+    verify: { 9: verifyFile },
+  });
+  // Each file from the newest trusted run holding it.
+  assert.deepEqual(result.downloads, [8, "verify:9"]);
+  const written = JSON.parse(result.written);
+  assert.deepEqual(written, {
+    "carried-run-record": { [`${REPO}|7`]: entry(origin(7)), [`${REPO}|9`]: entry(origin(9)) },
+    "carried-fail-head-ref": { [`${REPO}|90`]: entry({ head_ref: "feat/z" }) },
+    "carried-on-branch": {},
+    "skip-unchanged": skip,
+  });
+  assert.equal(JSON.stringify(written["skip-unchanged"]), JSON.stringify(JSON.parse(mergeFile)["skip-unchanged"]));
+});
+
+test("read writes the merge file as it is when the verify file does not read", async (t) => {
+  const result = await readRun(t, { pages: [[wf(8, "schedule")]], files: { 8: mergeFile }, verify: { 8: "not json" } });
+  assert.equal(result.written, mergeFile);
+  assert.ok(result.logs.some((line) => line.startsWith("::warning::the verifier reads were not carried: ")));
+});
+
+test("read carries the verify file's sections when the merge file does not read", async (t) => {
+  const carried = {
+    "carried-run-record": { [`${REPO}|9`]: entry(origin(9)) },
+    "carried-fail-head-ref": { [`${REPO}|90`]: entry({ head_ref: "feat/z" }) },
+    "carried-on-branch": {},
+  };
+  for (const bad of ["not json", "[]"]) {
+    const result = await readRun(t, {
+      pages: [[wf(9, "schedule"), wf(8, "schedule")]],
+      files: { 8: bad },
+      verify: { 9: verifyFile },
+    });
+    assert.deepEqual(JSON.parse(result.written), carried);
+    assert.ok(result.logs.some((line) => line.startsWith("::warning::the pr-merge-run-cache file was not carried: ")));
+  }
+});
+
+test("read writes nothing when neither file reads", async (t) => {
+  const result = await readRun(t, {
+    pages: [[wf(9, "schedule"), wf(8, "schedule")]],
+    files: { 8: "not json" },
+    verify: { 9: "not json" },
+  });
+  assert.equal(result.written, undefined);
+  assert.ok(result.logs.some((line) => line.startsWith("::warning::the pr-merge-run-cache file was not carried: ")));
+  assert.ok(result.logs.some((line) => line.startsWith("::warning::the verifier reads were not carried: ")));
+});
+
+test("read yields the carried sections of a run holding only one of the two files", async (t) => {
+  const verifyOnly = await readRun(t, { pages: [[wf(8, "schedule")]], verify: { 8: verifyFile } });
+  assert.deepEqual(JSON.parse(verifyOnly.written), {
+    "carried-run-record": { [`${REPO}|9`]: entry(origin(9)) },
+    "carried-fail-head-ref": { [`${REPO}|90`]: entry({ head_ref: "feat/z" }) },
+    "carried-on-branch": {},
+  });
+  const mergeOnly = await readRun(t, { pages: [[wf(8, "schedule")]], files: { 8: mergeFile } });
+  assert.equal(mergeOnly.written, mergeFile);
+});
+
+test("read takes no verify file from an untrusted run or one off main", async (t) => {
+  const result = await readRun(t, {
+    pages: [[wf(11, "pull_request_target"), wf(10, "push"), wf(9, "workflow_dispatch"), wf(8, "schedule")]],
+    files: { 8: mergeFile },
+    verify: { 11: verifyFile, 10: verifyFile, 9: verifyFile },
+    offMain: [wf(9).head_sha],
+  });
+  assert.deepEqual(result.downloads, [8]);
+  assert.equal(result.written, mergeFile);
+  const tagged = await readRun(t, { pages: [[wf(8, "schedule")]], verify: { 8: verifyFile }, mainTag: true });
+  assert.deepEqual(tagged.downloads, []);
+  assert.equal(tagged.written, undefined);
+});
+
+test("keep reports kept=true only when it kept a read", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-kept-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const from = join(dir, "from.json");
+  const output = join(dir, "output");
+  const env = { CARRY_FROM: from, CARRY_TO: join(dir, "to.json"), GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: output };
+  t.mock.method(console, "log", () => {});
+  writeFileSync(from, JSON.stringify({ "trusted-humans": { [REPO]: entry([1]) } }));
+  main(env, NOW);
+  // carried=true still says the file was written, for the skip refusals.
   assert.equal(readFileSync(output, "utf8"), "carried=true\n");
+});
+
+// Two ticks: the first tick's merge gate reads no verdict and keeps an
+// empty carried file beside its refusals; its enable-auto-merge reader fills
+// run-record and keeps it. The second tick starts its run cache warm.
+test("a second tick starts its run cache from the first tick's verifier reads", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-ticks-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(String(line)));
+  const keep = (cache, name) => {
+    const from = join(dir, `${name}-cache.json`);
+    const to = join(dir, `${name}-carried.json`);
+    const output = join(dir, `${name}-output`);
+    writeFileSync(from, JSON.stringify(cache));
+    main({ CARRY_FROM: from, CARRY_TO: to, GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: output }, NOW);
+    return { text: readFileSync(to, "utf8"), output: readFileSync(output, "utf8") };
+  };
+  const merge = keep({ "trusted-humans": { [REPO]: entry([1]) } }, "merge");
+  const mergeWithSkip = JSON.stringify({ ...JSON.parse(merge.text), "skip-unchanged": skip });
+  const arm = keep({ "run-record": { [`${REPO}|7`]: entry(origin(7)) }, "on-branch": { [`${REPO}|${MAIN_SHA}...main`]: entry(true) } }, "arm");
+  assert.equal(merge.output, "carried=true\n");
+  assert.equal(arm.output, "carried=true\nkept=true\n");
+  t.mock.restoreAll();
+
+  const next = await readRun(t, { pages: [[wf(8, "schedule")]], files: { 8: mergeWithSkip }, verify: { 8: arm.text } });
+  const from = join(dir, "next-carried.json");
+  writeFileSync(from, next.written);
+  const runCache = join(dir, "next-run-cache.json");
+  t.mock.method(console, "log", (line) => logs.push(String(line)));
+  main({ CARRY_FROM: from, CARRY_TO: runCache, GITHUB_REPOSITORY: REPO }, NOW);
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=1");
+  assert.deepEqual(JSON.parse(next.written)["skip-unchanged"], skip);
 });

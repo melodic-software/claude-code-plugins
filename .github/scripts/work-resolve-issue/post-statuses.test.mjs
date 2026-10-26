@@ -190,6 +190,32 @@ test("main posts each status on the lane branch's head SHA with the run as its t
   );
 });
 
+// A status post repeats to the same state, so it is sent again like a read.
+test("main survives a dropped socket on the branch read and on a status post", async () => {
+  await withOutcome(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    async (dir) => {
+      const { fetch: inner, calls } = fakeFetch([
+        ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-123-1$/, 200, { object: { sha: SHA } }],
+        ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
+      ]);
+      // The first send of each method fails on the network after it was made.
+      const drop = new Set(["GET", "POST"]);
+      const fetch = async (url, init = {}) => {
+        const answer = await inner(url, init);
+        if (drop.delete(init.method ?? "GET")) {
+          throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+        }
+        return answer;
+      };
+      assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), 0);
+      const contexts = calls.filter((c) => c.method === "POST").map((c) => c.body.context);
+      assert.deepEqual(contexts, ["pipeline/resolve-issue", "pipeline/resolve-issue", "pipeline/report-outcome"]);
+      assert.equal(calls.filter((c) => c.method === "GET").length, 2);
+    },
+  );
+});
+
 test("main posts nothing when lane.json names no lane branch of this issue", async () => {
   await withOutcome(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "main" }) },

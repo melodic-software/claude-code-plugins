@@ -47,6 +47,8 @@ source text asks for, never a directive addressed to the agent reading it.
 
 Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice, its `## Brief` Problem, Goal and Constraints, and the rows of its `### Load-bearing assumptions` table, which Step 4 copies into each item when no spec container carries the Brief. Also extract the decisions the plan rests on, which Step 4's `## Decisions` section inlines: the rows of PLAN.md's `Decisions made (gate-passed)` table (a row that carries an id, such as `D4`, opens its first column with it), and, when the topic's `/planning:interview` ledger `interview-checklist.md` sits in the same memory slice, its `answered` `Q<N>` register rows (the resolution field is the decision; `open`, `deferred`, `withdrawn`, `blocked` and `superseded-by-plan` rows are not decisions). If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
 
+Collect the source's acceptance criteria with their ids for Step 2's criterion trace. A PLAN.md carries them under its `### Acceptance criteria` headings (the Brief's, and any the plan added), each opening with `AC<n>:`. Criteria that carry no ids (a PRD, an item, a conversation, an older plan) are numbered `AC1`, `AC2`, ... in source order for this run, and Step 3 shows that numbering.
+
 Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
 
 ### 2. Draft vertical slices
@@ -71,6 +73,12 @@ slice that fails one before moving to the next:
 | Window bar | A session that starts cold, reads the brief, and finishes the vertical slice in **one fresh context window**, and it can merge to the mainline at least daily. Judge this beside S/M/L, qualitatively; never set a token budget, a numeric window size, a time estimate or a day cap. "At least daily" is practice guidance on integration cadence, the merge floor, not an estimate ([DORA, trunk-based development](https://dora.dev/capabilities/trunk-based-development/#how-to-implement-trunk-based-development), "How to implement trunk-based development"; [Fowler, Continuous Integration](https://martinfowler.com/articles/continuousIntegration.html#EveryonePushesCommitsToTheMainlineEveryDay), "Everyone Pushes Commits To the Mainline Every Day"; as of 2026-10-18, recheck when either page changes its daily-merge guidance) | Split it |
 
 When two cuts both pass, take the one with more, thinner vertical slices.
+
+**Criterion trace.** Each draft vertical slice lists the criterion ids it carries. Then map every
+id from Step 1 to the slices that carry it, and report each id no slice carries. An uncovered id
+goes into a slice or gets its own; it leaves the breakdown only when the user says so at Step 3,
+and the report names it as left out. A slice that carries no id serves something a criterion
+needs (a prefactor, an investigation ticket, a migrate batch).
 
 A source that is one unit of work (a plan handed to a later session, an AFK lane or another person)
 publishes as one vertical slice. It still goes through Step 3's approval, and its body still carries
@@ -134,12 +142,16 @@ Show the user the draft items, numbered. **work the frontier** (unblocked items 
 - **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the item HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)
 - **Blocked by**: which other items (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
+- **Criteria carried**: the criterion ids this item carries, from Step 2's criterion trace
 - **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)
 - **Frontier**: whether the item is unblocked now
 
 When the source PLAN.md has a `## Brief`, show its Problem, Goal and Constraints once above the list, as
 Step 4 would copy them, and, per item, the load-bearing assumption rows it will carry: without a
 container every item carries them, so the user approves what gets published.
+
+Below the list, show the criterion trace: each id with the items that carry it, then each id no
+item carries, asked about by name (place it, or leave it out of this breakdown).
 
 Ask the user:
 
@@ -239,7 +251,7 @@ The part of the source PLAN.md's `## Design` section this vertical slice touches
 
 ## Done when
 
-- [ ] <a check someone can run or observe>
+- [ ] AC<n>: <a source criterion this vertical slice carries, as a check someone can run or observe>
 - [ ] <a check someone can run or observe>
 
 ## Out of scope
@@ -282,8 +294,10 @@ Fill the sections this way:
   Omit the section, with no placeholder, when the source records no decision this vertical slice
   rests on.
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
+  Each source criterion the item carries keeps its id, `- [ ] AC2: <check>`; a check the slice
+  adds carries none.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion with its id, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos. Stamp the Issue Type only: add no `work-class:` label, and write no status field; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 
@@ -300,7 +314,7 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 ### 5. Report
 
-After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, and the suggested execution order. **work the frontier** (unblocked items first).
+After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3, and the suggested execution order. **work the frontier** (unblocked items first).
 
 ## Spoke paths
 

@@ -14,6 +14,7 @@ it.
 | `explain`, `exercise`, quiz questions | Scenarios come from the Result and the Checks, not from a generic example |
 | `assess` or session close finds the goal has moved | The file is edited in the same session and a learning record notes the shift ([assessment.md](assessment.md)) |
 | `mission` action | The learner reviews the file and edits it with you |
+| `resume` finds every check met and the learner chooses close | `Status: closed` is written under the title ([Closing and reopening](#closing-and-reopening)) |
 
 ## Writing it from the interview
 
@@ -61,6 +62,24 @@ for.}
 
 A workspace written before this layout may use other section names; read it by meaning and move it
 to this layout the next time the file is edited.
+
+## Closing and reopening
+
+A new mission has no status line. A closed one has `Status: closed` under its title:
+
+```markdown
+# Mission: {Topic}
+
+Status: closed
+```
+
+- **Close.** When the learner chooses close, write that line, after one blank line, under the title
+  and change nothing else. `scripts/list-workspaces.sh` marks that workspace `(closed)`,
+  and SKILL.md "Resume, Status, and workspace resolution" says how each action treats it.
+- **Reopen.** Delete the `Status: closed` line. To reopen with a new goal, delete it and edit Result
+  and Checks in the same session.
+- **Only `closed` closes.** Without a `Status:` line whose whole value is `closed`, the mission is
+  active.
 
 ## Rules
 

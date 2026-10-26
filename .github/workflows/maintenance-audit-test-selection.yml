@@ -52,6 +52,9 @@ jobs:
     concurrency:
       group: selection-audit-trace
       cancel-in-progress: false
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

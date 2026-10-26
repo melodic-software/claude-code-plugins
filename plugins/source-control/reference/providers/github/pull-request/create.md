@@ -30,17 +30,22 @@ CLOSES_LINE=""
 REFS_LINES=""  # newline-separated `Refs #Y — <why>` bullets for the ## Related section, populated
                 # by the multi-issue or orphan-PR prompts below; never a closing keyword and
                 # not a linkage line — see §2.4.1 for routing.
+ISSUE_BODY=""
 if [[ "$ISSUE_NUM" =~ ^[0-9]+$ ]]; then   # the GitHub default needs an issue number
   # Validate issue exists in current repo BEFORE shipping `Closes #N`.
   # GitHub auto-close only fires when the issue exists, lives in this repo,
   # and is open at merge time. A typo'd branch like
   # `feat/99999-foo` would otherwise ship a misleading `Closes #99999` line.
-  ISSUE_STATE=$(gh issue view "$ISSUE_NUM" --json state --jq '.state' 2>/dev/null || true)
+  # One read returns the body beside the state, for the Summary's Problem and intent fallback.
+  ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --json state,body 2>/dev/null || true)
+  ISSUE_STATE=$(printf '%s' "$ISSUE_JSON" | jq -r '.state // empty' || true)
+  ISSUE_BODY=$(printf '%s' "$ISSUE_JSON" | jq -r '.body // empty' || true)
   if [[ "$ISSUE_STATE" == "OPEN" ]]; then
     CLOSES_LINE="Closes #${ISSUE_NUM}"
   else
     echo "⚠ Branch suggests Closes #${ISSUE_NUM}, but that issue is missing or not open in this repo. Falling back to interactive prompt." >&2
     ISSUE_NUM=""   # fall through to orphan-PR 2-option prompt below
+    ISSUE_BODY=""  # no Problem and intent fallback from an item the PR does not close
   fi
 fi
 # If still empty, the orphan-PR prompt populates CLOSES_LINE below.
@@ -54,10 +59,15 @@ set. Pointer:
 [Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
 which names the refusal and the REST fallback. As-of: 2026-10-11. Recheck trigger: that section
 changes its GraphQL entry, or a release note names the GitHub proxy. The `2>/dev/null || true` in the block above swallows that 403. Substitute the REST
-issues endpoint, which reports `state` in lower case:
+issues endpoint, which reports `state` in lower case and `body` as a string or null. Pointer:
+[Get an issue](https://docs.github.com/en/rest/issues/issues#get-an-issue), whose schema is
+[Create an issue](https://docs.github.com/en/rest/issues/issues#create-an-issue)'s. As-of:
+2026-10-26. Recheck trigger: either field's type changes there.
 
 ```bash
-ISSUE_STATE=$(gh api "repos/{owner}/{repo}/issues/${ISSUE_NUM}" --jq '.state' 2>/dev/null || true)
+ISSUE_JSON=$(gh api "repos/{owner}/{repo}/issues/${ISSUE_NUM}" 2>/dev/null || true)
+ISSUE_STATE=$(printf '%s' "$ISSUE_JSON" | jq -r '.state // empty' || true)
+ISSUE_BODY=$(printf '%s' "$ISSUE_JSON" | jq -r '.body // empty' || true)
 if [[ "$ISSUE_STATE" == "open" ]]; then   # REST returns `open`/`closed`, not `OPEN`/`CLOSED`
 ```
 
