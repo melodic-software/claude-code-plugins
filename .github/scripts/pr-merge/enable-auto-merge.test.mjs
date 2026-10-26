@@ -2012,7 +2012,7 @@ test("readRoom takes only lane-room's shape", () => {
   }
 });
 
-test("pythonRoom passes the post-merge report, the rung cap as read, and the reader's token", async () => {
+test("pythonRoom passes the post-merge report, its check's commit, the rung cap as read, and the reader's token", async () => {
   const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-"));
   const script = join(dir, "room.py");
   writeFileSync(
@@ -2021,14 +2021,18 @@ test("pythonRoom passes the post-merge report, the rung cap as read, and the rea
 print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "budget": os.environ.get("API_BUDGET_TOKEN")}))
 `,
   );
-  const env = { PATH: process.env.PATH, GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: script, POSTMERGE_RESULT: "/tmp/post-merge.json", GH_TOKEN: "lane", BABYSIT_VERIFY_GH_TOKEN: "job" };
+  const sha = "d".repeat(40);
+  const env = { PATH: process.env.PATH, GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: script, POSTMERGE_RESULT: "/tmp/post-merge.json", POSTMERGE_CODE_SHA: sha, GH_TOKEN: "lane", BABYSIT_VERIFY_GH_TOKEN: "job" };
   // An empty cap is no cap, so it is passed; an unset one is not, which the gate reads as off.
   assert.deepEqual(await pythonRoom({ ...env, RUNG_CAP: "" })(), {
-    argv: ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--rung-cap", ""],
+    argv: ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", sha, "--rung-cap", ""],
     token: "job",
     budget: "github-token",
   });
-  assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+  assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", sha]);
+  // No commit kept is an empty one, which reads the report again.
+  const { POSTMERGE_CODE_SHA: _, ...unset } = env;
+  assert.deepEqual((await pythonRoom(unset)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", ""]);
 });
 
 // The calls line as babysit_gh.py itself prints it, for three Actions-token

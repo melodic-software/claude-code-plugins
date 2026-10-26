@@ -142,6 +142,8 @@
 //                        decision (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
+//   POSTMERGE_CODE_SHA   the commit whose code ran that report's check (empty
+//                        when unknown: lane-room reads the report again)
 //   RUNG_CAP             vars.CLAUDE_LANES_MERGE_RUNG_CAP (empty is no cap;
 //                        unset holds the lane off, as the gate reads it)
 //   RISK_ESCALATION_MINUTES  merge.risk-escalation-minutes (empty is
@@ -767,7 +769,16 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
 // quota.
 export function pythonRoom(env, spawn = spawnSync) {
   return async () => {
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "lane-room", "--repo", env.GITHUB_REPOSITORY, "--postmerge-result", env.POSTMERGE_RESULT ?? ""];
+    const args = [
+      env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT,
+      "lane-room",
+      "--repo",
+      env.GITHUB_REPOSITORY,
+      "--postmerge-result",
+      env.POSTMERGE_RESULT ?? "",
+      "--code-sha",
+      env.POSTMERGE_CODE_SHA ?? "",
+    ];
     if (env.RUNG_CAP !== undefined) {
       args.push("--rung-cap", env.RUNG_CAP);
     }

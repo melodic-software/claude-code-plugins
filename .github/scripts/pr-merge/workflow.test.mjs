@@ -361,6 +361,10 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   assert.doesNotMatch(read, /run-id|github-token|repository:/);
   const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
   assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);
+  // The commit whose code ran it, kept beside it, for lane-room.
+  assert.match(dispatch, /\n {10}git -C \.base rev-parse HEAD >"\$kept\/post-merge-code-sha" \|\| true\n/);
+  assert.match(step, /\n {10}POSTMERGE_CODE_SHA=\$\(cat "\$RUNNER_TEMP\/post-merge\/post-merge-code-sha" 2>\/dev\/null \|\| true\)\n/);
+  assert.match(step, /\n {10}export [^\n]*\bPOSTMERGE_CODE_SHA\n/);
   assert.match(step, /\n {10}RUNG_CAP: \$\{\{ vars\.CLAUDE_LANES_MERGE_RUNG_CAP \}\}\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Read this run's post-merge report") < names.indexOf("Arm and disarm auto-merge"));

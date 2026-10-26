@@ -217,20 +217,24 @@ jobs:
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
           rerun=$(jq -r '[.reruns[]? | select(.laneDispatched == true) | .runId][0] // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true)
           echo "lane-rerun=$rerun" >>"$GITHUB_OUTPUT"
-          # The report kept below: the check's JSON, its exit code and the
-          # lane records it read and proved.
+          # The report kept below: the check's JSON, its exit code, the lane
+          # records it read and proved, and the commit whose code ran it
+          # (none if unreadable, which the readers refuse).
           kept=$RUNNER_TEMP/post-merge-report
           mkdir -p "$kept"
           cp "$RUNNER_TEMP/post-merge.json" "$kept/post-merge.json"
           echo "$code" >"$kept/post-merge-code"
+          git -C .base rev-parse HEAD >"$kept/post-merge-code-sha" || true
           [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
           # A rate-limit stop fails the job red once the outputs are written.
           [ "$code" != 75 ] || exit 1
 
       # The check's report for this run's enable-auto-merge job, which reads
-      # the lane's room from it, and its merge job, which reuses it while it
-      # judged main at that job's commit: neither runs the check again. They
-      # download it from this run only.
+      # the lane's room from it, and its merge job, which reuses it while the
+      # lane room's reuse rule keeps it (babysit_verify_evidence.py settle)
+      # and the check's code at that job's commit reads as at the kept one:
+      # neither runs the check again then. They download it from this run
+      # only.
       - name: Keep the post-merge report for enable-auto-merge
         if: steps.post-merge.conclusion == 'success'
         continue-on-error: true
@@ -862,9 +866,10 @@ jobs:
       # so it reads with this job's own token, off the lane App's quota; only
       # --remediate below needs the lane token.
       # The same check of this run's post-merge-dispatch job, with the same
-      # inputs, is reused instead when it judged (exit 0, 1 or 5) and the lane
-      # room's reuse rule keeps it (babysit_verify_evidence.py settle): its
-      # report, exit code and lane records. This job needs that one, so the
+      # inputs, is reused instead when it judged (exit 0, 1 or 5), the check's
+      # code here reads as at the commit it ran, and the lane room's reuse
+      # rule keeps it (babysit_verify_evidence.py settle): its report, exit
+      # code and lane records. This job needs that one, so the
       # report is kept before this step starts, unless that job failed or kept
       # none; with none, or any other, this job runs the check. A pattern, not
       # a name: a pattern that matches nothing downloads nothing and does not
@@ -893,15 +898,16 @@ jobs:
           set -euo pipefail
           kept=$RUNNER_TEMP/post-merge-kept
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
-          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           code=
           if [ -f "$kept/post-merge.json" ] && [ -f "$kept/post-merge-code" ]; then
             kept_code=$(cat "$kept/post-merge-code")
-            # The lane room's reuse rule, at main's head now: a refusal or a
-            # failed read runs the check.
+            kept_sha=$(cat "$kept/post-merge-code-sha" 2>/dev/null || true)
+            # The lane room's reuse rule, at main's head now, for a check
+            # run by this checkout's code: a refusal or a failed read runs
+            # the check.
             if [[ $kept_code =~ ^[015]$ ]] &&
               python3 "$scripts/babysit_verify_evidence.py" settle --repo "$REPO" \
-                --postmerge-result "$kept/post-merge.json" --agent-identity "$identity"; then
+                --postmerge-result "$kept/post-merge.json" --code-sha "$kept_sha"; then
               cp "$kept/post-merge.json" "$RUNNER_TEMP/post-merge.json"
               [ ! -f "$kept/lane-records.json" ] || cp "$kept/lane-records.json" "$RUNNER_TEMP/lane-records.json"
               code=$kept_code
@@ -909,6 +915,7 @@ jobs:
             fi
           fi
           if [ -z "$code" ]; then
+            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             code=0
             python3 "$scripts/babysit_postmerge.py" \
               --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
@@ -1741,7 +1748,10 @@ jobs:
           REPORT_ONLY=$(yq '.merge."report-only"' "$config")
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
           RISK_ESCALATION_MINUTES=$(yq '.merge."risk-escalation-minutes" // ""' "$config")
-          export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES
+          # The commit whose code ran the report's check, for lane-room: none
+          # reads the report again.
+          POSTMERGE_CODE_SHA=$(cat "$RUNNER_TEMP/post-merge/post-merge-code-sha" 2>/dev/null || true)
+          export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES POSTMERGE_CODE_SHA
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
 
       # The verdict reads this job's reader made, for the next run's two

@@ -14,7 +14,10 @@ import contextlib
 import io
 import json
 import pathlib
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -132,6 +135,7 @@ class LaneRoom(unittest.TestCase):
         fresh_floor: datetime = NEW_FLOOR,
         head_error: Exception | None = None,
         fresh_demotion: policy.Demotion | None = None,
+        code_unchanged: bool = True,
     ) -> policy.LaneRoom:
         seen: dict[str, object] = {}
         reads = mock.Mock(
@@ -183,10 +187,32 @@ class LaneRoom(unittest.TestCase):
                 answer if answer is not None else shared(),
                 lane_rung_cap=cap,
                 now=now,
+                code_unchanged=code_unchanged,
                 **kwargs,  # type: ignore[arg-type]
             )
         self.seen, self.reads = seen, reads
         return result
+
+    def test_an_answer_from_other_check_code_is_read_again_never_kept(self) -> None:
+        # The report was computed by check code main has since changed: the
+        # room reads it afresh, even where it would reuse or keep it.
+        for name, kwargs in {
+            "reusable": {},
+            "demotion reads the same": self.DEMOTION_CHANGED,
+        }.items():
+            with self.subTest(name):
+                recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+                room = self.room(
+                    shared(),
+                    post_merge=recheck.post_merge,
+                    code_unchanged=False,
+                    **kwargs,  # type: ignore[arg-type]
+                )
+                self.assertEqual((room.refusal, room.unreadable), (None, None))
+                self.assertEqual(recheck.asked, [(NEW_FLOOR, IDENTITY)])
+        # With no check to read it again: unreadable.
+        room = self.room(shared(), code_unchanged=False)
+        self.assertEqual(room.unreadable, "post-merge answer code-changed")
 
     def test_a_clear_lane_counts_its_merges_in_flight_against_the_cap(self) -> None:
         room = self.room()
@@ -639,7 +665,9 @@ class LaneRoom(unittest.TestCase):
                 answer = kwargs.pop("answer", shared())
                 if name == "no answer":
                     with mock.patch.object(policy, "in_flight") as flight:
-                        room = policy.lane_room(REPO, None, lane_rung_cap="")
+                        room = policy.lane_room(
+                            REPO, None, lane_rung_cap="", code_unchanged=True
+                        )
                     flight.assert_not_called()
                 else:
                     room = self.room(answer, **kwargs)  # type: ignore[arg-type]
@@ -769,6 +797,7 @@ class SettleShared(unittest.TestCase):
         fresh_demotion: policy.Demotion | None = None,
         runs: bool | None = None,
         keep: bool = True,
+        code_unchanged: bool = True,
     ) -> tuple[policy.SharedPostMerge | None, str | None]:
         merges = [{"number": n} for n in lane_merges]
 
@@ -802,6 +831,7 @@ class SettleShared(unittest.TestCase):
                 now=now,
                 runs_unchanged=None if runs is None else self.runs,
                 keep=keep,
+                code_unchanged=code_unchanged,
             )
 
     def test_a_fresh_answer_at_an_unmoved_head_is_reused(self) -> None:
@@ -867,6 +897,28 @@ class SettleShared(unittest.TestCase):
         )
         self.reads.assert_not_called()
 
+    def test_an_answer_from_other_check_code_is_refused_before_any_keep(
+        self,
+    ) -> None:
+        # The brief's rule: a report computed by check code main has since
+        # changed never stands, even where it would be reused or kept.
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(
+            self.settle(answer, code_unchanged=False),
+            (None, "post-merge answer code-changed"),
+        )
+        self.assertEqual(
+            self.settle(answer, demotion_changed=True, code_unchanged=False),
+            (None, "post-merge answer code-changed"),
+        )
+        self.reads.assert_not_called()
+        pending = shared(report=PENDING)
+        self.assertEqual(
+            self.settle(pending, now=STALE_NOW, runs=True, code_unchanged=False),
+            (None, "post-merge answer code-changed"),
+        )
+        self.runs.assert_not_called()
+
     def test_a_stale_answer_is_refused_even_when_nothing_moved(self) -> None:
         answer = shared(report=PENDING)
         late = FLOOR + policy.SHARED_MAX_AGE + timedelta(seconds=1)
@@ -877,8 +929,79 @@ class SettleShared(unittest.TestCase):
         self.runs.assert_not_called()
 
 
+class CheckCodeUnchanged(unittest.TestCase):
+    """`check_code_unchanged`: whether the check's code (the babysit-prs
+    scripts and docs/conventions/pr-pipeline.yaml) at HEAD is the code at the
+    kept commit. Expected outcomes are the brief's: the same commit or a
+    change elsewhere only allows reuse; a change in either path, a missing,
+    malformed or unknown commit, or a git failure refuses."""
+
+    def setUp(self) -> None:
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="check-code-"))
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.git("init", "-q")
+        self.commits: dict[str, str] = {}
+        for name, path in (
+            ("base", "README.md"),
+            ("elsewhere", "README.md"),
+            ("scripts", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
+            ("config", "docs/conventions/pr-pipeline.yaml"),
+        ):
+            file = self.root / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(f"{name}\n")
+            self.git("add", "-A")
+            self.git("commit", "-q", "-m", name)
+            self.commits[name] = self.git("rev-parse", "HEAD").strip()
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t"]
+            + list(args),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def unchanged(self, kept: str, head: str) -> bool:
+        self.git("checkout", "-q", "--detach", self.commits[head])
+        return policy.check_code_unchanged(kept, root=self.root)
+
+    def test_the_same_commit_or_a_change_elsewhere_allows_reuse(self) -> None:
+        self.assertTrue(self.unchanged(self.commits["config"], "config"))
+        self.assertTrue(self.unchanged(self.commits["base"], "elsewhere"))
+
+    def test_a_change_to_the_scripts_or_the_pipeline_config_refuses(self) -> None:
+        self.assertFalse(self.unchanged(self.commits["elsewhere"], "scripts"))
+        self.assertFalse(self.unchanged(self.commits["scripts"], "config"))
+
+    def test_a_missing_malformed_or_unknown_commit_refuses(self) -> None:
+        for kept in ("", "HEAD", "--output=x", "c" * 39, "f" * 40):
+            with self.subTest(kept):
+                self.assertFalse(self.unchanged(kept, "config"))
+
+    def test_a_git_failure_refuses(self) -> None:
+        kept = self.commits["config"]
+        self.git("checkout", "-q", "--detach", kept)
+        self.assertFalse(
+            policy.check_code_unchanged(kept, root=self.root / "no-such-dir")
+        )
+        with mock.patch.object(
+            policy.subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 1)
+        ):
+            self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
+
+
 class SettleCommand(unittest.TestCase):
-    def main(self, settled: tuple[object, str | None]) -> tuple[int, dict, dict]:
+    def main(
+        self,
+        settled: tuple[object, str | None],
+        *,
+        code_unchanged: bool = True,
+        cfg: policy.PipelineConfig | None = None,
+        config_error: Exception | None = None,
+        code_sha: str = MAIN,
+    ) -> tuple[int, dict, dict]:
         seen: dict[str, object] = {}
 
         def settle(repo: str, answer: object, **kwargs: object) -> object:
@@ -889,28 +1012,38 @@ class SettleCommand(unittest.TestCase):
         with (
             mock.patch.object(ve.postmerge, "read_shared", return_value="answer"),
             mock.patch.object(
-                policy, "_default_branch_head", return_value=("main", NEW_MAIN)
-            ),
+                policy, "check_code_unchanged", return_value=code_unchanged
+            ) as code,
+            mock.patch.object(policy, "_default_branch", return_value="main"),
+            mock.patch.object(
+                policy,
+                "_default_branch_config",
+                side_effect=config_error,
+                return_value=cfg or config(base_sha=NEW_MAIN),
+            ) as read_config,
             mock.patch.object(policy, "settle_shared", side_effect=settle),
             contextlib.redirect_stdout(out),
         ):
-            code = ve.main(
+            exit_code = ve.main(
                 [
                     "settle",
                     "--repo",
                     REPO,
                     "--postmerge-result",
                     "/tmp/x.json",
-                    "--agent-identity",
-                    IDENTITY,
+                    "--code-sha",
+                    code_sha,
                 ]
             )
-        return code, json.loads(out.getvalue()), seen
+        self.code, self.read_config = code, read_config
+        return exit_code, json.loads(out.getvalue()), seen
 
     def test_it_exits_0_when_the_answer_stands_and_1_when_refused(self) -> None:
         code, out, seen = self.main(("answer", None))
         self.assertEqual((code, out), (0, {"reuse": True, "reason": None}))
-        # Bound as the room binds: the default branch head, never a recompute.
+        self.code.assert_called_once_with(MAIN)
+        # Bound as the room binds: the default branch head and its config's
+        # agent identity, never a recompute.
         self.assertEqual(
             {k: seen[k] for k in ("repo", "answer", "default", "base_sha", "identity")},
             {
@@ -921,6 +1054,7 @@ class SettleCommand(unittest.TestCase):
                 "identity": IDENTITY,
             },
         )
+        self.assertIs(seen["code_unchanged"], True)
         self.assertNotIn("post_merge", seen)
         self.assertIs(seen.get("keep", True), True)
         self.assertTrue(callable(seen["runs_unchanged"]))
@@ -930,30 +1064,26 @@ class SettleCommand(unittest.TestCase):
             (1, {"reuse": False, "reason": "post-merge answer unverified-stale"}),
         )
 
-    def test_a_missing_report_or_unreadable_head_is_refused(self) -> None:
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            code = ve.main(
-                [
-                    "settle",
-                    "--repo",
-                    REPO,
-                    "--postmerge-result",
-                    "/nonexistent/post-merge.json",
-                    "--agent-identity",
-                    IDENTITY,
-                ]
-            )
+    def test_changed_check_code_is_refused_before_any_read(self) -> None:
+        code, out, seen = self.main(("answer", None), code_unchanged=False, code_sha="")
+        self.assertEqual(
+            (code, out),
+            (1, {"reuse": False, "reason": "post-merge answer code-changed"}),
+        )
+        self.code.assert_called_once_with("")
+        self.read_config.assert_not_called()
+        self.assertEqual(seen, {})
+
+    def test_no_agent_identity_is_refused(self) -> None:
+        code, out, seen = self.main(("answer", None), cfg=config(agent_identity=""))
         self.assertEqual(code, 1)
-        self.assertFalse(json.loads(out.getvalue())["reuse"])
+        self.assertFalse(out["reuse"])
+        self.assertEqual(seen, {})
+
+    def test_a_missing_report_or_unreadable_config_is_refused(self) -> None:
         out = io.StringIO()
         with (
-            mock.patch.object(ve.postmerge, "read_shared", return_value="answer"),
-            mock.patch.object(
-                policy,
-                "_default_branch_head",
-                side_effect=policy.PolicyReadError("head 502"),
-            ),
+            mock.patch.object(policy, "check_code_unchanged", return_value=True),
             contextlib.redirect_stdout(out),
         ):
             code = ve.main(
@@ -962,13 +1092,18 @@ class SettleCommand(unittest.TestCase):
                     "--repo",
                     REPO,
                     "--postmerge-result",
-                    "/tmp/x.json",
-                    "--agent-identity",
-                    IDENTITY,
+                    "/nonexistent/post-merge.json",
+                    "--code-sha",
+                    MAIN,
                 ]
             )
         self.assertEqual(code, 1)
-        self.assertIn("head 502", json.loads(out.getvalue())["reason"])
+        self.assertFalse(json.loads(out.getvalue())["reuse"])
+        code, out, _ = self.main(
+            ("answer", None), config_error=policy.PolicyReadError("head 502")
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("head 502", out["reason"])
 
 
 class LaneRoomCommand(unittest.TestCase):
@@ -984,9 +1119,14 @@ class LaneRoomCommand(unittest.TestCase):
             lane_rung_cap: str | None,
             post_merge: object,
             runs_unchanged: object,
+            code_unchanged: bool,
         ) -> policy.LaneRoom:
             seen.append((repo, answer, lane_rung_cap))
-            hooks.update(post_merge=post_merge, runs_unchanged=runs_unchanged)
+            hooks.update(
+                post_merge=post_merge,
+                runs_unchanged=runs_unchanged,
+                code_unchanged=code_unchanged,
+            )
             return policy.LaneRoom(count=1, cap=5, queued=frozenset({3}), rung="C2")
 
         out = io.StringIO()
@@ -995,6 +1135,9 @@ class LaneRoomCommand(unittest.TestCase):
                 ve.postmerge, "read_shared", return_value="answer"
             ) as read,
             mock.patch.object(policy, "lane_room", side_effect=room),
+            mock.patch.object(
+                policy, "check_code_unchanged", return_value=False
+            ) as checked,
             contextlib.redirect_stdout(out),
         ):
             code = ve.main(
@@ -1006,10 +1149,15 @@ class LaneRoomCommand(unittest.TestCase):
                     "/tmp/x.json",
                     "--rung-cap",
                     "",
+                    "--code-sha",
+                    MAIN,
                 ]
             )
         self.assertEqual(code, 0)
         read.assert_called_once_with("/tmp/x.json")
+        # The kept report's check code, compared with this checkout's.
+        checked.assert_called_once_with(MAIN)
+        self.assertIs(hooks["code_unchanged"], False)
         self.assertEqual(seen, [(REPO, "answer", "")])
         self.assertEqual(
             json.loads(out.getvalue()),
@@ -1036,6 +1184,8 @@ class LaneRoomCommand(unittest.TestCase):
                     "--postmerge-result",
                     "/nonexistent/post-merge.json",
                     "--rung-cap",
+                    "",
+                    "--code-sha",
                     "",
                 ]
             )

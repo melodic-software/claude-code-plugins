@@ -29,6 +29,7 @@ import ntpath
 import os
 import posixpath
 import re
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -5099,6 +5100,35 @@ def _recompute_shared(
     )
 
 
+# The check's code: what decides a post-merge report, so a report kept from
+# another commit's code stands only while these read the same.
+CHECK_CODE_PATHS = (
+    "plugins/source-control/skills/babysit-prs/scripts",
+    "docs/conventions/pr-pipeline.yaml",
+)
+CHECK_CODE_ROOT = Path(__file__).resolve().parents[4]
+
+
+def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:
+    """Whether the check's code (`CHECK_CODE_PATHS`) at `root`'s HEAD is the
+    code at `code_sha`, the commit a kept post-merge report's check ran. A
+    sha that is not 40 hex digits, a commit missing from the clone or any git
+    failure is not unchanged."""
+    if not SHA_RE.fullmatch(code_sha):
+        return False
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(root), "diff", "--quiet", code_sha, "HEAD", "--"]
+            + list(CHECK_CODE_PATHS),
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
+
+
 def settle_shared(
     repo: str,
     shared: SharedPostMerge,
@@ -5106,6 +5136,7 @@ def settle_shared(
     default: str,
     base_sha: str,
     identity: str,
+    code_unchanged: bool,
     now: datetime | None = None,
     runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
     keep: bool = True,
@@ -5119,18 +5150,23 @@ def settle_shared(
     moved (`_still_current`, with `runs_unchanged`), and `demotion-changed`
     when `read_demotion` reads the shared demotion again. Any other refusal
     is read again with `post_merge` (`_recompute_shared`), or with none
-    refuses. One rule for the lane room and the merge job's reuse of
-    post-merge-dispatch's report."""
-    unusable = shared_refusal(
-        repo,
-        shared,
-        branch=default,
-        base_sha=base_sha,
-        identity=identity,
-        self_logins=frozenset(),
-        lane=True,
-        authority=PR_MERGE,
-        now=now,
+    refuses. Without `code_unchanged` (`check_code_unchanged`), `shared` came
+    from other check code: `code-changed`, never reused or kept. One rule for
+    the lane room and the merge job's reuse of post-merge-dispatch's report."""
+    unusable = (
+        shared_refusal(
+            repo,
+            shared,
+            branch=default,
+            base_sha=base_sha,
+            identity=identity,
+            self_logins=frozenset(),
+            lane=True,
+            authority=PR_MERGE,
+            now=now,
+        )
+        if code_unchanged
+        else "code-changed"
     )
     if not unusable:
         return shared, None
@@ -5173,6 +5209,7 @@ def lane_room(
     shared: SharedPostMerge | None,
     *,
     lane_rung_cap: str | None,
+    code_unchanged: bool,
     now: datetime | None = None,
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
     runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
@@ -5182,7 +5219,8 @@ def lane_room(
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`,
-    settled by `settle_shared`. `post_merge` is `assess`'s: an answer the gate would not reuse, for any
+    settled by `settle_shared`, with `code_unchanged` whether its check ran
+    this checkout's code (`check_code_unchanged`). `post_merge` is `assess`'s: an answer the gate would not reuse, for any
     `shared_refusal`, is read again as the gate reads it
     (`_recompute_shared`, with the room's self logins, none), and a readable
     one stands in for `shared`. Two refusals are first kept: one refused only
@@ -5221,6 +5259,7 @@ def lane_room(
         default=default,
         base_sha=config.base_sha,
         identity=identity,
+        code_unchanged=code_unchanged,
         now=now,
         runs_unchanged=runs_unchanged,
         # With no check to read it again, the room keeps nothing either.

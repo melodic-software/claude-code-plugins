@@ -501,11 +501,13 @@ const runEarlyCheck = (code, needsDispatch = false, stops) => {
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
     });
     const keptCode = join(dir, "post-merge-report", "post-merge-code");
+    const keptSha = join(dir, "post-merge-report", "post-merge-code-sha");
     return {
       status: result.status,
       stdout: result.stdout,
       output: readFileSync(output, "utf8"),
       keptCode: existsSync(keptCode) ? readFileSync(keptCode, "utf8").trim() : null,
+      keptSha: existsSync(keptSha) ? readFileSync(keptSha, "utf8").trim() : null,
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -522,6 +524,17 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
   assert.match(run.output, /^needs-dispatch=false$/m);
   assert.match(run.output, /^code=75$/m);
   assert.equal(run.keptCode, "75");
+});
+
+// The merge job reuses the kept report only while the check's code at its
+// own commit reads as it did here: the report keeps the commit it ran.
+test("the early check keeps the commit whose code ran it beside its report", () => {
+  const head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  for (const code of [0, 1, 3]) {
+    const run = runEarlyCheck(code);
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.keptSha, head, String(code));
+  }
 });
 
 // The stop the check recorded in the job's stop file (babysit_gh.py
@@ -1482,9 +1495,11 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
 // the report stands (exit `settle`), any other call is the check, which marks
 // that it ran. The rule (pr-merge.yml): reuse a report whose check judged
 // (exit 0, 1 or 5) and that `settle` keeps (babysit_verify_evidence.py, the
-// lane room's rule, tested in test_babysit_lane_room.py); otherwise run the
-// check.
-const runMergeCheck = ({ kept, code = "0", records, settle = 0, exit = 3, report = { ran: true } } = {}) => {
+// lane room's rule, tested in test_babysit_lane_room.py) given the commit
+// post-merge-dispatch's check ran (`codeSha`, null for no file); otherwise
+// run the check. `yqFails` puts a yq that fails on the PATH.
+const KEPT_SHA = "b".repeat(40);
+const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-reuse-"));
   try {
     const bin = join(dir, "bin");
@@ -1494,12 +1509,17 @@ const runMergeCheck = ({ kept, code = "0", records, settle = 0, exit = 3, report
       `#!/usr/bin/env bash\nif [ "$2" = settle ]; then echo "$@" >"${dir}/settled"; exit ${settle}; fi\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`,
     );
     chmodSync(join(bin, "python3"), 0o755);
+    if (yqFails) {
+      writeFileSync(join(bin, "yq"), "#!/usr/bin/env bash\nexit 1\n");
+      chmodSync(join(bin, "yq"), 0o755);
+    }
     symlinkSync(root, join(dir, ".base"));
     writeFileSync(join(dir, "lane-records.json"), "read in");
     if (kept !== undefined) {
       mkdirSync(join(dir, "post-merge-kept"));
       writeFileSync(join(dir, "post-merge-kept/post-merge.json"), JSON.stringify(kept));
       writeFileSync(join(dir, "post-merge-kept/post-merge-code"), `${code}\n`);
+      if (codeSha !== null) writeFileSync(join(dir, "post-merge-kept/post-merge-code-sha"), `${codeSha}\n`);
       if (records !== undefined) writeFileSync(join(dir, "post-merge-kept/lane-records.json"), records);
     }
     const output = join(dir, "output");
@@ -1513,8 +1533,8 @@ const runMergeCheck = ({ kept, code = "0", records, settle = 0, exit = 3, report
       stdout: result.stdout,
       ran: existsSync(join(dir, "ran")),
       settled: existsSync(join(dir, "settled")) ? readFileSync(join(dir, "settled"), "utf8").trim() : null,
-      output: readFileSync(output, "utf8"),
-      report: JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")),
+      output: existsSync(output) ? readFileSync(output, "utf8") : "",
+      report: existsSync(join(dir, "post-merge.json")) ? JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")) : null,
       records: readFileSync(join(dir, "lane-records.json"), "utf8"),
     };
   } finally {
@@ -1534,13 +1554,22 @@ test("the merge job reuses this run's post-merge report that settle keeps, with 
     assert.equal(run.records, "proved");
     assert.match(run.stdout, /::notice::post-merge-dispatch's check \(exit \d\) still stands by the lane room's reuse rule; reused, not run again/);
   }
-  // settle reads the kept report as the lane's identity, the one the check runs as.
-  const identity = execFileSync("yq", ['.merge."agent-identity" // ""', join(root, "docs/conventions/pr-pipeline.yaml")], { encoding: "utf8" }).trim();
+  // settle is given the commit whose code ran the kept check, and reads the
+  // lane's identity itself.
   const run = runMergeCheck({ kept: keptReport() });
-  assert.match(run.settled, /babysit_verify_evidence\.py settle --repo o\/r --postmerge-result \S+\/post-merge-kept\/post-merge\.json --agent-identity (\S+)$/);
-  assert.equal(/--agent-identity (\S+)$/.exec(run.settled)[1], identity);
+  assert.match(run.settled, new RegExp(`babysit_verify_evidence\\.py settle --repo o/r --postmerge-result \\S+/post-merge-kept/post-merge\\.json --code-sha ${KEPT_SHA}$`));
+  // With no commit kept, an empty one, which settle refuses.
+  assert.match(runMergeCheck({ kept: keptReport(), codeSha: null }).settled, / --code-sha$/);
   // A report kept with no lane records leaves the ones read in.
   assert.equal(run.records, "read in");
+  // The identity read (yq) is the fresh check's alone: a reused report
+  // needs none, so a failing yq fails only the check that needs it.
+  const reused = runMergeCheck({ kept: keptReport(), yqFails: true });
+  assert.equal(reused.status, 0, reused.stdout);
+  assert.equal(reused.ran, false);
+  const fresh = runMergeCheck({ kept: keptReport(), settle: 1, yqFails: true });
+  assert.notEqual(fresh.status, 0);
+  assert.equal(fresh.ran, false);
 });
 
 test("the merge job runs the check itself for no report, a report settle refuses or a check that could not judge", () => {
