@@ -369,6 +369,25 @@ describe("applyRefinement", () => {
     assert.deepEqual(await apply(again, EXACT), { outcome: "skipped", redispatch: false });
   });
 
+  test("an exact refinement of an issue admission parked at status: confirmed lifts it and asks for re-triage", async () => {
+    const parked = { id: 61, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: no trusted-human acceptance criteria.`, user: { id: APP, type: "Bot" } };
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment(), parked], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, true);
+    const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed undefined");
+    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
+    assert.equal(done.length, 3);
+  });
+
+  test("an exact refinement of a status: confirmed issue admission never parked asks for no re-triage", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment()], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, false);
+    assert.equal(writes(fake.calls).length, 1, "the comment only");
+  });
+
   test("an exact refinement of an issue already agent-ready asks for no re-triage", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }, { name: "agent-ready" }] }), comments: [laneComment()], events: [] });
     const result = await apply(fake, EXACT);
