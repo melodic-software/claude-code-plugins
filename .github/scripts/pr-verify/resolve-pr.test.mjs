@@ -144,6 +144,8 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
     headSha: HEAD,
     baseSha: BASE,
     headRef: "feat/x",
+    // `printf '\n\n' | sha256sum`: the fixture has no title or body.
+    bodySha256: "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070",
     linkedIssues: [LINKED],
     specKind: "closes",
     specText: [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }],
@@ -379,6 +381,9 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   ]) {
     const result = await resolve({ pulls: [own(user)], issues: [] }, opts);
     assert.deepEqual(result.specText, expected, user.login);
+    // Whoever's text the spec is, the verdict records its digest:
+    // `printf 'chore: release\n\nBumps the versions.' | sha256sum`.
+    assert.equal(result.bodySha256, "4d3727b112ee786f1155baef0e4a9fbd426b04ef8b210bd60c088e6d3a53e2e9", user.login);
     assert.equal(result.specKind, expected.length ? "pull-request" : "none", user.login);
     assert.deepEqual(result.linkedIssues, [], user.login);
   }
@@ -837,7 +842,8 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
   );
   assert.equal(
     readFileSync(output, "utf8"),
-    `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\n`,
+    `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\n` +
+      "body-sha256=75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070\n",
   );
   assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [LINKED]);
   assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);

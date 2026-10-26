@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, prText, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -30,7 +30,9 @@ const ISSUE = {
   editor_type: null,
   spec_comments: [{ id: 1, updated_at: "2026-10-12T00:00:00Z" }],
 };
-const ids = { pr: "41", headSha: HEAD, baseSha: BASE, runId: "9001", headRef: "feat/x", linkedIssues: [ISSUE] };
+// `printf 'feat: x\n\nthe body' | sha256sum`: the title and body judged.
+const BODY = "30c46c02508c68bec029c3f02ee3b211984ba7568654283435694c3eb137717f";
+const ids = { pr: "41", headSha: HEAD, baseSha: BASE, runId: "9001", headRef: "feat/x", bodySha256: BODY, linkedIssues: [ISSUE] };
 const ok = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
 
 test("each verdict names its artifact with the PR, the head and the verdict", () => {
@@ -44,6 +46,7 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       linked_issues: [ISSUE],
       spec_kind: "closes",
       intent: "issues",
+      intent_sha256: BODY,
       verdict,
       summary: "s",
       notes: ["n"],
@@ -51,6 +54,12 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
     });
     assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}${verdict === "fail" ? "-i7" : ""}`);
   }
+});
+
+test("the judged text is the title and body, and its digest the sha256 of that", () => {
+  assert.equal(prText({ title: "feat: x", body: "the body" }), "feat: x\n\nthe body");
+  assert.equal(prText({ title: "feat: x", body: null }), "feat: x\n\n");
+  assert.equal(createHash("sha256").update(prText({ title: "feat: x", body: "the body" })).digest("hex"), BODY);
 });
 
 test("a FAIL's name carries the issues it records, ascending and once each", () => {
@@ -112,8 +121,20 @@ test("output outside the schema throws", () => {
   }
 });
 
-test("a malformed PR number, SHA, run id or head branch throws", () => {
-  for (const bad of [{ pr: "0" }, { pr: "4x" }, { headSha: "A".repeat(40) }, { baseSha: "" }, { runId: "-1" }, { headRef: "a b" }, { headRef: "" }]) {
+test("a malformed PR number, SHA, run id, head branch or body digest throws", () => {
+  for (const bad of [
+    { pr: "0" },
+    { pr: "4x" },
+    { headSha: "A".repeat(40) },
+    { baseSha: "" },
+    { runId: "-1" },
+    { headRef: "a b" },
+    { headRef: "" },
+    { bodySha256: undefined },
+    { bodySha256: "" },
+    { bodySha256: BODY.toUpperCase() },
+    { bodySha256: BODY.slice(1) },
+  ]) {
     assert.throws(() => buildVerdict({ ...ids, ...bad, output: ok }), undefined, JSON.stringify(bad));
   }
 });
@@ -144,12 +165,11 @@ test("linked issues outside their schema throw", () => {
   // text holds them (resolve-pr.mjs), else its closing issues.
   const own = [{ number: 41, source: "pull-request", body: "t\n\nb", comments: [] }];
   assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: own, output: ok }).intent, "pull-request");
-  // The hash of the title and body judged, which the gate compares live.
-  assert.equal(
-    buildVerdict({ ...ids, linkedIssues: [], specText: own, output: ok }).intent_sha256,
-    createHash("sha256").update("t\n\nb").digest("hex"),
-  );
-  assert.equal(buildVerdict({ ...ids, output: ok }).intent_sha256, undefined);
+  // The hash of the title and body judged, on every verdict, which the gate
+  // compares live for a pull-request intent and across verdicts of the same
+  // change.
+  assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: own, output: ok }).intent_sha256, BODY);
+  assert.equal(buildVerdict({ ...ids, output: ok }).intent_sha256, BODY);
   assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: [], output: ok }).intent, "issues");
   assert.equal(buildVerdict({ ...ids, output: ok }).intent, "issues");
   // The link kind resolve-pr gave each spec entry: a Refs issue is recorded as
@@ -290,6 +310,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     HEAD_SHA: HEAD,
     BASE_SHA: BASE,
     HEAD_REF: "feat/x",
+    BODY_SHA256: BODY,
     SPEC_FILE: spec,
     GITHUB_RUN_ID: "9001",
     VERDICT_DIR: path.join(dir, "verdict"),

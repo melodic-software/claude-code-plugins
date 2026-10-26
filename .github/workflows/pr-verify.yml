@@ -362,6 +362,7 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           HEAD_REF: ${{ steps.pr.outputs.head-ref }}
+          BODY_SHA256: ${{ steps.pr.outputs.body-sha256 }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
@@ -715,6 +716,7 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           HEAD_REF: ${{ steps.pr.outputs.head-ref }}
+          BODY_SHA256: ${{ steps.pr.outputs.body-sha256 }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
@@ -1045,6 +1047,7 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           HEAD_REF: ${{ steps.pr.outputs.head-ref }}
+          BODY_SHA256: ${{ steps.pr.outputs.body-sha256 }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict

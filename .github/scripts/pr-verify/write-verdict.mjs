@@ -13,7 +13,8 @@
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
 // each nullable but the number), which the pr-merge
-// lane's reader checks. Anything malformed throws, so the job fails and
+// lane's reader checks, and the sha256 of the pull request's title and body
+// as the resolver read them (`prText`, BODY_SHA256). Anything malformed throws, so the job fails and
 // uploads nothing. Model text is cut to fixed lengths (judgment) and never
 // reaches a shell.
 
@@ -33,6 +34,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const REF = /^[A-Za-z0-9._/-]+$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 const ISSUE_KEYS = "author_id,author_login,author_type,editor_id,editor_login,editor_type,last_edited_at,number,spec_comments";
 // Each spec comment the model got: its id and update time, exactly.
 const specComment = (comment) =>
@@ -67,15 +69,21 @@ function checkIssues(issues) {
   return issues;
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [] }) {
+// A pull request's title and body as one text: the spec when it is its own
+// (resolve-pr.mjs), and what `intent_sha256` hashes.
+export const prText = (pull) => `${String(pull?.title ?? "")}\n\n${String(pull?.body ?? "")}`;
+export const sha256Hex = (text) => createHash("sha256").update(String(text)).digest("hex");
+
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, bodySha256, linkedIssues, specText = [] }) {
   if (
     !NUMBER.test(String(pr)) ||
     !SHA.test(headSha ?? "") ||
     !SHA.test(baseSha ?? "") ||
     !RUN_ID.test(String(runId)) ||
-    !REF.test(headRef ?? "")
+    !REF.test(headRef ?? "") ||
+    !SHA256.test(bodySha256 ?? "")
   ) {
-    throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
+    throw new Error("the PR number, a SHA, the run id, the head branch or the body digest is malformed");
   }
   let parsed = output;
   if (typeof output === "string") {
@@ -117,9 +125,12 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     // What the spec was: the pull request's own title and body
     // (babysit_verify_evidence.INTENT_PULL_REQUEST), else its closing issues.
     intent: own ? "pull-request" : "issues",
-    // The title and body it judged, which the gate compares live
-    // (babysit_verify_evidence): an edit since refuses the pass.
-    ...(own ? { intent_sha256: createHash("sha256").update(String(own.body)).digest("hex") } : {}),
+    // The title and body it judged (`prText`), on every verdict. The gate
+    // compares a pull-request intent's live (babysit_verify_evidence): an
+    // edit since refuses the pass. At a head of the same change, a pass that
+    // judged other text than the earlier FAIL clears it after a trusted
+    // person's body edit between them (`_body_fix_pass`).
+    intent_sha256: bodySha256,
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
@@ -237,6 +248,7 @@ export function main(env = process.env) {
     "HEAD_SHA",
     "BASE_SHA",
     "HEAD_REF",
+    "BODY_SHA256",
     "SPEC_FILE",
     "GITHUB_RUN_ID",
     "VERDICT_DIR",
@@ -281,6 +293,7 @@ export function main(env = process.env) {
     baseSha: env.BASE_SHA,
     runId: env.GITHUB_RUN_ID,
     headRef: env.HEAD_REF,
+    bodySha256: env.BODY_SHA256,
     linkedIssues,
     specText,
   });

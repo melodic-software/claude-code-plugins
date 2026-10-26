@@ -440,5 +440,7 @@ test("the resolver reads the trusted-actor list from main in both jobs", () => {
     assert.match(block, /SPEC_FROM_BODY_APPS=\$\(yq '\.adoption\."spec-from-body-apps" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
     assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS\n/, job);
     assert.match(step("Write the verdict", job), /SPEC_TEXT_FILE: \$\{\{ github\.workspace \}\}\/pr-verify-data\/spec-text\.json\n/, job);
+    // Every verdict records the digest of the title and body this job's resolver read.
+    assert.match(step("Write the verdict", job), /BODY_SHA256: \$\{\{ steps\.pr\.outputs\.body-sha256 \}\}\n/, job);
   }
 });

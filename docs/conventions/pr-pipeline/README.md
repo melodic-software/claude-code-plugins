@@ -1622,7 +1622,13 @@ head:
   every counted pass at the head records `spec_kind` `closes` with exactly the `linked_issues` each
   `fail` records: a closing pass is judged against the whole spec, which holds the `Refs:` slice
   that failed. The reverse, a missing or other kind, linked issues that differ or cannot be read,
-  or a `fail` record that cannot be read keeps the refusal. A pass judged
+  or a `fail` record that cannot be read keeps the refusal. It also clears when every counted `fail`
+  there and every counted pass at the head record the title and body each judged
+  (`intent_sha256`), no pass's equals a `fail`'s, and the pull request body's last edit was made by
+  a `kind: human` id on the trusted list after every such `fail`'s run was created and before every
+  pass's: the `fail` was about text a person then fixed. The lanes App's or any other account's
+  edit, no edit, an edit outside that window, equal or missing digests, or an edit that cannot be
+  read keeps the refusal. A pass judged
   before a later `fail` never clears it. Any other failed read of a run time or a diff refuses as the next item does;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
@@ -2341,8 +2347,8 @@ App included, still needs a closing issue a trusted person wrote: a model that w
 would also have written the spec it is graded against.
 
 The body counts only if it was never edited, or was last edited by its author or a trusted person;
-the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
-(`verify:spec-changed`) once the live title and body differ.
+every verdict records the sha256 of the title and body (`intent_sha256`), and for this intent the
+gate refuses the pass (`verify:spec-changed`) once the live title and body differ.
 
 In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the
 denied paths and the manifest review score only the PR's changed paths that a commit not its

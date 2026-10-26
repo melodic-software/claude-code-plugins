@@ -42,7 +42,7 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
+import { headRefDigest, issuesSuffix, isVerdictName, NAME, prText, sha256Hex } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
 
@@ -457,9 +457,8 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     (humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id)) &&
     (bodyEditor === null || bodyEditor === pull.user?.id || humans.has(bodyEditor));
   if (spec.linkedIssues.length === 0 && bodyIsIntent) {
-    const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
     spec.specKind = "pull-request";
-    spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
+    spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body: prText(pull), comments: [] }];
   }
   // A pass judged before the spec last changed is one the gate refuses, so
   // the head is judged again against the spec as it is now.
@@ -473,6 +472,8 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     headSha: head,
     baseSha: pull.base.sha,
     headRef: String(pull.head.ref ?? ""),
+    // The title and body this run judges, which every verdict records.
+    bodySha256: sha256Hex(prText(pull)),
     ...spec,
   };
 }
@@ -533,6 +534,7 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     `head-sha=${result.headSha ?? ""}`,
     `base-sha=${result.baseSha ?? ""}`,
     `head-ref=${result.headRef ?? ""}`,
+    `body-sha256=${result.bodySha256 ?? ""}`,
   ];
   appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
   const summary = {

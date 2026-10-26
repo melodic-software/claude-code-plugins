@@ -22,6 +22,7 @@ The run records are the gate suite's own forgeries and unfinished runs.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import re
@@ -346,10 +347,17 @@ WRITER = RESOLVER.with_name("write-verdict.mjs")
 KIND_NODE = """
 import { buildVerdict } from %s;
 const { linked, entries } = JSON.parse(process.argv[1]);
-const ids = { pr: "41", headSha: "a".repeat(40), baseSha: "b".repeat(40), runId: "1", headRef: "feat/x" };
+const ids = { pr: "41", headSha: "a".repeat(40), baseSha: "b".repeat(40), runId: "1", headRef: "feat/x", bodySha256: "0".repeat(64) };
 const output = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
 console.log(JSON.stringify(entries.map((kind) =>
   buildVerdict({ ...ids, linkedIssues: [linked], output, specText: [{ number: 7, spec_kind: kind, body: "b", comments: [] }] }).spec_kind)));
+"""
+TEXT_NODE = """
+import { buildVerdict, prText, sha256Hex } from %s;
+const ids = { pr: "41", baseSha: "b".repeat(40), runId: "1", headRef: "feat/x", linkedIssues: [] };
+console.log(JSON.stringify(JSON.parse(process.argv[1]).map(({ head, verdict, pull }) =>
+  buildVerdict({ ...ids, headSha: head, bodySha256: sha256Hex(prText(pull)),
+    output: JSON.stringify({ verdict, summary: "s", notes: [] }) }).intent_sha256)));
 """
 REFS_NODE = """
 import { refsIssue } from %s;
@@ -403,6 +411,49 @@ class TheGateBindsThePassToTheSpecKindTheWriterRecords(unittest.TestCase):
                     self.assertEqual(
                         refusal, None if judged == linked else "verify:spec-changed"
                     )
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheGateReadsTheTextDigestTheWriterRecords(unittest.TestCase):
+    def test_a_body_fix_clears_on_the_digests_the_writer_records(self) -> None:
+        texts = [
+            {
+                "head": gate.EARLIER,
+                "verdict": "fail",
+                "pull": {"title": "feat: x", "body": "old"},
+            },
+            {
+                "head": gate.HEAD,
+                "verdict": "pass",
+                "pull": {"title": "feat: x", "body": "fixed"},
+            },
+            {
+                "head": gate.HEAD,
+                "verdict": "pass",
+                "pull": {"title": "feat: x", "body": None},
+            },
+        ]
+        script = TEXT_NODE % json.dumps(WRITER.as_uri())
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(texts)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        failed, fixed, empty = json.loads(proc.stdout)
+        # The text `_pass_refusal` hashes live for a pull-request intent.
+        for digest, (title, body) in (
+            (failed, ("feat: x", "old")),
+            (fixed, ("feat: x", "fixed")),
+            (empty, ("feat: x", "")),
+        ):
+            live = hashlib.sha256(f"{title}\n\n{body}".encode()).hexdigest()
+            self.assertEqual(digest, live)
+        body_fix = gate.ATrustedBodyFixClearsABodyFailOnTheSameChange()
+        self.assertIsNone(gate.read(body_fix.body_fix(failed, fixed)).refusal)
+        self.assertEqual(
+            gate.read(body_fix.body_fix(fixed, fixed)).refusal, "verify:earlier-fail"
+        )
 
 
 QUEUE_CHECK = RESOLVER.parents[1] / "pr-merge/merge-holds.mjs"

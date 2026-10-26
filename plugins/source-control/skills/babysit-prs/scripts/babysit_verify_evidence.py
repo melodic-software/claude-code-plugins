@@ -44,7 +44,14 @@ from a completed, successful one. Any other artifact is ignored.
   against the whole spec, which the `refs` slice that failed is part of. The
   reverse, a key that is missing or holds anything else, linked issues that
   differ or cannot be read, and a FAIL record that cannot be read or records
-  another pull request, head or verdict keep `verify:earlier-fail`. Any
+  another pull request, head or verdict keep `verify:earlier-fail`. It is
+  cleared too when every counted FAIL there and every counted pass at the
+  head record the title and body each judged (`intent_sha256`), no pass's
+  equals a FAIL's, and the pull request body's last edit was a trusted
+  person's, made after every such FAIL's run was created and before every
+  pass's (`_body_fix_pass`): the FAIL was about text a person then fixed,
+  which the lane cannot do for itself. An edit that cannot be read keeps
+  `verify:earlier-fail`. Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -235,6 +242,8 @@ INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
+# A verdict's `intent_sha256`: the sha256 of the title and body it judged.
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
 NEEDS_HUMAN = (
     REPEATED_FAIL,
     TOO_OLD,
@@ -257,7 +266,8 @@ ACTOR_FRAGMENT = (
 )
 CLOSING_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){body closingIssuesReferences(first:10){totalCount "
+    "pullRequest(number:$n){body lastEditedAt editor{...actor} "
+    "closingIssuesReferences(first:10){totalCount "
     f"nodes{{{ISSUE_FIELDS}}}}}}}}}}}{ACTOR_FRAGMENT}"
 )
 # The one issue a `Refs:` line names, when the pull request closes none, and
@@ -639,6 +649,12 @@ def _issue_numbers(record: dict[str, Any]) -> frozenset[int]:
     if not all(isinstance(n, int) and not isinstance(n, bool) for n in numbers):
         raise _Unreadable("verdict records a linked issue with no number")
     return frozenset(numbers)
+
+
+def _text_digest(record: dict[str, Any]) -> bool:
+    """The verdict records the sha256 of the title and body it judged."""
+    digest = record.get("intent_sha256")
+    return isinstance(digest, str) and SHA256_RE.fullmatch(digest) is not None
 
 
 def _is_id(value: Any, run_id: int) -> bool:
@@ -1535,7 +1551,10 @@ class Reader:
             or not self._change_differs(
                 head,
                 failed,
-                lambda sha: self._wider_pass(number, sha, fail_artifacts, passes),
+                lambda sha: (
+                    self._wider_pass(number, sha, fail_artifacts, passes)
+                    or self._body_fix_pass(number, sha, fail_artifacts, passes)
+                ),
             )
         ):
             refusal = EARLIER_FAIL
@@ -1763,6 +1782,61 @@ class Reader:
         except _Unreadable:
             return False
         return True
+
+    def _body_fix_pass(
+        self,
+        number: int,
+        sha: str,
+        fail_artifacts: dict[str, list[tuple[int, str, Any]]],
+        passes: list[tuple[int, str, Any]],
+    ) -> bool:
+        """Every counted FAIL at `sha` for pull request `number` and every
+        counted pass at the head record the title and body each judged
+        (`intent_sha256`), no pass's equals a FAIL's, and the body's last
+        edit (`lastEditedAt`, `editor`) was made by a User on the trusted
+        list's humans (`_trusted_actor`) after every such FAIL's run was
+        created and before every pass's: a person fixed the text the FAIL was
+        about. The lanes App's edit never counts, so the lane cannot buy a
+        pass by rewriting its own body. A record, edit or time that cannot
+        be read is False."""
+        fails = fail_artifacts.get(sha, [])
+        if not passes or not fails:
+            return False
+        try:
+            failed: set[str] = set()
+            for run_id, name, artifact in fails:
+                record = self._record(run_id, name, artifact)
+                if (
+                    record.get("pr") != number
+                    or record.get("head_sha") != sha
+                    or record.get("verdict") != "fail"
+                    or not _text_digest(record)
+                ):
+                    return False
+                failed.add(record["intent_sha256"])
+            for run_id, name, artifact in passes:
+                record = self._record(run_id, name, artifact)
+                if not _text_digest(record) or record["intent_sha256"] in failed:
+                    return False
+            pull = self._linked.get(number) or json_object(
+                self._graphql(CLOSING_QUERY, number, "closing issues").get(
+                    "pullRequest"
+                )
+            )
+            self._linked[number] = pull
+            editor = json_object(pull.get("editor"))
+            if not self._trusted_actor(
+                editor.get("__typename"), editor.get("databaseId")
+            ):
+                return False
+            edited = postmerge._time(pull.get("lastEditedAt"))
+            starts = [self._fresh_created(run_id) for run_id, _, _ in fails]
+            begun = [self._fresh_created(run_id) for run_id, _, _ in passes]
+        except (_Unreadable, postmerge.PostMergeReadError):
+            return False
+        if None in starts or None in begun:
+            return False
+        return max(s for s in starts if s) < edited < min(b for b in begun if b)
 
     def _listed_id(self, run_id: int, name: str) -> Any:
         """The id the listing this Reader judged on gives the artifact named
