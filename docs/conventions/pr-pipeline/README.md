@@ -746,8 +746,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   claude-review or a lower security one, is listed in the reasons and does not hold.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
-- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
-  `.claude/source-control.md`, the cap variable, and `off` while any demotion issue is open.
+- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key (the lower of
+  `docs/conventions/source-control.yaml` and `.claude/source-control.md`, each counted only when it
+  sets one; a YAML the wrapper cannot trust means `off`), the cap variable, and `off` while any
+  demotion issue is open.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `C2` or `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
   can read variables but not write them. A 404 after the variables listing proved readable means no

@@ -348,11 +348,12 @@ file's H2 only. Two readers apply this order:
   a key holds a value outside the table below. The lane then treats the team layer as unreadable,
   which keeps merges `human-only`.
 
-The merge gate (`babysit_merge.py --unattended`) still reads `babysit_loop_merge` from the legacy
-file only, at the pull request's base SHA, so until it reads the YAML too, the two files must agree
-on that key. A YAML-only value holds every unattended merge, and a YAML value lower than the legacy
-H2 lowers the lane but not the gate. Every change to `babysit_loop_merge` is written to both files
-while the legacy file exists.
+The merge gate (`babysit_merge.py --unattended`) reads `babysit_loop_merge` from both files at the
+pull request's base SHA and takes the lower of the values they set, so a demotion in either file
+holds the gate, and a file that sets none does not count. A YAML the gate cannot read, the shared
+reader rejects, or that holds an empty, non-scalar or unknown value turns the rung off, never
+falling back to the legacy value. A raise therefore reaches the gate only when both files carry
+it: every change to `babysit_loop_merge` is written to both files while the legacy file exists.
 
 | Key | Value | Default when absent |
 |---|---|---|

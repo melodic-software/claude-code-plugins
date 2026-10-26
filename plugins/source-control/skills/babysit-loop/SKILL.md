@@ -103,7 +103,7 @@ merge rung, at lane start.
 **Interactive ambiguity**, an interactive launch with absent or ambiguous config (no stop mode,
 no tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
 unresolved keys, then offers to persist the answers: repo policy (stop mode, tier, merge rung) to
-the team-tracked layer, `docs/conventions/source-control.yaml`, personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only, that write is the recorded ratification. While the repository still has `.claude/source-control.md`, a merge-rung change goes into its `## babysit_loop_merge` H2 as well: the merge gate reads only that file (config reference, "The team layer of four keys is the YAML").
+the team-tracked layer, `docs/conventions/source-control.yaml`, personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only, that write is the recorded ratification. While the repository still has `.claude/source-control.md`, a merge-rung change goes into its `## babysit_loop_merge` H2 as well: the merge gate takes the lower of the two files (config reference, "The team layer of four keys is the YAML").
 
 **Headless never blocks** (headless-config floor, per the convention): take explicit or persisted
 config, else tier defaults, and log the assumption.

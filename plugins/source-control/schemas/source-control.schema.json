@@ -63,7 +63,7 @@
     },
     "babysit_loop_merge": {
       "enum": ["human-only", "c2-mechanical", "c3-autonomous", "full-autonomy"],
-      "description": "The loop lane's standing merge rung, ordered human-only < c2-mechanical < c3-autonomous < full-autonomy. A raise binds from this team layer only; every other source may only lower it. Absent, it is human-only while the team layer carries no babysit_loop_* key and c2-mechanical once it does. For one release a key absent here is read from the ## babysit_loop_merge section of .claude/source-control.md. The unattended merge gate still reads only that section, so keep the two equal while the file exists."
+      "description": "The loop lane's standing merge rung, ordered human-only < c2-mechanical < c3-autonomous < full-autonomy. A raise binds from this team layer only; every other source may only lower it. Absent, it is human-only while the team layer carries no babysit_loop_* key and c2-mechanical once it does. For one release a key absent here is read from the ## babysit_loop_merge section of .claude/source-control.md. The unattended merge gate reads both and takes the lower, so a raise needs both files while the legacy file exists."
     },
     "babysit_loop_grace_window_minutes": {
       "type": "integer",

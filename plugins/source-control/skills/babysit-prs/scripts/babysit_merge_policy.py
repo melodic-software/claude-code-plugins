@@ -696,13 +696,60 @@ def _loop_merge(text: str) -> str | None:
     return values[0] if len(values) == 1 and values[0] else None
 
 
+def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
+    """(`babysit_loop_merge` from the team YAML or None when it sets none,
+    a note when the file cannot be trusted). A file the shared reader
+    rejects, or an empty, non-scalar or unknown value, is a note."""
+    path = repo_config.YAML_CONFIG_PATH
+    values = _concern_values(text, [(LOOP_MERGE_KEY, False)])
+    if values is None:
+        return None, f"{path}: the shared YAML reader rejects it"
+    found = values[LOOP_MERGE_KEY]
+    if not found:
+        if re.search(rf"^{LOOP_MERGE_KEY}[ \t]*:", text, re.M):
+            return None, f"{path}: {LOOP_MERGE_KEY} is not a scalar value"
+        return None, None
+    if found[0] not in LOOP_MERGE_RUNG:
+        return None, f"{path}: {LOOP_MERGE_KEY} {found[0]!r} is not a known value"
+    return found[0], None
+
+
+def _resolve_loop_merge(
+    file_at: Callable[[str, str], str | None], base_sha: str, notes: list[str]
+) -> str | None:
+    """The lower of the team YAML's and the legacy file's `babysit_loop_merge`
+    at `base_sha`, counting only the files that set one, so a demotion in
+    either file reaches the gate. A team YAML that is unreadable or
+    untrustworthy yields None (off), never the legacy value alone."""
+    try:
+        source = file_at(SOURCE_CONTROL_PATH, base_sha)
+    except PolicyReadError as exc:
+        source = None
+        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
+    legacy = _loop_merge(source) if source is not None else None
+    try:
+        team_text = file_at(repo_config.YAML_CONFIG_PATH, base_sha)
+    except PolicyReadError as exc:
+        notes.append(f"{repo_config.YAML_CONFIG_PATH} unreadable: {exc}")
+        return None
+    team, note = _team_loop_merge(team_text) if team_text is not None else (None, None)
+    if note:
+        notes.append(note)
+        return None
+    found = [value for value in (team, legacy) if value is not None]
+    if not found:
+        return None
+    return min(found, key=lambda v: RUNG_RANK[LOOP_MERGE_RUNG.get(v, "off")])
+
+
 def read_config_at(
     repo: str,
     base_sha: str,
     file_at: Callable[[str, str], str | None] | None = None,
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    from `.claude/source-control.md`, both read at `base_sha` through
+    (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
+    and `.claude/source-control.md`), all read at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
     holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
     file the shared reader rejects is off; an absent one has no merge block
@@ -724,12 +771,7 @@ def read_config_at(
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
-    try:
-        source = file_at(SOURCE_CONTROL_PATH, base_sha)
-    except PolicyReadError as exc:
-        source = None
-        notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
-    loop_merge = _loop_merge(source) if source is not None else None
+    loop_merge = _resolve_loop_merge(file_at, base_sha, notes)
 
     text = file_at(CONFIG_PATH, base_sha)
     off = PipelineConfig(base_sha, "off", None, None, None, (), loop_merge)

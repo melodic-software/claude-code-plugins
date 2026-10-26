@@ -68,6 +68,7 @@ merge:
     max-changed-lines: 200
 """
 SOURCE_CONTROL = "## babysit_loop_merge\n\nc2-mechanical\n"
+TEAM_YAML = "docs/conventions/source-control.yaml"
 
 
 def ok(payload: Any) -> subprocess.CompletedProcess[str]:
@@ -95,7 +96,9 @@ class GhFake:
 
     `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
     an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
-    the query's string variables, which may return a whole gh result. Any other call fails the test.
+    the query's string variables, which may return a whole gh result. Any other call fails the test,
+    except a read of the team `docs/conventions/source-control.yaml` no test set: that file is
+    absent from a readable tree, so a fixture written before it existed stays a legacy-only repo.
     """
 
     def __init__(self) -> None:
@@ -123,6 +126,10 @@ class GhFake:
             raise AssertionError(f"unexpected graphql call: {query[:80]}")
         endpoint = args[1]
         if endpoint not in self.rest:
+            prefix, _, ref = endpoint.partition(f"/contents/{TEAM_YAML}?ref=")
+            if ref:
+                self.rest.setdefault(f"{prefix}/contents?ref={ref}", [])
+                return http_error(404)
             raise AssertionError(f"unexpected gh call: {args}")
         answer = self.rest[endpoint]
         if isinstance(answer, int):
@@ -223,6 +230,7 @@ def config_fake(
     case: unittest.TestCase,
     pipeline: str | int | None,
     source: str | int | None = SOURCE_CONTROL,
+    team: str | int | None = None,
 ) -> GhFake:
     """Contents reads at SHA: text, an HTTP status, or None for an absent file."""
     gh = GhFake().install(case)
@@ -230,6 +238,7 @@ def config_fake(
     for path, value in (
         (policy.CONFIG_PATH, pipeline),
         (policy.SOURCE_CONTROL_PATH, source),
+        (TEAM_YAML, team),
     ):
         endpoint = f"repos/{REPO}/contents/{path}?ref={SHA}"
         gh.rest[endpoint] = (
@@ -452,6 +461,43 @@ class ReadConfigAt(unittest.TestCase):
         duplicate = SOURCE_CONTROL + "\n## babysit_loop_merge\n\nfull-autonomy\n"
         config_fake(self, PIPELINE, duplicate)
         self.assertIsNone(policy.read_config_at(REPO, SHA).loop_merge)
+
+    def test_the_lower_of_the_team_yaml_and_the_legacy_file_reaches_the_gate(
+        self,
+    ) -> None:
+        loose = "## babysit_loop_merge\n\nc3-autonomous\n"
+        for team, source, expected in (
+            # A demotion written only to the YAML holds the gate.
+            ("babysit_loop_merge: human-only\n", SOURCE_CONTROL, "human-only"),
+            # A demotion written only to the legacy file still holds it.
+            ("babysit_loop_merge: c3-autonomous\n", SOURCE_CONTROL, "c2-mechanical"),
+            ("babysit_loop_merge: c2-mechanical\n", loose, "c2-mechanical"),
+            # One file alone supplies the value.
+            ("babysit_loop_merge: c2-mechanical\n", None, "c2-mechanical"),
+            (None, SOURCE_CONTROL, "c2-mechanical"),
+            ("babysit_loop_stop_mode: standing\n", SOURCE_CONTROL, "c2-mechanical"),
+            (None, None, None),
+        ):
+            with self.subTest(team=team, source=source):
+                config_fake(self, PIPELINE, source, team)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.loop_merge, expected)
+                self.assertEqual(config.notes, ())
+
+    def test_an_untrustworthy_team_yaml_holds_the_gate_over_the_legacy_value(
+        self,
+    ) -> None:
+        for team, noted in (
+            ("babysit_loop_merge: {a: b}\n", "rejects it"),
+            ("babysit_loop_merge:\n  - human-only\n", "not a scalar value"),
+            ("babysit_loop_merge: c3-this-run\n", "not a known value"),
+            (502, "unreadable"),
+        ):
+            with self.subTest(team=team):
+                config_fake(self, PIPELINE, SOURCE_CONTROL, team)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertIsNone(config.loop_merge)
+                self.assertTrue(any(noted in n for n in config.notes), config.notes)
 
 
 class EffectiveRung(unittest.TestCase):
