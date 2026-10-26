@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "file: plugins/multi-agent/scripts/resolve-roles.sh\nfunction: role_json\nfallback: opus\n",
+      "why": "the resolver"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file: plugins/multi-agent/reference/defaults.yaml\nfunction: none\nfallback: opus\n",
+      "why": "names the defaults file, which only sets the value"
+    },
+    {
+      "answer": "file: plugins/multi-agent/skills/route/scripts/route.sh\nfunction: none\nfallback: opus\n",
+      "why": "names the wrapper"
+    }
+  ]
+}

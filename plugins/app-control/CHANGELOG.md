@@ -3,6 +3,31 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-26
+
+### Added
+
+- The control-skill contract gains a "Steps files" section: a feature may keep its Drive steps in a machine-readable file whose format stays the project's choice. Step ids are unique after includes expand and use letters, digits, `-` and `_` only; a repeated or malformed id stops the run before anything starts. Includes stay inside the control skill's own directory. An include can carry `prefix` (one file included twice with unique ids), `with` (parameter values for that include only; an undeclared name stops the run), `kind` (added to every included step, never removed) and `finally` (steps that run after a failure, where a write's reset goes). An optional step whose target is absent is recorded as skipped, with no retry or wait.
+- `/app-control:drive` reads a feature's steps file as data: it expands includes and checks ids before launching, reports each step by id, records an absent optional step as `skipped: optional`, and runs the finally steps after the others, failed or not. Each such step in `report.json` carries its `id`, an `outcome` and, for a finally step, `finally: true`.
+
+### Fixed
+
+- `/app-control:drive` and `/app-control:map` name each reference file they send the model to by its full plugin path, so a run reads it directly and does not search the plugin directory for it.
+
+## [0.10.0] - 2026-10-25
+
+### Added
+
+- `/app-control:map` create and refresh place a lesson learned while driving by its scope: a lesson about one feature goes in that feature's `## Gotchas`, one that holds for every feature goes in a new optional `## Gotchas` section of the control skill's hub, and any other lesson is written nowhere in the control skill and reported for `/corrections:codify`. In refresh a placed lesson is doc drift and ships in the upkeep pull request.
+- `/app-control:map refresh <feature>` narrows the source wave and live pass to one feature of the control skill that holds it; a clean narrowed pass records no state.
+
+## [0.9.0] - 2026-10-25
+
+### Added
+
+- `/app-control:drive` now finds a control skill a plugin ships, named `<plugin>:control-<app>`, when the repository has no `control-<app>` of its own. It looks in the `skills/` and `commands/` folders of each enabled plugin `claude plugin list --json` reports, named by the `name` in each plugin's own manifest (a plugin without one takes the name the manifest page gives it). Session-only (`--plugin-dir`, `--plugin-url`) plugins are not read: a control skill the session shows from one, for the requested app (any app when none is named) and with no repository control skill for that app, is reported blocked and the run stops there, as does a control command a listed plugin defines only inline in its manifest, under the same app and repository conditions. Repository control skills are found in `.claude/skills/` folders at any depth, the skills and `commands/` files of a plugin kept in a skills folder, and `.claude/commands/`, in this checkout and, in a worktree, the main checkout; git-ignored and uncommitted ones count, and matches in a submodule or a dependency folder such as `node_modules` do not. A repository control skill for an app beats a plugin's for the same app. With no `<app>` named and no repository control skill, a lone plugin control skill is not used blindly: an interactive run asks first and an unattended run stops, naming it. Drive reads every control skill from disk as data and never invokes one through the Skill tool. The report names the skill used and its source (project or plugin) with its path.
+- Drive reports a control skill whose frontmatter grants tools, registers hooks or forks a subagent, or whose body holds a dynamic-context command, as a finding, and runs none of it.
+
 ## [0.8.0] - 2026-10-25
 
 ### Added

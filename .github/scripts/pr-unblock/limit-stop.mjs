@@ -3,6 +3,9 @@
 // it is the gate's completed neutral skip for an untrusted trigger, or a run
 // the usage limit stopped whose limit has reset: the lane's next trigger then
 // dispatches it again, at most `limits.limit-stops-per-head` times on one head.
+// A run whose credential was refused (class `auth`, a 401) is a limit stop
+// too: the next run on the same credential fails the same way, so the head
+// waits `fallback-reset` hours instead of spending its stops at once.
 //
 // A limit stop is read only from a failed run's lane record, which
 // report-check-run writes from runner-computed outputs. The record is the first
@@ -38,19 +41,39 @@ function summaryRecord(run) {
   return { failureClass: match[3] ?? "", resets: match[4] ?? "" };
 }
 
-// When the limit that stopped the failed `run` resets (epoch ms), or null when
-// its lane record does not mark it a limit stop. The stated reset is held
+// The lane record classes that stop a run until a reset.
+const STOP_CLASSES = new Set(["rate-limit", "auth"]);
+
+// The failed `run`'s limit stop as { failureClass, resetsAt } (epoch ms), or
+// null when its lane record does not mark it one. The stated reset is held
 // within the limits' clamp after the run ended.
-export function limitResetsAt(run, limits = LIMIT_DEFAULTS) {
+export function limitStop(run, limits = LIMIT_DEFAULTS) {
   const ended = Date.parse(run.completed_at ?? "");
   if (!Number.isFinite(ended) || run.conclusion !== "failure") {
     return null;
   }
   const summary = summaryRecord(run);
-  if (summary?.failureClass !== "rate-limit") {
+  if (!STOP_CLASSES.has(summary?.failureClass)) {
     return null;
   }
-  return clampReset(summary.resets ? Date.parse(summary.resets) : null, ended, limits);
+  return { failureClass: summary.failureClass, resetsAt: clampReset(summary.resets ? Date.parse(summary.resets) : null, ended, limits) };
+}
+
+// When the limit that stopped the failed `run` resets (epoch ms), or null when
+// it is no limit stop.
+export const limitResetsAt = (run, limits = LIMIT_DEFAULTS) => limitStop(run, limits)?.resetsAt ?? null;
+
+// The limit stop among `runs` that has not reset by `now` and resets last, or
+// null: what a dispatcher names when it skips a head that waits on one.
+export function pendingStop(runs, { now, limits = LIMIT_DEFAULTS }) {
+  let pending = null;
+  for (const run of runs) {
+    const stop = limitStop(run, limits);
+    if (stop && now < stop.resetsAt && !(pending?.resetsAt >= stop.resetsAt)) {
+      pending = stop;
+    }
+  }
+  return pending;
 }
 
 const untrustedSkip = (run) =>
@@ -101,9 +124,26 @@ export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry =
 // Without an opt-in, limit stops never handle the head for good, however many:
 // anyHandles holds it at the cap, and a head recorded at one cap would stay
 // recorded under a higher one.
-export function permanentlyHandles(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
+export function permanentlyHandles(runs, options = {}) {
+  const { done, retryable } = completedRuns(runs, options);
+  // cappedAt needs every finished run retryable, so the two cases are disjoint.
+  return done.some((run) => !retryable(run)) || cappedAt(runs, options) > 0;
+}
+
+function completedRuns(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false }) {
   const done = runs.filter((run) => run.status === "completed" && !untrustedSkip(run));
   const retryable = (run) => released(run, heldSkipsRelease) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run, limits) !== null);
-  const capped = (failuresRetry || heldSkipsRelease) && done.length > 0 && done.filter(retryable).length >= limits["limit-stops-per-head"];
-  return done.some((run) => !retryable(run)) || capped;
+  return { done, retryable };
+}
+
+// With an opt-in, the number of finished runs when every one is retryable and
+// they reach `limit-stops-per-head`, the head's hard end, else 0: the part of
+// permanentlyHandles a dispatcher reports as a stop. A head with any other
+// finished run (a success, an escalation) is done, not capped.
+export function cappedAt(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
+  if (!failuresRetry && !heldSkipsRelease) {
+    return 0;
+  }
+  const { done, retryable } = completedRuns(runs, { limits, failuresRetry, heldSkipsRelease });
+  return done.length >= limits["limit-stops-per-head"] && done.length > 0 && done.every(retryable) ? done.length : 0;
 }

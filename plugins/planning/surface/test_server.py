@@ -356,6 +356,11 @@ class TestApi(ServerCase):
         spec.write_text(
             json.dumps(
                 {
+                    "restate": {
+                        "text": "Earlier rounds are settled. Two new branches open. This round turns on N1.",
+                        "decided": [],
+                        "open": ["N1", "N2"],
+                    },
                     "groups": [
                         {"id": "g9", "title": "New group", "dependsOn": ["wrap"]}
                     ],
@@ -400,6 +405,7 @@ class TestApi(ServerCase):
         bad.write_text(
             json.dumps(
                 {
+                    "restate": {"text": "Nothing yet.", "decided": [], "open": []},
                     "questions": [
                         {"id": "N3", "short": "x", "title": "x"},
                         {"id": "N4", "short": "y", "title": "y", "dependsOn": ["NOPE"]},
@@ -2651,6 +2657,180 @@ class TestFrontierLockHard(OpsCase):
         )
 
 
+class TestChangedAnswerMarksEveryDirectDependent(OpsCase):
+    """#9714: a changed or reopened answer marks each direct dependent stale (it holds a decision)
+    or upstream-changed (it does not), one hop per value-changing answer; a repeated value marks
+    nothing. upstream-changed locks Save under frontierLock confirm, the default, until Claude
+    revises the question or posts a reconfirm op, and accept-all skips it."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C", dependsOn=["A"]),
+            question("D", dependsOn=["B"]),
+            question("E", dependsOn=["B"]),
+            question("F", dependsOn=["A"]),
+            question("G", dependsOn=["F"]),
+            question("H", dependsOn=["F"]),
+        )
+
+    def changed_by(self):
+        return {
+            q["id"]: q["changedBy"]
+            for q in self.state()["questions"]["questions"]
+            if "changedBy" in q
+        }
+
+    def test_1_first_answers_mark_no_undecided_dependent(self):
+        for qid in "ABEFH":
+            self.decide(qid)
+        self.assertEqual(set(self.states().values()), {"open"})
+        self.assertEqual(self.changed_by(), {})
+
+    def test_2_a_changed_value_stales_the_decided_and_marks_the_undecided(self):
+        self.decide("A", "alt", alt="a")
+        states = self.states()
+        self.assertEqual(
+            {k: states[k] for k in "BCFG"},
+            {"B": "stale", "C": "upstream-changed", "F": "stale", "G": "upstream-pending"},
+        )
+        self.assertEqual(self.changed_by(), {"C": ["A"]})
+
+    def test_3_save_is_locked_and_accept_all_skips_it_while_ask_still_saves(self):
+        code, data = self.post({"id": "C", "kind": "accept"})
+        self.assertEqual(
+            (code, data), (409, {"error": "upstream-changed", "changedBy": ["A"]})
+        )
+        self.assertEqual(self.post({"id": "C", "kind": "ask", "text": "Why?"})[0], 200)
+        items = [{"id": "C", "contentRev": 0}]
+        code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
+        self.assertEqual(
+            (code, data["skipped"]), (409, [{"id": "C", "reason": "ineligible"}])
+        )
+        rc, out = self.rp("status")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("upstream changed: C (A changed); revise or reconfirm it", out)
+
+    def test_4_a_new_value_on_a_stale_question_marks_its_own_dependents(self):
+        self.decide("B", "alt", alt="b")
+        states = self.states()
+        self.assertEqual(
+            {k: states[k] for k in "BDE"},
+            {"B": "open", "D": "upstream-changed", "E": "stale"},
+        )
+        self.assertEqual(self.changed_by(), {"C": ["A"], "D": ["B"]})
+
+    def test_5_a_repeated_value_marks_nothing(self):
+        self.decide("F")  # stale, answered again as before
+        self.decide("A", "alt", alt="a")
+        states = self.states()
+        self.assertEqual(
+            {k: states[k] for k in "BFGH"},
+            {"B": "open", "F": "open", "G": "open", "H": "open"},
+        )
+        self.assertEqual(self.changed_by(), {"C": ["A"], "D": ["B"]})
+
+    def test_6_a_reopen_marks_them_like_a_changed_value(self):
+        self.decide("F", "reopen")
+        states = self.states()
+        self.assertEqual((states["G"], states["H"]), ("upstream-changed", "stale"))
+        self.assertEqual(self.changed_by()["G"], ["F"])
+
+    def test_7_reconfirm_clears_it_and_unlocks_save(self):
+        rc, out = self.rp("reconfirm", "C", "--why", "It does not turn on A's answer.")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["C"], "open")
+        self.assertNotIn("C", self.changed_by())
+        line = self.q("C")["history"][-1]
+        self.assertEqual(
+            (line["kind"], line["text"]),
+            ("reconfirm", "Reconfirmed after A changed: It does not turn on A's answer."),
+        )
+        self.assertEqual(line["reviewSeq"], self.state()["responses"]["seq"])
+        self.decide("C")
+        rc, out = self.rp("reconfirm", "C", "--why", "Again.")
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("refused: C not upstream-changed", out)
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+    def test_8_a_revise_of_the_question_clears_it_too(self):
+        rc, out = self.rp("revise", "G", "--title", "Is G still right?")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["G"], "open")
+        self.assertEqual(self.changed_by(), {"D": ["B"]})
+
+    def test_9_an_undo_of_the_reopen_clears_what_it_marked(self):
+        reopen = max(
+            e["seq"]
+            for e in self.state()["responses"]["events"]
+            if e["id"] == "F" and e["kind"] == "reopen"
+        )
+        code, data = self.post({"kind": "undo", "id": "F", "undoSeq": reopen})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["H"], "open")
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(any("changedBy" in q or "state" in q for q in doc["questions"]))
+
+
+class TestUpstreamChangedUnderLockOff(OpsCase):
+    """#9714: under frontierLock off a decision on an upstream-changed question saves and clears
+    it; accepting a revised recommendation counts as a changed answer."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"), question("B", dependsOn=["A"]))
+        (cls.dir / "settings.json").write_text(
+            json.dumps(
+                {"settleQuiet": FAST_QUIET, "settleBurst": FAST_BURST, "frontierLock": "off"}
+            ),
+            encoding="utf-8",
+        )
+
+    def test_1_accepting_a_revised_recommendation_marks_the_dependent(self):
+        self.decide("A")
+        self.decide("A", text="Same answer, with a note.")
+        self.assertEqual(self.states()["B"], "open")
+        rc, out = self.rp(
+            "revise", "A", "--rec", "Different.", "--affects", "none",
+            "--keep-alternatives", "--force",
+        )  # fmt: skip
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["B"], "open")  # a recommendation change marks no undecided question
+        self.decide("A")
+        self.assertEqual(self.states()["B"], "upstream-changed")
+
+    def test_2_a_decision_on_it_saves_and_clears_it(self):
+        self.decide("B")
+        self.assertEqual(self.states()["B"], "open")
+        self.assertNotIn("changedBy", self.q("B"))
+
+
+class TestOlderReviseLinesGoByTime(OpsCase):
+    """#9714: a revise line written before reviewSeq existed clears upstream-changed by its time,
+    so a data dir from an older version keeps the revisions Claude already made."""
+
+    @classmethod
+    def prepare(cls):
+        def old(at):
+            return [{"at": at, "by": "claude", "kind": "revise", "text": "Revised title."}]
+
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"], history=old("2000-01-01T00:00:00Z")),
+            question("C", dependsOn=["A"], history=old("2999-01-01T00:00:00Z")),
+        )
+
+    def test_a_line_before_the_change_leaves_the_mark_and_one_after_clears_it(self):
+        self.decide("A")
+        self.decide("A", "alt", alt="a")
+        self.assertEqual((self.states()["B"], self.states()["C"]), ("upstream-changed", "open"))
+
+
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):
     @classmethod
     def prepare(cls):
@@ -3429,6 +3609,74 @@ class TestSettleBurstCap(unittest.TestCase):
         r, took = self.settle_with(range(1, 1000), deadline=time.time() + 1.2)
         self.assertGreater(r["seq"], 1)
         self.assertLess(took, 1.2 + 0.3)
+
+
+class TestProposal(OpsCase):
+    """#9694: a proposed question is `proposed` until a proposal event answers it: accept or edit
+    make it `open`, decline makes it `archived`, and no decision lands on it before then."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_1_a_proposed_question_takes_no_decision(self):
+        self.apply_ops(
+            {"op": "propose", "id": "P1", "short": "Pause", "title": "Pause on failure?"},
+            {"op": "propose", "id": "P2", "short": "Pager", "title": "Page on-call?"},
+            {"op": "propose", "id": "P3", "short": "Scope", "title": "One region?"},
+        )
+        self.assertEqual(
+            self.states(),
+            {"A": "open", "P1": "proposed", "P2": "proposed", "P3": "proposed"},
+        )
+        code, data = self.post({"id": "P1", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+
+    def test_2_accept_makes_it_open_and_a_second_answer_is_refused(self):
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "accept"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P1"], "open")
+        # Claude has written no recommendation yet, so there is nothing to accept.
+        code, data = self.post({"id": "P1", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "decline"})
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data["error"], "proposal answered")
+        self.assertEqual(self.states()["P1"], "open")
+
+    def test_3_decline_archives_it(self):
+        code, data = self.post({"id": "P2", "kind": "proposal", "alt": "decline"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P2"], "archived")
+        code, data = self.post({"id": "P2", "kind": "accept"})
+        self.assertEqual(code, 400, data)
+
+    def test_4_an_edit_needs_its_wording(self):
+        for text in (" ", "Every region?\nOr one?"):
+            code, data = self.post({"id": "P3", "kind": "proposal", "alt": "edit", "text": text})
+            self.assertEqual(code, 400, data)
+        self.assertEqual(self.states()["P3"], "proposed")
+        code, data = self.post(
+            {"id": "P3", "kind": "proposal", "alt": "edit", "text": "Every region?"}
+        )
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["P3"], "open")
+
+    def test_5_only_a_proposed_question_takes_a_proposal(self):
+        code, data = self.post({"id": "A", "kind": "proposal", "alt": "accept"})
+        self.assertEqual(code, 400, data)
+        code, data = self.post({"id": "P1", "kind": "proposal", "alt": "maybe"})
+        self.assertEqual(code, 400, data)
+
+    def test_6_the_log_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        r = self.state()["responses"]
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(any("state" in q for q in doc["questions"]))
 
 
 if __name__ == "__main__":

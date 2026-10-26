@@ -1,4 +1,5 @@
 {
+  "restate": {"text": "Round one settled the job start and the build. The release branch is open. This round turns on whether a green build ships on its own.", "decided": ["Q1", "Q3"], "open": ["Q6", "Q7"]},
   "groups": [
     {"id": "g3", "title": "Release", "summary": "How a green build ships."}
   ],

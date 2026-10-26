@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking: src/utils/orders.js:17 - averageOrderValue iterates while i <= orders.length, so the final pass reads orders[orders.length], which is undefined, and `.totalCents` throws. Use `i < orders.length`.",
+      "why": "names the file, function and loop bound"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No blocking findings. The models, routes and services are consistent and validate their input.",
+      "why": "reviewed only the first files of the diff"
+    },
+    {
+      "answer": "Non-blocking: src/utils/orders.js - averageOrderValue divides by orders.length and returns NaN for an empty list.",
+      "why": "a different problem, already guarded, instead of the loop bound"
+    }
+  ]
+}

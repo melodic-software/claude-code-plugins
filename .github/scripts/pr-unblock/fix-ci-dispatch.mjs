@@ -17,7 +17,12 @@
 // such run failed or found no failing check, fewer than
 // `limit-stops-per-head` of them stand on it, and since the base tip at most
 // `fix-ci-restarts` failed and none found nothing; at most `fix-ci-per-run`
-// per dispatcher run, lowest PR number first.
+// per dispatcher run, lowest PR number first. The rollup lists only a check
+// name's newest run, so before it dispatches a head the dispatcher reads the
+// head's fix-ci runs over REST, and the per-head count comes from those.
+// A head at the cap gets one `::warning::` and goes into the dispatch record
+// (dispatch-record.mjs), so later runs skip it before any read; the next push
+// makes a new head.
 // A head whose lanes passed but whose pr-test-windows run failed is a
 // candidate too. A head is skipped only while a re-run of its tested run is
 // queued or going, or while an infra-only first failure's one re-run by the
@@ -30,8 +35,10 @@
 // 80 characters each at most) only.
 
 import { AGGREGATE_JOBS, FAILED, infraCause, infraOnly, RERUN_DUE_MINUTES, reconcilerOwns, reconcilerRetries, stepsKnown, stepsUnread } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { prHold } from "./gate-source.mjs";
+import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -119,6 +126,31 @@ function headChecks(node, actionsAppId) {
   return (commit.statusCheckRollup?.contexts?.nodes ?? []).filter(
     (context) => context?.__typename === "CheckRun" && context.checkSuite?.app?.databaseId === actionsAppId,
   );
+}
+
+// A REST check run in the rollup's shape, as skipReason reads it.
+const fromRest = (run) => ({
+  name: run.name,
+  status: String(run.status ?? "").toUpperCase(),
+  conclusion: run.conclusion ? String(run.conclusion).toUpperCase() : null,
+  title: run.output?.title ?? null,
+  completedAt: run.completed_at ?? null,
+});
+
+// The fix-ci runs that count: an untrusted-trigger skip ran nothing.
+const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")));
+
+// A run that failed, found no failing check to fix, or skipped on a PR held
+// then may be retried; any other run (going, pushed a fix, escalated) handles
+// the head.
+const heldSkip = (run) => run.conclusion === "NEUTRAL" && run.title === HELD_SKIP;
+const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || heldSkip(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+
+// The number of counted fix-ci runs when every one may be retried and they
+// reach maxRunsPerHead, the head's hard end; else 0.
+export function capCount(runs, maxRunsPerHead = DEFAULTS.maxRunsPerHead) {
+  const kept = counted(runs);
+  return kept.length >= maxRunsPerHead && kept.every(retryable) ? kept.length : 0;
 }
 
 // An owner PR is idle when neither it nor its head commit changed in the last
@@ -273,29 +305,25 @@ export function skipReason(
       return owned;
     }
   }
-  // An untrusted-trigger skip ran nothing, so it does not count.
-  const runs = checks.filter(
-    (run) => run.name === checkName && !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")),
-  );
+  // node.fixCiRuns, every fix-ci run on the head (the rollup holds only the
+  // newest), is attached by dispatchCiFixes just before it would dispatch.
+  const runs = counted(node.fixCiRuns ?? checks.filter((run) => run.name === checkName));
   if (runs.length === 0) {
     return "";
   }
-  // A run that failed, found no failing check to fix, or skipped on a PR held
-  // then (a held PR stopped above) may be retried; any other run (going,
-  // pushed a fix, escalated) handles the head. All of them count toward the
-  // per-head cap, so a hold the run reads and this dispatcher does not stops
-  // there.
-  const held = (run) => run.conclusion === "NEUTRAL" && run.title === HELD_SKIP;
-  const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || held(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+  // A held skip (a held PR stopped above) counts toward the per-head cap with
+  // the rest, so a hold the run reads and this dispatcher does not stops there.
   if (!runs.every(retryable)) {
     return `head already has a ${checkName} check run`;
   }
-  if (runs.length >= maxRunsPerHead) {
+  // The cap counts the REST runs alone, so the dispatcher that read them warns
+  // and records the head.
+  if (node.fixCiRuns !== undefined && capCount(runs, maxRunsPerHead) > 0) {
     return `head's ${checkName} ran ${runs.length} time(s), the most one head gets`;
   }
   // Only a run on the current base tip counts: one that ended before the tip
   // was committed ran against an older base (an unreadable time counts).
-  const current = runs.filter((run) => !held(run) && !(Date.parse(run.completedAt ?? "") < baseAt));
+  const current = runs.filter((run) => !heldSkip(run) && !(Date.parse(run.completedAt ?? "") < baseAt));
   if (current.some((run) => run.conclusion !== "FAILURE")) {
     return `head's ${checkName} found no failing check on this base`;
   }
@@ -318,6 +346,7 @@ export async function dispatchCiFixes({
   holdLabels = DEFAULTS.holdLabels,
   gateLabel = null,
   adoption = DEFAULTS.adoption,
+  record = emptyRecord(),
   now = Date.now(),
 }) {
   if (!Number.isSafeInteger(appSenderId) || appSenderId < 1) {
@@ -333,6 +362,13 @@ export async function dispatchCiFixes({
     log(`fix-ci listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     baseAt ??= Date.parse(baseCommittedAt ?? "");
     for (const node of pullRequests.nodes) {
+      // A recorded head reached the per-head cap and was warned about once.
+      if (isHandled(record, checkName, node.headRefOid)) {
+        if (failedState(lanesStatus(node)?.state)) {
+          log(`skip fix-ci #${node.number}: head ${node.headRefOid} reached the per-head cap (recorded)`);
+        }
+        continue;
+      }
       const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
       if (reason === "") {
         candidates.push(node);
@@ -397,8 +433,36 @@ export async function dispatchCiFixes({
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
+      continue;
+    }
+    // The per-head cap is the loop's hard end, so a head whose runs cannot be
+    // read is not dispatched.
+    let fixCiRuns;
+    try {
+      fixCiRuns = (await api.listCheckRuns({ sha: node.headRefOid, checkName, appId: actionsAppId })).map(fromRest);
+    } catch (error) {
+      if (error.rateLimited) {
+        log(`::warning::#${node.number}: its ${checkName} run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+      } else if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its ${checkName} runs: ${error.message}; skipped, a later run retries`);
+      } else {
+        failed += 1;
+        log(`::error::#${node.number}: could not read its ${checkName} runs (${error.message}); left for a later run`);
+      }
+      continue;
+    }
+    // A capped head stops here for good: one warning, then the record keeps
+    // later runs from reading it again.
+    const capped = capCount(fixCiRuns, maxRunsPerHead);
+    if (capped > 0) {
+      log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} ran ${capped} time(s), the most one head gets; no fix-ci until a new push`);
+      markHandled(record, checkName, node.headRefOid);
       continue;
     }
     // A re-run going, or an infra-only first failure's re-run still due,
@@ -413,9 +477,13 @@ export async function dispatchCiFixes({
         log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
         continue;
       }
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its required run's jobs: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
     }
-    const reason = skipReason({ ...node, requiredRun, laneGate }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+    const reason = skipReason({ ...node, requiredRun, laneGate, fixCiRuns }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;

@@ -3,6 +3,47 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.0] - 2026-10-26
+
+### Changed
+
+- `/review:security-review` rates a trust-control change CRITICAL unless the diff shows it keeps or narrows the control: widening who passes the trusted-trigger check, widening the lanes App token's scope, leaving the kill switch unable to stop a lane, or changing code or rules the token broker loads into its signer process, the pipeline config included. Such a widening is reported even where zizmor's permission-widening deferral would apply. A change that weakens, narrows or removes a merge hold, or widens another trust, untrusted-text or isolation action under `.github/actions/`, is CRITICAL too; widening is judged from the code alone, and a change the lane cannot judge is CRITICAL.
+- A `manifest <field>: flag` on a key that installs or runs code (`hooks`, `mcpServers`, `lspServers`, `monitors`, `experimental.monitors`, `dependencies`) or in `marketplace.json` on a plugin entry added, removed or renamed, an entry's `source` or the marketplace `name` is CRITICAL, so it sets the `critical-security` hold; other manifest flags stay IMPORTANT.
+
+### Removed
+
+- The `trust-gate` hold class: a trusted path with no CRITICAL finding sets no hold.
+
+## [1.4.0] - 2026-10-25
+
+### Changed
+
+- `/review:explain-change` reads its team settings from `docs/conventions/review-digest.yaml`, validated by the new `schemas/review-digest.schema.json`. The `json config` block in `docs/conventions/review-digest.md` and `.claude/review-digest.json` are read only when the YAML file is absent from the base commit, for one release. `/review:setup apply` writes the file when the operator asks to change a digest setting.
+
+## [1.3.6] - 2026-10-25
+
+### Fixed
+
+- `explain-change` says what to do when the view watcher exits 4 after its run of empty waits: re-arm it with the command it prints while the reader is still using the view.
+
+## [1.3.5] - 2026-10-25
+
+### Fixed
+
+- Harden the view bridge: the watcher exits after 40 consecutive empty waits (exit 4) so an orphaned watcher no longer keeps the server alive, the wait and lease-release endpoints need a watcher-only token that the page never receives, and U+2028 and U+2029 are escaped in output lines.
+
+## [1.3.4] - 2026-10-25
+
+### Changed
+
+- The quality-gate close-out reference cites `/source-control:pull-request`, `/work-items:work` and `/work-items:decompose` by their slash invocations instead of by URLs into those plugins' `skills/` folders, which an install of this plugin alone does not carry.
+
+## [1.3.3] - 2026-10-25
+
+### Added
+
+- Two eval cases check that a CI code review of a full-diff file larger than one Read still finds the bug: `code-review-large-diff-pages-to-end` puts it in an ordinary file in the diff's last third, `code-review-large-diff-middle-file` in a service file mid-diff ([evals](https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/review/evals)).
+
 ## [1.3.2] - 2026-10-25
 
 ### Changed

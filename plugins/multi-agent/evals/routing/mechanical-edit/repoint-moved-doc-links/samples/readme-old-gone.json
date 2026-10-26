@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "the [routing rubric](reference/routing/rubric.md) owns the rule.\n",
+      "why": "only the new path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "the [routing rubric](reference/routing-rubric.md) owns the rule.\n",
+      "why": "old link left"
+    },
+    {
+      "answer": "the [routing rubric](reference/routing/rubric.md) owns the rule (formerly reference/routing-rubric.md).\n",
+      "why": "old path kept as added prose"
+    }
+  ]
+}

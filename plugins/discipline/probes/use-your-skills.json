@@ -10,13 +10,6 @@
     "discipline:sweep-all",
     "playbooks:skill-authoring"
   ],
-  "competitor_dirs": {
-    "session-flow:show-options": "plugins/session-flow/skills/show-options",
-    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
-    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
-    "discipline:sweep-all": "plugins/discipline/skills/sweep-all",
-    "playbooks:skill-authoring": "plugins/playbooks/skills/skill-authoring"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -50,9 +50,8 @@ collector checks each record rather than trusting it: the saved file resolves in
 non-empty, and the span, which must sit on one line, is in it (`grep -F` semantics). A
 corroborator that repeats the primary's or another corroborator's URL (ignoring fragment, query and trailing slash) does not count, and an empty span fails. Standards
 findings and emitted-finding samples are graded by their own fields below, and need `research:`
-only when they carry a `remediation:`. The tier names are discovery's
-source-tier table (`plugins/discovery/skills/research/context/discipline.md`);
-this file does not restate that table.
+only when they carry a `remediation:`. The tier names are those of the
+source-tier table `/discovery:research` defines; this file does not restate it.
 
 Standards findings add:
 

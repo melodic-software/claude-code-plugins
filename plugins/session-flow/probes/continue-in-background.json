@@ -9,12 +9,6 @@
     "session-flow:keep-going",
     "session-flow:clean-stop"
   ],
-  "competitor_dirs": {
-    "session-flow:handoff": "plugins/session-flow/skills/handoff",
-    "session-flow:find-handoff": "plugins/session-flow/skills/find-handoff",
-    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
-    "session-flow:clean-stop": "plugins/session-flow/skills/clean-stop"
-  },
   "queries": [
     {
       "id": "pos-train-01",

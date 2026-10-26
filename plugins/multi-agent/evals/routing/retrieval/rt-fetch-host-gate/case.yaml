@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: rt-fetch-host-gate
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-file'
+    type: 'regex'
+    pattern: 'drift-checker-fetch-gate\.mjs'
+    target: 'last_message'
+  - name: 'names-function'
+    type: 'regex'
+    pattern: '^[^\n]*\bfunction\b[^\n]*\bdecide\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'names-host-list'
+    type: 'regex'
+    pattern: '\bFETCH_HOSTS\b'
+    target: 'last_message'

@@ -47,7 +47,7 @@ done
 printf '%s %s\n' "$method" "$endpoint" >>"$STUB/requests"
 case "$method $endpoint" in
 "GET repos/o/r/issues/42") cat "$STUB/issue.json" ;;
-"GET repos/o/r/issues/42/comments") cat "$STUB/comments.json" ;;
+"GET repos/o/r/issues/42/comments?per_page=100") cat "$STUB/comments.json" ;;
 "GET graphql")
   [[ -f $STUB/fail_graphql ]] && { echo 'stub gh: graphql failed' >&2; exit 1; }
   # threads.json holds an array of pages; each graphql call serves the next.

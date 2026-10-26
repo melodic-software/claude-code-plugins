@@ -3,6 +3,25 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-10-25
+
+### Fixed
+
+- **`/testing:check-visual-parity` route 1 says how to run the suite and what a run with no verdict means.** It runs the repository's visual suite through the repository's own entry point (its documented test command or runner script) and names that command in the report. A state the run did not compare (a build, install or browser-launch error, or no baseline image) has no verdict: the environment failure is reported with its last lines, and the state takes the gap report and never moves to another route. A new eval case covers a suite run that fails before comparing ([#10105](https://github.com/melodic-software/claude-code-plugins/issues/10105)).
+
+## [1.0.0] - 2026-10-25
+
+### Changed
+
+- `/testing:run-e2e` reads the app's control skill (`.claude/skills/control-<app>/`) as its feature map: the hub's Ready replaces the doctor, before the first drive and after a failed step; the hub's driving tool replaces the recorded driver; `Attended runs only.` stops an unattended run. The per-entry-point report line is unchanged. A legacy testing-format map is not read: the run warns and names `/app-control:map refresh <path>`.
+
+**Migration.** Run `/app-control:map refresh <path>` on each legacy map, at `.claude/skills/feature-map/` or wherever `feature_map_dir` pointed; it converts the map in its upkeep pull request. Then delete any `feature_map_dir` line. The scheduled `feature-map-upkeep` routine is now `control-skill-upkeep`, running `/app-control:map refresh`; its pull requests use `control-skill-upkeep/control-<slug>` branches, and open `feature-map-upkeep/*` branches are superseded (refresh lists them and adopts none). The first app-control refresh re-does every map, since no clean pass is recorded for a control skill yet.
+
+### Removed
+
+- `/testing:map-features`, `/testing:refresh-feature-map` and the plugin's `reference/feature-map.md`. An app's feature map is now its control skill, which `/app-control:map` writes (`create`), checks (`check`) and keeps current (`refresh`).
+- The `feature_map_dir` key. `/testing:run-e2e` no longer resolves it, `/testing:setup apply` drops the line when it rewrites `docs/conventions/testing.yaml` and names the dropped value with the conversion command, and the schema no longer lists it. A leftover line still never stops a test scan.
+
 ## [0.33.1] - 2026-10-25
 
 ### Changed

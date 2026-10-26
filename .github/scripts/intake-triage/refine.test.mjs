@@ -369,6 +369,25 @@ describe("applyRefinement", () => {
     assert.deepEqual(await apply(again, EXACT), { outcome: "skipped", redispatch: false });
   });
 
+  test("an exact refinement of an issue admission parked at status: confirmed lifts it and asks for re-triage", async () => {
+    const parked = { id: 61, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: no trusted-human acceptance criteria.`, user: { id: APP, type: "Bot" } };
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment(), parked], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, true);
+    const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed undefined");
+    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
+    assert.equal(done.length, 3);
+  });
+
+  test("an exact refinement of a status: confirmed issue admission never parked asks for no re-triage", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment()], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, false);
+    assert.equal(writes(fake.calls).length, 1, "the comment only");
+  });
+
   test("an exact refinement of an issue already agent-ready asks for no re-triage", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }, { name: "agent-ready" }] }), comments: [laneComment()], events: [] });
     const result = await apply(fake, EXACT);
@@ -418,8 +437,10 @@ describe("applyRefinement", () => {
     );
   });
 
-  // Owner decision Q9: admission reads criteria only from a listed human's
-  // text, so a re-triage on the App's text alone would only refuse again.
+  // Owner decisions Q9 and Q78: admission reads criteria from a listed
+  // human's text and, on an issue a listed human filed, the newest unedited
+  // refinement, this one once posted; a re-triage on other text would only
+  // refuse again.
   for (const [branch, setup] of [
     ["the App's needs-decision", { issue: issueOf(), events: labeledBy(APP) }],
     ["a status: ready issue awaiting admission", { issue: issueOf({ labels: [{ name: "status: ready" }] }), events: [] }],
@@ -438,6 +459,45 @@ describe("applyRefinement", () => {
       const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: HUMAN_REFINED });
       assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
       assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
+    });
+
+    // A listed human filed it with no task list, so the refinement this
+    // run posts is the spec admission reads.
+    test(`an exact refinement of ${branch} re-triages when a listed human filed it and only this refinement will hold the task list`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: specOf() });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+      const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
+      const lifted = setup.events.length > 0 ? ["DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision"] : [];
+      assert.deepEqual(done, ["POST /repos/o/r/issues/7/labels", ...lifted, "POST /repos/o/r/issues/7/comments"]);
+      assert.deepEqual(writes(fake.calls)[0].body, { labels: ["needs-triage"] });
+      assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
+    });
+
+    test(`an exact refinement of ${branch} re-triages over an older unedited refinement with no task list: the newest counts`, async () => {
+      const older = { body: `${REFINE_MARKER}\nAn earlier refinement with no criteria.`, lastEditedAt: null, author: actor(APP), editor: null };
+      const spec = { ...specOf(), comments: { totalCount: 1, nodes: [older] } };
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+    });
+
+    test(`an exact refinement of ${branch} past admission's comment window keeps the labels: admission would not read it`, async () => {
+      const spec = { ...specOf(), comments: { totalCount: 100, nodes: [] } };
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+      );
+    });
+
+    test(`an exact refinement of ${branch} the lanes App filed with no task list keeps the labels: its refinement is no one's spec`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: { ...specOf(), author: actor(APP) } });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+      );
+      assert.match(writes(fake.calls)[0].body.body, /post them as your own comment/);
     });
 
     test(`an exact refinement of ${branch} reads the spec before its first label write and re-triages on a listed human's task list`, async () => {

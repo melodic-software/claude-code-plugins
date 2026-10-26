@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3] - 2026-10-25
+
+### Changed
+
+- **The migrate sources cite `/performance:verify` by slash invocation.** The user-root resolution note names the skill instead of a path to its `SKILL.md` in another plugin.
+
 ## [0.26.2] - 2026-10-25
 
 ### Changed

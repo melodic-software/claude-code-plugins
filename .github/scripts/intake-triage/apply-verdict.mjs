@@ -84,12 +84,10 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, loadRules, noteUnrunnable, UNTRUSTED } from "./admit.mjs";
+import { admit, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { parseBlockedBy, writeEdges } from "./edges.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
-// The lanes App's one comment saying why the verdict holds the issue.
-export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
 const LANE_BOT = "github-actions[bot]";
 const ACTIONS_BOT_ID = 41898282;
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -106,11 +104,6 @@ export const DIMENSIONS = Object.freeze({
   complexity: "Complexity",
   uncertainty: "Uncertainty",
 });
-const FLAGS = new Set(["intent", "security", "cost"]);
-const EARLIER = "(an earlier verdict)";
-// The reason a hold stays when no App verdict comment says whether an earlier
-// verdict flagged; the comment carries it, so a later run reads it the same.
-export const UNRECORDED = "no lanes App verdict comment shows whether an earlier verdict was flagged";
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
@@ -201,10 +194,6 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 
 // The writes the verdict calls for, given the issue's labels and its current
 // field values ({fieldId: {option, setter}}). Pure.
-// Whether an account id (a REST number, a GraphQL databaseId, or a string
-// either way) is the lanes App's; never for an unknown id or App.
-const isApp = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
-
 export function planWrites(
   verdict,
   { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {}, earlierFlags = [] },
@@ -314,29 +303,7 @@ export function planWrites(
   return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, dimensions };
 }
 
-// The lanes App's own earlier verdict comment, if any.
-export const ownVerdict = (comments, appId) =>
-  comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
-
-// The flags the lanes App's earlier verdict comment listed: only known flags
-// from a `- flagged: ` reason line. null when no App verdict comment exists
-// or it carries UNRECORDED: whether an earlier verdict flagged is unknown.
-export function earlierFlags(comments, appId) {
-  const own = ownVerdict(comments, appId);
-  const lines = String(own?.body ?? "").split("\n");
-  if (!own || lines.includes(`- ${UNRECORDED}`)) {
-    return null;
-  }
-  return [
-    ...new Set(
-      lines
-        .filter((line) => line.startsWith("- flagged: "))
-        .flatMap((line) => line.slice("- flagged: ".length).replace(` ${EARLIER}`, "").split(","))
-        .map((flag) => flag.trim())
-        .filter((flag) => FLAGS.has(flag)),
-    ),
-  ];
-}
+export { earlierFlags, ownVerdict, UNRECORDED, VERDICT_MARKER };
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
 // it has none.
@@ -607,7 +574,7 @@ const WAITS = "none: admission waits for intake to run again, since a blocked-by
 // moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
   admission?.outcome === "refused"
-    ? NEEDS_DECISION
+    ? (admission.status ?? NEEDS_DECISION)
     : admission?.outcome === "error"
       ? "not settled: admission did not finish"
       : admission?.outcome === EDGE_MISSING
@@ -626,8 +593,8 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
   }
   const body = plan.ready
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
-        after === NEEDS_DECISION
-          ? `admission moved the issue to \`${NEEDS_DECISION}\`; its comment says why.`
+        admission?.outcome === "refused"
+          ? `admission moved the issue to \`${after}\`; its comment says why.`
           : after === WAITS
             ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.`
             : after

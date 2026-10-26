@@ -95,8 +95,11 @@ test("main's tip is checked out without credentials, and every action is pinned"
 });
 
 test("the run step takes every event field through env", () => {
-  const run = /\n {8}run: (.*)\n?$/.exec(job)[1];
-  assert.doesNotMatch(run, /\$\{\{/);
+  const runs = [...job.matchAll(/\n {8}run: (.*)/g)].map((match) => match[1]);
+  assert.ok(runs.includes("node .base/.github/scripts/post-merge-demotion-alert/report.mjs"), runs.join("\n"));
+  for (const run of runs) {
+    assert.doesNotMatch(run, /\$\{\{/);
+  }
 });
 
 // Records are one per signal and SHA, found by a read before a create, so

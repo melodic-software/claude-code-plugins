@@ -239,6 +239,12 @@ class FakeGitHub:
         # may name is: an issue's repository, or "PullRequest".
         self.body: str | None = None
         self.refs: dict[int, str] = {}
+        # Each issue's label names now, and a totalCount that cuts them.
+        self.labels: dict[int, list[str]] = {}
+        self.labels_total: dict[int, int] = {}
+        # Each issue's REST timeline events, and each login's permission.
+        self.timeline: dict[int, list[dict[str, Any]]] = {}
+        self.permissions: dict[str, str] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -306,6 +312,10 @@ class FakeGitHub:
             "number": n,
             "lastEditedAt": self.closing_edited.get(n),
             "repository": {"nameWithOwner": repo},
+            "labels": {
+                "totalCount": self.labels_total.get(n, len(self.labels.get(n, []))),
+                "nodes": [{"name": name} for name in self.labels.get(n, [])],
+            },
             "comments": {
                 "totalCount": self.comments_total.get(
                     n, len(self.closing_comments.get(n, []))
@@ -386,6 +396,16 @@ class FakeGitHub:
             return subprocess.CompletedProcess(args, 0, self.diffs[sha], "")
         if path.startswith(f"repos/{REPO}/contents/"):
             return ok(self.actors)
+        issues = f"repos/{REPO}/issues/"
+        if path.startswith(issues) and path.endswith("/timeline?per_page=100"):
+            n = int(path[len(issues) :].split("/")[0])
+            return ok([self.timeline.get(n, [])])
+        collaborators = f"repos/{REPO}/collaborators/"
+        if path.startswith(collaborators) and path.endswith("/permission"):
+            login = path[len(collaborators) :].split("/")[0]
+            if login not in self.permissions:
+                return missing()
+            return ok({"permission": self.permissions[login]})
         prefix = f"repos/{REPO}/actions/runs/"
         if path.startswith(prefix):
             run_id = int(path[len(prefix) :])
@@ -972,9 +992,7 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
         # Failed as a slice of one issue, then relinked to close a different
         # issue on the same diff.
-        self.assertEqual(
-            read(self.closing_another(8)).refusal, "verify:earlier-fail"
-        )
+        self.assertEqual(read(self.closing_another(8)).refusal, "verify:earlier-fail")
 
     def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
         self.assertEqual(
@@ -1887,8 +1905,12 @@ class TheNewestPassDecides(unittest.TestCase):
         # Run 1 created first but re-attempted after the edit; run 2 created
         # later but started before it. The later start judged the live spec.
         fake = self.fake(second=True)
-        fake.runs[1] = run(1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z")
-        fake.runs[2] = run(2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z")
+        fake.runs[1] = run(
+            1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z"
+        )
+        fake.runs[2] = run(
+            2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z"
+        )
         self.assertIsNone(read(fake).refusal)
 
     def test_every_pass_decides_when_a_start_time_is_missing(self) -> None:
@@ -2750,6 +2772,11 @@ def evidence(
     )
 
 
+# A manifest the floor switch's manifest review holds; the floor itself holds
+# no path.
+MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
+
+
 def changed(path: str, additions: int = 1) -> unattended.ChangedFile:
     """A modified regular file in the diff."""
     return unattended.ChangedFile(
@@ -3048,7 +3075,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             {"label": "present", "comment": "unchanged"},
         )
 
-    def test_a_failed_read_still_rewrites_another_heads_comment(self) -> None:
+    def test_a_failed_read_still_reposts_another_heads_comment(self) -> None:
         self.fail_with_summary(ve.SummaryUnreadable("gh: boom (HTTP 502)"))
         self.comments = [
             {
@@ -3062,7 +3089,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         ]
         _, out = self.lane()
         self.assertEqual(
-            out["unattended"]["writes"]["escalation"]["comment"], "updated"
+            out["unattended"]["writes"]["escalation"]["comment"], "created"
         )
         # The old head's reason stays, under the head it was given at.
         (comment, _) = self.escalation_writes()
@@ -3263,7 +3290,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.config, denied_paths=(), max_changed_lines=None
         )
         self.unlabeled_lane_pr(real_denied_paths=True)
-        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        gate = "plugins/source-control/scripts/source-control-babysit-merge"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
         # The workflow's patch adds no cost line, so the cost hold passes it.
         self.files = (
@@ -3292,17 +3319,17 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.config = dataclasses.replace(
             self.config, high_path_floor=True, max_changed_files=8,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
-    def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
+    def test_the_lane_scores_a_manifest_from_the_config_high(self) -> None:
         self.config = dataclasses.replace(self.config, high_path_floor=True)
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["high-path:**/.gitmodules"])
+        self.assertEqual(codes, ["manifest-review-required"])
 
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
@@ -3323,6 +3350,8 @@ class LaneRequiresAVerdict(unattended.Unattended):
         reads = [
             ("_graphql", {"repository": {"pullRequest": node}}),
             ("_base_refusal", None),
+            # The trust hold's label history: no removal.
+            ("_timeline", []),
         ]
         if not real_denied_paths:
             reads.append(("_denied_path_refusal", None))
@@ -3360,13 +3389,13 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         self.config = dataclasses.replace(
             self.config, high_path_floor=False, max_changed_files=None,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_the_local_floor_holds_whatever_the_switch_says(self) -> None:
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         for on in (False, True):
             with self.subTest(high_path_floor=on):
                 self.config = dataclasses.replace(self.config, high_path_floor=on)
@@ -4105,11 +4134,37 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         import babysit_gh as gh
 
         def answer(cmd: list[str], **kwargs: Any) -> Any:
-            return fake(
-                cmd[1:],
+            # The fake answers without headers, so the guard's `-i` is dropped.
+            args = [a for i, a in enumerate(cmd[1:]) if (i, a) != (1, "-i")]
+            base, _, number = (args[1] if args[:1] == ["api"] else "").partition(
+                "&page="
+            )
+            proc = fake(
+                ["api", base, "--paginate", "--slurp"]
+                if number or base in paged
+                else args,
                 env_overrides=kwargs.get("env_overrides"),
                 binary=kwargs.get("binary"),
             )
+            if not (number or base in paged) or proc.returncode != 0:
+                return proc
+            # A paged read goes page by page: serve the fake's slurped pages
+            # one at a time, linked as GitHub links them.
+            pages, at = json.loads(proc.stdout), int(number or 1)
+            link = (
+                f'Link: <https://api.github.com/{base}&page={at + 1}>; rel="next"\r\n'
+                if at < len(pages)
+                else ""
+            )
+            body = json.dumps(pages[at - 1])
+            return subprocess.CompletedProcess(
+                cmd, 0, f"HTTP/2.0 200 OK\r\n{link}\r\n{body}", ""
+            )
+
+        paged = {
+            f"repos/{REPO}/actions/artifacts?per_page=100",
+            f"repos/{REPO}/pulls/{PR}/commits?per_page=100",
+        }
 
         gh.reset_gh_call_counts()
         with mock.patch.object(gh, "run_command", side_effect=answer):
@@ -4400,6 +4455,98 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
             self.assertTrue(str(report["ineligible"]).startswith("unreadable: "))
             self.assertEqual(report["refusal"], ve.INELIGIBLE)
             self.assertEqual(listings(fake), 0)
+
+    def test_an_untrusted_label_on_the_issue_refuses_for_a_person(self) -> None:
+        # The label lands on the linked issue after admission, while the lane
+        # builds: the arm-time read sees it, on either link.
+        for fake in (passing(), self.refs("Refs: #7\n\n## Summary", n7=REPO)):
+            fake.labels[7] = ["agent-ready", policy.UNTRUSTED_PROVENANCE_LABEL]
+            report = self.cli(fake)
+            self.assertEqual(
+                (report["ineligible"], report["refusal"]),
+                ("untrusted-provenance", ve.INELIGIBLE),
+            )
+            self.assertEqual(listings(fake), 0)
+
+    def test_a_variant_spelling_of_the_label_refuses(self) -> None:
+        for label in (
+            "Work-Class: Untrusted-Provenance",
+            "work-class:untrusted_provenance",
+            "untrusted",
+            "work-class \u2013 UNTRUSTED provenance",
+        ):
+            with self.subTest(label=label):
+                fake = passing()
+                fake.labels[7] = [label]
+                self.assertEqual(self.cli(fake)["ineligible"], "untrusted-provenance")
+
+    def test_unreadable_labels_refuse(self) -> None:
+        fake = passing()
+        fake.labels[7], fake.labels_total[7] = ["agent-ready"], 101
+        report = self.cli(fake)
+        self.assertEqual(
+            (report["ineligible"], report["refusal"]),
+            ("issue-labels-unreadable", ve.INELIGIBLE),
+        )
+        self.assertEqual(listings(fake), 0)
+
+    def test_an_unreadable_timeline_refuses(self) -> None:
+        fake = passing()
+        fake.fail.add("timeline")
+        report = self.cli(fake)
+        self.assertTrue(str(report["ineligible"]).startswith("unreadable: "))
+        self.assertEqual(report["refusal"], ve.INELIGIBLE)
+
+    def test_the_label_removed_by_a_non_human_refuses(self) -> None:
+        def unlabeled(login: str, kind: str, app: Any = None) -> dict[str, Any]:
+            return {
+                "event": "unlabeled",
+                "label": {"name": policy.UNTRUSTED_PROVENANCE_LABEL},
+                "actor": {"login": login, "type": kind},
+                "performed_via_github_app": app,
+            }
+
+        for event in (
+            unlabeled("agent-lanes[bot]", "Bot"),
+            unlabeled("maintainer", "User", {"slug": "some-app"}),
+            unlabeled("reader", "User"),
+        ):
+            with self.subTest(event=event):
+                fake = passing()
+                fake.timeline[7] = [event]
+                fake.permissions = {"maintainer": "admin", "reader": "read"}
+                self.assertEqual(
+                    self.cli(fake)["ineligible"],
+                    "untrusted-provenance-removed-by-non-human",
+                )
+
+    def test_a_clean_or_person_cleared_issue_still_arms(self) -> None:
+        for labels, timeline in (
+            (["agent-ready", "type: bug"], []),
+            (
+                ["agent-ready"],
+                [
+                    {
+                        "event": "unlabeled",
+                        "label": {"name": policy.UNTRUSTED_PROVENANCE_LABEL},
+                        "actor": {"login": "maintainer", "type": "User"},
+                        "performed_via_github_app": None,
+                    }
+                ],
+            ),
+        ):
+            with self.subTest(labels=labels, timeline=timeline):
+                fake = passing()
+                fake.labels[7], fake.timeline[7] = labels, timeline
+                fake.permissions = {"maintainer": "write"}
+                report = self.cli(fake)
+                self.assertEqual(
+                    (report["ineligible"], report["refusal"]), (None, None)
+                )
+                # The labels ride the link's one GraphQL read; the timeline
+                # is one REST read.
+                timelines = [c for c in fake.calls if any("/timeline" in a for a in c)]
+                self.assertEqual(len(timelines), 1)
 
     def test_without_the_flag_no_link_is_read(self) -> None:
         fake = self.refs("Refs: #7\nRefs: #8\n")

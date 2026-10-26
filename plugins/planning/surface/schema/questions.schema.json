@@ -16,6 +16,30 @@
       "type": "array",
       "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/visual"}
     },
+    "rounds": {
+      "description": "One entry per round `add-round` opened with questions, oldest first: the restate the page pins above the round's first question. A file without it loads unchanged.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["round", "stage", "at", "restate"],
+        "additionalProperties": false,
+        "properties": {
+          "round": {"type": "integer"},
+          "stage": {"type": "string"},
+          "at": {"type": "string"},
+          "restate": {
+            "type": "object",
+            "required": ["text", "decided", "open"],
+            "additionalProperties": false,
+            "properties": {
+              "text": {"type": "string"},
+              "decided": {"type": "array", "items": {"type": "string"}},
+              "open": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
     "notes": {"type": "array", "items": {"$ref": "#/$defs/line"}},
     "handled": {"type": "array", "items": {"type": "integer"}},
     "handledSeq": {"type": "integer"},
@@ -253,11 +277,20 @@
           "type": "integer",
           "description": "On a line that changed the recommendation: the page's event seq when it did. The server marks the decided questions in `affects` and the direct dependents stale for the events up to that seq."
         },
+        "reviewSeq": {
+          "type": "integer",
+          "description": "On a revise or reconfirm line: the page's event seq when Claude wrote it. The server clears the question's upstream-changed state for the events up to that seq; a revise line without one, from an older version, goes by its `at`."
+        },
         "rev": {
           "type": "integer",
-          "description": "On a line that changed the recommendation: the questions.json rev that write produced. It orders the change against a terminal answer recorded in the same second."
+          "description": "On a line that changed the recommendation, or a revise or reconfirm line: the questions.json rev that write produced. It orders the line against a terminal answer recorded in the same second."
         },
         "alt": {"type": ["string", "null"]},
+        "changed": {
+          "type": "array",
+          "items": {"enum": ["title", "short", "facts", "basis", "recommendation", "alternatives", "commitments"]},
+          "description": "On a revise line: the fields that revise changed. The page does not put an answered question back under Review for a revise that changed only its title or short."
+        },
         "alternatives": {
           "enum": ["rewritten", "kept"],
           "description": "On a line that changed the recommendation: whether the same op rewrote the alternatives or stated that the current ones were checked against it."
@@ -398,9 +431,16 @@
           "description": "Set by a recommendation change: its `why` as given, else true"
         },
         "archived": {"$ref": "#/$defs/archived"},
+        "proposed": {
+          "description": "Written by the propose op: the question waits on the user's approval and carries no recommendation until they accept or edit it with a `proposal` event. `fromSeq` is the Ask it answers.",
+          "type": "object",
+          "required": ["at"],
+          "additionalProperties": false,
+          "properties": {"at": {"type": "string"}, "fromSeq": {"type": "integer"}}
+        },
         "state": {
-          "enum": ["open", "stale", "upstream-pending", "archived"],
-          "description": "Derived by the server from dependsOn, decision events and archived; never written by Claude"
+          "enum": ["open", "stale", "upstream-changed", "upstream-pending", "archived", "proposed"],
+          "description": "Derived by the server from dependsOn, decision events, history, archived and proposal events (`proposed` until the user answers the proposal, `archived` once they decline it); never written by Claude"
         },
         "answered": {
           "type": "boolean",
@@ -415,6 +455,11 @@
           "type": "array",
           "items": {"type": "string"},
           "description": "Derived by the server on an upstream-pending question: every stale question up its dependsOn chain, nearest first and ties by id; never written"
+        },
+        "changedBy": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Derived by the server on an upstream-changed question: the prerequisites whose counted answer changed or was reopened while it had no decision, since Claude last revised or reconfirmed it; never written"
         }
       }
     }
