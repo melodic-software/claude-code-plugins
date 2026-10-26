@@ -3,6 +3,38 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.110.0] - 2026-10-26
+
+### Added
+
+- `/planning:plan` publishes an approved plan at a reader depth: `step-by-step` (default, the whole PLAN.md), `standard` (the `## Brief`, the `## Design` section and a phase outline) or `guardrails` (the `## Brief` and the `## Design` section). The depth comes from a `--reader <depth>` argument, else the depth the plan recorded at its first publish, else the new `plan_reader` key in `docs/conventions/planning.yaml` or the plugin's user config, else `step-by-step`. A reduced depth renders a derived `PLAN.<depth>.md` that keeps the `Approval:` line and goes to `/work-items:track publish-plan` and the pull request paste; PLAN.md stays whole.
+- PLAN.md's `### Conventions followed` carries a `Net new:` line and a `Challenges a pattern:` line, which `/planning:design-handoff` fills.
+
+## [0.109.1] - 2026-10-26
+
+### Fixed
+
+- The interview page's question pane fixes several layout and accessibility papercuts ([#7970](https://github.com/melodic-software/claude-code-plugins/issues/7970)). The recommendation's full text shows once, in the Decide list's Rec row, which now keeps its code, links and emphasis, and the Thread no longer opens with a `Claude asked` line that repeated the question. The header names a group only when it differs from the stage. Why and Details toggle side by side, so opening one never moves the other. The side panels open pinned beside the question on a screen 1200 px or wider until you choose, a stored Pin choice still wins, and Esc still closes a panel only that default pinned. The Pin control reads `Pin beside`. `Finish: export and end the session` is a secondary control while anything is outstanding and the primary one at zero, enabled either way. The dialog's second button has a name before it shows. The light theme's faint label color is darker (`#5f6a7c`, at least 4.57:1 on every light background). A wide Decide pane shows its rows in two columns, and on a short screen the question gives the answer area more room, down to 41% of the pane, so the whole list fits unscrolled at 1568x744.
+
+## [0.109.0] - 2026-10-26
+
+### Added
+
+- The shared interview page gives the owner a Host Health panel, listed in Help and More, which no one else sees ([#9974](https://github.com/melodic-software/claude-code-plugins/issues/9974)). It shows what `share.sh logs --summary` reports for the whole kept log, in the same sections: top errors, refusals, network failures, action latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and feature use, rage taps and dead taps by control. It loads when the panel opens and again on Refresh. The panel reads the new owner-only `GET /api/owner/health`, which answers `{summary, sections}`. `logs --summary` now prints its last line, about repeats whose first entry has left the log, after a blank line like the other sections.
+
+## [0.108.0] - 2026-10-26
+
+### Added
+
+- The interview surface has a `propose` op for a new question an Ask opens: `id`, `title`, `short`, optional `group` and `fromSeq` (the Ask it answers). The question is `proposed` until the user answers it: the page shows a Needs-you card, `Claude proposes adding: <title>`, with Accept, Edit and Not this and no Decide list, which post a `proposal` event (`accept`, `edit` with the user's wording, or `decline`). The server derives the question `open` after an accept or edit and `archived` after a decline, and refuses a decision on it before then, and an accept until Claude writes its recommendation. The exports write no row for it until the user accepts or edits it (a declined one exports as a withdrawn row), `status` lists it apart from the live count, and a recommendation, alternatives, commitments or a terminal answer on it are refused until then.
+- The interview skill's surface guide says a reply to an Ask that opens new scope carries an `Understood as:` readback naming the proposed ids, and a question an Ask opens goes through `propose` before it gets a recommendation.
+
+## [0.107.1] - 2026-10-26
+
+### Fixed
+
+- `/planning:interview`: `round.sh export-brief` stamps every page export. With no restatement the TLDR reads `- Restatement: UNCONFIRMED (no restatement posted)`, and every export adds a `- Page title:` line. `check-open-questions.sh --brief` fails that stamp (`brief=unconfirmed`). It also fails a stamped export whose Goal is still the page title, or whose only criterion is `none recorded in the interview surface`, while any question is answered (`brief=placeholder`). Before, such a Brief passed the gate clean. A hand-written Brief with no `Restatement:` line still passes.
+
 ## [0.107.0] - 2026-10-26
 
 ### Added
