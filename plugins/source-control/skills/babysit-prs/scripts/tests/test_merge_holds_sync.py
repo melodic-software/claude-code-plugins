@@ -202,7 +202,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_floor_is_the_same_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
-        self.assertEqual(len(risk.HIGH_FLOOR), 36)
+        self.assertEqual(len(risk.HIGH_FLOOR), 37)
         for path, held, configured in zip(
             FLOOR_PATHS, answer["held"], answer["configured"], strict=True
         ):

@@ -4783,6 +4783,7 @@ class ForeignPaths(unittest.TestCase):
             }
         )
         own = changed - {
+            ".github/workflows/pr-merge.yml",
             ".github/actions/check-trusted-trigger/action.yml",
             ".github/actions/resolve-config/resolve.mjs",
             "CODEOWNERS",

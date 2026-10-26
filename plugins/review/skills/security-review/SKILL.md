@@ -161,7 +161,8 @@ and the finding says which control and what now gets through:
 - it weakens, narrows or removes a merge hold (in this repository
   `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`, `superseded.mjs` and
   `clear-escalations.mjs`, the `pr-unblock/` and `work-resolve-issue/` modules they import, the
-  ci-status hold steps in `.github/workflows/pr-require-checks.yml`,
+  ci-status hold steps in `.github/workflows/pr-require-checks.yml`, the steps in
+  `.github/workflows/pr-merge.yml` that run those scripts and set their environment,
   `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
   `babysit_verify_evidence.py` and the `babysit-prs/scripts/` modules they import, and the `merge`
   settings in `docs/conventions/pr-pipeline.yaml`);

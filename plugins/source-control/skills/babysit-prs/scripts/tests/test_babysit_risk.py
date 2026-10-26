@@ -306,6 +306,7 @@ class HighReasonTests(unittest.TestCase):
                 "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
                 "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
                 ".github/workflows/pr-require-checks.yml",
+                ".github/workflows/pr-merge.yml",
                 "docs/conventions/pr-pipeline.yaml",
                 ".github/scripts/pr-unblock/address-feedback.mjs",
                 ".github/scripts/pr-unblock/gate-source.mjs",
@@ -331,6 +332,7 @@ class HighReasonTests(unittest.TestCase):
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"),
             (".github/workflows/pr-require-checks.yml", ".github/workflows/pr-require-checks.yml"),
+            (".github/workflows/pr-merge.yml", ".github/workflows/pr-merge.yml"),
             ("docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             ("Docs/Conventions/PR-Pipeline.yaml", "docs/conventions/pr-pipeline.yaml"),
             (".github/scripts/pr-unblock/address-feedback.mjs", ".github/scripts/pr-unblock/address-feedback.mjs"),
@@ -371,7 +373,6 @@ class HighReasonTests(unittest.TestCase):
             "plugins/foo/package-lock.json",
             "plugins/foo/requirements.txt",
             ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-merge.yml",
             ".github/workflows/pr-review-security-hosted.yml",
             ".github/workflows/work-resolve-issue.yml",
         ):
@@ -1185,6 +1186,7 @@ class LanePathFloorTests(unittest.TestCase):
             "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
             "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
             ".github/workflows/pr-require-checks.yml",
+            ".github/workflows/pr-merge.yml",
             "docs/conventions/pr-pipeline.yaml",
             ".github/scripts/pr-unblock/address-feedback.mjs",
             ".github/scripts/pr-unblock/gate-source.mjs",
@@ -1251,7 +1253,6 @@ class LanePathFloorTests(unittest.TestCase):
             "plugins/foo/package-lock.json",
             ".github/requirements-ci.txt",
             ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-merge.yml",
             ".github/workflows/pr-review-security-hosted.yml",
         ):
             with self.subTest(path):
@@ -1582,7 +1583,6 @@ class TrustGateTests(unittest.TestCase):
         for path in (
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-prs/SKILL.md",
-            ".github/workflows/pr-merge.yml",
             ".github/scripts/pr-merge/gate.mjs",
             ".github/workflows/pr-review-security-hosted.yml",
             ".github/standards/trusted-actors/README.md",

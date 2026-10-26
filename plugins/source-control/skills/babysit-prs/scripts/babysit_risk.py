@@ -189,8 +189,8 @@ class RiskResult:
 # their verdicts through, code owners and submodules; and the files that
 # enforce the floor (owner decision Q-ENFORCE (A)): the merge-holds,
 # enable-auto-merge, superseded and clear-escalations scripts, this module,
-# the ci-status workflow, the pipeline config, every module those scripts
-# import, and the babysit-prs modules this module and the Python those
+# the ci-status workflow, the pr-merge workflow that wires those scripts,
+# the pipeline config, every module those scripts import, and the babysit-prs modules this module and the Python those
 # scripts run (babysit_verify_evidence.py) import (test_merge_holds_sync.py
 # derives both closures and requires them here). merge-holds.mjs
 # HOLD_PATH_FLOOR is the same list (test_merge_holds_sync.py).
@@ -225,6 +225,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
     ".github/workflows/pr-require-checks.yml",
+    ".github/workflows/pr-merge.yml",
     "docs/conventions/pr-pipeline.yaml",
     ".github/scripts/pr-unblock/address-feedback.mjs",
     ".github/scripts/pr-unblock/gate-source.mjs",

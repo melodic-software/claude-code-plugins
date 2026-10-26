@@ -794,7 +794,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   enforce the floor: `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`,
   `superseded.mjs` and `clear-escalations.mjs` there,
   `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
-  `.github/workflows/pr-require-checks.yml`, `docs/conventions/pr-pipeline.yaml`, and every module
+  `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml`, which runs those
+  scripts and sets their environment, `docs/conventions/pr-pipeline.yaml`, and every module
   those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
   `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
   and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which

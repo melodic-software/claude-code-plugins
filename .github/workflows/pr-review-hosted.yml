@@ -216,6 +216,7 @@ jobs:
         .github/scripts/work-resolve-issue/report-outcome.mjs
         .github/scripts/work-resolve-issue/limits.mjs
         .github/workflows/pr-require-checks.yml
+        .github/workflows/pr-merge.yml
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py
