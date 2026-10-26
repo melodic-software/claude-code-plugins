@@ -1,23 +1,23 @@
-# test-scope: .github/scripts/pr-merge/merge-holds.mjs
+# test-scope: .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
-run here under node) cover the merge gate's HIGH floor, cost paths and
-manifest review, so a lane pull request native auto-merge merges cannot skip
-them. The gate's other cost reasons (Pulumi project files, workflow and
-pipeline lines) are not mirrored: the lanes App's token never carries the
-`workflows` permission (request-lane-token checks the grant is contents,
-pull-requests, issues and at most actions), so no lanes App push changes a
-workflow file. That covers lanes App pushes only: another identity with
-write access can still push a workflow change after auto-merge is armed.
-The repository's pipeline config is a hold path.
+run here under node) cover the merge gate's cost paths, so a lane pull
+request native auto-merge merges cannot skip them. The gate's other cost
+reasons (Pulumi project files, workflow and pipeline lines) are not mirrored:
+the lanes App's token never carries the `workflows` permission
+(request-lane-token checks the grant is contents, pull-requests, issues and
+at most actions), so no lanes App push changes a workflow file. That covers
+lanes App pushes only: another identity with write access can still push a
+workflow change after auto-merge is armed.
 
-- The floor: every `babysit_risk.HIGH_FLOOR` glob is a hold path glob
-  (`HOLD_PATH_FLOOR`), and `pathHold` holds the paths `glob_match` matches
-  over that floor, case variants included.
+- The floor (owner decisions Q-FLOOR (B) and Q-ENFORCE (A)): `HOLD_PATH_FLOOR` is
+  `babysit_risk.HIGH_FLOOR`, and `pathHold` holds, with no configured glob,
+  exactly the paths `glob_match` matches over it, case variants included;
+  a trusted path off the floor holds only for a configured glob. Every module
+  the floor actions load is on it, and of babysit-prs/scripts/ exactly the
+  Python that decides the holds. The review callers' `hold-paths` and
+  ci-status's exempt-author `hold_patterns` each match every floor entry.
 - The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
   paths matched (`glob_match` folds case and covers what sits under a glob).
-- The manifests: `manifestChanges` finds what `babysit_risk._manifest_changes`
-  finds for each change, so ci-status holds what the gate's manifest review
-  holds and passes what it passes.
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
@@ -28,9 +28,12 @@ The repository's pipeline config is a hold path.
 
 from __future__ import annotations
 
+import ast
+import fnmatch
 import json
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -45,11 +48,16 @@ import babysit_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
-# The floor actions' entry points: every module they load is code main runs
-# with their verdict, so the floor holds it too.
+# The floor actions' entry points and the floored scripts that enforce the
+# floor (owner decision Q-ENFORCE (A)): every module they load is code main
+# runs with their verdict, so the floor holds it too.
 FLOOR_ENTRIES = (
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/resolve-config/resolve-config.mjs",
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
 )
 IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.{1,2}/[^"']+)["']""")
 
@@ -66,20 +74,54 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
         for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
             todo.append(file.parent / spec)
     return sorted(seen)
+
+
+# The Python that decides the holds: babysit_risk, and every script a floored
+# JS module runs (enable-auto-merge.mjs's VERIFY_SCRIPT), with every module of
+# babysit-prs/scripts/ they import.
+SCRIPTS = pathlib.Path(risk.__file__).resolve().parent
+PY_RUN = re.compile(r"""["'`][^"'`\s]*?(plugins/[^"'`\s]+\.py)["'`]""")
+
+
+def python_closure(js_files: list[str]) -> list[str]:
+    todo = [SCRIPTS / "babysit_risk.py"]
+    floored = {g for g in risk.HIGH_FLOOR if g.endswith(".mjs")}
+    for name in sorted(floored | set(js_files)):
+        for path in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
+            todo.append(ROOT / path)
+    seen: set[str] = set()
+    while todo:
+        file = todo.pop()
+        name = file.relative_to(ROOT).as_posix()
+        if name in seen:
+            continue
+        seen.add(name)
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+                names = [node.module]
+            else:
+                continue
+            todo.extend(
+                SCRIPTS / f"{n}.py" for n in names if (SCRIPTS / f"{n}.py").is_file()
+            )
+    return sorted(seen)
+
+
 NODE = """
 import { COST_PATHS, HOLD_PATH_FLOOR, costHold, pathHold } from %s;
-const paths = JSON.parse(process.argv[1]);
+const [paths, globs] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
   costPaths: COST_PATHS,
   floor: HOLD_PATH_FLOOR,
   cost: paths.map((path) => costHold([path], null) !== null),
   held: paths.map((path) => pathHold([path], []) !== null),
+  configured: paths.map((path) => pathHold([path], globs) !== null),
 }));
 """
-NODE_MANIFEST = """
-import { manifestChanges } from %s;
-console.log(JSON.stringify(JSON.parse(process.argv[1]).map(manifestChanges)));
-"""
+# A configured denied-paths list, for the presence case.
+CONFIGURED = ["Docs/Conventions/PR-Pipeline.yaml", ".github/workflows/**"]
 PATHS = [
     "plugins/multi-agent/reference/defaults.yaml",
     "Plugins/Multi-Agent/Reference/Defaults.YAML",
@@ -107,6 +149,14 @@ PATHS = [
 FLOOR_PATHS = [
     ".github/actions/resolve-config/resolve.mjs",
     ".github/actions/Resolve-Config/resolve.mjs",
+    ".github/actions/request-lane-token/action.yml",
+    ".github/actions/Request-Lane-Token/index.mjs",
+    ".github/actions/check-kill-switch/check-kill-switch.mjs",
+    ".github/actions/CHECK-KILL-SWITCH/action.yml",
+    ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/Rate-Guard.MJS",
+    ".github/actions/log-api-budget/action.yml",
+    ".github/actions/log-api-budget/rate-guard.test.mjs",
     ".github/CODEOWNERS",
     ".github/codeowners",
     "CODEOWNERS",
@@ -128,7 +178,7 @@ FLOOR_PATHS = [
 def module(paths: list[str]) -> dict[str, Any]:
     script = NODE % json.dumps(MODULE.as_uri())
     proc = subprocess.run(
-        ["node", "--input-type=module", "-e", script, json.dumps(paths)],
+        ["node", "--input-type=module", "-e", script, json.dumps([paths, CONFIGURED])],
         capture_output=True,
         text=True,
         check=True,
@@ -149,165 +199,156 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(True, answer["cost"])
         self.assertIn(False, answer["cost"])
 
-    def test_the_floor_covers_the_gate_s(self) -> None:
+    def test_the_floor_is_the_same_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertTrue(set(risk.HIGH_FLOOR) <= set(answer["floor"]), answer["floor"])
-        for path, held in zip(FLOOR_PATHS, answer["held"], strict=True):
+        self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
+        self.assertEqual(len(risk.HIGH_FLOOR), 37)
+        for path, held, configured in zip(
+            FLOOR_PATHS, answer["held"], answer["configured"], strict=True
+        ):
             with self.subTest(path):
+                on_floor = any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                self.assertEqual(held, on_floor)
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in answer["floor"])
+                    configured,
+                    on_floor or any(risk.glob_match(g, path) for g in CONFIGURED),
                 )
         self.assertIn(True, answer["held"])
         self.assertIn(False, answer["held"])
+        self.assertIn(False, answer["configured"])
+        self.assertNotEqual(answer["held"], answer["configured"])
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
         self.assertIn(".github/actions/check-kill-switch/check-kill-switch.mjs", files)
+        self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
                 self.assertTrue(held)
                 self.assertTrue(any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR))
 
-    def test_the_manifest_review_is_the_gate_s(self) -> None:
-        js = manifest_changes([change for _, change, _ in MANIFEST_CASES])
-        for (name, change, holds), found in zip(MANIFEST_CASES, js, strict=True):
+    def test_the_floor_holds_the_python_that_decides_the_holds(self) -> None:
+        files = python_closure(import_closure(FLOOR_ENTRIES))
+        scripts = SCRIPTS.relative_to(ROOT).as_posix()
+        self.assertIn(f"{scripts}/babysit_verify_evidence.py", files)
+        self.assertIn(f"{scripts}/babysit_merge.py", files)
+        answer = module(files)
+        for path, held in zip(files, answer["held"], strict=True):
+            with self.subTest(path):
+                self.assertTrue(held)
+                self.assertTrue(any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR))
+        # Nothing else of that directory: the floor tracks the closure.
+        self.assertEqual(
+            sorted(g for g in risk.HIGH_FLOOR if g.startswith(f"{scripts}/")), files
+        )
+
+
+def _hold_paths(workflow: str) -> list[str]:
+    text = (ROOT / ".github/workflows" / workflow).read_text(encoding="utf-8")
+    block = re.search(r"^      hold-paths: \|\n((?:        \S.*\n)+)", text, re.M)
+    assert block, workflow
+    return block[1].split()
+
+
+def _hold_patterns() -> list[str]:
+    text = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
+        encoding="utf-8"
+    )
+    found = re.search(r"^ *hold_patterns=\((.*)\)$", text, re.M)
+    assert found
+    return shlex.split(found[1])
+
+
+class TheScrutinyListsNameTheFloor(unittest.TestCase):
+    """The review callers' `hold-paths` (prompt globs) and ci-status's
+    exempt-author `hold_patterns` (bash patterns, `*` crossing `/`) each match
+    every floor entry."""
+
+    def test_each_list_covers_every_floor_entry(self) -> None:
+        lists = {
+            workflow: (_hold_paths(workflow), risk.glob_match)
+            for workflow in ("pr-review-hosted.yml", "pr-review-security-hosted.yml")
+        }
+        lists["hold_patterns"] = (
+            _hold_patterns(),
+            lambda pattern, entry: fnmatch.fnmatchcase(entry, pattern),
+        )
+        for name, (patterns, match) in lists.items():
+            self.assertTrue(patterns, name)
+            for entry in risk.HIGH_FLOOR:
+                with self.subTest(list=name, entry=entry):
+                    self.assertTrue(any(match(p, entry) for p in patterns))
+
+
+NODE_ACTORS = """
+import { actorsWidened } from %s;
+const cases = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(cases.map(([status, previous, contents]) => actorsWidened({ status, previous, contents }))));
+"""
+_KYLE = {"id": 1, "login": "kyle", "kind": "human"}
+_BOT = {"id": 2, "login": "lanes[bot]", "kind": "bot"}
+
+
+def _list(*actors: Any, version: Any = 1) -> str:
+    return json.dumps({"version": version, "actors": list(actors)}, indent=2)
+
+
+_BASE_LIST = _list(_KYLE, _BOT)
+# Each case: status, renamed-from path, then [base text, head text] or None.
+ACTOR_CASES = {
+    "an entry added": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, {"id": 3})]),
+    "an entry's kind changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT | {"kind": "human"})]),
+    "a removal beside an addition": ("modified", None, [_BASE_LIST, _list(_KYLE, {"id": 5})]),
+    "an entry repeated": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, _BOT)]),
+    "another key changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, version=2)]),
+    "unparsable head": ("modified", None, [_BASE_LIST, "{"]),
+    "a repeated key": ("modified", None, [_BASE_LIST, _BASE_LIST.replace('"version": 1', '"version": 1, "version": 1')]),
+    "actors not a list": ("modified", None, [_BASE_LIST, '{"version": 1, "actors": {}}']),
+    "an array at the root": ("modified", None, [_BASE_LIST, "[]"]),
+    "contents unread": ("modified", None, None),
+    "added": ("added", None, [None, _BASE_LIST]),
+    "removed": ("removed", None, [_BASE_LIST, None]),
+    "renamed": ("renamed", "a.json", [_BASE_LIST, _BASE_LIST]),
+    "an entry removed": ("modified", None, [_BASE_LIST, _list(_KYLE)]),
+    "every entry removed": ("modified", None, [_BASE_LIST, _list()]),
+    "reformatted and reordered": ("modified", None, [_BASE_LIST, json.dumps({"actors": [_BOT, _KYLE], "version": 1})]),
+    "keys reordered in an entry": ("modified", None, [_BASE_LIST, _list({"kind": "human", "login": "kyle", "id": 1}, _BOT)]),
+}  # fmt: skip
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheWideningHoldIsTheGates(unittest.TestCase):
+    def test_both_hold_the_same_trusted_actor_list_changes(self) -> None:
+        cases = list(ACTOR_CASES.values())
+        script = NODE_ACTORS % json.dumps(MODULE.as_uri())
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, (status, previous, contents)), js in zip(
+            ACTOR_CASES.items(), answers, strict=True
+        ):
+            changed = risk.ChangedFile(
+                path=risk.TRUSTED_ACTORS_PATH,
+                previous_path=previous,
+                status=status,
+                additions=1,
+                deletions=1,
+                has_patch=True,
+                mode="100644",
+                previous_mode=None if status == "added" else "100644",
+                contents=None if contents is None else tuple(contents),
+            )
+            py = risk._actors_widened(risk._check_file(changed), changed)
             with self.subTest(name):
-                self.assertEqual(found, py_manifest_changes(change))
-                self.assertEqual(bool(found), holds)
-
-
-PLUGIN = "plugins/foo/.claude-plugin/plugin.json"
-MARKET = ".claude-plugin/marketplace.json"
-PLUGIN_BASE = (
-    '{"name": "foo", "version": "1.0.0",'
-    ' "userConfig": {"guard_enabled": {"type": "boolean", "default": true}}}'
-)
-MARKET_BASE = (
-    '{"name": "m", "plugins": [{"name": "foo", "source": "./plugins/foo",'
-    ' "category": "dev"}]}'
-)
-
-
-def _key(text: str) -> str:
-    return PLUGIN_BASE.replace('"name": "foo",', f'"name": "foo", {text},')
-
-
-def _case(
-    name: str,
-    after: str | None,
-    holds: bool,
-    *,
-    path: str = PLUGIN,
-    before: str | None = PLUGIN_BASE,
-    status: str = "modified",
-    previous: str | None = None,
-) -> tuple[str, dict[str, Any], bool]:
-    return (
-        name,
-        {"path": path, "previous": previous, "status": status, "contents": [before, after]},
-        holds,
-    )
-
-
-# The classes #9280 set the gate's manifest review to hold, then changes it
-# lets merge: a userConfig default (#9483), a version, a description, a
-# marketplace category.
-MANIFEST_CASES = [
-    _case("hooks", _key('"hooks": "./h.json"'), True),
-    _case("mcpServers", _key('"mcpServers": {}'), True),
-    _case("lspServers", _key('"lspServers": {}'), True),
-    _case("monitors", _key('"monitors": []'), True),
-    _case("experimental.monitors", _key('"experimental": {"monitors": []}'), True),
-    _case("experimental.monitors removed", PLUGIN_BASE, True, before=_key('"experimental": {"monitors": []}')),
-    _case("hooks reordered", _key('"hooks": {"b": 1, "a": [1, 2]}'), False, before=_key('"hooks": {"a": [1, 2], "b": 1}')),
-    _case("hooks 1 to 1.0", _key('"hooks": {"t": 1.0}'), True, before=_key('"hooks": {"t": 1}')),
-    _case("an integer past int_max_str_digits", _key('"size": ' + "1" * 4301), True),
-    _case("hooks true to null", _key('"hooks": null'), True, before=_key('"hooks": true')),
-    _case("hooks true to false", _key('"hooks": false'), True, before=_key('"hooks": true')),
-    _case(
-        "hooks 20-digit integer, last digit",
-        _key('"hooks": {"t": 12345678901234567891}'),
-        True,
-        before=_key('"hooks": {"t": 12345678901234567890}'),
-    ),
-    _case("hooks -0.0 to 0.0", _key('"hooks": {"t": 0.0}'), True, before=_key('"hooks": {"t": -0.0}')),
-    _case("hooks false to 0", _key('"hooks": 0'), True, before=_key('"hooks": false')),
-    _case(
-        "a plugin added",
-        MARKET_BASE.replace("]}", ', {"name": "bar", "source": "./plugins/bar"}]}'),
-        True,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-    _case("a plugin removed", '{"name": "m", "plugins": []}', True, path=MARKET, before=MARKET_BASE),
-    _case("a plugin renamed", MARKET_BASE.replace('"name": "foo"', '"name": "fob"'), True, path=MARKET, before=MARKET_BASE),
-    _case(
-        "a plugin source changed",
-        MARKET_BASE.replace("./plugins/foo", "https://example.com/foo.git"),
-        True,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-    _case("the marketplace name changed", MARKET_BASE.replace('"name": "m"', '"name": "n"'), True, path=MARKET, before=MARKET_BASE),
-    _case("plugins not a list", '{"name": "m", "plugins": {}}', True, path=MARKET, before=MARKET_BASE),
-    _case(
-        "two entries of one name",
-        MARKET_BASE.replace("]}", ', {"name": "foo", "source": "./plugins/foo"}]}'),
-        True,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-    _case("removed", None, True, status="removed"),
-    _case("renamed", PLUGIN_BASE, True, status="renamed", previous="plugins/foo/plugin.json"),
-    _case("copied", PLUGIN_BASE, True, status="copied", previous="plugins/bar/.claude-plugin/plugin.json"),
-    _case("an unreadable head", None, True),
-    _case("a parse error", "{", True),
-    _case("not an object", "[]", True),
-    _case("a duplicate key", _key('"name": "x"'), True),
-    _case("a nested duplicate key", _key('"hooks": {"a": 1, "a": 2}'), True),
-    _case("an added plugin.json", PLUGIN_BASE, False, before=None, status="added"),
-    _case("an added plugin.json with hooks", _key('"hooks": {}'), True, before=None, status="added"),
-    _case("a userConfig default (#9483)", PLUGIN_BASE.replace('"default": true', '"default": false'), False),
-    _case("a version", PLUGIN_BASE.replace("1.0.0", "1.1.0"), False),
-    _case("a marketplace category", MARKET_BASE.replace('"dev"', '"tools"'), False, path=MARKET, before=MARKET_BASE),
-    _case(
-        "a marketplace metadata key",
-        MARKET_BASE.replace('"name": "m",', '"name": "m", "metadata": {"pluginRoot": "x"},'),
-        False,
-        path=MARKET,
-        before=MARKET_BASE,
-    ),
-]
-
-
-def manifest_changes(changes: list[dict[str, Any]]) -> list[list[str]]:
-    script = NODE_MANIFEST % json.dumps(MODULE.as_uri())
-    proc = subprocess.run(
-        ["node", "--input-type=module", "-e", script, json.dumps(changes)],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(proc.stdout)
-
-
-def py_manifest_changes(change: dict[str, Any]) -> list[str]:
-    status = change["status"]
-    two_sided = status in ("modified", "changed", "renamed", "copied")
-    before, after = change["contents"]
-    changed = risk.ChangedFile(
-        path=change["path"],
-        previous_path=change["previous"],
-        status=status,
-        additions=1,
-        deletions=1,
-        has_patch=True,
-        mode="100644",
-        previous_mode="100644" if two_sided else None,
-        contents=(None if status == "added" else before, after),
-    )
-    return risk._manifest_changes(risk._check_file(changed), changed)
+                self.assertEqual(js is None, py is None, (js, py))
+        held = [js is not None for js in answers]
+        self.assertIn(True, held)
+        self.assertIn(False, held)
 
 
 REPO = "o/r"
@@ -393,8 +434,14 @@ DECISIONS = {
     "another decision": (_link(7), _comment(7, body="**Decision recorded.** Ship")),
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
 }
-def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[str, Any]:
-    body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria=cost -->\nHeld."
+
+
+def _marker(
+    sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any
+) -> dict[str, Any]:
+    body = (
+        f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria=cost -->\nHeld."
+    )
     user = {"login": "github-actions[bot]", "type": "Bot"}
     return {"user": user, "node_id": "M", "created_at": at, "body": body} | fields
 
@@ -404,7 +451,12 @@ def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[s
 # The marker's edit read answers `marker_edited`, or fails when it is "fail";
 # the deleted-comment read lists the `deleted` times (or answers the timeline
 # items given), or fails when it is "fail".
-DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}, "marker_edited": None, "deleted": []}
+DEFAULT_HEADS = {
+    "markers": [_marker(HEAD)],
+    "compares": {},
+    "marker_edited": None,
+    "deleted": [],
+}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 # Each case: the heads world for a decision on the pull request (_link(7)).
@@ -434,9 +486,15 @@ CARRIES = {
     },
     "a file with no patch": {
         "markers": [_marker(OLD)],
-        "compares": {sha: {"files": [{"filename": "a.png", "status": "added"}]} for sha in (OLD, HEAD)},
+        "compares": {
+            sha: {"files": [{"filename": "a.png", "status": "added"}]}
+            for sha in (OLD, HEAD)
+        },
     },
-    "an unreadable compare": {"markers": [_marker(OLD)], "compares": {OLD: {"files": [TF]}}},
+    "an unreadable compare": {
+        "markers": [_marker(OLD)],
+        "compares": {OLD: {"files": [TF]}},
+    },
     "the latest marker before it, not an older one at the head": {
         "markers": [_marker(HEAD, "2026-01-02T06:00:00Z"), _marker(OLD)],
         "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
@@ -467,15 +525,25 @@ CARRIES = {
     "a comment deleted before the marker": {"deleted": ["2026-01-02T11:00:00Z"]},
     "an unreadable deleted-comment list": {"deleted": "fail"},
     "more deleted comments than listed": {
-        "deleted": {"filteredCount": 2, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
+        "deleted": {
+            "filteredCount": 2,
+            "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}],
+        }
     },
     "a deleted-comment count that is not a number": {
-        "deleted": {"filteredCount": True, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
+        "deleted": {
+            "filteredCount": True,
+            "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}],
+        }
     },
     "a patchless pure rename": {
         "markers": [_marker(OLD)],
         "compares": {
-            sha: {"files": [{"filename": "b", "status": "renamed", "previous_filename": "a"}]}
+            sha: {
+                "files": [
+                    {"filename": "b", "status": "renamed", "previous_filename": "a"}
+                ]
+            }
             for sha in (OLD, HEAD)
         },
     },
@@ -542,7 +610,10 @@ def py_decision(
                 raise policy.PolicyReadError(what)
             deleted = heads["deleted"]
             items = (
-                {"filteredCount": len(deleted), "nodes": [{"createdAt": t} for t in deleted]}
+                {
+                    "filteredCount": len(deleted),
+                    "nodes": [{"createdAt": t} for t in deleted],
+                }
                 if isinstance(deleted, list)
                 else deleted
             )
@@ -556,7 +627,11 @@ def py_decision(
     def get(endpoint: str) -> tuple[int | None, Any]:
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
-            return (200, heads["compares"][sha]) if sha in heads["compares"] else (404, None)
+            return (
+                (200, heads["compares"][sha])
+                if sha in heads["compares"]
+                else (404, None)
+            )
         return 200, comment
 
     def paginated(endpoint: str, _label: str) -> list[dict[str, Any]]:
@@ -599,7 +674,9 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
         for case, heads in CARRIES.items():
             with self.subTest(case):
                 answers[case] = py_decision(_link(7), _comment(7), heads)
-                self.assertEqual(js_decision(_link(7), _comment(7), heads), answers[case])
+                self.assertEqual(
+                    js_decision(_link(7), _comment(7), heads), answers[case]
+                )
         carried = {
             "a marker at the head",
             "a base merge since the decided head",

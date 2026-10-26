@@ -70,6 +70,10 @@ jobs:
       # Empty when the profile sets a subagent model, which the reusable
       # cannot apply; the refusal step below shows why.
       claude-args: ${{ steps.models.outputs.settings-json == '' && steps.models.outputs.claude-args || '' }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Record when this run started
         id: started
@@ -140,6 +144,14 @@ jobs:
           fi
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The pinned reusable reads no kill switch, so this caller does. Intake has
   # no lane switch of its own; the org and repository switches fail closed
   # (check-kill-switch), and a failed job leaves proceed empty, which also
@@ -201,7 +213,7 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@215cec5c362f953f8b6196effb04451696c3f970 # 215cec5 2026-10-25 v0.65.10
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
     with:
       runner: ubuntu-24.04
       role: intake
@@ -330,9 +342,12 @@ jobs:
         e. When the decision settles every open question and no person is needed, apply no status
            label, quote the decision, say in one sentence that it settles the open questions, and ask
            nothing again. Triage the rest as usual.
+    # Named secrets only, never `secrets: inherit`. The central fallback token
+    # runs only after the subscription token hands off.
     secrets:
       CLAUDE_API_KEY: ${{ secrets.INTAKE_CLAUDE_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}
+      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   # Writes the triage run's verdict on the issue as the lanes App, so the work
   # lanes count it: the work-class label, the Size, Complexity and Uncertainty
@@ -490,6 +505,10 @@ jobs:
       # `size-split` for a Size Large issue to split into sub-issues, else `refine`.
       mode: ${{ steps.select.outputs.mode }}
       context-sha256: ${{ steps.hash.outputs.sha256 }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -558,6 +577,14 @@ jobs:
           path: ${{ runner.temp }}/refine-context/context.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The model. Its job's only token is GITHUB_TOKEN with contents: read; it
   # reads the context file and the default branch checkout (its working
@@ -747,7 +774,7 @@ jobs:
       - name: Refine the issue
         id: run
         if: steps.prompt.outcome == 'success'
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
+        uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"

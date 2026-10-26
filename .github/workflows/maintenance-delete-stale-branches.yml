@@ -48,6 +48,10 @@ jobs:
       contents: write # list branches, compare, delete a branch ref
       issues: read # read linked issues
       pull-requests: read # read each branch's pull requests
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,3 +112,11 @@ jobs:
           path: ${{ runner.temp }}/branch-cleanup-ledger.jsonl
           if-no-files-found: ignore
           retention-days: 90
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
