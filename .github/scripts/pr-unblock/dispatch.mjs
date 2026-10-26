@@ -292,10 +292,17 @@ export function createGitHubApi({
   fetch = globalThis.fetch,
 }) {
   const [owner, name] = repository.split("/");
+  // Connection: close ends each socket after its answer, so no request goes
+  // out on a pooled one that sat idle through dispatchConflicting's waits and
+  // that GitHub has since dropped. A read that still fails on the network is
+  // sent again (budgetedFetch); a dispatch is not, since it may have started a
+  // run. A request's own Connection: close does not keep it off a pooled
+  // socket, so every request sends it, as enable-auto-merge.mjs does.
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
     "X-GitHub-Api-Version": "2022-11-28",
+    Connection: "close",
   };
 
   async function request(url, method = "GET", body) {

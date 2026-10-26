@@ -1,0 +1,16 @@
+{
+  "claim": "Under dontAsk with the write lane's tool lists, Read(/<workspace>/.git/**) denies a Grep whose path is the checkout's .git directory.",
+  "tags": ["Read rule", "deny rule", "Grep", "disallowedTools", "allowedTools", "dontAsk"],
+  "permission_mode": "dontAsk",
+  "tool_rules": "lane-write-tools.json",
+  "verdict_only": true,
+  "platforms": ["linux"],
+  "requires": ["git"],
+  "target": {
+    "tool": "Grep",
+    "input_match": "\"path\": \"[^\"]*\\.git/?\"",
+    "example": { "pattern": "repositoryformatversion", "path": ".git", "output_mode": "files_with_matches" }
+  },
+  "outcome": "deny",
+  "control": "lane-permissions/grep-in-checkout-runs"
+}

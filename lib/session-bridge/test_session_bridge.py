@@ -174,6 +174,14 @@ class TestPort(unittest.TestCase):
         self.assertEqual(relay.unhandled(relay.read_log()), [])
         self.assertEqual(relay.listener()["state"], "idle")
 
+    def test_the_relay_line_puts_the_note_before_the_events(self):
+        relay = sb.ChannelRelay(
+            tempfile.gettempdir(), "toy", ["bash", "toy.sh"], None, "w"
+        )
+        relay.write_log({"seq": 1, "events": [{"seq": 1, "text": "hi"}]})
+        raw = sb.dumps_line(relay.take())
+        self.assertLess(raw.index('"note":'), raw.index('"events":'))
+
     def test_names_follow_the_app_name(self):
         self.assertEqual(
             sb.session_files("interview"),
@@ -291,6 +299,20 @@ class TestLongPoll(BridgeCase):
         self.assertEqual(body["note"], sb.DATA_NOTE)
         self.assertTrue(self.hub.read_log()["events"][0]["deliveredAt"])
         self.assertEqual(self.hub.listener()["state"], "listening")
+
+    def test_the_wait_answer_puts_the_note_before_the_events(self):
+        self.hub.append("hi")
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request(
+                "GET",
+                "/api/wait?after=handled&timeout=1",
+                headers={self.header: self.hub.token},
+            )
+            raw = conn.getresponse().read().decode("utf-8")
+        finally:
+            conn.close()
+        self.assertLess(raw.index('"note":'), raw.index('"events":'))
 
     def test_a_quiet_wait_times_out_with_no_events(self):
         code, body, _ = self.request("GET", "/api/wait?after=handled&timeout=1")

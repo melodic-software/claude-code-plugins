@@ -660,6 +660,31 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
   assert.match(plan.comment, /Which file\?/);
 });
 
+// The lane's preamble tells a run whose change needs a path apply-issue-patch
+// refuses to stop with a reason starting patch-protected-path, so the person
+// sees the lane's reason before the run's words; any other stop reads as before.
+test("a run that stopped with patch-protected-path hands back naming the reason, never restarted", () => {
+  const stoppedWith = (reason) =>
+    decide({
+      outcome: { exit: "stopped", reason, title: "", summary: "" },
+      issueNumber: 77,
+      issueLabels: ["agent-ready"],
+      branch: "",
+      changedFiles: [],
+      humanLabel: "needs-human",
+      runId: "123",
+    });
+  const plan = stoppedWith("patch-protected-path: .github/workflows/ci.yml needs a new step");
+  assert.equal(plan.action, "hand-back");
+  assert.equal(plan.exit, "stopped");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
+  assert.ok(plan.comment.includes("<!-- work-resolve-issue outcome=stopped run=123 -->"), plan.comment);
+  assert.ok(plan.comment.includes("The run stopped early (`patch-protected-path`): its change needs a path the issue lane may not push"), plan.comment);
+  assert.ok(plan.comment.includes("ci.yml needs a new step"), plan.comment);
+  assert.doesNotMatch(stoppedWith("Tests failed; not a patch-protected-path stop.").comment, /stopped early/);
+});
+
 // A stopped issue goes to a person, so it carries the hold alone: agent-ready
 // beside needs-human leaves it in both queues.
 test("stopped removes agent-ready and names the branch that holds partial work", () => {
@@ -926,6 +951,53 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
   );
+});
+
+// A create that fails on the network may still have opened the PR: it is read
+// back, and created once more only when the read finds none. A read that
+// lost its socket is sent again.
+test("main after a dropped PR create reads the PR back, and creates it again only when absent", async () => {
+  const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } });
+  for (const landed of [true, false]) {
+    await withDir(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
+      async (dir) => {
+        const { fetch: inner, calls } = fakeFetch([
+          ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+          branchTip(),
+          ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+          ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+          ["POST", /\/pulls$/, 201, { number: 90 }],
+          ["POST", /\/issues\/90\/labels$/, 200, []],
+        ]);
+        let createSent = false;
+        let compareDropped = false;
+        const fetch = async (url, init = {}) => {
+          const path = new URL(url).pathname;
+          if (path.includes("/compare/") && !compareDropped) {
+            compareDropped = true;
+            throw dropped();
+          }
+          if (path.endsWith("/pulls") && init.method === "POST" && !createSent) {
+            createSent = true;
+            await inner(url, init);
+            throw dropped();
+          }
+          if (path.endsWith("/pulls") && (init.method ?? "GET") === "GET") {
+            await inner(url, init);
+            const open = createSent && landed ? [{ number: 90, user: { login: "melodic-automation-lanes[bot]" } }] : [];
+            return { ok: true, status: 200, json: async () => open, text: async () => JSON.stringify(open) };
+          }
+          return inner(url, init);
+        };
+        assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), 0);
+        const sends = (method, suffix) => calls.filter((c) => c.method === method && c.path.endsWith(suffix)).length;
+        assert.equal(sends("POST", "/pulls"), landed ? 1 : 2, `landed=${landed}`);
+        assert.equal(sends("GET", "/pulls"), 2, `landed=${landed}`);
+        assert.equal(calls.filter((c) => c.path.includes("/compare/")).length, 1, "the dropped compare read was sent again");
+      },
+    );
+  }
 });
 
 test("main on a rerun reuses the open PR from the branch", async () => {

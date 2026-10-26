@@ -807,14 +807,15 @@ jobs:
       # The verdict reads that never change (FAIL run records, FAIL head refs,
       # run heads on main) and the refusals the next run may skip carry over
       # from the last run, so a sweep does not read them all again on its
-      # first candidate: the pr-merge-run-cache artifact, found the way the
-      # head-ref map is. Only that run's steps could upload it; it never goes
-      # through actions/cache, which any job in the default branch's cache
-      # scope can write. Each kept read still lands in a carried-* section the
-      # gate uses only where it counts a FAIL, never to turn one away or allow
-      # a PASS, and reads GitHub for any other answer. Rules:
-      # .github/scripts/pr-merge/carry-run-cache.mjs. Any error leaves the
-      # run cache empty, and the gate reads GitHub.
+      # first candidate: the pr-merge-run-cache artifact, with the carried
+      # reads of enable-auto-merge's pr-merge-verify-run-cache added, each
+      # found the way the head-ref map is. Only that run's steps could upload
+      # them; neither goes through actions/cache, which any job in the
+      # default branch's cache scope can write. Each kept read still lands in
+      # a carried-* section the gate uses only where it counts a FAIL, never
+      # to turn one away or allow a PASS, and reads GitHub for any other
+      # answer. Rules: .github/scripts/pr-merge/carry-run-cache.mjs. Any error
+      # leaves the run cache empty, and the gate reads GitHub.
       - name: Read the verdict reads the last run kept
         if: steps.candidates.outcome == 'success'
         continue-on-error: true
@@ -1743,6 +1744,35 @@ jobs:
           RISK_ESCALATION_MINUTES=$(yq '.merge."risk-escalation-minutes" // ""' "$config")
           export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
+
+      # The verdict reads this job's reader made, for the next run's two
+      # jobs: the merge gate reads no lane verdict, so only this reader fills
+      # run-record. Kept as the merge job keeps its own, and uploaded under a
+      # name of their own, so the merge job's file keeps its skip refusals;
+      # `read` adds only this file's carried-* sections to them. Only a
+      # scheduled or hand-started run's file is read back, so only one
+      # uploads it, and only when it kept a read: an empty file would hide an
+      # older one.
+      - name: Keep the verdict reads that never change
+        id: carry
+        if: >-
+          always() && steps.arm.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          CARRY_FROM: ${{ runner.temp }}/babysit-run-cache.json
+          CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
+
+      - name: Upload the verdict reads for the next run
+        if: always() && steps.carry.outputs.kept == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-verify-run-cache
+          path: ${{ runner.temp }}/pr-merge-carried.json
+          retention-days: 1
+          if-no-files-found: ignore
 
       - name: Log the API budget at job end
         id: budget-end

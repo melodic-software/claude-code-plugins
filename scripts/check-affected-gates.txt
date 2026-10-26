@@ -11,6 +11,7 @@
 # shares one runner check.
 markdown run markdown
 typos run typos
+machine-specific-paths run machine-specific-paths
 exec-bit run exec-bit
 shellcheck run shellcheck
 shell-portability-lint run shell-portability
@@ -27,7 +28,6 @@ changed-skills run changed-skills
 
 # Not run by scripts/check-affected.sh. The reason names where the gate comes from
 # or the command that runs it by hand.
-machine-specific-paths ci-only ci-workflows composite, run its entry script by hand: README.md "Running machine-specific-paths locally"
 actionlint ci-only ci-workflows composite
 comment-hygiene ci-only ci-workflows composite
 dependabot-schema ci-only ci-workflows composite: check-jsonschema

@@ -792,7 +792,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   unattended: `.github/actions/resolve-config/**`, whose code the token broker runs from main in
   its signer process, `.github/actions/request-lane-token/**`, which mints the lanes App token,
   `.github/actions/check-trusted-trigger/**` and the rate guard it sends every call through
-  (`.github/actions/log-api-budget/rate-guard.mjs`), `.github/actions/check-kill-switch/**`,
+  (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
+  (`.github/actions/log-api-budget/rate-limits.json`), `.github/actions/check-kill-switch/**`,
   whose output writer both actions use, `**/CODEOWNERS`, `**/.gitmodules`, and the files that
   enforce the floor: `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`,
   `superseded.mjs` and `clear-escalations.mjs` there,
@@ -800,7 +801,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml`, which runs those
   scripts and sets their environment, `docs/conventions/pr-pipeline.yaml`, and every module
   those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
-  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
+  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and
+  the `retry-fetch.mjs` copy in each of those two directories),
   and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which
   `enable-auto-merge.mjs` runs, with every `babysit-prs/scripts/` module they import
   (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more). `test_merge_holds_sync.py` derives
@@ -1124,9 +1126,13 @@ while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
-in the same file as the carried verdict reads, the `pr-merge-run-cache` artifact a scheduled or
-hand-started run uploads and the next run reads from the newest such run on the default branch,
-found the way the head-ref map is (`.github/scripts/pr-merge/carry-run-cache.mjs`); it never passes
+in the run cache the next run starts from, built from two artifacts a scheduled or hand-started run
+uploads, each read from the newest such run on the default branch holding it, found the way the
+head-ref map is (`.github/scripts/pr-merge/carry-run-cache.mjs`). `pr-merge-run-cache`, from the
+`merge` job, carries the refusals and the carried verdict reads; `pr-merge-verify-run-cache`, from
+`enable-auto-merge` and only when it kept a read, carries the verifier's carried verdict reads, of
+which only the `carried-*` sections are added. A file that does not read is dropped with a warning
+and the other is still used. Neither passes
 through `actions/cache`, which any job in the default branch's cache scope can write. Even a forged
 file can only repeat a refusal, for at most `max-minutes` from the judgment time it names. A change the key does not cover,
 such as a demotion record, a ruleset, an edit to a comment older than the newest 50 or a gate import
@@ -2057,7 +2063,9 @@ the earlier one-issue-per-key form (a marker key without `family:`) is closed as
 comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
 label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
 no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
-cannot read is listed in the step summary and the other signals still run.
+cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
+to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
@@ -2220,7 +2228,7 @@ with defaults.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to 1000, GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`, and the `github-token` entry). The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base

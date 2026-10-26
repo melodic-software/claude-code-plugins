@@ -3,6 +3,27 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.10.1] - 2026-10-26
+
+### Changed
+
+- **audit-performance:** the Token-leak reference now records the per-logon `ForegroundLockTimeout` workaround, applied after every logon because a third-party write-up reports that Windows resets the live value at logon; on the trial host a process that cannot take the foreground was refused the set. It also records the trial on one host and a before-baseline on build 26300.9711, where the leak still counts one token per creator.
+
+## [4.10.0] - 2026-10-26
+
+### Added
+
+- behavior-probes gains a `prints` outcome that judges the first line a slash command prints, a per-case `cli_args` list limited to allowed flags (today `--autocompact`), and `PROBE_MODEL` in a scaffold's environment. A `prints` case can name a control, and a control's own control now counts too.
+- A new `autocompact` area: four cases that run `/autocompact` with no argument and check which window wins between a project file's top-level and per-model `autoCompactWindow`, the `--autocompact` flag, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. Each case adds one element to the case it names as its control. They pass in the dry run and have not run live yet.
+
+## [4.9.0] - 2026-10-26
+
+### Added
+
+- `behavior-probes` has a `lane-permissions` area: seven cases that run the CI write lane's tool lists under `dontAsk` and check that its Read deny rules keep Grep, Glob and Read out of `/proc/*/environ` and the checkout's `.git`, with paired in-checkout Grep and Read controls.
+- `probe.py` passes a case's `allowed_tools` and `disallowed_tools` (or a shared `tool_rules` file in `cases/lib/`) as `--allowedTools` and `--disallowedTools`, with `${PROBE_WORKDIR}` substituted.
+- A `verdict_only` case saves no raw stream and no tool output text, so a failed deny leaves nothing on disk; `rejudge` keeps its row from the live run and says why.
+
 ## [4.8.0] - 2026-10-26
 
 ### Added
