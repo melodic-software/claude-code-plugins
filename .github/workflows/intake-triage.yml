@@ -201,7 +201,7 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@78ee7a2609a84b0073c5e09dfe3bc59613e689dc # v0.65.12
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
     with:
       runner: ubuntu-24.04
       role: intake
