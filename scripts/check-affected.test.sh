@@ -142,10 +142,13 @@ check "a missing typos is a skip, not a failure" \
 run -- --base base
 # shellcheck disable=SC2034 # read by the eval in check
 base_sha="$(git_test_config "$repo" rev-parse base)"
-check "comment-hygiene gets the merge-base and the changed files" \
-  '[[ $RC == 0 && $ERR == *"check-comment-hygiene ran: $base_sha notes.txt"* ]]'
+check "a clean comment-hygiene passes" \
+  '[[ $RC == 0 && $ERR != *"FAIL comment-hygiene"* && $ERR != *"SKIP comment-hygiene"* ]]'
 check "comment-hygiene is not named CI only" '[[ $ERR != *"CI only: comment-hygiene "* ]]'
+# A passing check's output is not printed, so the failing run shows the arguments.
 run STUB_CHECK_COMMENT_HYGIENE=1 -- --base base
+check "comment-hygiene gets the merge-base and the changed files" \
+  '[[ $ERR == *"check-comment-hygiene ran: $base_sha notes.txt"* ]]'
 check "a comment-hygiene violation fails the check, naming how to reproduce it" \
   '[[ $RC == 1 && $ERR == *"FAIL comment-hygiene"* && $ERR == *"Reproduce: bash scripts/check-comment-hygiene.sh $base_sha notes.txt"* ]]'
 run STUB_CHECK_COMMENT_HYGIENE=2 -- --base base
