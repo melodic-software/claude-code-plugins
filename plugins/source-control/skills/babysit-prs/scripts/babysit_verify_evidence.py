@@ -1991,6 +1991,32 @@ def lane_queue(
     }
 
 
+def _settle(repo: str, path: str, identity: str) -> int:
+    """`settle`: whether this run's post-merge report at `path` stands for
+    the check at the default branch head now (`merge_policy.settle_shared`,
+    the lane room's rule, kept but never read again). Prints `{"reuse",
+    "reason"}`; exit 0 when it stands, else 1, and the caller runs the check."""
+    shared = postmerge.read_shared(path)
+    reason: str | None = "post-merge answer missing or unreadable"
+    if shared is not None:
+        try:
+            default, head = merge_policy._default_branch_head(repo)
+            _, reason = merge_policy.settle_shared(
+                repo,
+                shared,
+                default=default,
+                base_sha=head,
+                identity=identity,
+                runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
+                    repo, answer, branch
+                ),
+            )
+        except (RuntimeError, ValueError, OSError) as exc:
+            reason = f"unreadable: {exc}"
+    print(json.dumps({"reuse": reason is None, "reason": reason}))
+    return 0 if reason is None else 1
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -2029,7 +2055,11 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     the gate would not reuse, for any `shared_refusal`, is checked again; one
     refused only as `unverified-stale` is first kept while nothing it was
     read from has moved, and one refused only as `demotion-changed` when the
-    demotion reads the same."""
+    demotion reads the same.
+
+    `settle --repo R --postmerge-result <file> --agent-identity <login>`: the
+    same rule for the merge job's reuse of this run's report, which never
+    reads it again (`_settle`)."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -2050,7 +2080,13 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     room.add_argument("--repo", required=True)
     room.add_argument("--postmerge-result", required=True)
     room.add_argument("--rung-cap", default=None)
+    settle = sub.add_parser("settle", allow_abbrev=False)
+    settle.add_argument("--repo", required=True)
+    settle.add_argument("--postmerge-result", required=True)
+    settle.add_argument("--agent-identity", required=True)
     args = parser.parse_args(argv)
+    if args.command == "settle":
+        return _settle(args.repo, args.postmerge_result, args.agent_identity)
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(

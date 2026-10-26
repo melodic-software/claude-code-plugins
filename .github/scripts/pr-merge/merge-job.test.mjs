@@ -1448,16 +1448,21 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
 });
 
 // The merge job's check, run with this run's post-merge-dispatch report kept
-// in post-merge-kept (or none) and a fake python3 that marks it ran. The rule
-// (pr-merge.yml): reuse a report whose check judged (exit 0, 1 or 5) main at
-// this job's commit under REUSE_MINUTES ago; otherwise run the check.
-const MAIN = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-const runMergeCheck = ({ kept, code = "0", records, exit = 3, report = { ran: true } } = {}) => {
+// in post-merge-kept (or none) and a fake python3: `settle` answers whether
+// the report stands (exit `settle`), any other call is the check, which marks
+// that it ran. The rule (pr-merge.yml): reuse a report whose check judged
+// (exit 0, 1 or 5) and that `settle` keeps (babysit_verify_evidence.py, the
+// lane room's rule, tested in test_babysit_lane_room.py); otherwise run the
+// check.
+const runMergeCheck = ({ kept, code = "0", records, settle = 0, exit = 3, report = { ran: true } } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-reuse-"));
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`);
+    writeFileSync(
+      join(bin, "python3"),
+      `#!/usr/bin/env bash\nif [ "$2" = settle ]; then echo "$@" >"${dir}/settled"; exit ${settle}; fi\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`,
+    );
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
     writeFileSync(join(dir, "lane-records.json"), "read in");
@@ -1471,12 +1476,13 @@ const runMergeCheck = ({ kept, code = "0", records, exit = 3, report = { ran: tr
     const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges")], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r", REUSE_MINUTES: /\n {10}REUSE_MINUTES: (\d+)\n/.exec(step("Check earlier lane merges"))[1] },
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
     });
     return {
       status: result.status,
       stdout: result.stdout,
       ran: existsSync(join(dir, "ran")),
+      settled: existsSync(join(dir, "settled")) ? readFileSync(join(dir, "settled"), "utf8").trim() : null,
       output: readFileSync(output, "utf8"),
       report: JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")),
       records: readFileSync(join(dir, "lane-records.json"), "utf8"),
@@ -1485,35 +1491,35 @@ const runMergeCheck = ({ kept, code = "0", records, exit = 3, report = { ran: tr
     rmSync(dir, { recursive: true, force: true });
   }
 };
-const keptReport = ({ main = MAIN, minutesAgo = 3 } = {}) => ({
-  readable: true,
-  needsDispatch: true,
-  shared: { mainSha: main, computedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString().replace("Z", "+00:00") },
-});
+const keptReport = () => ({ readable: true, needsDispatch: true, shared: { mainSha: "a".repeat(40) } });
 
-test("the merge job reuses this run's post-merge report for main at its commit, with its code and lane records", () => {
+test("the merge job reuses this run's post-merge report that settle keeps, with its code and lane records", () => {
   for (const code of ["0", "1", "5"]) {
     const run = runMergeCheck({ kept: keptReport(), code, records: "proved" });
     assert.equal(run.status, 0, run.stdout);
     assert.equal(run.ran, false, code);
     assert.match(run.output, new RegExp(`^code=${code}$`, "m"));
     assert.match(run.output, /^needs-dispatch=true$/m);
-    assert.equal(run.report.shared.mainSha, MAIN);
+    assert.equal(run.report.shared.mainSha, "a".repeat(40));
     assert.equal(run.records, "proved");
-    assert.match(run.stdout, /::notice::post-merge-dispatch's check judged main at [0-9a-f]{40} \d+s ago/);
+    assert.match(run.stdout, /::notice::post-merge-dispatch's check \(exit \d\) still stands by the lane room's reuse rule; reused, not run again/);
   }
+  // settle reads the kept report as the lane's identity, the one the check runs as.
+  const identity = execFileSync("yq", ['.merge."agent-identity" // ""', join(root, "docs/conventions/pr-pipeline.yaml")], { encoding: "utf8" }).trim();
+  const run = runMergeCheck({ kept: keptReport() });
+  assert.match(run.settled, /babysit_verify_evidence\.py settle --repo o\/r --postmerge-result \S+\/post-merge-kept\/post-merge\.json --agent-identity (\S+)$/);
+  assert.equal(/--agent-identity (\S+)$/.exec(run.settled)[1], identity);
   // A report kept with no lane records leaves the ones read in.
-  assert.equal(runMergeCheck({ kept: keptReport() }).records, "read in");
+  assert.equal(run.records, "read in");
 });
 
-test("the merge job runs the check itself for no report, another main, an old report or a check that could not judge", () => {
+test("the merge job runs the check itself for no report, a report settle refuses or a check that could not judge", () => {
   for (const [why, options] of [
     ["none", {}],
-    ["another main", { kept: keptReport({ main: "f".repeat(40) }) }],
-    ["7 minutes old", { kept: keptReport({ minutesAgo: 7 }) }],
-    ["from the future", { kept: keptReport({ minutesAgo: -5 }) }],
-    ["no time", { kept: { ...keptReport(), shared: { mainSha: MAIN } } }],
+    ["settle refuses", { kept: keptReport(), settle: 1 }],
+    ["settle crashes", { kept: keptReport(), settle: 2 }],
     ["exit 3", { kept: keptReport(), code: "3" }],
+    ["exit 75", { kept: keptReport(), code: "75" }],
   ]) {
     const run = runMergeCheck({ ...options, records: "proved" });
     assert.equal(run.ran, true, why);
@@ -1521,6 +1527,8 @@ test("the merge job runs the check itself for no report, another main, an old re
     assert.deepEqual(run.report, { ran: true }, why);
     assert.equal(run.records, "read in", why);
   }
+  // A code that could not judge is not offered to settle.
+  assert.equal(runMergeCheck({ kept: keptReport(), code: "3" }).settled, null);
 });
 
 // The gate and every later step would call GitHub again while limited, so

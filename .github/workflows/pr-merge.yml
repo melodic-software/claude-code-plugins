@@ -861,12 +861,13 @@ jobs:
       # so it reads with this job's own token, off the lane App's quota; only
       # --remediate below needs the lane token.
       # The same check of this run's post-merge-dispatch job, with the same
-      # inputs, is reused instead when it judged (exit 0, 1 or 5) main at this
-      # job's commit under REUSE_MINUTES ago: its report, exit code and lane
-      # records. This job needs that one, so the report is kept before this
-      # step starts, unless that job failed or kept none; with none, or any
-      # other, this job runs the check. A pattern, not a name: a pattern that
-      # matches nothing downloads nothing and does not fail.
+      # inputs, is reused instead when it judged (exit 0, 1 or 5) and the lane
+      # room's reuse rule keeps it (babysit_verify_evidence.py settle): its
+      # report, exit code and lane records. This job needs that one, so the
+      # report is kept before this step starts, unless that job failed or kept
+      # none; with none, or any other, this job runs the check. A pattern, not
+      # a name: a pattern that matches nothing downloads nothing and does not
+      # fail.
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
@@ -887,29 +888,28 @@ jobs:
           API_BUDGET_TOKEN: github-token
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
-          REUSE_MINUTES: 6
         run: |
           set -euo pipefail
           kept=$RUNNER_TEMP/post-merge-kept
+          scripts=.base/plugins/source-control/skills/babysit-prs/scripts
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           code=
           if [ -f "$kept/post-merge.json" ] && [ -f "$kept/post-merge-code" ]; then
             kept_code=$(cat "$kept/post-merge-code")
-            kept_main=$(jq -r '.shared.mainSha // ""' "$kept/post-merge.json" 2>/dev/null || true)
-            computed=$(jq -r '.shared.computedAt // ""' "$kept/post-merge.json" 2>/dev/null || true)
-            at=$(date -d "${computed:-unset}" +%s 2>/dev/null || echo 0)
-            age=$(($(date +%s) - at))
-            if [[ $kept_code =~ ^[015]$ ]] && [ "$at" != 0 ] && ((age >= 0 && age < REUSE_MINUTES * 60)) &&
-              [ "$kept_main" = "$(git -C .base rev-parse HEAD)" ]; then
+            # The lane room's reuse rule, at main's head now: a refusal or a
+            # failed read runs the check.
+            if [[ $kept_code =~ ^[015]$ ]] &&
+              python3 "$scripts/babysit_verify_evidence.py" settle --repo "$REPO" \
+                --postmerge-result "$kept/post-merge.json" --agent-identity "$identity"; then
               cp "$kept/post-merge.json" "$RUNNER_TEMP/post-merge.json"
               [ ! -f "$kept/lane-records.json" ] || cp "$kept/lane-records.json" "$RUNNER_TEMP/lane-records.json"
               code=$kept_code
-              echo "::notice::post-merge-dispatch's check judged main at $kept_main ${age}s ago (exit $code); reused, not run again"
+              echo "::notice::post-merge-dispatch's check (exit $code) still stands by the lane room's reuse rule; reused, not run again"
             fi
           fi
           if [ -z "$code" ]; then
-            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             code=0
-            python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            python3 "$scripts/babysit_postmerge.py" \
               --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
               </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
           fi

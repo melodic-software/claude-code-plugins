@@ -5099,6 +5099,75 @@ def _recompute_shared(
     )
 
 
+def settle_shared(
+    repo: str,
+    shared: SharedPostMerge,
+    *,
+    default: str,
+    base_sha: str,
+    identity: str,
+    now: datetime | None = None,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
+    keep: bool = True,
+    post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+) -> tuple[SharedPostMerge | None, str | None]:
+    """The answer to use for the run's post-merge check in place of
+    `shared`, or None and why not (`post-merge answer <refusal>`): the gate's
+    own reuse rule (`shared_refusal`) as a candidate at the default branch
+    head `base_sha` with the gate's self logins (none). With `keep`, two
+    refusals keep `shared`: `unverified-stale` when nothing it was read from
+    moved (`_still_current`, with `runs_unchanged`), and `demotion-changed`
+    when `read_demotion` reads the shared demotion again. Any other refusal
+    is read again with `post_merge` (`_recompute_shared`), or with none
+    refuses. One rule for the lane room and the merge job's reuse of
+    post-merge-dispatch's report."""
+    unusable = shared_refusal(
+        repo,
+        shared,
+        branch=default,
+        base_sha=base_sha,
+        identity=identity,
+        self_logins=frozenset(),
+        lane=True,
+        authority=PR_MERGE,
+        now=now,
+    )
+    if not unusable:
+        return shared, None
+    # An unverified-stale answer is kept when nothing it was read from moved,
+    # a demotion-changed one when the demotion reads the same (an issue the
+    # lane opened that triage edited, most runs).
+    try:
+        if not keep:
+            current = False
+        elif unusable == "demotion-changed":
+            current = shared.demotion == read_demotion(
+                repo,
+                agent_identity=identity,
+                self_logins=frozenset(),
+                permission=permission_reader(repo),
+            )
+        else:
+            current = (
+                unusable == "unverified-stale"
+                and runs_unchanged is not None
+                and _still_current(repo, default, identity, shared, runs_unchanged)
+            )
+    except (RuntimeError, ValueError, OSError):
+        current = False
+    if current:
+        return shared, None
+    if post_merge is None:
+        return None, f"post-merge answer {unusable}"
+    try:
+        fresh = _recompute_shared(repo, default, identity, frozenset(), post_merge, now)
+    except (RuntimeError, ValueError, OSError) as exc:
+        return None, f"post-merge answer {unusable}: {exc}"
+    if fresh is None:
+        return None, f"post-merge answer {unusable}: unreadable"
+    return fresh, None
+
+
 def lane_room(
     repo: str,
     shared: SharedPostMerge | None,
@@ -5112,8 +5181,8 @@ def lane_room(
     now, for native auto-merge, which skips `assess`: the run-level refusals
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
-    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
-    `post_merge` is `assess`'s: an answer the gate would not reuse, for any
+    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`,
+    settled by `settle_shared`. `post_merge` is `assess`'s: an answer the gate would not reuse, for any
     `shared_refusal`, is read again as the gate reads it
     (`_recompute_shared`, with the room's self logins, none), and a readable
     one stands in for `shared`. Two refusals are first kept: one refused only
@@ -5146,55 +5215,21 @@ def lane_room(
     identity = config.agent_identity
     if not identity:
         return LaneRoom(unreadable="no agent identity")
-    # The gate's own reuse rule, as a candidate at the default branch head
-    # with the gate's self logins (none): the same identity and lane, its
-    # age, no demotion record filed or changed since, and every lane merge
-    # the check would judge now counted (`new-merge:#<n>` otherwise).
-    unusable = shared_refusal(
+    settled, unusable = settle_shared(
         repo,
         shared,
-        branch=default,
+        default=default,
         base_sha=config.base_sha,
         identity=identity,
-        self_logins=frozenset(),
-        lane=True,
-        authority=PR_MERGE,
         now=now,
+        runs_unchanged=runs_unchanged,
+        # With no check to read it again, the room keeps nothing either.
+        keep=post_merge is not None,
+        post_merge=post_merge,
     )
-    if unusable and post_merge is not None:
-        # As the gate, any refusal reads afresh; an unverified-stale answer
-        # is first kept when nothing it was read from moved, a
-        # demotion-changed one when the demotion reads the same (an issue
-        # the lane opened that triage edited, most runs).
-        try:
-            if unusable == "demotion-changed":
-                current = shared.demotion == read_demotion(
-                    repo,
-                    agent_identity=identity,
-                    self_logins=frozenset(),
-                    permission=permission_reader(repo),
-                )
-            else:
-                current = (
-                    unusable == "unverified-stale"
-                    and runs_unchanged is not None
-                    and _still_current(repo, default, identity, shared, runs_unchanged)
-                )
-        except (RuntimeError, ValueError, OSError):
-            current = False
-        if not current:
-            try:
-                fresh = _recompute_shared(
-                    repo, default, identity, frozenset(), post_merge, now
-                )
-            except (RuntimeError, ValueError, OSError) as exc:
-                return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
-            if fresh is None:
-                return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
-            shared = fresh
-        unusable = None
-    if unusable:
-        return LaneRoom(unreadable=f"post-merge answer {unusable}")
+    if settled is None:
+        return LaneRoom(unreadable=unusable)
+    shared = settled
     if shared.gate.refusal:
         return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
     cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)

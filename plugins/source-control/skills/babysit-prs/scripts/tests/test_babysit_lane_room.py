@@ -745,6 +745,232 @@ class PendingRunsUnchanged(unittest.TestCase):
         )
 
 
+class SettleShared(unittest.TestCase):
+    """`settle_shared`: the one reuse rule the room and the merge job's
+    `settle` read a run's post-merge answer by. The expected reasons are
+    `shared_refusal`'s, in the room's `post-merge answer <reason>` form; the
+    two keeps are the room's (an unverified-stale answer nothing moved since,
+    a demotion-changed one whose demotion reads the same)."""
+
+    VERIFIED = {
+        "readable": True,
+        "ok": True,
+        "autoMerges": [{"number": 5, "verified": True}],
+    }
+
+    def settle(
+        self,
+        answer: policy.SharedPostMerge,
+        *,
+        now: datetime = NOW,
+        head: str = MAIN,
+        lane_merges: tuple[int, ...] = (),
+        demotion_changed: bool = False,
+        fresh_demotion: policy.Demotion | None = None,
+        runs: bool | None = None,
+        keep: bool = True,
+    ) -> tuple[policy.SharedPostMerge | None, str | None]:
+        merges = [{"number": n} for n in lane_merges]
+
+        def derive(pr: dict[str, object], *args: object, **kwargs: object) -> object:
+            return policy.AutoMerge(int(pr["number"]), "a" * 40, "b" * 40, None)  # type: ignore[call-overload]
+
+        self.reads = mock.Mock(
+            return_value=fresh_demotion or policy.Demotion(False, None, ())
+        )
+        self.runs = mock.Mock(return_value=runs)
+        with (
+            mock.patch.object(policy, "newest_config_commit", return_value=MAIN),
+            mock.patch.object(policy, "_get", return_value=(200, {"sha": head})),
+            mock.patch.object(
+                policy, "_default_branch_head", return_value=("main", head)
+            ),
+            mock.patch.object(policy, "_merged_since", return_value=merges),
+            mock.patch.object(policy, "derive_auto_merge", side_effect=derive),
+            mock.patch.object(
+                policy, "_demotion_changed", return_value=demotion_changed
+            ),
+            mock.patch.object(policy, "permission_reader"),
+            mock.patch.object(policy, "read_demotion", self.reads),
+        ):
+            return policy.settle_shared(
+                REPO,
+                answer,
+                default="main",
+                base_sha=MAIN,
+                identity=IDENTITY,
+                now=now,
+                runs_unchanged=None if runs is None else self.runs,
+                keep=keep,
+            )
+
+    def test_a_fresh_answer_at_an_unmoved_head_is_reused(self) -> None:
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(self.settle(answer), (answer, None))
+
+    def test_a_moved_head_with_no_new_lane_merge_is_reused(self) -> None:
+        # Run 40382489448: a merge landed before the merge job started, none
+        # of them the lane's, and the job's own check found the same merges.
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(self.settle(answer, head=NEW_MAIN), (answer, None))
+
+    def test_a_moved_head_with_a_lane_merge_the_answer_does_not_count_is_refused(
+        self,
+    ) -> None:
+        answer = shared(report=self.VERIFIED)
+        self.assertEqual(
+            self.settle(answer, head=NEW_MAIN, lane_merges=(5, 9)),
+            (None, "post-merge answer new-merge:#9"),
+        )
+
+    def test_an_unverified_answer_past_two_minutes_is_refused_unless_nothing_moved(
+        self,
+    ) -> None:
+        answer = shared(report=PENDING)
+        # No run check: refused, as the room refuses with no recompute.
+        self.assertEqual(
+            self.settle(answer, now=STALE_NOW),
+            (None, "post-merge answer unverified-stale"),
+        )
+        # A verifying run reached a conclusion since: refused.
+        self.assertEqual(
+            self.settle(answer, now=STALE_NOW, runs=False),
+            (None, "post-merge answer unverified-stale"),
+        )
+        self.runs.assert_called_once_with(answer, "main")
+        # Main moved (with no new lane merge): refused.
+        self.assertEqual(
+            self.settle(answer, now=STALE_NOW, runs=True, head=NEW_MAIN),
+            (None, "post-merge answer unverified-stale"),
+        )
+        # Nothing it was read from moved: kept.
+        self.assertEqual(self.settle(answer, now=STALE_NOW, runs=True), (answer, None))
+        # Inside two minutes it needs no keep.
+        self.assertEqual(
+            self.settle(answer, now=FLOOR + timedelta(minutes=1)), (answer, None)
+        )
+
+    def test_a_changed_demotion_is_refused_unless_it_reads_the_same(self) -> None:
+        answer = shared(report=self.VERIFIED)
+        moved = policy.Demotion(False, None, (9,))
+        self.assertEqual(
+            self.settle(answer, demotion_changed=True, fresh_demotion=moved),
+            (None, "post-merge answer demotion-changed"),
+        )
+        self.assertEqual(self.settle(answer, demotion_changed=True), (answer, None))
+        self.assertEqual(self.reads.call_args.kwargs["self_logins"], frozenset())
+        # Without the keeps (the room with no check to read again), refused
+        # with no demotion read.
+        self.assertEqual(
+            self.settle(answer, demotion_changed=True, keep=False),
+            (None, "post-merge answer demotion-changed"),
+        )
+        self.reads.assert_not_called()
+
+    def test_a_stale_answer_is_refused_even_when_nothing_moved(self) -> None:
+        answer = shared(report=PENDING)
+        late = FLOOR + policy.SHARED_MAX_AGE + timedelta(seconds=1)
+        self.assertEqual(
+            self.settle(answer, now=late, runs=True),
+            (None, "post-merge answer stale"),
+        )
+        self.runs.assert_not_called()
+
+
+class SettleCommand(unittest.TestCase):
+    def main(self, settled: tuple[object, str | None]) -> tuple[int, dict, dict]:
+        seen: dict[str, object] = {}
+
+        def settle(repo: str, answer: object, **kwargs: object) -> object:
+            seen.update(kwargs, repo=repo, answer=answer)
+            return settled
+
+        out = io.StringIO()
+        with (
+            mock.patch.object(ve.postmerge, "read_shared", return_value="answer"),
+            mock.patch.object(
+                policy, "_default_branch_head", return_value=("main", NEW_MAIN)
+            ),
+            mock.patch.object(policy, "settle_shared", side_effect=settle),
+            contextlib.redirect_stdout(out),
+        ):
+            code = ve.main(
+                [
+                    "settle",
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/tmp/x.json",
+                    "--agent-identity",
+                    IDENTITY,
+                ]
+            )
+        return code, json.loads(out.getvalue()), seen
+
+    def test_it_exits_0_when_the_answer_stands_and_1_when_refused(self) -> None:
+        code, out, seen = self.main(("answer", None))
+        self.assertEqual((code, out), (0, {"reuse": True, "reason": None}))
+        # Bound as the room binds: the default branch head, never a recompute.
+        self.assertEqual(
+            {k: seen[k] for k in ("repo", "answer", "default", "base_sha", "identity")},
+            {
+                "repo": REPO,
+                "answer": "answer",
+                "default": "main",
+                "base_sha": NEW_MAIN,
+                "identity": IDENTITY,
+            },
+        )
+        self.assertNotIn("post_merge", seen)
+        self.assertIs(seen.get("keep", True), True)
+        self.assertTrue(callable(seen["runs_unchanged"]))
+        code, out, _ = self.main((None, "post-merge answer unverified-stale"))
+        self.assertEqual(
+            (code, out),
+            (1, {"reuse": False, "reason": "post-merge answer unverified-stale"}),
+        )
+
+    def test_a_missing_report_or_unreadable_head_is_refused(self) -> None:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = ve.main(
+                [
+                    "settle",
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/nonexistent/post-merge.json",
+                    "--agent-identity",
+                    IDENTITY,
+                ]
+            )
+        self.assertEqual(code, 1)
+        self.assertFalse(json.loads(out.getvalue())["reuse"])
+        out = io.StringIO()
+        with (
+            mock.patch.object(ve.postmerge, "read_shared", return_value="answer"),
+            mock.patch.object(
+                policy,
+                "_default_branch_head",
+                side_effect=policy.PolicyReadError("head 502"),
+            ),
+            contextlib.redirect_stdout(out),
+        ):
+            code = ve.main(
+                [
+                    "settle",
+                    "--repo",
+                    REPO,
+                    "--postmerge-result",
+                    "/tmp/x.json",
+                    "--agent-identity",
+                    IDENTITY,
+                ]
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("head 502", json.loads(out.getvalue())["reason"])
+
+
 class LaneRoomCommand(unittest.TestCase):
     def test_it_prints_the_room_from_the_post_merge_report(self) -> None:
         seen: list[object] = []
