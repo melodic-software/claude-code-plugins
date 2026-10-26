@@ -68,8 +68,9 @@ export function logExcerpt(text) {
 const SILENT = new Set(["skipped", "neutral"]);
 const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
 
-// The latest run of each check name that is not a skip, when it failed.
-function failingChecks(checkRuns) {
+// The latest run of each check name that is not a skip, when it failed. The
+// fix-ci dispatcher reads a cancelled head through it too, so the two agree.
+export function failingChecks(checkRuns) {
   const latest = new Map();
   for (const run of checkRuns) {
     const kept = latest.get(run.name);
