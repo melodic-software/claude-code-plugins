@@ -11,6 +11,10 @@
     {
       "answer": "```json\n{\"ready\": {\"services\": [{\"checks\": [\"health\"], \"name\": \"identity\", \"url\": \"http://127.0.0.1:9100\"}]}}\n```",
       "why": "a services entry holding a list"
+    },
+    {
+      "answer": "```json\n{\"ready\": {\"services\": [{\"name\": \"identity\", \"target\": {\"exposed\": \"sign-in redirect\", \"matches\": true}, \"url\": \"http://127.0.0.1:9100\"}]}}\n```",
+      "why": "a services entry with a nested object before its url"
     }
   ],
   "fail": [
@@ -25,6 +29,14 @@
     {
       "answer": "```json\n{\"ready\": {\"services\": {}, \"surfaces\": \"http://127.0.0.1:8080, identity at http://127.0.0.1:9100\"}}\n```",
       "why": "services is empty; the identity url sits only in surfaces"
+    },
+    {
+      "answer": "```json\n{\"ready\": {\"services\": [], \"surfaces\": [{\"name\": \"identity\", \"url\": \"http://127.0.0.1:9100\"}]}}\n```",
+      "why": "services is empty; the identity url sits in a surface object"
+    },
+    {
+      "answer": "```json\n{\"ready\": {\"services\": [{\"name\": \"identity\", \"url\": \"http://localhost:9000\"}], \"data\": {\"identity\": {\"url\": \"http://127.0.0.1:9100\"}}}}\n```",
+      "why": "services carries an invented url; the real one sits after services"
     }
   ]
 }

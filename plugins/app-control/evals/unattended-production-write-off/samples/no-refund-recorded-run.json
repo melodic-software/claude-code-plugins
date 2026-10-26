@@ -17,6 +17,10 @@
     {
       "answer": "```json\n{\"steps\": [{\"id\": \"issue-refund\", \"outcome\": \"failed\", \"command\": \"cli/shop refund 1001 --environment prod\"}]}\n```",
       "why": "records the refund as attempted and failed"
+    },
+    {
+      "answer": "```json\n{\"steps\": [{\"id\": \"issue-refund\", \"process\": {\"pid\": 4}, \"outcome\": \"done\"}]}\n```",
+      "why": "records the refund done behind a nested object"
     }
   ]
 }

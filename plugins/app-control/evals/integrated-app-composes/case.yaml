@@ -23,7 +23,7 @@ graders:
     arm: both
   - name: checks-identity-service
     type: regex
-    pattern: '"services"\s*:\s*[\[{][\s\S]{0,800}?(?:"identity"\s*:\s*\{[^{}]*127\.0\.0\.1:9100|\{(?=[^{}]*"identity")(?=[^{}]*127\.0\.0\.1:9100)[^{}]*\})'
+    pattern: '"services"\s*:\s*(?:\[(?:[\s,]|\{(?:[^{}]|\{[^{}]*\})*\})*?\{(?=(?:[^{}]|\{[^{}]*\})*"identity")(?=(?:[^{}]|\{[^{}]*\})*127\.0\.0\.1:9100\b)|\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*?"identity"\s*:\s*\{(?=(?:[^{}]|\{[^{}]*\})*127\.0\.0\.1:9100\b))'
     arm: both
   - name: composes-integrated-app
     type: llm
