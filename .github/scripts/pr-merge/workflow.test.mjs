@@ -300,7 +300,7 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
 test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
   for (const [id, scripts] of [
     ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read"]],
-    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read"]],
+    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read", "verify-answers.mjs"]],
   ]) {
     for (const script of scripts) {
       const step = new RegExp(`\\n {10}PR_MERGE_READS_PATH: (.*)\\n {8}run: node \\.base/\\.github/scripts/pr-merge/${script.replace(".", "\\.")}\\n`).exec(job(id));
@@ -1001,4 +1001,38 @@ test("a token grant is found at any indentation", () => {
     const top = `on: push\n${grant}jobs:\n  plain:\n    steps:\n${restore("      ")}`;
     assert.deepEqual(tokenJobRestores(top).map((r) => r.job), ["plain"], grant);
   }
+});
+
+// The verifier answers (babysit_verify_evidence.py --answers-in/--answers-out)
+// cross runs only as the artifact of a scheduled or hand-started run of
+// main's pr-merge.yml, read through rotation.mjs newestTrustedRun and
+// onMain, never actions/cache, which any job in main's cache scope can write.
+test("enable-auto-merge reads the verifier answers only from a trusted run and uploads them under their own name, always", () => {
+  const arm = job("enable-auto-merge");
+  const step = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(arm)?.[1];
+  const read = step("Read the verifier answers the last run kept");
+  assert.ok(read, "an answers read");
+  assert.match(read, /^ {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(read, /\n {8}continue-on-error: true\n/);
+  assert.match(read, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}VERIFY_ANSWERS_PATH: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n/);
+  const script = readFileSync(new URL("./verify-answers.mjs", import.meta.url), "utf8");
+  assert.match(script, /newestTrustedRun\(\{ repo, runId, actions, name: ANSWERS_ARTIFACT, accept \}\)/);
+  assert.match(script, /const accept = \(run\) => onMain\(/);
+  assert.match(script, /export const ANSWERS_ARTIFACT = "pr-merge-verify-answers";/);
+  const armStep = step("Arm and disarm auto-merge");
+  assert.match(armStep, /\n {10}VERIFY_ANSWERS_IN: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n {10}VERIFY_ANSWERS_OUT: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n/);
+  assert.match(armStep, /\n {10}VERIFY_CACHE=\$\(yq '\.merge\."verify-cache" \/\/ "shadow"' "\$config"\)\n/);
+  assert.match(armStep, /\n {10}export [^\n]*\bVERIFY_CACHE\b/);
+  const upload = step("Upload the verifier answers for the next run");
+  assert.ok(upload, "an answers upload");
+  assert.match(upload, /^ {8}if: >-\n {10}always\(\) && steps\.arm\.outcome != 'skipped'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
+  assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Read the verifier answers the last run kept") < names.indexOf("Arm and disarm auto-merge"));
+  assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the verifier answers for the next run"));
+  // Its own name in the workflow, never downloaded by name, never cached.
+  assert.equal([...merge.matchAll(/\n {10}name: pr-merge-verify-answers\n/g)].length, 1);
+  assert.doesNotMatch(merge, /uses: actions\/cache[^\n]*\n(?:[^\n]*\n){0,6}[^\n]*verify-answers/);
+  assert.doesNotMatch(merge, /uses: actions\/download-artifact[^\n]*\n(?:[^\n]*\n){0,3}[^\n]*verify-answers/);
 });

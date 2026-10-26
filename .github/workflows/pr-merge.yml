@@ -1673,6 +1673,23 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      # The verifier answers the last run kept (pr-merge-verify-answers),
+      # found the way the head-ref map is, never through actions/cache: the
+      # reader keeps only refusals and checks the file's version, repository
+      # and code itself. Under merge.verify-cache shadow it still reads in
+      # full and logs how each kept answer compares. Any error leaves no file,
+      # and every pull request is read in full. Rules:
+      # .github/scripts/pr-merge/verify-answers.mjs.
+      - name: Read the verifier answers the last run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          VERIFY_ANSWERS_PATH: ${{ runner.temp }}/verify-answers-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/verify-answers.mjs
+
       # This run's post-merge report, which post-merge-dispatch kept: the
       # gate's run-level answer that enable-auto-merge.mjs reads the lane's
       # room from (lane-room), so a demotion or a failed lane merge stops
@@ -1724,6 +1741,9 @@ jobs:
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          # The verifier answers read above, and the file this run keeps.
+          VERIFY_ANSWERS_IN: ${{ runner.temp }}/verify-answers-in.json
+          VERIFY_ANSWERS_OUT: ${{ runner.temp }}/verify-answers/verify-answers.json
           # The lane's room (lane-room): this run's post-merge report and the
           # rung cap as the merge job passes it, empty meaning no cap.
           POSTMERGE_RESULT: ${{ runner.temp }}/post-merge/post-merge.json
@@ -1741,8 +1761,25 @@ jobs:
           REPORT_ONLY=$(yq '.merge."report-only"' "$config")
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
           RISK_ESCALATION_MINUTES=$(yq '.merge."risk-escalation-minutes" // ""' "$config")
-          export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES
+          VERIFY_CACHE=$(yq '.merge."verify-cache" // "shadow"' "$config")
+          export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES VERIFY_CACHE
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
+
+      # The answers this run's reader kept, for the next run: refusals only,
+      # each to expire within the hour. A file name of its own: the merge job
+      # uploads pr-merge-head-refs. Only a scheduled or hand-started run's file
+      # is read back.
+      - name: Upload the verifier answers for the next run
+        if: >-
+          always() && steps.arm.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-verify-answers
+          path: ${{ runner.temp }}/verify-answers/verify-answers.json
+          retention-days: 1
+          if-no-files-found: ignore
 
       # The verdict reads this job's reader made, for the next run's two
       # jobs: the merge gate reads no lane verdict, so only this reader fills

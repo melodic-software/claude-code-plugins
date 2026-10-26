@@ -932,6 +932,15 @@ merge:
   # (judgment), so a review still running at the head, which scores MED,
   # finishes first.
   risk-escalation-minutes: 60
+  # enable-auto-merge's verifier reads keep each refusal whose inputs have not
+  # moved for the next run (babysit_verify_evidence.py --answers-*). shadow
+  # still reads every pull request in full and logs one `verify-cache` line
+  # each comparing the kept answer with the fresh one; serve answers an
+  # unarmed pull request from a kept refusal whose key still matches. An
+  # armed pull request is always read in full, and a kept answer never arms.
+  # Moved to serve only after a day of scheduled runs logs no `key=hit`
+  # line with `agree=no` (judgment). Anything but serve is shadow.
+  verify-cache: shadow
   # A candidate the last run refused on unchanged inputs is reported with that
   # refusal instead of gated again (babysit_merge_skip.py); it is gated again
   # once its refusal is max-minutes old or has been skipped max-skips runs in

@@ -987,6 +987,12 @@
           "default": 3,
           "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail`, for a human, whatever a later pass says (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
         },
+        "verify-cache": {
+          "type": "string",
+          "enum": ["shadow", "serve"],
+          "default": "shadow",
+          "description": "How enable-auto-merge uses the verifier refusals the last run kept (babysit_verify_evidence.py --answers-in/--answers-out). shadow: every pull request is still read in full, and each read logs whether the kept answer's key matched and whether it decides as the fresh read does. serve: an unarmed pull request whose kept refusal's key still matches is answered from it with no further read. Only refusals are kept, an armed pull request is always read in full, and a kept answer never arms. Any other value is shadow."
+        },
         "risk-escalation-minutes": {
           "type": "integer",
           "minimum": 0,
