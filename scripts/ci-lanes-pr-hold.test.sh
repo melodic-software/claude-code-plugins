@@ -229,11 +229,13 @@ expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
   rm -f "$TMP_ROOT/verify-listing.json"
+  # A warm reader: the carry step wrote pr-merge's carried reads (STUB_COLD: none).
+  if [[ -n "${STUB_COLD:-}" ]]; then rm -f "$TMP_ROOT/babysit-run-cache.json"; else echo '{}' >"$TMP_ROOT/babysit-run-cache.json"; fi
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -607,9 +609,25 @@ STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 15
 STUB_EVIDENCE="$(jq -nc --arg head "$OLD" '{refusal: null, head: $head}')" expect "in the merge queue, a report for another head holds" 1 3 "its pr-verify FAILs could not be read"
 STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report holds" 1 3 "its pr-verify FAILs could not be read"
 STUB_READER_RC=1 expect "in the merge queue, a reader that fails fails closed" 1 3 "::error::babysit_verify_evidence.py could not judge #7 at $SHA"
-STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence verify:unreadable)" expect "in the merge queue, a reader that read no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
+# A refusal the reader returns before it lists (verify:too-old, an unread
+# config or commit list) reaches merge-holds.mjs with no pass names, so it
+# holds, and a trusted approval of the head lifts it as it lifts a FAIL.
+for refusal in verify:unreadable verify:too-old; do
+  STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" \
+    expect "in the merge queue, the reader's $refusal before any listing holds" 1 3 "::error::#7: pr-verify's reader refuses this head ($refusal: why)"
+  STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+    expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
+done
+STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
+  expect "in the merge queue, a reader that allows a head with no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
+STUB_COLD=1 expect "in the merge queue, a reader with no carried run cache holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run"
+if [[ "$(readers)" -eq 0 ]]; then
+  ok "a cold reader is never started"
+else
+  fail "a cold reader ran: '$(grep '^reader ' "$TMP_ROOT/log")'"
+fi
 STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
-export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS=''
+export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' STUB_COLD=''
 # The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
 # after arming to close or name another issue holds the group.
 NO_CLOSING='{"totalCount":0,"nodes":[]}'

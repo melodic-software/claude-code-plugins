@@ -4598,6 +4598,7 @@ jobs:
       # the reader reads GitHub: more requests, never a pass.
       # Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Restore the verdict reads pr-merge's last run kept
+        id: verdict_reads_restore
         if: ${{ !cancelled() && github.event_name == 'merge_group' }}
         continue-on-error: true
         timeout-minutes: 2
@@ -4607,6 +4608,7 @@ jobs:
           key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: pr-merge-run-cache-
       - name: Start the run cache from them
+        id: verdict_reads_carry
         if: ${{ !cancelled() && github.event_name == 'merge_group' }}
         continue-on-error: true
         env:
@@ -4683,8 +4685,10 @@ jobs:
       # has no pr-pipeline.yaml, so only a rate-limit signal stops it, with no
       # writer-pause or read-floor margin), and it records
       # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
-      # stops on a rate limit, prints no report for the head, or reads no
-      # listing holds.
+      # stops on a rate limit, or prints no report for the head holds, as
+      # does one that allows the head with no listing. A refusal it returns
+      # before listing (verify:too-old, an unread config) reaches
+      # merge-holds.mjs with no pass names, where the same approval lifts it.
       # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
       # (one artifact download) and the closing issues (one GraphQL read) go
       # to merge-holds.mjs linkHold, which holds when the body now closes or
@@ -4828,18 +4832,37 @@ jobs:
             # pr-merge's head-ref map: a read that fails leaves none, and the
             # reader downloads each untied FAIL instead.
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            # A cold reader holds without reading: with no carried run cache it
+            # reads every FAIL (about 860 GITHUB_TOKEN requests and, at the 0.4
+            # to 0.7 s a call pr-merge's reader logs, 6 to 11 minutes, against
+            # pr-pipeline.yaml's 1,000-an-hour plan and this job's 11-minute
+            # cap). The carry step writes the cache only on success.
+            if [ ! -s "$BABYSIT_RUN_CACHE" ]; then
+              echo "::error::#$pr is held: no carried run cache from pr-merge's last run, so the verdict reader would read every pr-verify FAIL cold (about 860 requests). Re-queue it after pr-merge's next run saves its cache."
+              exit 1
+            fi
             rm -f "$BABYSIT_VERIFY_LISTING"
             report=$(python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
               echo "::error::babysit_verify_evidence.py could not judge #$pr at $head; re-run this run."
               exit 1
             }
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
-            if [ ! -s "$BABYSIT_VERIFY_LISTING" ]; then
-              echo "::error::the verdict reader read no artifact listing for #$pr: $(tr -d '\r\n%' <"$RUNNER_TEMP/evidence.json")"
-              exit 1
-            fi
             : >"$RUNNER_TEMP/verdicts.jsonl"
-            for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
+            # A refusal returned before any listing (verify:too-old, an unread
+            # config or commit list) goes on with no pass names: merge-holds.mjs
+            # holds on it and on the missing pass, and a trusted approval of the
+            # head lifts both. An allow with no listing has no pass to bind.
+            listed=true
+            if [ ! -s "$BABYSIT_VERIFY_LISTING" ]; then
+              if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
+                listed=false
+                echo "::notice::the verdict reader refused #$pr before listing artifacts; merge-holds.mjs judges its refusal with no pass."
+              else
+                echo "::error::the verdict reader read no artifact listing for #$pr: $(tr -d '\r\n%' <"$RUNNER_TEMP/evidence.json")"
+                exit 1
+              fi
+            fi
+            [ "$listed" = false ] || for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
               "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest"; do
               verdict=${name#"pr-verify-$pr-$head-"}
               verdict=${verdict%"-$digest"}
