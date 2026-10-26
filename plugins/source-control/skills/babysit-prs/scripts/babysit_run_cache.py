@@ -12,6 +12,7 @@ the reader asks GitHub: the file never refuses or allows anything itself.
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import json
 import os
@@ -54,6 +55,32 @@ def _load(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+# This process's parse of the file, by path, with the stat it was read at.
+# Every writer renames a new file into place (`put`, carry-run-cache.mjs), so
+# another process's write changes the inode and the next read parses again.
+_memo: dict[str, tuple[tuple[int, int, int, int], dict[str, Any]]] = {}
+
+
+def _stamp(stat: os.stat_result) -> tuple[int, int, int, int]:
+    return stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size
+
+
+def _read(path: Path) -> dict[str, Any]:
+    """The file's contents, parsed again only when it changed on disk. The
+    result is shared: callers copy before changing or serving it."""
+    try:
+        stamp = _stamp(path.stat())
+    except OSError:
+        _memo.pop(str(path), None)
+        return {}
+    memo = _memo.get(str(path))
+    if memo is not None and memo[0] == stamp:
+        return memo[1]
+    data = _load(path)
+    _memo[str(path)] = (stamp, data)
+    return data
+
+
 # The open `track()` lists.
 _trackers: list[list[datetime]] = []
 
@@ -90,7 +117,7 @@ def get_dated(
     path = _path()
     if path is None:
         return None
-    entry = _load(path).get(section, {})
+    entry = _read(path).get(section, {})
     entry = entry.get(key) if isinstance(entry, dict) else None
     if not isinstance(entry, dict):
         return None
@@ -103,7 +130,7 @@ def get_dated(
     age = now() - at
     if age < timedelta(0) or (max_age is not None and age > max_age):
         return None
-    return entry.get("value"), at
+    return copy.deepcopy(entry.get("value")), at
 
 
 def put(section: str, key: str, value: Any, at: datetime | None = None) -> None:
@@ -112,15 +139,23 @@ def put(section: str, key: str, value: Any, at: datetime | None = None) -> None:
     path = _path()
     if path is None:
         return
-    data = _load(path)
+    data = dict(_read(path))
     entries = data.get(section)
-    if not isinstance(entries, dict):
-        entries = data[section] = {}
+    entries = dict(entries) if isinstance(entries, dict) else {}
     entries[key] = {"at": (at or now()).isoformat(), "value": value}
+    data[section] = entries
+    text = json.dumps(data)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    with contextlib.suppress(OSError):
-        tmp.write_text(json.dumps(data), encoding="utf-8")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        stamp = _stamp(tmp.stat())
         os.replace(tmp, path)
+    except OSError:
+        _memo.pop(str(path), None)
+        return
+    # The parse keeps what was written apart from the caller's `value`.
+    entries[key] = json.loads(json.dumps(entries[key]))
+    _memo[str(path)] = (stamp, data)
 
 
 def credentials() -> str:

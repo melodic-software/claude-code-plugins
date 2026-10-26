@@ -477,6 +477,17 @@ RUN_FIELDS = (
     "run_attempt",
     "run_started_at",
 )
+# `_origin` and carry-run-cache.mjs read only these objects' `full_name`.
+REPOSITORY_FIELDS = ("repository", "head_repository")
+
+
+def _run_fields(record: dict[str, Any]) -> dict[str, Any]:
+    """The `RUN_FIELDS` of a run record, each repository kept as its name."""
+    fields = {k: record.get(k) for k in RUN_FIELDS}
+    for k in REPOSITORY_FIELDS:
+        if is_json_object(fields[k]):
+            fields[k] = {"full_name": fields[k].get("full_name")}
+    return fields
 
 
 class _Unreadable(Exception):
@@ -951,7 +962,7 @@ class Reader:
         if not cached:
             self._started[run_id] = record.get("run_started_at")
             self._created[run_id] = record.get("created_at")
-            run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
+            run_cache.put(RUN_SECTION, key, _run_fields(record))
         done = (
             record.get("status") == "completed"
             and record.get("conclusion") == "success"
