@@ -18,7 +18,10 @@ name: post-merge-test-mutation
 #   process the model starts, the mutated tests included; it keeps
 #   GITHUB_TOKEN, so that token is held to contents: read.
 # - report: no model. Validates the structured result, finds the pull request
-#   that merged the head, and writes the job summary. It reads only.
+#   that merged the head, and writes the job summary. When exactly one pull
+#   request merged the head, a second step posts the report there as one
+#   comment with GITHUB_TOKEN, editing the lane's earlier one. It is the only
+#   job that writes.
 #
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false".
@@ -323,7 +326,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read # check out main for the report script
-      pull-requests: read # find the pull request that merged the pushed head
+      pull-requests: write # find the pull request that merged the pushed head and comment the report on it
     steps:
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -348,6 +351,7 @@ jobs:
       # The structured output is untrusted model text: read through env and
       # checked by the script, never interpolated into a command.
       - name: Write the report
+        id: report
         env:
           STRUCTURED_OUTPUT: ${{ needs.audit.outputs.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
@@ -357,4 +361,17 @@ jobs:
           RANGE_MODE: ${{ needs.audit.outputs.mode }}
           REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
+          COMMENT_PATH: ${{ runner.temp }}/mutation-comment.md
         run: node .base/.github/scripts/post-merge-test-mutation/report.mjs
+
+      # Runs after a no-result report too, which the comment then says. The body
+      # is the file report.mjs built from the validated result, without the
+      # model's free-text detail; nothing reaches it through an expression.
+      - name: Comment the report on the merged pull request
+        if: ${{ !cancelled() && steps.report.outputs.pull != '' }}
+        env:
+          PULL: ${{ steps.report.outputs.pull }}
+          COMMENT_PATH: ${{ runner.temp }}/mutation-comment.md
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .base/.github/scripts/post-merge-test-mutation/comment.mjs

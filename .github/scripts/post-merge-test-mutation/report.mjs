@@ -1,26 +1,32 @@
 // post-merge-test-mutation.yml's report job: the audit's structured output is
 // untrusted model text, read from the environment, checked against
 // result.schema.json, and written to the job summary with the pushed range and
-// the pull request that merged its head. No model runs here.
+// the pull request that merged its head. When exactly one pull request merged
+// it, the comment body for comment.mjs goes to COMMENT_PATH and its number to
+// the `pull` step output. No model runs here.
 //
 // Env: STRUCTURED_OUTPUT, AUDIT_RESULT (the audit job's result), RESTORED
 // (`true` or `false` from the audit job's own check of the checkout), BEFORE,
 // AFTER, RANGE_MODE (`range`, or `commit` when the push had no usable
-// previous head), REPOSITORY, GITHUB_TOKEN, GITHUB_STEP_SUMMARY.
+// previous head), REPOSITORY, GITHUB_TOKEN, GITHUB_STEP_SUMMARY, COMMENT_PATH,
+// GITHUB_OUTPUT, GITHUB_RUN_ID.
 // Exits 1 when the audit left no valid result or could not restore the tree;
 // surviving mutants alone never fail it (the plugin gates on no score).
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { commitPulls, createGitHub, graphQLReader } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
+// The first line of the lane's comment on a merged pull request.
+export const MARKER = "<!-- post-merge-test-mutation -->";
 export const SCHEMA = JSON.parse(readFileSync(new URL("./result.schema.json", import.meta.url), "utf8"));
 const SHA = /^[0-9a-f]{40}$/;
 const STATES = SCHEMA.properties.mutants.items.properties.state.enum;
 
 // The subset of JSON Schema result.schema.json uses; a value it does not
-// match is named by its path.
+// match is named by its path. A key the schema does not list is model text, so
+// it is counted, never echoed.
 export function violations(value, schema = SCHEMA, at = "$") {
   if (schema.enum) return schema.enum.includes(value) ? [] : [`${at}: not one of ${schema.enum.join(", ")}`];
   if (schema.type === "string") {
@@ -40,9 +46,7 @@ export function violations(value, schema = SCHEMA, at = "$") {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return [`${at}: not an object`];
   return [
     ...schema.required.filter((key) => !Object.hasOwn(value, key)).map((key) => `${at}.${key}: missing`),
-    ...Object.keys(value)
-      .filter((key) => !Object.hasOwn(schema.properties, key))
-      .map((key) => `${at}.${key}: not allowed`),
+    ...(Object.keys(value).some((key) => !Object.hasOwn(schema.properties, key)) ? [`${at}: has a property the schema does not list`] : []),
     ...Object.entries(value)
       .filter(([key]) => Object.hasOwn(schema.properties, key))
       .flatMap(([key, item]) => violations(item, schema.properties[key], `${at}.${key}`)),
@@ -136,6 +140,23 @@ export function render({ result, error, before, after, mode, pulls, repository }
   return [...lines, ""].join("\n");
 }
 
+// The pull request comment: render's report with no free model text. The
+// detail is left out, and a failed result names no violation, since a
+// violation names the model's values; the run's summary has both.
+export function commentBody({ result, error, before, after, mode, pulls, repository, runId }) {
+  const report = render({
+    result: result && { ...result, detail: "" },
+    error: error && "The run's summary says why.",
+    before,
+    after,
+    mode,
+    pulls,
+    repository,
+  });
+  const run = /^[1-9][0-9]*$/.test(runId ?? "") ? `[The run's summary](https://github.com/${repository}/actions/runs/${runId}) has the full report.` : "The run's summary has the full report.";
+  return `${MARKER}\n${report}\n${run}\n`;
+}
+
 function outcomeOf(env) {
   if (env.RESTORED === "false") return { error: "the checkout differs from the pushed head after the audit, so no result is reported" };
   if (env.AUDIT_RESULT !== "success") return { error: `the audit job ended ${env.AUDIT_RESULT || "without a result"}` };
@@ -148,6 +169,13 @@ export async function main(env = process.env, { github } = {}) {
   const pulls = SHA.test(env.AFTER ?? "") ? await mergedPulls({ github: client, repository: env.REPOSITORY, sha: env.AFTER }) : null;
   const summary = render({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY });
   appendFileSync(env.GITHUB_STEP_SUMMARY, summary);
+  // One pull request gets the comment; none, several or a failed lookup gets none.
+  if (pulls?.length !== 1) {
+    console.log(`::notice::no pull request comment: ${pulls === null ? "the merged pull request lookup failed" : `${pulls.length} pull requests merged the head`}`);
+  } else if (env.COMMENT_PATH && env.GITHUB_OUTPUT) {
+    writeFileSync(env.COMMENT_PATH, commentBody({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY, runId: env.GITHUB_RUN_ID }));
+    appendFileSync(env.GITHUB_OUTPUT, `pull=${pulls[0]}\n`);
+  }
   if (parsed.error) {
     console.log(`::error::${parsed.error}`);
     return 1;
