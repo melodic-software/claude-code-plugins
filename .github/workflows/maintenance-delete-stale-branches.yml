@@ -16,7 +16,9 @@ name: maintenance-delete-stale-branches
 # rule, issue, pr, deletedAt} to the ledger: the step summary and the
 # branch-cleanup-ledger artifact. The delete is a GraphQL updateRefs whose
 # beforeOid is the listed tip, so a push that lands after the re-read makes
-# GitHub refuse it. A deleted branch is restored from its ledger SHA with
+# GitHub refuse it; a second ledger line {repo, branch, sha, notDeletedAt,
+# reason} then records that the branch still stands. A branch with no such
+# line is restored from its ledger SHA with
 # `git push origin <sha>:refs/heads/<branch>`. No model, and no branch code is
 # checked out. Rules: .github/scripts/branch-cleanup/.
 #
