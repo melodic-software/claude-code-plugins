@@ -1929,12 +1929,14 @@ def lane_risk_refusal(
 def lane_queue(
     repo: str, branch: str, number: int, head: str, limit: int
 ) -> dict[str, Any]:
-    """The merge queue's failed-check removals of `head` and whether pr-merge's
-    gate would enqueue it again under `merge.max-queue-ejections` `limit`
-    (`babysit_merge.queue_ejection_hold`), with the gate's marked comment when
-    the cap refuses. A read that fails refuses as the gate's unreadable hold,
-    with no comment, and names why in `readError`; a failed runs read keeps
-    the refusal, with no comment and its error in `commentError`."""
+    """The merge queue's failed-check removals of `head`, those of them after
+    a cancelled merge_group run (`cancelledEjections`), and whether pr-merge's
+    gate would enqueue it again under `merge.max-queue-ejections` `limit` and
+    the cancel cap (`babysit_merge.queue_ejection_hold`), with the gate's
+    marked comment when a cap refuses. A read that fails refuses as the gate's
+    unreadable hold, with no comment, and names why in `readError`; a failed
+    runs read charges every removal to `limit` and keeps any refusal, with no
+    comment and its error in `commentError`."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
 
@@ -1947,16 +1949,24 @@ def lane_queue(
     count = count if isinstance(count, int) else None
     if count is None and read_error is None:
         read_error = "the merge queue's timeline items could not be counted"
-    refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
-        repo, branch, number, head, count, limit
+    removals = None if read_error else queue.get("failedRemovals")
+    answer = babysit_merge.queue_ejection_hold(
+        repo,
+        branch,
+        number,
+        head,
+        count,
+        limit,
+        removals if isinstance(removals, list) else None,
     )
     return {
         "failedEjections": count,
+        "cancelledEjections": answer.cancels,
         "limit": limit,
-        "refusal": refusal,
-        "comment": comment,
+        "refusal": answer.refusal,
+        "comment": answer.comment,
         "readError": str(read_error) if read_error else None,
-        "commentError": comment_error,
+        "commentError": answer.error,
     }
 
 
@@ -1983,9 +1993,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     null also carries `reviews`: null when pr-merge's gate would not hold
     the pull request on its risk score (`lane_risk_refusal`), else why. With
     `--lane-queue` too, a line whose `reviews` is null also carries `queue`
-    (`lane_queue`): the head's failed-check merge-queue removals, the
-    `merge.max-queue-ejections` limit, and the gate's refusal and comment at
-    or over it.
+    (`lane_queue`): the head's failed-check merge-queue removals, those after
+    a cancelled merge_group run, the `merge.max-queue-ejections` limit, and
+    the gate's refusal and comment at either cap.
 
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now

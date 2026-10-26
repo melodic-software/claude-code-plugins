@@ -898,12 +898,26 @@ and its queued entries leave; two different identities, or an unreadable head co
   is quarantined, and an excused run gets no red-main report. Quarantine never changes a pull request's `ci-status` and starts no
   re-run.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
-  wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
-  head last changed; the queue would eject it again on the same commits. A push resets the count.
+  wrapper enqueuing a head the merge queue has removed that many times for failed checks after a
+  failed `merge_group` run since the head last changed; the queue would eject it again on the same
+  commits. GitHub records a removal after a cancelled `merge_group` run as a failed-check removal
+  too, so the wrapper pairs each removal with the pull request's newest merge group created at or
+  before it (its runs among the repository's newest 100 `merge_group` runs): a group with a `cancelled`
+  run and no failed or unfinished one is a cancel, which spends a separate cap of 2
+  (`MAX_QUEUE_CANCELS`) and not `merge.max-queue-ejections`. A removal no run pairs with, or runs
+  that cannot be read, spends the failure cap. The runs are read only once the removals reach the
+  lower of the two caps. A push resets both counts.
   An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
-  failing `merge_group` runs. Under `merge.lane-prs` `native`, `enable-auto-merge` applies the
-  same cap before it arms a lanes App pull request (see [Native auto-merge](#native-auto-merge)).
+  failing `merge_group` runs, and the cancelled ones when any removal counted as a cancel. Only
+  Actions runs are read, so a required check from elsewhere that failed while the group's runs were
+  cancelled counts as a cancel, still bounded by its cap. Under `merge.lane-prs`
+  `native`, `enable-auto-merge` applies the same caps before it arms a lanes App pull request, so
+  its next scheduled run arms again one a cancelled run removed (see
+  [Native auto-merge](#native-auto-merge)). pr-merge re-queues only its own candidates: a pull
+  request a session or person merges outside it, which the gate does not list, is not put back
+  after a removal, and the session or person that enqueued it watches its own queue entry (owner
+  decision, 2026-10-20, on issue 8566).
 - **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
   When the base changed one since a pull request's merge base, the wrapper updates the branch from
   the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
@@ -1146,10 +1160,13 @@ gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the 
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
 review, the trust gate and the cost review all hold; and `evidence --lane-queue` finds the merge
-queue has removed the head for failed checks fewer than `merge.max-queue-ejections` times since it
-last changed, the gate's own count and limit (`babysit_merge.queue_ejection_refusal`). GitHub does
+queue has removed the head for failed checks after a failed `merge_group` run fewer than
+`merge.max-queue-ejections` times, and after a cancelled one fewer than the cancel cap, since it
+last changed, the gate's own counts and limits (`babysit_merge.queue_ejection_hold`, see
+Repeat queue ejections in [The local babysit lane](#the-local-babysit-lane)). GitHub does
 not re-arm a pull request the queue removes, so without this cap each scheduled run would arm a head
-that keeps failing its merge group again. At the cap the pull request is left unarmed with the
+that keeps failing its merge group again; a head a cancelled run removed is armed again on the next
+scheduled run while under the cancel cap. At a cap the pull request is left unarmed with the
 gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a push resets the
 count; an unread count leaves it unarmed with no comment, and the next run reads it again. An
 armed one is not disarmed on the count. Each such run also

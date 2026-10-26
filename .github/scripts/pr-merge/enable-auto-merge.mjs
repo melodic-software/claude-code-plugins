@@ -82,10 +82,14 @@
 //   review hold. Read only after the verdict allows.
 // - pr-merge's gate would enqueue its head again: `evidence --lane-queue`
 //   reads the gate's count of failed-check merge-queue removals since the
-//   head changed against merge.max-queue-ejections (ejectionHold). At the cap
-//   it is left unarmed with the gate's own marked comment and no label (a
-//   push resets the count); an unread count leaves it unarmed. GitHub drops
-//   the arm on an ejection, so an armed one is not disarmed on this.
+//   head changed, those after a failed merge_group run against
+//   merge.max-queue-ejections and those after a cancelled one against the
+//   gate's own cancel cap (babysit_merge.queue_ejection_hold, ejectionHold).
+//   So a scheduled run arms again a lane pull request the queue removed for
+//   a cancelled run. At a cap it is left unarmed with the gate's own marked
+//   comment and no label (a push resets the count); an unread count leaves
+//   it unarmed. GitHub drops the arm on an ejection, so an armed one is not
+//   disarmed on this.
 // A reader run that leaves a lanes App pull request unarmed, or disarms it,
 // on the lane's hold line, a hold path, a cost hold, the gate's verdict or
 // its risk score says why on the pull request, since under merge.lane-prs
@@ -485,8 +489,10 @@ export function verifyClears(evidence, head) {
 
 // Why the gate would not enqueue the head again (`evidence --lane-queue`,
 // babysit_merge.queue_ejection_refusal: merge.max-queue-ejections failed-check
-// removals since the head changed), with the gate's marked comment when the
-// count was read, or null under the cap. An answer not of that shape holds.
+// removals after a failed merge_group run, or the cancel cap's after a
+// cancelled one, since the head changed), with the gate's marked comment when
+// the count was read, or null under both caps. An answer not of that shape
+// holds.
 export function ejectionHold(evidence) {
   const queue = evidence?.queue;
   if (queue === null || typeof queue !== "object" || !(queue.refusal === null || typeof queue.refusal === "string")) {

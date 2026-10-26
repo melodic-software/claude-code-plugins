@@ -2181,7 +2181,7 @@ MERGE_QUEUE_QUERY = (
     "mergeQueueEntry{state position} autoMergeRequest{enabledAt} "
     f"timelineItems(last:{merge_policy.MAX_QUEUE_EJECTIONS_LIMIT},itemTypes:["
     "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
-    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}} "
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason createdAt}}} "
     "queueEvents:timelineItems(last:3,itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT,"
     "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
     "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason createdAt} "
@@ -2222,11 +2222,14 @@ def _ejected_enqueue(pr: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def _failed_ejections(pr: dict[str, Any]) -> int | None:
-    """The merge queue's removals of the pull request for failed checks since
-    its newest head change, read from the timeline items (oldest first), or
-    None when they cannot be read: a malformed item, or a full window with no
-    head change in it, whose older removals the read did not reach.
+def _failed_removals(pr: dict[str, Any]) -> list[str] | None:
+    """The times (`createdAt`, "" when absent) of the merge queue's removals
+    of the pull request for failed checks since its newest head change, oldest
+    first, read from the timeline items (oldest first), or None when they
+    cannot be read: a malformed item, or a full window with no head change in
+    it, whose older removals the read did not reach. GitHub records a
+    cancelled merge_group run as a `failed_checks` removal too
+    (`queue_ejection_hold` tells them apart).
 
     The timeline places a commit by its date, not its push (UNVERIFIED: no
     GitHub page or schema field states either; `PullRequestCommit` carries no
@@ -2237,15 +2240,24 @@ def _failed_ejections(pr: dict[str, Any]) -> int | None:
     nodes = json_object(pr.get("timelineItems")).get("nodes")
     if not is_json_array(nodes):
         return None
-    count = 0
+    times: list[str] = []
     for node in reversed(nodes):
-        kind = json_object(node).get("__typename")
+        node = json_object(node)
+        kind = node.get("__typename")
         if kind in HEAD_CHANGES:
-            return count
-        if kind != "RemovedFromMergeQueueEvent":
+            return times[::-1]
+        if kind != REMOVED:
             return None
-        count += json_object(node).get("reason") == "failed_checks"
-    return count if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
+        if node.get("reason") == "failed_checks":
+            times.append(str(node.get("createdAt") or ""))
+    return times[::-1] if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
+
+
+def _failed_ejections(pr: dict[str, Any]) -> int | None:
+    """How many `_failed_removals` there are, or None when they cannot be
+    read."""
+    removals = _failed_removals(pr)
+    return None if removals is None else len(removals)
 
 
 def _last_removal_reason(pr: dict[str, Any]) -> str | None:
@@ -2305,6 +2317,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "state": entry.get("state") if entry else None,
         "position": entry.get("position") if entry else None,
         "failedEjections": _failed_ejections(pr),
+        "failedRemovals": _failed_removals(pr),
         "lastRemovalReason": _last_removal_reason(pr),
         "ejectedEnqueue": _ejected_enqueue(pr),
     }
@@ -3778,16 +3791,14 @@ def _lifted_by_person(
         return False, f"{type(exc).__name__}: {exc}"
 
 
-def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:
-    """The links of the pull request's failed merge_group runs among the
-    repository's newest 100, newest first, or None when they cannot be read.
-    Read under the verdict reader's Actions token when one is set."""
+def _merge_group_runs(repo: str, branch: str, number: int) -> list[dict[str, str]] | None:
+    """The pull request's merge_group runs among the repository's newest 100,
+    as listed, each `{"url", "headSha", "createdAt", "conclusion"}` ("" for
+    one GitHub left null), or None when they cannot be read. Read under the
+    verdict reader's Actions token when one is set."""
     token = os.environ.get(verify_evidence.TOKEN_ENV)
     proc = gh_capture(
-        [
-            "api",
-            f"repos/{repo}/actions/runs?event=merge_group&status=failure&per_page=100",
-        ],
+        ["api", f"repos/{repo}/actions/runs?event=merge_group&per_page=100"],
         env_overrides={"GH_TOKEN": token} if token else None,
     )
     if proc.returncode != 0:
@@ -3800,61 +3811,153 @@ def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] |
         return None
     prefix = f"gh-readonly-queue/{branch}/pr-{number}-"
     return [
-        str(run.get("html_url"))
+        {
+            "url": str(run.get("html_url")),
+            "headSha": str(run.get("head_sha") or ""),
+            "createdAt": str(run.get("created_at") or ""),
+            "conclusion": str(run.get("conclusion") or ""),
+        }
         for run in map(json_object, runs)
         if str(run.get("head_branch") or "").startswith(prefix) and run.get("html_url")
     ]
 
 
-def queue_ejection_refusal(ejections: int | None, limit: int, head: str) -> str | None:
+# A merge group's runs read as a cancel, not a failure, when one of them
+# concluded `cancelled` and every other one of these.
+CANCELLED = "cancelled"
+UNFAILED_CONCLUSIONS = frozenset({CANCELLED, "success", "skipped", "neutral"})
+
+
+def _removal_was_cancel(removed_at: str, runs: list[dict[str, str]]) -> bool:
+    """Whether the merge queue's failed-check removal at `removed_at` ended a
+    cancelled merge_group run: the newest of the pull request's `runs`
+    created by then names the merge group (its head commit), and that group's
+    runs created by then hold a cancel and no failure. A removal no run pairs
+    with, a time that does not parse, or a run still without a conclusion
+    reads as a failure, which spends the stricter cap. Only Actions runs are
+    read: a required check from elsewhere that failed while the group's runs
+    were cancelled, or a removal before its own group's first run that pairs
+    with an earlier cancelled group, reads as a cancel, which
+    `MAX_QUEUE_CANCELS` still bounds."""
+    at = parse_github_timestamp(removed_at)
+    if at is None:
+        return False
+    before = [
+        (created, run)
+        for run in runs
+        if (created := parse_github_timestamp(run["createdAt"])) is not None
+        and created <= at
+    ]
+    if not before:
+        return False
+    group = max(before, key=lambda pair: pair[0])[1]["headSha"]
+    conclusions = {run["conclusion"] for _, run in before if run["headSha"] == group}
+    return bool(group) and CANCELLED in conclusions and conclusions <= UNFAILED_CONCLUSIONS
+
+
+@dataclass(frozen=True)
+class EjectionHold:
+    """`queue_ejection_hold`'s answer: the refusal or None; the removals it
+    charged to the failure cap (None when unread) and to the cancel cap; the
+    marked comment at a cap; and the error when the runs read raised, which
+    leaves no comment."""
+
+    refusal: str | None
+    failures: int | None
+    cancels: int = 0
+    comment: str | None = None
+    error: str | None = None
+
+
+def queue_ejection_refusal(
+    failures: int | None, cancels: int, limit: int, head: str
+) -> str | None:
     """Why the gate does not enqueue `head` again, from its failed-check
-    removals since it last changed (`_failed_ejections`, None when unread)
-    and `merge.max-queue-ejections` `limit`, or None while under it.
-    enable-auto-merge.mjs refuses to arm on the same answer
-    (babysit_verify_evidence.py `evidence --lane-queue`)."""
-    if ejections is None:
+    removals since it last changed, those after a failed merge_group run
+    (`failures`, None when unread) against `merge.max-queue-ejections`
+    `limit` and those after a cancelled one (`cancels`) against
+    `MAX_QUEUE_CANCELS`, or None while under both. enable-auto-merge.mjs
+    refuses to arm on the same answer (babysit_verify_evidence.py `evidence
+    --lane-queue`)."""
+    if failures is None:
         return "the merge queue's removals of this head are unreadable"
-    if ejections >= limit:
+    if failures >= limit:
         return (
-            f"queue-ejected:{ejections} failed-check removals from the merge queue "
+            f"queue-ejected:{failures} failed-check removals from the merge queue "
             f"at head {head}; a push resets the count"
+        )
+    if cancels >= merge_policy.MAX_QUEUE_CANCELS:
+        return (
+            f"queue-cancelled:{cancels} merge-queue removals on a cancelled "
+            f"merge_group run at head {head}; a push resets the count"
         )
     return None
 
 
 def queue_ejection_hold(
-    repo: str, branch: str, number: int, head: str, ejections: int | None, limit: int
-) -> tuple[str | None, str | None, str | None]:
-    """The gate's refusal of `head` (`queue_ejection_refusal`), its marked
-    comment body at the cap (`queue_ejection_body`, naming the failing
-    merge_group runs), and the error when the runs read raised, which leaves
-    no body. The unattended enqueue and `evidence --lane-queue` both use it."""
-    refusal = queue_ejection_refusal(ejections, limit, head)
-    if refusal is None or ejections is None:
-        return refusal, None, None
+    repo: str,
+    branch: str,
+    number: int,
+    head: str,
+    ejections: int | None,
+    limit: int,
+    removals: list[str] | None = None,
+) -> EjectionHold:
+    """The gate's answer for `head` from its `ejections` failed-check
+    removals since it last changed and their times (`removals`,
+    `_failed_removals`): each removal is charged to the cancel cap when it
+    ended a cancelled merge_group run (`_removal_was_cancel`), else to
+    `merge.max-queue-ejections` `limit` (`queue_ejection_refusal`), with the
+    marked comment at a cap (`queue_ejection_body`). Below both caps however
+    the removals split, no runs are read. Runs that cannot be read, or times
+    that do not match the count, charge every removal to `limit`. The
+    unattended enqueue and `evidence --lane-queue` both use it."""
+    if ejections is None:
+        return EjectionHold(queue_ejection_refusal(None, 0, limit, head), None)
+    if ejections < min(limit, merge_policy.MAX_QUEUE_CANCELS):
+        return EjectionHold(None, ejections)
+    error = None
     try:
-        runs = _failed_merge_group_runs(repo, branch, number)
+        runs = _merge_group_runs(repo, branch, number)
     except (RuntimeError, ValueError, OSError) as exc:
-        return refusal, None, f"error: {exc}"
-    return refusal, queue_ejection_body(head, ejections, runs), None
+        runs, error = None, f"error: {exc}"
+    cancels = 0
+    if runs is not None and removals is not None and len(removals) == ejections:
+        cancels = sum(_removal_was_cancel(at, runs) for at in removals)
+    failures = ejections - cancels
+    refusal = queue_ejection_refusal(failures, cancels, limit, head)
+    if refusal is None:
+        return EjectionHold(None, failures, cancels)
+    if error is not None:
+        return EjectionHold(refusal, failures, cancels, None, error)
+    body = queue_ejection_body(head, failures, cancels, runs)
+    return EjectionHold(refusal, failures, cancels, body)
 
 
-def queue_ejection_body(head: str, count: int, runs: list[str] | None) -> str:
+def queue_ejection_body(
+    head: str, failures: int, cancels: int, runs: list[dict[str, str]] | None
+) -> str:
     """The comment for a head the gate stopped enqueuing: a function of the
-    head, the count and the runs read, so a rerun renders the same body."""
+    head, the counts and the runs read, so a rerun renders the same body."""
     lines = [
         QUEUE_EJECTION_MARKER,
-        f"Unattended merge: the merge queue removed head `{head}` {count} times "
-        "for failed checks, so the pr-merge lane will not enqueue it again. "
-        "A push resets the count.",
+        f"Unattended merge: the merge queue removed head `{head}` "
+        f"{failures + cancels} times for failed checks ({failures} after a "
+        f"failed merge_group run, {cancels} after a cancelled one), so the "
+        "pr-merge lane will not enqueue it again. A push resets the count.",
         "",
     ]
     if runs is None:
-        lines.append("The failing merge_group runs could not be read.")
-    elif not runs:
+        lines.append("The merge_group runs could not be read.")
+        return "\n".join(lines)
+    failed = [run["url"] for run in runs if run["conclusion"] == "failure"]
+    cancelled = [run["url"] for run in runs if run["conclusion"] == CANCELLED]
+    if failed:
+        lines += ["Failing merge_group runs:", *(f"- {url}" for url in failed)]
+    if cancels and cancelled:
+        lines += ["Cancelled merge_group runs:", *(f"- {url}" for url in cancelled)]
+    if not failed and not (cancels and cancelled):
         lines.append("No failing merge_group run was found among the newest 100.")
-    else:
-        lines += ["Failing merge_group runs:", *(f"- {url}" for url in runs)]
     return "\n".join(lines)
 
 
@@ -4311,14 +4414,23 @@ def unattended_enqueue(
     if queue["inQueue"] or queue["merged"]:
         return hold("the pull request is already queued or merged")
     # A head the queue keeps ejecting for failed checks fails again on the
-    # same commits; only a push (which resets the count) can change that.
+    # same commits; only a push (which resets the count) can change that. A
+    # cancelled merge_group run spends its own, separate cap.
     ejections = queue.get("failedEjections")
     step["failedEjections"] = ejections
-    ejected, body, error = queue_ejection_hold(
-        repo, branch, number, pin, ejections, inputs["config"].max_queue_ejections
+    answer = queue_ejection_hold(
+        repo,
+        branch,
+        number,
+        pin,
+        ejections,
+        inputs["config"].max_queue_ejections,
+        queue.get("failedRemovals"),
     )
-    if error is not None:
-        step["ejectionComment"] = error
+    step["cancelledEjections"] = answer.cancels
+    ejected, body = answer.refusal, answer.comment
+    if answer.error is not None:
+        step["ejectionComment"] = answer.error
     if body is not None:
         # One marked comment, so fix-ci or a person sees why the lane stopped.
         try:

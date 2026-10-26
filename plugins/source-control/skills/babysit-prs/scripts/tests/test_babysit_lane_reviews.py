@@ -216,6 +216,23 @@ UNREADABLE_QUEUE = "the merge queue's removals of this head are unreadable"
 RUN = "https://github.com/example-org/example-repo/actions/runs/9"
 
 
+def _group_run(url: str, group: str, at: str, conclusion: str) -> dict[str, str]:
+    """A `babysit_merge._merge_group_runs` row."""
+    return {
+        "url": url,
+        "headSha": group * 40,
+        "createdAt": at,
+        "conclusion": conclusion,
+    }
+
+
+FAILED_RUN = _group_run(RUN, "a", "2026-10-20T07:50:00Z", "failure")
+CANCELLED_RUN = _group_run(RUN + "0", "b", "2026-10-20T08:00:00Z", "cancelled")
+# A removal after each run: the first pairs with the failure, the second with
+# the cancel.
+REMOVALS = ["2026-10-20T07:55:00Z", "2026-10-20T08:10:00Z"]
+
+
 class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
     """`evidence --lane-queue`: the gate's `merge.max-queue-ejections` cap
     (default 2) on a head the merge queue keeps removing for failed checks,
@@ -227,10 +244,10 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
         *,
         evidence: ve.Evidence | None = None,
         risk: str | None = None,
-        runs: list[str] | Exception | None = None,
+        runs: list[dict[str, str]] | Exception | None = None,
     ) -> dict[str, object]:
         out = io.StringIO()
-        runs = [RUN] if runs is None else runs
+        runs = [FAILED_RUN] if runs is None else runs
         runs_effect = runs if isinstance(runs, Exception) else None
         argv = ["evidence", "--lane-reviews", "--lane-queue", "--repo", REPO]
         argv += ["--base-sha", BASE, "--rung", "C2", "41", HEAD]
@@ -253,7 +270,7 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
             ) as read,
             mock.patch.object(
                 babysit_merge,
-                "_failed_merge_group_runs",
+                "_merge_group_runs",
                 side_effect=runs_effect,
                 return_value=None if runs_effect else runs,
             ),
@@ -271,6 +288,7 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                     report["queue"],
                     {
                         "failedEjections": count,
+                        "cancelledEjections": 0,
                         "limit": 2,
                         "refusal": None,
                         "comment": None,
@@ -311,6 +329,7 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                     self.cli(queue)["queue"],
                     {
                         "failedEjections": None,
+                        "cancelledEjections": 0,
                         "limit": 2,
                         "refusal": UNREADABLE_QUEUE,
                         "comment": None,
@@ -331,10 +350,29 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
     def test_the_comment_is_the_one_the_gate_posts(self) -> None:
         queue = self.cli({"readError": None, "failedEjections": 2})["queue"]
         with mock.patch.object(
-            babysit_merge, "_failed_merge_group_runs", return_value=[RUN]
+            babysit_merge, "_merge_group_runs", return_value=[FAILED_RUN]
         ):
             gate = babysit_merge.queue_ejection_hold(REPO, "main", 41, HEAD, 2, 2)
-        self.assertEqual((queue["refusal"], queue["comment"]), gate[:2])
+        self.assertEqual(
+            (queue["refusal"], queue["comment"]), (gate.refusal, gate.comment)
+        )
+
+    def test_a_cancelled_run_rearms_and_a_failed_one_does_not(self) -> None:
+        # Issue 8566: a removal after a cancelled merge_group run does not
+        # spend the failure cap, so native auto-merge arms the head again.
+        removed = {
+            "readError": None,
+            "failedEjections": 2,
+            "failedRemovals": REMOVALS,
+        }
+        queue = self.cli(removed, runs=[FAILED_RUN, CANCELLED_RUN])["queue"]
+        self.assertEqual(
+            (queue["refusal"], queue["comment"], queue["cancelledEjections"]),
+            (None, None, 1),
+        )
+        failed = [FAILED_RUN, {**CANCELLED_RUN, "conclusion": "failure"}]
+        queue = self.cli(removed, runs=failed)["queue"]
+        self.assertEqual((queue["refusal"], queue["cancelledEjections"]), (EJECTED, 0))
 
     def test_a_refused_verdict_or_a_risk_hold_reads_no_queue(self) -> None:
         for kwargs in (

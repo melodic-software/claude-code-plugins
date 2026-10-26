@@ -568,10 +568,11 @@ class PipelineConfig:
     # Absent, or anything but a whole number of at least 1, is 1. The gate
     # reads it at the default branch head alone (`_run_max_in_flight`).
     max_in_flight: int = 1
-    # `merge.max-queue-ejections`: failed-check merge-queue removals since
-    # the head last changed at which the gate stops enqueuing that head.
-    # Absent, or anything but a whole number from 1 to
-    # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
+    # `merge.max-queue-ejections`: failed-check merge-queue removals after a
+    # failed merge_group run, since the head last changed, at which the gate
+    # stops enqueuing that head. Removals after a cancelled run have their own
+    # cap, `MAX_QUEUE_CANCELS`. Absent, or anything but a whole number from 1
+    # to `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
     # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
     # must have stood unchanged at the head before the gate adds the
@@ -624,6 +625,11 @@ LANE_PRS_MODES = ("native", "gate")
 # enqueue reads back. A full read with no head change in it may have missed
 # older removals, so it counts as unreadable and refuses.
 MAX_QUEUE_EJECTIONS_LIMIT = 20
+# Failed-check merge-queue removals after a cancelled merge_group run, since
+# the head last changed, at which the gate stops enqueuing that head: their
+# own cap, so a cancel does not spend `merge.max-queue-ejections` (issue
+# 8566, owner decision: a separate small limit, the ejection cap's default).
+MAX_QUEUE_CANCELS = 2
 
 LOCAL_BABYSIT = "local-babysit"
 PR_MERGE = "pr-merge"

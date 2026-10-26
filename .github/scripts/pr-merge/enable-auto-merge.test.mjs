@@ -2003,10 +2003,13 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
 });
 
 // The cap through the gate's own CLI: the count from the queue's timeline
-// (babysit_merge._failed_ejections, stubbed at read_merge_queue) and the limit
-// from the config (merge.max-queue-ejections, default 2), so only Python
-// holds either. One removal arms; two, or an unread count, do not.
-test("the gate's CLI holds a head the merge queue removed merge.max-queue-ejections times, and an unread count", async () => {
+// (babysit_merge._failed_removals, stubbed at read_merge_queue), each removal
+// paired with the pull request's merge_group runs (_merge_group_runs, stubbed),
+// and the limit from the config (merge.max-queue-ejections, default 2), so
+// only Python holds any of them. One removal arms; two after failed runs, or
+// an unread count, do not; one after a failed run and one after a cancelled
+// one arm again (issue 8566).
+test("the gate's CLI holds a head the merge queue removed merge.max-queue-ejections times, and an unread count, and re-arms one a cancel removed", async () => {
   const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-queue-"));
   const wrapper = join(dir, "queue.py");
   writeFileSync(
@@ -2018,7 +2021,12 @@ import babysit_merge
 import babysit_merge_policy as policy
 import babysit_verify_evidence as ve
 
-COUNTS = json.loads(os.environ["COUNTS"])
+QUEUES = json.loads(os.environ["QUEUES"])
+# A failed merge group, then a cancelled one, of the pull request's own.
+RUNS = [
+    {"url": "u1", "headSha": "a" * 40, "createdAt": "2026-10-20T07:50:00Z", "conclusion": "failure"},
+    {"url": "u2", "headSha": "b" * 40, "createdAt": "2026-10-20T08:00:00Z", "conclusion": "cancelled"},
+]
 number = int(sys.argv[-2])
 pr = {"number": number, "head": {"sha": sys.argv[-1]}}
 config = policy.PipelineConfig("c" * 40, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")
@@ -2028,14 +2036,22 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
     mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), \\
     mock.patch.object(policy, "pull_request", lambda repo, n: pr), \\
     mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), \\
-    mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, n: {"readError": None, "failedEjections": COUNTS[str(n)]}), \\
-    mock.patch.object(babysit_merge, "_failed_merge_group_runs", lambda repo, branch, n: []):
+    mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, n: {"readError": None, **QUEUES[str(n)]}), \\
+    mock.patch.object(babysit_merge, "_merge_group_runs", lambda repo, branch, n: RUNS):
     sys.exit(ve.main(sys.argv[1:]))
 `,
   );
-  const { github, writes, notes } = world([pull(1), pull(2), pull(3)]);
+  const { github, writes, notes } = world([pull(1), pull(2), pull(3), pull(4)]);
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
-  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, COUNTS: JSON.stringify({ 1: 1, 2: 2, 3: null }), VERIFY_EVIDENCE_SCRIPT: wrapper };
+  // #2's removals have no times, so both spend the failure cap; #4's pair
+  // with the failed run and then the cancelled one.
+  const queues = {
+    1: { failedEjections: 1 },
+    2: { failedEjections: 2 },
+    3: { failedEjections: null },
+    4: { failedEjections: 2, failedRemovals: ["2026-10-20T07:55:00Z", "2026-10-20T08:10:00Z"] },
+  };
+  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, QUEUES: JSON.stringify(queues), VERIFY_EVIDENCE_SCRIPT: wrapper };
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
@@ -2044,7 +2060,10 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
   } finally {
     console.log = log;
   }
-  assert.deepEqual(writes(), [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(writes(), [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "arm", id: "PR_4", head: HEAD },
+  ]);
   assert.ok(lines.includes(`enable-auto-merge: #2 left: pr-merge's gate would not enqueue it again (${EJECTED_REFUSAL})`), lines.join("\n"));
   assert.ok(lines.includes("enable-auto-merge: #3 left: pr-merge's gate would not enqueue it again (the merge queue's removals of this head are unreadable)"), lines.join("\n"));
   assert.deepEqual(

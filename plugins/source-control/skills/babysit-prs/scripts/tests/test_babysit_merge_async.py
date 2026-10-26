@@ -1004,23 +1004,60 @@ class MergeQueueReadBack(unittest.TestCase):
         queue_events = merge.MERGE_QUEUE_QUERY.split("queueEvents:", 1)[1]
         self.assertIn("RemovedFromMergeQueueEvent{reason createdAt}", queue_events)
 
-    def test_failed_merge_group_runs_are_the_pull_requests_own(self) -> None:
+    def test_failed_check_removals_carry_their_times(self) -> None:
+        at = "2026-10-20T08:00:00Z"
+        timeline = [
+            _removed(),
+            COMMIT,
+            {**_removed(), "createdAt": at},
+            _removed("manually_removed"),
+            _removed(),
+        ]
+        result = self._read(_queue(timeline=timeline))
+        self.assertEqual(
+            (result["failedEjections"], result["failedRemovals"]), (2, [at, ""])
+        )
+        timeline_items = merge.MERGE_QUEUE_QUERY.split("queueEvents:", 1)[0]
+        self.assertIn("RemovedFromMergeQueueEvent{reason createdAt}", timeline_items)
+
+    def test_merge_group_runs_are_the_pull_requests_own(self) -> None:
         runs = {
             "workflow_runs": [
-                {"head_branch": "gh-readonly-queue/main/pr-5-abc", "html_url": "u1"},
+                {
+                    "head_branch": "gh-readonly-queue/main/pr-5-abc",
+                    "html_url": "u1",
+                    "head_sha": "a" * 40,
+                    "created_at": "2026-10-20T07:51:00Z",
+                    "conclusion": "cancelled",
+                },
                 {"head_branch": "gh-readonly-queue/main/pr-55-abc", "html_url": "u2"},
-                {"head_branch": "gh-readonly-queue/main/pr-5-def", "html_url": "u3"},
+                {
+                    "head_branch": "gh-readonly-queue/main/pr-5-def",
+                    "html_url": "u3",
+                    "conclusion": None,
+                },
             ]
         }
         ok = subprocess.CompletedProcess([], 0, json.dumps(runs), "")
         with mock.patch.object(merge, "gh_capture", return_value=ok) as gh:
             self.assertEqual(
-                merge._failed_merge_group_runs("owner/repo", "main", 5), ["u1", "u3"]
+                merge._merge_group_runs("owner/repo", "main", 5),
+                [
+                    {
+                        "url": "u1",
+                        "headSha": "a" * 40,
+                        "createdAt": "2026-10-20T07:51:00Z",
+                        "conclusion": "cancelled",
+                    },
+                    {"url": "u3", "headSha": "", "createdAt": "", "conclusion": ""},
+                ],
             )
-        self.assertIn("event=merge_group&status=failure", gh.call_args.args[0][1])
+        # Every conclusion: the cancels are what tell a removal apart.
+        self.assertIn("event=merge_group&per_page=100", gh.call_args.args[0][1])
+        self.assertNotIn("status=", gh.call_args.args[0][1])
         failed = subprocess.CompletedProcess([], 1, "", "HTTP 403")
         with mock.patch.object(merge, "gh_capture", return_value=failed):
-            self.assertIsNone(merge._failed_merge_group_runs("owner/repo", "main", 5))
+            self.assertIsNone(merge._merge_group_runs("owner/repo", "main", 5))
 
     def test_an_unreadable_timeline_counts_nothing(self) -> None:
         # A full window with no head change in it: older failed-check
@@ -1039,6 +1076,153 @@ class MergeQueueReadBack(unittest.TestCase):
                 result = self._read(payload)
                 self.assertIsNone(result["readError"])
                 self.assertIsNone(result["failedEjections"])
+
+
+def _run(group: str, at: str, conclusion: str | None, url: str = "") -> dict[str, str]:
+    """A `_merge_group_runs` row: one run of the merge group at commit `group`."""
+    return {
+        "url": url or f"https://github.com/owner/repo/actions/runs/{group}-{at}",
+        "headSha": group * 40,
+        "createdAt": at,
+        "conclusion": conclusion or "",
+    }
+
+
+T1, T2, T3 = "2026-10-20T07:50:00Z", "2026-10-20T08:00:00Z", "2026-10-20T08:10:00Z"
+
+
+class QueueEjectionCaps(unittest.TestCase):
+    """Issue 8566: a cancelled merge_group run is a `failed_checks` removal
+    too, so each removal is paired with the pull request's newest merge group
+    by time and a cancel spends its own cap, not `merge.max-queue-ejections`."""
+
+    def _hold(
+        self,
+        removals: list[str],
+        runs: list[dict[str, str]] | Exception | None,
+        limit: int = 2,
+    ) -> merge.EjectionHold:
+        effect = runs if isinstance(runs, Exception) else None
+        with mock.patch.object(
+            merge,
+            "_merge_group_runs",
+            side_effect=effect,
+            return_value=None if effect else runs,
+        ) as read:
+            answer = merge.queue_ejection_hold(
+                "owner/repo", "main", 5, HEAD, len(removals), limit, removals
+            )
+        self.read = read
+        return answer
+
+    def test_a_removal_pairs_with_the_newest_group_created_before_it(self) -> None:
+        cancelled = [_run("a", T1, "cancelled"), _run("a", T1, "success")]
+        for removed_at, runs, expected in (
+            (T2, cancelled, True),
+            (T2, [*cancelled, _run("a", T1, "skipped")], True),
+            # One failing run in the group makes it a failure.
+            (T2, [*cancelled, _run("a", T1, "failure")], False),
+            (T2, [*cancelled, _run("a", T1, "timed_out")], False),
+            # A run still without a conclusion is not a cancel.
+            (T2, [*cancelled, _run("a", T1, None)], False),
+            (T2, [_run("a", T1, "success")], False),
+            # The newer group decides, and one created after the removal is not it.
+            (T3, [*cancelled, _run("b", T2, "failure")], False),
+            (T2, [_run("b", T1, "failure"), _run("a", T2, "cancelled")], True),
+            (T2, [*cancelled, _run("b", T3, "failure")], True),
+            # Nothing to pair with, or a time that does not parse.
+            (T2, [], False),
+            (T2, [_run("a", T3, "cancelled")], False),
+            ("", cancelled, False),
+            (T2, [{**_run("a", T1, "cancelled"), "headSha": ""}], False),
+        ):
+            with self.subTest(removed_at=removed_at, runs=runs):
+                self.assertIs(merge._removal_was_cancel(removed_at, runs), expected)
+
+    def test_a_cancel_does_not_spend_the_failure_cap(self) -> None:
+        # A failure and then a cancel: under both caps, so it is enqueued again.
+        runs = [_run("a", T1, "failure"), _run("b", T2, "cancelled")]
+        answer = self._hold(["2026-10-20T07:55:00Z", T3], runs)
+        self.assertEqual(
+            (answer.refusal, answer.failures, answer.cancels, answer.comment),
+            (None, 1, 1, None),
+        )
+
+    def test_a_real_failure_at_the_cap_is_not_enqueued_again(self) -> None:
+        runs = [_run("a", T1, "failure", "u1"), _run("b", T2, "failure", "u2")]
+        answer = self._hold(["2026-10-20T07:55:00Z", T3], runs)
+        self.assertEqual(
+            answer.refusal,
+            f"queue-ejected:2 failed-check removals from the merge queue at head "
+            f"{HEAD}; a push resets the count",
+        )
+        self.assertEqual((answer.failures, answer.cancels), (2, 0))
+        lines = str(answer.comment).split("\n")
+        self.assertIn(
+            "(2 after a failed merge_group run, 0 after a cancelled one)", lines[1]
+        )
+        self.assertEqual(lines[3:], ["Failing merge_group runs:", "- u1", "- u2"])
+
+    def test_one_failure_under_a_cap_of_one_is_refused_and_one_cancel_is_not(
+        self,
+    ) -> None:
+        failed = self._hold([T2], [_run("a", T1, "failure")], limit=1)
+        self.assertTrue(str(failed.refusal).startswith("queue-ejected:1 "))
+        cancelled = self._hold([T2], [_run("a", T1, "cancelled")], limit=1)
+        self.assertEqual((cancelled.refusal, cancelled.cancels), (None, 1))
+
+    def test_cancels_have_their_own_cap(self) -> None:
+        runs = [_run("a", T1, "cancelled", "u1"), _run("b", T2, "cancelled", "u2")]
+        answer = self._hold(["2026-10-20T07:55:00Z", T3], runs, limit=5)
+        self.assertEqual(
+            answer.refusal,
+            f"queue-cancelled:2 merge-queue removals on a cancelled merge_group "
+            f"run at head {HEAD}; a push resets the count",
+        )
+        lines = str(answer.comment).split("\n")
+        self.assertEqual(lines[3:], ["Cancelled merge_group runs:", "- u1", "- u2"])
+        self.assertEqual(merge.merge_policy.MAX_QUEUE_CANCELS, 2)
+
+    def test_below_both_caps_no_runs_are_read(self) -> None:
+        answer = self._hold([T2], [_run("a", T1, "failure")])
+        self.assertEqual((answer.refusal, answer.failures), (None, 1))
+        self.read.assert_not_called()
+
+    def test_unpaired_removals_spend_the_failure_cap(self) -> None:
+        cancelled = [_run("a", T1, "cancelled"), _run("b", T2, "cancelled")]
+        for removals, runs, error in (
+            # No runs read, or a read that raised.
+            ([T2, T3], None, None),
+            ([T2, T3], RuntimeError("boom"), "error: boom"),
+            # Times that do not match the count.
+            (None, cancelled, None),
+        ):
+            with self.subTest(runs=repr(runs), removals=removals):
+                effect = runs if isinstance(runs, Exception) else None
+                with mock.patch.object(
+                    merge,
+                    "_merge_group_runs",
+                    side_effect=effect,
+                    return_value=None if effect else runs,
+                ):
+                    answer = merge.queue_ejection_hold(
+                        "owner/repo", "main", 5, HEAD, 2, 2, removals
+                    )
+                self.assertTrue(str(answer.refusal).startswith("queue-ejected:2 "))
+                self.assertEqual((answer.cancels, answer.error), (0, error))
+                if runs is None:
+                    self.assertIn(
+                        "The merge_group runs could not be read.", str(answer.comment)
+                    )
+
+    def test_an_unread_count_refuses_without_reading_runs(self) -> None:
+        with mock.patch.object(merge, "_merge_group_runs") as read:
+            answer = merge.queue_ejection_hold("owner/repo", "main", 5, HEAD, None, 2)
+        self.assertEqual(
+            (answer.refusal, answer.failures),
+            ("the merge queue's removals of this head are unreadable", None),
+        )
+        read.assert_not_called()
 
 
 def _listed(number: int, sha: str, *, merged: bool = False) -> dict[str, Any]:

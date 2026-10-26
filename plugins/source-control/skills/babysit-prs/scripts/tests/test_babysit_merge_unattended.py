@@ -2232,7 +2232,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
 
     def test_a_head_the_queue_ejected_twice_is_not_enqueued_again(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=2)
-        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[]):
+        with mock.patch.object(merge, "_merge_group_runs", return_value=[]):
             code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertFalse([e for e in self.log if not e.startswith("write:")], self.log)
@@ -2244,9 +2244,8 @@ class EachRefusalMakesNoMergeCall(Unattended):
     def test_a_refused_head_gets_one_marked_comment_naming_its_runs(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=2)
         url = "https://github.com/owner/repo/actions/runs/7"
-        with mock.patch.object(
-            merge, "_failed_merge_group_runs", return_value=[url]
-        ) as runs:
+        failed = [async_fixtures._run("a", "2026-10-12T09:00:00Z", "failure", url)]
+        with mock.patch.object(merge, "_merge_group_runs", return_value=failed) as runs:
             code, out = self.run_main()
         self.assert_no_merge(code)
         runs.assert_called_once_with("owner/repo", "main", PR)
@@ -2272,7 +2271,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
             }
         ]
         self.capture.reset_mock()
-        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[url]):
+        with mock.patch.object(merge, "_merge_group_runs", return_value=failed):
             _, out = self.run_main()
         self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "unchanged")
         self.assertFalse(
@@ -2286,7 +2285,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
     def test_a_failed_runs_read_still_refuses_and_records_its_error(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=2)
         with mock.patch.object(
-            merge, "_failed_merge_group_runs", side_effect=RuntimeError("boom")
+            merge, "_merge_group_runs", side_effect=RuntimeError("boom")
         ):
             code, out = self.run_main()
         self.assert_no_merge(code)
@@ -2305,8 +2304,44 @@ class EachRefusalMakesNoMergeCall(Unattended):
     def test_the_ejection_cap_is_the_configured_one(self) -> None:
         self.config = dataclasses.replace(self.config, max_queue_ejections=3)
         self.queue = fixtures._queue_read(required=True, failed_ejections=2)
-        code, out = self.run_main()
+        with mock.patch.object(merge, "_merge_group_runs", return_value=[]):
+            code, out = self.run_main()
         self.assertEqual(code, 0, out["blockers"])
+
+    def test_a_head_removed_once_on_a_cancelled_run_is_enqueued_again(self) -> None:
+        # Issue 8566: GitHub records a cancelled merge_group run as a
+        # failed-check removal, which no longer spends the failure cap.
+        self.queue = {
+            **fixtures._queue_read(required=True, failed_ejections=2),
+            "failedRemovals": ["2026-10-20T07:55:00Z", "2026-10-20T08:10:00Z"],
+        }
+        runs = [
+            async_fixtures._run("a", "2026-10-20T07:50:00Z", "failure"),
+            async_fixtures._run("b", "2026-10-20T08:00:00Z", "cancelled"),
+        ]
+        with mock.patch.object(merge, "_merge_group_runs", return_value=runs):
+            code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertEqual(out["unattended"]["enqueue"]["cancelledEjections"], 1)
+
+    def test_a_head_removed_twice_on_failed_runs_is_not_enqueued_again(self) -> None:
+        self.queue = {
+            **fixtures._queue_read(required=True, failed_ejections=2),
+            "failedRemovals": ["2026-10-20T07:55:00Z", "2026-10-20T08:10:00Z"],
+        }
+        runs = [
+            async_fixtures._run("a", "2026-10-20T07:50:00Z", "failure"),
+            async_fixtures._run("b", "2026-10-20T08:00:00Z", "failure"),
+        ]
+        with mock.patch.object(merge, "_merge_group_runs", return_value=runs):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
+        )
+        self.assertEqual(out["unattended"]["enqueue"]["cancelledEjections"], 0)
 
     def test_unreadable_ejections_refuse_the_enqueue(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=None)
