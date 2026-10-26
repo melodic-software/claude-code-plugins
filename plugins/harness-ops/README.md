@@ -406,7 +406,7 @@ instead of failing.
 
 The per-hook kill switches, `instructions_loaded_audit_log_session_start`, and
 `stdin_read_timeout` are documented under
-[Per-hook kill switches](#per-hook-kill-switches). Three further `userConfig`
+[Per-hook kill switches](#per-hook-kill-switches). These further `userConfig`
 options tune the skills:
 
 - **`install_new`** (string, optional). New-catalog-plugin install policy for the `plugins`
@@ -423,6 +423,11 @@ options tune the skills:
   Absolute, drive-qualified, UNC, traversal, and escaping-symlink paths are
   invalid; known-issues operations must stop and direct you to reconfigure
   rather than write outside the project.
+- **`lane_app_slug`** (string, optional). The GitHub App slug the `lanes` skill passes as
+  `--app-slug` to the restart consumer and to `telemetry-upsert.sh`, so both read telemetry
+  comments written by `<slug>[bot]` when the lanes run `gh` under that App's installation
+  token. Leave it unset under a personal or machine-user token. An empty value, or an
+  unrendered `${user_config.lane_app_slug}` placeholder, is treated as no slug.
 - **`skill_usage_scope`** (string, optional), where the `skill-usage-audit`
   second store lives. `repo` (default) keeps it in the project tree, with a
   machine-local `.git/info/exclude` entry so `git status` stays clean; `user`
@@ -509,6 +514,7 @@ reads it from.
 | `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it. |
 | `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2. |
+| `lane_app_slug` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_APP_SLUG` | Slug of the GitHub App whose installation token the lanes run gh under, passed as --app-slug to the restart consumer and the telemetry upsert so they read the lanes' own telemetry. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |
 
 ### How to set these
 
