@@ -1,0 +1,19 @@
+{
+  "claim": "With only a project settings file setting a top-level autoCompactWindow of 250000, /autocompact with no argument reports a 250k window. The control for the per-model and flag cases: their window differs from this one only by the element they add.",
+  "tags": [
+    "/autocompact",
+    "autoCompactWindow",
+    "auto-compact window",
+    "project settings"
+  ],
+  "permission_mode": "default",
+  "model": "claude-sonnet-5-5",
+  "max_turns": 1,
+  "max_budget_usd": 0.25,
+  "target": {
+    "printed_match": "\\d",
+    "text_match": "(?i)\\b250(?:k|,000|000)\\b",
+    "example": "Auto-compact window: 250k"
+  },
+  "outcome": "prints"
+}

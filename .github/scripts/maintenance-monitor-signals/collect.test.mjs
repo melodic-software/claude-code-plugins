@@ -308,6 +308,50 @@ test("failed runs from a fork head are skipped", async () => {
   assert.ok(!api.calls.some((p) => /runs\/3[23]\/jobs/.test(p)));
 });
 
+// The failed-runs list served a page at a time, from `pages` (an array of run arrays).
+const failedPages = (pages) => [
+  /actions\/runs\?status=failure/,
+  (path) => ({ workflow_runs: pages[Number(/[?&]page=(\d+)/.exec(path)[1]) - 1] ?? [] }),
+];
+const forkRuns = (from) =>
+  Array.from({ length: 100 }, (_, i) => run(from + i, { name: "pr-unblock", event: "workflow_run", head_repository: { full_name: "fork/r" } }));
+const failedCalls = (api) => api.calls.filter((p) => p.includes("/actions/runs?status=failure"));
+
+test("a page of 100 failed fork runs does not hide this repository's failed run on the next page", async () => {
+  const api = fakeApi([failedPages([forkRuns(1000), [run(30, { name: "pr-unblock" })]]), ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(
+    data.failedRuns.map((r) => r.id),
+    [30],
+  );
+  assert.equal(failedCalls(api).length, 2);
+  assert.deepEqual(data.gaps, []);
+});
+
+test("a failed run shifted onto the next page mid-read is kept once", async () => {
+  const own = run(30, { name: "pr-unblock" });
+  const api = fakeApi([failedPages([[...forkRuns(1000).slice(0, 99), own], [own]]), ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(
+    data.failedRuns.map((r) => r.id),
+    [30],
+  );
+});
+
+test("failed runs: full pages up to the page cap are a gap; enough kept runs stop the paging", async () => {
+  const flood = fakeApi([failedPages(Array.from({ length: 10 }, (_, p) => forkRuns(1000 + p * 100))), ...routes()]);
+  const data = await collect(input(flood));
+  assert.equal(failedCalls(flood).length, 5);
+  assert.deepEqual(data.failedRuns, []);
+  assert.ok(data.gaps.some((g) => g.startsWith("failed runs: over 500 failed runs")));
+  const own = Array.from({ length: 100 }, (_, i) => run(2000 + i, { name: "pr-unblock" }));
+  const busy = fakeApi([failedPages([own, own]), [/runs\/2\d{3}\/jobs/, { jobs: [] }], ...routes()]);
+  const kept = await collect(input(busy));
+  assert.equal(failedCalls(busy).length, 1);
+  assert.equal(kept.failedRuns.length, 12);
+  assert.deepEqual(kept.gaps, []);
+});
+
 test("failed test-suite runs on main are not read as lane runs, so a test named for a 429 files nothing", async () => {
   const api = fakeApi([
     [
