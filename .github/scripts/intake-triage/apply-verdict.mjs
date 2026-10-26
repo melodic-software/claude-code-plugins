@@ -40,7 +40,7 @@
 // that is not one of the repository's work-class labels is not applied. When
 // it applied a class it rewrites the comment's "a maintainer confirms" lines.
 // It writes a native blocked-by edge for each open issue of this repository
-// the verdict names; an edge GitHub answers 403, 429 or 5xx for is missed,
+// the verdict or the issue body (edges.mjs textBlockers) names; an edge GitHub answers 403, 429 or 5xx for is missed,
 // named in the summary and an annotation, the edges the run wrote are
 // deleted again, and a ready verdict then lands
 // without `status: ready` and is not admitted, so the hourly triage sweep runs
@@ -52,9 +52,10 @@
 // keeps under another id than models.issue-dimensions maps fails the run and
 // leaves the issue's labels as they are.
 //
-// Issue text can only refuse: a line the model quotes is prefixed `> ` and
-// matches nothing, a duplicated, missing or unknown value writes no fields, and
-// an escalated run writes only needs-decision and its reasons; model text
+// Issue text can only refuse or hold back: a line the model quotes is prefixed
+// `> ` and matches nothing, a duplicated, missing or unknown value writes no
+// fields, the body's blockers add only edges to open issues, and an escalated
+// run writes only needs-decision, its reasons and those edges; model text
 // reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
 // whose author is a listed human or the lanes App, and only from a lane
 // comment updated at or after STARTED_AT (this run's), so a run whose triage
@@ -85,7 +86,7 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
-import { parseBlockedBy, writeEdges } from "./edges.mjs";
+import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -435,7 +436,15 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // dispatches intake on an issue with no `status:` label, runs it again.
   // writeEdges deletes the edges this run wrote when any misses, so
   // work-unblock never reads a partial set; the re-run writes them all.
-  const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
+  // The body's own `Blocked by` and `Depends on` lines count too, since
+  // the model's line can leave them out (#8994); an escalated verdict
+  // writes them, so a label added by hand later still finds the edge.
+  const named = verdict.untrusted || labels.includes(UNTRUSTED) ? { numbers: [], dropped: 0 } : textBlockers(issue.body, repository);
+  const blockers = [...new Set([...verdict.blockedBy, ...named.numbers])];
+  const edges = blockers.length > 0 ? await writeEdges({ github, repository, number, blockers }) : null;
+  if (named.dropped > 0) {
+    log(`::warning title=apply-verdict::#${number}'s body names ${named.dropped} blocker(s) past the first ${MAX_TEXT_BLOCKERS}; no edge is written for them`);
+  }
   const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
   const add = waits ? plan.add.filter((name) => name !== READY) : plan.add;
   const remove = waits ? [...plan.remove, READY] : plan.remove;
@@ -545,7 +554,9 @@ const undeletedEdges = (undeleted) => undeleted.map(({ number, status }) => `#${
 // Either way a ready verdict waits without `status: ready` for the sweep. An
 // edge the run wrote and could not delete after a miss is a partial set
 // work-unblock reads: when that blocker closes first, it can admit the issue.
-export function missedAnnotation(missed = [], undeleted = []) {
+// A verdict that is not ready admits nothing and holds no `status: ready`
+// back, so its missed edges only warn.
+export function missedAnnotation(missed = [], undeleted = [], ready = true) {
   if (missed.length === 0) {
     return null;
   }
@@ -555,6 +566,12 @@ export function missedAnnotation(missed = [], undeleted = []) {
       ? [`${undeletedEdges(undeleted).join("; ")}, so work-unblock can admit the issue when that blocker closes before intake runs again`]
       : []),
   ].join("; ");
+  if (!ready) {
+    return {
+      fail: false,
+      line: `::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: ${edges}; the verdict's labels are written, and work-unblock, which reads only native edges, does not see ${undeleted.length ? "the blockers not written" : "these blockers"}`,
+    };
+  }
   return [...missed, ...undeleted].some(({ status }) => status === 403)
     ? {
         fail: true,
@@ -574,7 +591,7 @@ const WAITS = "none: admission waits for intake to run again, since a blocked-by
 // moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
   admission?.outcome === "refused"
-    ? NEEDS_DECISION
+    ? (admission.status ?? NEEDS_DECISION)
     : admission?.outcome === "error"
       ? "not settled: admission did not finish"
       : admission?.outcome === EDGE_MISSING
@@ -593,8 +610,8 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
   }
   const body = plan.ready
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
-        after === NEEDS_DECISION
-          ? `admission moved the issue to \`${NEEDS_DECISION}\`; its comment says why.`
+        admission?.outcome === "refused"
+          ? `admission moved the issue to \`${after}\`; its comment says why.`
           : after === WAITS
             ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.`
             : after
@@ -684,7 +701,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
       }
-      const missed = missedAnnotation(result.missed, result.undeleted);
+      const missed = missedAnnotation(result.missed, result.undeleted, result.plan?.ready);
       if (missed) {
         console.log(missed.line);
         if (missed.fail) {
