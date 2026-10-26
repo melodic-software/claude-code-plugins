@@ -12,5 +12,6 @@
     "example": { "pattern": "/proc/*/environ" }
   },
   "outcome": "deny",
+  "reason_type": "rule",
   "control": "lane-permissions/grep-in-checkout-runs"
 }

@@ -12,5 +12,6 @@
     "example": { "pattern": "PATH=", "path": "/proc/self", "glob": "environ", "output_mode": "files_with_matches" }
   },
   "outcome": "deny",
+  "reason_type": "rule",
   "control": "lane-permissions/grep-in-checkout-runs"
 }
