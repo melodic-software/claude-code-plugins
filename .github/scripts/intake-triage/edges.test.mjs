@@ -2,7 +2,70 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { parseBlockedBy, writeEdges } from "./edges.mjs";
+import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
+
+describe("textBlockers", () => {
+  const URL = "https://github.com/o/r/issues";
+  for (const [name, body, numbers] of [
+    ["a Blocked by line", "Blocked by #12", [12]],
+    ["a Blocked by: list", "Blocked by: #12, #13", [12, 13]],
+    ["a Depends on line", "Depends on #12", [12]],
+    ["a list item that starts with Blocked by", "- Blocked by: #12", [12]],
+    ["a bold label", "**Blocked by:** #12", [12]],
+    ["any case", "BLOCKED BY: #12", [12]],
+    ["an issue URL of this repository", `Blocked by: ${URL}/12`, [12]],
+    ["an issue URL with an anchor", `Depends on ${URL}/12#issuecomment-5`, [12]],
+    ["a Depends on heading's list", "## Depends on\n\n- #7571\n- #7572 (the parser)\n* #7573\n1. #7574", [7571, 7572, 7573, 7574]],
+    ["a Blocked by heading's list, up to the next heading", "### Blocked by:\n- #1\n- #2\n## Next\n- #3", [1, 2]],
+    ["a heading's list item URL", `## Blocked by\n- ${URL}/9`, [9]],
+    ["a repeated number once", "Blocked by: #12\n## Depends on\n- #12", [12]],
+    // #8994's and #8989's shape: prose names the blocker too, and only the line counts.
+    [
+      "only the line, not prose that mentions issues",
+      "## Problem\n\n#8753 makes it skip. #7613 adds the disclosure.\n\n## Criterion moved from #8753\n\n- One.\n\nBlocked by: #8753\n\n<!-- work-items:born-triaged -->\n",
+      [8753],
+    ],
+    ["none", "Blocked by: none", []],
+    ["none with a mention after it", "Blocked by: none (was #12)", []],
+    ["no issue at all", "Blocked by the release", []],
+    ["a mid-sentence mention", "This is blocked by #12.", []],
+    ["a list item outside a section", "## Plan\n- #12", []],
+    ["a quoted line", "> Blocked by: #12", []],
+    ["an indented quoted line", "  > Depends on #12", []],
+    ["a backtick fence", "```\nBlocked by: #12\n```\nBlocked by: #13", [13]],
+    ["a tilde fence", "~~~md\nDepends on #12\n~~~", []],
+    ["a fence a shorter one does not close", "````\n```\nBlocked by: #12\n````", []],
+    ["inline code", "Blocked by: `#12`, #13", [13]],
+    ["an HTML comment across lines", "<!--\nBlocked by: #12\n-->", []],
+    ["a cross-repository reference", "Blocked by: other/repo#12, o/r#13", []],
+    ["another repository's URL", "Blocked by: https://github.com/o/other/issues/12", []],
+    ["a repository whose name only ends the same", "Blocked by: https://github.com/xo/r/issues/12", []],
+    ["a pull request URL", `Blocked by: https://github.com/o/r/pull/12`, []],
+    ["an HTML entity", "Blocked by: &#12;", []],
+    ["a leading zero", "Blocked by: #012", []],
+    ["a word after the number", "Blocked by: #12abc", []],
+    ["a Blocked-by-like word", "Blocked byproduct #12", []],
+    ["an empty body", "", []],
+    ["a missing body", null, []],
+  ]) {
+    test(`reads ${name}`, () => {
+      assert.deepEqual(textBlockers(body, "o/r"), { numbers, dropped: 0 });
+    });
+  }
+
+  test(`keeps the first ${MAX_TEXT_BLOCKERS} and counts the rest`, () => {
+    const list = Array.from({ length: MAX_TEXT_BLOCKERS + 3 }, (_, index) => `#${index + 1}`).join(", ");
+    assert.deepEqual(textBlockers(`Blocked by: ${list}`, "o/r"), {
+      numbers: Array.from({ length: MAX_TEXT_BLOCKERS }, (_, index) => index + 1),
+      dropped: 3,
+    });
+  });
+
+  test("matches the repository by name, regex characters taken literally", () => {
+    assert.deepEqual(textBlockers("Blocked by: https://github.com/a.b/c/issues/4", "a.b/c").numbers, [4]);
+    assert.deepEqual(textBlockers("Blocked by: https://github.com/axb/c/issues/4", "a.b/c").numbers, []);
+  });
+});
 
 describe("parseBlockedBy", () => {
   for (const [name, lines, numbers] of [

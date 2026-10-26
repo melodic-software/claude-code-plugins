@@ -40,7 +40,7 @@
 // that is not one of the repository's work-class labels is not applied. When
 // it applied a class it rewrites the comment's "a maintainer confirms" lines.
 // It writes a native blocked-by edge for each open issue of this repository
-// the verdict names; an edge GitHub answers 403, 429 or 5xx for is missed,
+// the verdict or the issue body (edges.mjs textBlockers) names; an edge GitHub answers 403, 429 or 5xx for is missed,
 // named in the summary and an annotation, the edges the run wrote are
 // deleted again, and a ready verdict then lands
 // without `status: ready` and is not admitted, so the hourly triage sweep runs
@@ -52,9 +52,10 @@
 // keeps under another id than models.issue-dimensions maps fails the run and
 // leaves the issue's labels as they are.
 //
-// Issue text can only refuse: a line the model quotes is prefixed `> ` and
-// matches nothing, a duplicated, missing or unknown value writes no fields, and
-// an escalated run writes only needs-decision and its reasons; model text
+// Issue text can only refuse or hold back: a line the model quotes is prefixed
+// `> ` and matches nothing, a duplicated, missing or unknown value writes no
+// fields, the body's blockers add only edges to open issues, and an escalated
+// run writes only needs-decision, its reasons and those edges; model text
 // reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
 // whose author is a listed human or the lanes App, and only from a lane
 // comment updated at or after STARTED_AT (this run's), so a run whose triage
@@ -85,7 +86,7 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
-import { parseBlockedBy, writeEdges } from "./edges.mjs";
+import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -435,7 +436,15 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // dispatches intake on an issue with no `status:` label, runs it again.
   // writeEdges deletes the edges this run wrote when any misses, so
   // work-unblock never reads a partial set; the re-run writes them all.
-  const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
+  // The body's own `Blocked by` and `Depends on` lines count too, since
+  // the model's line can leave them out (#8994); an escalated verdict
+  // writes them, so a label added by hand later still finds the edge.
+  const named = verdict.untrusted || labels.includes(UNTRUSTED) ? { numbers: [], dropped: 0 } : textBlockers(issue.body, repository);
+  const blockers = [...new Set([...verdict.blockedBy, ...named.numbers])];
+  const edges = blockers.length > 0 ? await writeEdges({ github, repository, number, blockers }) : null;
+  if (named.dropped > 0) {
+    log(`::warning title=apply-verdict::#${number}'s body names ${named.dropped} blocker(s) past the first ${MAX_TEXT_BLOCKERS}; no edge is written for them`);
+  }
   const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
   const add = waits ? plan.add.filter((name) => name !== READY) : plan.add;
   const remove = waits ? [...plan.remove, READY] : plan.remove;
