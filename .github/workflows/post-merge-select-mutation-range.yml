@@ -27,6 +27,7 @@ on:
       - "!**/evals/**"
       - "!**/fixtures/**"
       - "!**/vendor/**"
+      - "!.claude/**"
 
 permissions: {}
 

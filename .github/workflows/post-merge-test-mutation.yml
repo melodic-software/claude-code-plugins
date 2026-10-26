@@ -211,7 +211,6 @@ jobs:
         run: |
           bash scripts/setup-env.sh
           npm ci --ignore-scripts --no-audit --no-fund --prefix .github/actions/resolve-config
-          git status --porcelain >"$RUNNER_TEMP/mutation-status-before"
 
       # The verify-pr route's profile: a judgment model with its turn cap.
       - name: Resolve the model
@@ -225,26 +224,36 @@ jobs:
         id: prompt
         env:
           MARKETPLACE: ${{ runner.temp }}/mutation-marketplace
+          HARNESS: ${{ runner.temp }}/mutation-harness
           HEAD_SHA: ${{ needs.prep.outputs.after }}
           DIFF_TARGET: ${{ steps.target.outputs.target }}
         run: |
-          [[ $MARKETPLACE =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "::error::the marketplace path has a name a rule cannot carry"; exit 1; }
-          mkdir -p "$MARKETPLACE"
+          [[ $MARKETPLACE =~ ^/[A-Za-z0-9_./-]+$ && $HARNESS =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+            { echo "::error::a staged path has a name a rule cannot carry"; exit 1; }
+          mkdir -p "$MARKETPLACE" "$HARNESS"
           cp -R .base/plugins .base/.claude-plugin "$MARKETPLACE/"
-          # The plugin loads in place from this copy; nothing the model starts
-          # may rewrite it.
-          chmod -R a-w "$MARKETPLACE"
+          # The covering-tests harness runs from a copy of the pushed head's
+          # scripts/, so a mutant of the harness cannot break the harness.
+          cp -R scripts "$HARNESS/"
+          # The plugin loads in place from its copy; nothing the model starts
+          # may rewrite either copy.
+          chmod -R a-w "$MARKETPLACE" "$HARNESS"
           marketplace=$(jq -r '.name' "$MARKETPLACE/.claude-plugin/marketplace.json")
           [[ $marketplace =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "::error::the marketplace name is malformed"; exit 1; }
           prompt=$(<.base/.github/scripts/post-merge-test-mutation/prompt.md)
           prompt=${prompt//HEAD_SHA/$HEAD_SHA}
           prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
-          schema=$(jq -c . .base/.github/scripts/post-merge-test-mutation/result.schema.json)
+          prompt=${prompt//COVERING_TESTS/$HARNESS/scripts/run-covering-tests.sh}
+          # The model gets the shape without pattern and minimum, which no
+          # live lane schema has used with --json-schema; report.mjs enforces
+          # the whole file.
+          schema=$(jq -c 'walk(if type == "object" then del(.pattern, .minimum) else . end)' \
+            .base/.github/scripts/post-merge-test-mutation/result.schema.json)
           lint="$MARKETPLACE/plugins/mutation-testing/scripts/suppression-lint.sh"
           # A rule path starting `//` is absolute. Bash runs only the covering
           # tests, git's reads and restore, and the plugin's suppression lint.
           allowed="Skill(mutation-testing:audit),Read(/$MARKETPLACE/**),Edit,Agent"
-          allowed="$allowed,Bash(scripts/run-covering-tests.sh *),Bash(git restore -- *)"
+          allowed="$allowed,Bash($HARNESS/scripts/run-covering-tests.sh *),Bash(git restore -- *)"
           allowed="$allowed,Bash(git status *),Bash(git diff *),Bash(git branch *),Bash(git rev-parse *),Bash(git log *),Bash(git show *)"
           allowed="$allowed,Bash(bash $lint *),Bash(bash \\\"$lint\\\" *)"
           denied="Write,NotebookEdit,WebFetch,WebSearch"
@@ -293,16 +302,15 @@ jobs:
             ${{ steps.prompt.outputs.claude-args }}
 
       # The audit's own restore check is the model's report; this one is not.
-      # Tracked files must equal the pushed head, and the status must equal
-      # the one taken before the audit.
+      # Tracked files must equal the pushed head.
       - name: Check the checkout is restored
         id: restored
         if: always() && steps.audit.outcome != 'skipped'
         run: |
-          if git diff --quiet HEAD && git status --porcelain | cmp -s - "$RUNNER_TEMP/mutation-status-before"; then
+          if git diff --quiet HEAD; then
             echo "restored=true" >>"$GITHUB_OUTPUT"
           else
-            git status --porcelain | head -20
+            git diff --stat HEAD | tail -20
             echo "restored=false" >>"$GITHUB_OUTPUT"
             echo "::error::the checkout differs from the pushed head after the audit"
             exit 1

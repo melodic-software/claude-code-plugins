@@ -21,10 +21,11 @@ check() {
   fi
 }
 
-# The selection stub prints the suites in $SUITES; the runner stub fails a
-# suite whose name holds "red", exiting 3.
+# The selection stub prints the suites in $SUITES when it selects in the
+# current directory; the runner stub fails a suite whose name holds "red",
+# exiting 3.
 cat >"$work/select" <<'EOF'
-[[ $1 == src.sh ]] || exit 1
+[[ $1 == src.sh && $AFFECTED_TESTS_ROOT == "$PWD" ]] || exit 1
 printf '%s\n' $SUITES
 EOF
 cat >"$work/run" <<'EOF'
@@ -40,6 +41,7 @@ SUITES="" check "no covering suite" 2 "" src.sh
 SUITES="a.test.sh" check "a failed selection" 2 "" other.sh
 SUITES="a.test.sh" check "no argument" 2 ""
 SUITES="a.test.sh" check "two arguments" 2 "" src.sh src.sh
+SUITES="a.test.sh" AFFECTED_TESTS_ROOT=/elsewhere check "a root the caller set is kept" 2 "" src.sh
 
 echo "run-covering-tests: $pass passed, $fail failed"
 [[ $fail -eq 0 ]]

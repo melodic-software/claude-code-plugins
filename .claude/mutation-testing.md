@@ -24,7 +24,8 @@ command: none, the manual protocol applies each mutant by hand
 diff-target: main
 
 # Code the runners in scripts/run-test-file.sh can test. PowerShell is left
-# out: that runner does not run Pester suites.
+# out: that runner does not run Pester suites. .claude/ holds this config and
+# the lane's overlay, which the model may not edit.
 mutate:
   - "**/*.sh"
   - "**/*.mjs"
@@ -38,6 +39,7 @@ mutate:
   - "!**/evals/**"
   - "!**/fixtures/**"
   - "!**/vendor/**"
+  - "!.claude/**"
 
 operators: default
 
@@ -49,10 +51,12 @@ operators: default
 baseline-suite-ms: 72571
 timeout-ms: 115000
 
-# At about one covering-suite run per mutant, 12 mutants fit the lane's
-# 60-minute job and its model profile's turn cap. A larger diff reports
-# what it dropped.
-max-mutants: 12
+# The verify-pr route's profile caps the run at 60 turns. The audit spends
+# about 17 on preflight, reading its references, baselines and triage, then
+# about 4 per mutant (read, Edit, covering tests, git restore): 8 mutants is
+# about 49 turns, and at about one covering-suite run each they fit the
+# 60-minute job. A larger diff reports what it dropped.
+max-mutants: 8
 ```
 
 No `test-command`: the lane runs the default diff scope, and `scripts/run-test-file.sh` takes one
