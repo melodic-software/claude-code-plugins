@@ -1848,3 +1848,22 @@ test("patch rules: a patch producer whose prepare mode has no row is rejected; o
   );
   assert.doesNotThrow(() => checkPatchRules(withoutCiContext, PATCH_RULES_SCHEMA, { "fix-docs": producer }));
 });
+
+test("review-threads: reviewer-ids resolves to the listed ids, none when absent, and only integer ids pass the schema", () => {
+  assert.deepEqual(run(fixture("valid.yaml"), { activity: "run-tests" })["review-threads"], { "reviewer-ids": [] });
+  const listed = edited((doc) => {
+    doc["review-threads"] = { "reviewer-ids": [199175422] };
+  });
+  assert.deepEqual(run(listed, { activity: "run-tests" })["review-threads"], { "reviewer-ids": [199175422] });
+  for (const bad of [["chatgpt-codex-connector[bot]"], [0], [199175422, 199175422]]) {
+    const config = edited((doc) => {
+      doc["review-threads"] = { "reviewer-ids": bad };
+    });
+    assertRejected(() => run(config, { activity: "run-tests" }), "invalid-config");
+  }
+});
+
+test("review-threads: the live config lists Codex's account id", () => {
+  const live = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
+  assert.ok(live["review-threads"]["reviewer-ids"].includes(199175422));
+});

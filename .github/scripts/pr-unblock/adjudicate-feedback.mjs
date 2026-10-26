@@ -76,14 +76,15 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 
 // Whether an adjudicator may judge a dispute on the thread: only a review
 // comment keepThreads tagged with the code-review lane (a github-actions[bot]
-// footer; claude[bot] writes its own body, so it names no lane) that carries
-// no `severity: CRITICAL` line. A CRITICAL finding, a security-review
+// footer; claude[bot] writes its own body, so it names no lane) or as a
+// listed review bot's (from its account id), that carries no
+// `severity: CRITICAL` line. A CRITICAL finding, a security-review
 // finding, one of no tagged lane, and a pr-verify verifier note (resolving it
 // leaves the verifier's FAIL holding the merge, and pr-verify judges each
 // head once) always go to a person.
 export const adjudicable = (comments) => {
   const root = comments?.[0];
-  return root?.author === "reviewer" && root.lane === "claude-review" && !CRITICAL.test(String(root.body ?? ""));
+  return root?.author === "reviewer" && (root.lane === "claude-review" || root.listed === true) && !CRITICAL.test(String(root.body ?? ""));
 };
 
 // The locations a review comment cites: path:line tokens in its prose and

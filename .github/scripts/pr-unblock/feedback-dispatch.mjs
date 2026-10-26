@@ -19,7 +19,9 @@
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
-//   every comment is the reviewer bot's, a trusted person with write access
+//   every comment is the reviewer bot's or a listed review bot's
+//   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids), a trusted
+//   person with write access
 //   asked the lane to fix it (isFixRequest), or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
 //   the human-gated label, the same when a lane escalation put the label on
@@ -74,7 +76,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, humanGatedLabelFrom, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
@@ -136,7 +138,7 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 }
 
 // An unresolved thread, read in full, that threadAuthors accepts.
-export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, requesters = null, fixers = requesters ?? new Set() }) {
+export function hasWorkableThread(threads, { reviewerId, reviewerIds = [], appId, trustedHumans, requesters = null, fixers = requesters ?? new Set() }) {
   return threads.some(
     (thread) =>
       thread.isResolved === false &&
@@ -149,7 +151,7 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, r
           lastEditedAt: node.lastEditedAt,
           editorId: node.editor?.databaseId,
         })),
-        { reviewerId, appId, trustedHumans, requesters, fixers },
+        { reviewerId, reviewerIds, appId, trustedHumans, requesters, fixers },
       ) !== null,
   );
 }
@@ -193,6 +195,7 @@ export async function dispatchFeedback({
   log,
   settings = DEFAULTS,
   trustedHumans = new Set(),
+  reviewerIds = [],
   humanGatedLabel = "needs-human",
   now = Date.now(),
   record = emptyRecord(),
@@ -291,7 +294,7 @@ export async function dispatchFeedback({
     permission: api.getPermission,
   });
   const requesters = gated ? fixers : null;
-  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, requesters, fixers })) {
+  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, requesters, fixers })) {
     return skip(
       gated
         ? `#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`
@@ -618,6 +621,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
     appSenderId: Number(env.APP_SENDER_ID),
+    reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),

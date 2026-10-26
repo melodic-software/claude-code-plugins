@@ -1271,3 +1271,58 @@ test("a PR the sweep cannot read is logged and the next PR is still swept", asyn
   assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
   assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("502")), lines.join("\n"));
 });
+
+// A listed review bot's thread (pr-pipeline.yaml review-threads.reviewer-ids),
+// keyed on the GraphQL author databaseId; Codex's id from #10092.
+const CODEX = { databaseId: 199175422, login: "chatgpt-codex-connector" };
+const decideListed = (api, reviewerIds) =>
+  dispatchFeedback({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    upstream: api.upstream,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    reviewerIds,
+    resolveSlot: async () => resolvedLane(),
+    log: () => {},
+  });
+
+test("a listed review bot's thread dispatches like the reviewer bot's; an unlisted bot's or a borrowed login's does not", async () => {
+  assert.equal((await decideListed(fakeApi({ threads: [thread([CODEX])] }), [CODEX.databaseId])).number, 42);
+  assert.equal((await decideListed(fakeApi({ threads: [thread([CODEX, CODEX])] }), [CODEX.databaseId])).number, 42);
+  assert.equal(await decideListed(fakeApi({ threads: [thread([CODEX])] }), []), null);
+  assert.equal(await decideListed(fakeApi({ threads: [thread([{ databaseId: 206951365, login: "cursor" }])] }), [CODEX.databaseId]), null);
+  assert.equal(await decideListed(fakeApi({ threads: [thread([{ databaseId: 4343, login: CODEX.login }])] }), [CODEX.databaseId]), null);
+  // A stranger's reply leaves it alone, as on the reviewer bot's.
+  assert.equal(await decideListed(fakeApi({ threads: [thread([CODEX, STRANGER])] }), [CODEX.databaseId]), null);
+});
+
+test("main takes the listed review bots from REVIEWER_IDS", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  try {
+    const env = (ids) => {
+      const output = join(dir, `output-${ids}`);
+      writeFileSync(output, "");
+      return {
+        GITHUB_TOKEN: "t",
+        GITHUB_REPOSITORY: REPOSITORY,
+        GITHUB_RUN_ID: RUN_ID,
+        GITHUB_OUTPUT: output,
+        GITHUB_EVENT_PATH: eventFile(dir),
+        APP_SENDER_ID: String(APP_ID),
+        TRUSTED_ACTORS: noActors(dir),
+        REVIEWER_IDS: ids,
+      };
+    };
+    const go = async (ids) => {
+      const settings = env(ids);
+      await main(settings, { api: fakeApi({ threads: [thread([CODEX])] }), resolveSlot: async () => resolvedLane(), log: () => {} });
+      return readFileSync(settings.GITHUB_OUTPUT, "utf8");
+    };
+    assert.match(await go(`${CODEX.databaseId}\n`), /^run-id=/);
+    assert.equal(await go(""), "");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

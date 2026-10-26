@@ -398,3 +398,18 @@ test("main prepare reads its inputs only as the bytes their writers hashed", asy
   assert.deepEqual([...parseVerdicts(text, HEAD)], [["PRRT_a", { verdict: "lane", question: "none" }]]);
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`\nsha256=${sum(text)}\n$`));
 });
+
+// A finding a listed review bot (pr-pipeline.yaml review-threads.reviewer-ids)
+// opened: keepThreads tags it listed from the account id, never from its text.
+const CODEX_REVIEW = "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  The lock is read first**\n\n`lib/lock.mjs:40` reads it.";
+const listedThread = (id, body = CODEX_REVIEW) => thread(id, [{ id: 1, author: "reviewer", listed: true, body }]);
+
+test("disputes adjudicates a listed review bot's finding like the code lane's, but not a CRITICAL one or the reviewer bot's own", () => {
+  const { slots } = disputes(fileOf(listedThread("PRRT_x")), incorrect("PRRT_x"), "o/r");
+  assert.deepEqual(slots.map((slot) => [slot.thread, slot.finding.comment]), [["PRRT_x", CODEX_REVIEW]]);
+  assert.deepEqual(slots[0].cited, [{ path: "lib/lock.mjs", line: 40 }]);
+  const critical = listedThread("PRRT_c", `${CODEX_REVIEW}\n\nseverity: critical`);
+  // claude[bot]'s own finding carries no lane and is not listed.
+  const own = thread("PRRT_o", [{ id: 1, author: "reviewer", body: CODEX_REVIEW }]);
+  assert.deepEqual(disputes(fileOf(critical, own), [incorrect("PRRT_c"), incorrect("PRRT_o")].join("\n")).slots, []);
+});

@@ -885,8 +885,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
 1. Before any model turn, the select job reads the PR head, resolves the slot as the read file
    does (a draft or `do-not-merge` skips it), and runs `address-feedback.mjs select` with its
    `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
-   the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id, or `github-actions[bot]`
-   for a comment whose last non-blank line is a review lane's `claude-lane:` footer) submitted on a head
+   the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id, a review bot listed in
+   `review-threads.reviewer-ids`, by id, or `github-actions[bot]` for a comment whose last
+   non-blank line is a review lane's `claude-lane:` footer) submitted, as that comment's own
+   author, on a head
    that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, or
    `github-actions[bot]` submitted there for a verifier note (a first comment by it whose first
    line is `<!-- pr-verify:fail-note -->`, author `verifier`), when every comment is the reviewer
@@ -917,7 +919,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `timed_out`) still runs one more round, on those threads only; a round with no readable time
    grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
    finding ending in the `claude-lane: claude-review` footer (a security lane finding, a verifier
-   note, or a `claude[bot]` finding, whose footer would be model text) escalates `feedback-round-cap`; otherwise one more round runs on every kept
+   note, or a `claude[bot]` or listed review bot's finding, whose footer would be model text) escalates `feedback-round-cap`; otherwise one more round runs on every kept
    thread (the fresh fixer), and once it has run the select job escalates
    `feedback-not-converging`. The escalations skip `awaiting-human`; no escalation or skip runs a
    model job. A round-cap escalation also writes `not-run-detail` (`round <N> of max <M>`, M being
@@ -1097,8 +1099,9 @@ trusted person directed (a fix request, or a reply after an escalation) stays th
 `INCORRECT` reply on it escalates `feedback-disputed` with no adjudication. Only a
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
-a footer in a claude[bot] comment, whose body the model writes, names none) and that carries no
-`severity: CRITICAL` line is adjudicated. A CRITICAL finding, a security-review finding, one whose
+a footer in a claude[bot] comment, whose body the model writes, names none), or a listed review
+bot's comment (`review-threads.reviewer-ids`; the select job tags it `listed: true` from the
+comment's account id, never its text), that carries no `severity: CRITICAL` line is adjudicated. A CRITICAL finding, a security-review finding, one whose
 lane its root comment does not name, and a pr-verify verifier note always go to a person: an
 `INCORRECT` reply on one escalates `feedback-disputed`, takes no slot, and any verdict for it is
 ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the

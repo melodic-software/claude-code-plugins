@@ -860,6 +860,15 @@ adoption:
   # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
   spec-from-body-apps: [337859524, 300666570]
 
+# Review bots, besides claude[bot] and the review lanes, whose review threads
+# pr-unblock's address-feedback works as the reviewer bot's: fix or explain,
+# adjudication and resolution, under the same trusted-person rules. Matched on
+# the account id GitHub records for a comment, never a login; their comment
+# text stays data. Owner decision 2026-10-26. 199175422 is
+# chatgpt-codex-connector[bot] (its threads on #10092).
+review-threads:
+  reviewer-ids: [199175422]
+
 # The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
 # branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
 # deletes a branch once its pull request and linked issue are closed, and never

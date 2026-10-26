@@ -690,6 +690,9 @@ jobs:
           mkdir -p "$FEEDBACK_DIR"
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
           export REVIEW_ROUNDS
+          # The listed review bots' ids (review-threads.reviewer-ids), one per line.
+          REVIEWER_IDS=$(jq -r '.["review-threads"]["reviewer-ids"] // [] | .[]' "$RESOLVED")
+          export REVIEWER_IDS
           THREAD_FILE="$FEEDBACK_DIR/threads.json" RUN_FILE="$FEEDBACK_DIR/run.json" \
             node .base/.github/scripts/pr-unblock/address-feedback.mjs select
           if [ -f "$FEEDBACK_DIR/threads.json" ]; then
@@ -1919,6 +1922,9 @@ jobs:
           BASE_PATH: .base
         run: |
           mkdir -p "$RUNNER_TEMP/ci-context"
+          # The listed review bots' ids (review-threads.reviewer-ids), one per line.
+          REVIEWER_IDS=$(yq '."review-threads"."reviewer-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export REVIEWER_IDS
           node .base/.github/scripts/pr-unblock/fix-ci-context.mjs
 
       - name: Upload the context

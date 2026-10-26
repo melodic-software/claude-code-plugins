@@ -56,6 +56,8 @@
 //   APP_SENDER_ID         the lanes App bot's user id, the round marker author
 //   TRUSTED_ACTORS        the base's trusted-actors.json, for the reviewer bot
 //                         and the people whose replies are direction
+//   REVIEWER_IDS          the listed review bots' ids, one per line
+//                         (address-feedback.mjs reviewerIdsFrom)
 //   FEEDBACK_REPLIES_DIR  the downloaded artifacts: the select job's run.json
 //                         and the model run's scanned replies.jsonl
 //   RUN_SHA256            run.json's SHA-256, from the select job
@@ -86,6 +88,7 @@ import {
   need,
   positive,
   reviewerIdFrom,
+  reviewerIdsFrom,
   ROUND_MARKER,
   scanRefusal,
   SHA,
@@ -482,7 +485,7 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, reviewerIds = [], trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
@@ -531,7 +534,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       escalationReason = "feedback-incomplete";
       return { escalationReason, posted: [] };
     }
-    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
+    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
@@ -738,6 +741,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     repliesExpected: attempt !== "" || (env.REPLIES_SHA256 ?? "") !== "",
     maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+    reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
     readArtifact: () => ({ runText: readRun(), repliesText: readReplies() }),
     readAdjudication,
