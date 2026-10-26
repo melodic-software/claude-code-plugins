@@ -1842,6 +1842,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         codes = [c for c in _codes(result) if c.startswith("review-path:")]
         self.assertEqual(codes, [f"review-path:{B}babysit_gh.py"])
         self.assertFalse(any(c.startswith("high-") for c in _codes(result)))
+        self.assertEqual(babysit_risk.person_reasons(result.reasons), [])
 
     def test_each_gate_and_trust_path_holds_even_with_a_clean_review(self):
         for glob in babysit_risk.HIGH_FLOOR:
