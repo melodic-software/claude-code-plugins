@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2] - 2026-10-26
+
+### Fixed
+
+- `/prototype:explore-directions`: variants of an existing app's feature now keep the app's look on every host, the HTML mockup included. On the mockup, every variant inlines the app's own CSS and surrounding page and varies only the subtree under test; a per-variant visual direction applies only when no app exists yet or a redesign was asked. A new eval covers layout options for one feature of an existing app, delivered as standalone files.
+
 ## [0.14.1] - 2026-10-25
 
 ### Changed
