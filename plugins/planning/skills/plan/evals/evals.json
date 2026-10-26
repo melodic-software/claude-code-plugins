@@ -500,6 +500,21 @@
         "Output's action is to cut Phase 2 or surface it as an Open Decision for the user",
         "Output does not flag Phase 1, which covers both criteria"
       ]
+    },
+    {
+      "id": 39,
+      "name": "plan-reader-guardrails-publishes-derived-file",
+      "narration": true,
+      "prompt": "/planning:plan --reader guardrails add CSV export to the invoice list. I approve the plan as presented. The repository's docs/conventions/planning.yaml contains `plan_store: tracker` and `plan_reader: step-by-step`. PLAN.md has a ## Brief, a ## Design section whose Conventions followed names the existing report exporter with `Net new: none` and `Challenges a pattern: none`, and three phases. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "At the final persist step the skill resolves plan_reader to guardrails from the --reader argument, over the repository's step-by-step, reports that line, and records it in PLAN.md's Reader depth: line. It renders PLAN.guardrails.md beside PLAN.md: a one-line lead naming the guardrails depth, the ## Brief and ## Design sections copied as written (Conventions followed with its Net new: none and Challenges a pattern: none lines), and the Approval: and Reader depth: lines, with no phase bodies or phase outline. It invokes /work-items:track publish-plan 812 with the derived file, and PLAN.md keeps all three phases.",
+      "files": [],
+      "expectations": [
+        "Reports plan_reader guardrails and names the --reader argument as the supplying layer, over the repository file's step-by-step",
+        "Writes a derived PLAN.guardrails.md that carries ## Brief, ## Design with Conventions followed and its Net new: and Challenges a pattern: lines, and the Approval: line",
+        "The derived file holds no ### Phase sections and no phase outline",
+        "Invokes /work-items:track publish-plan with item 812 and the derived file, not PLAN.md",
+        "Does not reduce PLAN.md: it still holds ## Plan with all three phases"
+      ]
     }
   ]
 }

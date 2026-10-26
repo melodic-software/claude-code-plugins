@@ -26,6 +26,9 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 ### Conventions followed
 <repository paths of the existing patterns, rules, and ADRs this design follows>
 
+Net new: <each part with no existing pattern to follow, and why none fits; or `none`>
+Challenges a pattern: <each existing pattern this design departs from or questions, its path, and the reason; or `none`>
+
 ## Plan
 
 Citations checked at: <the full commit SHA check-plan-citations.sh printed as `commit=` at Step 4.7; every `path:line` in this file resolves at it>
@@ -66,6 +69,7 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed as `c
 ## Handoff to implementation
 
 Approval: <attended: approved by <who> on <date>; unattended: standing mandate <which>, granted by <who> in <where>, review surface <e.g. the PR>>
+Reader depth: <guardrails, standard or step-by-step, and the layer that supplied it; written at the first publish or paste>
 
 ### User-approval gates
 <actions implementation MUST surface for confirmation before executing: any [FALLBACK] tags, any scope-expansion proposals, any mid-flight pivots that change acceptance criteria. At each gate, ask or stop + flag. An empty section is valid — small tasks may have zero gates beyond the initial plan approval>
@@ -85,3 +89,19 @@ worker's brief, and the published plan; the design directory itself is never pub
 cites the subsection it implements rather than paraphrasing it.
 
 Advance the phase tag (`[TODO]` → `[DOING]` → `[DONE]`) as implementation completes each phase. The tags are what a resuming session reads to know where to continue.
+
+## Reader-depth renders
+
+The copy published to the work item or pasted into the pull request carries the depth
+`plan_reader` resolves ([`../SKILL.md`](../SKILL.md) "Reader depth"). `step-by-step` publishes
+PLAN.md itself. A reduced depth writes a derived file beside it, `PLAN.<depth>.md`, rebuilt from
+PLAN.md before every publish and never edited by hand; PLAN.md stays whole. The derived file holds,
+in order:
+
+1. One line naming the depth and its reader, e.g. `Guardrails: follow these constraints; the steps are yours.` or `Standard: these constraints and the order of work; the details are yours.`
+2. `## Brief` as PLAN.md has it. A pipeline intent check reads the published plan's Brief as the acceptance criteria, so no depth drops it.
+3. `## Design` as PLAN.md has it, including `### Conventions followed` with its `Net new:` and `Challenges a pattern:` lines. With no `## Design` section: one line saying the plan has no design stage.
+4. `standard` only: `## Phase outline`, each `### Phase N:` heading copied as one line with its status tag.
+5. The `Approval:` and `Reader depth:` lines, copied unchanged.
+
+Sections are copied, never reworded, so the published copy cannot drift from the approved plan.
