@@ -66,7 +66,7 @@
       - For an `ABSENT` file only: **Remove from main**, offered only if the user confirms the file was deliberately deleted in this worktree this session. ABSENT is ambiguous (a manual or pre-`.worktreeinclude` worktree never received the copy), so default to **Skip**; never remove main's copy without that explicit confirmation
    4. If user chooses "copy to main": `mkdir -p "$(dirname "$MAIN_ROOT/$f")" && cp "$f" "$MAIN_ROOT/$f"` (a new topic slug has no parent directory in main yet); confirmed deliberate deletion: `rm "$MAIN_ROOT/$f"`
 
-   **Why here (not WorktreeRemove hook):** this is the last intentional checkpoint where user is engaged and can inspect a diff. WorktreeRemove hooks cannot block removal or prompt. A silent copy could overwrite concurrent session changes. One mechanism per concern.
+   **Why here (not WorktreeRemove hook):** this is the last intentional checkpoint where user is engaged and can inspect a diff. A WorktreeRemove hook cannot prompt, and this plugin's (`hooks/worktree-remove-gate.sh`) compares no carried file. A silent copy could overwrite concurrent session changes. One mechanism per concern.
 
    **Skip conditions:** not in a worktree, no `.worktreeinclude` file exists, no differences found.
 
