@@ -34,7 +34,7 @@ Banner structure:
 
     To run elevated:
       Ask the session that ran this audit for the elevated pass. It shows
-      a one-command script and its SHA-256, and launches it behind UAC
+      the launcher script and its SHA-256, and launches it behind UAC
       only after you say yes.
 
     Suppress this banner with -SkipBanner.
@@ -85,7 +85,7 @@ function Write-ElevationBanner {
 
     $lines.Add(' To run elevated:')
     $lines.Add('   Ask the session that ran this audit for the elevated pass. It shows')
-    $lines.Add('   a one-command script and its SHA-256, and launches it behind UAC')
+    $lines.Add('   the launcher script and its SHA-256, and launches it behind UAC')
     $lines.Add('   only after you say yes.')
     $lines.Add('')
     $lines.Add(' Suppress this banner with -SkipBanner.')
@@ -131,7 +131,7 @@ function Get-ElevationCoverageMarkdown {
         $body.Add("| $($m.Feature) | $($m.CheckId) | $($m.Fields -join ', ') | $($m.Reason) |")
     }
     $body.Add('')
-    $body.Add('To populate these: ask the audit session for the elevated pass. It shows a one-command script and its SHA-256, launches it behind UAC only after the owner says yes, and imports its results into a standard run.')
+    $body.Add('To populate these: ask the audit session for the elevated pass. It shows the launcher script and its SHA-256, launches it behind UAC only after the owner says yes, and imports its results into a standard run.')
     $body.Add('</details>')
     return ($body -join "`n")
 }

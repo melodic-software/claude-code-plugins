@@ -23,10 +23,14 @@ function Invoke-CheckWithTimeout {
     $jobSw = [System.Diagnostics.Stopwatch]::StartNew()
     # Splat per-check arguments across the job boundary. -ArgumentList serializes
     # the hashtable; @ArgMap binds it to the check's named params. An empty map
-    # (the common case) runs the check argument-less.
+    # (the common case) runs the check argument-less. The job's pwsh puts the user module
+    # folder back on PSModulePath at startup, so it takes this process's value instead and
+    # an elevated pass's pinned path holds in the check too.
     $job = Start-Job -ScriptBlock {
-        param($ScriptToRun, $ArgMap) & $ScriptToRun @ArgMap
-    } -ArgumentList $ScriptPath, $Arguments
+        param($ScriptToRun, $ArgMap, $ModulePath)
+        $env:PSModulePath = $ModulePath
+        & $ScriptToRun @ArgMap
+    } -ArgumentList $ScriptPath, $Arguments, $env:PSModulePath
     $completed = Wait-Job -Job $job -Timeout $TimeoutSec
     $jobSw.Stop()
     if (-not $completed) {
