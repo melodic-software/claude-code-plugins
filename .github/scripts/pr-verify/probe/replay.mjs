@@ -56,11 +56,13 @@ export const REPO_ROOT = path.resolve(HERE, "../../../..");
 export const FIXTURES_DIR = path.join(HERE, "fixtures");
 const REPOSITORY = "melodic-software/claude-code-plugins";
 
-// The ci-workflows SHA pr-verify.yml pins run-claude-cli and
-// apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
-// MANAGED_SETTINGS were read from that SHA; the parity test fails when the
-// pin moves, so they are read again.
-export const RUN_CLAUDE_CLI_PIN = "ba7af78d291f10bd75651857a0db2357c23df0fe";
+// The ci-workflows SHA pr-verify.yml pins run-claude-cli to; the parity test
+// fails when that workflow's other pins differ from it. cliArgs, LEG_ENV,
+// CLI_VERSION and MANAGED_SETTINGS were read from that SHA, so a new pin means
+// reading them again.
+export const RUN_CLAUDE_CLI_PIN = /actions\/run-claude-cli@([0-9a-f]{40}) # v/.exec(
+  readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-verify.yml"), "utf8"),
+)?.[1];
 export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",
