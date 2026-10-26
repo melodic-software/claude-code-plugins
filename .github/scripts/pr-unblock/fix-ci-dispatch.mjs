@@ -27,9 +27,10 @@
 // candidate too. A head is skipped while a re-run of its tested run is
 // queued or going, while an infra-only first failure's one re-run by the
 // lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
-// RERUN_DUE_MINUTES), and when its tested run ended cancelled with no check on
-// the head that fix-ci-context counts as failing, which would only post
-// not-applicable (the reconciler re-runs a cancelled first attempt); a real
+// RERUN_DUE_MINUTES; a lost first attempt's too), and when its tested run
+// ended cancelled with no check on the head that fix-ci-context counts as
+// failing, which would only post not-applicable; a check cancelled past its
+// time limit counts, read from its annotations (#9828); a real
 // failure (a test, lint or typecheck step), an infra failure that failed
 // again, and a run or field that cannot be read go to fix-ci, with the cause
 // logged.
@@ -37,7 +38,18 @@
 // run ids, counts and failed job and step names (control characters dropped,
 // 80 characters each at most) only.
 
-import { AGGREGATE_JOBS, FAILED, infraCause, infraOnly, RERUN_DUE_MINUTES, reconcilerOwns, reconcilerRetries, stepsKnown, stepsUnread } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import {
+  AGGREGATE_JOBS,
+  FAILED,
+  infraCause,
+  infraOnly,
+  RERUN_DUE_MINUTES,
+  reconcilerOwns,
+  reconcilerRetries,
+  stepsKnown,
+  stepsUnread,
+  timeLimitNoted,
+} from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { prHold } from "./gate-source.mjs";
@@ -103,7 +115,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
                 contexts(first: 100) {
                   nodes {
                     __typename
-                    ... on CheckRun { name status conclusion title completedAt checkSuite { app { databaseId } } }
+                    ... on CheckRun { databaseId name status conclusion title completedAt checkSuite { app { databaseId } } }
                     ... on StatusContext { context state creator { __typename ... on Bot { databaseId } } }
                   }
                   pageInfo { hasNextPage }
@@ -191,6 +203,11 @@ const FIXABLE = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE"]);
 const fixable = (checks, checkName) =>
   checks.some((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && FIXABLE.has(run.conclusion));
 const lanesFailed = (node) => failedState(lanesState(node));
+// A job past its timeout-minutes ends cancelled, and only its annotations say
+// so (infra-failure.mjs timeLimitNoted); fix-ci-context counts it as failing.
+const cancelledLanes = (checks, checkName) =>
+  checks.filter((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && run.conclusion === "CANCELLED");
+const cancelledRun = (required) => required?.run?.status === "completed" && required.run.conclusion === "cancelled";
 
 // The lanes passed and another check failed: an advisory lane's, if any.
 const advisoryFailed = (node, checks, checkName) =>
@@ -310,7 +327,9 @@ export function skipReason(
     if (owned !== "") {
       return owned;
     }
-    if (required.run?.status === "completed" && required.run.conclusion === "cancelled" && !fixable(checks, checkName)) {
+    // node.timeLimited, the cancelled checks past their time limit, is
+    // attached by dispatchCiFixes with node.requiredRun.
+    if (cancelledRun(required) && !fixable(checks, checkName) && !(node.timeLimited?.length > 0)) {
       return `tested run ${required.run.id} attempt ${required.run.run_attempt} ended cancelled and no check failed for fix-ci to fix`;
     }
   }
@@ -482,7 +501,31 @@ export async function dispatchCiFixes({
       }
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
     }
-    const reason = skipReason({ ...node, requiredRun, laneGate, fixCiRuns }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+    // A cancelled tested run with nothing else to fix: read whether a lane
+    // check was cancelled past its time limit, which fix-ci takes (#9828).
+    const timeLimited = [];
+    const checks = headChecks(node, actionsAppId) ?? [];
+    if (cancelledRun(requiredRun) && !fixable(checks, checkName)) {
+      try {
+        for (const run of cancelledLanes(checks, checkName)) {
+          if (timeLimitNoted(await api.listAnnotations(run.databaseId))) {
+            timeLimited.push(logName(run.name));
+          }
+        }
+      } catch (error) {
+        if (error.rateLimited) {
+          log(`::warning::#${node.number}: its annotation read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+        } else {
+          failed += 1;
+          log(`::error::#${node.number}: could not read its cancelled checks' annotations (${error.message}); left for a later run`);
+        }
+        continue;
+      }
+    }
+    const reason = skipReason(
+      { ...node, requiredRun, laneGate, fixCiRuns, timeLimited },
+      { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now },
+    );
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;
@@ -501,7 +544,8 @@ export async function dispatchCiFixes({
         continue;
       }
       dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: ${failureCause(requiredRun, now)})`);
+      const limit = timeLimited.length > 0 ? `, time limit in ${timeLimited.join(", ")}` : "";
+      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: ${failureCause(requiredRun, now)}${limit})`);
     } catch (error) {
       failed += 1;
       log(`::error::#${node.number}: dispatch failed: ${error.message}`);

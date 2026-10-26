@@ -85,10 +85,20 @@ function fakeApi({
   comments = new Map(),
   labelEvents = new Map(),
   history = new Map(),
+  annotations = new Map(),
 } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], annotations: [] };
   return {
     calls,
+    // One check run's annotations, by its id; none unless the test names it.
+    async listAnnotations(id) {
+      calls.annotations.push(id);
+      const rows = annotations.get(id);
+      if (rows instanceof Error) {
+        throw rows;
+      }
+      return rows ?? [];
+    },
     // The head's check runs of one name and app over REST, every one of them:
     // the test's history for the head, else the rollup's runs in REST's shape.
     async listCheckRuns({ sha, checkName, appId }) {
@@ -367,6 +377,45 @@ test("a cancelled tested run with a check fix-ci-context counts as failing is st
     [5, 6, 7],
   );
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: tested run completed/cancelled)")), lines.join("\n"));
+});
+
+// #9828's head c1184e03 as recorded: pr-require-checks run 40118648493 ended
+// cancelled at attempt 2, its check run 120950643531 (test-bash (3)) cancelled
+// past its 9-minute limit, which only its annotations show, and ci-status
+// failed. fix-ci takes the slow or hanging test; a check cancelled with the
+// cancel note alone (a fail-fast sibling) still leaves the head skipped.
+const TIME_LIMITED = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
+const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
+const stranded = (number, notes) => {
+  const head = String(number).padStart(40, "a");
+  return {
+    pages: [[pr(number, { checks: [lanes("FAILURE"), check("test-bash (3)", "CANCELLED", { databaseId: 120950643531 }), check("ci-status", "FAILURE", { databaseId: 120952904939 })] })]],
+    requiredRuns: new Map([[head, { run: { ...tested(2), id: 40118648493, conclusion: "cancelled" }, jobs: null }]]),
+    annotations: new Map([[120950643531, notes]]),
+  };
+};
+
+test("a head whose tested run ended cancelled with a check past its time limit is dispatched, naming the check", async () => {
+  const { api, lines, result } = await run(stranded(9828, TIME_LIMITED));
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [9828],
+  );
+  // Only the cancelled lane check's annotations are read, not ci-status's.
+  assert.deepEqual(api.calls.annotations, [120950643531]);
+  assert.ok(
+    lines.some((line) => line.startsWith("dispatched fix-ci #9828 ") && line.endsWith("(cause: tested run completed/cancelled, time limit in test-bash (3))")),
+    lines.join("\n"),
+  );
+});
+
+test("a cancelled check with no time-limit note leaves the head skipped; an unreadable note dispatches nothing", async () => {
+  const skipped = await run(stranded(9828, CANCEL_ONLY));
+  assert.deepEqual(skipped.result.dispatched, []);
+  assert.ok(skipped.lines.includes("skip fix-ci #9828: tested run 40118648493 attempt 2 ended cancelled and no check failed for fix-ci to fix"), skipped.lines.join("\n"));
+  const unreadable = await run(stranded(9828, Object.assign(new Error("HTTP 502"), { status: 502 })));
+  assert.deepEqual(unreadable.result, { dispatched: [], failed: 1 });
+  assert.ok(unreadable.lines.some((line) => line.startsWith("::error::#9828: could not read its cancelled checks' annotations")), unreadable.lines.join("\n"));
 });
 
 test("a head whose fix-ci runs include a run that is not retryable is not capped, and an untrusted-trigger skip does not count", async () => {

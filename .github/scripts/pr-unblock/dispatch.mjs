@@ -367,6 +367,14 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
+    // One check run's annotations: whether a cancelled job passed its time
+    // limit (infra-failure.mjs timeLimitNoted).
+    async listAnnotations(checkRunId) {
+      if (!Number.isSafeInteger(checkRunId) || checkRunId < 1) {
+        throw new Error("not a check run id");
+      }
+      return request(`${apiUrl}/repos/${owner}/${name}/check-runs/${checkRunId}/annotations?per_page=100`);
+    },
     // fix-ci-dispatch.mjs's re-run check: the newest pull_request run of the
     // workflow at path (pr-require-checks unless named) on the head that
     // tested it and its latest jobs (infra-failure.mjs testedRun); a null run
