@@ -60,6 +60,10 @@ const PROSE_LOCATION = /(?<![\w@+./:-])((?:[\w@+.-]+\/)*[\w@+.-]+):([1-9][0-9]{0
 // The security-review lane's severity line (security-review SKILL.md,
 // "Reporting"), anywhere in the comment.
 const CRITICAL = /^[ \t]*severity:[ \t]*critical[ \t]*$/im;
+// The severity badge a listed review bot's finding opens with, as Codex
+// (chatgpt-codex-connector[bot]) writes it on #10092: the whole first line
+// starts with it, and the level in the alt text and the shields.io URL agree.
+const LISTED_BADGE = /^\*\*<sub><sub>!\[P([0-3]) Badge\]\(https:\/\/img\.shields\.io\/badge\/P\1-[a-z]+\?style=flat\)<\/sub><\/sub>/;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_SEGMENT.test(path);
@@ -77,14 +81,23 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 // Whether an adjudicator may judge a dispute on the thread: only a review
 // comment keepThreads tagged with the code-review lane (a github-actions[bot]
 // footer; claude[bot] writes its own body, so it names no lane) or as a
-// listed review bot's (from its account id), that carries no
-// `severity: CRITICAL` line. A CRITICAL finding, a security-review
+// listed review bot's (from its account id) whose first line opens with a
+// P1-P3 severity badge (LISTED_BADGE; a P0 or an unreadable badge goes to a
+// person), that carries no `severity: CRITICAL` line. A CRITICAL finding, a security-review
 // finding, one of no tagged lane, and a pr-verify verifier note (resolving it
 // leaves the verifier's FAIL holding the merge, and pr-verify judges each
 // head once) always go to a person.
 export const adjudicable = (comments) => {
   const root = comments?.[0];
-  return root?.author === "reviewer" && (root.lane === "claude-review" || root.listed === true) && !CRITICAL.test(String(root.body ?? ""));
+  if (root?.author !== "reviewer" || CRITICAL.test(String(root.body ?? ""))) {
+    return false;
+  }
+  if (root.listed === true) {
+    // P0 is the listed bot's CRITICAL; a badge that does not read fails closed.
+    const level = LISTED_BADGE.exec(firstLine(root.body))?.[1];
+    return level !== undefined && level !== "0";
+  }
+  return root.lane === "claude-review";
 };
 
 // The locations a review comment cites: path:line tokens in its prose and

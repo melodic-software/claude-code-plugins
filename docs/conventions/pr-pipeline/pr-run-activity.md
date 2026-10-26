@@ -1101,7 +1101,9 @@ github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
 a footer in a claude[bot] comment, whose body the model writes, names none), or a listed review
 bot's comment (`review-threads.reviewer-ids`; the select job tags it `listed: true` from the
-comment's account id, never its text), that carries no `severity: CRITICAL` line is adjudicated. A CRITICAL finding, a security-review finding, one whose
+comment's account id, never its text) whose first line opens with a P1-P3 severity badge, that
+carries no `severity: CRITICAL` line is adjudicated; a listed bot's P0, or a finding whose badge
+does not read, goes to a person. A CRITICAL finding, a security-review finding, one whose
 lane its root comment does not name, and a pr-verify verifier note always go to a person: an
 `INCORRECT` reply on one escalates `feedback-disputed`, takes no slot, and any verdict for it is
 ignored. A verifier note is never adjudicated because resolving its thread clears nothing: the
