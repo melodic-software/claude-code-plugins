@@ -435,12 +435,16 @@ test("live config: resolve-issue holds no write token; apply-issue-patch may onl
 });
 
 // activity-rules.json is trust-root data: a config that gives resolve-issue a
-// write effect again is refused.
+// write effect again is refused. The schema takes tidy only on a read skill
+// that hands on a patch, so the write-effect config drops it too, and the
+// refusal comes from the activity rules rather than the schema.
 test("live config: resolve-issue with a write effect is refused", () => {
-  const writes = FILES.config.replace(
-    "effect: read\n    applied-by:\n      patch: apply-issue-patch\n      work-outcome: report-outcome\n",
-    "effect: mutate-branch\n",
-  );
+  const writes = FILES.config
+    .replace(
+      "effect: read\n    applied-by:\n      patch: apply-issue-patch\n      work-outcome: report-outcome\n",
+      "effect: mutate-branch\n",
+    )
+    .replace(/^    tidy:\n(?: {6}.*\n)+/m, "");
   assert.notEqual(writes, FILES.config);
   assert.throws(
     () => resolve({ ...FILES, config: writes }, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { ...FACTS, ...ISSUE } }),
