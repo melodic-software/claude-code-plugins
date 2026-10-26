@@ -168,11 +168,13 @@ legacy_slug=""
 # callers pass them ladder-highest first, so the cap keeps the highest-precedence hits.
 #
 # A closed mission is a `Status: closed` line in MISSION.md (context/mission.md "Closing and
-# reopening"); `[[:space:]]*$` also absorbs a CRLF line ending.
+# reopening"); `[[:space:]]*$` also absorbs a CRLF line ending. The `if` keeps the helper's
+# exit status 0 for an active workspace, so the `lines+=` assignment that calls it never fails.
 closed_mark() {
-  [[ -f "$1MISSION.md" ]] &&
-    grep -qE '^Status:[[:space:]]*closed[[:space:]]*$' "$1MISSION.md" 2>/dev/null &&
+  if [[ -f "$1MISSION.md" ]] &&
+    grep -qE '^Status:[[:space:]]*closed[[:space:]]*$' "$1MISSION.md" 2>/dev/null; then
     printf ' (closed)'
+  fi
 }
 
 lines=()
