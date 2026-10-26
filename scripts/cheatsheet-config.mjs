@@ -70,6 +70,9 @@ export const EXCLUDED_SKILLS = new Map([
   ["discovery/report", "dispatched only"],
   ["implementation/report", "dispatched only"],
   ["plugin-quality/report", "dispatched only"],
+  // A control skill: /app-control:drive reads it from disk and never invokes
+  // it, and the control-skill contract allows it no `metadata` key.
+  ["harness-ops/control-claude-code", "control skill read by app-control drive"],
   ["dometrain/sync", "maintainer-only vendored-content drift check"],
   ["firecrawl/update", "maintainer-only upstream sync"],
   ["playbooks/update", "maintainer-only upstream sync"],

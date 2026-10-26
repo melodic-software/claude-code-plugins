@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The change only adds a way to stop a lane.\n\ncritical-findings: 0",
+      "why": "counts no CRITICAL finding"
+    },
+    {
+      "answer": "No security issues found.\n`critical-findings: 0`",
+      "why": "backticked zero count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "severity: CRITICAL\n\ncritical-findings: 1",
+      "why": "counts a CRITICAL finding"
+    },
+    {
+      "answer": "critical-findings: 10",
+      "why": "a count that only starts with a digit other than zero"
+    }
+  ]
+}

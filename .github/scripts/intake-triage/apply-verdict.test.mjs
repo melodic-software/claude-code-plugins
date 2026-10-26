@@ -1189,6 +1189,22 @@ describe("run", () => {
     assert.deepEqual(earlierFlags([{ ...posted.body, id: 53, user: { id: LANES_APP } }], LANES_APP), []);
   });
 
+  test("a mechanical admission refusal names status: confirmed, the label admission wrote, never needs-decision", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => ({ outcome: "refused", reasons: ["no acceptance criteria"], status: "status: confirmed" }),
+      log: () => {},
+    });
+    const posted = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.match(posted?.body.body ?? "", /admission moved the issue to `status: confirmed`/);
+    assert.ok(!posted.body.body.includes("needs-decision"), posted.body.body);
+    assert.match(result.summary, /- Status: status: confirmed/);
+  });
+
   test("takes needs-triage off after the verdict's labels", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
     assert.equal((await go(fake)).outcome, "ready");

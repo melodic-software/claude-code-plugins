@@ -1,0 +1,11 @@
+steps:
+  - id: open-billing
+    action: goto /billing
+  - id: set-month-filter
+    action: select "2026-01" in the "Month" filter
+  - id: press-export
+    action: click button "Export"
+  - id: check-download
+    action: expect download invoices.csv with only 2026-01 rows
+  - include: reset.yaml
+    finally: true
