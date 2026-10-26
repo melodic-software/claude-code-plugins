@@ -555,12 +555,12 @@ jobs:
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing checked or merged"
 
       # The token broker gives this lane its merge token only when the person
-      # behind the run is a listed human (trusted-actors.json on main). Runs
-      # started by a bot, such as the lanes App pushing or labeling, or by an
-      # unlisted account, stop here quietly instead of failing; the next
-      # scheduled run picks up whatever they changed. A scheduled run always
-      # proceeds: nobody starts it, and GitHub names as its actor whoever last
-      # changed the schedule or the default branch, often a bot.
+      # behind the run is a listed human (trusted-actors.json on main), matched
+      # by account id (who.mjs states the rule). Runs started by a bot, such as
+      # the lanes App pushing or labeling, or by an unlisted account, stop here
+      # quietly instead of failing; the next scheduled run picks up whatever
+      # they changed. A scheduled run's first attempt proceeds without a read;
+      # a re-run of it proceeds only when a listed human re-ran it.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
@@ -1557,8 +1557,9 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The broker mints the merge token only for a listed human, or on the
-      # schedule; any other run stops here quietly, as the merge job's does.
+      # Same rule as the merge job's who step (who.mjs): a listed human by
+      # account id, or a scheduled run's first attempt; any other run stops
+      # here quietly.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
