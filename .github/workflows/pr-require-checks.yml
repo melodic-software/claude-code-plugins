@@ -4627,6 +4627,11 @@ jobs:
       # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
       # the vars context, no API read, and only the exact value `false` on
       # both proceeds. Every other author's pull request is not affected.
+      # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
+      # ci-status on each open lanes App pull request this failed, at most 3
+      # per half-hourly run, when ci-status was the run's only failed job on
+      # attempt 1 (its `switch` kind keys on the error's "the lanes kill
+      # switch is on" text, which reconcile.test.mjs pins here).
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), looked up by
@@ -4698,7 +4703,7 @@ jobs:
             exit 0
           fi
           if [ "${LANES_DISABLED:-}" != false ] || [ "${LANES_REPO_DISABLED:-}" != false ]; then
-            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run."
+            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
             exit 1
           fi
           BASE_SHA=$GROUP_BASE_SHA
