@@ -493,6 +493,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (confirm) {
     refuse.push(confirm);
   }
+  // A split issue's work is its sub-issues' (owner Q93): while one is open the
+  // parent waits on it, so a mechanical refusal or a pending split never loops
+  // it. A refusal that holds for a person still refuses first.
+  const openSubs = subIssues.filter((item) => item?.state !== "closed");
+  if (!hold && openSubs.length > 0) {
+    return { verdict: "wait", reasons: openSubs.map((child) => `sub-issue #${child.number} is open`), pulls: [] };
+  }
   if (refuse.length > 0) {
     return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }) };
   }
@@ -509,10 +516,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   for (const pull of pulls) {
     wait.push(`open pull request #${pull} is for it`);
-  }
-  // A split issue's work is its sub-issues' (owner Q93).
-  for (const child of subIssues.filter((item) => item?.state !== "closed")) {
-    wait.push(`sub-issue #${child.number} is open`);
   }
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
