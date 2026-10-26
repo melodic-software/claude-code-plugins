@@ -85,7 +85,6 @@ jobs:
             /.github/actions/log-api-budget/
             /.github/standards/trusted-actors/
             /.node-version
-            /docs/conventions/pr-pipeline/pr-pipeline.schema.json
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
