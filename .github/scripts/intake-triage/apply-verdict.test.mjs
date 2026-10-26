@@ -1444,7 +1444,7 @@ describe("run", () => {
       assert.deepEqual(result.missed, [{ number: 12, status }]);
       const annotation = missedAnnotation(result.missed, result.undeleted, result.plan.ready);
       assert.equal(annotation.fail, false);
-      assert.ok(annotation.line.startsWith("::warning title=apply-verdict::blocked-by edges not written on an escalated verdict: #12 not written"), annotation.line);
+      assert.ok(annotation.line.startsWith("::warning title=apply-verdict::blocked-by edges not written on a verdict that is not ready: #12 not written"), annotation.line);
       assert.ok(!annotation.line.includes(`without ${READY}`) && !annotation.line.includes("admission waits"), annotation.line);
       assert.equal(missedAnnotation(result.missed, result.undeleted, true).fail, status === 403, "a ready verdict keeps its behaviour");
     });

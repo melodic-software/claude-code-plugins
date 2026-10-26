@@ -47,7 +47,7 @@ export function parseBlockedBy(lines) {
 // and every issue URL of `repository` on it is a candidate. Fenced code,
 // inline code, HTML comments and `>` quotes name nothing, nor does
 // `owner/repo#<n>`, a pull request URL or another repository's URL. A
-// Markdown link `[label](target)` counts as its target alone, so
+// Markdown link, inline or by reference, counts as its target alone, so
 // `[#12](https://github.com/other/repo/issues/12)` names nothing. Returns
 // {numbers, dropped}: the first MAX_TEXT_BLOCKERS distinct numbers, and how
 // many more it named.
@@ -71,9 +71,18 @@ export function textBlockers(body, repository) {
       }
     }
   };
+  const lines = String(body ?? "").replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
+  const defs = new Map();
+  for (const def of lines) {
+    const found = /^\s{0,3}\[([^\]]+)\]:\s*<?([^\s>]*)/.exec(def);
+    if (found && !defs.has(found[1].toLowerCase())) {
+      defs.set(found[1].toLowerCase(), found[2]);
+    }
+  }
+  const linked = (target) => (target !== undefined && local.test(target) ? ` ${target} ` : " ");
   let fence = null;
   let inSection = false;
-  for (const raw of String(body ?? "").replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/)) {
+  for (const raw of lines) {
     const opened = FENCE.exec(raw);
     if (fence !== null) {
       if (opened && opened[1][0] === fence[0] && opened[1].length >= fence.length && raw.trim() === opened[1]) {
@@ -90,7 +99,10 @@ export function textBlockers(body, repository) {
     }
     const line = raw
       .replace(/`[^`]*`/g, "")
-      .replace(/\[[^\]]*\]\(\s*<?([^)\s>]*)>?[^)]*\)/g, (_, target) => (local.test(target) ? ` ${target} ` : " "))
+      .replace(/^\s{0,3}\[[^\]]+\]:.*$/, "")
+      .replace(/\[[^\]]*\]\(\s*<?([^)\s>]*)>?[^)]*\)/g, (_, target) => linked(target))
+      .replace(/\[([^\]]*)\]\[([^\]]*)\]/g, (_, text, ref) => linked(defs.get((ref || text).toLowerCase())))
+      .replace(/\[([^\]]+)\]/g, (whole, ref) => (defs.has(ref.toLowerCase()) ? linked(defs.get(ref.toLowerCase())) : whole))
       .replace(/\*\*|__/g, "");
     const section = SECTION.exec(line);
     if (section) {

@@ -49,6 +49,10 @@ describe("textBlockers", () => {
     ["a link to this repository's issue, by its target", `Blocked by: [#13](${URL}/12), [the parser](<${URL}/14> "title")`, [12, 14]],
     ["a bare #N inside a link to elsewhere", "Depends on [see #12 there](https://example.com/x), #13", [13]],
     ["a link labeled #N in a heading's list", "## Blocked by\n- [#12](https://github.com/o/other/issues/12)\n- #13", [13]],
+    ["a reference link labeled #N to another repository's issue", "Blocked by: [#12][x], [#13][]\n\n[x]: https://github.com/other/repo/issues/12\n[#13]: https://github.com/other/repo/issues/13", []],
+    ["a shortcut reference link labeled #N to another repository's issue", "Blocked by: [#12]\n\n[#12]: https://github.com/other/repo/issues/12", []],
+    ["a reference link to this repository's issue, by its target", `Blocked by: [the parser][P]\n\n[p]: ${URL}/14`, [14]],
+    ["a bracketed #N with no definition", "Blocked by: [#12]", [12]],
     ["an empty body", "", []],
     ["a missing body", null, []],
   ]) {
