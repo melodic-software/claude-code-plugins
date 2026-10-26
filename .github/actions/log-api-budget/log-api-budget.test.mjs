@@ -609,7 +609,6 @@ test("the action writes the content-creation notice after the token lines", () =
 test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-budget step", () => {
   const jobs = {
     "intake-triage.yml": { "born-triaged": "github-token", "apply-verdict": "lanes-app", "refine-select": "github-token", "apply-refinement": "lanes-app" },
-    "intake-label-needs-triage.yml": { "born-triaged": "github-token" },
     "work-resolve-issue.yml": { admit: "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
     "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token", "check-intent-fallback": "github-token" },
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so

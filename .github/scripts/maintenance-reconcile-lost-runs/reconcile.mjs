@@ -108,11 +108,20 @@ export const RECORDED_LANES = [".github/workflows/pr-verify.yml"];
 // github-actions[bot] only through its record. A later attempt gets none, and
 // the lane refuses it.
 export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.yml"]);
-// The floor-label run an issue's opening starts. A first attempt that failed
-// (most often on a rate limit) left the issue unlabeled, and nothing else
-// starts it again, so its failed jobs are re-run once. Adding the label is
-// idempotent, so the re-run is safe whatever the failure was.
-export const INTAKE_LABEL = ".github/workflows/intake-label-needs-triage.yml";
+// The intake run an issue's opening starts, and its floor-label job. A first
+// attempt whose floor label failed (most often on a rate limit) left the
+// issue unlabeled, and nothing else starts it again, so its failed jobs are
+// re-run once, but only when that job is the run's only failed one: the
+// re-run starts every failed job again, and the run's other jobs (the model
+// triage, the gates) must not run again as github-actions[bot]. Adding the
+// label is idempotent, so the re-run is safe whatever the failure was.
+export const INTAKE = ".github/workflows/intake-triage.yml";
+export const INTAKE_LABEL_JOB = "intake-label-needs-triage";
+// A job's conclusions that rerun-failed-jobs leaves alone.
+const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
+// A run left alone stays a failed first attempt for the whole lookback, so
+// its jobs are listed only while it ended this recently (four passes).
+const INTAKE_JOBS_WINDOW_MS = 2 * 3_600_000;
 // A lost lane run whose steps listed in full is re-run once when it was lost
 // before or during its judgment (a cut list is held below). One whose verdict
 // write (WRITE_STEP) started is held: that step runs only when the judgment
@@ -179,7 +188,7 @@ const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) 
 // A CI run lost again after its one re-run: never re-run here.
 const isLostAgain = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt > 1 && Date.parse(r.created_at) >= since;
 const isFailedIntake = (r, since) =>
-  r.path === INTAKE_LABEL && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
+  r.path === INTAKE && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) =>
   r.event === "workflow_run" &&
   r.head_branch === "main" &&
@@ -589,6 +598,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
 
   // A failed floor-label run takes no place: it is one short job, not CI.
   const intake = [];
+  let candidates = [];
   try {
     const listed = await paginate(
       async (...args) => {
@@ -598,17 +608,26 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
         }
         return page.workflow_runs;
       },
-      `/repos/${repo}/actions/workflows/${INTAKE_LABEL.slice(INTAKE_LABEL.lastIndexOf("/") + 1)}/runs?created=${created}&status=failure`,
+      `/repos/${repo}/actions/workflows/${INTAKE.slice(INTAKE.lastIndexOf("/") + 1)}/runs?created=${created}&status=failure`,
       LANE_RUN_PAGES,
     );
-    intake.push(
-      ...listed
-        .filter((r) => isFailedIntake(r, since))
-        .sort(byAge)
-        .map((r) => ({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha })),
-    );
+    candidates = listed.filter((r) => isFailedIntake(r, since) && now - Date.parse(r.updated_at) <= INTAKE_JOBS_WINDOW_MS).sort(byAge);
   } catch (error) {
-    noteFailure(INTAKE_LABEL, error);
+    noteFailure(INTAKE, error);
+  }
+  for (const r of candidates) {
+    try {
+      const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
+      if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
+        throw new Error("its job listing is not one complete page");
+      }
+      const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
+      if (rerun.length > 0 && rerun.every((job) => String(job?.name ?? "").startsWith(`${INTAKE_LABEL_JOB} / `))) {
+        intake.push({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
+      }
+    } catch (error) {
+      noteFailure(`intake run ${r.id}`, error);
+    }
   }
 
   // Every item takes one place: a PR's CI set, or one lane run.

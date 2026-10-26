@@ -31,9 +31,11 @@ name: maintenance-reconcile-lost-runs
 # issue edit or a new spec comment), so pr-verify judges the head again
 # instead of leaving it at verify:spec-changed.
 #
-# An intake-label-needs-triage run an issue event started whose first attempt
-# failed (a rate limit, most often) left the issue without its floor label;
-# its failed jobs are re-run once, taking no place under the cap.
+# An intake-triage run an issue event started whose first attempt failed only
+# in its intake-label-needs-triage job (a rate limit, most often) left the
+# issue without its floor label; its failed jobs are re-run once, taking no
+# place under the cap. A run where any other job failed is left alone, so no
+# triage or broker job runs again.
 #
 # pr-verify's trigger check trusts a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact

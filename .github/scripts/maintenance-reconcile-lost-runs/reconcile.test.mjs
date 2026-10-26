@@ -1012,14 +1012,58 @@ test("a re-run still going under a newer failed contract-only run takes a place 
 
 // An issue's floor-label run whose first attempt failed (a rate limit left
 // the issue unlabeled) has its failed jobs re-run once.
-const INTAKE = ".github/workflows/intake-label-needs-triage.yml";
-const intakeRun = (id, opts = {}) => run(id, MAIN_TIP, { path: INTAKE, event: "issues", conclusion: "failure", ...opts });
+const INTAKE = ".github/workflows/intake-triage.yml";
+// An intake-triage run's jobs as the API names them: a job that calls a
+// reusable workflow is listed as `<caller job> / <called job>`.
+const intakeJob = (name, conclusion) => ({ id: name.length * 1000 + 7, name, status: "completed", conclusion, steps: [] });
+const LABEL_FAILED = [
+  intakeJob("kill-switch", "success"),
+  intakeJob("born-triaged", "success"),
+  intakeJob("intake-triage / triage", "success"),
+  intakeJob("intake-label-needs-triage / label", "failure"),
+];
+const intakeRun = (id, opts = {}) => run(id, MAIN_TIP, { path: INTAKE, event: "issues", conclusion: "failure", jobs: LABEL_FAILED, ...opts });
 
-test("a failed first attempt of the floor-label run has its failed jobs re-run once", async () => {
+test("a failed first attempt of an intake run whose only failed job is the floor label has its failed jobs re-run once", async () => {
   const { code, failedJobReruns, reruns } = await reconcile({ pulls: [], runs: [intakeRun(301)] });
   assert.equal(code, 0);
   assert.deepEqual(failedJobReruns, [301]);
   assert.deepEqual(reruns, []);
+});
+
+// rerun-failed-jobs re-runs every failed job, so a run where any other job
+// failed (the model triage, a gate) would start that job again as
+// github-actions[bot]: only the floor label is re-run here.
+test("an intake run where any job but the floor label failed, or none did, is left alone", async () => {
+  const runs = [
+    intakeRun(301, { jobs: [intakeJob("kill-switch", "success"), intakeJob("intake-triage / triage", "failure"), intakeJob("intake-label-needs-triage / label", "success")] }),
+    intakeRun(302, { jobs: [intakeJob("intake-triage / triage", "failure"), intakeJob("intake-label-needs-triage / label", "failure")] }),
+    intakeRun(303, { jobs: [intakeJob("born-triaged", "cancelled"), intakeJob("intake-label-needs-triage / label", "failure")] }),
+    intakeRun(304, { jobs: [intakeJob("apply-verdict", "timed_out"), intakeJob("intake-label-needs-triage / label", "failure")] }),
+    intakeRun(305, { jobs: [] }),
+    intakeRun(306, { jobs: [intakeJob("intake-label-needs-triage-extra / label", "failure")] }),
+  ];
+  const { failedJobReruns, calls } = await reconcile({ pulls: [], runs });
+  assert.deepEqual(failedJobReruns, []);
+  assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
+});
+
+// A run left alone stays a failed first attempt for the whole lookback, so
+// its jobs are listed only while it is recent, not on every half-hourly pass.
+test("an intake run that ended over 2 hours ago gets no job listing and no re-run", async () => {
+  const { failedJobReruns, calls } = await reconcile({ pulls: [], runs: [intakeRun(301, { created: "2026-10-19T17:00:00Z", updated: "2026-10-19T17:59:00Z" })] });
+  assert.deepEqual(failedJobReruns, []);
+  assert.equal(calls.filter((c) => c.includes("/actions/runs/301/")).length, 0);
+});
+
+test("an intake run whose job listing cannot be read is left alone and the failure reported", async () => {
+  const { code, failedJobReruns } = await reconcile({
+    pulls: [],
+    runs: [intakeRun(301), intakeRun(302, { created: "2026-10-19T19:00:00Z" })],
+    fail: { [`GET /repos/${REPO}/actions/runs/301/attempts/1/jobs?per_page=100`]: new GitHubError(500, "boom") },
+  });
+  assert.notEqual(code, 0);
+  assert.deepEqual(failedJobReruns, [302]);
 });
 
 test("floor-label runs at attempt 2, older than the lookback, or from another event are left alone", async () => {
