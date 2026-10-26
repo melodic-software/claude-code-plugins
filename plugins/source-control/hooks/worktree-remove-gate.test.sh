@@ -28,7 +28,8 @@ LOG="$TEST_TMPDIR/calls.log"
 # The measured CLI contract, as in reap-project-plugin-records.test.sh: `plugin
 # list --json` reports every record whatever the cwd; `plugin uninstall` removes
 # only a record whose projectPath is the cwd. STUB_UNINSTALL_FAIL=1 makes every
-# uninstall fail, so the record survives the reap.
+# uninstall fail, so the record survives the reap. STUB_REWRITE_SETTINGS=1 makes
+# a project-scope uninstall rewrite the cwd's .claude/settings.json.
 cat >"$STUB_DIR/claude" <<'STUB'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -74,6 +75,13 @@ if [[ "${1:-}" == "plugin" && "${2:-}" == "uninstall" ]]; then
     tmp="$(mktemp)"
     jq --arg id "$id" --arg here "$here" --arg scope "$scope" "map(select(($sel) | not))" \
       "$STUB_STATE" >"$tmp" && mv "$tmp" "$STUB_STATE"
+    # The reported side effect: a project-scope uninstall also rewrites the
+    # cwd's .claude/settings.json, dropping entries and unrelated settings.
+    if [[ "${STUB_REWRITE_SETTINGS:-0}" == 1 && "$scope" == "project" ]]; then
+      mkdir -p .claude
+      printf '{\n  "enabledPlugins": {}\n}\n' >.claude/settings.json
+      printf 'rewrote .claude/settings.json\n' >>"$STUB_CALL_LOG"
+    fi
     printf 'Successfully uninstalled plugin: %s (scope: %s)\n' "$id" "$scope"
     exit 0
   fi
@@ -165,6 +173,26 @@ assert_contains "the reap ran the project-scope uninstall" "$(cat "$LOG")" "plug
 assert_contains "the reap ran the local-scope uninstall" "$(cat "$LOG")" "plugin uninstall beta@m -s local --keep-data"
 git -C "$REPO" rev-parse --verify -q refs/heads/clean >/dev/null 2>&1
 assert_exit "the branch is kept" 0 "$?"
+
+# --------------------------------------------------------------------------
+# The uninstall rewrites the tracked .claude/settings.json: the reap restores
+# it from git, so the plain removal after it still succeeds
+# --------------------------------------------------------------------------
+
+WT_SETTINGS="$(mkwt settings)"
+{
+  mkdir -p "$WT_SETTINGS/.claude"
+  printf '{\n  "enabledPlugins": {"alpha@m": true},\n  "model": "keep"\n}\n' >"$WT_SETTINGS/.claude/settings.json"
+  git -C "$WT_SETTINGS" add .claude/settings.json
+  git -C "$WT_SETTINGS" commit -qm settings
+} >/dev/null 2>&1
+seed "$WT_SETTINGS"
+run_hook "$(payload "$WT_SETTINGS")" STUB_REWRITE_SETTINGS=1
+assert_contains "the uninstall rewrote the tracked settings file" "$(cat "$LOG")" "rewrote .claude/settings.json"
+assert_exit "a worktree whose tracked settings the uninstall rewrote is removed" 0 "$RC"
+assert_eq "the rewritten worktree is gone" "absent" "$(on_disk "$WT_SETTINGS")"
+assert_not_contains "git no longer lists the rewritten worktree" "$(git -C "$REPO" worktree list)" "wt-settings"
+assert_eq "the rewritten worktree's records are reaped" "0" "$(records_for "$WT_SETTINGS")"
 
 # --------------------------------------------------------------------------
 # Uncommitted or untracked work: left on disk, nothing reaped, non-zero exit
