@@ -1122,9 +1122,13 @@ while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
-in the same file as the carried verdict reads, the `pr-merge-run-cache` artifact a scheduled or
-hand-started run uploads and the next run reads from the newest such run on the default branch,
-found the way the head-ref map is (`.github/scripts/pr-merge/carry-run-cache.mjs`); it never passes
+in the run cache the next run starts from, built from two artifacts a scheduled or hand-started run
+uploads, each read from the newest such run on the default branch holding it, found the way the
+head-ref map is (`.github/scripts/pr-merge/carry-run-cache.mjs`). `pr-merge-run-cache`, from the
+`merge` job, carries the refusals and the carried verdict reads; `pr-merge-verify-run-cache`, from
+`enable-auto-merge` and only when it kept a read, carries the verifier's carried verdict reads, of
+which only the `carried-*` sections are added. A file that does not read is dropped with a warning
+and the other is still used. Neither passes
 through `actions/cache`, which any job in the default branch's cache scope can write. Even a forged
 file can only repeat a refusal, for at most `max-minutes` from the judgment time it names. A change the key does not cover,
 such as a demotion record, a ruleset, an edit to a comment older than the newest 50 or a gate import
