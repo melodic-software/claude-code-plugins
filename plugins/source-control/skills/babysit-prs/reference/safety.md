@@ -857,9 +857,10 @@ has reset whenever it started. A weekly limit outlasts it, and the rerun then fa
 failed, because an attempt above one is never rerun: at most one gate rerun per check per head. Any
 other failure class is never rerun, and a check-only run never reruns. The rerun only restarts the
 review; the PR still merges only once the check reports SUCCESS. The review evidence also binds a
-second attempt after a `class=auth` or `class=credit-stop` failure (a rejected credential or a spent
-key, which left no verdict), but the gate never starts that rerun: a person or session reruns it once
-the secret or credit is fixed, since a rerun before then would spend the one attempt.
+second attempt after the lane's own `<lane>: failure-class=auth:` failure line (a rejected
+credential, which left no verdict), but the gate never starts that rerun: a person or session reruns
+it once the secret is fixed, since a rerun before then would spend the one attempt. A spent key
+already reports as `rate-limit`.
 
 - **Pointer**: the `class=<token>` contract in ci-workflows
   [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),

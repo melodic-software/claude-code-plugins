@@ -67,6 +67,13 @@ OTHER_FAILURE = {
     "title": "claude-review failed",
     "message": "failure-class=incomplete: no completed review was found on this head",
 }
+# publish-review's failure line (ci-workflows publish.cjs `fail`) for a
+# rejected Claude credential.
+AUTH_FAILURE = dict(
+    OTHER_FAILURE,
+    message="claude-review: failure-class=auth:"
+    " the Claude credential was rejected; the owner replaces the secret",
+)
 
 # publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
 # recorded it when the review's own post hit GitHub's API rate limit.
@@ -564,29 +571,55 @@ class AttemptRuleTests(Base):
         result = self.bind([self.lane_run(first, self.ok(2))])
         self.assertTrue(result["claude-review"].bound)
 
-    def test_second_attempt_after_a_credential_or_credit_failure(self) -> None:
-        for cls, why in (
-            (
-                "auth",
-                "the Claude credential was rejected; the owner replaces the secret",
-            ),
-            ("credit-stop", "the key ran out of credits"),
+    def test_second_attempt_after_a_credential_failure(self) -> None:
+        first = attempt("claude-review", S, 1, [AUTH_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_a_warning_level_auth_does_not_bind(self) -> None:
+        # publish.cjs warns `<lane> key: class=auth` when the key leg's
+        # credential is refused, whatever the run then failed on; only a
+        # failure-level line names why the run failed.
+        timeout = dict(
+            OTHER_FAILURE,
+            message="claude-review: failure-class=timeout:"
+            " the review leg reached its time limit",
+        )
+        for message in (
+            "claude-review key: class=auth: the API refused the key;"
+            " the owner must replace the secret.",
+            AUTH_FAILURE["message"],
         ):
-            with self.subTest(cls=cls):
-                failed = dict(
-                    OTHER_FAILURE,
-                    message=f"claude-review: failure-class={cls}: {why}",
+            with self.subTest(message=message):
+                warning = dict(
+                    AUTH_FAILURE, annotation_level="warning", message=message
                 )
-                first = attempt("claude-review", S, 1, [failed], "failure")
+                first = attempt("claude-review", S, 1, [warning, timeout], "failure")
                 result = self.bind([self.lane_run(first, self.ok(2))])
-                self.assertTrue(result["claude-review"].bound)
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_an_auth_lookalike_does_not_bind(self) -> None:
+        for message in (
+            "claude-review: failure-class=auth-x: something else",
+            "claude-review: failure-class=other: an unclassified failure"
+            " (detail quoting failure-class=auth: rejected)",
+            "security-review: failure-class=auth: another lane's credential",
+        ):
+            with self.subTest(message=message):
+                first = attempt(
+                    "claude-review",
+                    S,
+                    1,
+                    [dict(AUTH_FAILURE, message=message)],
+                    "failure",
+                )
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_a_credential_failure_is_not_a_rate_limit(self) -> None:
-        failed = dict(
-            OTHER_FAILURE,
-            message="claude-review: failure-class=auth: the Claude credential was rejected",
+        self.assertFalse(
+            ev.rate_limited("claude-review", {"annotations": [AUTH_FAILURE]})
         )
-        self.assertFalse(ev.rate_limited("claude-review", {"annotations": [failed]}))
 
     def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
         first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
