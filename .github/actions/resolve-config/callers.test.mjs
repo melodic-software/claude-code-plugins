@@ -1379,7 +1379,7 @@ const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
 const readsFallback = (job) =>
   (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
   (job.steps ?? []).some((step) => isLauncherStep(step, "run-claude-cli") && step.with?.["fallback-token"] === FALLBACK_VALUE) ||
-  !claudeReads(withoutPresenceChecks(job)).includes(FALLBACK_SECRET);
+  (claudeReads(job).includes(FALLBACK_SECRET) && !claudeReads(withoutPresenceChecks(job)).includes(FALLBACK_SECRET));
 test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
   const jobs = claudeSecretJobs();
   for (const { role, lane, key } of catalogLanes()) {
