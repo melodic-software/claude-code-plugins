@@ -775,6 +775,18 @@ test("laneLift keeps the label on an open CRITICAL or IMPORTANT security finding
   assert.equal(laneLift(liftInput({ threads: null })).lift, false);
 });
 
+test("laneLift keeps the label when a thread the held review opened is gone", () => {
+  // The held review recorded one inline finding; its thread was deleted.
+  const gone = laneLift(liftInput({ threads: { totalCount: 0, nodes: [] } }));
+  assert.equal(gone.lift, false);
+  assert.match(gone.reason, /recorded 1 inline finding\(s\) at .*, and 0 of its threads are left/);
+  // A thread opened after the hold does not stand in for a deleted one.
+  const later = { ...thread("SUGGESTION"), comments: { nodes: [{ ...thread("SUGGESTION").comments.nodes[0], createdAt: at(5) }] } };
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [later] } })).lift, false);
+  // Another lane's thread does not count for the security lane.
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("SUGGESTION", { lane: "claude-review" })] } })).lift, false);
+});
+
 test("laneLift keeps a label a person or another lane added", () => {
   const person = laneLift(liftInput({ events: [labeled(at(0)), labeled(at(2), { login: "someone", id: 42, type: "User" })] }));
   assert.equal(person.lift, false);

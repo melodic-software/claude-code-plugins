@@ -619,13 +619,13 @@ function laneThread(lane, item) {
   return (author.login === "github-actions" || author.login === "github-actions[bot]") && LANE_FOOTER.exec(last)?.[1] === lane;
 }
 
-// The lane job's one review record for `sha` as { findings, summary, whole,
-// completed }, else null.
+// The lane job's one review record for `sha` as { findings, inline, summary,
+// whole, completed }, else null.
 function reviewOf(lane, sha, job) {
   const found = (notes(job) ?? []).filter((item) => item.title === "claude-lane-review-complete");
   const match = found.length === 1 ? REVIEW_RECORD.exec(String(found[0].message ?? "")) : null;
   if (match === null || match[1] !== lane || match[2] !== sha || Number(match[3]) < Number(match[4])) return null;
-  return { findings: Number(match[3]), summary: Number(match[3]) - Number(match[4]), whole: match[5] === "whole", completed: seconds(job.completed_at) };
+  return { findings: Number(match[3]), inline: Number(match[4]), summary: Number(match[3]) - Number(match[4]), whole: match[5] === "whole", completed: seconds(job.completed_at) };
 }
 
 // Whether a review lane lifts its own `needs-human` hold (owner decision
@@ -655,6 +655,8 @@ function reviewOf(lane, sha, job) {
 //   review record for `head` with no summary finding (a summary finding has
 //   no severity line to read). A held review that left a summary finding
 //   needs a whole review of `head`.
+// - Each held review's inline findings still have that many of its lane's
+//   threads, opened by the time it completed: a deleted thread keeps the label.
 // - No thread of those lanes is open with a severity other than SUGGESTION
 //   (the Q26 B bar). A thread is closed only when resolved, by a trusted
 //   person, or by anyone when it was opened before the lane's newest review
@@ -745,6 +747,14 @@ export function laneLift(input) {
   if (unread !== undefined) return keep(`${unread.lane}'s held review of ${unread.sha} left a summary finding, and its review of ${head} is not whole`);
   const nodes = threads?.nodes;
   if (!Array.isArray(nodes) || !Number.isInteger(threads.totalCount) || threads.totalCount > nodes.length) return keep("the review threads do not read whole");
+  // A deleted thread leaves no trace in the threads or the timeline, so each
+  // held review's inline findings must still have that many of its lane's
+  // threads, opened by the time it completed.
+  for (const hold of holds.filter((one) => one.review?.inline > 0)) {
+    const recorded = holds.filter((one) => one.lane === hold.lane && one.at <= hold.at).reduce((sum, one) => sum + (one.review?.inline ?? 0), 0);
+    const left = nodes.filter((item) => laneThread(hold.lane, item) && seconds(item.comments.nodes[0].createdAt) <= hold.at).length;
+    if (left < recorded) return keep(`${hold.lane} recorded ${recorded} inline finding(s) at ${hold.sha}, and ${left} of its threads are left`);
+  }
   const open = nodes.find((item) => {
     const owners = judged.filter((lane) => laneThread(lane, item));
     if (owners.length === 0) return false;
