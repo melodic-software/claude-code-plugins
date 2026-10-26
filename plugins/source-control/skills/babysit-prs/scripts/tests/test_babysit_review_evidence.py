@@ -2060,6 +2060,124 @@ class FailClosedTests(Base):
         self.assertFalse(result[0].bound)
 
 
+class CarriedBlockingTests(Base):
+    """A blocking security finding a bound review left open still holds after
+    the lane unbinds: the binder carries the count from the newest head of
+    the pull request the lane's evidence binds at, so the gate's person
+    routing (babysit_risk.person_reasons) still sees `security-finding`."""
+
+    SEC = "claude-security-review"
+    S2 = "c2" * 20  # a newer head
+
+    def critical_at_s(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        body = f"finding\n\nseverity: CRITICAL\n`claude-lane: {self.SEC}`"
+        return runs, [thread(body)]
+
+    def person(self, lanes: dict[str, Any]) -> list[str]:
+        result = risk.score(
+            risk.RiskInput(
+                files=(
+                    risk.ChangedFile(
+                        "docs/a.md", None, "modified", 1, 1, True, "100644", "100644"
+                    ),
+                ),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(lanes[lane] for lane in LANES),
+                lines_optional=True,
+            )
+        )
+        return [r.code for r in risk.person_reasons(risk.holding(result))]
+
+    def test_a_bound_critical_finding_holds_for_a_person(self) -> None:
+        runs, threads = self.critical_at_s()
+        bound = self.bind(runs, threads=threads)
+        self.assertEqual(bound[self.SEC].blocking_findings, 1)
+        self.assertEqual(self.person(bound), ["security-finding"])
+
+    def test_a_retargeted_base_carries_the_critical_finding(self) -> None:
+        runs, threads = self.critical_at_s()
+        lanes = by_lane(
+            ev.bind(
+                S,
+                runs,
+                both_markers(),
+                threads,
+                is_human=is_human,
+                head_file=fixed_head,
+                changed_paths=(),
+                base_changed=True,
+            )
+        )
+        self.assertUnbound(lanes[self.SEC], "base-retargeted")
+        self.assertEqual(lanes[self.SEC].blocking_findings, 1)
+        self.assertEqual(self.person(lanes), ["security-finding"])
+
+    def test_a_new_head_carries_the_critical_finding(self) -> None:
+        # A push to S2: no review there yet, or one that failed and wrote a
+        # newer marker. Either way the review at S still leaves it open.
+        runs, threads = self.critical_at_s()
+        failed = run(
+            self.SEC,
+            self.S2,
+            attempts=[attempt(self.SEC, self.S2, 1, [], "failure")],
+            created="2026-01-02T00:00:00Z",
+        )
+        # Later than every marker at S, so it is the lane's newest.
+        newer = {**marker(self.SEC, self.S2), "created_at": "2026-01-02T01:00:00Z"}
+        for name, extra_runs, extra_markers in (
+            ("no review yet", [], []),
+            ("a newer marker on a failed review", [failed], [newer]),
+        ):
+            with self.subTest(name):
+                lanes = by_lane(
+                    ev.bind(
+                        self.S2,
+                        [*runs, *extra_runs],
+                        [*both_markers(), *extra_markers],
+                        threads,
+                        is_human=is_human,
+                        head_file=fixed_head,
+                        changed_paths=(),
+                    )
+                )
+                self.assertFalse(lanes[self.SEC].bound)
+                self.assertEqual(lanes[self.SEC].blocking_findings, 1)
+                self.assertEqual(self.person(lanes), ["security-finding"])
+
+    def test_an_older_marker_naming_a_head_is_read_only_off_the_newest(
+        self,
+    ) -> None:
+        older = marker(self.SEC, S)
+        newer = {**marker(self.SEC, self.S2), "created_at": "2026-01-02T01:00:00Z"}
+        comments = [newer, older]
+        with self.assertRaises(ev.Unbound):
+            ev._require_marker(self.SEC, S, comments)
+        self.assertEqual(
+            ev._require_marker(self.SEC, S, comments, newest_only=False),
+            older["body"],
+        )
+
+    def test_nothing_is_carried_without_a_blocking_finding(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        body = f"finding\n\nseverity: SUGGESTION\n`claude-lane: {self.SEC}`"
+        lanes = by_lane(
+            ev.bind(
+                self.S2,
+                runs,
+                both_markers(),
+                [thread(body)],
+                is_human=is_human,
+                head_file=fixed_head,
+                changed_paths=(),
+            )
+        )
+        self.assertIsNone(lanes[self.SEC].blocking_findings)
+        self.assertEqual(self.person(lanes), [])
+
+
 class SeverityTests(Base):
     """The security lane's blocking count holds only its CRITICAL findings;
     a finding of unreadable severity counts as CRITICAL."""
