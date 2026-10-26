@@ -27,3 +27,13 @@ pitest and infection are not probed and use the manual protocol.
 | Python | unittest | `python -m unittest {tests}` (test modules may be given as file paths) | path list | https://docs.python.org/3/library/unittest.html |
 
 Recheck trigger: a new major release of StrykerJS, Stryker.NET or mutmut, or a change to the named option on its configuration docs page. For the .NET row: a change to the filter syntax on the selective-tests page, or to the project argument or the no-matching-tests exit code on the VSTest `dotnet test` page (both read 2026-10-26).
+
+## Running a .NET test set
+
+When `test-command` starts with `dotnet test`, the exercised scope runs the bundled
+`scripts/dotnet-test-selection.sh` (SKILL.md names its path) over the test set, from the directory
+`test-command` runs in. It prints one already-quoted line per owning project. Every run of the
+test set runs `test-command` once per line, with `{tests}` replaced by that line, and any red run
+makes the set red. A non-zero exit from the script refuses. A baseline run that reports no test
+matching the filter refuses: a filter that matches no test still exits 0, so that baseline can
+pass with nothing run. Never run `dotnet test` without a project argument, a baseline included.
