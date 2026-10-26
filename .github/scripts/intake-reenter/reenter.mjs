@@ -34,7 +34,8 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { ADMIT_MARKER } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
@@ -43,6 +44,8 @@ export const NEEDS_INFO = "status: needs-info";
 export const CONFIRMED = "status: confirmed";
 export const NEEDS_HUMAN = "needs-human";
 export const NEEDS_TRIAGE = "needs-triage";
+const READY = "status: ready";
+const AGENT_READY = "agent-ready";
 const WORKFLOW = "intake-triage.yml";
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
@@ -70,7 +73,13 @@ export async function classify({ github, repository, issue, comment, humans, ids
       return "decision";
     }
   }
-  if (!labels.includes(NEEDS_DECISION) && labels.includes(CONFIRMED) && humans.has(user.id)) {
+  // status: confirmed is also triage's verified status, so only an issue
+  // admission parked there counts: no ready, no agent-ready, and the lanes
+  // App's admission comment (refine.mjs applies the same guard).
+  const parked = async () =>
+    !labels.includes(NEEDS_DECISION) && labels.includes(CONFIRMED) && !labels.includes(READY) && !labels.includes(AGENT_READY) && lanesAppId !== null &&
+    (await paginate(github, `/repos/${repository}/issues/${issue.number}/comments`)).some((item) => item?.user?.id === lanesAppId && String(item.body ?? "").startsWith(ADMIT_MARKER));
+  if (humans.has(user.id) && labels.includes(CONFIRMED) && (await parked())) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
       return "parked";
