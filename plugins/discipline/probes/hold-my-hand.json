@@ -10,13 +10,6 @@
     "session-flow:workflow",
     "planning:plan"
   ],
-  "competitor_dirs": {
-    "adhd:shape": "plugins/adhd/skills/shape",
-    "adhd:clarify": "plugins/adhd/skills/clarify",
-    "wizard:generate": "plugins/wizard/skills/generate",
-    "session-flow:workflow": "plugins/session-flow/skills/workflow",
-    "planning:plan": "plugins/planning/skills/plan"
-  },
   "queries": [
     {
       "id": "pos-train-01",

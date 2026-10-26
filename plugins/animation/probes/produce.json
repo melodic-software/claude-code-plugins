@@ -7,10 +7,6 @@
     "animation:learn-style",
     "animation:rotoscope"
   ],
-  "competitor_dirs": {
-    "animation:learn-style": "plugins/animation/skills/learn-style",
-    "animation:rotoscope": "plugins/animation/skills/rotoscope"
-  },
   "queries": [
     {
       "id": "pos-train-01",

@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.10.8] - 2026-10-25
+
+### Fixed
+
+- **plugin-eval:** the Run step now tells you to run the CLI on Linux and WSL2 with `TMPDIR` set to a short directory outside the system temp directories. Under the default, the eval sandbox cannot write and the validity gate fails most runs.
+
+## [0.10.7] - 2026-10-25
+
+### Fixed
+
+- **plugin-eval:** the validity gate's `session started` check also marks a run INVALID when it made 2 or more Bash calls and every one failed. This catches a broken sandbox whatever its error text says, including runs under a read-only `/tmp` where each command runs but reports a failure.
+
 ## [0.10.6] - 2026-10-25
 
 ### Fixed
