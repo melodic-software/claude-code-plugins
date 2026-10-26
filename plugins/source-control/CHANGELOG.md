@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.5.4] - 2026-10-26
+
+### Fixed
+
+- The `pr-body-linkage-gate` and `pr-linkage-mcp-gate` hooks enforce again in a repository that wires in the contract composite at its current path, `.github/actions/pr-require-checks/check-contract`. Their scope guard matched only the old `.github/actions/pr-contract` path, so after the composite's rename neither hook fired anywhere that had moved to the new one. Both paths now count.
+
 ## [3.5.3] - 2026-10-26
 
 ### Fixed
