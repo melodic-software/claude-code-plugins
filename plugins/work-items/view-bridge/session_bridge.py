@@ -533,8 +533,9 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         body = {"seq": seq, "timedOut": not events}
         if replay is not None:
             body["replayed"] = replay
-        body["events"] = events
+        # The data frame comes before the events it frames, as a reader meets them in the line.
         body["note"] = DATA_NOTE
+        body["events"] = events
         return self.send(200, body)
 
     def sse(self):
@@ -1403,7 +1404,7 @@ class ChannelRelay(Transport):
         line = {"seq": log["seq"], "timedOut": not events}
         if log.get("replayed") is not None:
             line["replayed"] = log["replayed"]
-        line.update({"events": events, "note": DATA_NOTE, "dataDir": str(self.dir)})
+        line.update({"note": DATA_NOTE, "events": events, "dataDir": str(self.dir)})
         if events:
             ops = str(self.dir / "ops.json")
             line["next"] = shlex.join(
