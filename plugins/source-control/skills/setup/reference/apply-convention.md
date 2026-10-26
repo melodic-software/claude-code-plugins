@@ -481,8 +481,8 @@ this skill's part:
   consumer reads without reimplementing this plugin's markdown-H2 grammar. Fall back to markdown-only
   only when this plugin is demonstrably the sole consumer. A repo where nothing else reads the
   convention loses nothing by staying markdown-only; say so rather than forcing the split.
-- **Default the path to the well-known location.** The neutral file's well-known default path is
-  `docs/conventions/source-control/commit-convention.yml` (the
+- **Default the path to the well-known location.** The neutral file's well-known default path in a
+  consumer repository is `commit-convention.yml` under `docs/conventions/source-control/` (the
   `docs/conventions/<concern>/` folder layout). Writing it **there** means the resolver finds it with **no
   `## convention_source` pointer at all** (the resolver probes the well-known path at rung 2), so the
   common case leaves nothing in agent-rewritable markdown to sever. Only when the repo insists on a
