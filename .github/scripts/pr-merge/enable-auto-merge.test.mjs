@@ -36,6 +36,7 @@ import {
   pythonVerify,
   ReaderRateLimited,
   costLine,
+  cacheLine,
   ghCalls,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
@@ -217,14 +218,18 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     }
     return { data: {} };
   };
-  // The gate's verifier evidence: a pull request's `verdict` (a report, or
-  // an Error to throw), else a pass at its head.
+  // The gate's verifier evidence: a pull request's `verdict` (a report, an
+  // Error to throw, or a function of the read's options), else a pass at its
+  // head.
   const verified = [];
-  const verify = async ({ number, headRefOid: head }) => {
+  const verify = async ({ number, headRefOid: head }, _rung, options) => {
     verified.push(number);
     const found = pulls.find((candidate) => candidate.number === number);
     if (found?.verdict instanceof Error) {
       throw found.verdict;
+    }
+    if (typeof found?.verdict === "function") {
+      return found.verdict(options ?? {});
     }
     return found?.verdict ?? { refusal: null, head, ineligible: null, reviews: null, queue: UNEJECTED };
   };
@@ -2406,4 +2411,151 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
     notes.map(({ path, body }) => [path, body.body.split("\n", 1)[0]]),
     [[`${ISSUES}/2/comments`, "<!-- babysit-merge-queue-ejections -->"]],
   );
+});
+
+// The verifier-read cache (babysit_verify_evidence.py --answers-*): a kept
+// answer stands only for a refusal, so it can delay an arm but never cause
+// one, and an armed pull request is always read in full.
+const CACHED_ALLOW = { ...PASSED, cached: true };
+const CACHED_MISSING = { ...MISSING, cached: true };
+
+test("decide never arms on a kept answer, and a kept refusal on an armed pull request disarms", () => {
+  const opts = { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [] };
+  const read = { ...detail(), files: ["plugins/work-items/README.md"], filesCapped: false, costDecision: null };
+  assert.equal(decide(pull(1), opts, { ...read, verify: PASSED }).action, "arm");
+  assert.equal(decide(pull(1), opts, { ...read, verify: CACHED_ALLOW }).action, "verify");
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T09:00:00Z" } });
+  assert.equal(decide(armed, opts, { ...read, verify: CACHED_ALLOW }).action, "verify");
+  assert.deepEqual(decide(armed, opts, { ...read, verify: CACHED_MISSING }), { action: "disarm", reason: MISSING_REASON, clears: "lane" });
+  assert.deepEqual(decide(pull(1), opts, { ...read, verify: CACHED_MISSING }), { action: "none", reason: MISSING_REASON, clears: "lane" });
+});
+
+test("a kept answer that holds nothing is read again in full: a refusal then sends no arm and no disarm, an allow arms once", async () => {
+  const seen = [];
+  const refusedFresh = pull(1, { verdict: (options) => (seen.push(options), options.fresh ? MISSING : CACHED_ALLOW) });
+  const refused = await run([refusedFresh]);
+  assert.deepEqual(seen, [{}, { fresh: true }]);
+  assert.deepEqual(refused.writes, []);
+  const allowed = await run([pull(2, { verdict: (options) => (options.fresh ? PASSED : CACHED_ALLOW) })]);
+  assert.deepEqual(allowed.writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+  // A reader that answered kept even when asked for a fresh read sends nothing.
+  const stuck = await run([pull(3, { verdict: () => CACHED_ALLOW }), pull(4, { verdict: () => CACHED_ALLOW, autoMergeRequest: { enabledAt: "2026-10-23T09:00:00Z" } })]);
+  assert.deepEqual(stuck.writes, []);
+});
+
+test("a kept refusal on an armed pull request disarms it", async () => {
+  const { writes } = await run([pull(1, { verdict: CACHED_MISSING, autoMergeRequest: { enabledAt: "2026-10-23T09:00:00Z" } })]);
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+});
+
+test("a kept refusal writes no label back; a changed reason is still written", async () => {
+  const reason = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
+  const repeated = { refusal: "verify:repeated-fail", needsHuman: true, head: HEAD, ineligible: null };
+  const standing = (verdict) => pull(2, { verdict, discussion: { comments: [lanesSaid(personNote(reason))] } });
+  assert.deepEqual((await run([standing(repeated)])).notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
+  const kept = await run([standing({ ...repeated, cached: true })]);
+  assert.deepEqual(kept.notes, []);
+  assert.equal(kept.calls.filter(({ body }) => body?.query === UNLABELED_QUERY).length, 0);
+  const moved = await run([pull(1, { verdict: CACHED_MISSING, discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } })]);
+  assert.deepEqual(moved.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+test("past the verify budget, serve answers an unarmed pull request only from a kept refusal; shadow reads nothing more", async () => {
+  const at = Date.parse("2026-10-23T11:00:00Z");
+  const late = () => {
+    let calls = 0;
+    return () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + 1);
+  };
+  const seen = [];
+  const answer = (verdict) => (options) => (seen.push(options), verdict);
+  const pulls = () => [pull(1, { verdict: answer(CACHED_MISSING) }), pull(2, { verdict: answer({ head: HEAD, cached: false }) })];
+  const served = await run(pulls(), { VERIFY_CACHE: "serve" }, { now: late() });
+  assert.deepEqual(seen, [{ cacheOnly: true }, { cacheOnly: true }]);
+  assert.deepEqual(served.writes, []);
+  assert.ok(served.lines.includes(`enable-auto-merge: #1 left: ${MISSING_REASON}`), served.lines.join("\n"));
+  assert.ok(served.lines.includes("enable-auto-merge: #2 left: no time left in this run to read its verifier verdict"), served.lines.join("\n"));
+  seen.length = 0;
+  const shadow = await run(pulls(), {}, { now: late() });
+  assert.deepEqual(seen, []);
+  assert.deepEqual(shadow.verified, []);
+});
+
+test("costLine shows whether a kept answer served the read, and cacheLine the shadow comparison", () => {
+  assert.equal(costLine({ number: 7, calls: { total: 1, githubToken: 0, paginated: 0 }, ms: 900, cached: true }), "#7 calls=1 github-token=0 paginated=0 ms=900 cached=1");
+  assert.equal(costLine({ number: 7, calls: null, ms: 20, cached: false }), "#7 calls=unknown ms=20 cached=0");
+  assert.equal(cacheLine(7, { mode: "shadow", key: "hit", stored: "verify:missing", fresh: "verify:fail", agree: "no" }), "verify-cache shadow: #7 key=hit stored=verify:missing fresh=verify:fail agree=no");
+  assert.equal(cacheLine(7, { mode: "shadow", key: "miss", stored: "none", fresh: "allow", agree: "n/a" }), "verify-cache shadow: #7 key=miss stored=none fresh=allow agree=n/a");
+  assert.equal(cacheLine(7, { mode: "shadow\n::error::x", key: "hit" }), "verify-cache ?: #7 key=hit stored=? fresh=? agree=?");
+  assert.equal(cacheLine(7, undefined), null);
+});
+
+// A stand-in for the reader process: the same answer whatever the flags, with
+// the shadow comparison added when it is given answers files.
+function shadowReader(answers) {
+  const spawned = [];
+  const spawn = (_cmd, args) => {
+    spawned.push(args);
+    const number = Number(args.at(-2));
+    const report = { ...answers[number], head: args.at(-1) };
+    const cache = args.includes("--answers-out") ? { cache: { mode: args[args.indexOf("--answers-mode") + 1], key: "hit", stored: "verify:missing", fresh: "allow", agree: "no" } } : {};
+    return { status: 0, stdout: `${JSON.stringify({ ...report, ...cache })}\n`, stderr: "" };
+  };
+  return { spawn, spawned };
+}
+
+test("shadow never changes a decision: the same arms, disarms and notes with and without answers files, and serve is never asked for", async () => {
+  const armed = { autoMergeRequest: { enabledAt: "2026-10-23T09:00:00Z" } };
+  const answers = { 1: PASSED, 2: MISSING, 3: MISSING, 4: PASSED, 5: { ...PASSED, reviews: "MED: a review not bound to the head", reviewsPerson: false } };
+  const pulls = () => [pull(1), pull(2), pull(3, armed), pull(4, armed), pull(5, { discussion: { comments: [lanesSaid(laneNote("an earlier reason"))] } })];
+  const outcome = async (env) => {
+    const { github, writes, notes } = world(pulls());
+    const { spawn, spawned } = shadowReader(answers);
+    const log = console.log;
+    const lines = [];
+    console.log = (line) => lines.push(line);
+    try {
+      assert.equal(await main({ env: { ...ENV, ...env }, github, verify: pythonVerify({ ...ENV, ...env }, { spawn }), room: room(), sleep: async () => {}, now: () => Date.parse(NOW) }), 0);
+    } finally {
+      console.log = log;
+    }
+    return { writes: writes(), notes, spawned, lines };
+  };
+  const files = { VERIFY_ANSWERS_IN: "/tmp/in.json", VERIFY_ANSWERS_OUT: "/tmp/out.json" };
+  const without = await outcome({});
+  assert.deepEqual(without.writes, [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "disarm", id: "PR_3" },
+  ]);
+  for (const env of [files, { ...files, VERIFY_CACHE: "shadow" }, { ...files, VERIFY_CACHE: "Serve" }, { ...files, VERIFY_CACHE: "" }]) {
+    const shadow = await outcome(env);
+    assert.deepEqual(shadow.writes, without.writes, JSON.stringify(env));
+    assert.deepEqual(shadow.notes, without.notes, JSON.stringify(env));
+    assert.equal(shadow.spawned.length, 5);
+    for (const args of shadow.spawned) {
+      assert.equal(args[args.indexOf("--answers-mode") + 1], "shadow");
+      assert.ok(!args.includes("--answers-only"));
+    }
+    assert.ok(shadow.lines.includes("enable-auto-merge: verify-cache shadow: #2 key=hit stored=verify:missing fresh=allow agree=no"), shadow.lines.join("\n"));
+  }
+  assert.ok(without.spawned.every((args) => !args.some((arg) => arg.startsWith("--answers"))));
+});
+
+test("serve asks for a kept answer only for an unarmed pull request, and never on a fresh read", async () => {
+  const env = { ...ENV, VERIFY_CACHE: "serve", VERIFY_ANSWERS_IN: "/tmp/in.json", VERIFY_ANSWERS_OUT: "/tmp/out.json" };
+  const { spawn, spawned } = shadowReader({ 1: MISSING, 2: MISSING });
+  const verify = pythonVerify(env, { spawn, clock: () => 0 });
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await verify(pull(1));
+    await verify(pull(2, { autoMergeRequest: { enabledAt: "2026-10-23T09:00:00Z" } }));
+    await verify(pull(1), undefined, { fresh: true });
+    await verify(pull(1), undefined, { cacheOnly: true });
+  } finally {
+    console.log = log;
+  }
+  const mode = (args) => args[args.indexOf("--answers-mode") + 1];
+  assert.deepEqual(spawned.map(mode), ["serve", "shadow", "shadow", "serve"]);
+  assert.deepEqual(spawned.map((args) => args.includes("--answers-only")), [false, false, false, true]);
+  assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
 });
