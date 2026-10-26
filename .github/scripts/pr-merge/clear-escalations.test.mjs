@@ -526,6 +526,8 @@ const NATIVE = { LANE_PRS: "native" };
 const nativeEscalated = (reason, head = HEAD) => mergeEscalated(refusalBody(true, reason, head, "needs-human"));
 const clean = (pull) => ({ head: pull.headRefOid, refusal: null, ineligible: null, reviews: null });
 const refusing = (refusal) => (pull) => ({ head: pull.headRefOid, refusal, ineligible: null });
+const risk = (codes) => `pr-merge's gate holds it on its risk score (${codes})`;
+const reviewsNow = (reviews) => (pull) => ({ ...clean(pull), reviews });
 // The reader's early answer for a link it does not take: no verdict, no risk score.
 const ineligible = (why) => (pull) => ({ head: pull.headRefOid, refusal: "verify:ineligible", ineligible: why });
 const DELETE = { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined };
@@ -579,6 +581,18 @@ test("a risk, verifier or issue-link label stays when the reader's answer no lon
     [COST, (pull) => ({ ...clean(pull), reviews: "files-incomplete: the changed-file listing did not read whole" })],
     [UNTRUSTED_SPEC, refusing("verify:fail")],
     [REPEATED, refusing("verify:fail")],
+    // An issue link the trust hold refused, under a lane-class risk answer.
+    [UNTRUSTED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-not-allowed")],
+    // A recorded code not known to be a lane's counts as a person's: an
+    // unknown one, a configured high path, or a person's beside a lane's.
+    [risk("a-new-code: x"), reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
+    [risk("high-path:.github/workflows/**: .github/workflows/ci.yml"), reviewsNow("files-incomplete: the listing did not read whole")],
+    [risk("evidence-unbound:claude-review: not bound: x; security-finding: 1 open"), reviewsNow("evidence-unbound:claude-review: not bound: x")],
+    // A lane's recorded cause still needs the answer read whole.
+    [UNBOUND, reviewsNow("unreadable: no agent identity")],
+    [SPEC_CHANGED, reviewsNow("unreadable: no agent identity")],
+    [UNBOUND, refusing("verify:fail")],
+    [SPEC_CHANGED, ineligible("not-agent-ready")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
     await run(w, NATIVE);

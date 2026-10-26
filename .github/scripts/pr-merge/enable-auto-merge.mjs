@@ -469,7 +469,7 @@ export function verifyHold(evidence, head) {
 // (babysit_verify_evidence.lane_risk_refusal).
 export const PERSON_REFUSALS = Object.freeze(["verify:untrusted-spec", "verify:repeated-fail"]);
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
-export const PERSON_RISK = /(?:^|; )(?:security-finding|trust-gate:[a-z-]+|cost-review-required|high-path:\*\*):/;
+const PERSON_RISK = /(?:^|; )(?:security-finding|trust-gate:[a-z-]+|cost-review-required|high-path:\*\*):/;
 
 // Who clears the refusal verifyHold reads in `evidence` at `head`: `person`
 // for a PERSON_REFUSALS refusal, an issue link the trust hold refuses
