@@ -375,6 +375,19 @@ export function createGitHubApi({
     },
     // A held PR's issue timeline (gate-source.mjs reads its REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
+    // Every check run on a commit, up to 300, as fix-ci-context reads them
+    // (address-feedback.mjs listCommitCheckRuns).
+    async listCommitCheckRuns(sha) {
+      const runs = [];
+      for (let page = 1; page <= 3; page += 1) {
+        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        runs.push(...(data.check_runs ?? []));
+        if ((data.check_runs ?? []).length < 100) {
+          break;
+        }
+      }
+      return runs;
+    },
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,
