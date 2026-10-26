@@ -1,6 +1,6 @@
 {
   "name": "actionlint",
-  "version": "0.14.6",
+  "version": "0.14.7",
   "description": "Lint GitHub Actions workflows with actionlint at git pre-commit, on changed lines, for every author; optionally check uncommitted workflow changes when a turn ends.",
   "author": {
     "name": "Melodic Software",
