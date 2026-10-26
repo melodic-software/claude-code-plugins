@@ -140,8 +140,9 @@ export const REFUSALS = {
   "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
 };
 
-// The names of the refusals that match one changed entry; by default all.
-export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
+// The names of the refusals that match one changed entry; by default all but
+// the optional ones, which apply only to a row that names them.
+export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
 // GitHub prefixes from
