@@ -21,6 +21,10 @@
 //             failed or cannot be read for the branch's current tip, whatever
 //             the outcome file says.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
+//             When a listed human's newest comment, posted since the lane's
+//             last outcome comment, does not open with DECISION_LINE, the
+//             comment links it and shows the line, since the lane counts no
+//             other comment as an answer.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
 //             invalid outcome file is stopped.
@@ -92,7 +96,8 @@
 //   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
 //                       a rerun reuses (default melodic-automation-lanes[bot])
 //   TRUSTED_ACTORS      trusted-actors.json from the base, whose humans may
-//                       apply the merge: human hold
+//                       apply the merge: human hold, and whose comments a
+//                       pushback reads
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
 //   GITHUB_OUTPUT       --find-prior: the step output file
@@ -329,9 +334,29 @@ const bullets = (items) =>
     .map((item) => `- ${neutral(item.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}`)
     .join("\n");
 
+// The first line that makes a listed human's issue comment a decision the run
+// builds (select-trusted-text's isDecisionComment, which write-issue.mjs
+// applies). A script activity runs from a copy of its own directory, so the
+// rule is restated here, not imported.
+export const DECISION_LINE = "**Decision recorded.**";
+const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
+const COMMENT_URL = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]*#issuecomment-[1-9][0-9]*$/;
+
+// The URL of a listed human's newest issue comment after the lanes App's
+// (`bot`) last outcome marker, when they posted it themselves (not through an
+// App) and its first line is not DECISION_LINE; else null. `comments` are
+// oldest first, as GET /issues/{n}/comments lists them.
+export function unmarkedAnswer(comments, humans, bot) {
+  const since = comments.findLastIndex((comment) => comment?.user?.login === bot && parseOutcomeMarker(comment.body) !== null);
+  const last = comments.slice(since + 1).filter((comment) => humans.has(comment?.user?.id)).at(-1);
+  const first = String(last?.body ?? "").trimStart().split("\n", 1)[0].trimEnd();
+  return last && last.performed_via_github_app == null && !DECISION.test(first) && COMMENT_URL.test(last.html_url ?? "") ? last.html_url : null;
+}
+
 // The marker names the run, so --find-prior never reuses a branch whose work
-// this report already handed on.
-function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false }) {
+// this report already handed on. `unmarked` is unmarkedAnswer's URL, which a
+// pushback links with the line it lacks.
+function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null }) {
   const pushback = outcome.exit === "pushback";
   const lines = escalated([
     `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
@@ -345,6 +370,16 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   ]);
   if (outcome.notDone.length) {
     lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
+  }
+  if (pushback && unmarked) {
+    lines.push(
+      "",
+      `The newest comment from a listed maintainer, ${unmarked}, does not start with \`${DECISION_LINE}\`, so the lane did not count it as an answer. If it answers the question, post the answer again in a new comment whose first line is:`,
+      "",
+      "```",
+      `${DECISION_LINE} <answer>`,
+      "```",
+    );
   }
   if (branch) {
     lines.push(
@@ -360,7 +395,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   lines.push(
     "",
     pushback
-      ? `To retry, answer the question here, remove \`${humanLabel}\` and add \`agent-ready\` again.`
+      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then remove \`${humanLabel}\` and add \`agent-ready\` again.`
       : `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`,
   );
   return {
@@ -644,7 +679,8 @@ export function reusePlan({
 // the runner's record ({cap}) when the run reached its turn cap, and
 // `turnCapRestarts` the restarts already made since a person last added
 // agent-ready. `checks` is readChecks' record for the branch's current tip;
-// null stops a done run.
+// null stops a done run. `unmarked` is the comment a pushback links
+// (unmarkedAnswer).
 export function decide({
   outcome,
   issueNumber,
@@ -666,6 +702,7 @@ export function decide({
   checks = null,
   resumed = "",
   escalation = "",
+  unmarked = null,
 }) {
   outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
   const onResumed = !branch && resumed !== "";
@@ -755,7 +792,7 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed });
+    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked });
   }
   // The outcome file is model output, so its own report never clears this.
   const failed = checkFailures(checks);
@@ -1399,6 +1436,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         })
       : 0;
     const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+    // Only a pushback reads the comments; a failed read leaves the link out.
+    const unmarked =
+      !unreported && outcome?.exit === "pushback"
+        ? await paginate(github, `${repo}/issues/${issueNumber}/comments`)
+            .then((list) => unmarkedAnswer(list, readHumans(env.TRUSTED_ACTORS ?? ""), bot))
+            .catch(() => null)
+        : null;
     let plan = unreported
       ? reusePlan({
           issueNumber,
@@ -1432,6 +1476,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
           checks,
           escalation,
+          unmarked,
         });
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds
