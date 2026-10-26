@@ -3,6 +3,19 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.6.1] - 2026-10-26
+
+### Fixed
+
+- **The parser reader's flow check trusts the engine's implicit lookups.** A spread of the array now trusts `@@iterator` and `next`; `slice`, `map`, `filter`, `concat`, `flat` and `flatMap` trust `constructor` and `@@species`, and `concat` trusts `@@isConcatSpreadable`; a member read used as a value trusts its key (the array's own `length` and literal elements excepted), and one whose computed key names nothing is no longer followed. A spread or value-only read of the array now reaches the sink check even when nothing mutates it, so a module patching any of those names reads the list `partial` under `--reader=parser` instead of a wrong `literal`. Fail-closed: a bundle that may write `Symbol.iterator` or `next` on an object the sink rule cannot show is no prototype (2.1.287's yallist writes `Symbol.iterator` on one) now reads every spread-built list `partial` under the parser.
+
+## [4.6.0] - 2026-10-26
+
+### Added
+
+- **control-claude-code:** the control skill `/app-control:drive` reads to run Claude Code's terminal UI with a plugin loaded. Its hub names Launch, Ready, Capture (screenshot, video, and logs as stream-json) and Cleanup, marks it for attended runs only, and never signs in or switches accounts. `config/defaults.json` holds `pluginDir`. Feature folders cover a mod's band, toast and panel, skill invocation, hook output, slash commands, the permission dialog, and Claude Desktop through `claude plugin test`; every Claude Desktop entry point is `not driven: terms`.
+- **control-claude-code driver:** two verbs that run Claude Code in print mode with the launch's flags and environment and write its stream-json to `--out`. `ready` prints doctor's lines, whether the session answers, and the init event's version, plugins and `apiKeySource`. It stops Claude Code once the init event arrives, and exits 1 unless `apiKeySource` is `none` and the init event lists the plugin under test. `log <prompt>` keeps the whole run, and stops Claude Code early when the init event names an API key. Both stop Claude Code and every process it started at `--timeout`.
+
 ## [4.5.9] - 2026-10-26
 
 ### Fixed
