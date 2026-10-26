@@ -260,7 +260,7 @@ const laneNote = (reason) =>
 // takes the label off for at the same head; any other a person removes.
 const READER_REASON = /^pr-merge's (?:lane does not take its issue link|gate refuses its verifier verdict|gate holds it on its risk score) \(/;
 const PERSON_WHO = "fix the reason, then remove the label, and the next scheduled run judges it again.";
-const READER_WHO = "fix the reason, and pr-merge takes the label off once a scheduled run reads it gone at this head, or once the head moves, then judges it again.";
+const READER_WHO = "fix the reason, and pr-merge takes the label off once the head moves or, under `merge.lane-prs: native`, once a scheduled run reads the reason gone at this head; the next scheduled run then judges it again.";
 const personNote = (reason, who = READER_REASON.test(reason) ? READER_WHO : PERSON_WHO) =>
   [
     "<!-- work-items:escalation lane=pr-merge kind=escalated -->",

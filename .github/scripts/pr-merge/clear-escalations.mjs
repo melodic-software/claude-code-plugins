@@ -62,9 +62,10 @@
 // config's rung) runs, and the label comes off as `refusal-cleared` when
 // nothing refuses, or when the answer was read whole and what refuses now
 // is a lane's (verifyClears `lane`) for the same cause: for a verifier
-// reason a verdict that is neither unreadable nor missing, for a risk reason
-// a risk score, which the reader computes only once the link and verdict
-// pass. An issue-link reason comes off only when nothing refuses. A person's
+// reason a verdict, read once the link passes, that is neither unreadable
+// nor missing; for a risk reason a risk score, which the reader computes
+// only once the link and verdict pass. An issue-link reason comes off only
+// when nothing refuses. A person's
 // refusal, an unread answer and a failed read keep it; so does a hold or
 // cost path, which no reader answer clears. At most NATIVE_READS_PER_RUN
 // reads a run, starting at an offset that moves with the run number
@@ -214,16 +215,17 @@ function nativeRefusal(appComments, merged, label, head) {
 
 // Whether the reader's `evidence` at `head` lifts a `kind` refusal: nothing
 // refuses, or the answer was read whole and what refuses is a lane's for the
-// same cause. A risk score is computed only once the link and the verdict
-// pass, so a refusal of either hides it.
+// same cause. The reader reads the verdict only once the link passes, and
+// the risk score only once the verdict passes too, so a refusal of either
+// hides what comes after it.
 function liftsRefusal(kind, evidence, head) {
   if (verifyHold(evidence, head) === null) {
     return true;
   }
-  if (kind === "link" || verifyClears(evidence, head) !== "lane" || UNREAD.includes(evidence.refusal) || UNREAD_REVIEWS.test(evidence.reviews ?? "")) {
+  if (kind === "link" || evidence.ineligible !== null || verifyClears(evidence, head) !== "lane" || UNREAD.includes(evidence.refusal) || UNREAD_REVIEWS.test(evidence.reviews ?? "")) {
     return false;
   }
-  return kind === "verdict" || (evidence.refusal === null && evidence.ineligible === null);
+  return kind === "verdict" || evidence.refusal === null;
 }
 
 // Whether the lanes App comment written last at or before `since` that carries

@@ -523,7 +523,7 @@ const LANE_WHO = "The lanes clear this reason on their own; the next scheduled r
 const personWho = (label) =>
   `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`;
 const readerWho = (label) =>
-  `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, and pr-merge takes the label off once a scheduled run reads it gone at this head, or once the head moves, then judges it again.`;
+  `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, and pr-merge takes the label off once the head moves or, under \`merge.lane-prs: native\`, once a scheduled run reads the reason gone at this head; the next scheduled run then judges it again.`;
 export function refusalBody(person, reason, head, label) {
   return refusalText(person, person ? (readerHold(reason) ? readerWho : personWho)(label) : LANE_WHO, reason, head);
 }

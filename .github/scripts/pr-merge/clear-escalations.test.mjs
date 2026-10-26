@@ -522,6 +522,8 @@ const NATIVE = { LANE_PRS: "native" };
 const nativeEscalated = (reason, head = HEAD) => mergeEscalated(refusalBody(true, reason, head, "needs-human"));
 const clean = (pull) => ({ head: pull.headRefOid, refusal: null, ineligible: null, reviews: null });
 const refusing = (refusal) => (pull) => ({ head: pull.headRefOid, refusal, ineligible: null });
+// The reader's early answer for a link it does not take: no verdict, no risk score.
+const ineligible = (why) => (pull) => ({ head: pull.headRefOid, refusal: "verify:ineligible", ineligible: why });
 const DELETE = { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined };
 
 test("enable-auto-merge's label at the current head comes off once the gate's reader no longer refuses there", async () => {
@@ -557,12 +559,13 @@ test("a risk, verifier or issue-link label stays when the reader's answer no lon
     [SECURITY, refusing("verify:unreadable")],
     [SECURITY, refusing("verify:missing")],
     [SECURITY, refusing("verify:fail")],
-    [SECURITY, (pull) => ({ ...clean(pull), ineligible: "not-agent-ready" })],
+    [SECURITY, ineligible("not-agent-ready")],
     [SECURITY, (pull) => ({ ...clean(pull), reviews: "unreadable: no agent identity" })],
     [REPEATED, refusing("verify:unreadable")],
     [REPEATED, refusing("verify:missing")],
+    [REPEATED, ineligible("not-agent-ready")],
     [REPEATED, (pull) => ({ ...clean(pull), reviews: "unreadable: the lane's rung is off" })],
-    [UNTRUSTED, (pull) => ({ ...clean(pull), ineligible: "not-agent-ready" })],
+    [UNTRUSTED, ineligible("not-agent-ready")],
     [UNTRUSTED, refusing("verify:fail")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
@@ -579,7 +582,7 @@ test("enable-auto-merge's label stays while its cause, or another a person must 
     (pull) => ({ ...clean(pull), reviews: "trust-gate:trusted-actors: widens the trusted actors" }),
     // A verifier refusal a person must clear, an issue link the trust hold refuses.
     refusing("verify:untrusted-spec"),
-    (pull) => ({ ...clean(pull), ineligible: "untrusted-provenance" }),
+    ineligible("untrusted-provenance"),
     // Unread, read at another head, or a read that fails.
     () => null,
     () => ({ ...clean({ headRefOid: OLD }) }),
