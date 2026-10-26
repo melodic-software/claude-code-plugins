@@ -6203,6 +6203,23 @@ class SharedPostMergeAnswer(unittest.TestCase):
                 reads.assert_called_once()
                 self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
 
+    def test_demotion_changed_is_reported_only_when_nothing_else_refuses(
+        self,
+    ) -> None:
+        # lane_room keeps an answer refused only as `demotion-changed` once a
+        # demotion read agrees, so a lane merge it does not count must not
+        # hide behind that reason.
+        gh = self.moved(merge_pages([[merged(7, bot("agent-lanes"), None)]]))
+        gh.rest[self.issues_since()] = [
+            {"number": 12, "user": {"login": OPERATOR}, "state": "closed"}
+        ]
+        self.flight()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(),
+            shared=self.shared(gate(), demotion=policy.Demotion(False, None, (12,))),
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:new-merge:#7")
+
     def test_an_unrelated_issue_or_a_pull_request_leaves_the_answer_bound(
         self,
     ) -> None:
