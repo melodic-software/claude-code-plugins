@@ -1161,12 +1161,13 @@ any of those, and does not turn it back on once a person has turned it off. GitH
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
 the body must still close, or with no closing issue name by a plain `Refs:` line, the one issue
 the pass judged, linked the same way (`merge-holds.mjs` `linkHold`), so a body edited after arming
-does not merge on a pass for another issue. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
-armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
-adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
-missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a
-listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
-`merge.report-only` is true it reports each decision and writes nothing.
+does not merge on a pass for another issue. The 15-minute schedule arms a pull request the issue
+lane opened, so it waits up to one scheduled interval, and arms or disarms what the events missed;
+a listed human's edit, unlabel or ready wakes it too, so adding a `Hold:` line disarms at once. The
+issue lane finishing does not wake it: an event run never arms, and a pull request the lane just
+opened is not armed, so there is nothing to disarm. The token broker mints `merge` only for
+`pr-merge.yml`, and outside the schedule only for a listed human's run. While `merge.report-only`
+is true it reports each decision and writes nothing.
 
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
