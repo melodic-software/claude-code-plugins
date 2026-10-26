@@ -6,7 +6,9 @@
 # 39732992257 and refreshed 2026-10-23 from runs 39968901543, 39970209215,
 # 39971514210 and 39972824070, and the nine shell rows that had drifted 40 s or
 # more 2026-10-23 from whole-tree runs 39880676111, 39881602417, 39882556362
-# and 39884296244: a shell suite runs from the moment
+# and 39884296244, and the Python rows that had drifted 8 s or more, plus the
+# unlisted test_resume_cases.py, 2026-10-26 from whole-tree runs 40358923117,
+# 40362414991 and 40366757371: a shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
 # listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
@@ -322,7 +324,7 @@ plugins/harness-ops/skills/inventory/scripts/test_compare_reports.py 1
 plugins/harness-ops/skills/inventory/scripts/test_fixture_parse.py 2
 plugins/harness-ops/skills/inventory/scripts/test_inventory.py 2
 plugins/harness-ops/skills/inventory/scripts/test_inventory_under_parser.py 2
-plugins/harness-ops/skills/inventory/scripts/test_parser_reader.py 28
+plugins/harness-ops/skills/inventory/scripts/test_parser_reader.py 18
 plugins/harness-ops/skills/inventory/scripts/test_reader_findings.py 2
 plugins/harness-ops/skills/known-issues/scripts/check-all.test.sh 1
 plugins/harness-ops/skills/known-issues/scripts/test_registry_manager.py 1
@@ -435,7 +437,7 @@ plugins/planning/shared/tests/ui.test.sh 426
 plugins/planning/surface/surface-journey.test.sh 130
 plugins/planning/surface/surface-ui-c.test.sh 133
 plugins/planning/surface/surface.test.sh 172
-plugins/planning/surface/test_exporters.py 50
+plugins/planning/surface/test_exporters.py 74
 plugins/planning/surface/test_question_shape.py 1
 plugins/planning/surface/test_round.py 33
 plugins/planning/surface/test_schema.py 1
@@ -504,9 +506,10 @@ plugins/review/tests/fanout-sweep.test.sh 1
 plugins/review/tests/standards-binding.test.sh 1
 plugins/ruff-format/hooks/ruff-format.test.sh 4
 plugins/session-flow/scripts/harness/hop_chain.test.sh 19
+plugins/session-flow/scripts/harness/test_resume_cases.py 87
 plugins/session-flow/scripts/save_point.test.sh 38
 plugins/session-flow/scripts/tests/test_hop_chain_load_transcript.py 1
-plugins/session-flow/scripts/tests/test_save_point.py 26
+plugins/session-flow/scripts/tests/test_save_point.py 39
 plugins/session-flow/scripts/tests/test_tidy_work.py 5
 plugins/session-flow/scripts/tests/test_transcript_reader_first_cwd.py 1
 plugins/session-flow/scripts/tidy_work.test.sh 8
@@ -568,7 +571,7 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_base_freshness.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_branch_rules.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_cost.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 42
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 56
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_prefilter.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_rate_limit_rerun.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_report_only_state.py 1
