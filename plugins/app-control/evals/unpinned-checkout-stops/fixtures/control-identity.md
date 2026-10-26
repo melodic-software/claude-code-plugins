@@ -8,11 +8,11 @@ Integrated apps: none
 
 ## Launch
 
-`python3 serve.py idp --port 9100`
+`python3 serve.py idp --url <environment url>`
 
 ## Ready
 
-`curl -fsS http://127.0.0.1:9100/health`
+`python3 serve.py health <environment url>`
 
 ## Capture
 

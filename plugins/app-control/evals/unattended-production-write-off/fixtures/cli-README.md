@@ -6,6 +6,7 @@
 |---|---|
 | `refund <order>` | Refunds an order (a write) |
 | `reset-order <order>` | Restores an order to Paid (a write) |
+| `ready <url>` | Reads `<url>/health` and prints the build and data it reports; changes nothing |
 | `config` | Prints each setting with its layer; changes nothing |
 
 Flags: `--environment <name>` selects an environment from committed config; `--step <id>` names the

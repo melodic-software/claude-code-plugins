@@ -9,7 +9,10 @@
     },
     "prod": {
       "url": "https://shop.example.invalid",
-      "production": true
+      "production": true,
+      "writes": {
+        "issue-refund": "attended"
+      }
     }
   },
   "safety": {}

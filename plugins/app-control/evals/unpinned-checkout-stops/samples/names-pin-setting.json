@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "Stopped before launch: checkouts.identity points at checkouts/identity, but pins.identity is unset in committed config. Fetch or check out the pinned commit once one is committed.",
+      "answer": "Stopped before launch: checkouts.identity points at checkouts/identity, but pins.identity is unset in committed config. Commit pins.identity, for example through /app-control:map.",
       "why": "names the pin setting"
     }
   ],
   "fail": [
     {
-      "answer": "Stopped before launch: checkouts.identity is set; fetch or check out the identity checkout.",
+      "answer": "Stopped before launch: checkouts.identity is set; commit a pin for the identity checkout.",
       "why": "never names the pin setting"
     }
   ]

@@ -10,11 +10,11 @@ Integrated apps:
 
 ## Launch
 
-`python3 shop/serve.py app --port 8080 --identity <identity service url>`
+`python3 shop/serve.py app --url <environment url> --identity <identity service url>`
 
 ## Ready
 
-`curl -fsS http://127.0.0.1:8080/health`
+`python3 shop/serve.py health <environment url>`
 
 ## Capture
 

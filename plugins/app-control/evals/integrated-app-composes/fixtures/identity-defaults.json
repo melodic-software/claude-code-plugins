@@ -1,8 +1,11 @@
 {
-  "environment": "local",
+  "environment": "staging",
   "environments": {
     "local": {
       "url": "http://127.0.0.1:9100"
+    },
+    "staging": {
+      "url": "http://127.0.0.1:9200"
     }
   },
   "credentials": {

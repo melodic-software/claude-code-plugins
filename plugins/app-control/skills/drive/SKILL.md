@@ -88,8 +88,8 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    and stop that feature rather than guess a file.
 9. An include from an integrated app resolves through the contract's "Integrated apps", and its
    control skill is read from disk at that app's checkout like any other. A missing checkout, or one
-   off its committed pin, stops that feature before launching with the message that section gives.
-   An included `cli:` step runs that app's `cli/`, not this one's.
+   off its committed pin, stops that feature with the message that section gives, at each point it
+   names. An included `cli:` step runs that app's `cli/`, not this one's, as that section says.
 
 The bundled `run` skill and how it defers to a project skill:
 <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
@@ -153,7 +153,8 @@ All as of 2026-10-25; recheck when any of them changes.
   failed. Report each step by its id; an optional step
   whose target is absent is `skipped: optional`; finally steps run after a failure too. Artifact
   names carry the step id.
-- **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
+- **Cleanup touches only what this run started.** Stop each process in `launch`, one per app, after
+  [Recheck before touching the pid](#pid-binding). Detach from an attached process; never stop it.
   Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
   the outcome.
@@ -164,8 +165,9 @@ A `threads` capture reaches only the process this run launched. The one other ro
 interactive [Attach](#attach) to a pid the person names, which has no launch record and so no
 recheck. The other kinds keep the rules above.
 
-- **Record at launch.** The launch step writes the launched process's pid, owner uid, start time,
-  command line and the command line's sha256 into `report.json` (`launch`,
+- **Record at launch.** For each process it launches, one per app, the launch step writes the
+  app, pid, owner uid, start time, command line and the command line's sha256 into `report.json`
+  (`launch`,
   [`${CLAUDE_SKILL_DIR}/reference/evidence.md`](reference/evidence.md)). The uid is the one every uid field of the
   process holds (real, effective, saved and filesystem must all be equal). The start time is the
   integer the process table gives (on Linux, the `starttime` field of

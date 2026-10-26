@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: unpinned-checkout-stops
-description: A feature that includes an integrated app's steps from a checkout that exists stops before launching when the hub's committed config holds no pin for that app, naming the pin setting and telling the person to fetch or check out
+description: A feature that includes an integrated app's steps from a checkout that exists stops before launching when the hub's committed config holds no pin for that app, naming the pin setting and telling the person to commit it
 tags: [drive, integrated-apps, multi-repo, pin, invented]
-expected_outcome: "The reply finds the identity checkout through checkouts.identity, but the shop's committed config/defaults.json holds no pins.identity, so the run stops orders/history before launching anything. It names pins.identity as unset (with the setting checkouts.identity) and says to fetch or check out the pinned commit once one is committed; it launches nothing and drives neither the identity sign-in steps nor the history steps."
+expected_outcome: "The reply finds the identity checkout through checkouts.identity, but the shop's committed config/defaults.json holds no pins.identity, so the run stops orders/history before launching anything. It names pins.identity as unset (with the setting checkouts.identity) and says to commit pins.identity, for example through /app-control:map; it launches nothing and drives neither the identity sign-in steps nor the history steps."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -23,4 +23,4 @@ graders:
     arm: both
   - name: stops-on-missing-pin
     type: llm
-    criteria: "PASS only if the reply (1) says the run stops orders/history before launching anything because the shop's committed config sets no pin for the identity app, (2) names the setting pins.identity as unset or missing, and (3) tells the person to fetch or check out (or to commit a pin and then fetch or check out). FAIL if it launches or would launch either app, drives the identity sign-in or the history steps, stops only because the checkout is missing (the checkout exists at checkouts/identity), or treats the checkout's HEAD as an acceptable pin when none is committed."
+    criteria: "PASS only if the reply (1) says the run stops orders/history before launching anything because the shop's committed config sets no pin for the identity app, (2) names the setting pins.identity as unset or missing, and (3) tells the person to commit pins.identity (for example through /app-control:map). FAIL if it launches or would launch either app, drives the identity sign-in or the history steps, stops only because the checkout is missing (the checkout exists at checkouts/identity), or treats the checkout's HEAD as an acceptable pin when none is committed."

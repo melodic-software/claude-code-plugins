@@ -1,8 +1,10 @@
 """Two-process eval fixture: an app that signs users in through a stub identity server.
 
 Roles, each its own process:
-  serve.py idp --port N                     identity server stub
-  serve.py app --port N --identity URL      app whose /login redirects to the identity server
+  serve.py idp --port N | --url URL         identity server stub
+  serve.py app --port N | --url URL --identity URL
+                                            app whose /login redirects to the identity server
+  serve.py health URL                       read URL/health; exit 0 on 200
   serve.py --self-test                      start both on free ports, check the sign-in chain, stop both
 
 Standard library only, so it runs under `python3 -I`.
@@ -10,6 +12,7 @@ Standard library only, so it runs under `python3 -I`.
 
 import argparse
 import json
+import socket
 import subprocess
 import sys
 import time
@@ -20,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 CODE = "fixture-code"
 SESSION = "session=signed-in"
+SHELL_CHARS = "$`'\"\\;|<>"
 
 
 def make_handler(role, identity):
@@ -70,9 +74,11 @@ def make_handler(role, identity):
 
 
 def http_url(value):
-    """argparse type: an http(s) URL with a host and no whitespace or control character."""
-    if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in value):
-        raise argparse.ArgumentTypeError(f"{value!r} holds whitespace or a control character")
+    """argparse type: an http(s) URL with a host and no whitespace, control or shell character."""
+    if any(c.isspace() or ord(c) < 32 or ord(c) == 127 or c in SHELL_CHARS for c in value):
+        raise argparse.ArgumentTypeError(
+            f"{value!r} holds whitespace, a control character or a shell character"
+        )
     try:
         u = urllib.parse.urlsplit(value)
         u.port
@@ -81,6 +87,26 @@ def http_url(value):
     if u.scheme not in ("http", "https") or not u.hostname:
         raise argparse.ArgumentTypeError(f"{value!r} is not an http or https URL")
     return value
+
+
+def listen_port(url):
+    """The loopback port a --url names."""
+    u = urllib.parse.urlsplit(url)
+    if u.hostname not in ("127.0.0.1", "localhost") or u.port is None:
+        raise SystemExit(f"{url!r} must name a loopback host and a port")
+    return u.port
+
+
+def health(url):
+    status, _, body = get(f"{url.rstrip('/')}/health")
+    print(body.decode(errors="replace"))
+    return 0 if status == 200 else 1
+
+
+def free_port():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
 
 
 def serve(role, port, identity):
@@ -104,8 +130,9 @@ def get(url):
 
 
 def start(*role_args):
+    port_args = [] if "--url" in role_args else ["--port", "0"]
     proc = subprocess.Popen(
-        [sys.executable, "-I", __file__, *role_args, "--port", "0"],
+        [sys.executable, "-I", __file__, *role_args, *port_args],
         stdout=subprocess.PIPE,
         text=True,
     )
@@ -172,7 +199,27 @@ def self_test():
             status, _, _ = get(f"{idp_url}/authorize?{query}")
             check(status == 400, f"identity /authorize accepted {bad!r} with {status}")
 
-        for bad in ("file:///etc/passwd", "http://", f"{idp_url} --port 1", "http://127.0.0.1:x"):
+        done = subprocess.run(
+            [sys.executable, "-I", __file__, "health", idp_url],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        check(done.returncode == 0 and '"idp"' in done.stdout, "health did not read the idp")
+
+        port = free_port()
+        by_url, by_url_root = start("idp", "--url", f"http://127.0.0.1:{port}")
+        procs.append(by_url)
+        check(by_url_root == f"http://127.0.0.1:{port}", "--url did not set the listen port")
+
+        for bad in (
+            "file:///etc/passwd",
+            "http://",
+            f"{idp_url} --port 1",
+            "http://127.0.0.1:x",
+            "http://127.0.0.1:1/$(id)",
+            "http://127.0.0.1:1/a;b",
+        ):
             try:
                 code = subprocess.run(
                     [sys.executable, "-I", __file__, "app", "--port", "0", "--identity", bad],
@@ -196,17 +243,26 @@ def self_test():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("role", nargs="?", choices=["app", "idp"])
+    parser.add_argument("role", nargs="?", choices=["app", "idp", "health"])
+    parser.add_argument("target", nargs="?", type=http_url)
     parser.add_argument("--port", type=int, default=0)
+    parser.add_argument("--url", type=http_url)
     parser.add_argument("--identity", type=http_url)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         self_test()
+    elif args.role == "health":
+        if not args.target:
+            parser.error("health needs a URL")
+        sys.exit(health(args.target))
+    elif args.target:
+        parser.error(f"{args.role} takes no positional URL")
     elif args.role == "app" and not args.identity:
         parser.error("app needs --identity URL")
     elif args.role:
-        serve(args.role, args.port, (args.identity or "").rstrip("/"))
+        port = listen_port(args.url) if args.url else args.port
+        serve(args.role, port, (args.identity or "").rstrip("/"))
     else:
         parser.error("give a role or --self-test")
 

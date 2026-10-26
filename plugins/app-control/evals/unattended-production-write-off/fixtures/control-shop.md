@@ -12,7 +12,7 @@ Integrated apps: none
 
 ## Ready
 
-`curl -fsS <environment url>/health`
+`cli/shop ready <environment url>`
 
 ## Capture
 

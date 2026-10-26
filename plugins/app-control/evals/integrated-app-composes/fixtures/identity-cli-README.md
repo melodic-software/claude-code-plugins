@@ -1,6 +1,7 @@
 # identity driver CLI
 
-`cli/identity <command> [flags]`, one JSON document on stdout under `--json`, progress on stderr.
+`cli/identity <command> [flags]`, one JSON document on stdout under `--json` that names the
+environment it ran against, progress on stderr.
 
 | Command | Does |
 |---|---|
