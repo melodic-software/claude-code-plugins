@@ -365,10 +365,16 @@ ALL_POOLS = "*"
 # The pools a non-`api` subcommand (`gh pr view`, `gh repo list`) may spend:
 # gh picks GraphQL or REST per command.
 _SUBCOMMAND_POOLS = ("core", "graphql")
-_REPO_ROOT = Path(__file__).resolve().parents[5]
-LIMITS_CONFIG = _REPO_ROOT / "docs" / "conventions" / "pr-pipeline.yaml"
+# The repository root, five levels up; None in a copy too shallow for one,
+# which then has no config and no margins.
+_PARENTS = Path(__file__).resolve().parents
+_REPO_ROOT = _PARENTS[5] if len(_PARENTS) > 5 else None
+_CONVENTIONS = None if _REPO_ROOT is None else _REPO_ROOT / "docs" / "conventions"
+LIMITS_CONFIG = None if _CONVENTIONS is None else _CONVENTIONS / "pr-pipeline.yaml"
 LIMITS_SCHEMA = (
-    _REPO_ROOT / "docs" / "conventions" / "pr-pipeline" / "pr-pipeline.schema.json"
+    None
+    if _CONVENTIONS is None
+    else _CONVENTIONS / "pr-pipeline" / "pr-pipeline.schema.json"
 )
 LIMITS_FIELDS = ("writer-pause", "read-floor")
 # The shares with no repo config: no margin, so only a signal stops a call.
@@ -652,6 +658,8 @@ def pool_limits(pool: str) -> dict[str, float] | str:
 def warm_rate_guard() -> None:
     """Read every `limits.api` pool the schema names now, before a test fakes
     the subprocess seam the reader runs through."""
+    if LIMITS_SCHEMA is None:
+        return
     try:
         schema = json.loads(LIMITS_SCHEMA.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -664,7 +672,7 @@ def warm_rate_guard() -> None:
 def _read_pool_limits(pool: str) -> dict[str, float] | str:
     import babysit_merge_policy as merge_policy  # noqa: PLC0415 - imports this module
 
-    if not LIMITS_CONFIG.exists():
+    if LIMITS_CONFIG is None or LIMITS_SCHEMA is None or not LIMITS_CONFIG.exists():
         return dict(NO_MARGINS)
     try:
         schema = json.loads(LIMITS_SCHEMA.read_text(encoding="utf-8"))

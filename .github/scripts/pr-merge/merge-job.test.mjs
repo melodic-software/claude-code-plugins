@@ -89,7 +89,7 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
-const runListing = (failures, edit, actors, env = {}) => {
+const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway") => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
   try {
     const bin = join(dir, "bin");
@@ -98,7 +98,7 @@ const runListing = (failures, edit, actors, env = {}) => {
       join(bin, "gh"),
       `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
-        `if [ "$n" -le ${failures} ]; then echo "HTTP 502: Bad Gateway" >&2; exit 1; fi\n` +
+        `if [ "$n" -le ${failures} ]; then echo "${failure}" >&2; exit 1; fi\n` +
         `echo '[{"number":7,"headRefOid":"abc","isDraft":false,"updatedAt":"2026-10-18T00:00:00Z","labels":[],"body":""}]'\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
@@ -116,6 +116,9 @@ const runListing = (failures, edit, actors, env = {}) => {
       const list = join(root, ".github/standards/trusted-actors/trusted-actors.json");
       writeFileSync(join(standards, "trusted-actors.json"), actors === undefined ? readFileSync(list, "utf8") : JSON.stringify({ version: 1, actors }));
       symlinkSync(join(root, "plugins"), join(dir, ".base/plugins"));
+      // The shared rate guard the listing sources.
+      symlinkSync(join(root, ".github/actions"), join(dir, ".base/.github/actions"));
+      symlinkSync(join(root, ".github/scripts"), join(dir, ".base/.github/scripts"));
     }
     const output = join(dir, "output");
     const result = spawnSync("bash", ["-c", runScript("List the candidate PRs")], {
@@ -228,6 +231,17 @@ test("the mode step outputs merge.lane-prs as resolve-config resolved it, and th
     }
   }
   assert.match(step("List the candidate PRs"), /\n {10}LANE_PRS: \$\{\{ steps\.mode\.outputs\.lane-prs \}\}\n/);
+});
+
+// A rate limit is never retried, gh's bare 429 message included.
+test("a rate-limited listing stops red after one call, a bare HTTP 429 included", () => {
+  for (const failure of ["gh: Too Many Requests (HTTP 429)", "API rate limit exceeded for installation ID 1. (HTTP 403)"]) {
+    const run = runListing(3, undefined, undefined, {}, failure);
+    assert.equal(run.status, 1, failure);
+    assert.equal(run.calls, 1, failure);
+    assert.match(run.stdout, /^::error title=GitHub rate limit::gh pr list --author app\/[a-z0-9-]+ was rate limited \(every pool until /m, failure);
+    assert.equal(run.prefiltered, false);
+  }
 });
 
 test("the listing fails with one clear error after three failed tries", () => {
@@ -1153,6 +1167,7 @@ const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", r
         `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
         `if [ "$v" = x ]; then say 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "HTTP 502" >&2; exit 1; fi\n` +
         `if [ "$v" = limited ]; then say '${LIMITED_403}'; echo "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" >&2; exit 1; fi\n` +
+        `if [ "$v" = bare429 ]; then echo "gh: Too Many Requests (HTTP 429)" >&2; exit 1; fi\n` +
         `say "HTTP/2.0 200 OK\\r\\n\\r\\n$v\\n"\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
@@ -1276,6 +1291,17 @@ test("a rate-limited re-run POST stops the step red, sends it once, and names th
   assert.equal(run.record, "");
   assert.match(run.stdout, /::error title=GitHub rate limit::the re-run of run 11 was rate limited \(every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\)/);
   assert.match(run.output, /^rate-limited=true$/m);
+  assert.match(run.output, /^stop=every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/m);
+});
+
+// gh's bare 429 message, with no header block or message naming a rate
+// limit, is a rate limit too: never read again.
+test("a bare HTTP 429 on the read-back stops the re-run step red after one read", () => {
+  const run = runRerun([1, "bare429", 2]);
+  assert.equal(run.status, 1, run.stdout);
+  assert.equal(run.record, "");
+  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 2);
+  assert.match(run.stdout, /::error title=GitHub rate limit::the read-back of run 11's re-run was rate limited \(every pool until /);
   assert.match(run.output, /^stop=every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/m);
 });
 

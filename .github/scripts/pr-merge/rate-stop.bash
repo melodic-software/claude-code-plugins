@@ -23,3 +23,19 @@ rate_stop_label() {
   fi
   echo "$pool until $(api_budget_when "$until")"
 }
+
+# The stop after a failed call whose stderr is in <file>: the one the rate guard
+# recorded, else, when gh's message names a rate limit or a 429 but the guard
+# saw no headers, the stop api_budget_pass records for such a call (every
+# pool, a minute for a secondary limit, else an hour), recorded the same way.
+# Prints nothing when the call was no rate limit.
+rate_stop_from() {
+  local stop seconds=3600
+  stop=$(rate_stop_label)
+  if [[ -z $stop ]] && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$1" 2>/dev/null; then
+    ! grep -qiE 'secondary rate limit|abuse detection' "$1" || seconds=60
+    api_budget_stop '*' $(($(date +%s) + seconds)) fallback "$2" 2>/dev/null || :
+    stop=$(rate_stop_label)
+  fi
+  echo "$stop"
+}

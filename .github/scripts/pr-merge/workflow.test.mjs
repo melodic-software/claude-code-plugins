@@ -59,7 +59,7 @@ test("a push job holds the group until the dispatched run finishes", () => {
 // it raises no workflow_run event.
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const SEND = `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242 -f inputs[head-sha]=${HEAD}`;
-function runWait(conclusion, { dispatchFails = false, limited = false } = {}) {
+function runWait(conclusion, { dispatchFails = false, limited = false, limitedMessage = "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" } = {}) {
   const step = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   const body = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
     .exec(step)[1]
@@ -77,7 +77,7 @@ function runWait(conclusion, { dispatchFails = false, limited = false } = {}) {
 printf '%s\\n' "$*" >>"${dir}/log"
 case "$*" in
   *-X\\ POST*) exit ${dispatchFails ? 1 : 0} ;;
-  ${limited ? "*) echo 'gh: API rate limit exceeded for installation ID 1. (HTTP 403)' >&2; exit 1 ;;" : ""}
+  ${limited ? `*) echo '${limitedMessage}' >&2; exit 1 ;;` : ""}
   *) jq -r "\${@: -1}" <<<'{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}' ;;
 esac
 `,
@@ -107,6 +107,15 @@ esac
 
 test("a rate-limited read of the full run stops the wait red after one read", () => {
   const { status, out, reads, writes } = runWait("failure", { limited: true });
+  assert.equal(status, 1, out);
+  assert.equal(reads, 1);
+  assert.deepEqual(writes, []);
+  assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+});
+
+// gh's bare 429 message names no rate limit, and is one all the same.
+test("a bare HTTP 429 on the read of the full run stops the wait red after one read", () => {
+  const { status, out, reads, writes } = runWait("failure", { limited: true, limitedMessage: "gh: Too Many Requests (HTTP 429)" });
   assert.equal(status, 1, out);
   assert.equal(reads, 1);
   assert.deepEqual(writes, []);

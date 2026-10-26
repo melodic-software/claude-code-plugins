@@ -390,16 +390,18 @@ jobs:
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           api_budget_wrap_gh github-token
+          err=$RUNNER_TEMP/rerun-stderr
           stopped() {
             local stop
-            stop=$(rate_stop_label)
+            cat "$err" >&2
+            stop=$(rate_stop_from "$err" "$1")
             [ -n "$stop" ] || return 0
             echo "::error title=GitHub rate limit::$1 was rate limited ($stop); nothing more is sent and nothing recorded"
             echo "rate-limited=true" >>"$GITHUB_OUTPUT"
             echo "stop=$stop" >>"$GITHUB_OUTPUT"
             exit 1
           }
-          if ! attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt); then
+          if ! attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt 2>"$err"); then
             stopped "the read of run $RUN_ID"
             echo "::error::the read of run $RUN_ID failed; no re-run started or recorded"
             exit 1
@@ -408,7 +410,7 @@ jobs:
             echo "::notice::run $RUN_ID is at attempt $attempt; no re-run started or recorded"
             exit 0
           fi
-          if ! gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+          if ! gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null 2>"$err"; then
             stopped "the re-run of run $RUN_ID"
             echo "::warning::the re-run of run $RUN_ID was refused; the next run tries again"
             exit 0
@@ -419,10 +421,9 @@ jobs:
           # refused for a rate limit is never retried.
           for wait in 0 5 10 20 30 45 60; do
             sleep "$wait"
-            if attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt 2>"$RUNNER_TEMP/rerun-stderr"); then
+            if attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt 2>"$err"); then
               [ "$attempt" = 1 ] || break
             else
-              cat "$RUNNER_TEMP/rerun-stderr" >&2
               stopped "the read-back of run $RUN_ID's re-run"
               attempt=
             fi
@@ -742,7 +743,12 @@ jobs:
             authors+=(app/dependabot)
           fi
           # A 5xx from the API fails one call; three tries, then one clear
-          # error instead of jq and the prefilter failing on empty input.
+          # error instead of jq and the prefilter failing on empty input. A
+          # rate limit is never retried: calling on while limited risks a ban.
+          # gh goes through the shared rate guard (api-budget.bash).
+          . .base/.github/actions/log-api-budget/api-budget.bash
+          . .base/.github/scripts/pr-merge/rate-stop.bash
+          api_budget_wrap_gh github-token
           listing="$RUNNER_TEMP/listing.jsonl"
           : >"$listing"
           for author in "${authors[@]}"; do
@@ -752,9 +758,9 @@ jobs:
                 break
               fi
               cat "$RUNNER_TEMP/list-stderr" >&2
-              # A rate limit is never retried: calling on while limited risks a ban.
-              if grep -qi 'rate limit' "$RUNNER_TEMP/list-stderr"; then
-                echo "::error title=GitHub rate limit::gh pr list --author $author was rate limited; nothing more is sent, and the next scheduled run lists again"
+              stop=$(rate_stop_from "$RUNNER_TEMP/list-stderr" "gh pr list --author $author")
+              if [ -n "$stop" ]; then
+                echo "::error title=GitHub rate limit::gh pr list --author $author was rate limited ($stop); nothing more is sent, and the next scheduled run lists again"
                 exit 1
               fi
               if [ "$attempt" = 3 ]; then
@@ -1937,8 +1943,10 @@ jobs:
             sleep 180
             if ! state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + .head_sha + " " + (.conclusion // "")' 2>"$RUNNER_TEMP/wait-stderr"); then
               cat "$RUNNER_TEMP/wait-stderr" >&2
-              # A read refused for a rate limit is never retried.
-              if grep -qi 'rate limit' "$RUNNER_TEMP/wait-stderr"; then
+              # A read refused for a rate limit, a bare 429 included, is never
+              # retried. This job has no checkout of the shared guard, so the
+              # match is the pattern rate-stop.bash's rate_stop_from reads.
+              if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$RUNNER_TEMP/wait-stderr"; then
                 echo "::error title=GitHub rate limit::the read of run $RUN_ID was rate limited; nothing more is sent"
                 exit 1
               fi

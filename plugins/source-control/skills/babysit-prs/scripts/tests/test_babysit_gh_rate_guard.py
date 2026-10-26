@@ -358,6 +358,37 @@ class HeadroomShares(GuardCase):
         self.assertEqual(len(self.sent), 2)
 
 
+class AShallowInstallPath(unittest.TestCase):
+    """A copy of the scripts too shallow for the repository root (fewer than
+    six parents) still imports, and has no margins."""
+
+    def test_the_module_imports_with_no_repo_root_and_no_margins(self) -> None:
+        source = SCRIPTS / "babysit_gh.py"
+        code = textwrap.dedent(
+            f"""
+            import sys, types
+            sys.path.insert(0, {str(SCRIPTS)!r})
+            module = types.ModuleType("babysit_gh")
+            module.__file__ = "/x/babysit_gh.py"
+            sys.modules["babysit_gh"] = module
+            path = {str(source)!r}
+            exec(compile(open(path, encoding="utf-8").read(), module.__file__, "exec"), module.__dict__)
+            print(module.LIMITS_CONFIG, module.LIMITS_SCHEMA)
+            module.warm_rate_guard()
+            print(module.pool_limits("core") == module.NO_MARGINS)
+            """
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "RUNNER_TEMP": ""},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.splitlines(), ["None None", "True"])
+
+
 class NoRepoConfig(GuardCase):
     """The installed-plugin layout: no pr-pipeline.yaml or schema beside it."""
 
