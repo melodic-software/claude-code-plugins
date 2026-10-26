@@ -93,16 +93,23 @@
 // edited in place while it is a lane's, posted anew when it becomes a
 // person's, and left alone while the reason and head are unchanged
 // (refusalWrites). The
-// comment is the record; only a cause a person must clear (owner direction
-// 2026-10-24: untrusted provenance, a security finding, a trusted-actor
-// widening or a real charge, see verifyClears; a hold path, a configured
-// denied path or the floor, which only a trusted approval lifts; and the
-// lane's own hold line, owner decision Q-HOLDLINE) also gets the human-gated
-// label, put back while the comment stands unless a person removed it
-// since. clear-escalations takes the label off once the head moves, and
-// this run labels the new head again only if its cause still holds. Holds a
-// person already set (labels, their own body hold, a veto), the room and
-// failed reads write nothing.
+// comment is the record; only a cause a person must clear (owner rule
+// 2026-10-26: an intent or design change or a HIGH or CRITICAL security
+// issue, with cost and trust holds kept: untrusted provenance or an
+// untrusted spec, a security finding, a high path, a trusted-actor widening
+// or a real charge, see verifyClears; a hold path, a configured denied path
+// or the floor, which only a trusted approval lifts; and the lane's own hold
+// line, owner decision Q-HOLDLINE) also gets the human-gated label, put back
+// while the comment stands unless a person removed it since. Every other
+// refusal, a listing or label read that failed included, is a lane's: the
+// next scheduled runs judge it again, and once its comment has stood
+// unchanged at the head for merge.risk-escalation-minutes the run hands a
+// failing `pr-merge/unarmed` status for the head to the unarmed-status job
+// (unarmedStatus, post-unarmed-status.mjs), and a passing one when it arms.
+// clear-escalations takes the label off at the latest once the head moves,
+// and this run labels the new head again only if its cause still holds.
+// Holds a person already set (labels, their own body hold, a veto), the room
+// and a discussion that did not read write nothing.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. Before it arms, the run
 // posts the gate's pin comment for that head (pinBody) unless the lanes App's
@@ -132,6 +139,9 @@
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
 //   RUNG_CAP             vars.CLAUDE_LANES_MERGE_RUNG_CAP (empty is no cap;
 //                        unset holds the lane off, as the gate reads it)
+//   RISK_ESCALATION_MINUTES  merge.risk-escalation-minutes (empty is
+//                        RISK_ESCALATION_MINUTES)
+//   GITHUB_OUTPUT        receives UNARMED_OUTPUT for the unarmed-status job
 //   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token (the
 //                        job's GITHUB_TOKEN), saved listing, head-ref map and
 //                        run cache, as the gate's
@@ -303,6 +313,9 @@ async function answerBody(text) {
   }
 }
 
+// merge-holds.pathHold's reason for a changed file a hold path matches.
+const HOLD_PATH_HIT = /^it changes .*, a hold path$/s;
+
 // The hold reason for report-outcome's own hold line (merge-holds.mjs
 // LANE_HOLD), a cause a person must clear (owner decision Q-HOLDLINE).
 export const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
@@ -449,24 +462,21 @@ export function verifyHold(evidence, head) {
   return evidence.reviews === null ? null : "its risk score could not be read";
 }
 
-// The verifier refusals and risk reason codes a person must clear (owner
-// direction 2026-10-24): untrusted provenance, the repeated-FAIL round cap
-// (a kept cap no lane clears), a security finding (a CRITICAL one, or a
-// path that could alias another, a symlink, submodule or mode change:
-// `high-path:**`), a trusted-actor widening and a cost hold. A risk reason
-// opens the reasons string or follows "; "
-// (babysit_verify_evidence.lane_risk_refusal).
-export const PERSON_REFUSALS = Object.freeze(["verify:untrusted-spec", "verify:repeated-fail"]);
-export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
-const PERSON_RISK = /(?:^|; )(?:security-finding|trust-gate:[a-z-]+|cost-review-required|high-path:\*\*):/;
+// The trust hold's reasons a person must clear: an issue label naming
+// untrusted work (babysit_merge_policy.trust_refusal). Its other reason,
+// TRUST_UNREAD, is a read that failed, which the next run reads again.
+export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human"]);
+export const TRUST_UNREAD = "issue-labels-unreadable";
 
-// Who clears the refusal verifyHold reads in `evidence` at `head`: `person`
-// for a PERSON_REFUSALS refusal, an issue link the trust hold refuses
-// (TRUST_REFUSALS, babysit_merge_policy.trust_refusal's reasons) or a
-// risk hold carrying a PERSON_RISK reason, `lane` for every other refusal
-// (any other issue link the lane does not take, a FAIL, a changed spec, another risk reason), which gets the comment
-// and no label, and null for an unread answer, which the next run reads
-// again.
+// Who clears the refusal verifyHold reads in `evidence` at `head` (owner rule
+// 2026-10-26: a person only for an intent or design change, or a HIGH or
+// CRITICAL security issue; cost and trust holds stay a person's): `person`
+// for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
+// refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
+// or a risk hold it marks `reviewsPerson` (babysit_risk.person_reasons),
+// `lane` for every other refusal, which gets the comment and no label, and
+// null for an unread answer, which the next run reads again. An answer
+// without its flag is a person's, as any doubt holds.
 export function verifyClears(evidence, head) {
   if (evidence === null || typeof evidence !== "object" || evidence.head !== head) {
     return null;
@@ -475,10 +485,10 @@ export function verifyClears(evidence, head) {
     return TRUST_REFUSALS.includes(evidence.ineligible) ? "person" : "lane";
   }
   if (typeof evidence.refusal === "string") {
-    return PERSON_REFUSALS.includes(evidence.refusal) ? "person" : "lane";
+    return evidence.needsHuman === false ? "lane" : "person";
   }
   if (evidence.ineligible === null && typeof evidence.reviews === "string") {
-    return PERSON_RISK.test(evidence.reviews) ? "person" : "lane";
+    return evidence.reviewsPerson === false ? "lane" : "person";
   }
   return null;
 }
@@ -574,6 +584,33 @@ export function refusalWrites(pull, comments, { clears, reason, comment }, { bot
   // An escalation to a person posts a new comment: an edit notifies no one
   // and keeps the old date, so the label would stand unexplained.
   return body === person ? { body, commentId: null, label } : { body, commentId: prior?.databaseId ?? null, label: null };
+}
+
+// The commit status context the status job posts (pr-merge.yml
+// unarmed-status), and the step output enable-auto-merge hands it.
+export const UNARMED_CONTEXT = "pr-merge/unarmed";
+export const UNARMED_OUTPUT = "unarmed-statuses";
+// GitHub's limit on a status description.
+const STATUS_DESCRIPTION_CHARS = 140;
+// merge.risk-escalation-minutes' default (babysit_merge_policy.RISK_ESCALATION_MINUTES).
+export const RISK_ESCALATION_MINUTES = 60;
+
+// The failing `pr-merge/unarmed` status for a refusal the lanes clear
+// (`clears` lane) whose comment has stood unchanged at the head for
+// `minutes`: the next scheduled runs judge it again until then, and past it
+// the hold shows as a failing status on the head, never a label (owner rule
+// 2026-10-26). Null while it has stood less, and for any other refusal.
+export function unarmedStatus(pull, comments, { clears, reason, comment }, { bot, now, minutes }) {
+  if (clears !== "lane") {
+    return null;
+  }
+  const body = typeof comment === "string" ? comment : refusalBody(false, reason, pull.headRefOid, "");
+  const prior = priorRefusal(comments, bot, body.split("\n", 1)[0]);
+  const since = Date.parse(String(prior?.updatedAt ?? prior?.createdAt));
+  if (prior?.body !== body || !(now - since >= minutes * 60_000)) {
+    return null;
+  }
+  return { sha: pull.headRefOid, state: "failure", description: Array.from(String(reason).replaceAll(/\s+/g, " ")).slice(0, STATUS_DESCRIPTION_CHARS).join("") };
 }
 
 // The newest label removals on a pull request, for refusalWrites' lift check.
@@ -764,9 +801,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (holdPaths === null) {
     return { action: armed ? "disarm" : "none", reason: "the hold paths could not be read" };
   }
+  // A hold path a person clears; a listing or check that could not run is
+  // a lane's, which the next run reads again.
   const pathHeld = pathHold(detail.files, holdPaths);
   if (pathHeld !== null) {
-    return { action: armed ? "disarm" : "none", reason: pathHeld, clears: "person" };
+    return { action: armed ? "disarm" : "none", reason: pathHeld, clears: HOLD_PATH_HIT.test(pathHeld) ? "person" : "lane" };
   }
   const costHeld = costHold(detail.files, detail.costDecision);
   if (costHeld !== null) {
@@ -814,7 +853,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch } = {}) {
+export async function main({ env = process.env, github, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -829,6 +868,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       throw new Error("LANES_BOT_LOGIN is not an App bot login");
     }
     const write = env.REPORT_ONLY === "false";
+    const minutes = /^[0-9]+$/.test(env.RISK_ESCALATION_MINUTES ?? "") ? Number(env.RISK_ESCALATION_MINUTES) : RISK_ESCALATION_MINUTES;
+    // The pr-merge/unarmed statuses for the status job (UNARMED_OUTPUT).
+    const statuses = [];
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
     // The newest answer's rate limit and body, for an arm GitHub refuses.
@@ -895,6 +937,10 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const note = async (pull, detail, refusal) => {
       if (!reads || refusal.clears === undefined) {
         return;
+      }
+      const status = unarmedStatus(pull, detail?.comments?.nodes, refusal, { bot: slug, now: now(), minutes });
+      if (status !== null && write) {
+        statuses.push(status);
       }
       const writes = refusalWrites(pull, detail?.comments?.nodes, refusal, { bot: slug, label: humanGated });
       if (writes === null) {
@@ -1028,6 +1074,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           arms += 1;
           await github("POST", "/graphql", { query: ARM_MUTATION, variables: { id: pull.id, head: pull.headRefOid } });
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
+          statuses.push({ sha: pull.headRefOid, state: "success", description: "armed for native auto-merge" });
         } else {
           await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
           if (roomHeld.has(pull.number)) {
@@ -1097,6 +1144,14 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     }
     for (const [level, text] of lines) {
       console.log(`::${level} title=enable-auto-merge::${text}`);
+    }
+    if (statuses.length > 0 && env.GITHUB_OUTPUT) {
+      try {
+        appendFileSync(env.GITHUB_OUTPUT, `${UNARMED_OUTPUT}=${JSON.stringify(statuses)}\n`);
+      } catch (error) {
+        failed += 1;
+        console.log(`::error title=enable-auto-merge::the ${UNARMED_CONTEXT} statuses were not handed on: ${describe(error)}`);
+      }
     }
     // Each verifier read's cost too, so a run's spend reads per pull request.
     const summary = [...lines.map(([, text]) => text), ...(verify.costs ?? []).map(costLine)];

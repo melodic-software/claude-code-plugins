@@ -89,6 +89,7 @@ import enum
 import json
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -1053,6 +1054,27 @@ def holding(result: RiskResult) -> list[Reason]:
         for r in result.reasons
         if r.severity is not Risk.MED
         or not (r.code in MERGEABLE_MED or r.code.startswith(_MERGEABLE_MED_PREFIX))
+    ]
+
+
+# The holding reasons only a person clears (owner rule 2026-10-26: a person
+# only for an intent or design change or a HIGH or CRITICAL security issue;
+# cost and trust holds stay): a CRITICAL security finding, a trusted-actor
+# widening, a cost hold and every high path (the floor, a configured denied
+# path, or an aliasing path, symlink, submodule or mode change). The lanes
+# clear every other holding reason, such as review evidence not yet bound to
+# the head or an unread listing, by judging again. The one list both the
+# merge gate and enable-auto-merge.mjs read.
+PERSON_CODES = frozenset({LANES[_HOLDING_LANE][0], COST_CODE})
+PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:")
+
+
+def person_reasons(reasons: Iterable[Reason]) -> list[Reason]:
+    """The reasons in `reasons` only a person clears (`PERSON_CODES`)."""
+    return [
+        r
+        for r in reasons
+        if r.code in PERSON_CODES or r.code.startswith(PERSON_PREFIXES)
     ]
 
 

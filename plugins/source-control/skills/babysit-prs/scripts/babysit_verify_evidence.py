@@ -73,13 +73,15 @@ from a completed, successful one. Any other artifact is ignored.
   head whose passes all predate the spec's last change, and the lost-run
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
-  for a person;
+  for a new head;
 - otherwise `verify:missing`.
 
-`verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and
-`verify:untrusted-spec` need a human, who merges in person; a
-`verify:repeated-fail` escalation quotes the newest head FAIL's summary
-(`Reader.fail_summary`). A `verify:fail` or `verify:earlier-fail` only waits:
+Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
+person (owner rule 2026-10-26). `verify:too-old`, `verify:repeated-fail` and
+`verify:spec-changed` hold for the lanes: the gate comments, a
+`verify:repeated-fail` comment quoting the newest head FAIL's summary
+(`Reader.fail_summary`), and enable-auto-merge.mjs shows a refusal that
+stands as a failing `pr-merge/unarmed` status. A `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
@@ -235,12 +237,12 @@ INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
-NEEDS_HUMAN = (
-    REPEATED_FAIL,
-    TOO_OLD,
-    UNTRUSTED_SPEC,
-    SPEC_CHANGED,
-)
+# The refusals only a person clears (owner rule 2026-10-26: a person only
+# for intent, design or a HIGH or CRITICAL security issue): an untrusted
+# spec, a provenance hold. The repeated-FAIL cap, an old pull request and a
+# changed spec hold for the lanes, which judge them again. The one list the
+# merge gate and enable-auto-merge.mjs (`needsHuman`) read.
+NEEDS_HUMAN = (UNTRUSTED_SPEC,)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -1868,8 +1870,9 @@ def lane_risk_refusal(
     pr: dict[str, Any],
     config: merge_policy.PipelineConfig,
     issue: int | None,
-) -> str | None:
-    """Why pr-merge's gate would hold the pull request on its risk score, or
+) -> tuple[str, bool] | None:
+    """Why pr-merge's gate would hold the pull request on its risk score, and
+    whether only a person clears it (`babysit_risk.person_reasons`), or
     None: `babysit_risk.score` and `holding` over the inputs the gate builds
     (`babysit_merge.score_unattended`) for a lane pull request, with `config`
     the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
@@ -1885,7 +1888,7 @@ def lane_risk_refusal(
     try:
         identity = config.agent_identity
         if not identity:
-            return "unreadable: no agent identity"
+            return "unreadable: no agent identity", False
         permission = merge_policy.permission_reader(repo)
         files, complete = merge_policy.changed_files(repo, pr)
         lanes, _ = babysit_merge._lane_evidence(
@@ -1921,9 +1924,10 @@ def lane_risk_refusal(
             if decision:
                 risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
-        return f"unreadable: {type(exc).__name__}: {exc}"
+        return f"unreadable: {type(exc).__name__}: {exc}", False
     held = babysit_risk.holding(risk)
-    return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
+    text = "; ".join(f"{r.code}: {r.detail}" for r in held)
+    return (text, bool(babysit_risk.person_reasons(held))) if text else None
 
 
 def lane_queue(
@@ -1981,7 +1985,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
-    the pull request on its risk score (`lane_risk_refusal`), else why. With
+    the pull request on its risk score (`lane_risk_refusal`), else why, and
+    `reviewsPerson`: whether only a person clears that hold. With
     `--lane-queue` too, a line whose `reviews` is null also carries `queue`
     (`lane_queue`): the head's failed-check merge-queue removals, the
     `merge.max-queue-ejections` limit, and the gate's refusal and comment at
@@ -2080,6 +2085,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:
         head = json_object(json_object(pr).get("head")).get("sha")
+        # Whether only a person clears `reviews`; an unread score the lanes
+        # read again.
+        link["reviewsPerson"] = False
         if head != args.head:
             link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
         elif config is None:
@@ -2092,8 +2100,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                 cap=args.rung if args.rung in merge_policy.RUNG_RANK else "off",
                 demoted=False,
             ).rung
-            link["reviews"] = (
-                f"unreadable: the lane's rung is {args.rung}"
+            held = (
+                (f"unreadable: the lane's rung is {args.rung}", False)
                 if rung == "off"
                 else lane_risk_refusal(
                     args.repo,
@@ -2103,6 +2111,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                     reader.linked_issue.get(args.number),
                 )
             )
+            link["reviews"], link["reviewsPerson"] = held or (None, False)
         if args.lane_queue and link["reviews"] is None and config is not None:
             link["queue"] = lane_queue(
                 args.repo,

@@ -22,8 +22,10 @@ import babysit_risk
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
+    Reason,
     Risk,
     RiskInput,
+    holding,
     holds,
     normalize_path,
     score,
@@ -1456,6 +1458,51 @@ class HoldsTests(unittest.TestCase):
 
     def test_an_unread_listing_holds(self):
         self.assertTrue(self._holds(files_complete=False))
+
+
+class PersonReasonsTests(unittest.TestCase):
+    """Owner rule 2026-10-26: a person clears only a security issue, a trust
+    or provenance hold, or a cost hold; the lanes clear every other holding
+    reason by judging again."""
+
+    def test_person_reasons_are_security_trust_cost_and_high_paths(self):
+        person = (
+            "security-finding",
+            "trust-gate:trusted-actors",
+            "cost-review-required",
+            "high-path:**",
+            "high-path:**/.gitmodules",
+        )
+        lane = (
+            "evidence-unbound:claude-review",
+            "evidence-unbound:unknown",
+            "files-incomplete",
+            "manifest-review-required",
+            "lines-over",
+        )
+        reasons = [Reason(code, Risk.HIGH, "d") for code in person + lane]
+        self.assertEqual(
+            tuple(r.code for r in babysit_risk.person_reasons(reasons)), person
+        )
+
+    def test_an_unbound_review_holds_for_the_lanes_and_a_finding_for_a_person(self):
+        unbound = score(
+            _input(lanes=(_lane("claude-review", bound=False), BOTH_LANES_CLEAN[1]))
+        )
+        self.assertTrue(holds(unbound))
+        self.assertEqual(babysit_risk.person_reasons(holding(unbound)), [])
+        finding = score(
+            _input(
+                lanes=(
+                    BOTH_LANES_CLEAN[0],
+                    _lane("claude-security-review", open_findings=1),
+                )
+            )
+        )
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(finding))],
+            ["security-finding"],
+        )
 
 
 class SecurityBlockingTests(unittest.TestCase):

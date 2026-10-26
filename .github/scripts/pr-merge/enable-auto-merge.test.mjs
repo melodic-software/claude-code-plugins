@@ -40,6 +40,8 @@ import {
   VERIFY_TIMEOUT_MS,
   readRoom,
   TRUST_REFUSALS,
+  TRUST_UNREAD,
+  UNARMED_OUTPUT,
   verifyClears,
   verifyHold,
 } from "./enable-auto-merge.mjs";
@@ -235,11 +237,16 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const { github, writes, verify, verified, calls, notes, pins } = world(pulls, options);
   const lines = [];
   const slept = [];
+  const output = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-")), "output");
+  writeFileSync(output, "");
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
-    return { code, writes: writes(), lines, verified, slept, calls, notes, pins };
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
+    // The `pr-merge/unarmed` statuses the run hands the status job.
+    const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
+    const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses };
   } finally {
     console.log = log;
   }
@@ -335,29 +342,73 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
-test("an untrusted spec and the repeated-FAIL round cap are a person's verifier refusals; the rest are a lane's", async () => {
+// Owner rule 2026-10-26: a person only for intent, design or a HIGH or
+// CRITICAL security issue. The gate's `needsHuman` (babysit_verify_evidence
+// NEEDS_HUMAN, an untrusted spec alone) decides, so the round cap, an old
+// pull request and a changed spec are a lane's.
+test("only a verifier refusal the gate marks needsHuman is a person's; the round cap, an old pull request and a changed spec are a lane's", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
-    pull(2, { verdict: refused("verify:spec-changed", true) }),
-    pull(3, { verdict: refused("verify:repeated-fail", true) }),
-    pull(4, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
+    pull(2, { verdict: refused("verify:spec-changed", false) }),
+    pull(3, { verdict: refused("verify:repeated-fail", false) }),
+    pull(4, { verdict: refused("verify:too-old", false) }),
+    pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
   assert.deepEqual(notes, [
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: personNote(refusing("verify:repeated-fail")) } },
-    { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
+    { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
+});
+
+test("verifyClears reads the gate's needsHuman and reviewsPerson, not the refusal text", () => {
+  const at = (fields) => verifyClears({ head: HEAD, ineligible: null, reviews: null, refusal: null, ...fields }, HEAD);
+  assert.equal(at({ refusal: "verify:repeated-fail", needsHuman: true }), "person");
+  assert.equal(at({ refusal: "verify:untrusted-spec", needsHuman: false }), "lane");
+  assert.equal(at({ reviews: "security-finding: 1 open", reviewsPerson: false }), "lane");
+  assert.equal(at({ reviews: "evidence-unbound:claude-review: not bound", reviewsPerson: true }), "person");
+  // An answer without the flag holds for a person, as an unknown does.
+  assert.equal(at({ refusal: "verify:fail" }), "person");
+  assert.equal(at({ reviews: "evidence-unbound:claude-review: not bound" }), "person");
 });
 
 test("a refusal a lane clears is commented on, with no label", async () => {
   const { code, notes } = await run([pull(1, { verdict: MISSING })]);
   assert.equal(code, 0);
   assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+// Owner rule 2026-10-26: a read that failed is never a person's; the next
+// run reads it again, and nothing that failed to read arms.
+test("changed files that could not all be read are a lane's refusal, with no label and no arm", async () => {
+  // More than three pages: a listing the run does not read whole.
+  const files = Array.from({ length: 300 }, (_, index) => ({ filename: `docs/${index}.md` }));
+  const { code, notes, writes } = await run([pull(1, { files })]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote("its changed files could not all be read") } }]);
+});
+
+test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has stood merge.risk-escalation-minutes, and an arm a passing one", async () => {
+  const standing = (updatedAt) => pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON), updatedAt)] } });
+  const now = () => Date.parse("2026-10-23T11:00:00Z");
+  // 60 minutes on, by default and as configured; 59 is too soon.
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00Z")], {}, { now })).statuses, [{ sha: HEAD, state: "failure", description: MISSING_REASON }]);
+  assert.deepEqual((await run([standing("2026-10-23T10:01:00Z")], {}, { now })).statuses, []);
+  assert.deepEqual((await run([standing("2026-10-23T10:31:00Z")], { RISK_ESCALATION_MINUTES: "29" }, { now })).statuses, [{ sha: HEAD, state: "failure", description: MISSING_REASON }]);
+  // A person's refusal carries the label instead.
+  const person = pull(2, { files: COST_FILES, discussion: { comments: [lanesSaid(personNote(COST_REASON), "2026-01-01T00:00:00Z")] }, labels: labels() });
+  assert.deepEqual((await run([person], {}, { now })).statuses, []);
+  const armed = await run([pull(3)], {}, { now });
+  assert.deepEqual(armed.writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
+  assert.deepEqual(armed.statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
+  // Report-only hands the status job nothing.
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
 });
 
 const unlabeled = (at, typename = "User", name = "needs-human") => ({ createdAt: at, actor: { __typename: typename, login: "someone" }, label: { name } });
@@ -397,21 +448,30 @@ test("a changed refusal edits the one comment instead of posting another", async
   assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
 });
 
-test("a risk hold is a person's only for a security finding, an aliasing path, a trusted-actor widening or a cost hold", async () => {
-  const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews });
+test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
+  // reviewsPerson as babysit_risk.person_reasons answers for each (pinned
+  // in test_babysit_risk.py PersonReasonsTests).
+  const person_ = new Set(["security-finding: 1 CRITICAL", "high-path:**: 'a' mode '120000' (symlink)", "files-incomplete: x; trust-gate:trusted-actors: entries added", "cost-review-required: infra/main.tf", "high-path:docs/**: docs/a.md"]);
+  const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews, reviewsPerson: person_.has(reviews) });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
-  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "high-path:docs/**: docs/a.md"];
+  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "unreadable: RuntimeError: boom"];
   const person = [
     "security-finding: 1 CRITICAL",
     "high-path:**: 'a' mode '120000' (symlink)",
     "files-incomplete: x; trust-gate:trusted-actors: entries added",
     "cost-review-required: infra/main.tf",
+    "high-path:docs/**: docs/a.md",
   ];
   for (const reviews of lane) {
-    // A lane's stays a lane's however long its comment has stood.
+    // A lane's stays a lane's however long its comment has stood: past
+    // merge.risk-escalation-minutes it gets a failing status, never a label.
     const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews)), "2026-01-01T00:00:00Z")] } });
-    assert.deepEqual((await run([stood])).notes, [], reviews);
-    assert.deepEqual((await run([pull(1, { verdict: risk(reviews) })])).notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(holding(reviews)) } }], reviews);
+    const late = await run([stood]);
+    assert.deepEqual(late.notes, [], reviews);
+    assert.deepEqual(late.statuses, [{ sha: HEAD, state: "failure", description: holding(reviews).slice(0, 140) }], reviews);
+    const fresh = await run([pull(1, { verdict: risk(reviews) })]);
+    assert.deepEqual(fresh.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(holding(reviews)) } }], reviews);
+    assert.deepEqual(fresh.statuses, [], reviews);
   }
   for (const reviews of person) {
     assert.deepEqual(
@@ -872,7 +932,7 @@ test("the body hold agrees with the gate's BODY_MERGE_HOLD_RE", () => {
   assert.ok(expected.includes(true) && expected.includes(false));
 });
 
-test("TRUST_REFUSALS are the reasons the gate's trust_refusal returns, and each goes to a person", () => {
+test("TRUST_REFUSALS and TRUST_UNREAD are the reasons the gate's trust_refusal returns; only an untrusted label goes to a person", () => {
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const python = spawnSync(
     "python3",
@@ -884,10 +944,12 @@ test("TRUST_REFUSALS are the reasons the gate's trust_refusal returns, and each 
     { cwd: scripts, encoding: "utf8" },
   );
   assert.equal(python.status, 0, python.stderr);
-  assert.deepEqual([...TRUST_REFUSALS].sort(), JSON.parse(python.stdout));
+  assert.deepEqual([...TRUST_REFUSALS, TRUST_UNREAD].sort(), JSON.parse(python.stdout));
   for (const reason of TRUST_REFUSALS) {
     assert.equal(verifyClears({ head: "a".repeat(40), ineligible: reason }, "a".repeat(40)), "person", reason);
   }
+  // A read that failed: the next run reads the labels again.
+  assert.equal(verifyClears({ head: "a".repeat(40), ineligible: TRUST_UNREAD }, "a".repeat(40)), "lane");
   assert.equal(verifyClears({ head: "a".repeat(40), ineligible: "refs-issues:2" }, "a".repeat(40)), "lane");
 });
 
@@ -1018,7 +1080,8 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
 test("a manifest change arms only when the gate's risk score allows it", () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
   const files = ["docs/a.md", ".claude-plugin/marketplace.json", "plugins/a/.claude-plugin/plugin.json"];
-  const review = { ...PASSED, reviews: "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks" };
+  // Owner Q-FLOOR (B): the security lane, not a person, reviews a manifest.
+  const review = { ...PASSED, reviews: "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", reviewsPerson: false };
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: review }), {
     action: "none",
     reason: "pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)",

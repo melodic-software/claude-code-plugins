@@ -712,6 +712,8 @@ UNBOUND = tuple(
     LaneEvidence(lane, False, "no-marker", None)
     for lane in ("claude-review", "claude-security-review")
 )
+# An open CRITICAL security finding: a hold only a person clears.
+PERSON_HELD = (BOUND[0], LaneEvidence("claude-security-review", True, None, 1))
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
 REAL_ASYNC_MERGE = merge.async_merge
@@ -3373,7 +3375,7 @@ class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 
     def body(self) -> str:
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         posted = [
             c
@@ -3499,7 +3501,7 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(body)
         self.now = self.WRITTEN + timedelta(minutes=10)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [])
         self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
@@ -3510,7 +3512,7 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(body)
         self.now = self.WRITTEN + timedelta(minutes=61)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
         self.assertEqual(
@@ -3545,7 +3547,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
         posted = self.posted_escalation()
@@ -3559,7 +3561,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [self.LABEL])
         self.assertEqual(
@@ -3589,7 +3591,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
 
     def test_a_person_removing_the_label_after_the_escalation_keeps_it_off(
         self,
@@ -3799,7 +3801,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.timeline = [
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
@@ -3815,7 +3817,7 @@ class ReasonsComment(Unattended):
         old = self.body().replace(HEAD, "d" * 40)
         self.setUp()
         self.earlier_sweep(f"{old}\n\n{merge.RISK_ESCALATION_LINE}")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn(merge.RISK_ESCALATION_LINE, self.patched_body())
@@ -3826,7 +3828,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body, updated=self.now - timedelta(minutes=10))
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -3837,7 +3839,7 @@ class ReasonsComment(Unattended):
         self.earlier_sweep(body)
         self.config = dataclasses.replace(self.config, risk_escalation_minutes=0)
         self.now = self.WRITTEN + timedelta(minutes=1)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
 
@@ -3845,47 +3847,69 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body, login="other-app[bot]", kind="Bot")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
 
     def test_the_first_sweep_comments_without_a_label(self) -> None:
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
-    def test_a_second_sweep_at_the_same_head_adds_the_human_gated_label(self) -> None:
-        # A MED or HIGH refusal on two sweeps at one head is
-        # labeled, the reasons comment first extended to say so.
-        for name, files in (
-            ("MED", ((LOW_FILE,), True)),
-            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)),
+    def test_a_second_sweep_at_the_same_head_labels_only_a_person_hold(self) -> None:
+        # A refusal a person clears (a high path) on two sweeps at one head
+        # is labeled, the reasons comment first extended to say so. One the
+        # lanes clear (review evidence not bound, MED) keeps its comment and
+        # gets no label however long it stands (owner rule 2026-10-26).
+        for name, files, lanes, person in (
+            ("MED", ((LOW_FILE,), True), UNBOUND, False),
+            (
+                "HIGH",
+                ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True),
+                BOUND,
+                True,
+            ),
         ):
             with self.subTest(name):
                 self.setUp()
                 self.config = dataclasses.replace(self.config, denied_paths=HELD)
                 self.files = files
-                body = self.body()
+                self.lanes = lanes
+                self.run_main()
+                body = next(
+                    c.args[0][-1].removeprefix("body=")
+                    for c in self.capture.call_args_list
+                    if "babysit-merge-risk" in " ".join(c.args[0])
+                )
                 self.setUp()
                 self.config = dataclasses.replace(self.config, denied_paths=HELD)
                 self.files = files
-                self.lanes = UNBOUND
+                self.lanes = lanes
                 self.earlier_sweep(body)
+                self.now = self.WRITTEN + timedelta(minutes=61)
                 _, out = self.run_main()
                 self.assertEqual(out["unattended"]["risk"]["score"], name)
-                self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
-                self.assertEqual(
-                    out["unattended"]["writes"]["riskEscalation"],
-                    {"label": "added", "comment": "created"},
-                )
+                if person:
+                    self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
+                    self.assertEqual(
+                        out["unattended"]["writes"]["riskEscalation"],
+                        {"label": "added", "comment": "created"},
+                    )
+                else:
+                    self.assertEqual(self.log, [])
+                    self.assertEqual(
+                        out["unattended"]["writes"]["riskComment"], "unchanged"
+                    )
+                    self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+                    self.assertIn("The lanes clear these reasons", body)
 
     def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
         self,
     ) -> None:
         # The rewrite restarts the age the next sweep measures.
         self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`.")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -3895,7 +3919,7 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
         self.pr_labels = [{"name": "Needs-Human"}]
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [])
         self.assertEqual(
@@ -3913,7 +3937,7 @@ class ReasonsComment(Unattended):
         stored = f"{body}\n\n{merge.RISK_ESCALATION_LINE}".replace("\n", "  \r\n")
         self.earlier_sweep(stored + "  ")
         self.pr_labels = [{"name": "Needs-Human"}]
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [])
         self.assertEqual(
@@ -3930,7 +3954,7 @@ class ReasonsComment(Unattended):
             f"\n\n{merge.RISK_ESCALATION_LINE}"
         )
         self.pr_labels = [{"name": "Needs-Human"}]
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
         posted = self.posted_escalation()
@@ -3943,7 +3967,7 @@ class ReasonsComment(Unattended):
 
     def test_a_new_head_rewrites_the_comment_without_a_label(self) -> None:
         self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **MED** at head `{'d' * 40}`.")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -3954,7 +3978,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body, login="maintainer")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
 
@@ -4012,7 +4036,7 @@ class ReasonsComment(Unattended):
         # MED, then LOW, then MED again with the same reasons: the cleared
         # comment has stood two hours, but the refusal is new.
         self.earlier_sweep(merge.risk_cleared_body(HEAD))
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -4022,7 +4046,7 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(body)
         self.config = dataclasses.replace(self.config, report_only=True)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertIs(out["unattended"]["reportOnly"], True)
         self.capture.assert_not_called()
@@ -4042,7 +4066,7 @@ class ReasonsComment(Unattended):
                 "body": f"{merge.RISK_MARKER}\nquoted by a human",
             },
         ]
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(out["unattended"]["writes"]["riskComment"], "updated")
         self.assertEqual(self.log, ["risk-comment:PATCH"])

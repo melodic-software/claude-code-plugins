@@ -573,15 +573,16 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
-    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
-    # must have stood unchanged at the head before the gate adds the
-    # human-gated label; 0 is no minimum. Absent, or anything but a whole
-    # number, is `RISK_ESCALATION_MINUTES`.
+    # `merge.risk-escalation-minutes`: how long a reasons comment must have
+    # stood unchanged at the head before the gate adds the human-gated label
+    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # no minimum. Absent, or anything but a whole number, is
+    # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
-    # one pull request at which it holds for a human whatever a later pass
-    # says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
-    # but a whole number of at least 1 is 1, so any earlier FAIL holds.
+    # one pull request at which it holds whatever a later pass says
+    # (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything but
+    # a whole number of at least 1 is 1, so any earlier FAIL holds.
     max_verify_fails: int = MAX_VERIFY_FAILS
     # `merge.check-inputs`: git pathspecs of what the pull request checks
     # read. When the base changed one since a pull request's merge base, the
