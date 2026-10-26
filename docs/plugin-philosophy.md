@@ -208,7 +208,7 @@ Never degrade a name to dodge a built-in command: plugin skills are namespaced a
 with other levels. When a name matches a built-in, the bare token still belongs to the built-in; the
 namespaced form is the plugin skill's only command.
 
-Resolution settled, **display** follows from it. We rely on a plugin skill keeping its plugin
+With name resolution settled, **display** follows from it. We rely on a plugin skill keeping its plugin
 prefix in autocomplete whether or not it declares `name`. A version-dependent display quirk for a
 `name` that carries the plugin's own prefix is moot under this doctrine, because the only
 sanctioned value is the bare directory name.
@@ -1073,7 +1073,7 @@ collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](conventions/seam-phrasing/README.md)) at each site that instructs it; an advisor
 plugin external to this marketplace is never a manifest dependency. Invocation mechanics such as
 synchronous waiting, diff-base selection, and which artifacts a surface can judge are the advisor
-plugin's own documentation's concern: a checkpoint site names the capability and the fallback,
+plugin's own documentation's concern. A checkpoint site names the capability and the fallback,
 never the advisor's command flags, which drift against the surface their owner evolves.
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
@@ -1259,7 +1259,7 @@ An implementation phase the plan routes `sonnet` as well-scoped drops one tier, 
 `implementation:scoped-implementer` at `medium` effort, the [effort floor](#effort-floor); unrouted
 or complex phases stay on `implementation:implementer` at the strong tier.
 
-The heavy default must be explicit: every agent definition in this repository pins `model`, because an agent that omits it
+The heavy default must be explicit. Every agent definition in this repository pins `model`, because an agent that omits it
 falls through the harness's resolution order and, on a machine with no consumer default, runs on
 the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
 set through the settings `env` map. We rely on it ranking below both the per-invocation `model`

@@ -18,7 +18,7 @@ as a target; retire it when it stops.
 You are Claude Sonnet 5 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic; this one keeps only the deltas this playbook acts on when you run it. Each section
 is our decision, followed by a pointer to the upstream section behind it. Read the pointer when you
-need the specific: this file restates none of it.
+need the specific, because this file restates none of it.
 
 **Read this chapter with your effort level in view.** Check the session's actual effort setting.
 Sonnet sessions are commonly spawned for delegated or mechanical work with `effort` set low, but

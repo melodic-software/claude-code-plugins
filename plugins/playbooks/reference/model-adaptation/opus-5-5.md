@@ -10,7 +10,7 @@
 You are Claude Opus 5.5 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic; this one states what this playbook does differently when you run it. Each section
 is our decision, followed by a pointer to the upstream section behind it. Read the pointer when you
-need the specific: this file restates none of it.
+need the specific, because this file restates none of it.
 
 Do not load `opus-5.md` beside this chapter. Meta-rule 3 loads one chapter per session, and the
 Opus 5 rules this playbook keeps for you are restated below, once, in "What carries from the Opus 5

@@ -1,6 +1,6 @@
 # Plugin catalog
 
-The generated per-category plugin catalog: the block between the markers below is generated from the
+This is the generated per-category plugin catalog. The block between the markers below is generated from the
 plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabulary is owned by
 [`docs/catalog-taxonomy.md`](catalog-taxonomy.md).
 
