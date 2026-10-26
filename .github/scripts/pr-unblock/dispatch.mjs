@@ -10,7 +10,8 @@
 // a held PR (do-not-merge, or the human-gated label unless another lane's
 // escalation put it on: gate-source.mjs prHold), or one whose current head
 // already carries a pr-unblock check run that handles it (limit-stop.mjs: a
-// limit stop stops counting once its limit resets, a failed run until
+// limit stop, a usage limit or a refused credential, stops counting once its
+// limit resets, and the skip names its class and reset; a failed run until
 // limit-stops-per-head failures stand on the head, and a skip while held
 // once the hold is gone), and dispatches pr-unblock.yml on main for at most
 // maxDispatch of them, lowest PR number first. Authors are left to the lane's
@@ -44,8 +45,8 @@ import { prHold } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
-import { anyHandles, cappedAt, permanentlyHandles } from "./limit-stop.mjs";
-import { budgetedFetch } from "./request-budget.mjs";
+import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
+import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -189,6 +190,7 @@ export async function dispatchConflicting({
       continue;
     }
     let handled;
+    let waiting = null;
     try {
       const { held, why } = await prHold({
         labels: (node.labels?.nodes ?? []).map((label) => label?.name),
@@ -207,18 +209,36 @@ export async function dispatchConflicting({
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       const options = { limits, failuresRetry: true, heldSkipsRelease: true };
       handled = anyHandles(existing, { now, ...options });
+      // Handled only because a limit stop has not reset: the log names it.
+      waiting = handled && !anyHandles(existing, { now: Infinity, ...options }) ? pendingStop(existing, { now, limits }) : null;
       if (permanentlyHandles(existing, options)) {
         // Recording it means this warning shows once per head.
         const capped = cappedAt(existing, options);
         if (capped > 0) {
-          log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} failed or was skipped while held ${capped} time(s), the most one head gets; no ${activity} until a new push`);
+          // The newest finished run's stop class, so a cap a credential outage
+          // or a usage limit spent names that cause.
+          const newest = existing.filter((run) => run.status === "completed").sort((a, b) => Date.parse(b.completed_at ?? "") - Date.parse(a.completed_at ?? ""))[0];
+          const stop = newest ? limitStop(newest, limits) : null;
+          log(
+            `::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} failed or was skipped while held ${capped} time(s), the most one head gets; no ${activity} until a new push${stop ? `; the last run stopped on class=${stop.failureClass}` : ""}`,
+          );
         }
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(
         `::error::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}`,
+      );
+      continue;
+    }
+    if (waiting) {
+      log(
+        `::notice::#${node.number}: head ${node.headRefOid}'s ${checkName} stopped on class=${waiting.failureClass}; no ${activity} before ${new Date(waiting.resetsAt).toISOString()}`,
       );
       continue;
     }
@@ -285,7 +305,7 @@ export function createGitHubApi({
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -296,7 +316,7 @@ export function createGitHubApi({
     while (url) {
       const response = await fetch(url, { headers });
       if (!response.ok) {
-        throw new Error(`GET ${url} returned ${response.status}`);
+        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
       }
       rows.push(...(await response.json()));
       url = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1] ?? "";

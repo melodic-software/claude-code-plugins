@@ -20,13 +20,13 @@
 // actor id and its triggering actor's login are both a listed human's (the
 // job's "Check who started the run" step stops any other run). A scheduled or
 // hand-started run counts only on main, since another branch runs its own
-// copy; pull_request_target and workflow_run runs always run main's. And its
+// copy; pull_request_target runs always run main's. And its
 // event must rank at least as high as this run's (RANKS). For `merge`, only a
 // scheduled run re-fires refused lane runs, and a pull_request_target run
 // starts no full CI run: pull_request_target, then workflow_dispatch, then
 // schedule. For `enable-auto-merge`, every run lists every lane pull request
 // and disarms one on a hold, and only a scheduled or hand-started one arms:
-// pull_request_target and workflow_run, then workflow_dispatch and schedule.
+// pull_request_target, then workflow_dispatch and schedule.
 //
 // Any failure answers `superseded=false`: the job does its work as it would
 // without this check. One REST call to list pending runs, then one jobs read
@@ -51,7 +51,7 @@ import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigg
 
 export const RANKS = Object.freeze({
   merge: Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 2 }),
-  "enable-auto-merge": Object.freeze({ pull_request_target: 0, workflow_run: 0, workflow_dispatch: 1, schedule: 1 }),
+  "enable-auto-merge": Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 1 }),
 });
 const WAITING = new Set(["queued", "pending", "waiting", "requested"]);
 export const MAX_JOB_READS = 5;
@@ -80,7 +80,7 @@ export function eligible(runs, { runId, event, trusted, ranks }) {
       Object.hasOwn(ranks, run.event) &&
       ranks[run.event] >= ranks[event] &&
       // A dispatch on another branch runs that branch's copy of the workflow.
-      (run.event === "pull_request_target" || run.event === "workflow_run" || run.head_branch === "main") &&
+      (run.event === "pull_request_target" || run.head_branch === "main") &&
       (run.event === "schedule" || startedByHuman(trusted, run)),
   );
 }

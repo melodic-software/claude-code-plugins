@@ -23,6 +23,7 @@
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { serverFailure } from "./request-budget.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -153,6 +154,10 @@ export async function dispatchDependencyReviews({
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(`::error::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}`);
       continue;

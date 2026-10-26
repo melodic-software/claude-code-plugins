@@ -5,6 +5,19 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.6.0] - 2026-10-26
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **Lane-editable config.** §4 lists the config each local lane reads at run time that the lane
+  could edit: the tracker binding and triage's convention files for work-loop and attend-queue, and
+  the `source-control` seam layers for the babysit loop. It names the four conditions a deny rule
+  needs at least before it makes such a file read-only (sandbox enabled, `allowUnsandboxedCommands`
+  false, no writer in `excludedCommands`, file-writing MCP tools denied), points at the
+  harness-config audit for the other escape surfaces, and records that no tracked settings file or
+  launch surface sets them for a local lane. The scheduled-reader "Config re-read" row now reads not
+  met for local lanes (#7680).
+
 ## [12.5.0] - 2026-10-24
 
 Minor. Describes a change in the unattended merge gate's own contract (the babysit-prs scripts);
