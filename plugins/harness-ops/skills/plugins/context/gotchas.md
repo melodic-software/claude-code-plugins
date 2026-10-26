@@ -7,6 +7,7 @@
 - [Native-Windows `projectPath` vs Git Bash `$PWD`](#native-windows-projectpath-vs-git-bash-pwd)
 - [A subdirectory install is invisible to this skill: `currentProject` cannot see it](#a-subdirectory-install-is-invisible-to-this-skill-currentproject-cannot-see-it)
 - [Concurrency / TOCTOU](#concurrency--toctou)
+- [Never run plugin CLI writes concurrently: the sweep stays serial](#never-run-plugin-cli-writes-concurrently-the-sweep-stays-serial)
 - [Dual-scope divergence is normal, not a defect](#dual-scope-divergence-is-normal-not-a-defect)
 - [A `projectPath` can outlive its directory](#a-projectpath-can-outlive-its-directory)
 - [A large absent-path count is not evidence of careless installs](#a-large-absent-path-count-is-not-evidence-of-careless-installs)
@@ -126,6 +127,24 @@ valid staleness or correctness check: a mismatch is as likely to be this race as
 chasing it as an enumeration bug wastes the session. Compare only within one `fleet-state.sh`
 snapshot, and when two reads must be compared, treat a difference as a re-read signal rather than
 evidence about either read.
+
+## Never run plugin CLI writes concurrently: the sweep stays serial
+
+The user sweep runs one `claude plugin update` at a time on purpose, and so does every other
+mutating plugin CLI call this skill makes. Concurrent calls lose each other's registry writes, and
+the lost call still exits 0 and prints success, so neither the exit code nor the CLI's output shows
+the loss. A sweep that ran in parallel would report plugins as updated while
+`installed_plugins.json` still pins their old versions.
+
+Probe (Claude Code 2.1.310, Linux, 2026-10-26): a scratch `CLAUDE_CONFIG_DIR` and a local git
+marketplace of 12 plugins, all installed at 1.0.0 at user scope; the marketplace moved to 2.0.0,
+then N distinct `claude plugin update <id> -s user` calls were launched at once, repeated 10
+times. Every call exited 0 and copied 2.0.0 into the cache. The registry lost 36 of 80 updates at
+N=8 (every repetition lost some) and 11 of 40 at N=4 (8 of 10 repetitions). The serial control
+lost none. Concurrent `claude plugin uninstall -s project` calls lose writes the same way.
+Results and method: issue #6309.
+**Recheck trigger:** a Claude Code release note that adds locking or atomic writes to the plugin
+registry, or a `plugin update` that takes several plugins in one call. Re-run the probe then.
 
 ## Dual-scope divergence is normal, not a defect
 
