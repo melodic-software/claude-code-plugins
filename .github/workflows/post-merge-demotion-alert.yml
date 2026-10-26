@@ -897,6 +897,8 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Each call's rate-limit reading, for the api-budget notice below.
+          API_BUDGET_TOKEN: github-token
           REPOSITORY: ${{ github.repository }}
           BASE_PATH: .base
           CALL_BUDGET: "300"
@@ -906,3 +908,11 @@ jobs:
           RUN_WORKFLOW_ID: ${{ needs.alert.outputs.workflow-id }}
           RUN_CREATED: ${{ needs.alert.outputs.created }}
         run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

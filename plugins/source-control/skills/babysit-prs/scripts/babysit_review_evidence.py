@@ -98,6 +98,13 @@ HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # The reconciler re-runs any failed lane run once; attempt 2 binds only when
 # attempt 1 failed on a usage limit.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# Or on a rejected Claude credential: this lane's publish-review failure line
+# (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
+# attempt 1 then left no verdict, so a re-run cannot trade one review for
+# another. It binds a re-run but does not start one (rate_limited), since a
+# re-run before the secret is fixed would spend the one allowed attempt. A
+# spent key needs no entry: publish.cjs reports it as `rate-limit`.
+AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")
 # Or when the review's own post hit GitHub's API rate limit: the message opens
 # with this lane's publish-review failure line (ci-workflows publish.cjs `fail`)
 # whose detail, the request error's message, opens with GitHub's primary or
@@ -376,7 +383,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if first.get("conclusion") != "failure" or not _rate_limited(
+        if first.get("conclusion") != "failure" or not rerun_binds(
             lane, _lane_job(lane, newest["id"], first)
         ):
             raise Unbound("rerun-not-allowed")
@@ -432,18 +439,33 @@ def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str
     return job
 
 
-def _rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
-    def limited(message: str) -> bool:
-        publish = PUBLISH_RATE_LIMIT_RE.match(message)
-        return bool(RATE_LIMIT_CLASS_RE.search(message)) or (
-            publish is not None and publish["lane"] == lane
-        )
-
-    return any(
-        isinstance(a, Mapping)
-        and a.get("annotation_level") == "failure"
-        and limited(str(a.get("message") or ""))
+def _failures(job: Mapping[str, Any]) -> list[str]:
+    """The messages of the job's failure-level annotations."""
+    return [
+        str(a.get("message") or "")
         for a in job["annotations"]
+        if isinstance(a, Mapping) and a.get("annotation_level") == "failure"
+    ]
+
+
+def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
+    """Whether `message` opens with `pattern` for this lane."""
+    found = pattern.match(message)
+    return found is not None and found["lane"] == lane
+
+
+def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
+    return any(
+        RATE_LIMIT_CLASS_RE.search(m) or _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m)
+        for m in _failures(job)
+    )
+
+
+def rerun_binds(lane: str, job: Mapping[str, Any]) -> bool:
+    """Whether attempt 1's lane `job` lets attempt 2 bind: a rate limit, or a
+    rejected credential (AUTH_FAILURE_RE)."""
+    return rate_limited(lane, job) or any(
+        _lane_line(AUTH_FAILURE_RE, lane, m) for m in _failures(job)
     )
 
 

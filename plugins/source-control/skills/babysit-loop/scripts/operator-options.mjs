@@ -1,11 +1,15 @@
-// Reads the five promotion-evidence bootstrap options from the operator's own settings, channel F
-// of docs/conventions/hook-config-delivery: pluginConfigs["<name>@<marketplace>"].options in the
+// GENERATED from lib/plugin-options.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
+// Reads a plugin's userConfig options from the operator's own settings, channel F of
+// docs/conventions/hook-config-delivery: pluginConfigs["<name>@<marketplace>"].options in the
 // fixed-path managed settings files and in the user settings.json, the latter located only from
 // this install's own path. Nothing here reads the environment: a repository's settings env block
-// reaches every process the lane starts and carries no provenance, so CLAUDE_CONFIG_DIR, HOME,
+// reaches every process a session starts and carries no provenance, so CLAUDE_CONFIG_DIR, HOME,
 // %ProgramFiles% and the CLAUDE_PLUGIN_OPTION_* mirror are never consulted, and neither is any
-// file in the checkout (docs/conventions/source-control.yaml, .claude/source-control.md, a project
-// .claude/settings.json).
+// file in the checkout (a project .claude/settings.json).
+//
+//   readOperatorOptions(resolveInstall(<plugin root, from the caller's own real path>), managedSettingsFiles(), keys)
+//     -> {<key>: {value, scope: "user" | "managed", file}} for each key a source sets
 //
 // Sources, highest precedence first (managed settings page, "How Claude Code combines managed
 // sources" and "managed-settings.d", https://code.claude.com/docs/en/managed-settings, read
@@ -18,20 +22,10 @@
 //      --plugin-dir checkout) has no trusted user-settings location, so only managed settings
 //      count there, matched by manifest name.
 // Not visible here, so not honored: a session's --settings file, server-managed (remote) and MDM
-// policies. A value supplied only there reads as unset and the helper fails closed.
+// policies. A value supplied only there reads as unset.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-
-// The first four are required; promotion_evidence_credential_roots is optional, and unset it
-// passes the checker no --credential-roots.
-export const OPTION_KEYS = [
-  "promotion_evidence_binding",
-  "promotion_evidence_root",
-  "promotion_evidence_source",
-  "promotion_evidence_checker",
-  "promotion_evidence_credential_roots",
-];
 
 const MANAGED_DIRS = {
   darwin: "/Library/Application Support/ClaudeCode",
@@ -120,17 +114,16 @@ function optionsIn(file, install) {
     });
 }
 
-// Resolves every option key to {value, scope, file}; a key no source configures is absent.
+// Resolves each of `keys` to {value, scope, file}; a key no source configures is absent.
 // Throws OptionsError when a source that could hold a value cannot be read, its pluginConfigs,
 // this plugin's entry or its options is not an object, or a configured value is not a string
-// (null included): either way
-// the operator's value is not known, and the caller fails closed.
-export function readOperatorOptions(install, managedFiles) {
+// (null included): either way the operator's value is not known, and the caller fails closed.
+export function readOperatorOptions(install, managedFiles, keys) {
   const user = {};
   const managed = {};
   const take = (file, scope, into) => {
     for (const options of optionsIn(file, install)) {
-      for (const key of OPTION_KEYS) {
+      for (const key of keys) {
         if (!Object.hasOwn(options, key)) continue;
         if (typeof options[key] !== "string") throw new OptionsError(`${key} in ${file} is not a string`);
         into[key] = { value: options[key], scope, file };
