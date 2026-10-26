@@ -33,5 +33,5 @@ commit checkouts/identity "Identity server with its control skill"
 if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; then
   git init -q -b main
 fi
-printf '/checkouts/\n' >.gitignore
+printf '/checkouts/\n' >>.gitignore
 commit . "Shop with its control skill"

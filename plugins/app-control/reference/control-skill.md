@@ -65,7 +65,7 @@ in its manual before writing the command.
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.
 
-When the app's work runs on a server behind a browser, write a row per tier for each kind: a
+When the app's work runs on a server behind a browser, write a row per tier for each kind that records differently on each: a
 browser profile of a server-rendered app mostly shows the client runtime. Drive records each tier's
 row, one tool per tier, and the artifact name carries the tier.
 

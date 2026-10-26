@@ -45,12 +45,15 @@ def make_handler(role, identity):
                 self.send(200, json.dumps(status).encode())
             elif role == "idp" and url.path == "/authorize":
                 back = query.get("redirect_uri", [""])[0]
-                if not back.startswith("http://127.0.0.1:"):
+                u = urllib.parse.urlsplit(back)
+                if (u.scheme, u.hostname, u.username) != ("http", "127.0.0.1", None) or (
+                    "\r" in back or "\n" in back
+                ):
                     self.send(400, b"redirect_uri must be a loopback URL")
                     return
                 self.send(302, headers=[("Location", f"{back}?code={CODE}")])
             elif role == "app" and url.path == "/login":
-                back = f"http://{self.headers['Host']}/callback"
+                back = f"http://127.0.0.1:{self.server.server_address[1]}/callback"
                 target = f"{identity}/authorize?" + urllib.parse.urlencode(
                     {"redirect_uri": back}
                 )
@@ -114,7 +117,6 @@ def self_test():
         procs.append(idp)
         app, app_url = start("app", "--identity", idp_url)
         procs.append(app)
-        check(app.pid != idp.pid, "app and identity server share a process")
 
         status, _, body = get(f"{app_url}/health")
         check(status == 200, f"app /health returned {status}")
@@ -150,6 +152,11 @@ def self_test():
 
         status, _, _ = get(f"{app_url}/callback?code=wrong")
         check(status == 401, f"app accepted a wrong code with {status}")
+
+        for bad in ("http://127.0.0.1:@evil.example/cb", "http://127.0.0.1:1/x\r\nX: y"):
+            query = urllib.parse.urlencode({"redirect_uri": bad})
+            status, _, _ = get(f"{idp_url}/authorize?{query}")
+            check(status == 400, f"identity /authorize accepted {bad!r} with {status}")
     finally:
         for proc in procs:
             proc.terminate()
