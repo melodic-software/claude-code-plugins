@@ -1272,7 +1272,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const awaitingRec = q => !!q.proposed && !q.recommendation; // an accepted proposal before Claude writes its recommendation: the server refuses an accept
   function choicesOf(q){
     const r = reconfirmOf(q), c = r ? [r] : [], w = withheld(q) || awaitingRec(q); // a withheld question has nothing to accept, with or without a note or condition
-    if (!w) c.push({kind: "accept", label: "Rec", text: String(q.recommendation || "").replace(/[*`#]/g, "").replace(/\s+/g, " ").trim() || "the recommendation", rich: String(q.recommendation || "").replace(/\s+/g, " ").trim()}, // rich: the row is the recommendation's one full copy, so it keeps code, links and emphasis {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
+    // rich: the row is the recommendation's one full copy, so it keeps code, links and emphasis
+    if (!w) c.push({kind: "accept", label: "Rec", text: String(q.recommendation || "").replace(/[*`#]/g, "").replace(/\s+/g, " ").trim() || "the recommendation", rich: String(q.recommendation || "").replace(/\s+/g, " ").trim()}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
     altsOf(q).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
     c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "defer", who: true, label: "Someone else decides", text: "the note names who"});
     if (!w) c.push({kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
