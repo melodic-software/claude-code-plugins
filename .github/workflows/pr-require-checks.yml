@@ -3722,6 +3722,7 @@ jobs:
             /.node-version
             /plugins/source-control/skills/babysit-prs/scripts/*.py
             /plugins/source-control/lib/parse-concern-value.sh
+            /plugins/source-control/lib/yaml-subset.awk
             /.github/scripts/pr-merge/head-ref-map.mjs
             /.github/scripts/pr-merge/carry-run-cache.mjs
             /.github/scripts/pr-merge/rotation.mjs
@@ -4678,7 +4679,9 @@ jobs:
       # public reads, and one that does not read refuses verify:unreadable,
       # which holds. Its gh calls go to the gh binary, outside this step's
       # gh_read wait; babysit_gh.py's own rate guard shares this job's stop
-      # file, so a stop either side records holds the other, and it records
+      # file, so a stop either side records holds the other (this checkout
+      # has no pr-pipeline.yaml, so only a rate-limit signal stops it, with no
+      # writer-pause or read-floor margin), and it records
       # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
       # stops on a rate limit, prints no report for the head, or reads no
       # listing holds.
