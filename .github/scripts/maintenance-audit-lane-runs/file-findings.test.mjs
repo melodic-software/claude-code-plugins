@@ -3,10 +3,12 @@
 // with a failed claim before planning, stamps each kept one with its
 // fingerprint, and writes them into one rolling digest issue.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { createBudget } from "./collect.mjs";
 import { droppedLine, listSweepIssues, prepareItems, writeDigest } from "./file-findings.mjs";
@@ -42,6 +44,25 @@ test("the judge's output keeps at most three well-formed findings", () => {
     dropped: [{ index: null, reason: "unparsable" }],
   });
   assert.deepEqual(parseJudgeOutput('{"findings": 3}').dropped, [{ index: null, reason: "unparsable" }]);
+});
+
+test("write-findings reads the launcher's structured-output file, and an empty path as unparsable", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-write-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const script = fileURLToPath(new URL("./write-findings.mjs", import.meta.url));
+  const write = (file) => {
+    const out = join(dir, "out", "findings.json");
+    const run = spawnSync(process.execPath, [script], {
+      env: { PATH: process.env.PATH, STRUCTURED_OUTPUT_FILE: file, UNIT_ID: "d1", FINDINGS_PATH: out },
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    return JSON.parse(readFileSync(out, "utf8"));
+  };
+  const structured = join(dir, "structured.json");
+  writeFileSync(structured, JSON.stringify({ findings: [finding()] }));
+  assert.deepEqual(write(structured), { unit: "d1", findings: [finding()], dropped: [] });
+  assert.deepEqual(write(""), { unit: "d1", findings: [], dropped: [{ index: null, reason: "unparsable" }] });
 });
 
 test("a finding with any failed claim is dropped before planning", (t) => {
