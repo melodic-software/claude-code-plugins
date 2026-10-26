@@ -860,7 +860,11 @@ review; the PR still merges only once the check reports SUCCESS. The review evid
 second attempt after the lane's own `<lane>: failure-class=auth:` failure line (a rejected
 credential, which left no verdict), but the gate never starts that rerun: a person or session reruns
 it once the secret is fixed, since a rerun before then would spend the one attempt. A spent key
-already reports as `rate-limit`.
+already reports as `rate-limit`. It also binds a second attempt after a kill switch stopped the
+first: the caller's `kill-switch` job succeeded with its lane's `a kill switch stops this review (`
+(or `security review (`) notice, and the first attempt has no lane job, so the review never
+started. The gate never starts that rerun either, since it cannot read the switch: ci-status asks a
+person to rerun the run once the switch is off.
 
 - **Pointer**: the `class=<token>` contract in ci-workflows
   [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),

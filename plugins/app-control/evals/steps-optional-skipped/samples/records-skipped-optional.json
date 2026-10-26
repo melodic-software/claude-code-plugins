@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n[\n  {\"id\": \"open-billing\", \"action\": \"goto /billing\", \"outcome\": \"done\"},\n  {\"id\": \"accept-cookies\", \"action\": \"click button Accept cookies\", \"outcome\": \"skipped: optional\", \"observed\": \"no cookie banner\"},\n  {\"id\": \"press-export\", \"outcome\": \"done\"},\n  {\"id\": \"check-download\", \"outcome\": \"done\"}\n]\n```",
+      "why": "the contract's outcome word for an absent optional step"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n[\n  {\"id\": \"open-billing\", \"status\": \"done\"},\n  {\"id\": \"accept-cookies\", \"status\": \"skipped\", \"observed\": \"no banner\"},\n  {\"id\": \"press-export\", \"status\": \"done\"}\n]\n```",
+      "why": "skips the step but in an invented shape, not the contract's outcome field and value"
+    },
+    {
+      "answer": "```json\n[\n  {\"id\": \"accept-cookies\", \"outcome\": \"failed\", \"observed\": \"Accept cookies not found\"}\n]\n```",
+      "why": "fails the absent optional step"
+    }
+  ]
+}
