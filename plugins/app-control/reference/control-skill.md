@@ -200,7 +200,10 @@ CLI through it. Otherwise write a script in the language the repository already 
 - records the app's own pid, not a wrapper shell's;
 - reads its settings through the Config layers below and reports each value's layer, and has a
   `config` command that changes nothing and prints each value with its layer;
-- enforces the Safety floors below, all but the per-run sign-in count, which the caller keeps.
+- enforces the Safety floors below, all but the per-run sign-in count, which the caller keeps;
+- writes nothing inside its control-skill folder (no bytecode, caches or temp files), so the
+  untracked check in [Integrated apps](#integrated-apps) (Checkout off the pin) does not stop a
+  second run.
 
 A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
 or external system needs `cli/`: each such step is a `cli/` command, never a click or a raw request
@@ -300,9 +303,9 @@ environments; this control skill never copies them. The hub lists each one above
   app's `config/local.json`; ignored files count. It prints the setting's name, the pinned SHA
   (or that `pins.<app>` is unset) and `fetch or check out`. The run passes no revision to that
   app's CLI; this check is what makes its config, floors, steps and `cli/` the pinned ones.
-- **Floors.** A step that targets the integrated app's environment runs under that app's committed
-  floors and this control skill's; an include never loosens a floor, and the per-run sign-in count
-  spans both apps.
+- **Floors.** An included step runs under the owning app's committed floors, enforced by its CLI.
+  This control skill cannot loosen them, and tightens an included step only through the include's
+  `kind` or by not including it. The caller's per-run sign-in count spans both apps.
 - **Launch.** When the selected environment runs the integrated app locally, the run launches it
   with that app's Launch and stops it at cleanup, keeping one launch record and one log per app.
   This control skill's Launch takes the app's url through a `<<service> service url>` placeholder,

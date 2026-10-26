@@ -102,7 +102,8 @@ drive finds a control skill by its hub.
   with `/app-control:map create` to run in its repository.
 - **Driver CLI**, per the contract's "Writing the driver CLI", and required when a seeded feature
   has a send, sign-in or write step. The CLI enforces the safety floors and refuses a loosening
-  from the local, environment or flag layers with exit 4. When `/developer-experience:build-cli` is
+  from the local, environment or flag layers with exit 4, and writes nothing inside its
+  control-skill folder (the contract's "Writing the driver CLI" says why). When `/developer-experience:build-cli` is
   available in this session, invoke it through the Skill tool to write the CLI; otherwise write a
   documented script.
 - **Hub**, per the contract's Hub section, with the app's name, the driving tool, and
