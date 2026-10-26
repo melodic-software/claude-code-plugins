@@ -267,7 +267,7 @@ run_sut "$(real_status "$FIX/ledger-current.md" "$FIX/changelog.md")"
 expect_code "real status, up to date: exit 0" 0
 expect_eq "real status, up to date: no gh call" "$(calls)" ""
 
-printf '%s\n' '# Claude Code changelog' '' '**2.1.298**' '* item' >"$FIX/changelog-moved.md"
+printf '%s\n' '# Claude Code changelog' '' '## 2.1.298' '* item' >"$FIX/changelog-moved.md"
 run_sut "$(real_status "$FIX/ledger.md" "$FIX/changelog-moved.md")"
 expect_code "real status, markup moved: exit 2" 2
 expect_eq "real status, markup moved: no gh call" "$(calls)" ""
