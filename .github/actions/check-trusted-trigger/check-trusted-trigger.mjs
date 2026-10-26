@@ -110,8 +110,9 @@ const SERVER_RETRY_DELAYS_MS = [2000, 4000, 8000];
 const SERVER_RETRY_BUDGET_MS = 60_000;
 const ATTEMPT_TIMEOUT_MS = 20_000;
 // A GraphQL query: a POST to /graphql whose document starts with `query` or
-// `{`, holds no `mutation` or `subscription` word anywhere, and whose request
-// names no operationName. A document can hold several operations and the
+// `{` past any `#` comments, holds no `mutation` or `subscription` word
+// anywhere in the raw text (so a `#` inside a string hides none), and whose
+// request names no operationName. A document can hold several operations and the
 // request pick one by name, so anything less than all three may run a mutation.
 const graphqlQuery = (url, init) => {
   if (!String(url).endsWith("/graphql") || typeof init.body !== "string") {
@@ -123,7 +124,7 @@ const graphqlQuery = (url, init) => {
     return (
       typeof query === "string" &&
       request.operationName === undefined &&
-      /^\s*(query\b|\{)/.test(query) &&
+      /^(query\b|\{)/.test(query.replace(/#[^\n]*/g, "").trim()) &&
       !/\b(mutation|subscription)\b/.test(query)
     );
   } catch {

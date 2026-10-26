@@ -58,7 +58,8 @@ run a mutation analysis. That is `/mutation-testing:audit`.
 4. **Baseline suite is green**. Run the project's test command once, unmutated, and report the
    result. Red → FAIL. A red baseline kills every mutant and reports a perfect score, so no mutation
    result is meaningful until this passes. Record the wall-clock; it is the input to the timeout
-   setting and to whether diff-scoping is sufficient.
+   setting and to whether diff-scoping is sufficient. For `dotnet test`, run it once per test
+   project, naming the project, never over a solution or a directory.
 5. **Known flakiness**. Ask, and check for a documented flaky-test list or retry configuration.
    Flakiness present → INFO with the consequence stated plainly: mutants killed by a flaky failure
    inflate the score by an unknown margin.
@@ -141,9 +142,11 @@ unambiguous; ask only where the answer is genuinely the user's.
    `test-command` for the detected ecosystem when its runner takes test file paths, with `{tests}`
    where the paths go: `python -m pytest {tests}`, `python -m unittest {tests}`,
    `npx vitest run {tests}`, `npx jest --runTestsByPath {tests}`, `vendor/bin/phpunit {tests}`. The
-   audit fills `{tests}` with each path quoted as its own argument. Propose nothing for a runner
-   that only filters by name (`dotnet test --filter`, Maven `-Dtest`, Gradle `--tests`) and say
-   that `audit --exercised` refuses for that ecosystem. The forms and their sources are in the
+   audit fills `{tests}` with each path quoted as its own argument. When the detected runner is
+   `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test project, with
+   `{tests}` replaced by that project and a name filter for the test files' classes. Propose nothing
+   for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`) and say that
+   `audit --exercised` refuses for that ecosystem. The forms and their sources are in the
    audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).

@@ -17,6 +17,7 @@ import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import {
+  breakerComment,
   budgetLatch,
   checkCloser,
   escalationComment,
@@ -2088,6 +2089,50 @@ test("a run the broker refused at broker-check for the kill switch is a breaker 
   const early = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ended: "2026-10-16T11:30:00Z" });
   assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
   assert.deepEqual(writes(early.calls), []);
+});
+
+// The breaker record names the refused run and when it ended, so a reader
+// hours later sees a re-fire of that refusal, not a fresh one.
+const postedBody = (calls) => {
+  const posted = writes(calls).find((call) => call.startsWith(`POST /repos/${REPO}/issues/30/comments `));
+  assert.ok(posted, writes(calls).join("\n"));
+  return JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body;
+};
+const REFUSED_LINK = `[run 5030](https://github.com/${REPO}/actions/runs/5030)`;
+
+test("the breaker record links the refused run and its end time, and says it re-fires that earlier refusal", () => {
+  const body = breakerComment(KEY, { repo: REPO, run: 5030, ended: Date.parse("2026-10-16T10:05:00Z") });
+  assert.ok(body.startsWith(`${BREAKER_MARKER}\n`), body);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("2026-10-16T10:05:00Z"), body);
+  assert.ok(body.includes("not a new refusal"), body);
+});
+
+test("a breaker trip's record names the run the broker refused and when it ended", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await sweep({ github, actions }), 0);
+  const body = postedBody(calls);
+  assert.ok(body.includes(REFUSED_LINK), body);
+  assert.ok(body.includes("ended at 2026-10-16T10:05:00Z"), body);
+  // With a later run the WIP cap skipped for the same label, the record still
+  // names the refused run, not the newest.
+  const fake = world({
+    openReady: [ready(30)],
+    comments: { 30: [note()] },
+    events: { 30: [added(LABELED_AT, OWNER)] },
+    runs: [
+      { ...laneRun({ conclusion: "failure" }), updated_at: "2026-10-16T10:05:00Z" },
+      { ...laneRun({ at: "2026-10-16T10:00:04Z", conclusion: "success" }), id: 5031, updated_at: "2026-10-16T10:06:00Z" },
+    ],
+    jobs: { 5030: BROKER_REFUSED, 5031: WIP_CAPPED },
+    logs: CHECK_KILLED,
+    openLanePrs: 10,
+    blobs: BLOBS,
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github, now: Date.parse("2026-10-16T11:10:00Z") }), 0);
+  const both = postedBody(fake.calls);
+  assert.ok(both.includes(REFUSED_LINK), both);
+  assert.ok(both.includes("ended at 2026-10-16T10:05:00Z"), both);
 });
 
 test("a breaker trip leaves the once-per-version re-fire for a later failed run", async () => {
