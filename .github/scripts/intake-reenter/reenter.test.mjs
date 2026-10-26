@@ -127,6 +127,26 @@ test("a listed human's decision on a needs-decision issue sends it back to triag
   expectDispatched(w);
 });
 
+test("a listed human's decision on an issue admission parked at status: confirmed sends it back to triage", async () => {
+  const w = world({
+    labels: ["status: confirmed", "priority: medium"],
+    comments: [{ id: 1, user: OWNER, body: DECISION }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+});
+
+test("a plain comment on a status: confirmed issue changes nothing", async () => {
+  const w = world({
+    labels: ["status: confirmed"],
+    comments: [{ id: 1, user: OWNER, body: "Looking at this." }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["status: confirmed"]);
+  assert.equal(w.dispatches().length, 0);
+});
+
 test("the outside author's reply on a needs-info issue moves it to needs-triage without a model run", async () => {
   const w = world({
     labels: ["status: needs-info", "needs-human"],

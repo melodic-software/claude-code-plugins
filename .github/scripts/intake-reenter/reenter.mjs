@@ -5,6 +5,8 @@
 // - `status: needs-decision` and a decision comment (select-trusted-text's
 //   isDecisionComment, the rule write-issue.mjs marks `decision: true` by):
 //   remove `status: needs-decision` and `needs-human`;
+// - `status: confirmed`, where admission parks a refusal no person must
+//   answer, and a decision comment: remove `status: confirmed`;
 // - `status: needs-info` and a comment by the issue's author or a listed
 //   human, not posted through an App: remove `status: needs-info`;
 // - EVENT_NAME `issues` (no comment): a listed human removed `needs-human` and
@@ -37,6 +39,8 @@ import { isDecisionComment, selectTrustedIssueComments } from "../../actions/sel
 
 export const NEEDS_DECISION = "status: needs-decision";
 export const NEEDS_INFO = "status: needs-info";
+// Where admission parks a refusal no person must answer (admit.mjs CONFIRMED).
+export const CONFIRMED = "status: confirmed";
 export const NEEDS_HUMAN = "needs-human";
 export const NEEDS_TRIAGE = "needs-triage";
 const WORKFLOW = "intake-triage.yml";
@@ -45,7 +49,8 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// Which answer the comment is, or null: `decision` or `info`.
+// Which answer the comment is, or null: `decision`, `parked` (a decision on an
+// issue admission parked at status: confirmed) or `info`.
 export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId }) {
   if (issue.pull_request || issue.state !== "open") {
     return null;
@@ -63,6 +68,12 @@ export async function classify({ github, repository, issue, comment, humans, ids
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
       return "decision";
+    }
+  }
+  if (!labels.includes(NEEDS_DECISION) && labels.includes(CONFIRMED) && humans.has(user.id)) {
+    const item = await kept();
+    if (item && isDecisionComment(item, humans)) {
+      return "parked";
     }
   }
   if (labels.includes(NEEDS_INFO)) {
@@ -181,7 +192,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
       log("intake-reenter: not an answer to a parked issue; nothing changed");
       return 0;
     }
-    const status = kind === "decision" ? NEEDS_DECISION : NEEDS_INFO;
+    const status = { decision: NEEDS_DECISION, parked: CONFIRMED, info: NEEDS_INFO }[kind];
     if (!(await removeLabel(client, base, status))) {
       log(`intake-reenter: ${status} is already gone; nothing dispatched`);
       return 0;
