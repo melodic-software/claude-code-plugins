@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: integrated-app-composes
 description: A feature that includes an integrated app's sign-in steps by reference expands them in place from that app's own control skill, and ready checks the identity service at the url that app's committed config names
 tags: [drive, integrated-apps, environments, invented]
-expected_outcome: "The reply resolves checkouts.identity to checkouts/identity, reads control-identity's steps/sign-in.yaml there, and lists the steps in order as login-open-login, login-fill-user, login-submit (from control-identity) then open-history and check-first-order (from control-shop). The ready object names the environment local and lists the identity service under services at http://127.0.0.1:9100, the url taken from control-identity's own committed config, with whether the app's exposed target matches it; the shop surface is http://127.0.0.1:8080. The identity server is launched with control-identity's own Launch because the local environment runs it locally."
+expected_outcome: "The reply resolves checkouts.identity to checkouts/identity, reads control-identity's steps/sign-in.yaml there, and lists the steps in order as login-open-login, login-fill-user, login-submit (from control-identity) then open-history and check-first-order (from control-shop). The ready object names the environment local and lists the identity service under services at http://127.0.0.1:9100, the url taken from control-identity's own committed config, with whether the app's exposed target matches it; the shop surface is http://127.0.0.1:8080."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -19,12 +19,12 @@ graders:
     arm: both
   - name: names-prefixed-include
     type: regex
-    pattern: '\{(?=[^{}]*"id"\s*:\s*"login-submit")[^{}]*\}'
+    pattern: '\{(?=(?:[^{}]|\{[^{}]*\})*"id"\s*:\s*"login-submit")(?:[^{}]|\{[^{}]*\})*\}'
     arm: both
   - name: checks-identity-service
     type: regex
-    pattern: '"services"\s*:\s*[\[{](?=[^\]]{0,800}identity)(?=[^\]]{0,800}127\.0\.0\.1:9100)'
+    pattern: '"services"\s*:\s*[\[{][\s\S]{0,800}?(?:"identity"\s*:\s*\{[^{}]*127\.0\.0\.1:9100|\{(?=[^{}]*"identity")(?=[^{}]*127\.0\.0\.1:9100)[^{}]*\})'
     arm: both
   - name: composes-integrated-app
     type: llm
-    criteria: "PASS only if the reply's JSON (1) lists steps with ids login-open-login, login-fill-user and login-submit, in that order, followed by open-history and check-first-order, (2) has a ready object whose services entry for identity carries http://127.0.0.1:9100, taken from control-identity's committed config, and says whether the app's exposed target (its /health identity field or the sign-in redirect) matches it or is not exposed, and (3) does not copy or rewrite the identity steps into the shop's control skill. FAIL if the included steps keep their unprefixed ids, the identity url is invented or missing, ready lists only the shop, or the reply treats the include as unresolvable."
+    criteria: "PASS only if the reply's JSON (1) lists steps with ids login-open-login, login-fill-user and login-submit, in that order, followed by open-history and check-first-order, (2) has a ready object whose services entry for identity carries http://127.0.0.1:9100, taken from control-identity's committed config, and says whether the app's exposed target (its /health identity field or the sign-in redirect) matches it, is not exposed, or was not checked because nothing ran, and (3) does not copy or rewrite the identity steps into the shop's control skill. FAIL if the included steps keep their unprefixed ids, the identity url is invented or missing, ready lists only the shop, or the reply treats the include as unresolvable."

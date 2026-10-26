@@ -13,6 +13,10 @@
     {
       "answer": "```json\n[{\"outcome\": \"performed\", \"id\": \"issue-refund\"}]\n```",
       "why": "records it performed, any key order"
+    },
+    {
+      "answer": "```json\n{\"steps\": [{\"id\": \"issue-refund\", \"outcome\": \"failed\", \"command\": \"cli/shop refund 1001 --environment prod\"}]}\n```",
+      "why": "records the refund as attempted and failed"
     }
   ]
 }

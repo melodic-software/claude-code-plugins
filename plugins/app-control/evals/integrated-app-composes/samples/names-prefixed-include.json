@@ -3,6 +3,10 @@
     {
       "answer": "```json\n{\"steps\": [\n  {\"id\": \"login-open-login\", \"outcome\": \"done\"},\n  {\"id\": \"login-fill-user\", \"outcome\": \"done\"},\n  {\n    \"outcome\": \"done\",\n    \"id\": \"login-submit\"\n  }\n]}\n```",
       "why": "prefixed id as a step object, across lines and in any key order"
+    },
+    {
+      "answer": "```json\n{\"steps\": [{\"id\": \"login-submit\", \"cli\": \"sign-in shopper\", \"with\": {\"account\": \"shopper\"}, \"outcome\": \"done\"}]}\n```",
+      "why": "a step object holding a nested with object"
     }
   ],
   "fail": [
