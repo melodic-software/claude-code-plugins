@@ -161,7 +161,7 @@ within its 3-minute timeout; the bump checks stay in `check-plugins`. Adding a f
 source therefore adds a step to an existing job, and adding a job
 is the thing to justify rather than the default.
 
-One thing was lost and is worth naming rather than glossing. The old **job** name
+One thing was lost. The old **job** name
 (`state-key-sync`, `index-regen-sync`) was the discriminator that said which library failed. Every
 step kept the name it had, but those names were never carrying that load: seven of the twelve drift
 checks name their library and five do not, and none of the `--check-bump` steps do, seven of them
