@@ -38,7 +38,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' && steps.cost_hold.outputs.cleared != 'true' }}"* ]]; then
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' && steps.cost_hold.outputs.cleared != 'true' && steps.lane_lift.outputs.cleared != 'true' }}"* ]]; then
   ok "step runs only once the human-gated step read the label off and no recorded cost decision cleared the hold"
 else
   fail "step lost its condition on the human-gated step's held output"
@@ -181,6 +181,10 @@ expect "a trusted lift of a claude[bot] label passes with no comment" 0 "lifted 
 STUB_COMMENTS="[$HOLD]"
 STUB_EVENTS="[$OWNER_LIFT,$(labeled needs-human 2026-10-23T11:10:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "a review re-run that labels the same head again needs its own trusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+# ci-status's own lift (lane_lift) at an earlier head no longer holds at this one.
+STUB_EVENTS="[$(unlabeled needs-human 2026-10-23T11:30:00Z 41898282 'github-actions[bot]')]"
+expect "a lane lift whose clean re-review does not cover this head fails, naming the lift" 1 \
+  "::error::ci-status removed 'needs-human' from #6419 after a clean re-review of an earlier head" "is not a person on the trusted-actor list"
 # Recovery: a trusted person adds the label back and removes it.
 TRUSTED_RELABEL="$(jq -cn '{event: "labeled", created_at: "2026-10-23T12:00:00Z", label: {name: "needs-human"}, actor: {id: 153232337, login: "kyle-sexton"}}')"
 STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 153232337 kyle-sexton)]"

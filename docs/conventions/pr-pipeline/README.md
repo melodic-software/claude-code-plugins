@@ -1805,6 +1805,20 @@ them on every `pull_request` run, contract-only runs included:
   trusted-actor list; a later removal is of a later label, such as an escalation
   `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails. To recover, a
   trusted person adds the label back, which starts a new hold, and a trusted person removes it.
+- **A lane's clean re-review lifts its own security hold** (owner decision Q15 (a), 2026-10-26).
+  ci-status's `Clear a review-lane security hold its lane re-reviewed clean` step removes the
+  label, with one comment naming the held head and the current one, when the base's
+  `merge-holds.mjs` `laneLift` finds all of these since a trusted person last removed it: only
+  `github-actions[bot]` (by numeric id) added it, each time right before a held review; every hold
+  the lanes' check-run notices record is `critical-security` alone at an older head; no lanes App
+  escalation or comment deletion; each holding lane and the security lane completed a review of
+  the head that recorded no hold and no summary finding (a held review's summary finding needs a
+  whole review); and no lane thread is open above SUGGESTION, open meaning unresolved, or resolved
+  by anyone but a trusted person while not outdated. A run on a head that changes a review-lane
+  workflow, and anything unread, keeps the label. The step re-derives the lift on every run, so
+  the hold-lift check above skips; once a later head's review is not clean, that check fails until
+  it is. A cost hold clears only through the owner's cost decision, and a label a person, the lanes
+  App or another lane added never comes off here.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or

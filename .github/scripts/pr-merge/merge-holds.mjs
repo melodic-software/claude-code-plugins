@@ -565,6 +565,179 @@ export function sameNetChange(decided, current) {
   return then !== null && now !== null && then.size === now.size && [...then].every(([name, value]) => now.get(name) === value);
 }
 
+// The identity the review lanes' hold step writes as (ci-workflows
+// pr-review-cli.yml's status job, with the caller's GITHUB_TOKEN):
+// github-actions[bot], by numeric id, never by login.
+export const LANE_HOLD_ACTOR_ID = 41898282;
+// Each review lane's status job, by its check name.
+export const LANE_CHECKS = Object.freeze({
+  "claude-review": "pr-review / claude-review-status",
+  "claude-security-review": "pr-review-security / security-review",
+});
+const SECURITY_LANE = "claude-security-review";
+const HOLD_NOTICE = /^claude-lane-hold lane=([a-z-]+) sha=([0-9a-f]{40}) criteria=([a-z,-]+) label=/;
+const REVIEW_RECORD =
+  /^claude-lane-review-complete lane=([\w-]+) sha=([0-9a-f]{40}) findings=(\d{1,6}) inline=(\d{1,6}) scope=(whole|incremental since=[0-9a-f]{40})(?: account=fallback)?$/;
+const SEVERITY = /^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$/gm;
+const LANE_FOOTER = /^\s*`?claude-lane: ([\w-]+)`?\s*$/;
+const PAIRED_S = 600;
+const SHA40 = /^[0-9a-f]{40}$/;
+const seconds = (text) => {
+  const ms = Date.parse(text);
+  return Number.isFinite(ms) ? ms / 1000 : NaN;
+};
+const notes = (job) => (Array.isArray(job?.notes) ? job.notes.filter((item) => item?.annotation_level === "notice") : null);
+const keep = (reason) => ({ lift: false, reason });
+
+// A thread the review lane `lane` opened: the Claude App's untagged or tagged
+// for it, or github-actions' with its footer last (babysit_review_evidence
+// _lane_thread).
+function laneThread(lane, item) {
+  const first = item?.comments?.nodes?.[0];
+  const author = first?.author;
+  if (author?.__typename !== "Bot") return false;
+  const body = String(first.body ?? "");
+  if (author.login === "claude" || author.login === "claude[bot]") {
+    const tag = /^\s*`?claude-lane: ([\w-]+)`?\s*$/m.exec(body);
+    return tag === null || tag[1] === lane;
+  }
+  const last = body.split(/\r?\n/).filter((line) => line.trim()).at(-1) ?? "";
+  return (author.login === "github-actions" || author.login === "github-actions[bot]") && LANE_FOOTER.exec(last)?.[1] === lane;
+}
+
+// The lane job's one review record for `sha` as { summary, whole }, else null.
+function reviewOf(lane, sha, job) {
+  const found = (notes(job) ?? []).filter((item) => item.title === "claude-lane-review-complete");
+  const match = found.length === 1 ? REVIEW_RECORD.exec(String(found[0].message ?? "")) : null;
+  if (match === null || match[1] !== lane || match[2] !== sha || Number(match[3]) < Number(match[4])) return null;
+  return { summary: Number(match[3]) - Number(match[4]), whole: match[5] === "whole" };
+}
+
+// Whether a review lane lifts its own `needs-human` hold (owner decision
+// Q15 (a), 2026-10-26), as { lift, reason, held, head }. `input` holds raw
+// reads of one pull request: `events` (the issue events), `comments` (the
+// issue comments), `deleted` (COMMENT_DELETED_QUERY's data), `threads` (the
+// review threads, { totalCount, nodes }), and per lane in LANE_CHECKS the
+// lane workflow's runs, each { id, head_sha, jobs }, each job with its
+// check-run `notes` (annotations); plus `head`, `label`, `humans` (the
+// trusted people's ids) and `appId` (the lanes App's). It lifts only when all
+// of these hold, else it keeps the label:
+// - The window opens at the newest removal of the label a trusted person made
+//   directly (ever, when none), so a lift's own removal opens none and a
+//   re-run judges the same holds.
+// - The label was added in the window, each time by LANE_HOLD_ACTOR_ID and
+//   followed within PAIRED_S by a held review: no person, App or other lane
+//   added it.
+// - Every hold a lane's status job recorded in the window (its
+//   `claude-lane-hold` notice, never a comment anyone can edit) is
+//   `critical-security` alone and names a head other than `head`. A cost hold
+//   clears only through the owner's cost decision.
+// - No lanes App escalation was written or edited, and no comment deleted, in
+//   the window.
+// - Each holding lane and the security lane completed a review of `head` in
+//   its newest run there: the status job's latest attempt succeeded, its
+//   `Apply the hold` step did not fail, it recorded no hold and exactly one
+//   review record for `head` with no summary finding (a summary finding has
+//   no severity line to read). A held review that left a summary finding
+//   needs a whole review of `head`.
+// - No thread of those lanes is open with a severity other than SUGGESTION
+//   (the Q26 B bar): open is unresolved, or resolved by anyone but a trusted
+//   person while GitHub does not mark it outdated. A severity line missing or
+//   repeated counts as CRITICAL. A list cut short keeps the label.
+export function laneLift(input) {
+  const { head, label, events, comments, deleted, threads, lanes } = input ?? {};
+  const humans = new Set(Array.isArray(input?.humans) ? input.humans : []);
+  if (!SHA40.test(String(head))) return keep("the event names no head commit");
+  if (!Array.isArray(events) || !Array.isArray(comments) || lanes === null || typeof lanes !== "object") {
+    return keep("the timeline, comments or lane runs do not read");
+  }
+  const mine = events.filter((item) => item?.label?.name === label);
+  if (mine.some((item) => !Number.isFinite(seconds(item.created_at)))) return keep("a label event has no time");
+  const since = Math.max(
+    -Infinity,
+    ...mine
+      .filter((item) => item.event === "unlabeled" && item.performed_via_github_app == null && humans.has(item.actor?.id))
+      .map((item) => seconds(item.created_at)),
+  );
+  const added = mine.filter((item) => item.event === "labeled" && seconds(item.created_at) > since);
+  if (added.length === 0) return keep("no label was added since a trusted person last removed it");
+  if (added.some((item) => item.actor?.id !== LANE_HOLD_ACTOR_ID || item.actor?.type !== "Bot")) {
+    return keep("someone other than a review lane added the label");
+  }
+  // Every hold a lane recorded in the window, and each lane's newest review of head.
+  const holds = [];
+  const latest = {};
+  for (const [lane, check] of Object.entries(LANE_CHECKS)) {
+    const runs = lanes[lane];
+    if (!Array.isArray(runs)) return keep(`the ${lane} runs do not read`);
+    for (const item of runs) {
+      if (!Array.isArray(item?.jobs)) return keep(`the jobs of ${lane} run ${item?.id} do not read`);
+      for (const job of item.jobs.filter((entry) => entry?.name === check && seconds(entry.completed_at) > since)) {
+        const read = notes(job);
+        if (read === null) return keep(`the annotations of ${lane} job ${job.id} do not read`);
+        for (const notice of read.filter((entry) => String(entry.message ?? "").startsWith("claude-lane-hold "))) {
+          const match = HOLD_NOTICE.exec(String(notice.message));
+          if (match === null || match[1] !== lane || match[2] !== item.head_sha) return keep(`a ${lane} hold notice does not parse`);
+          holds.push({ lane, sha: match[2], criteria: match[3], at: seconds(job.completed_at), review: reviewOf(lane, match[2], job) });
+        }
+      }
+    }
+    const newest = runs.filter((entry) => entry?.head_sha === head).sort((a, b) => b.id - a.id)[0];
+    const jobs = (newest?.jobs ?? []).filter((entry) => entry?.name === check);
+    latest[lane] = jobs.sort((a, b) => (b.run_attempt ?? 0) - (a.run_attempt ?? 0) || b.id - a.id)[0] ?? null;
+  }
+  if (holds.length === 0) return keep("no review lane recorded a hold since a trusted person last removed the label");
+  const paired = (when) => holds.some((hold) => hold.at >= when && hold.at - when <= PAIRED_S);
+  if (added.some((item) => !paired(seconds(item.created_at)))) return keep("a label was added with no held review after it");
+  if (holds.some((hold) => hold.criteria !== "critical-security")) return keep("a review-lane hold since then is not critical-security alone");
+  if (holds.some((hold) => hold.sha === head)) return keep(`a review lane holds the current head ${head}`);
+  const escalated = comments.some(
+    (item) =>
+      item?.user?.id === input.appId &&
+      String(item.body ?? "").includes("<!-- work-items:escalation") &&
+      Math.max(seconds(item.created_at), seconds(item.updated_at)) > since,
+  );
+  if (escalated) return keep("the lanes App escalated since the label went on");
+  if (deletedSince(deleted, Number.isFinite(since) ? new Date(since * 1000).toISOString() : "1970-01-01T00:00:00Z")) {
+    return keep("a comment was deleted since the label went on, or the deletions do not read");
+  }
+  const judged = [...new Set([...holds.map((hold) => hold.lane), SECURITY_LANE])];
+  const reviewed = {};
+  for (const lane of judged) {
+    const job = latest[lane];
+    if (job === null) return keep(`${lane} has not reviewed ${head}`);
+    if (job.status !== "completed" || job.conclusion !== "success") return keep(`${lane}'s review of ${head} has not completed (${job.status}, ${job.conclusion})`);
+    if ((Array.isArray(job.steps) ? job.steps : []).some((step) => step?.name === "Apply the hold" && step.conclusion != null && step.conclusion !== "success")) {
+      return keep(`${lane}'s hold step did not succeed at ${head}`);
+    }
+    const read = notes(job);
+    if (read === null || read.some((entry) => String(entry.message ?? "").startsWith("claude-lane-hold "))) return keep(`a review lane holds the current head ${head}`);
+    const review = reviewOf(lane, head, job);
+    if (review === null) return keep(`${lane} recorded no complete review of ${head}`);
+    if (review.summary > 0) return keep(`${lane}'s review of ${head} left ${review.summary} summary finding(s), whose severity does not read`);
+    reviewed[lane] = review;
+  }
+  const unread = holds.find((hold) => !(hold.review?.summary === 0) && !reviewed[hold.lane].whole);
+  if (unread !== undefined) return keep(`${unread.lane}'s held review of ${unread.sha} left a summary finding, and its review of ${head} is not whole`);
+  const nodes = threads?.nodes;
+  if (!Array.isArray(nodes) || !Number.isInteger(threads.totalCount) || threads.totalCount > nodes.length) return keep("the review threads do not read whole");
+  const open = nodes.find((item) => {
+    if (!judged.some((lane) => laneThread(lane, item))) return false;
+    const by = item.resolvedBy;
+    const closed = item.isResolved === true && ((by?.__typename === "User" && humans.has(by.databaseId)) || item.isOutdated === true);
+    const severities = [...String(item.comments.nodes[0].body ?? "").matchAll(SEVERITY)].map((match) => match[1]);
+    return !closed && !(severities.length === 1 && severities[0] === "SUGGESTION");
+  });
+  if (open !== undefined) return keep("a review lane has an open finding above SUGGESTION");
+  const held = [...new Set(holds.map((hold) => hold.sha))];
+  return { lift: true, reason: `${judged.join(" and ")} reviewed ${head} clean after holding ${held.join(", ")}`, held, head };
+}
+
+// The comment ci-status posts when it lifts a lane's hold (laneLift's verdict).
+export const liftedMarker = (held, head) => `<!-- ci-status lane-hold-lifted held=${held.join(",")} head=${head} -->`;
+export const liftedComment = ({ held, head }, label) =>
+  `${liftedMarker(held, head)}\nThe review lane held this pull request at \`${held.join("`, `")}\` and its complete review of \`${head}\` finds no CRITICAL finding and no open IMPORTANT security finding, so ci-status removed \`${label}\`. A person adding \`${label}\` back holds it again.`;
+
 // Every page of the REST list at `path`.
 async function pages(github, path) {
   const rows = [];

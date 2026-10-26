@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { BODY_WRITERS_QUERY, COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, deletedSince, linkHold, main, sameNetChange } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, deletedSince, laneLift, liftedComment, linkHold, main, sameNetChange } from "./merge-holds.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -636,4 +636,175 @@ test("changeOf reads a files line with and without its status", () => {
   assert.deepEqual(changeOf(["b.md", "a.md"]), { path: "b.md", previous: "a.md", status: null });
   assert.deepEqual(changeOf(["a.md"]), { path: "a.md", previous: null, status: null });
   assert.throws(() => changeOf("a.md"), /does not read/);
+});
+
+// laneLift: owner decision Q15 (a), 2026-10-26. A review lane's
+// critical-security hold comes off once that lane's complete review of a
+// newer head finds no CRITICAL finding and no open IMPORTANT security
+// finding (the Q26 B bar). Only github-actions[bot] (id 41898282), the
+// identity the lanes' hold step writes as, may have added the label, and
+// every doubt keeps it.
+const SEC = "claude-security-review";
+const SEC_CHECK = "pr-review-security / security-review";
+const CODE_CHECK = "pr-review / claude-review-status";
+const NEW = "1111111111111111111111111111111111111111";
+const TRUSTED = 5;
+const APP = 777;
+const at = (minute) => `2026-10-26T12:${String(minute).padStart(2, "0")}:00Z`;
+const note = (message, title = "") => ({ annotation_level: "notice", title, message });
+const holdNote = (sha, lane = SEC, criteria = "critical-security") => note(`claude-lane-hold lane=${lane} sha=${sha} criteria=${criteria} label=needs-human`);
+const record = (sha, { lane = SEC, findings = 0, inline = 0, scope = "whole" } = {}) =>
+  note(`claude-lane-review-complete lane=${lane} sha=${sha} findings=${findings} inline=${inline} scope=${scope}`, "claude-lane-review-complete");
+const job = (name, completed, notes, extra = {}) => ({
+  id: extra.id ?? 1,
+  name,
+  run_attempt: 1,
+  status: "completed",
+  conclusion: "success",
+  completed_at: completed,
+  steps: [{ name: "Apply the hold", conclusion: "success" }],
+  notes,
+  ...extra,
+});
+const run = (id, sha, jobs) => ({ id, head_sha: sha, jobs });
+const labeled = (when, actor = LANE) => ({ event: "labeled", label: { name: "needs-human" }, actor, created_at: when });
+const unlabeled = (when, actor) => ({ event: "unlabeled", label: { name: "needs-human" }, actor, created_at: when, performed_via_github_app: null });
+// A lane thread: first comment by github-actions with the lane footer.
+const thread = (severity, { resolved = false, outdated = false, resolvedBy = null, lane = SEC } = {}) => ({
+  isResolved: resolved,
+  isOutdated: outdated,
+  resolvedBy,
+  comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, createdAt: at(1), body: `Finding.\n\nseverity: ${severity}\n\nclaude-lane: ${lane}` }] },
+});
+const noDeletions = { repository: { pullRequest: { timelineItems: { filteredCount: 0, nodes: [] } } } };
+// The security lane held OLD at 12:01 (label at 12:00), then reviewed NEW
+// whole and clean at 12:10; the code lane reviewed NEW clean too.
+function liftInput(change = {}) {
+  return {
+    head: NEW,
+    label: "needs-human",
+    humans: [TRUSTED],
+    appId: APP,
+    events: [labeled(at(0))],
+    comments: [],
+    deleted: noDeletions,
+    threads: { totalCount: 1, nodes: [thread("CRITICAL", { resolved: true, outdated: true })] },
+    lanes: {
+      "claude-review": [run(10, NEW, [job(CODE_CHECK, at(9), [record(NEW, { lane: "claude-review" })], { id: 101 })])],
+      [SEC]: [
+        run(20, OLD, [job(SEC_CHECK, at(1), [record(OLD, { findings: 1, inline: 1 }), holdNote(OLD)], { id: 201 })]),
+        run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW, { scope: `incremental since=${OLD}` })], { id: 211 })]),
+      ],
+    },
+    ...change,
+  };
+}
+const withSec = (runs) => liftInput({ lanes: { ...liftInput().lanes, [SEC]: runs } });
+const oldRun = liftInput().lanes[SEC][0];
+
+test("laneLift lifts the lane's own hold at an older head once it reviews the new head clean", () => {
+  const verdict = laneLift(liftInput());
+  assert.equal(verdict.lift, true, verdict.reason);
+  assert.deepEqual(verdict.held, [OLD]);
+  assert.equal(verdict.head, NEW);
+  assert.match(liftedComment(verdict, "needs-human"), new RegExp(`^<!-- ci-status lane-hold-lifted held=${OLD} head=${NEW} -->\n.*\`${OLD}\`.*\`${NEW}\``));
+});
+
+test("laneLift keeps a hold at the current head", () => {
+  const verdict = laneLift(withSec([oldRun, run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW, { findings: 1, inline: 1 }), holdNote(NEW)], { id: 211 })])]));
+  assert.equal(verdict.lift, false);
+  assert.match(verdict.reason, /holds the current head/);
+  // The same head the hold named: no newer review to lift it.
+  const same = laneLift(withSec([run(21, NEW, [job(SEC_CHECK, at(1), [record(NEW, { findings: 1, inline: 1 }), holdNote(NEW)], { id: 211 })])]));
+  assert.equal(same.lift, false);
+  assert.match(same.reason, /holds the current head/);
+});
+
+test("laneLift keeps the label on an open CRITICAL or IMPORTANT security finding", () => {
+  for (const severity of ["CRITICAL", "IMPORTANT"]) {
+    const verdict = laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread(severity)] } }));
+    assert.equal(verdict.lift, false, severity);
+    assert.match(verdict.reason, /open finding/);
+  }
+  // Resolved by a bot with the flagged lines unchanged is still open.
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("IMPORTANT", { resolved: true, resolvedBy: { __typename: "Bot", login: "x" } })] } })).lift, false);
+  // A severity line that does not read counts as blocking.
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("HIGH")] } })).lift, false);
+  // An open SUGGESTION does not keep it; a trusted person's resolution closes one.
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("SUGGESTION")] } })).lift, true);
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("CRITICAL", { resolved: true, resolvedBy: { __typename: "User", databaseId: TRUSTED } })] } })).lift, true);
+  // A summary finding at the new head has no severity line to read.
+  assert.equal(laneLift(withSec([oldRun, run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW, { findings: 1, inline: 0 })], { id: 211 })])])).lift, false);
+  // A thread list cut short keeps it.
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 101, nodes: [] } })).lift, false);
+  assert.equal(laneLift(liftInput({ threads: null })).lift, false);
+});
+
+test("laneLift keeps a label a person or another lane added", () => {
+  const person = laneLift(liftInput({ events: [labeled(at(0)), labeled(at(2), { login: "someone", id: 42, type: "User" })] }));
+  assert.equal(person.lift, false);
+  assert.match(person.reason, /someone other than a review lane/);
+  const app = laneLift(liftInput({ events: [labeled(at(0), { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" })] }));
+  assert.equal(app.lift, false);
+  assert.match(app.reason, /someone other than a review lane/);
+  // The actor is matched by id: a login alone does not make it the lanes' writer.
+  const spoof = laneLift(liftInput({ events: [labeled(at(0), { login: "github-actions[bot]", id: 9, type: "Bot" })] }));
+  assert.equal(spoof.lift, false);
+  assert.match(spoof.reason, /someone other than a review lane/);
+  // A lanes App escalation since the label went on keeps it.
+  const escalated = laneLift(liftInput({ comments: [{ user: { id: APP }, created_at: at(5), updated_at: at(5), body: "<!-- work-items:escalation lane=pr-unblock kind=escalated -->" }] }));
+  assert.equal(escalated.lift, false);
+  assert.match(escalated.reason, /escalated/);
+  // A cost hold is the owner's cost decision's to clear.
+  const cost = laneLift(withSec([run(20, OLD, [job(SEC_CHECK, at(1), [record(OLD), holdNote(OLD, SEC, "cost")], { id: 201 })]), liftInput().lanes[SEC][1]]));
+  assert.equal(cost.lift, false);
+  assert.match(cost.reason, /not critical-security alone/);
+  // A label with no held review right after it.
+  assert.equal(laneLift(liftInput({ events: [labeled("2026-10-26T11:00:00Z")] })).lift, false);
+  // A deletion since the window opened.
+  assert.equal(laneLift(liftInput({ deleted: { repository: { pullRequest: { timelineItems: { filteredCount: 1, nodes: [{ createdAt: at(3) }] } } } } })).lift, false);
+});
+
+test("laneLift keeps the label when the timeline does not read", () => {
+  for (const events of [null, undefined, "x", [{ event: "labeled", label: { name: "needs-human" }, actor: LANE, created_at: "not a time" }]]) {
+    assert.equal(laneLift(liftInput({ events })).lift, false, JSON.stringify(events));
+  }
+  assert.equal(laneLift(liftInput({ events: [] })).lift, false);
+  assert.equal(laneLift(liftInput({ deleted: null })).lift, false);
+  assert.equal(laneLift(liftInput({ comments: null })).lift, false);
+  assert.equal(laneLift(liftInput({ head: "abc" })).lift, false);
+});
+
+test("laneLift keeps the label until the lane's review of the new head is complete", () => {
+  const newRun = (notes, extra = {}) => withSec([oldRun, run(21, NEW, [job(SEC_CHECK, at(10), notes, { id: 211, ...extra })])]);
+  const cases = {
+    "no review run": [withSec([oldRun]), /has not reviewed/],
+    "a run still going": [newRun([record(NEW)], { status: "in_progress", conclusion: null }), /has not completed/],
+    "a failed review": [newRun([record(NEW)], { conclusion: "failure" }), /has not completed/],
+    "a hold step that failed": [newRun([record(NEW)], { steps: [{ name: "Apply the hold", conclusion: "failure" }] }), /hold step did not succeed/],
+    "no review record": [newRun([]), /no complete review/],
+    "a skip record": [newRun([note(`claude-lane-review-complete lane=${SEC} sha=${NEW} skip=no-change through=${OLD}`, "claude-lane-review-complete")]), /no complete review/],
+    "two records": [newRun([record(NEW), record(NEW)]), /no complete review/],
+    "a record for another head": [newRun([record(OLD)]), /no complete review/],
+  };
+  for (const [name, [input, reason]] of Object.entries(cases)) {
+    const verdict = laneLift(input);
+    assert.equal(verdict.lift, false, name);
+    assert.match(verdict.reason, reason, name);
+  }
+  // A newer attempt that has not finished outranks a finished one.
+  const retried = withSec([oldRun, run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW)], { id: 211 }), job(SEC_CHECK, null, [], { id: 212, run_attempt: 2, status: "in_progress", conclusion: null })])]);
+  assert.match(laneLift(retried).reason, /has not completed/);
+  // A held review that left summary findings needs a whole review to lift it.
+  const summary = run(20, OLD, [job(SEC_CHECK, at(1), [record(OLD, { findings: 1 }), holdNote(OLD)], { id: 201 })]);
+  assert.match(laneLift(withSec([summary, liftInput().lanes[SEC][1]])).reason, /left a summary finding, and its review of .* is not whole/);
+  assert.equal(laneLift(withSec([summary, run(21, NEW, [job(SEC_CHECK, at(10), [record(NEW)], { id: 211 })])])).lift, true);
+});
+
+test("laneLift reads only the window since a trusted person last removed the label", () => {
+  // An old person-added label a trusted person removed is outside the window.
+  const events = [labeled("2026-10-26T11:00:00Z", { login: "someone", id: 42, type: "User" }), unlabeled("2026-10-26T11:30:00Z", { id: TRUSTED }), labeled(at(0))];
+  assert.equal(laneLift(liftInput({ events })).lift, true);
+  // The lift's own removal (github-actions) opens no window, so a re-run judges the same holds.
+  assert.equal(laneLift(liftInput({ events: [labeled(at(0)), unlabeled(at(11), LANE)] })).lift, true);
 });

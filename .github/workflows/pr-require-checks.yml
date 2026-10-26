@@ -4045,6 +4045,173 @@ jobs:
           # shellcheck disable=SC2016 # $l is a jq variable
           gh api -X DELETE "repos/$repo/issues/$PR_NUMBER/labels/$(jq -rn --arg l "$label" '$l | @uri')" >/dev/null ||
             echo "::warning::could not remove '$label' from #$PR_NUMBER; the step below holds it."
+      # A REVIEW LANE'S OWN SECURITY HOLD COMES OFF ONCE IT RE-REVIEWS CLEAN
+      # (owner decision Q15 (a), 2026-10-26). The lanes' hold step (ci-workflows
+      # pr-review-cli.yml `apply-review-hold`) only adds, so ci-status, which
+      # judges every lift, removes it. The base's merge-holds.mjs laneLift
+      # decides, from reads of the pull request's events, comments, deleted
+      # comments, review threads and both review lanes' runs, jobs and
+      # check-run notices: the label was added since a trusted person last
+      # removed it only by github-actions[bot] (by numeric id), each time right
+      # before a held review; every hold notice in that window is
+      # `critical-security` alone at a head other than this one; no lanes App
+      # escalation and no comment deletion in it; each holding lane and the
+      # security lane completed a review of this head that recorded no hold and
+      # no summary finding; and no thread of theirs is open above SUGGESTION
+      # (the Q26 B bar). Runs on a head that changes a review-lane workflow,
+      # which could forge a notice, keep the hold, as in the step above.
+      # Then it outputs cleared=true, which a re-run at this head derives
+      # again, so the hold-lift step below skips, and, with the label on,
+      # posts one comment naming both heads and removes the label. A person
+      # adding the label back holds it again; a CRITICAL at a later head holds
+      # it again through the lane. Anything unread keeps the hold.
+      # Pinned by scripts/ci-hold-lane-lift.test.sh, which runs this body.
+      - name: Clear a review-lane security hold its lane re-reviewed clean
+        id: lane_lift
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+        run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
+          keep() {
+            echo "The review-lane hold stays for a person: $1."
+            exit 0
+          }
+          read_api() {
+            local attempt out
+            for attempt in 1 2 3; do
+              # gh-read-exempt: an unreadable input keeps the hold, and a wait would act on stale reads.
+              if out=$(gh api "$@" 2>"$RUNNER_TEMP/lane-lift.err"); then
+                printf '%s\n' "$out"
+                return 0
+              fi
+              ! grep -q 'HTTP 404' "$RUNNER_TEMP/lane-lift.err" || return 2
+              [ "$attempt" -lt 3 ] || return 1
+              sleep $((attempt * 5))
+            done
+          }
+          [[ $BASE_SHA =~ ^[0-9a-f]{40}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ && $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || keep "the event names no commit or pull request"
+          [[ $LANES_APP_ID =~ ^[1-9][0-9]*$ ]] || keep "AUTOMATION_LANES_APP_SENDER_ID is not set"
+          repo=$GITHUB_REPOSITORY
+          tmp=$RUNNER_TEMP/lane-lift
+          mkdir -p "$tmp"
+          [ -d "$BASE_CONFIG" ] || keep "the tracker config is unreadable"
+          tracker=
+          if [ -e "$BASE_CONFIG/.work-item-tracker.json" ]; then
+            tracker=$(cat "$BASE_CONFIG/.work-item-tracker.json") || keep "the tracker config is unreadable"
+          fi
+          label=needs-human
+          if [ -n "$tracker" ]; then
+            label=$(jq -er '[objects | .config | objects | .role_labels | objects
+              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
+              | if . == "" then "needs-human" else . end' <<<"$tracker") || keep "the tracker config is invalid"
+          fi
+          actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || keep "the trusted-actor list is unreadable"
+          humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
+          events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
+          jq -s 'add // []' <<<"$events" >"$tmp/events.json" || keep "the events do not parse"
+          # The cheap read first: most pull requests never carried the label.
+          jq -e --arg label "$label" 'any(.[]; .event == "labeled" and .label.name == $label)' "$tmp/events.json" >/dev/null ||
+            keep "the label was never added"
+          since=$(jq --arg label "$label" --argjson humans "$humans" '[.[] | select(.label.name == $label
+            and .event == "unlabeled" and .performed_via_github_app == null
+            and (.actor.id as $id | $humans | index($id))) | .created_at | fromdateiso8601] | max // -1' \
+            "$tmp/events.json") || keep "the events do not parse"
+          pr=$(read_api "repos/$repo/pulls/$PR_NUMBER") || keep "the pull request is unreadable"
+          # A late or re-run event for an older head must not lift the label off a newer one.
+          [ "$(jq -r '.head.sha // ""' <<<"$pr")" = "$HEAD_SHA" ] || keep "the head moved since this event"
+          ref=$(jq -r '.head.ref | @uri' <<<"$pr") || keep "the pull request has no head branch"
+          comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
+          jq -s 'add // []' <<<"$comments" >"$tmp/comments.json" || keep "the comments do not parse"
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
+            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER" >"$tmp/deleted.raw" || keep "the deleted comments are unreadable"
+          jq '.data' "$tmp/deleted.raw" >"$tmp/deleted.json" || keep "the deleted comments do not parse"
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){totalCount nodes{isResolved isOutdated resolvedBy{__typename login ... on User{databaseId}} comments(first:1){nodes{author{__typename login} body createdAt}}}}}}}' \
+            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER" >"$tmp/threads.raw" || keep "the review threads are unreadable"
+          jq '.data.repository.pullRequest.reviewThreads' "$tmp/threads.raw" >"$tmp/threads.json" || keep "the review threads do not parse"
+          # Each lane's runs since the window opened, and its runs on this head,
+          # as {id, head_sha, jobs}, each status job with its notices.
+          vetted=''
+          echo '{}' >"$tmp/lanes.json"
+          while read -r file lane check; do
+            runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
+            echo '[]' >"$tmp/runs.json"
+            while read -r id sha; do
+              [ -n "$id" ] || continue
+              [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
+              if [[ " $vetted " != *" $sha "* ]]; then
+                diff=$(read_api "repos/$repo/compare/$BASE_SHA...$sha") || keep "the changes of $sha are unreadable"
+                changed=$(jq -er '[.files[].filename] as $f
+                  | if ($f | length) >= 300 then "too many files"
+                    elif any($f[]; . == ".github/workflows/pr-review-hosted.yml" or . == ".github/workflows/pr-review-security-hosted.yml") then "a review-lane workflow"
+                    else "" end' <<<"$diff") || keep "the changes of $sha do not parse"
+                [ -z "$changed" ] || keep "lane run $id ran on $sha, which changes $changed"
+                vetted+=" $sha"
+              fi
+              jobs=$(read_api "repos/$repo/actions/runs/$id/jobs?filter=all&per_page=100" --paginate) || keep "the jobs of run $id are unreadable"
+              jq -n --arg check "$check" '[inputs.jobs[] | select(.name == $check)
+                | {id, name, run_attempt, status, conclusion, completed_at, steps: [.steps[]? | {name, conclusion}], notes: []}]' \
+                <<<"$jobs" >"$tmp/jobs.json" || keep "the jobs of run $id do not parse"
+              for job in $(jq -r '.[] | select(.completed_at != null) | .id' "$tmp/jobs.json"); do
+                notes=$(read_api "repos/$repo/check-runs/$job/annotations?per_page=100" --paginate) || keep "the annotations of job $job are unreadable"
+                jq -n --argjson job "$job" --slurpfile jobs "$tmp/jobs.json" '[inputs[]] as $notes
+                  | $jobs[0] | map(if .id == $job then .notes = $notes else . end)' <<<"$notes" >"$tmp/jobs.next" ||
+                  keep "the annotations of job $job do not parse"
+                mv "$tmp/jobs.next" "$tmp/jobs.json"
+              done
+              jq --argjson id "$id" --arg sha "$sha" --slurpfile jobs "$tmp/jobs.json" '. + [{id: $id, head_sha: $sha, jobs: $jobs[0]}]' \
+                "$tmp/runs.json" >"$tmp/runs.next" || keep "the runs do not parse"
+              mv "$tmp/runs.next" "$tmp/runs.json"
+            done < <(jq -nr --argjson since "$since" --arg head "$HEAD_SHA" '[inputs.workflow_runs[]
+              | select(.head_sha == $head or (.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
+            jq --arg lane "$lane" --slurpfile runs "$tmp/runs.json" '.[$lane] = $runs[0]' "$tmp/lanes.json" >"$tmp/lanes.next" || keep "the runs do not parse"
+            mv "$tmp/lanes.next" "$tmp/lanes.json"
+          done <<<'pr-review-hosted.yml claude-review pr-review / claude-review-status
+          pr-review-security-hosted.yml claude-security-review pr-review-security / security-review'
+          jq -n --arg head "$HEAD_SHA" --arg label "$label" --argjson humans "$humans" --argjson app "$LANES_APP_ID" \
+            --slurpfile events "$tmp/events.json" --slurpfile comments "$tmp/comments.json" --slurpfile deleted "$tmp/deleted.json" \
+            --slurpfile threads "$tmp/threads.json" --slurpfile lanes "$tmp/lanes.json" \
+            '{head: $head, label: $label, humans: $humans, appId: $app, events: $events[0], comments: $comments[0],
+              deleted: $deleted[0], threads: $threads[0], lanes: $lanes[0]}' >"$tmp/input.json" || keep "the reads do not parse"
+          # One function of the base's merge-holds.mjs over JSON files; the
+          # module goes last, as the cost step's holds_js passes it.
+          holds_js() {
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [name, ...files] = process.argv.slice(1, -1);
+              const run = (await import(pathToFileURL(process.argv.at(-1)).href))[name];
+              const out = run(...files.map((file) => JSON.parse(readFileSync(file, "utf8"))));
+              console.log(out !== null && typeof out === "object" ? JSON.stringify(out) : String(out ?? ""));' \
+              "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
+          }
+          holds_js laneLift "$tmp/input.json" >"$tmp/verdict.json" || keep "the base merge-holds.mjs could not judge the hold"
+          [ "$(jq -r '.lift' "$tmp/verdict.json")" = true ] || keep "$(jq -r '.reason // "no verdict"' "$tmp/verdict.json")"
+          echo "cleared=true" >>"$GITHUB_OUTPUT"
+          echo "::notice::#$PR_NUMBER: $(jq -r '.reason' "$tmp/verdict.json")."
+          labels=$(read_api "repos/$repo/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name') || {
+            echo "::warning::could not read the labels of #$PR_NUMBER, so '$label' was not removed."
+            exit 0
+          }
+          grep -qxF -- "$label" <<<"$labels" || exit 0
+          jq -n --arg l "$label" '$l' >"$tmp/label.json"
+          body=$(holds_js liftedComment "$tmp/verdict.json" "$tmp/label.json") || body=
+          marker=$(head -n 1 <<<"$body")
+          if [ -n "$body" ] && ! jq -e --arg marker "$marker" 'any(.[]; .user.login == "github-actions[bot]" and (.body | startswith($marker)))' \
+            "$tmp/comments.json" >/dev/null; then
+            gh api -X POST "repos/$repo/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null ||
+              echo "::warning::could not post the removal comment on #$PR_NUMBER."
+          fi
+          # shellcheck disable=SC2016 # $l is a jq variable
+          gh api -X DELETE "repos/$repo/issues/$PR_NUMBER/labels/$(jq -rn --arg l "$label" '$l | @uri')" >/dev/null ||
+            echo "::warning::could not remove '$label' from #$PR_NUMBER; the step below holds it."
       # A PULL REQUEST CARRYING THE HUMAN-GATED LABEL IS HELD. A review lane or
       # an escalation puts the label on so a person decides; removing it is the
       # approval, and the `unlabeled` event re-runs this job. The label's name
@@ -4113,7 +4280,8 @@ jobs:
           [ -z "$reason" ] || why=" (${reason//%/%25})"
           echo "::error::#$PR_NUMBER carries '$human_gated'$why. Removing the label approves this pull request; ci-status re-runs on the unlabel."
           exit 1
-      # ONLY A TRUSTED PERSON LIFTS A REVIEW-LANE HOLD. Removing the human-gated
+      # ONLY A TRUSTED PERSON OR THE LANE'S CLEAN RE-REVIEW LIFTS A REVIEW-LANE
+      # HOLD. Removing the human-gated
       # label approves a pull request, so once a review lane has held it (a
       # hold comment as the step above reads them), the first removal of the
       # label after the newest hold comment must be by a `human` of the base
@@ -4129,11 +4297,12 @@ jobs:
       # later: an event cannot be deleted or edited, so removing the comment
       # does not remove the hold, and a review re-run that labels the same head
       # again starts a new hold. Unreadable comments, events or actor list fail
-      # closed. It skips when the cost_hold step cleared a cost-only hold, whose
+      # closed. It skips when the cost_hold step cleared a cost-only hold, or
+      # the lane_lift step a security hold its lane re-reviewed clean, whose
       # label that step (or anyone) may have removed.
       # Pinned by scripts/ci-hold-lifted-by.test.sh, which runs this body.
       - name: Fail a review-lane hold an untrusted account lifted
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' && steps.cost_hold.outputs.cleared != 'true' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' && steps.cost_hold.outputs.cleared != 'true' && steps.lane_lift.outputs.cleared != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -4199,6 +4368,10 @@ jobs:
           IFS=$'\t' read -r lifted_at actor_id actor_login via_app <<<"$lifted"
           if [ -z "$lifted_at" ]; then
             echo "::error::a review lane held #$PR_NUMBER at $held_at, and no removal of '$HUMAN_GATED' since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
+            exit 1
+          fi
+          if [ "$actor_id" = 41898282 ] && [[ " $humans " != *" $actor_id "* ]]; then
+            echo "::error::ci-status removed '$HUMAN_GATED' from #$PR_NUMBER after a clean re-review of an earlier head, and the lane's review of this head does not lift it (the 'Clear a review-lane security hold its lane re-reviewed clean' step names why). Once the lane reviews this head clean, ci-status re-runs and passes; or add the label back, and a person on the trusted-actor list removing it approves this pull request."
             exit 1
           fi
           if [[ " $humans " != *" $actor_id "* ]]; then
