@@ -182,11 +182,15 @@ one.
    objection window comment when step 5's window is on), then remove the label; a failed post
    leaves that item's label in place. Items the operator excludes keep it. The edit applies no
    other label, so the item ends with no role label. `list-frontier --autonomous` lists it again,
-   and an attended `/work-items:work` run can pick it from there. No autonomous lane admits it:
-   the issue lane and the work loop's label path admit only on the autonomous-eligible role label.
-   A person who wants a lane to take it applies that label, under `/work-items:attend-queue`'s
-   flip rules. Any pull request that closes it is still held for a maintainer by its
-   `Decision defaulted` line.
+   and an attended `/work-items:work` run can pick it from there. The issue lane and the work
+   loop's label path do not admit it: they admit only on the autonomous-eligible role label. The
+   one path that can still take it unattended is the work loop's rule admission
+   ([`../work-loop/reference/rule-admission.md`](../work-loop/reference/rule-admission.md)), when
+   a security binding enables it and an owner's C2 rule matches the item; that dispatch runs under
+   the rule's `human-merge` hold. A person who wants a lane to take it on the label path applies
+   the autonomous-eligible role label to it directly: with no role label and no trusted marker,
+   `/work-items:attend-queue` does not list it. Any pull request that closes it is still held for
+   a maintainer by its `Decision defaulted` line.
 5. **Unattended** (an autonomous lane, CI, or any run with no operator turn): report the count and
    the list, and change nothing, whatever the lane directive authorizes.
 
@@ -197,7 +201,7 @@ Decision defaulted: <the recommendation>, veto before merge
 Basis: <verified, file:line or URL | judgment>
 Label test failed: no irreversible act, consent, secret, or undecided design choice is needed.
 Recommendation: <link to the RECOMMENDED line or the Decision recorded. comment>
-Next: an attended `/work-items:work` run can pick this item up; no autonomous lane takes it until a person applies <the autonomous-eligible role label>.
+Next: an attended `/work-items:work` run can pick this item up; no autonomous lane takes it on the label path until a person applies <the autonomous-eligible role label>.
 Re-apply the label to object; the sweep then leaves this item alone.
 ```
 
