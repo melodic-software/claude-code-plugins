@@ -71,6 +71,9 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read # check out the repository; nothing in this job writes
+    env:
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       # The dispatched commit, which the job if: holds to the default branch.
       - name: Check out the default branch
@@ -101,17 +104,22 @@ jobs:
           exit 1
 
       # check-trusted-trigger needs a PR, and a dispatch here names none, so
-      # the dispatcher is matched against the same list directly: the event
-      # actor by numeric id, the re-runner by login, as that action does. Both
-      # must be listed humans, and the lanes App bot is denied by id, as in
-      # pr-run-activity-write.yml.
+      # the dispatcher is matched against the same list directly, by numeric
+      # id: it must be a listed human, and the lanes App bot is denied by id,
+      # as in pr-run-activity-write.yml. A re-run is refused: its re-runner's
+      # id is only in the run's record, which this job's token cannot read,
+      # and a login can pass to another account. Dispatch the workflow again
+      # instead.
       - name: Check the dispatcher is a trusted human
         env:
           LIST: .base/.github/standards/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
+          if [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
+            echo "::error::rerun-refused: a re-run of this workflow is not supported; dispatch it again"
+            exit 1
+          fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
@@ -120,14 +128,11 @@ jobs:
             echo "::error::bot-actor: the lanes App bot cannot dispatch this lane"
             exit 1
           fi
-          if ! jq -e --argjson id "$ACTOR_ID" --argjson app "$APP_SENDER_ID" --arg login "$TRIGGERING_ACTOR" '
+          if ! jq -e --argjson id "$ACTOR_ID" '
               .version == 1
               and any(.actors[]; .id == $id and .kind == "human")
-              and any(.actors[];
-                (.login | ascii_downcase) == ($login | ascii_downcase)
-                and .kind == "human" and .id != $app)
             ' "$LIST" >/dev/null; then
-            echo "::error::untrusted-actor: the dispatcher or re-runner is not a listed human"
+            echo "::error::untrusted-actor: the dispatcher is not a listed human"
             exit 1
           fi
 

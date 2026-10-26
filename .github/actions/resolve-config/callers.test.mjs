@@ -1670,7 +1670,7 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
-// ba7af78d291f10bd75651857a0db2357c23df0fe: lane.cjs:404-405; in cliArgs. A pin
+// ba7af78d291f10bd75651857a0db2357c23df0fe and 30b251532b2e9f7e0c4215e1dee5be0d3c688743: lane.cjs:404-405; in cliArgs. A pin
 // bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
@@ -1678,6 +1678,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "d02b8697e092705153f0996549b05f95a446bb52",
   "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8",
   "ba7af78d291f10bd75651857a0db2357c23df0fe",
+  "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -1939,6 +1940,22 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
     "${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}",
     "the credential the leg ran on",
   );
+});
+
+// limit-stop.mjs reads a stop only from the lane record on the check run's
+// first summary line; without it, a refused credential or a usage limit on a
+// read activity reads as a plain failure (the 2026-10-25 outage: three
+// resolve-conflicts runs on one head in 23 minutes, then the cap).
+test("pr-run-activity-read.yml: the posted check carries the lane record's class and reset", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  assert.equal(jobs.run.outputs["record-class"], "${{ steps.lane-record.outputs.failure-class }}");
+  assert.equal(jobs.run.outputs["record-resets"], "${{ steps.lane-record.outputs.resets-at }}");
+  const post = jobs.report.steps.find((s) => s.name === "Post the check run");
+  assert.equal(post.with["lane-class"], "${{ needs.run.outputs.record-class }}");
+  assert.equal(post.with["lane-resets"], "${{ needs.run.outputs.record-resets }}");
+  // The same action, at the same pin, as the write workflow whose record limit-stop.mjs already reads.
+  const writeRecord = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-record");
+  assert.equal(jobs.run.steps.find((s) => s.id === "lane-record").uses, writeRecord.uses);
 });
 
 // A caller whose handoff job read only that the first call posted no check
@@ -3873,7 +3890,7 @@ test("scan job: every gate, skip and launcher class value the runner sets passes
   const schema = JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
   const gateReasons = Object.keys(JSON.parse(read("../report-check-run/gate-skip-reasons.json")));
   // run-claude-cli's failure classes, the keys of SUMMARY_NOTES in lane.cjs at
-  // the pinned ba7af78d291f10bd75651857a0db2357c23df0fe. cant-fail-ok: an external contract's value list.
+  // the pinned 30b251532b2e9f7e0c4215e1dee5be0d3c688743. cant-fail-ok: an external contract's value list.
   const laneClasses = ["credit-stop", "rate-limit", "auth", "overloaded", "max-turns", "timeout", "other"];
   const cases = [
     ...schema.$defs["skip-reason"].enum.map((value) => ["skip-reason", value]),
@@ -6305,4 +6322,45 @@ test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and 
   assert.equal(status("handoff"), 0);
   assert.equal(status("fallback"), 0, "the third call");
   for (const fallback of ["credit-stop", "no-key"]) assert.equal(status(fallback), 1, fallback);
+});
+
+// --- npm's fetch bound: one file, read by every hosted-runner npm ci ---
+
+// npm's documented defaults, fetch-timeout 300000 and fetch-retries 2
+// (https://docs.npmjs.com/cli/v11/using-npm/config); the bound is below both.
+test("npm-fetch.npmrc sets fetch-timeout and fetch-retries below npm's defaults", () => {
+  const values = Object.fromEntries(
+    read("../../npm-fetch.npmrc")
+      .split("\n")
+      .filter((line) => /^[a-z-]+=/.test(line))
+      .map((line) => line.split("=")),
+  );
+  assert.ok(Number(values["fetch-timeout"]) > 0 && Number(values["fetch-timeout"]) < 300000, `fetch-timeout ${values["fetch-timeout"]}`);
+  assert.ok(Number(values["fetch-retries"]) >= 0 && Number(values["fetch-retries"]) < 2, `fetch-retries ${values["fetch-retries"]}`);
+});
+
+// A job that runs npm ci (directly, through run-tests.sh, or through
+// check-wip-cap) names that file as npm's global config, at the path its own
+// full checkout holds it; resolve-config's action.yml install is left alone.
+test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () => {
+  const installs = (step) => /\bnpm ci\b|run-tests\.sh (?:install|test)\b/.test(step.run ?? "") || /\/check-wip-cap$/.test(step.uses ?? "");
+  let covered = 0;
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      const steps = job.steps ?? [];
+      const first = steps.findIndex(installs);
+      if (first < 0) continue;
+      const checkout = steps.slice(0, first).findLast((step) => /^actions\/checkout@/.test(step.uses ?? ""));
+      assert.ok(checkout, `${file} ${id}: no checkout before its npm ci`);
+      assert.equal(checkout.with?.["sparse-checkout"], undefined, `${file} ${id}: a sparse checkout may lack the file`);
+      const dir = checkout.with?.path ? `${checkout.with.path}/` : "";
+      const value = job.env?.npm_config_globalconfig ?? doc.env?.npm_config_globalconfig;
+      assert.equal(value, `\${{ github.workspace }}/${dir}.github/npm-fetch.npmrc`, `${file} ${id}`);
+      covered += 1;
+    }
+  }
+  // The jobs that ran npm ci when the bound was added: pr-require-checks' five,
+  // and one each in ten other workflows.
+  assert.ok(covered >= 15, `only ${covered} installing jobs found`);
 });

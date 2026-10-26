@@ -6,8 +6,9 @@
 // Criteria 1, 5 and 6 (exact intent, no very-high security risk, no charge)
 // are already in `status: ready`: apply-verdict withholds it on any flag
 // (triage flags security only for a very-high risk) or a hold label, and the
-// cost rule adds needs-human. Criterion 4 (no protected path named) is not
-// applied. This checks the rest:
+// cost rule adds needs-human. Criterion 4 (no protected path named) applies
+// only to the paths the issue lane cannot push (unpushablePaths). This checks
+// the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -70,6 +71,7 @@ import { fileURLToPath } from "node:url";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
@@ -105,6 +107,9 @@ export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
 export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
+export const CONFIRMED = "status: confirmed";
+// Refuse-labels that hold for a person; any other listed label is mechanical.
+const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // The one work class that holds an issue for a person (owner Q85, #9668).
 export const UNTRUSTED = "work-class: untrusted-provenance";
@@ -344,6 +349,51 @@ export function unrunnableCriteria(body, taskList, webHosts) {
   return { items: items.length, found };
 }
 
+// The patch-rules.json row apply-patch.mjs reads for an issue lane push
+// (TARGETS.issue).
+export const PATCH_ROW = "issue";
+let pushRefusalNames;
+// The protected-path refusals of that row in the default branch's
+// patch-rules.json beside this script, read once.
+export function issuePushRefusals() {
+  pushRefusalNames ??= JSON.parse(readFileSync(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url), "utf8"))[PATCH_ROW].refuse.filter(
+    (name) => PROTECTED_REFUSALS[name]?.kind === "protected-path",
+  );
+  return pushRefusalNames;
+}
+
+// A repository path a criterion names: a backticked span or a word, less a
+// trailing `:12` or `:3-9` and punctuation. Only a relative path with a `/`,
+// or a root CODEOWNERS or .gitmodules, counts: a bare file name or an
+// absolute runner path names no file of this repository.
+const pathTokens = (text) =>
+  [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
+    .map((token) =>
+      token
+        .replace(/^["'(\[]+/, "")
+        .replace(/[.,;:!?"')\]]+$/, "")
+        .replace(/:\d+(-\d+)?$/, ""),
+    )
+    .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
+
+// A line that opens its own list item, such as a nested evidence bullet.
+const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
+
+// The paths the task-list items in `body`, with the wrapped text below each up
+// to its first nested bullet, name that apply-patch refuses under `names`
+// (issuePushRefusals), in order, each once. Pure.
+export function unpushablePaths(body, taskList, names) {
+  const lines = String(body ?? "").split("\n");
+  const wrapped = (more) => {
+    const end = more.findIndex((index) => BULLET.test(lines[index]));
+    return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
+  };
+  const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
+    pathTokens([text, ...wrapped(more)].join("\n")).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
+  );
+  return [...new Set(paths)];
+}
+
 // The refusal reason for unrunnableCriteria's result, with the split it
 // recommends, or null when every item is runnable.
 export function unrunnableReason({ items, found }) {
@@ -405,8 +455,13 @@ export function admissionSettled(labels, events, isMark) {
   return null;
 }
 
-// {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts }) {
+// {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
+// refusal that parks at needs-decision: an untrusted author or provenance or
+// a person-held label (the owner's 2026-10-26 rule keeps a person out of
+// every other refusal), or done-when items a lane run cannot perform, which
+// refine splits only from needs-decision (refine.mjs splitOf). Pure but for
+// `pushRefusals`, read from patch-rules.json when not given.
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -419,6 +474,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
 
   const refuse = [];
+  let hold = false;
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
   if (splitChildBody(spec, humans, rules["task-list"]) !== null && !rules.sizes.includes("large")) {
@@ -427,6 +483,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const author = issue.user?.id;
   if (!(humans.has(author) || (appId !== undefined && author === appId))) {
     refuse.push("the author is neither a listed human nor the lanes App");
+    hold = true;
   }
   const type = issue.type?.name ?? "none";
   const underParent = rules["types-under-parent"].includes(type);
@@ -443,6 +500,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
+    hold = true;
   }
   // Reasons the owner already settled without a person: they park the issue
   // at status: ready (a wait with no pull request), never needs-decision.
@@ -471,23 +529,25 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
   if (unrunnable) {
     refuse.push(unrunnable);
+    hold = true;
+  }
+  // apply-patch refuses the issue lane's push of these paths
+  // (patch-protected-path), so a run for such a criterion is spent for
+  // nothing; this refusal parks at status: confirmed, never with a person.
+  const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals);
+  if (unpushable.length > 0) {
+    refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
+      hold ||= PERSON_LABELS.has(label);
     }
   }
   const confirm = operatorConfirmation({ schedule, labels, title: issue.title });
   if (confirm) {
     refuse.push(confirm);
   }
-  if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: [...refuse, ...parked] };
-  }
-  if (parked.length > 0) {
-    return { verdict: "wait", reasons: parked, pulls: [] };
-  }
-
   const wait = [];
   for (const blocker of blockers) {
     if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
@@ -498,9 +558,21 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   for (const pull of pulls) {
     wait.push(`open pull request #${pull} is for it`);
   }
-  // A split issue's work is its sub-issues' (owner Q93).
-  for (const child of subIssues.filter((item) => item?.state !== "closed")) {
+  // A split issue's work is its sub-issues' (owner Q93): while one is open the
+  // parent waits, so a mechanical refusal or a pending split never loops it.
+  // A refusal that holds for a person still refuses first.
+  const openSubs = subIssues.filter((item) => item?.state !== "closed");
+  for (const child of openSubs) {
     wait.push(`sub-issue #${child.number} is open`);
+  }
+  if (!hold && openSubs.length > 0) {
+    return { verdict: "wait", reasons: wait, pulls };
+  }
+  if (refuse.length > 0) {
+    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }) };
+  }
+  if (parked.length > 0) {
+    return { verdict: "wait", reasons: parked, pulls: [] };
   }
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
@@ -1028,12 +1100,15 @@ export async function admit({ github, repository, number, verdict, rules, humans
   if (decision.verdict === "refuse") {
     // The hold before status: ready comes off: a failed write never leaves
     // admission-deferred on an issue with neither, which the sweep admits.
-    await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    // Any other refusal parks at status: confirmed, which the triage sweep
+    // skips: an agent fixes the reason and dispatches intake again.
+    const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
+    await github("POST", `${base}/labels`, { labels: [status] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
-    return { outcome: "refused", reasons: decision.reasons };
+    return { outcome: "refused", reasons: decision.reasons, status };
   }
   if (decision.verdict === "wait") {
     if (decision.pulls.length === 0) {
