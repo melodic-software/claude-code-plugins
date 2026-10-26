@@ -8,7 +8,7 @@
 # Status files are written by hand in the form changelog-status.sh prints (its
 # header, "Output"), and the last cases feed the filer what changelog-status.sh
 # itself prints for a fixture ledger and changelog, so the two cannot drift apart.
-# test-scope: plugins/harness-ops/skills/changelog/scripts/changelog-status.sh
+# test-scope: plugins/harness-ops/skills/changelog/scripts/changelog-status.sh plugins/harness-ops/scripts/changelog-releases.sh
 # shellcheck disable=SC2016  # stub source and expected code spans are literal text
 set -uo pipefail
 
@@ -266,6 +266,19 @@ sed 's/2\.1\.296/2.1.298/' "$FIX/ledger.md" >"$FIX/ledger-current.md"
 run_sut "$(real_status "$FIX/ledger-current.md" "$FIX/changelog.md")"
 expect_code "real status, up to date: exit 0" 0
 expect_eq "real status, up to date: no gh call" "$(calls)" ""
+
+# The page's current markup: a `**X.Y.Z**` line per release, a date line, bold
+# group headings, then bullets.
+{
+  printf '%s\n' '# Claude Code changelog' '' '> Release notes for Claude Code.' ''
+  for v in 2.1.298 2.1.297 2.1.296; do
+    printf '**%s**\n\nOctober 9, 2026\n\n**Added**\n\n* item one\n\n**2 bug fixes**\n\n* fix one\n* \\[VSCode] fix two\n\n' "$v"
+  done
+} >"$FIX/changelog-current.md"
+run_sut "$(real_status "$FIX/ledger.md" "$FIX/changelog-current.md")"
+expect_code "real status, current markup: exit 0" 0
+expect_eq "real status, current markup: two issues filed" "$(creates)" 2
+expect_has "real status, current markup: the newest release title" "$(calls)" 'Claude Code changelog: 2.1.298'
 
 printf '%s\n' '# Claude Code changelog' '' '## 2.1.298' '* item' >"$FIX/changelog-moved.md"
 run_sut "$(real_status "$FIX/ledger.md" "$FIX/changelog-moved.md")"
