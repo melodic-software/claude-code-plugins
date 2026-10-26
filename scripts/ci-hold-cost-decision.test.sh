@@ -470,6 +470,8 @@ export STUB_RUNS STUB_JOBS STUB_NOTES
 expect "an earlier trust-gate hold nobody trusted lifted keeps the label" no no no "is not cost-only"
 STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$STRANGER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
 expect "an untrusted removal of a trust-gate hold does not open the window" no no no "is not cost-only"
+STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(jq -c '.performed_via_github_app = {slug: "x"}' <<<"$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z)"),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
+expect "a removal an App made for a trusted person does not open the window" no no no "is not cost-only"
 STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
 expect "a trusted person's removal of the trust-gate hold opens a new window" yes yes yes
 
