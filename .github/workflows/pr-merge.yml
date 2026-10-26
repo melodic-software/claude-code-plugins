@@ -556,35 +556,22 @@ jobs:
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing checked or merged"
 
       # The token broker gives this lane its merge token only when the person
-      # behind the run is a listed human (trusted-actors.json on main). Runs
-      # started by a bot, such as the lanes App pushing or labeling, or by an
-      # unlisted account, stop here quietly instead of failing; the next
-      # scheduled run picks up whatever they changed. A scheduled run always
-      # proceeds: nobody starts it, and GitHub names as its actor whoever last
-      # changed the schedule or the default branch, often a bot.
+      # behind the run is a listed human (trusted-actors.json on main), matched
+      # by account id (who.mjs states the rule). Runs started by a bot, such as
+      # the lanes App pushing or labeling, or by an unlisted account, stop here
+      # quietly instead of failing; the next scheduled run picks up whatever
+      # they changed. A scheduled run's first attempt proceeds without a read;
+      # a re-run of it proceeds only when a listed human re-ran it.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
         env:
-          EVENT: ${{ github.event_name }}
+          # The lane token holds no Actions permission.
+          ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-        run: |
-          set -euo pipefail
-          if [ "$EVENT" = schedule ]; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          elif [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
-            jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
-              [.actors[] | select(.kind == "human")] as $humans
-              | ($humans | any(.id == $id))
-                and ($humans | any((.login | ascii_downcase) == ($login | ascii_downcase)))
-            ' "$LIST" >/dev/null; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; nothing checked here, the next scheduled run checks every candidate"
-            echo "proceed=false" >>"$GITHUB_OUTPUT"
-          fi
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          STOP_NOTICE: nothing checked here, the next scheduled run checks every candidate
+        run: node .base/.github/scripts/pr-merge/who.mjs
 
       # A run still pending in the concurrency group below starts after this
       # one. When one is pending that checks every candidate and does every
@@ -1581,31 +1568,19 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The broker mints the merge token only for a listed human, or on the
-      # schedule; any other run stops here quietly, as the merge job's does.
+      # Same rule as the merge job's who step (who.mjs): a listed human by
+      # account id, or a scheduled run's first attempt; any other run stops
+      # here quietly.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
         env:
-          EVENT: ${{ github.event_name }}
+          # The lane token holds no Actions permission.
+          ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
-        run: |
-          set -euo pipefail
-          if [ "$EVENT" = schedule ]; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          elif [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
-            jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
-              [.actors[] | select(.kind == "human")] as $humans
-              | ($humans | any(.id == $id))
-                and ($humans | any((.login | ascii_downcase) == ($login | ascii_downcase)))
-            ' "$LIST" >/dev/null; then
-            echo "proceed=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; the next scheduled run arms what this one would"
-            echo "proceed=false" >>"$GITHUB_OUTPUT"
-          fi
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          STOP_NOTICE: the next scheduled run arms what this one would
+        run: node .base/.github/scripts/pr-merge/who.mjs
 
       # The merge job's skip, for this job's group: when another run's
       # enable-auto-merge job still waits and does all this one would (a

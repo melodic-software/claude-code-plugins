@@ -16,14 +16,13 @@
 // only once it ends, so a run still in that job has no waiting job and is not
 // counted: this job then does its work.
 //
-// A pending run's job does the work when the run is scheduled, or when a
-// listed human started it (the job's "Check who started the run" step stops
-// any other run). This check counts a run only when its actor id and its
-// triggering actor id are both a listed human's, since a login can be
-// released and registered by someone else. The who step still matches the
-// triggering actor by login, so the two differ only on a renamed listed human
-// (counted here, stopped there: one sweep waits for the next scheduled run) or
-// a listed login someone else now holds (skipped here: one extra sweep). A scheduled or
+// A pending run's job does the work only when its "Check who started the
+// run" step lets it on, and this check counts a run by that step's rule, by
+// id, since a login can be released and registered by someone else: a
+// scheduled run's first attempt, a later attempt of one that a listed human
+// started (a re-run keeps the event, and a scheduled run's actor is often a
+// bot), or any other run whose actor and triggering actor are each a listed
+// human. A scheduled or
 // hand-started run counts only on main, since another branch runs its own
 // copy; pull_request_target runs always run main's. And its
 // event must rank at least as high as this run's (RANKS). For `merge`, only a
@@ -52,7 +51,7 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const RANKS = Object.freeze({
   merge: Object.freeze({ pull_request_target: 0, workflow_dispatch: 1, schedule: 2 }),
@@ -60,7 +59,6 @@ export const RANKS = Object.freeze({
 });
 const WAITING = new Set(["queued", "pending", "waiting", "requested"]);
 export const MAX_JOB_READS = 5;
-const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -79,7 +77,9 @@ export function eligible(runs, { runId, event, trusted, ranks }) {
       ranks[run.event] >= ranks[event] &&
       // A dispatch on another branch runs that branch's copy of the workflow.
       (run.event === "pull_request_target" || run.head_branch === "main") &&
-      (run.event === "schedule" || startedByHuman(trusted, run)),
+      (run.event === "schedule"
+        ? run.run_attempt === 1 || trusted.humans.has(run.triggering_actor?.id)
+        : startedByHuman(trusted, run)),
   );
 }
 
@@ -95,7 +95,7 @@ export async function main({ env = process.env, actions } = {}) {
     if (!Object.hasOwn(ranks, event)) {
       throw new Error(`event ${event} has no rank`);
     }
-    if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
+    if (!REPOSITORY.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
     const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
