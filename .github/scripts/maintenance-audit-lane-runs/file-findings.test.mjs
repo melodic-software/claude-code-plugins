@@ -191,6 +191,19 @@ test("a finding whose unit file is missing is dropped", (t) => {
   assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "unit-unreadable" }]);
 });
 
+test("a lone findings artifact downloaded straight into the directory is read", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  writeFileSync(join(base, "a.yml"), "if: true\n");
+  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const units = writeUnits([]);
+  t.after(() => {
+    for (const d of [base, dir, units]) rmSync(d, { recursive: true, force: true });
+  });
+  writeFileSync(join(dir, "findings.json"), JSON.stringify({ unit: "d1", findings: [finding()] }));
+  const { dropped } = prepareItems({ findingsDir: dir, unitsDir: units, baseDir: base });
+  assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "unit-unreadable" }]);
+});
+
 test("a dropped line renders the title and reason inert on one line", () => {
   const line = droppedLine({
     unit: "a1",
