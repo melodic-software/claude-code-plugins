@@ -1426,6 +1426,30 @@ describe("run", () => {
     assert.match(forbidden.line, /^::error title=apply-verdict::blocked-by edges not written: #12 not written \(GitHub answered 502\); #13 not written \(GitHub answered 403\);/);
   });
 
+  for (const status of [403, 429]) {
+    test(`a ${status} on an escalated verdict's edge warns without failing the job and claims no held-back ${READY}`, async () => {
+      const fake = fakeGitHub({
+        issue: { body: "Blocked by: #12" },
+        comments: [laneComment(ESCALATED_BODY)],
+        blockers: { 12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" } },
+      });
+      const github = async (method, path, body) => {
+        if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
+          throw new GitHubError(status, "POST");
+        }
+        return fake.github(method, path, body);
+      };
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+      assert.equal(result.outcome, "needs-decision");
+      assert.deepEqual(result.missed, [{ number: 12, status }]);
+      const annotation = missedAnnotation(result.missed, result.undeleted, result.plan.ready);
+      assert.equal(annotation.fail, false);
+      assert.ok(annotation.line.startsWith("::warning title=apply-verdict::blocked-by edges not written on an escalated verdict: #12 not written"), annotation.line);
+      assert.ok(!annotation.line.includes(`without ${READY}`) && !annotation.line.includes("admission waits"), annotation.line);
+      assert.equal(missedAnnotation(result.missed, result.undeleted, true).fail, status === 403, "a ready verdict keeps its behaviour");
+    });
+  }
+
   test("an edge the run wrote and could not delete is named, and fails the job on a 403", () => {
     const warned = missedAnnotation([{ number: 13, status: 429 }], [{ number: 12, status: 500 }]);
     assert.equal(warned.fail, false);

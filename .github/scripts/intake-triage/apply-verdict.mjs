@@ -554,9 +554,17 @@ const undeletedEdges = (undeleted) => undeleted.map(({ number, status }) => `#${
 // Either way a ready verdict waits without `status: ready` for the sweep. An
 // edge the run wrote and could not delete after a miss is a partial set
 // work-unblock reads: when that blocker closes first, it can admit the issue.
-export function missedAnnotation(missed = [], undeleted = []) {
+// An escalated verdict admits nothing and holds no `status: ready` back, so its
+// missed edges only warn.
+export function missedAnnotation(missed = [], undeleted = [], ready = true) {
   if (missed.length === 0) {
     return null;
+  }
+  if (!ready) {
+    return {
+      fail: false,
+      line: `::warning title=apply-verdict::blocked-by edges not written on an escalated verdict: ${[...missedEdges(missed), ...undeletedEdges(undeleted)].join("; ")}; the verdict's ${NEEDS_DECISION} is written, and work-unblock, which reads only native edges, does not see these blockers`,
+    };
   }
   const edges = [
     ...missedEdges(missed),
@@ -693,7 +701,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
       }
-      const missed = missedAnnotation(result.missed, result.undeleted);
+      const missed = missedAnnotation(result.missed, result.undeleted, result.plan?.ready);
       if (missed) {
         console.log(missed.line);
         if (missed.fail) {

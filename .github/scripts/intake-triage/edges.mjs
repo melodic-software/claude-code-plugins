@@ -46,7 +46,9 @@ export function parseBlockedBy(lines) {
 // `Blocked by` or `Depends on` heading, up to the next heading; every `#<n>`
 // and every issue URL of `repository` on it is a candidate. Fenced code,
 // inline code, HTML comments and `>` quotes name nothing, nor does
-// `owner/repo#<n>`, a pull request URL or another repository's URL. Returns
+// `owner/repo#<n>`, a pull request URL or another repository's URL. A
+// Markdown link `[label](target)` counts as its target alone, so
+// `[#12](https://github.com/other/repo/issues/12)` names nothing. Returns
 // {numbers, dropped}: the first MAX_TEXT_BLOCKERS distinct numbers, and how
 // many more it named.
 export const MAX_TEXT_BLOCKERS = 10;
@@ -58,7 +60,9 @@ const FENCE = /^\s*(`{3,}|~{3,})/;
 
 export function textBlockers(body, repository) {
   const escaped = repository.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const ref = new RegExp(`(?<![\\w&/#])#([1-9][0-9]{0,9})(?![\\w-])|https?://[^/\\s]+/${escaped}/issues/([1-9][0-9]{0,9})(?![\\w-])`, "gi");
+  const url = `https?://[^/\\s]+/${escaped}/issues/([1-9][0-9]{0,9})(?![\\w-])`;
+  const ref = new RegExp(`(?<![\\w&/#])#([1-9][0-9]{0,9})(?![\\w-])|${url}`, "gi");
+  const local = new RegExp(`^${url}`, "i");
   const found = [];
   const take = (text) => {
     if (!/^\s*none\b/i.test(text)) {
@@ -84,7 +88,10 @@ export function textBlockers(body, repository) {
     if (/^\s*>/.test(raw)) {
       continue;
     }
-    const line = raw.replace(/`[^`]*`/g, "").replace(/\*\*|__/g, "");
+    const line = raw
+      .replace(/`[^`]*`/g, "")
+      .replace(/\[[^\]]*\]\(\s*<?([^)\s>]*)>?[^)]*\)/g, (_, target) => (local.test(target) ? ` ${target} ` : " "))
+      .replace(/\*\*|__/g, "");
     const section = SECTION.exec(line);
     if (section) {
       inSection = true;
