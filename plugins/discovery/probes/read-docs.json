@@ -1,0 +1,122 @@
+{
+  "skill": "discovery:read-docs",
+  "plugin": "discovery",
+  "skill_dir": "plugins/discovery/skills/read-docs",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are research, explore, trace-intent and check.",
+  "competitors": [
+    "discovery:research",
+    "discovery:explore",
+    "discovery:trace-intent",
+    "discovery:check"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pull up the Claude Code hooks documentation page and tell me what it says about PreToolUse."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What does the Next.js middleware page itself actually say about edge runtime limits?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "WebFetch gave me a summary of the settings docs instead of the real text. Get me the actual section."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Open the Stripe webhooks doc page and show me just the section on retries."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check the vendor's page for the GitHub Actions concurrency key and quote what it says."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Read the permissions page in the Claude Code docs; I only care about the deny rules part."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The Postgres docs page on VACUUM is huge. Give me its section list so I can pick."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Does the official Docker compose reference page mention anything about profiles defaulting on? Tell me if it's silent."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Go read https://code.claude.com/docs/en/skills and tell me what it says about frontmatter."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Fetch the Terraform provider docs page for azurerm_storage_account and read the lifecycle section."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "That docs page got truncated last time. Read the rest of it properly."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research how the major CI providers handle secrets rotation and compare them."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is it still true that Python 3.8 is end of life? Find authoritative sources."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explore our repo's docs folder and tell me how it's organized."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why did we decide to vendor the docs instead of linking them?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the README for this project."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check our markdown docs for broken links."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What's the weather in Seattle tomorrow?"
+    }
+  ]
+}

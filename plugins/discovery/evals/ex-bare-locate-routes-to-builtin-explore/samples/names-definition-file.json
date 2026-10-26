@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "convert_amount is defined in `src/currency/convert.py` at line 4.",
+      "why": "path"
+    },
+    {
+      "answer": "Defined at src/currency/convert.py:4; called from src/ledger/fx_snapshot.py:5.",
+      "why": "path:line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It is defined in the currency package.",
+      "why": "no path"
+    },
+    {
+      "answer": "It is called from src/ledger/fx_snapshot.py.",
+      "why": "caller, not definition"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

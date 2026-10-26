@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "explore_output: explain (auto from the default; how-does-it-work request)\n\n`docs/conventions/discovery.yaml` sets `explore_output: storyboard`, which is not auto, change-prep or explain; that layer is dropped.\n\n1. schedule (src/retry/scheduler.py:4) returns None once attempt reaches max_attempts (src/retry/scheduler.py:5).",
+      "why": "skill example form"
+    },
+    {
+      "answer": "Invalid value: `storyboard` for key explore_output in docs/conventions/discovery.yaml, ignored.\n**explore_output**: `explain` (default auto; you asked how it works)\n\nWalkthrough: src/retry/scheduler.py:7 adds delay_for(attempt).",
+      "why": "bold key, backticked value"
+    },
+    {
+      "answer": "- `explore_output`: explain (auto)",
+      "why": "bullet with code key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "explore_output: change-prep (docs/conventions/discovery.yaml)",
+      "why": "wrong shape"
+    },
+    {
+      "answer": "Here is how the scheduler works: it backs off exponentially.",
+      "why": "no line"
+    },
+    {
+      "answer": "explore_output: storyboard",
+      "why": "echoes the invalid value as the shape"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -- src/payments"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current"
+          }
+        }
+      ],
+      "why": "read-only git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn mark_refunded src 2>/dev/null"
+          }
+        }
+      ],
+      "why": "grep with a null redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"print(open('src/payments/money.py').read())\""
+          }
+        }
+      ],
+      "why": "python read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/amount_cents = order/amount_cents = amount/' src/payments/refunds.py"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' > src/payments/refunds.py"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '# Explore' | tee .work/partial-refunds/EXPLORE.md"
+          }
+        }
+      ],
+      "why": "tee the explore index"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/refunds.py src/payments/refunds.py"
+          }
+        }
+      ],
+      "why": "cp over source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv /tmp/x.md .work/s/EXPLORE.md"
+          }
+        }
+      ],
+      "why": "mv the index in"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dd if=/tmp/a of=src/payments/refunds.py"
+          }
+        }
+      ],
+      "why": "dd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('src/payments/refunds.py','w').write('x')\""
+          }
+        }
+      ],
+      "why": "python write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').writeFileSync('src/payments/refunds.py','x')\""
+          }
+        }
+      ],
+      "why": "node write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'rm -rf src' | sh"
+          }
+        }
+      ],
+      "why": "pipe to shell"
+    }
+  ]
+}

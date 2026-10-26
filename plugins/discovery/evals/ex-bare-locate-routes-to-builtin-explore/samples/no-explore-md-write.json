@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Locate convert_amount",
+            "prompt": "Find where convert_amount is defined. Thoroughness: quick.",
+            "subagent_type": "Explore"
+          }
+        }
+      ],
+      "why": "no write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "notes.md",
+            "content": "x\n"
+          }
+        }
+      ],
+      "why": "other file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/convert-amount/EXPLORE.md",
+            "content": "x\n"
+          }
+        }
+      ],
+      "why": "index"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/convert-amount/EXPLORE-code-references.md",
+            "content": "x\n"
+          }
+        }
+      ],
+      "why": "sidecar"
+    }
+  ]
+}

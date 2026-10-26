@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# INTENT: why MAX_RETRIES in src/client.py is 7\n\n| Section | File |\n|---|---|\n| What we found | INTENT-found.md#found |\n\n- found: MAX_RETRIES = 7 matches Northwind Acquiring's cap of 7 re-presentments per card per day.\n\n## Sources consulted\n\n- Source control: git log -p on src/client.py. Found bb317e4 \"fix: raise MAX_RETRIES to 7\".\n- Long-form documents: docs/ and any ADR or design doc. No relevant results.\n- Issue tracker: INC-2291 is cited, but no tracker interface resolves in this session. Unavailable, recorded as a gap.\n",
+      "why": "unavailable, gap"
+    },
+    {
+      "answer": "## Sources consulted\n| Category | Searched | Result |\n|---|---|---|\n| Commits | git history of src/client.py | the raise MAX_RETRIES to 7 commit |\n| Docs | docs/README.md | nothing relevant |\n| Tickets | INC-2291 | could not reach any tracker; gap |\n",
+      "why": "could not reach"
+    },
+    {
+      "answer": "- Issue tracker: no tracker resolves here; skipped, reason: category does not resolve in this environment.",
+      "why": "does not resolve"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Issue tracker: read the INC-2291 incident report. Found the cap.",
+      "why": "claims a ticket it could not read"
+    },
+    {
+      "answer": "- Source control: git log. Found the commit.\n- Long-form documents: none.",
+      "why": "tracker omitted"
+    },
+    {
+      "answer": "- Issue tracker: probably not in the tracker, skipped.",
+      "why": "skipped on a guess, no availability statement"
+    }
+  ]
+}

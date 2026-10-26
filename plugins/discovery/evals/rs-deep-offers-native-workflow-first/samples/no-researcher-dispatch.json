@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/plugin/discovery/skills/research/context/deep-tier.md"
+          }
+        }
+      ],
+      "why": "reads the spoke"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Research",
+            "prompt": "Topic: Celery vs Dramatiq",
+            "subagent_type": "discovery:researcher"
+          }
+        }
+      ],
+      "why": "researcher dispatched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Research",
+            "prompt": "Topic: Celery vs Dramatiq",
+            "subagent_type": "discovery:research-verifier"
+          }
+        }
+      ],
+      "why": "verifier dispatched"
+    }
+  ]
+}

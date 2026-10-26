@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Glob", "input": {"pattern": "**/hooks.json"}}], "why": "glob only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "/tmp/plugin/discovery/skills/check/scripts/check.sh"}}], "why": "the check"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/tmp/plugin/discovery/hooks/hooks.json", "content": "{}\n"}}], "why": "rewrites the registration"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "install-node.sh", "content": "apt-get install nodejs\n"}}], "why": "any write"}
+  ]
+}

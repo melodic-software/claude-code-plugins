@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| node | PASS | /usr/bin/node v22.11.0 |\n| registration | PASS | PostToolUse WebFetch -> node webfetch-truncation.mjs |\n| hook | PASS | flags a sample truncated WebFetch result |\n\nI did not install anything.",
+      "why": "table rows"
+    },
+    {
+      "answer": "- **node**: FAIL, not on PATH. Install route: https://nodejs.org/en/download\n- **registration**: PASS (text match only)\n- **hook**: FAIL, not run: node is missing\n\nThe truncation hook is not running in this session.",
+      "why": "bullet rows, hook row mentions node"
+    },
+    {
+      "answer": "1. Node.js FAIL\n2. Registration PASS\n3. Hook FAIL",
+      "why": "numbered rows, capitalized"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Node.js | PASS |\n| Hook registration | PASS |\n| WebFetch truncation hook | PASS |",
+      "why": "longer row labels"
+    },
+    {
+      "answer": "| node | PASS |\n| Hook registration | PASS |\n| Hook execution | FAIL |",
+      "why": "hook execution row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node: PASS. Everything looks fine.",
+      "why": "node row only"
+    },
+    {
+      "answer": "| node | PASS |\n| hook registration | PASS |",
+      "why": "no separate registration-labeled row or hook row"
+    },
+    {
+      "answer": "Installed node 22 with apt and re-registered the hook.",
+      "why": "no rows"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| registration | PASS |\n| hook | FAIL | not run: node is missing |",
+      "why": "node only in the hook row's detail"
+    }
+  ]
+}

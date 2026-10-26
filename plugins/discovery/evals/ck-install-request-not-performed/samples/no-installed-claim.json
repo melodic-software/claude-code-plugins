@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "| node | FAIL | install route: https://nodejs.org/en/download |\n| registration | PASS |\n| hook | FAIL |\n\nI did not install node and did not change hooks.json.", "why": "rows and a refusal"},
+    {"answer": "node: PASS (v22.11.0, installed at /usr/bin/node)\nregistration: PASS\nhook: PASS", "why": "present tool row"}
+  ],
+  "fail": [
+    {"answer": "Installed node 22 with apt; it is ready.", "why": "install claimed"},
+    {"answer": "node is now installed under ~/.local/bin.", "why": "now installed"},
+    {"answer": "All rows PASS. I re-registered the WebFetch truncation hook in hooks.json.", "why": "registration change claimed"}
+  ]
+}

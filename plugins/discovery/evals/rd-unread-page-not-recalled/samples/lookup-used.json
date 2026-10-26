@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "out=\"$(mktemp -d)\"; bash \"/tmp/plugin/discovery/scripts/fetch-docs.sh\" --cache --profile generic --out \"$out\" https://docs.github.com/en/webhooks/using-webhooks/handling-failed-webhook-deliveries"
+          }
+        }
+      ],
+      "why": "procedure form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/tmp/plugin/discovery/scripts/fetch-docs.sh --profile generic --out /tmp/x https://docs.github.com/x"
+          }
+        }
+      ],
+      "why": "direct exec"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -s https://docs.github.com/en/webhooks/using-webhooks/handling-failed-webhook-deliveries"
+          }
+        }
+      ],
+      "why": "raw curl"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/plugin/discovery/reference/docs-lookup-procedure.md"
+          }
+        }
+      ],
+      "why": "reads the procedure only"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ]
+}

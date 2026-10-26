@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: ex-bare-locate-routes-to-builtin-explore
+description: 'explore SKILL.md "Routing" (the four tests) and "Boundary, the built-in Explore agent": a bare locate ("where is X defined") answers NO to all four tests, so the run hands it to the built-in Explore subagent instead of dispatching discovery:explorer, and writes no EXPLORE.md. A run needs --scaffold; Bash and Write are listed so the must-not graders can fail when the suite grants them.'
+tags: [explore, routing, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run dispatches the built-in Explore subagent (subagent_type Explore) for the locate, never dispatches discovery:explorer, writes no EXPLORE.md or sidecar, and answers that convert_amount is defined in src/currency/convert.py.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/discovery:explore where is convert_amount defined?'
+  allowed_tools: [Agent, Bash, Read, Write, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 420
+graders:
+  - name: builtin-explore-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: '"subagent_type":"Explore"'
+    arm: both
+  - name: no-explorer-dispatch
+    type: tool_used
+    tool: Agent
+    input_match: 'discovery:explorer'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-explore-md-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*EXPLORE[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-explore-md-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bsed\b(?:(?!\\n)[^;&|])*?\s-[a-zA-Z]*i|\bperl\b(?:(?!\\n)[^;&|])*?\s-\w*i|\b(?:tee|touch|mv|dd|truncate)\b|>)(?:(?!\\n)[^;&|])*?(?:EXPLORE[\w-]*\.md|\.explore-dispatch)|\b(?:cp|install|ln)\b(?:(?!\\n)[^;&|])*?\s\S+\s+\S*EXPLORE[\w-]*\.md|\b(?:python3?|node)\b(?=(?:(?!\\n)[^&|])*?EXPLORE[\w-]*\.md)(?=(?:(?!\\n)[^&|])*?(?:write|rename|replace\())|\|[ \t]*(?:bash|zsh|sh)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-definition-file
+    type: regex
+    pattern: 'src/currency/convert\.py'
+    arm: both

@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: bs-asks-starting-point-first
+description: 'blindspot SKILL.md "Workflow" step 1 (Intake): asked for blindspot cards with no starting point disclosed, the run first asks one question about what the user already knows and stops there, producing no cards, no prompt-fix lines and no copy block yet. A run needs --scaffold.'
+tags: [blindspot, ask-first, intake]
+plugins: ["../.."]
+expected_outcome: 'The final reply asks the user one intake question about their starting point (what they already know about refunds or this code, how familiar they are) and ends there. It holds no blindspot cards, no prompt-fix lines and no copy-start / copy-end improved prompt, and nothing is written.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/discovery:blindspot partial refunds in src/payments. Give me the blindspot cards before I write the implementation prompt.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: asks-starting-point
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no need to ask|without asking|won''t ask|will not ask)\b)(?=[^\n]*\?)(?=[^\n]*\b(?:already know|know about|what do you know|how much do you know|familiar\w*|experience|background|starting point|new to|worked (?:with|on|in)|comfortable|seen before|level)\b)'
+    flags: 'mi'
+    arm: both
+  - name: no-cards-yet
+    type: regex
+    pattern: '\bprompt[- ]?fix\b\**\s*[:*]|copy[ _-]?(?:start|begin|end)\b|^[ \t#>*-]*(?:\*\*)?(?:Type\W{0,4})?(?:Landmine|Missing concept)\b[^\n?]*$'
+    flags: 'mi'
+    match: not_contains
+    arm: both

@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Trace intent",
+            "prompt": "Topic: why MAX_RETRIES in src/client.py is 7",
+            "subagent_type": "discovery:intent-tracer"
+          }
+        }
+      ],
+      "why": "one dispatch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "none"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Trace intent",
+            "prompt": "Topic: why MAX_RETRIES in src/client.py is 7",
+            "subagent_type": "discovery:intent-tracer"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Trace intent",
+            "prompt": "Topic: why MAX_RETRIES in src/client.py is 7",
+            "subagent_type": "discovery:intent-tracer"
+          }
+        }
+      ],
+      "why": "two dispatches"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Trace intent",
+            "prompt": "Topic: why MAX_RETRIES in src/client.py is 7",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "wrong agent"
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "skill": "discovery:blindspot",
+  "plugin": "discovery",
+  "skill_dir": "plugins/discovery/skills/blindspot",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are explore, trace-intent, research and read-docs.",
+  "competitors": [
+    "discovery:explore",
+    "discovery:trace-intent",
+    "discovery:research",
+    "discovery:read-docs"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I've never touched the billing service before. Before I start, what don't I know that I should?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's the prompt I was going to give you for the Kafka migration. What gaps or assumptions am I missing?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm starting on the Terraform modules soon and I have no background there. What questions should I be asking?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Help me write a better request for this auth refactor; I suspect I'm not asking the right thing."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What are the unknown unknowns for someone new to our CI pipeline?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm a frontend dev being asked to change the database layer. What will trip me up?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Point out what I'm probably overlooking before I dive into the payments code."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Rewrite my task description so it covers the things a newcomer to this domain wouldn't think of."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "First time working with WebAssembly here. What should I know before I ask you to build anything?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Coach me on my prompt: 'add caching to the API'. What's it missing?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I jump into the search indexing code, flag the blind spots I likely have."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explore the codebase and write up how the notification module works before I change it."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why did the team choose DynamoDB over Postgres for the session store?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research the current best practices for rate limiting in Go and compare the main libraries."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where is the retry policy defined?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Read the official React docs page on useEffect cleanup and tell me what it says."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fix the failing unit test in the parser package."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a commit message for my staged changes."
+    }
+  ]
+}

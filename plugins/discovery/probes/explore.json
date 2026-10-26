@@ -1,0 +1,122 @@
+{
+  "skill": "discovery:explore",
+  "plugin": "discovery",
+  "skill_dir": "plugins/discovery/skills/explore",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are research, trace-intent, blindspot and read-docs.",
+  "competitors": [
+    "discovery:research",
+    "discovery:trace-intent",
+    "discovery:blindspot",
+    "discovery:read-docs"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I touch the checkout flow, map out what's already there and how it fits together."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How does request authentication work in this repo? I need to change it next."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm about to add a new export format. Survey the existing exporters and their tests first."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Walk the dependency graph around the scheduler module so I know what a change would affect."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which tests cover the invoice calculator, and what do they actually check?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a write-up of the caching layer in this project before I refactor it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What already exists in this codebase for sending emails?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Get familiar with the plugin loader code and tell me how it's put together."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Investigate how config values flow from the env file to the services in this repo."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Step one before we change anything: dig through the data access layer and summarize it."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Explain how the job queue in this repository works end to end."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where is the UserRepository class defined?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What calls the parseHeaders function?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why was the event bus built on Redis streams instead of Kafka?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research which Python ORM is best for async workloads in 2026."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Look at the files in my Downloads folder and tell me what's in there."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What do the official Kubernetes docs say about pod disruption budgets?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Rename the variable tmp to buffer in utils.py."
+    }
+  ]
+}

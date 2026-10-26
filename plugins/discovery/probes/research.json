@@ -1,0 +1,123 @@
+{
+  "skill": "discovery:research",
+  "plugin": "discovery",
+  "skill_dir": "plugins/discovery/skills/research",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are read-docs, explore, trace-intent, blindspot and setup.",
+  "competitors": [
+    "discovery:read-docs",
+    "discovery:explore",
+    "discovery:trace-intent",
+    "discovery:blindspot",
+    "discovery:setup"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look into whether pnpm or Bun is the better choice for our monorepo, with sources."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the claim that SQLite can't handle concurrent writes still accurate? Back it up."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Find me the authoritative source for the OAuth 2.1 refresh token rules."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Compare Temporal and Inngest for durable workflows and tell me which fits a small team."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Dig into what changed between Pydantic v1 and v2 that would break our models."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need a thorough investigation of vector databases: options, tradeoffs, and how current each claim is."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Investigate these three topics separately: WASI preview 2 status, Deno KV pricing model, and Bun's Node compatibility."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Has the advice about avoiding async void in C# changed recently? Check multiple sources."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's in the old folder on my D drive that isn't part of any repo? Figure out what those files are."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Survey the state of HTTP/3 support across the major reverse proxies."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Gather evidence on whether feature flags should live in config files or a service, with citations."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read the single Claude Code docs page on subagents and summarize it."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explore this repo and explain how the auth middleware works."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why did we originally pick MongoDB for this service?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What am I missing before I start working on the GPU drivers?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Where is the logger configured?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up the discovery plugin for this repository."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a unit test for the date parser."
+    }
+  ]
+}

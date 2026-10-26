@@ -1,0 +1,122 @@
+{
+  "skill": "discovery:check",
+  "plugin": "discovery",
+  "skill_dir": "plugins/discovery/skills/check",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are setup, read-docs, research and explore.",
+  "competitors": [
+    "discovery:setup",
+    "discovery:read-docs",
+    "discovery:research",
+    "discovery:explore"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The discovery hook says node isn't on PATH. Can you verify?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the WebFetch truncation hook actually wired up in this session?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Did the discovery plugin's truncation hook run, or is it missing its runtime?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Confirm node is found for the discovery hooks before I rely on them."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I got a notice that node can't be found for discovery. Diagnose it without installing anything."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check whether the discovery hook is registered."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I trust that long pages got flagged as cut off, make sure the discovery hook is live."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick read-only sanity check of the discovery plugin's hook prerequisites, please."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is node available for the discovery fetch hook on this machine?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "WebFetch output got cut off and nothing warned me. Is the discovery hook even registered?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run the discovery prerequisite check."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up the discovery plugin for this repo and write its config file."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Configure explore_output for this repository."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read the hooks reference page in the Claude Code docs."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research whether Node 22 is still the current LTS release."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Install node on this machine."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explore how the hook scripts in this repo are structured."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check my skill's frontmatter for errors before I publish it."
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: rs-deep-offers-native-workflow-first
+description: 'research SKILL.md "The deep tier" (leading deep token) and "Boundary, the bundled deep-research workflow": a deep single-topic ask from a person who is present gets the /deep-research offer at the start, before anything is dispatched, and the run waits for the answer. Ends before any web research, so it needs no network. Agent is listed so the must-not dispatch grader can fail.'
+tags: [research, deep-tier, routing, ask-first]
+plugins: ["../.."]
+expected_outcome: 'The final reply offers the person the bundled workflow by name, /deep-research <question>, as an alternative to or alongside this skill, and asks how to proceed. No discovery:researcher or research-verifier agent is dispatched and no research has started.'
+execution:
+  prompt: '/discovery:research deep should we migrate our background job queue from Celery to Dramatiq? I am at my desk, so check with me before you kick off anything long-running.'
+  allowed_tools: [Agent, Read, Glob, Grep, Skill]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: offers-deep-research
+    type: regex
+    pattern: '(?<![\w/-])/deep-research\b(?![^\n]{0,40}\b(?:isn''t|is not|not available|unavailable|does ?n[o'']t exist)\b)'
+    arm: both
+  - name: no-researcher-dispatch
+    type: tool_used
+    tool: Agent
+    input_match: 'discovery:research'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-how-to-proceed
+    type: regex
+    pattern: '^(?=[^\n]*\?)(?=[^\n]*\b(?:proceed|go ahead|instead|alongside|prefer|want|would you like|shall I|should I|which|or)\b)'
+    flags: 'mi'
+    arm: both

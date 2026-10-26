@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: rd-unread-page-not-recalled
+description: 'read-docs SKILL.md "Why not WebFetch", "Output" and "Gotchas" (unread is the answer), with the docs lookup procedure step 1: the run fetches the page through fetch-docs.sh, and when the sandbox blocks the fetch it reports the page unread with the reason instead of answering from memory; any recalled fact must sit under a labeled Inference (not from the page) part. Assumes no WebFetch or network-domain grant, so the fetch fails offline by design. A run needs --allow-tools Bash.'
+tags: [read-docs, unread, offline]
+plugins: ["../.."]
+expected_outcome: 'The run calls the plugin''s fetch-docs.sh for the URL, sees the page come back unread (or the fetch fail) in the sandbox, and reports that the page could not be read, with the reason. It does not present a remembered answer (such as a redelivery window of 3 days) as the page''s answer; a recalled figure appears only under an explicit Inference (not from the page) label, if at all.'
+execution:
+  prompt: '/discovery:read-docs https://docs.github.com/en/webhooks/using-webhooks/handling-failed-webhook-deliveries Does GitHub redeliver failed webhook deliveries automatically, and how far back can I redeliver one by hand?'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: lookup-used
+    type: tool_used
+    tool: Bash
+    input_match: 'fetch-docs\.sh\b'
+    arm: with-only
+  - name: reports-unread
+    type: regex
+    pattern: '^(?=[^\n]*\b(?:page|docs?|URL|manifest|lookup|fetch-docs(?:\.sh)?|docs\.github\.com)\b)(?=[^\n]*(?:\bunread\b|\bnot (?:been )?(?:read|fetched|retrieved)\b|\b(?:could ?n[o'']t|cannot|can''t|unable to|failed to|did not|didn''t)\b[^\n]{0,40}\b(?:fetch|read|retrieve|load|download|access)\b|\bfetch(?:ing)? (?:failed|error|was blocked)|\bblocked\b))'
+    flags: 'mi'
+    arm: both
+  - name: no-unlabeled-recall
+    type: regex
+    pattern: '^(?![\s\S]*\binference\b)[\s\S]*\b(?:3|three)[ -]days?\b'
+    flags: 'i'
+    match: not_contains
+    arm: both

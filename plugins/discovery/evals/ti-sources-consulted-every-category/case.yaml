@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: ti-sources-consulted-every-category
+description: 'trace-intent SKILL.md "Evidence categories", "Skipping a category", "Output" (Sources consulted is never omitted) and "Outcome gate": a discovery:intent-tracer dispatch writes an INTENT.md index whose Sources consulted part has one line for each of source control, long-form documents and the issue tracker, reports the unreachable tracker as unavailable rather than leaving it out, and surfaces the commit-message rationale. A run needs --scaffold --allow-tools Bash Write Edit, and --ablation none because the baseline arm cannot dispatch the agent.'
+tags: [trace-intent, artifact-shape, coverage]
+plugins: ["../.."]
+expected_outcome: 'The intent-tracer writes .memory/max-retries/INTENT.md. Its Sources consulted part lists source control (the git history, finding the "raise MAX_RETRIES to 7" commit), long-form documents (docs/, nothing relevant) and the issue tracker (INC-2291 cited but no tracker reachable, reported as unavailable or a gap), and the index carries the Northwind re-presentment cap as the recovered reason.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  allowed_tools: [Agent, Bash, Read, Write, Edit, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 1200
+graders:
+  - name: intent-tracer-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'discovery:intent-tracer'
+    min: 1
+    max: 1
+    arm: with-only
+  - name: three-categories-consulted
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*|\*\*|\d+\.[ \t]*\*\*)?Sources consulted[^\n]*(?=(?:(?!\n#)[\s\S])*?\n(?!#)[^\n]*\b(?:source[- ]control|git(?: history| log)?|commits?|version control)\b)(?=(?:(?!\n#)[\s\S])*?\n(?!#)[^\n]*\b(?:long-form|documents?|docs?|design docs?|ADRs?|RFCs?)\b)(?=(?:(?!\n#)[\s\S])*?\n(?!#)[^\n]*\b(?:issue tracker|tracker|tickets?)\b)'
+    flags: 'mi'
+    target: { source: file, path: .memory/max-retries/INTENT.md }
+    arm: with-only
+  - name: tracker-reported-unavailable
+    type: regex
+    pattern: '^(?=[^\n]*\b(?:tracker|tickets?)\b)(?![^\n]*\b(?:found the|read the|fetched the)\b[^\n]*\bINC-2291\b)(?=[^\n]*\b(?:unavailable|not available|unreachable|not reachable|not accessible|inaccessible|did not resolve|does not resolve|didn''t resolve|no (?:tracker|access|interface)|not configured|none (?:resolved|available)|gap|could ?n[o'']t (?:reach|access|read|open|query)|cannot (?:reach|access|read|query))\b)'
+    flags: 'mi'
+    target: { source: file, path: .memory/max-retries/INTENT.md }
+    arm: with-only
+  - name: rationale-surfaced
+    type: regex
+    pattern: 'Northwind|raise MAX_RETRIES to 7|\bbb317e4'
+    target: { source: file, path: .memory/max-retries/INTENT.md }
+    arm: with-only
