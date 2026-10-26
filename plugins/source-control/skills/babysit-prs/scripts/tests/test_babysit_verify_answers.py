@@ -358,8 +358,9 @@ class KeyTest(unittest.TestCase):
             world.refs = {"issueOrPullRequest": issue(1050, **overrides)}
             return key(world)
 
-        self.assertNotEqual(refs(), refs(lastEditedAt="2026-10-14T00:00:00Z"))
-        self.assertEqual(refs(), refs())
+        base = refs()
+        self.assertNotEqual(base, refs(lastEditedAt="2026-10-14T00:00:00Z"))
+        self.assertEqual(base, refs())
 
     def test_another_pull_requests_pass_and_the_lanes_own_comment_edit_move_nothing(
         self,
