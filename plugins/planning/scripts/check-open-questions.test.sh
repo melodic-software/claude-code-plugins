@@ -258,15 +258,27 @@ EOF
 )"
 expect_exit "fenced example ignored -> 0" 0 --ledger "$fenced"
 
-# 17. The register section stops at the next heading — a `- Q<N>` line in a
-#     later section is not a register row.
+# 17. The register section stops at the next heading, so a `- Q<N> |` row in a
+#     later section is never graded: the ledger is ungradeable and the error
+#     names the row's line (14: the register's one row is line 9, and mkledger's
+#     `## Decision tree` section ends on line 13). A `- Q<N>:` line with no pipe,
+#     the exported ledger's deferred-questions list, is not a register row.
 bleed="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | Who writes? | admin
 EOF
 )"
 printf -- '- Q9 | open | round 3 | leaked row |\n' >>"$bleed"
-expect_exit "rows after the section do not bleed in -> 0" 0 --ledger "$bleed"
+expect_exit "a row after the section -> 2" 2 --ledger "$bleed"
+bleed_err="$(stderr_of --ledger "$bleed")"
+if [[ "$bleed_err" == *"line 14: question row outside the register section"* ]]; then pass "a row after the section is named by line"; else fail "a row after the section is named by line (stderr: '$bleed_err')"; fi
+deferred_list="$(
+  mkledger <<'EOF'
+- Q1 | deferred | round 1 | Who writes? | post-V1
+EOF
+)"
+printf -- '\n### Deferred questions\n\n- Q1: Who writes?\n' >>"$deferred_list"
+expect_exit "a deferred-questions list after the section -> 0" 0 --ledger "$deferred_list"
 
 # 18. Without --brief the verdict says `unchecked`, never omits the field.
 expect_stdout "brief=unchecked when not asked for" "brief=unchecked" --ledger "$clean"
@@ -906,6 +918,35 @@ expect_exit "a title Goal with no answered row -> 0" 0 --ledger "$nothing_answer
 expect_exit "placeholder criteria with no answered row -> 0" 0 --ledger "$nothing_answered" --brief "$placeholder_criteria"
 fenced_stamp_brief="$(page_brief $'```\n- Restatement: confirmed at rev 2\n```' 'Cache builds' '- none recorded in the interview surface')"
 expect_exit "a stamp inside a fence leaves the Brief hand-written -> 0" 0 --ledger "$stamp_ledger" --brief "$fenced_stamp_brief"
+
+# 59. A sub-heading inside the register ends the section, so a row below it is
+#     outside the register: ungradeable, never `registered=2 ... status=clean`,
+#     with the row's line (12) named. A row above the register heading is
+#     outside it too; a fenced row outside it is documentation, as inside.
+sub_heading="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 1 | Format? | markdown
+### Round 2
+- Q3 | open | round 2 | x? |
+EOF
+)"
+expect_exit "a row below a sub-heading in the register -> 2" 2 --ledger "$sub_heading"
+expect_stdout "a row below a sub-heading is ungradeable" "status=ungradeable" --ledger "$sub_heading"
+sub_heading_err="$(stderr_of --ledger "$sub_heading")"
+if [[ "$sub_heading_err" == *"line 12: question row outside the register section"* ]]; then pass "a row below a sub-heading is named by line"; else fail "a row below a sub-heading is named by line (stderr: '$sub_heading_err')"; fi
+above_register="$TMP/above-register.md"
+printf '# Checklist\n\n- Q2 | open | round 1 | stray |\n\n## Open-question register\n\n- Q1 | answered | round 1 | a | x\n' >"$above_register"
+above_err="$(stderr_of --ledger "$above_register")"
+if [[ "$above_err" == *"line 3: question row outside the register section"* ]]; then pass "a row above the register is named by line"; else fail "a row above the register is named by line (stderr: '$above_err')"; fi
+fenced_outside="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+EOF
+)"
+# shellcheck disable=SC2016 # the backticks are literal fence markers, not expansion
+printf '\n```text\n- Q2 | open | round 1 | example only |\n```\n' >>"$fenced_outside"
+expect_exit "a fenced row outside the register is documentation -> 0" 0 --ledger "$fenced_outside"
 
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2

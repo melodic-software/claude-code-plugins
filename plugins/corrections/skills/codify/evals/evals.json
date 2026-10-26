@@ -148,6 +148,19 @@
         "Output does not treat the invocation as the note action and writes no buffer row",
         "Output does not call buffer.sh"
       ]
+    },
+    {
+      "id": 13,
+      "name": "group-names-its-keys-across-two-sources",
+      "prompt": "/corrections:codify group. The settings reader printed {\"min_occurrences\":2,\"layer\":\"defaults\",\"path\":null}. group-findings.mjs printed: `grouped by: producer`, `occurrences: distinct source_id in the group; a row without one counts once`, `2 groups, 3 rows`; `producer=\"corrections/codify-note\": 2 rows, 2 occurrences` with members o1 (ts 2026-10-21T09:00:00Z, source_id #12, signal \"the release skipped the changelog fragment\") and o2 (ts 2026-10-22T09:00:00Z, source_id #14, signal \"a plugin change shipped without a changelog fragment\"); `producer=\"scanner/lint\": 1 row, 1 occurrence` with member o3 (ts 2026-10-22T10:00:00Z, source_id 5be7712, signal \"a test reads the user's real git config\").",
+      "expected_output": "The skill shows the producer groups with their row and occurrence counts and says they are grouped by producer. It then groups by mistake, says the key is the mistake and the occurrence key is source_id, shows the changelog-fragment group at 2 of 2 and names /corrections:codify for it, shows the git-config group at 1 of 2, and writes nothing.",
+      "narration": true,
+      "expectations": [
+        "Output names producer as the field grouping key and shows each producer group with its count",
+        "Output names the mistake as the second grouping's key and source_id as its occurrence key",
+        "Output shows the changelog-fragment group at 2 of 2 and names /corrections:codify for it, and shows the git-config group at 1 of 2",
+        "Output writes nothing, appends nothing and runs no proof or codify step"
+      ]
     }
   ]
 }

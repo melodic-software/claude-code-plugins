@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.5.0] - 2026-10-26
+
+### Added
+
+- `/work-items:decompose` traces each source acceptance criterion id to the slices that carry it, reports every id no slice carries before approval, and keeps the id on each carried criterion in an item's `## Done when`.
+
 ## [3.4.5] - 2026-10-25
 
 ### Fixed

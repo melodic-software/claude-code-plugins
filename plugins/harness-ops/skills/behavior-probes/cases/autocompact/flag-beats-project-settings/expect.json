@@ -1,0 +1,21 @@
+{
+  "claim": "--autocompact 200000 beats a project settings file's top-level autoCompactWindow of 250000: /autocompact with no argument reports 200k.",
+  "tags": [
+    "/autocompact",
+    "--autocompact",
+    "autoCompactWindow",
+    "auto-compact window"
+  ],
+  "permission_mode": "default",
+  "model": "claude-sonnet-5-5",
+  "max_turns": 1,
+  "max_budget_usd": 0.25,
+  "cli_args": ["--autocompact", "200000"],
+  "target": {
+    "printed_match": "\\d",
+    "text_match": "(?i)\\b200(?:k|,000|000)\\b",
+    "example": "Auto-compact window: 200k"
+  },
+  "outcome": "prints",
+  "control": "autocompact/project-top-level-window-applies"
+}

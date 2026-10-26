@@ -325,7 +325,8 @@ def _send(
 # the process exits red naming the reset, with no retry and no wait. The
 # signals are the documented ones below; the shares of each pool's limit
 # (`writer-pause`, `read-floor`) are `limits.api` in pr-pipeline.yaml, unset
-# fields filled from the schema's defaults, and an unreadable block or schema
+# fields filled from .github/actions/log-api-budget/rate-limits.json (with
+# github-token's `limit-cap`), and an unreadable block or defaults file
 # refuses every call. With no pr-pipeline.yaml at all (an installed plugin, a
 # consumer repo) there are no margins, and the signals alone still latch. `evaluate_rate_response` is the shared decision table's
 # port: .github/actions/log-api-budget/rate-guard.vectors.json tests it here
@@ -371,23 +372,15 @@ _PARENTS = Path(__file__).resolve().parents
 _REPO_ROOT = _PARENTS[5] if len(_PARENTS) > 5 else None
 _CONVENTIONS = None if _REPO_ROOT is None else _REPO_ROOT / "docs" / "conventions"
 LIMITS_CONFIG = None if _CONVENTIONS is None else _CONVENTIONS / "pr-pipeline.yaml"
-LIMITS_SCHEMA = (
+LIMITS_DEFAULTS = (
     None
-    if _CONVENTIONS is None
-    else _CONVENTIONS / "pr-pipeline" / "pr-pipeline.schema.json"
+    if _REPO_ROOT is None
+    else _REPO_ROOT / ".github" / "actions" / "log-api-budget" / "rate-limits.json"
 )
 LIMITS_FIELDS = ("writer-pause", "read-floor")
 # The shares with no repo config: no margin, so only a signal stops a call.
 NO_MARGINS = dict.fromkeys(LIMITS_FIELDS, 0.0)
 TOKEN_POOLS = frozenset({"github-token", "lanes-app", "owner-token"})
-# GITHUB_TOKEN's documented ceiling, whatever x-ratelimit-limit reports: "The
-# rate limit for GITHUB_TOKEN is 1,000 requests per hour per repository." The
-# read floor counts against min(header limit, this); the writer pause and the
-# exhausted stop keep the header's own numbers.
-#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
-#   As-of: 2026-10-25.
-#   Recheck trigger: that page changes the GITHUB_TOKEN figure.
-GITHUB_TOKEN_LIMIT_CAP = 1000
 # The YAML reader's runner, bound at import: a test that fakes `gh` through
 # `run_command` still reads the real limits.
 _reader_run = run_command
@@ -652,8 +645,8 @@ def _limits_pool(args: list[str], env_overrides: Mapping[str, str] | None) -> st
 
 
 def pool_limits(pool: str) -> dict[str, float] | str:
-    """`limits.api.<pool>`'s shares, unset ones from the schema's defaults, or
-    why they cannot be read. Read through the pipeline config's own reader;
+    """`limits.api.<pool>`'s shares, unset ones from rate-limits.json, with the
+    pool's default `limit-cap` when it has one, or why they cannot be read. Read through the pipeline config's own reader;
     only a read that succeeded is kept, so a failure is read again next call."""
     limits = _limits.get(pool) or _read_pool_limits(pool)
     if not isinstance(limits, str):
@@ -662,27 +655,25 @@ def pool_limits(pool: str) -> dict[str, float] | str:
 
 
 def warm_rate_guard() -> None:
-    """Read every `limits.api` pool the schema names now, before a test fakes
-    the subprocess seam the reader runs through."""
-    if LIMITS_SCHEMA is None:
+    """Read every `limits.api` pool rate-limits.json names now, before a test
+    fakes the subprocess seam the reader runs through."""
+    if LIMITS_DEFAULTS is None:
         return
     try:
-        schema = json.loads(LIMITS_SCHEMA.read_text(encoding="utf-8"))
+        defaults = json.loads(LIMITS_DEFAULTS.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    pools = dig(schema, "properties", "limits", "properties", "api", "properties")
-    for pool in json_object(pools):
+    for pool in json_object(defaults):
         pool_limits(str(pool))
 
 
 def _read_pool_limits(pool: str) -> dict[str, float] | str:
     import babysit_merge_policy as merge_policy  # noqa: PLC0415 - imports this module
 
-    if LIMITS_CONFIG is None or LIMITS_SCHEMA is None or not LIMITS_CONFIG.exists():
+    if LIMITS_CONFIG is None or LIMITS_DEFAULTS is None or not LIMITS_CONFIG.exists():
         return dict(NO_MARGINS)
     try:
-        schema = json.loads(LIMITS_SCHEMA.read_text(encoding="utf-8"))
-        fields = dig(schema, "$defs", "api-pool", "properties")
+        defaults = json.loads(LIMITS_DEFAULTS.read_text(encoding="utf-8"))
         text = LIMITS_CONFIG.read_text(encoding="utf-8")
         keys = [(f"limits.api.{pool}.{name}", False) for name in LIMITS_FIELDS]
         values = merge_policy._concern_values(text, keys, _reader_run)
@@ -692,14 +683,22 @@ def _read_pool_limits(pool: str) -> dict[str, float] | str:
         return f"{LIMITS_CONFIG.name} does not parse"
     shares: dict[str, float] = {}
     for name, (key, _) in zip(LIMITS_FIELDS, keys, strict=True):
-        raw = values[key][0] if values[key] else dig(fields, name, "default")
+        # The config reader gives text; the defaults file must hold a number.
+        raw = values[key][0] if values[key] else dig(defaults, pool, name)
         try:
             share = float(raw)
         except (TypeError, ValueError):
             share = math.nan
-        if isinstance(raw, bool) or not 0 <= share <= 1:
+        typed = bool(values[key]) or isinstance(raw, (int, float))
+        if isinstance(raw, bool) or not typed or not 0 <= share <= 1:
             return f"limits.api.{pool}.{name} is not a share: {raw!r}"
         shares[name] = share
+    # The default cap alone, as before any config could set one.
+    cap = dig(defaults, pool, "limit-cap")
+    if cap is not None:
+        if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
+            return f"{LIMITS_DEFAULTS.name}: {pool}.limit-cap is not a count: {cap!r}"
+        shares["limit-cap"] = cap
     return shares
 
 
@@ -807,7 +806,7 @@ def _below(pool: str | None, field: str) -> bool:
         if not reading:
             continue
         remaining, limit = reading
-        cap = _limit_cap(name) if field == "read-floor" else None
+        cap = limits.get("limit-cap") if field == "read-floor" else None
         if cap is not None and cap < limit:
             remaining, limit = max(0, cap - (limit - remaining)), cap
         if remaining < limits[field] * limit:
@@ -815,15 +814,10 @@ def _below(pool: str | None, field: str) -> bool:
     return False
 
 
-def _limit_cap(pool: str) -> int | None:
-    """The absolute ceiling under a pool's header limit, or None."""
-    return GITHUB_TOKEN_LIMIT_CAP if pool == "github-token" else None
-
-
 def low_headroom(pool: str | None = None) -> bool:
     """Whether `pool` (any pool read so far, when None) last read below its
-    `read-floor` share (for `github-token`, of `GITHUB_TOKEN_LIMIT_CAP` when
-    the header reports more), or its limits are unreadable. Report-only reads
+    `read-floor` share (of the pool's default `limit-cap` in rate-limits.json
+    when the header reports more), or its limits are unreadable. Report-only reads
     are skipped then."""
     return _below(pool, "read-floor")
 
