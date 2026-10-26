@@ -10,7 +10,10 @@ name: pr-run-activity-read
 # one Claude secret per call: the caller's first call passes the role's API
 # key and hands off on an empty key or the launcher's handoff (a credit stop,
 # or a 401 or 402), and its second call, started by a job that reads this
-# run's jobs, passes the OAuth token.
+# run's jobs, passes the OAuth token. With the caller's fallback-ready true,
+# the second call hands off the same way (a limit stop, a credit stop, or a
+# 401 or 402), and its third call, started the same way, passes the central
+# fallback token, FALLBACK_CLAUDE_CODE_OAUTH_TOKEN, and never hands off.
 # Secrets are scrubbed per workflow run, so this file references no App key.
 # Only the broker-check job, which runs no PR head code, requests an OIDC
 # token; the run job that runs head code holds neither. Write activities run
@@ -80,8 +83,19 @@ on:
           or `handoff` for the second, which runs on claude-code-oauth-token
           and names why in its lane record. `handoff` says only that the
           first call handed off as this run's jobs show it, for a caller that
-          reads that rather than the first call's outputs. Issue mode takes
-          empty or `handoff`.
+          reads that rather than the first call's outputs. `fallback` for the
+          third, which runs on fallback-claude-code-oauth-token after the
+          second call handed off. Issue mode takes empty, `handoff` or
+          `fallback`.
+        required: false
+        type: string
+        default: ""
+      fallback-ready:
+        description: >-
+          The second call only: `true` when the caller runs a third call on
+          the fallback token, so the subscription leg may hand off to it, as
+          run-claude-cli's fallback-ready. The caller sets it from a job that
+          runs no head code; empty or `false` keeps the second call the last.
         required: false
         type: string
         default: ""
@@ -192,14 +206,19 @@ on:
         required: false
         type: string
         default: ""
-    # A caller passes one of the two: its first call the API key, its
-    # fallback call the OAuth token.
+    # A caller passes one of the three: its first call the API key, its
+    # second call the OAuth token, its third call the fallback token.
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
         required: false
       claude-api-key:
         description: The role's Claude Console API key, for a PR-mode skill's first call.
+        required: false
+      fallback-claude-code-oauth-token:
+        description: >-
+          The central fallback subscription's OAuth token, the org secret
+          FALLBACK_CLAUDE_CODE_OAUTH_TOKEN passed by name, for the third call.
         required: false
       # Read only by the scan job's decode step, under its environment, which
       # supplies the value; a caller passes it by name, never inherit.
@@ -346,9 +365,11 @@ on:
       handed-off:
         description: >-
           `true` when the first call's key was empty or its key leg handed
-          off (run-claude-cli's handoff: a credit stop, or a 401 or 402), so
-          it skipped the scan job, uploaded nothing, recorded no lane outcome
-          and posted no check, and the fallback call runs the activity.
+          off (run-claude-cli's handoff: a credit stop, or a 401 or 402), or
+          the second call's subscription leg handed off (with fallback-ready:
+          a limit stop, a credit stop, or a 401 or 402), so it skipped the
+          scan job, uploaded nothing, recorded no lane outcome and posted no
+          check, and the next call runs the activity.
         value: ${{ jobs.run.outputs.handed-off }}
 
 permissions: {}
@@ -465,12 +486,14 @@ jobs:
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
       # A skill that took no model turn fails. The scan job's verdict reads
-      # it. A skill runs on one of act-key and act-token.
+      # it. A skill runs on one of act-key, act-token and act-fallback.
       act-outcome: >-
-        ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
+        ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success'
+        || steps.act-fallback.outcome == 'success')
         && steps.act-turns.outcome != 'success' && 'failure'
         || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
         || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
+        || steps.act-fallback.outcome != 'skipped' && steps.act-fallback.outcome
         || steps.act-script.outcome }}
       # For the scan job's verdict. go and the gate fields come from steps
       # before any head code; skip-reason, dirty-tree and patch-collected
@@ -492,9 +515,16 @@ jobs:
       resume-tip: ${{ steps.issue-prior.outputs.resume-tip }}
       # run-claude-cli sets lane-class and handoff after it restores the step
       # files, so the leg cannot set them; the presence steps run before it.
-      lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
-      credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present }}
-      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' }}
+      lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
+      credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present || steps.fallback-present.outputs.present }}
+      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' }}
+      # The lane record's class and reset, for the report job's check run,
+      # which limit-stop.mjs reads, as pr-run-activity-write.yml's lane-class.
+      # A forged limit stop can only restart the lane after a reset
+      # limit-stop.mjs clamps to at least `limits.reset-clamp-min` hours away,
+      # at most `limits.limit-stops-per-head` times on one head.
+      record-class: ${{ steps.lane-record.outputs.failure-class }}
+      record-resets: ${{ steps.lane-record.outputs.resets-at }}
       # Set after head code ran, for the scan job alone: each payload's byte
       # count and the sealed bundle, never a workflow_call output.
       carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
@@ -525,26 +555,33 @@ jobs:
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
           TRUSTED_BASE: ${{ inputs.trusted-base }}
           FALLBACK: ${{ inputs.fallback }}
+          FALLBACK_READY: ${{ inputs.fallback-ready }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs and
-          # a fallback only as handoff; the config step below holds it to
+          # a fallback only as handoff or fallback; the config step below holds it to
           # patch mode.
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
             if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
               [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
-              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || [ "${FALLBACK:-handoff}" != handoff ]; then
-              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty or handoff"
+              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ] || { [ "${FALLBACK:-handoff}" != handoff ] && [ "$FALLBACK" != fallback ]; }; then
+              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, no pr-number or dispatcher-run-id, and a fallback of empty, handoff or fallback"
               exit 1
             fi
           fi
           case "$FALLBACK" in
-            "" | credit-stop | no-key | handoff) ;;
+            "" | credit-stop | no-key | handoff | fallback) ;;
             *)
-              echo "::error::the fallback input must be empty, credit-stop, no-key or handoff"
+              echo "::error::the fallback input must be empty, credit-stop, no-key, handoff or fallback"
               exit 1
               ;;
           esac
+          # Only the second call may let its subscription leg hand off.
+          case "$FALLBACK" in "" | fallback) ok="" ;; *) ok="true false" ;; esac
+          if [ -n "$FALLBACK_READY" ] && [[ " $ok " != *" $FALLBACK_READY "* ]]; then
+            echo "::error::fallback-ready must be empty, or true or false on the second call"
+            exit 1
+          fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
@@ -794,6 +831,7 @@ jobs:
           fi
           role=${ROLE^^}
           echo "key-name=${role//-/_}_CLAUDE_API_KEY" >>"$GITHUB_OUTPUT"
+          echo "token-name=${role//-/_}_CLAUDE_CODE_OAUTH_TOKEN" >>"$GITHUB_OUTPUT"
 
       # Issue mode: a run that waited in its concurrency slot keeps the
       # workflow files of its label event, and the apply job of the same run
@@ -1059,7 +1097,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1295,8 +1333,10 @@ jobs:
       # references one Claude secret. The first call runs on the role's API
       # key (act-key); with its key empty, or on the launcher's handoff (a
       # credit stop, or a 401 or 402), it hands off, and the caller's
-      # fallback call runs on the role's OAuth token (act-token). Only
-      # whether the secret is set leaves these steps, never its value.
+      # second call runs on the role's OAuth token (act-token). With
+      # fallback-ready true that leg hands off too, and the caller's third
+      # call runs on the central fallback token (act-fallback), the last leg.
+      # Only whether the secret is set leaves these steps, never its value.
       - name: Check the API key
         id: key-present
         if: >-
@@ -1318,7 +1358,7 @@ jobs:
         id: token-present
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-          && inputs.fallback != ''
+          && inputs.fallback != '' && inputs.fallback != 'fallback'
         env:
           PRESENT: ${{ secrets.claude-code-oauth-token != '' }}
         run: |
@@ -1326,6 +1366,22 @@ jobs:
             echo "present=true" >>"$GITHUB_OUTPUT"
           else
             echo "::warning::the role's OAuth token is empty; the activity does not run"
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          fi
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Check the fallback token
+        id: fallback-present
+        if: >-
+          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
+          && inputs.fallback == 'fallback'
+        env:
+          PRESENT: ${{ secrets.fallback-claude-code-oauth-token != '' }}
+        run: |
+          if [ "$PRESENT" = true ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty; the activity does not run"
             echo "present=false" >>"$GITHUB_OUTPUT"
           fi
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
@@ -1344,7 +1400,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1396,7 +1452,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1422,13 +1478,59 @@ jobs:
           json-schema-file: >-
             ${{ steps.config.outputs.prepare == 'dependency-review'
             && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+          # The caller's, from a job that ran no head code: true lets a limit
+          # stop, a credit stop or a 401 or 402 hand off to the third call.
+          fallback-ready: ${{ inputs.fallback-ready }}
           leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
 
       - name: Check the OAuth token leg's permission mode
         id: mode-token
-        if: always() && (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+        if: >-
+          always() && (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          && steps.act-token.outputs.handoff != 'true'
         env:
           EXECUTION_FILE: ${{ steps.act-token.outputs.execution-file }}
+          MODE: ${{ steps.config.outputs.permission-mode }}
+        run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
+
+      - name: Run the skill on the fallback token
+        id: act-fallback
+        if: steps.fallback-present.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+          TRUSTED_CONTEXT_FILE: >-
+            ${{ steps.config.outputs.reads-untrusted == 'true'
+            && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
+        with:
+          lane: ${{ inputs.activity }}
+          role: ${{ inputs.role }}
+          prompt-file: ${{ github.workspace }}/.lane/prompt.md
+          preamble: ${{ steps.stage.outputs.preamble }}
+          fallback-token: ${{ secrets.fallback-claude-code-oauth-token }}
+          model: ${{ steps.config.outputs.model }}
+          effort: ${{ steps.config.outputs.effort }}
+          max-turns: ${{ steps.config.outputs.max-turns }}
+          permission-mode: ${{ steps.config.outputs.permission-mode }}
+          tools: ${{ steps.stage.outputs.tools }}
+          allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
+          disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
+          plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
+          # dependency-review returns its verdict as structured output, to
+          # the schema the stage wrote from the base; no other activity has one.
+          json-schema-file: >-
+            ${{ steps.config.outputs.prepare == 'dependency-review'
+            && format('{0}/lane-dependency-schema/verdict.schema.json', runner.temp) || '' }}
+          leg-timeout-minutes: ${{ steps.launch.outputs.leg-minutes }}
+
+      - name: Check the fallback token leg's permission mode
+        id: mode-fallback
+        if: always() && (steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
+        env:
+          EXECUTION_FILE: ${{ steps.act-fallback.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
         run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
 
@@ -1442,9 +1544,11 @@ jobs:
         if: >-
           always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
           && steps.act-key.outputs.handoff != 'true'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          && steps.act-token.outputs.handoff != 'true'
+          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
         env:
-          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
         run: |
           mkdir -p "$REPLY_DIR"
@@ -1465,9 +1569,11 @@ jobs:
           always() && steps.config.outputs.prepare == 'dependency-review'
           && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
           && steps.act-key.outputs.handoff != 'true'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          && steps.act-token.outputs.handoff != 'true'
+          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
         env:
-          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
         run: |
           mkdir -p "$REPLY_DIR"
@@ -1493,10 +1599,12 @@ jobs:
         if: >-
           always() && ((steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
           && steps.act-key.outputs.handoff != 'true'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          || (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          && steps.act-token.outputs.handoff != 'true'
+          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
         with:
           retries: 0
@@ -1577,10 +1685,11 @@ jobs:
         if: >-
           always() && inputs.issue-number != ''
           && (steps.act-key.outcome == 'failure' && steps.act-key.outputs.handoff != 'true'
-          || steps.act-token.outcome == 'failure')
+          || steps.act-token.outcome == 'failure' && steps.act-token.outputs.handoff != 'true'
+          || steps.act-fallback.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
         with:
           retries: 0
           script: |
@@ -1609,14 +1718,19 @@ jobs:
         id: lane-record
         if: >-
           always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
+          && steps.act-token.outputs.handoff != 'true'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
+          || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
-          outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome }}
-          execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
+          outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
+          execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
+          log-file: ${{ steps.act-key.outputs.log-file || steps.act-token.outputs.log-file || steps.act-fallback.outputs.log-file }}
           lane: >-
-            ${{ inputs.issue-number != '' && inputs.fallback == 'handoff'
+            ${{ inputs.issue-number != '' && inputs.fallback == 'fallback'
+            && format('{0} (token {1} handed off)', inputs.lane, steps.launch.outputs.token-name)
+            || inputs.issue-number != '' && inputs.fallback == 'handoff'
             && format('{0} (key {1} handed off)', inputs.lane, steps.launch.outputs.key-name)
             || inputs.issue-number != '' && inputs.lane
             || inputs.fallback == 'credit-stop'
@@ -1625,13 +1739,15 @@ jobs:
             && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
             || inputs.fallback == 'handoff'
             && format('{0}/{1} (key {2} posted no check)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
+            || inputs.fallback == 'fallback'
+            && format('{0}/{1} (token {2} handed off)', inputs.lane, inputs.activity, steps.launch.outputs.token-name)
             || format('{0}/{1}', inputs.lane, inputs.activity) }}
           lane-id: ${{ inputs.lane }}
-          step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at }}
+          step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at || steps.fallback-present.outputs.started-at }}
           step-timeout-minutes: ${{ steps.launch.outputs.step-minutes }}
-          credential: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential }}
+          credential: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}
           max-turns: ${{ steps.config.outputs.max-turns }}
-          known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
+          known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
 
       - name: Run the script activity
         id: act-script
@@ -1706,9 +1822,10 @@ jobs:
         if: >-
           always() && steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch != ''
           && (job.status == 'success'
-          && (steps.launch.outcome != 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
+          && (steps.launch.outcome != 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success'
+          || steps.act-fallback.outcome == 'success')
           || inputs.issue-number != ''
-          && (steps.mode-key.outcome == 'success' || steps.mode-token.outcome == 'success'))
+          && (steps.mode-key.outcome == 'success' || steps.mode-token.outcome == 'success' || steps.mode-fallback.outcome == 'success'))
         env:
           HEAD_SHA: ${{ steps.start.outputs.sha }}
           FROM_TREE: ${{ steps.config.outputs.prepare == 'merge-base' && steps.merge.outputs.conflict-tree || '' }}
@@ -1748,11 +1865,12 @@ jobs:
           always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
           && steps.config.outputs.kind == 'skill'
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
+          && steps.act-token.outputs.handoff != 'true'
         env:
           SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
-          LANE_CLASS: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
-          LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets }}
+          LANE_CLASS: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
+          LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets || steps.act-fallback.outputs.lane-resets }}
           # The run's turn cap, so a turn-cap stop names it.
           LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
           # The branch a resumed run continued, which still holds the work
@@ -1760,7 +1878,7 @@ jobs:
           LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
           # A run that exited non-zero, and the API error it ended on, so a
           # funding stop is named as one (report-outcome readFunding).
-          LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' }}
+          LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' || steps.act-fallback.outcome == 'failure' }}
           LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
           LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
         run: |
@@ -1860,9 +1978,12 @@ jobs:
       # here, after its outcome and partial patch were carried.
       - name: Fail without a result
         if: >-
-          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success')
+          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success'
+          || steps.fallback-present.outcome == 'success')
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
+          && steps.act-token.outputs.handoff != 'true'
           && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
+          && steps.act-fallback.outcome != 'success'
         run: |
           echo "::error::the skill's launcher run left no result"
           exit 1
@@ -2957,7 +3078,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
       - name: Isolate the runner
         id: isolate
@@ -2976,7 +3097,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3002,7 +3123,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3257,6 +3378,8 @@ jobs:
           not-run-reason: ${{ steps.head.outputs.not-run-reason }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
           gate-reason: ${{ steps.head.outputs.forged != 'true' && needs.run.outputs.gate-reason || '' }}
+          lane-class: ${{ needs.run.outputs.record-class }}
+          lane-resets: ${{ needs.run.outputs.record-resets }}
           head-sha: ${{ steps.head.outputs.sha }}
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}

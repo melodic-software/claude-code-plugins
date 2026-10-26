@@ -10,13 +10,6 @@
     "implementation:implement",
     "work-items:track"
   ],
-  "competitor_dirs": {
-    "performance:goal": "plugins/performance/skills/goal",
-    "planning:plan": "plugins/planning/skills/plan",
-    "planning:interview": "plugins/planning/skills/interview",
-    "implementation:implement": "plugins/implementation/skills/implement",
-    "work-items:track": "plugins/work-items/skills/track"
-  },
   "queries": [
     {
       "id": "pos-train-01",

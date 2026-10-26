@@ -7,10 +7,6 @@
     "architecture:improve",
     "architecture:map-landscape"
   ],
-  "competitor_dirs": {
-    "architecture:improve": "plugins/architecture/skills/improve",
-    "architecture:map-landscape": "plugins/architecture/skills/map-landscape"
-  },
   "queries": [
     {
       "id": "pos-train-01",

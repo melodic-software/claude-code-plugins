@@ -34,6 +34,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    // #7970: with no stored choice a wide screen opens the side panels pinned; this journey was written for the overlay, so it stores Unpin first
+    await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(200);
+    if ((await page.getAttribute("#pinBtn", "aria-pressed")) === "true") await page.click("#pinBtn");
+    await page.click("#flyClose"); await page.waitForTimeout(150);
 
     // start
     ok("header shows the title and the derived round", (await text("#title")) === "Journey page" && (await text("#roundLbl")) === "Round 1 · Interview", await text("#roundLbl"));

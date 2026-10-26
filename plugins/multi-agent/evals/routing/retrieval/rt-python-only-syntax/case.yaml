@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: rt-python-only-syntax
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-file'
+    type: 'regex'
+    pattern: 'validate-cases\.py'
+    target: 'last_message'
+  - name: 'names-function'
+    type: 'regex'
+    pattern: '\bpython_only_tokens\b'
+    target: 'last_message'

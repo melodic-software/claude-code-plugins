@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "ROLE_NOTES=()\nTARGET=\"${1:-all}\"\n  ROLE_NOTES+=(\"$label layer skipped\")\n  ROLE_NOTES+=(\"$label: $key ignored\")\nnotes_json=()\nfor n in \"${ROLE_NOTES[@]+\"${ROLE_NOTES[@]}\"}\"; do\n",
+      "why": "all five sites renamed"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "NOTES=()\n  NOTES+=(\"a\")\n  NOTES+=(\"b\")\nfor n in \"${NOTES[@]+\"${NOTES[@]}\"}\"; do\n",
+      "why": "nothing renamed"
+    },
+    {
+      "answer": "ROLE_NOTES=()\n  ROLE_NOTES+=(\"a\")\n  NOTES+=(\"b\")\nfor n in \"${ROLE_NOTES[@]+\"${ROLE_NOTES[@]}\"}\"; do\n",
+      "why": "one site missed"
+    },
+    {
+      "answer": "# ROLE_NOTES collects one line per skipped layer\nROLE_NOTES=()\n  ROLE_NOTES+=(\"a\")\n  ROLE_NOTES+=(\"b\")\nfor n in \"${ROLE_NOTES[@]+\"${ROLE_NOTES[@]}\"}\"; do\n",
+      "why": "an added sixth mention"
+    }
+  ]
+}

@@ -685,6 +685,13 @@
       const nameOf = pid => (pid === "host" ? "Host" : Core.state.people[pid]?.name || "Someone");
       return { ...j, ...(j.text ? { text: Core.plain(j.text) } : {}), history: (j.history || []).map(v => ({ text: Core.plain(v.text), cid: v.by, name: nameOf(v.by), ts: v.at })) };
     },
+    /** Owner: what the server log adds up to, as `share.sh logs --summary` gives it: {summary, sections: [{title, lines}]}. */
+    health: async () => {
+      const r = await fetch("/api/owner/health", { headers: ident() });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      return j;
+    },
     /** Report a problem: text, the page context (Core.reportContext) and up to four pictures, each a data: URL. */
     report: (text, ctx, images) => act("/api/report", { text, ctx, ...(images?.length ? { images } : {}) }),
     /** Owner: mark a report seen or resolved; either tells the reporter. */
