@@ -32,7 +32,7 @@ const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10
 // One open pull request (number 7) labeled needs-human; `timeline` is its timeline and
 // `mainFiles` the files main changed since its merge base with the head.
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], author, evidence = () => null }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], author, evidence = () => null, numbers = [7] }) {
   const calls = [];
   const reads = [];
   const verify = async (pull, rung) => {
@@ -46,13 +46,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return { ref: "refs/heads/main", object: { sha: MAIN } };
     }
     if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-human`) {
-      return path.endsWith("page=1") ? [{ number: 7, pull_request: {}, labels: [{ name: "needs-human" }] }] : [];
+      return path.endsWith("page=1") ? numbers.map((number) => ({ number, pull_request: {}, labels: [{ name: "needs-human" }] })) : [];
     }
-    if (method === "GET" && route === `/repos/${REPO}/issues/7/timeline`) {
+    const [, kind, number] = /^\/repos\/[^/]+\/[^/]+\/(issues|pulls)\/(\d+)(?:\/timeline)?$/.exec(route) ?? [];
+    if (method === "GET" && kind === "issues" && route.endsWith("/timeline") && numbers.includes(Number(number))) {
       return path.endsWith("page=1") ? timeline : [];
     }
-    if (method === "GET" && route === `/repos/${REPO}/pulls/7`) {
-      return { number: 7, state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD }, labels: [{ name: "needs-human" }], mergeable };
+    if (method === "GET" && kind === "pulls" && numbers.includes(Number(number))) {
+      return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD }, labels: [{ name: "needs-human" }], mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
       return { files: mainFiles };
@@ -511,27 +512,64 @@ test("a hold marker from github-actions[bot] with no lane footer, or from anothe
 // enable-auto-merge's own person refusal comment (refusalBody), then its
 // label: under merge.lane-prs native the only writer of a lanes App PR's
 // pr-merge label. #10090's shape: a risk hold on unbound reviews at the head
-// the PR still has.
+// the PR still has. Reader answers use babysit_verify_evidence.py's own
+// constants (FAIL, MISSING, UNREADABLE, the `unreadable:` reviews answer).
 const UNBOUND = "pr-merge's gate holds it on its risk score (evidence-unbound:claude-review: not bound: rerun-not-allowed)";
+const SECURITY = "pr-merge's gate holds it on its risk score (security-finding: 1 open CRITICAL finding)";
+const REPEATED = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
+const UNTRUSTED = "pr-merge's lane does not take its issue link (untrusted-provenance)";
+const NATIVE = { LANE_PRS: "native" };
 const nativeEscalated = (reason, head = HEAD) => mergeEscalated(refusalBody(true, reason, head, "needs-human"));
 const clean = (pull) => ({ head: pull.headRefOid, refusal: null, ineligible: null, reviews: null });
+const refusing = (refusal) => (pull) => ({ head: pull.headRefOid, refusal, ineligible: null });
+const DELETE = { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined };
 
 test("enable-auto-merge's label at the current head comes off once the gate's reader no longer refuses there", async () => {
   const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: clean });
-  const { code, logs } = await run(w, { LANE_PRS: "native" });
+  const { code, logs } = await run(w, NATIVE);
   assert.equal(code, 0, logs.join("\n"));
   assert.deepEqual(w.reads, [{ pull: { number: 7, headRefOid: HEAD, baseRefOid: MAIN }, rung: "C3" }]);
   const [comment, removal] = w.writes();
   assert.equal(w.writes().length, 2);
   assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->`);
   assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
-  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+  assert.deepEqual(removal, DELETE);
 });
 
-test("enable-auto-merge's label comes off when the refusal is now one the lanes clear", async () => {
-  const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: (pull) => ({ ...clean(pull), refusal: "verify:no-pass", needsHuman: false }) });
-  await run(w, { LANE_PRS: "native" });
-  assert.equal(w.writes().at(-1)?.method, "DELETE");
+test("enable-auto-merge's label comes off when the reader now reads a refusal the lanes clear for the same cause", async () => {
+  for (const [reason, evidence] of [
+    // A verifier label: any verdict the lanes clear, read whole.
+    [REPEATED, refusing("verify:fail")],
+    [REPEATED, refusing("verify:earlier-fail")],
+    // A risk label: a risk score read whole, now naming only lane causes.
+    [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
+  ]) {
+    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
+    await run(w, NATIVE);
+    assert.deepEqual(w.writes().at(-1), DELETE, `${reason} ${evidence}`);
+  }
+});
+
+// A risk score is read only when the verdict passes (babysit_verify_evidence.py
+// `evidence`), so a refusal or an unread answer hides it: the label stays.
+test("a risk, verifier or issue-link label stays when the reader's answer no longer shows its cause", async () => {
+  for (const [reason, evidence] of [
+    [SECURITY, refusing("verify:unreadable")],
+    [SECURITY, refusing("verify:missing")],
+    [SECURITY, refusing("verify:fail")],
+    [SECURITY, (pull) => ({ ...clean(pull), ineligible: "not-agent-ready" })],
+    [SECURITY, (pull) => ({ ...clean(pull), reviews: "unreadable: no agent identity" })],
+    [REPEATED, refusing("verify:unreadable")],
+    [REPEATED, refusing("verify:missing")],
+    [REPEATED, (pull) => ({ ...clean(pull), reviews: "unreadable: the lane's rung is off" })],
+    [UNTRUSTED, (pull) => ({ ...clean(pull), ineligible: "not-agent-ready" })],
+    [UNTRUSTED, refusing("verify:fail")],
+  ]) {
+    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
+    await run(w, NATIVE);
+    assert.equal(w.reads.length, 1, `${reason} ${evidence}`);
+    assert.deepEqual(w.writes(), [], `${reason} ${evidence}`);
+  }
 });
 
 test("enable-auto-merge's label stays while its cause, or another a person must clear, holds at the head", async () => {
@@ -539,8 +577,8 @@ test("enable-auto-merge's label stays while its cause, or another a person must 
     // A security finding or a trusted-actor widening stays a person's.
     (pull) => ({ ...clean(pull), reviews: "security-finding: 1 open CRITICAL finding" }),
     (pull) => ({ ...clean(pull), reviews: "trust-gate:trusted-actors: widens the trusted actors" }),
-    // A verifier refusal the gate marks needsHuman, an issue link the lane does not take.
-    (pull) => ({ ...clean(pull), refusal: "verify:untrusted-spec", needsHuman: true }),
+    // A verifier refusal a person must clear, an issue link the trust hold refuses.
+    refusing("verify:untrusted-spec"),
     (pull) => ({ ...clean(pull), ineligible: "untrusted-provenance" }),
     // Unread, read at another head, or a read that fails.
     () => null,
@@ -550,7 +588,7 @@ test("enable-auto-merge's label stays while its cause, or another a person must 
     },
   ]) {
     const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence });
-    await run(w, { LANE_PRS: "native" });
+    await run(w, NATIVE);
     assert.deepEqual(w.writes(), [], String(evidence));
   }
 });
@@ -558,7 +596,7 @@ test("enable-auto-merge's label stays while its cause, or another a person must 
 test("enable-auto-merge's hold-path or cost-path label is never judged on the reader's answer", async () => {
   for (const reason of ["it changes .github/workflows/ci.yml, a hold path", "it changes infra/main.ts, a cost path"]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    await run(w, { LANE_PRS: "native" });
+    await run(w, NATIVE);
     assert.deepEqual(w.writes(), [], reason);
     assert.deepEqual(w.reads, [], reason);
   }
@@ -570,34 +608,118 @@ test("a label a person added, or added back, beside enable-auto-merge's comment 
     [...nativeEscalated(UNBOUND), unlabeled(OWNER, "2026-10-18T11:00:00Z"), labeled(OWNER, "2026-10-18T11:00:10Z")],
   ]) {
     const w = world({ timeline, author: BOT, evidence: clean });
-    await run(w, { LANE_PRS: "native" });
+    await run(w, NATIVE);
     assert.deepEqual(w.writes(), []);
     assert.deepEqual(w.reads, []);
   }
 });
 
-test("a pr-merge person comment not in enable-auto-merge's exact shape is not re-judged", async () => {
-  const edited = `${refusalBody(true, UNBOUND, HEAD, "needs-human")}\nedited`;
-  const w = world({ timeline: mergeEscalated(edited), author: BOT, evidence: clean });
-  await run(w, { LANE_PRS: "native" });
-  assert.deepEqual(w.writes(), []);
-  assert.deepEqual(w.reads, []);
+test("a pr-merge person comment not in enable-auto-merge's exact shape, or edited since, is not re-judged", async () => {
+  const body = refusalBody(true, UNBOUND, HEAD, "needs-human");
+  for (const timeline of [
+    mergeEscalated(`${body}\nedited`),
+    [commented(BOT, body, "2026-10-18T09:00:00Z", "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")],
+  ]) {
+    const w = world({ timeline, author: BOT, evidence: clean });
+    await run(w, NATIVE);
+    assert.deepEqual(w.writes(), []);
+    assert.deepEqual(w.reads, []);
+  }
 });
 
-test("enable-auto-merge's refusal at an old head is judged at the current one", async () => {
-  const still = world({ timeline: nativeEscalated(UNBOUND, OLD), author: BOT, evidence: (pull) => ({ ...clean(pull), reviews: "security-finding: 1 open CRITICAL finding" }) });
-  await run(still, { LANE_PRS: "native" });
-  assert.deepEqual(still.writes(), []);
-  const gone = world({ timeline: nativeEscalated(UNBOUND, OLD), author: BOT, evidence: clean });
-  await run(gone, { LANE_PRS: "native" });
-  assert.equal(gone.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->`);
+// The person text an earlier enable-auto-merge posted still names the cause.
+test("enable-auto-merge's refusal in its earlier wording is judged again", async () => {
+  const earlier = [
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
+    "<!-- babysit-merge-risk -->",
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`,
+    "",
+    "```text",
+    UNBOUND,
+    "```",
+  ].join("\n");
+  const w = world({ timeline: mergeEscalated(earlier), author: BOT, evidence: clean });
+  await run(w, NATIVE);
+  assert.equal(w.reads.length, 1);
+  assert.deepEqual(w.writes().at(-1), DELETE);
+});
+
+// Main's head-moved rule (#9826): no read; enable-auto-merge judges the new
+// head and labels it again only for a cause a person must clear.
+test("enable-auto-merge's refusal at an old head comes off as head-moved without a read", async () => {
+  const w = world({ timeline: nativeEscalated(SECURITY, OLD), author: BOT, evidence: clean });
+  await run(w, NATIVE);
+  assert.deepEqual(w.reads, []);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+  assert.deepEqual(w.writes()[1], DELETE);
+});
+
+test("enable-auto-merge's comment on a pull request a person opened is not read", async () => {
+  const w = world({ timeline: nativeEscalated(UNBOUND), author: OWNER, evidence: clean });
+  await run(w, NATIVE);
+  assert.deepEqual(w.reads, []);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("enable-auto-merge's comment beside another pr-merge escalation is not read", async () => {
+  for (const other of [verifyBody(HEAD), sharedCopyBody(HEAD)]) {
+    const timeline = [commented(BOT, other, "2026-10-18T09:59:50Z"), ...nativeEscalated(UNBOUND)];
+    const w = world({ timeline, author: BOT, evidence: clean });
+    await run(w, NATIVE);
+    assert.deepEqual(w.reads, [], other);
+    assert.deepEqual(w.writes(), [], other);
+  }
+});
+
+test("enable-auto-merge's comment is not read under merge.lane-prs gate", async () => {
+  for (const env of [{ LANE_PRS: "gate" }, {}]) {
+    const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: clean });
+    await run(w, env);
+    assert.deepEqual(w.reads, [], JSON.stringify(env));
+    assert.deepEqual(w.writes(), [], JSON.stringify(env));
+  }
+});
+
+// enable-auto-merge puts the label back under its standing comment after
+// this script took it off; the put-back is judged again like the first.
+test("a label enable-auto-merge put back after this script cleared it is judged again", async () => {
+  const timeline = [
+    ...nativeEscalated(UNBOUND),
+    commented(BOT, `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->\ncleared`, "2026-10-18T11:00:00Z"),
+    unlabeled(BOT, "2026-10-18T11:00:01Z"),
+    labeled(BOT, "2026-10-18T12:00:00Z"),
+  ];
+  const kept = world({ timeline, author: BOT, evidence: (pull) => ({ ...clean(pull), reviews: "security-finding: 1 open CRITICAL finding" }) });
+  await run(kept, NATIVE);
+  assert.equal(kept.reads.length, 1);
+  assert.deepEqual(kept.writes(), []);
+  const gone = world({ timeline, author: BOT, evidence: clean });
+  await run(gone, NATIVE);
+  assert.equal(gone.writes().length, 2);
+  assert.deepEqual(gone.writes()[1], DELETE);
 });
 
 test("at most NATIVE_READS_PER_RUN reader runs a run", async () => {
   const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: () => null });
   const held = Array.from({ length: NATIVE_READS_PER_RUN + 2 }, (_, i) => ({ number: 7, pull_request: {}, i }));
   const github = async (method, path, body) => (method === "GET" && path.includes("issues?state=open") ? (path.endsWith("page=1") ? held : []) : w.github(method, path, body));
-  const { logs } = await run({ ...w, github });
+  const { logs } = await run({ ...w, github }, NATIVE);
   assert.equal(w.reads.length, NATIVE_READS_PER_RUN);
   assert.equal(logs.filter((line) => /reader runs this run/.test(line)).length, 2);
+});
+
+// More labels held for a person than reads a run: the start moves with the
+// run number, so each one is read within as many runs as there are labels.
+test("labels past the read cap are read on a later run", async () => {
+  const numbers = Array.from({ length: NATIVE_READS_PER_RUN + 1 }, (_, i) => 7 + i);
+  const read = new Set();
+  for (let runNumber = 1; runNumber <= numbers.length; runNumber += 1) {
+    const w = world({ timeline: nativeEscalated(SECURITY), author: BOT, evidence: (pull) => ({ ...clean(pull), reviews: "security-finding: 1 open CRITICAL finding" }), numbers });
+    await run(w, { ...NATIVE, GITHUB_RUN_NUMBER: String(runNumber) });
+    assert.equal(w.reads.length, NATIVE_READS_PER_RUN);
+    for (const { pull } of w.reads) {
+      read.add(pull.number);
+    }
+  }
+  assert.deepEqual([...read].sort((a, b) => a - b), numbers);
 });

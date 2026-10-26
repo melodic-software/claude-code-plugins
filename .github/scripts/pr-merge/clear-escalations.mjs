@@ -53,16 +53,22 @@
 // reason and the head; a sweep that finds that comment for this escalation
 // and head only retries the removal. At most CLEARS_PER_RUN a run.
 //
-// enable-auto-merge's own person refusal comment (refusalBody, byte for byte)
-// on a lanes App pull request, the only pr-merge escalation there, whose
-// reason is the gate's verifier or risk answer (verifyHold's), is judged
-// again at the current head instead: the gate's reader (`evidence`, as
-// enable-auto-merge reads it, the room's rung cap passed as C3 so the scorer
-// answers at the config's rung) runs, and the label comes off as
-// `refusal-cleared` only when nothing refuses or what refuses is a lane's
-// (verifyClears `lane`). A person's refusal, a risk hold, an unread answer and
-// a failed read keep it; so does a hold or cost path, which no reader answer
-// clears. At most NATIVE_READS_PER_RUN reads a run.
+// Under `merge.lane-prs: native`, enable-auto-merge's own person refusal
+// comment (one of personBodies, unedited) on a lanes App pull request, the
+// only pr-merge escalation there, naming the current head, whose reason is
+// the gate's issue-link, verifier or risk answer (READER_HOLDS), is judged
+// again at that head: the gate's reader (`evidence`, as enable-auto-merge
+// reads it, the room's rung cap passed as C3 so the scorer answers at the
+// config's rung) runs, and the label comes off as `refusal-cleared` when
+// nothing refuses, or when the answer was read whole and what refuses now
+// is a lane's (verifyClears `lane`) for the same cause: for a verifier
+// reason a verdict that is neither unreadable nor missing, for a risk reason
+// a risk score, which the reader computes only once the link and verdict
+// pass. An issue-link reason comes off only when nothing refuses. A person's
+// refusal, an unread answer and a failed read keep it; so does a hold or
+// cost path, which no reader answer clears. At most NATIVE_READS_PER_RUN
+// reads a run, starting at an offset that moves with the run number
+// (rotated), so labels past the cap are read on a later run.
 //
 // Environment:
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
@@ -70,11 +76,15 @@
 //   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
 //                        label (default .base/.work-item-tracker.json)
+//   LANE_PRS             merge.lane-prs as resolve-config resolved it; only
+//                        `native` re-judges enable-auto-merge's refusal
 //   LANES_BOT_LOGIN      the lanes App bot login (default
 //                        melodic-automation-lanes[bot])
 //   GITHUB_API_URL
-//   BABYSIT_VERIFY_GH_TOKEN  the gate reader's Actions token (the job's
-//                        GITHUB_TOKEN), as enable-auto-merge passes it
+//   GITHUB_RUN_NUMBER    where the sweep starts (rotated)
+//   BABYSIT_VERIFY_GH_TOKEN, BABYSIT_VERIFY_LISTING, BABYSIT_VERIFY_HEAD_REFS,
+//   BABYSIT_RUN_CACHE    the gate reader's Actions token and the run's shared
+//                        reads, as enable-auto-merge passes them
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -96,7 +106,7 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { pythonVerify, REFUSAL_MARKER, refusalBody, verifyClears, verifyHold } from "./enable-auto-merge.mjs";
+import { personBodies, pythonVerify, READER_HOLDS, REFUSAL_MARKER, rotated, verifyClears, verifyHold } from "./enable-auto-merge.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
@@ -127,8 +137,10 @@ export const CLEARS_PER_RUN = 5;
 // step's timeout-minutes (pr-merge.yml) allows this many (judgment).
 export const NATIVE_READS_PER_RUN = 3;
 const REFUSAL_CLEARED = "refusal-cleared";
-// verifyHold's reasons for an answer that refuses: the only ones re-judged.
-const JUDGED = ["pr-merge's gate holds it on its risk score (", "pr-merge's gate refuses its verifier verdict (", "pr-merge's lane does not take its issue link ("];
+// babysit_verify_evidence.py's verdicts and risk answer for a read that did
+// not finish (UNREADABLE, MISSING, `reviews: "unreadable: …"`).
+const UNREAD = Object.freeze(["verify:unreadable", "verify:missing"]);
+const UNREAD_REVIEWS = /^unreadable:/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
@@ -184,15 +196,34 @@ function prMergeEscalations(appComments) {
 }
 
 // enable-auto-merge's person refusal comment, when it is the only pr-merge
-// escalation in `merged` and verifyHold wrote its reason: { head, reason }.
-function nativeRefusal(appComments, merged, label) {
-  if (merged.length !== 1 || merged[0].marker !== REFUSAL_MARKER || merged[0].head === null) {
+// escalation in `merged`, names `head`, verifyHold wrote its reason, and
+// nothing edited it since (enable-auto-merge posts a person's anew):
+// { kind, reason }, kind a READER_HOLDS key.
+function nativeRefusal(appComments, merged, label, head) {
+  if (merged.length !== 1 || merged[0].marker !== REFUSAL_MARKER || merged[0].head !== head) {
     return null;
   }
   const newest = appComments.filter((item) => lines(item.body).slice(0, 2).includes(REFUSAL_MARKER)).at(-1);
+  if (!(Date.parse(newest.updated_at) <= Date.parse(newest.created_at))) {
+    return null;
+  }
   const reason = lines(newest.body).slice(5, -1).join("\n");
-  const { head } = merged[0];
-  return JUDGED.some((prefix) => reason.startsWith(prefix)) && newest.body === refusalBody(true, reason, head, label) ? { head, reason } : null;
+  const kind = Object.keys(READER_HOLDS).find((key) => reason.startsWith(READER_HOLDS[key]));
+  return kind !== undefined && personBodies(reason, head, label).includes(newest.body) ? { kind, reason } : null;
+}
+
+// Whether the reader's `evidence` at `head` lifts a `kind` refusal: nothing
+// refuses, or the answer was read whole and what refuses is a lane's for the
+// same cause. A risk score is computed only once the link and the verdict
+// pass, so a refusal of either hides it.
+function liftsRefusal(kind, evidence, head) {
+  if (verifyHold(evidence, head) === null) {
+    return true;
+  }
+  if (kind === "link" || verifyClears(evidence, head) !== "lane" || UNREAD.includes(evidence.refusal) || UNREAD_REVIEWS.test(evidence.reviews ?? "")) {
+    return false;
+  }
+  return kind === "verdict" || (evidence.refusal === null && evidence.ineligible === null);
 }
 
 // Whether the lanes App comment written last at or before `since` that carries
@@ -277,7 +308,8 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
     if (unread !== undefined) {
       return { reason: `the pr-merge comment carrying ${unread.marker} names no head this script can read` };
     }
-    const native = isApp(pull.user, bot) ? nativeRefusal(appComments, merged, label) : null;
+    // A refusal at an old head takes the head-moved path below.
+    const native = lanePrs === "native" && isApp(pull.user, bot) ? nativeRefusal(appComments, merged, label, pull.head.sha) : null;
     if (native !== null) {
       if (reads.left <= 0) {
         return { reason: `enable-auto-merge's refusal waits: ${NATIVE_READS_PER_RUN} reader runs this run` };
@@ -290,11 +322,11 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
         return { reason: `the gate's reader did not answer: ${escapeCommand(error?.message ?? error)}` };
       }
       const held = verifyHold(evidence, pull.head.sha);
-      if (held !== null && verifyClears(evidence, pull.head.sha) !== "lane") {
+      if (!liftsRefusal(native.kind, evidence, pull.head.sha)) {
         return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
       }
       return cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
-        `it refused \`${native.head}\` (${native.reason})`,
+        `it refused this head (${native.reason})`,
         held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
       ]);
     }
@@ -350,7 +382,7 @@ export async function main({ env = process.env, github, verify } = {}) {
     );
     let failed = 0;
     let cleared = 0;
-    for (const { number } of held) {
+    for (const { number } of rotated(held, Number(env.GITHUB_RUN_NUMBER))) {
       if (cleared >= CLEARS_PER_RUN) {
         console.log(`clear-escalations: #${number} not checked: ${CLEARS_PER_RUN} cleared this run`);
         continue;

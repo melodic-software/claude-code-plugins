@@ -99,8 +99,10 @@
 // denied path or the floor, which only a trusted approval lifts; and the
 // lane's own hold line, owner decision Q-HOLDLINE) also gets the human-gated
 // label, put back while the comment stands unless a person removed it
-// since. clear-escalations takes the label off once the head moves, and
-// this run labels the new head again only if its cause still holds. Holds a
+// since. clear-escalations takes the label off once the head moves, or, for
+// an issue-link, verifier or risk reason, once the gate's reader at the same
+// head reads the cause gone; this run labels it again only if its cause
+// still holds. Holds a
 // person already set (labels, their own body hold, a veto), the room and
 // failed reads write nothing.
 // Arming passes the head just read as expectedHeadOid, so a push in between
@@ -424,6 +426,15 @@ async function changedFiles(github, slug, number) {
   return null;
 }
 
+// How verifyHold opens the reason for each answer that refuses: the issue
+// link, the verifier verdict and the risk score.
+export const READER_HOLDS = Object.freeze({
+  link: "pr-merge's lane does not take its issue link (",
+  verdict: "pr-merge's gate refuses its verifier verdict (",
+  risk: "pr-merge's gate holds it on its risk score (",
+});
+const readerHold = (reason) => Object.values(READER_HOLDS).some((prefix) => String(reason).startsWith(prefix));
+
 // Why the gate's `evidence --lane-link` (babysit_verify_evidence.py's report)
 // keeps a pull request at `head` from merging, or null when it allows it.
 export function verifyHold(evidence, head) {
@@ -434,17 +445,17 @@ export function verifyHold(evidence, head) {
     return "its verifier verdict was read at another head";
   }
   if (typeof evidence.ineligible === "string") {
-    return `pr-merge's lane does not take its issue link (${escapeCommand(evidence.ineligible)})`;
+    return `${READER_HOLDS.link}${escapeCommand(evidence.ineligible)})`;
   }
   if (evidence.refusal !== null) {
-    return `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
+    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)})`;
   }
   // A line without the link's or the reviews' answer read neither: it allows nothing.
   if (evidence.ineligible !== null) {
     return "its issue link could not be read";
   }
   if (typeof evidence.reviews === "string") {
-    return `pr-merge's gate holds it on its risk score (${escapeCommand(evidence.reviews)})`;
+    return `${READER_HOLDS.risk}${escapeCommand(evidence.reviews)})`;
   }
   return evidence.reviews === null ? null : "its risk score could not be read";
 }
@@ -503,13 +514,23 @@ export function ejectionHold(evidence) {
 // refusal the interactive queue's escalation marker first (work-items
 // escalation-marker.md), as the gate's Dependabot escalation carries it. A
 // function of the class, the reason and the head only, so an unchanged
-// refusal renders the same body.
+// refusal renders the same body. A person's reader refusal (READER_HOLDS)
+// says pr-merge takes the label off once it reads the reason gone; any other
+// person's reason, which only a push or a person lifts, says to remove it.
 export const REFUSAL_MARKER = "<!-- babysit-merge-risk -->";
 export const ATTEND_QUEUE_MARKER = "<!-- work-items:escalation lane=pr-merge kind=escalated -->";
+const LANE_WHO = "The lanes clear this reason on their own; the next scheduled run judges it again.";
+const personWho = (label) =>
+  `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`;
+const readerWho = (label) =>
+  `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, and pr-merge takes the label off once a scheduled run reads it gone at this head, or once the head moves, then judges it again.`;
 export function refusalBody(person, reason, head, label) {
-  const who = person
-    ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
-    : "The lanes clear this reason on their own; the next scheduled run judges it again.";
+  return refusalText(person, person ? (readerHold(reason) ? readerWho : personWho)(label) : LANE_WHO, reason, head);
+}
+// Each body a person's refusal of `reason` at `head` may stand in: the
+// current wording, then a reader refusal's earlier one.
+export const personBodies = (reason, head, label) => [...new Set([refusalBody(true, reason, head, label), refusalText(true, personWho(label), reason, head)])];
+function refusalText(person, who, reason, head) {
   return [
     ...(person ? [ATTEND_QUEUE_MARKER] : []),
     REFUSAL_MARKER,
@@ -567,9 +588,13 @@ export function refusalWrites(pull, comments, { clears, reason, comment }, { bot
   // A person's comment already standing while the label is off (a pull
   // request carrying it never gets here: holdReason holds it): the label
   // goes back on unless a person removed it after the comment last changed,
-  // which the caller reads from the timeline (`liftedSince`).
+  // which the caller reads from the timeline (`liftedSince`). Either wording
+  // of a person's comment stands (personBodies).
+  if (body === person && personBodies(reason, pull.headRefOid, label).includes(prior?.body)) {
+    return { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) };
+  }
   if (prior?.body === body) {
-    return body === person ? { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) } : null;
+    return null;
   }
   // An escalation to a person posts a new comment: an edit notifies no one
   // and keeps the old date, so the label would stand unexplained.

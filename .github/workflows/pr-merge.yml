@@ -1324,9 +1324,10 @@ jobs:
       # reason, feedback-protected-path), after a comment naming the reason
       # and the head: never a label a person set, and never after anyone but
       # the App commented or reviewed since it went on. At most five a run, and not
-      # while the lane is report-only. A label enable-auto-merge set is judged
-      # again with the gate's reader at the head, at most three reads a run
-      # of up to four minutes each.
+      # while the lane is report-only. Under merge.lane-prs native, a label
+      # enable-auto-merge set at the current head is judged again with the
+      # gate's reader, at most three reads a run of up to four minutes each,
+      # sharing the gate step's run cache, listing and head-ref map.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
         if: >-
@@ -1337,6 +1338,9 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: lanes-app
           API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
