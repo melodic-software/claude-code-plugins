@@ -85,10 +85,27 @@ function fakeApi({
   comments = new Map(),
   labelEvents = new Map(),
   history = new Map(),
+  commitRuns = new Map(),
 } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], commit: [] };
   return {
     calls,
+    // Every check run on the head over REST: the test's rows for the head,
+    // else the rollup's runs in REST's shape, ids in rollup order.
+    async listCommitCheckRuns(sha) {
+      calls.commit.push(sha);
+      const rows = commitRuns.get(sha);
+      if (rows instanceof Error) {
+        throw rows;
+      }
+      if (rows) {
+        return rows;
+      }
+      const node = pages.flat().find((pull) => pull.headRefOid === sha);
+      return (node?.commits.nodes[0].commit.statusCheckRollup.contexts.nodes ?? [])
+        .filter((run) => run.__typename === "CheckRun")
+        .map((run, index) => ({ id: index + 1, ...toRest(run) }));
+    },
     // The head's check runs of one name and app over REST, every one of them:
     // the test's history for the head, else the rollup's runs in REST's shape.
     async listCheckRuns({ sha, checkName, appId }) {
@@ -367,6 +384,38 @@ test("a cancelled tested run with a check fix-ci-context counts as failing is st
     [5, 6, 7],
   );
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: tested run completed/cancelled)")), lines.join("\n"));
+});
+
+// A cancelled tested run's failed job that a later contract-only run skipped:
+// the rollup shows only the skip, and fix-ci-context still finds the failure.
+test("a cancelled tested run whose failed job a later run skipped is dispatched", async () => {
+  const head = "8".padStart(40, "a");
+  const rest = (id, conclusion) => ({ id, name: "test-bash (3)", status: "completed", conclusion, output: { title: null }, completed_at: "2026-10-22T10:00:00Z" });
+  const { lines, result, api } = await run({
+    pages: [[pr(8, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED"), check("ci-status", "FAILURE")] })]],
+    requiredRuns: new Map([[head, { run: { ...tested(2), conclusion: "cancelled" }, jobs: MIXED_JOBS }]]),
+    commitRuns: new Map([[head, [rest(1, "failure"), rest(2, "skipped")]]]),
+  });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [8], lines.join("\n"));
+  assert.deepEqual(api.calls.commit, [head]);
+});
+
+test("a cancelled tested run whose head's check runs cannot be read waits on a server error and dispatches on another error", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const serverError = Object.assign(new Error("HTTP 502"), { status: 502 });
+  const { lines, result } = await run(
+    {
+      pages: [[pr(3, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED")] }), pr(4, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED")] })]],
+      requiredRuns: new Map([3, 4].map((number) => [head(number), { run: { ...tested(2), conclusion: "cancelled" }, jobs: null }])),
+      commitRuns: new Map([
+        [head(3), serverError],
+        [head(4), new Error("not JSON")],
+      ]),
+    },
+    { maxDispatch: 5 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [4], lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("::warning::#3: could not read its head's check runs: HTTP 502; skipped")), lines.join("\n"));
 });
 
 test("a head whose fix-ci runs include a run that is not retryable is not capped, and an untrusted-trigger skip does not count", async () => {
@@ -680,6 +729,26 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body", "... on StatusContext { context state creator { __typename ... on Bot { databaseId } } }"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
+});
+
+test("the adapter reads a head's check runs as fix-ci-context does: latest, 100 a page, at most 3 pages", async () => {
+  const urls = [];
+  const api = createGitHubApi({
+    token: "t",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ check_runs: Array.from({ length: 100 }, (_, index) => ({ id: urls.length * 100 + index })) }), { status: 200 });
+    },
+  });
+  const runs = await api.listCommitCheckRuns("a".repeat(40));
+  assert.equal(runs.length, 300);
+  assert.deepEqual(
+    urls,
+    [1, 2, 3].map((page) => `https://api.example/repos/octo/repo/commits/${"a".repeat(40)}/check-runs?filter=latest&per_page=100&page=${page}`),
+  );
 });
 
 test("a head whose ci-status failed on infra only gets no fix-ci run, and takes no place under the cap", async () => {
