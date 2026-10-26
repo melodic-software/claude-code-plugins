@@ -1038,7 +1038,7 @@ that ratio back at 80 ms. The spawn-equivalent figure is the stable one.
 | guardrails per-`Write` PreToolUse set BEFORE (2 hooks, concurrent) | 12.59 | ≈ 1,007 ms |
 | guardrails per-`Write` PreToolUse set AFTER (3 hooks, concurrent) | 12.34 | ≈ 987 ms |
 
-**The hook's own cost is the measurement that holds: ≈ 6.3 spawn-equivalents,
+**The measurement that holds is the hook's own cost, ≈ 6.3 spawn-equivalents,
 ≈ 505 ms of reference-host work per `Write`.** The set rows are reported for
 completeness and must not be read as a delta, because they do not resolve one:
 `AFTER` measures *lower* than `BEFORE`, and adding a hook cannot make a set
