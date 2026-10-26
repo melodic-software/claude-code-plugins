@@ -1549,6 +1549,9 @@ jobs:
       checks: read # the review lanes' annotations, as the gate binds their evidence
       issues: read # the demotion records the lane's room re-checks
       id-token: write # prove to the token broker which workflow this is
+    # The pr-merge/unarmed statuses for the unarmed-status job to post.
+    outputs:
+      unarmed-statuses: ${{ steps.arm.outputs.unarmed-statuses }}
     steps:
       # As in the merge job: a rate limit post-merge-dispatch stopped on holds
       # this job's GITHUB_TOKEN reads too.
@@ -1708,6 +1711,7 @@ jobs:
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
+        id: arm
         if: steps.lane-token.outputs.token != ''
         timeout-minutes: 18
         env:
@@ -1735,7 +1739,8 @@ jobs:
           config=.base/docs/conventions/pr-pipeline.yaml
           REPORT_ONLY=$(yq '.merge."report-only"' "$config")
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
-          export REPORT_ONLY LANES_BOT_LOGIN
+          RISK_ESCALATION_MINUTES=$(yq '.merge."risk-escalation-minutes" // ""' "$config")
+          export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
 
       - name: Log the API budget at job end
@@ -1788,6 +1793,43 @@ jobs:
   # cancelled: babysit_postmerge.py and post-merge-demotion-alert.yml both
   # count a cancelled full run as red. Every other event takes a group of its
   # own and does not wait.
+  # A lanes App pull request whose refusal the lanes clear shows it as a
+  # failing pr-merge/unarmed commit status on its head once the refusal has
+  # stood merge.risk-escalation-minutes, never the human-gated label, and a
+  # passing one once armed (owner rule 2026-10-26). A job of its own, as
+  # pr-unblock's report-conflict-status: the lanes App token carries no
+  # statuses permission, and only this job, which holds no lane token or
+  # OIDC token and runs nothing but main's script, gets statuses: write.
+  # Rules: .github/scripts/pr-merge/post-unarmed-status.mjs.
+  unarmed-status:
+    needs: [enable-auto-merge]
+    if: ${{ !cancelled() && needs.enable-auto-merge.outputs.unarmed-statuses != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main
+      statuses: write # post pr-merge/unarmed on lanes App pull request heads
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Post the pr-merge/unarmed statuses
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUSES: ${{ needs.enable-auto-merge.outputs.unarmed-statuses }}
+        run: node .base/.github/scripts/pr-merge/post-unarmed-status.mjs
+
   dispatch-full-run:
     needs: [merge]
     if: >-

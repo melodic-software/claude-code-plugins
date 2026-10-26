@@ -1456,6 +1456,30 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
         self.assertTrue(evidence.needs_human)
         self.assertIn("3", evidence.detail or "")
 
+    def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
+        # A listing that does not read refuses rather than letting the pass
+        # decide, so a short read never lifts the cap.
+        fake = self.failed_at(EARLIER, IN_PR, UNRELATED)
+        fake.fail = {"actions/artifacts"}
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+
+    def test_its_own_fails_cannot_expire_before_it_is_too_old(self) -> None:
+        # Artifacts last 90 days here; a pull request is refused for a person
+        # past TOO_OLD_DAYS, before any of its own FAILs can expire, so an
+        # expired FAIL never lifts the cap of a pull request still judged.
+        self.assertLess(ve.TOO_OLD_DAYS, 90)
+        expired = passing(
+            *(
+                artifact(named(sha, "fail"), i, expired=True)
+                for i, sha in zip((2, 3, 4), (EARLIER, IN_PR, UNRELATED))
+            ),
+            runs={i: judged(i, OLDER_START) for i in (2, 3, 4)},
+        )
+        evidence = read(expired, pull(created_at="2026-07-27T23:00:00Z"))
+        self.assertEqual(evidence.refusal, "verify:too-old")
+        self.assertTrue(evidence.needs_human)
+
     def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
 
@@ -1943,7 +1967,7 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 fake.closing = closing
                 evidence = read(fake)
                 self.assertEqual(evidence.refusal, "verify:spec-changed")
-                self.assertTrue(evidence.needs_human)
+                self.assertFalse(evidence.needs_human)
 
     def refs(self, body: str | None, kind: str = REPO) -> FakeGitHub:
         """A pass recording issue 7, for a PR that closes none now."""
@@ -2998,13 +3022,13 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[-1])
 
     def test_another_label_does_not_stand_in_for_the_role_label(self) -> None:
-        self.verdicts[unattended.PR] = evidence("verify:spec-changed")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.pr_labels = [{"name": "enhancement"}]
         _, out = self.lane()
         self.assertEqual(out["unattended"]["writes"]["escalation"]["label"], "added")
 
     def test_a_rerun_writes_no_second_label_or_comment(self) -> None:
-        self.verdicts[unattended.PR] = evidence("verify:spec-changed")
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.pr_labels = [{"name": "needs-human"}]
         self.comments = [
             {
@@ -3012,7 +3036,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 "user": {"login": unattended.IDENTITY, "type": "Bot"},
                 "created_at": "2026-10-12T10:00:00Z",
                 "body": merge.verify_escalation_body(
-                    "verify:spec-changed", unattended.HEAD
+                    "verify:untrusted-spec", unattended.HEAD
                 ),
             }
         ]
@@ -3024,7 +3048,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         )
         # The escalation's own label is a merge hold too; the reason still
         # names the verifier refusal.
-        self.assertEqual(out["unattended"]["reason"], "verify:spec-changed")
+        self.assertEqual(out["unattended"]["reason"], "verify:untrusted-spec")
 
     FAIL_RUN = (7, f"pr-verify-{unattended.PR}-{unattended.HEAD}-fail")
 
@@ -4306,6 +4330,19 @@ class EvidenceCommandTest(unittest.TestCase):
         )
         self.assertEqual(report["refusal"], ve.REPEATED_FAIL)
         self.assertTrue(report["needsHuman"])
+
+    def test_a_changed_spec_alone_goes_back_to_the_lanes(self) -> None:
+        # Owner rule 2026-10-26: a person only where no lane can clear the
+        # refusal. An untrusted spec, the terminal repeated-FAIL cap and an
+        # old pull request stay a person's; a changed spec is judged again.
+        for refusal, person in (
+            (ve.UNTRUSTED_SPEC, True),
+            (ve.REPEATED_FAIL, True),
+            (ve.TOO_OLD, True),
+            (ve.SPEC_CHANGED, False),
+        ):
+            with self.subTest(refusal):
+                self.assertIs(ve.Evidence(refusal, HEAD, (), 0).needs_human, person)
 
     def test_a_short_head_or_a_zero_cap_is_refused(self) -> None:
         for argv in (

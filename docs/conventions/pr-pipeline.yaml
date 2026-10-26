@@ -925,10 +925,12 @@ merge:
   # 30-minute timeout with the minute before the loop and the closing steps
   # (judgment).
   gate-deferred-minutes: 20
-  # Minutes a MED or HIGH reasons comment must stand unchanged at the head
-  # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
-  # than a review lane's run (judgment), so a review still running at the
-  # head, which scores MED, finishes first.
+  # Minutes a reasons comment must stand unchanged at the head before the
+  # gate adds the human-gated label for a reason only a person clears, or
+  # enable-auto-merge posts a failing pr-merge/unarmed status for one the
+  # lanes clear; 0 is no minimum. 60 is longer than a review lane's run
+  # (judgment), so a review still running at the head, which scores MED,
+  # finishes first.
   risk-escalation-minutes: 60
   # A candidate the last run refused on unchanged inputs is reported with that
   # refusal instead of gated again (babysit_merge_skip.py); it is gated again
