@@ -576,10 +576,11 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
-    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
-    # must have stood unchanged at the head before the gate adds the
-    # human-gated label; 0 is no minimum. Absent, or anything but a whole
-    # number, is `RISK_ESCALATION_MINUTES`.
+    # `merge.risk-escalation-minutes`: how long a reasons comment must have
+    # stood unchanged at the head before the gate adds the human-gated label
+    # for a reason only a person clears (`babysit_risk.person_reasons`); 0 is
+    # no minimum. Absent, or anything but a whole number, is
+    # `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
     # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
     # one pull request at which it holds for a human whatever a later pass
@@ -4063,6 +4064,18 @@ def _changed_files(
     return tuple(files), complete
 
 
+# The most files GitHub's pull request files listing returns
+# (https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files).
+FILES_API_CAP = 3000
+
+
+def files_capped(pr: Mapping[str, Any]) -> bool:
+    """Whether the REST pull request record changes more files than the
+    listing returns (`FILES_API_CAP`), so no read ever lists them all."""
+    count = pr.get("changed_files")
+    return isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+
+
 def changed_files(
     repo: str, pr: Mapping[str, Any]
 ) -> tuple[tuple[ChangedFile, ...], bool]:
@@ -4551,7 +4564,9 @@ def shared_refusal(
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The demotion comes last, so
     `demotion-changed` means nothing else refused (`lane_room` keeps such an
-    answer when the demotion reads the same). The binding comes before the
+    answer only when a fresh demotion read equals the shared one in every
+    field: the records, the newest record's creation and the newest clear
+    move the floor and the evidence window too). The binding comes before the
     age, so a candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and
     does not replace the run's answer. The floor is compared under the
     shared answer's demotion, which may be out of date; that changes only the
