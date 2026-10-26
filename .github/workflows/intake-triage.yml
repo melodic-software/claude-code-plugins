@@ -237,6 +237,7 @@ jobs:
         question
         area: security
         needs-human
+        duplicate
       instructions: |
         RUBRIC. Decide the same way every time for the same issue text.
         - Priority, exactly one: `priority: critical` for a red main branch, a security exposure,
@@ -317,6 +318,11 @@ jobs:
           `Flags: security`, apply `status: needs-decision`, and say in one sentence what the risk
           is, naming no file, line or exploit step.
         Being unsure is never on its own a reason for needs_human.
+
+        DUPLICATE. When an open issue asks for the same thing, apply the `duplicate` label, keep
+        needs_human false, and name the candidate by number (`Duplicate of #N`) in your comment.
+        Admission refuses an issue labeled `duplicate`, so the label holds it. A duplicate is not an
+        intent question: apply no `status: needs-decision` and set no `intent` flag for it.
 
         RE-ENTRY AFTER A RECORDED DECISION. Apply this section only when a comment's first line is
         exactly `**Decision recorded.**` and whose author login does not end in `[bot]`; the newest
