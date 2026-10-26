@@ -310,6 +310,65 @@ test("a head fix-ci-context skips after every base move is dispatched three time
   }
 });
 
+// #9828: its tested run ended cancelled (a job past its timeout), which
+// fix-ci-context does not count as failing, so every run posted not-applicable
+// while each base move dispatched it again.
+test("a head whose tested run ended cancelled is not dispatched across base moves; a failed one still is, up to the cap", async () => {
+  const cycle = async (conclusion) => {
+    const head = "9".padStart(40, "a");
+    const history = [];
+    const record = emptyRecord();
+    const dispatches = [];
+    for (let hour = 1; hour <= 8; hour += 1) {
+      const at = (minute) => `2026-10-22T${String(hour).padStart(2, "0")}:${minute}:00Z`;
+      const newest = history.length === 0 ? [] : [check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt: history.at(-1).completed_at })];
+      const { lines } = await run(
+        {
+          pages: [[pr(9, { checks: [lanes("FAILURE"), check("test-bash (3)", "CANCELLED"), check("ci-status", "FAILURE"), ...newest] })]],
+          history: new Map([[head, [...history]]]),
+          requiredRuns: new Map([[head, { run: { ...tested(2), conclusion }, jobs: conclusion === "failure" ? MIXED_JOBS : null }]]),
+          baseCommittedAt: at("00"),
+        },
+        { record },
+      );
+      const dispatched = lines.some((line) => line.startsWith("dispatched fix-ci #9 "));
+      if (dispatched) {
+        history.push({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "neutral", output: { title: "Skipped: not-applicable" }, completed_at: at("30") });
+      }
+      dispatches.push({ dispatched, lines });
+    }
+    return dispatches;
+  };
+  const cancelled = await cycle("cancelled");
+  assert.deepEqual(cancelled.map((c) => c.dispatched), [false, false, false, false, false, false, false, false]);
+  assert.ok(cancelled[0].lines.includes("skip fix-ci #9: tested run 40119285048 attempt 2 ended cancelled and no check failed for fix-ci to fix"), cancelled[0].lines.join("\n"));
+  const failed = await cycle("failure");
+  assert.deepEqual(failed.map((c) => c.dispatched), [true, true, true, false, false, false, false, false]);
+});
+
+test("a cancelled tested run with a check fix-ci-context counts as failing is still dispatched", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const cancelledRun = { run: { ...tested(2), conclusion: "cancelled" }, jobs: null };
+  const { lines, result } = await run(
+    {
+      pages: [
+        [
+          pr(5, { checks: [lanes("FAILURE"), check("test-bash (3)", "TIMED_OUT")] }),
+          pr(6, { checks: [lanes("FAILURE"), check("lint-repo", "FAILURE")] }),
+          pr(7, { checks: [lanes("FAILURE"), check("test-node", "STARTUP_FAILURE")] }),
+        ],
+      ],
+      requiredRuns: new Map([5, 6, 7].map((number) => [head(number), cancelledRun])),
+    },
+    { maxDispatch: 5 },
+  );
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5, 6, 7],
+  );
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: tested run completed/cancelled)")), lines.join("\n"));
+});
+
 test("a head whose fix-ci runs include a run that is not retryable is not capped, and an untrusted-trigger skip does not count", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const rest = (conclusion, title = null) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion, output: { title }, completed_at: "2026-10-22T10:00:00Z" });

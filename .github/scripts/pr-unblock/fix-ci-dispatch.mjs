@@ -24,12 +24,15 @@
 // (dispatch-record.mjs), so later runs skip it before any read; the next push
 // makes a new head.
 // A head whose lanes passed but whose pr-test-windows run failed is a
-// candidate too. A head is skipped only while a re-run of its tested run is
-// queued or going, or while an infra-only first failure's one re-run by the
+// candidate too. A head is skipped while a re-run of its tested run is
+// queued or going, while an infra-only first failure's one re-run by the
 // lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
-// RERUN_DUE_MINUTES); a real failure (a test, lint or typecheck step), an
-// infra failure that failed again, and a run or field that cannot be read go
-// to fix-ci, with the cause logged.
+// RERUN_DUE_MINUTES), and when its tested run ended cancelled with no check on
+// the head that fix-ci-context counts as failing, which would only post
+// not-applicable (the reconciler re-runs a cancelled first attempt); a real
+// failure (a test, lint or typecheck step), an infra failure that failed
+// again, and a run or field that cannot be read go to fix-ci, with the cause
+// logged.
 // The fix-ci-context job decides the round cap. Logs carry PR numbers, SHAs,
 // run ids, counts and failed job and step names (control characters dropped,
 // 80 characters each at most) only.
@@ -183,6 +186,10 @@ function lanesState(node) {
 }
 
 const failedState = (state) => ["FAILURE", "ERROR"].includes(state);
+// The check conclusions fix-ci-context (its FAILING) has a fix for.
+const FIXABLE = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE"]);
+const fixable = (checks, checkName) =>
+  checks.some((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && FIXABLE.has(run.conclusion));
 const lanesFailed = (node) => failedState(lanesState(node));
 
 // The lanes passed and another check failed: an advisory lane's, if any.
@@ -302,6 +309,9 @@ export function skipReason(
     const owned = reconcilerOwns(required, now);
     if (owned !== "") {
       return owned;
+    }
+    if (required.run?.status === "completed" && required.run.conclusion === "cancelled" && !fixable(checks, checkName)) {
+      return `tested run ${required.run.id} attempt ${required.run.run_attempt} ended cancelled and no check failed for fix-ci to fix`;
     }
   }
   // node.fixCiRuns, every fix-ci run on the head (the rollup holds only the
