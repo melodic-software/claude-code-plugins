@@ -146,6 +146,8 @@ jobs:
       issues: read # read the issue's Size, Complexity and Uncertainty fields
     env:
       API_BUDGET_TOKEN: github-token
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
       # At most this many resolve-issue runs at once. The one place to change it.
       SLOTS: 3
       ISSUE_NUMBER: ${{ github.event.issue.number }}
