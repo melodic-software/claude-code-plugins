@@ -144,6 +144,8 @@ const RESOLVED = {
   headSha: "a".repeat(40),
   baseSha: "b".repeat(40),
   headRef: "claude/issue-8100",
+  // resolvePull's digest of the title and body, which every verdict records.
+  bodySha256: "c".repeat(64),
   linkedIssues: [
     {
       number: 8100,
@@ -176,6 +178,7 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
   assert.equal(ok.outcome, "verdict");
   assert.equal(ok.verdict.verdict, "fail");
   assert.equal(ok.verdict.pr, 9100);
+  assert.equal(ok.verdict.intent_sha256, "c".repeat(64));
   assert.equal(ok.model, "claude-opus-test");
   assert.deepEqual(ok.models_used, ["claude-opus-test"]);
   assert.equal(ok.cli_version, "2.1.304");

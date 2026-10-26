@@ -451,6 +451,7 @@ export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
       baseSha: resolved.baseSha,
       runId: 1,
       headRef: resolved.headRef,
+      bodySha256: resolved.bodySha256,
       linkedIssues: resolved.linkedIssues,
     });
     return { outcome: "verdict", verdict, ...facts };
