@@ -831,6 +831,11 @@ const restoresOf = (stepTexts, seen = new Set()) =>
   stepTexts.flatMap((s) => {
     const uses = /^\s*(?:- )?uses: *['"]?([^\s'"#]+)/m.exec(s)?.[1] ?? "";
     if (/^actions\/cache(?:\/restore)?@/.test(uses)) return [{ uses, prefix: /\n\s*restore-keys:/.test(s) }];
+    // setup-node restores a package cache unless told not to
+    // (package-manager-cache defaults to true); any setup action with a
+    // `cache:` input restores one.
+    const setupNode = /^actions\/setup-node@/.test(uses) && !/\n\s*package-manager-cache: false\b/.test(s);
+    if (setupNode || (/^actions\/setup-[a-z]+@/.test(uses) && /\n\s*cache: *\S/.test(s))) return [{ uses, prefix: false }];
     const local = /^\.\/(?:\.base\/)?(\.github\/actions\/[^@]+)$/.exec(uses)?.[1];
     if (!local || seen.has(local)) return [];
     seen.add(local);
@@ -863,8 +868,12 @@ test("no token-holding job in pr-merge.yml restores a cache", () => {
   const withStep = (job, step) => merge.replace(new RegExp(`(\\n  ${job}:\\n[\\s\\S]*?\\n    steps:\\n)`), `$1${step}`);
   const exact = "      - name: Restore\n        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          key: k\n";
   const composite = "      - name: Count\n        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]\n";
+  const setupNode = "      - name: Node\n        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0\n        with:\n          node-version: 24\n";
+  const setupPython = "      - name: Python\n        uses: actions/setup-python@v6\n        with:\n          cache: pip\n";
   for (const job of ["merge", "enable-auto-merge"]) {
-    assert.deepEqual(tokenJobRestores(withStep(job, exact)).map((r) => [r.job, r.prefix]), [[job, false]], job);
+    for (const added of [exact, setupNode, setupPython]) {
+      assert.deepEqual(tokenJobRestores(withStep(job, added)).map((r) => [r.job, r.prefix]), [[job, false]], job);
+    }
     assert.deepEqual(tokenJobRestores(withStep(job, composite)).map((r) => [r.job, r.prefix]), [[job, true]], job);
   }
   assert.deepEqual(tokenJobRestores(withStep("gate-check", exact)), []);
