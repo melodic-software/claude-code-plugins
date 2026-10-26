@@ -57,6 +57,21 @@ test("keeps origin run records, FAIL head refs and run heads on main, each under
   });
 });
 
+test("trims a run record's repositories to their names, keeping every other field", () => {
+  const full = { full_name: REPO, id: 1, owner: { login: "o" }, description: "x".repeat(99) };
+  const kept = carry(
+    {
+      "run-record": { [`${REPO}|7`]: entry(origin(7, { repository: full, head_repository: { ...full } })) },
+      "carried-run-record": { [`${REPO}|6`]: entry(origin(6)) },
+    },
+    opts,
+  );
+  assert.deepEqual(kept["carried-run-record"], {
+    [`${REPO}|6`]: entry(origin(6)),
+    [`${REPO}|7`]: entry(origin(7)),
+  });
+});
+
 test("drops every section that can change between runs", () => {
   const sections = [
     "permission",

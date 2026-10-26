@@ -1029,7 +1029,12 @@ An eligible pull request its score holds gets one `<!-- babysit-merge-risk -->` 
 naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
-minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+minimum) escalates the refusal when a holding reason is one only a person clears
+(`babysit_risk.person_reasons`: a CRITICAL security finding, bound or not, a high path, a
+trusted-actor widening, a cost hold, or a listing past the files API's cap, owner rule 2026-10-26);
+any other reason, such as review evidence not bound to the head, keeps its comment and is judged
+again each run. An escalation
+([loop-lane §2](../loop-lane/README.md#2-escalation-contract))
 posts a new comment, that comment's text ending with a line saying the refusal persisted and needs a
 person, then adds the tracker's human-gated role label when no label matches it ignoring case, so
 the pull request leaves the WIP count and reaches the attended queue. A new comment notifies and is
@@ -1184,11 +1189,19 @@ any of those, and does not turn it back on once a person has turned it off. A sc
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
-label only for a cause a person must clear: that hold line (owner decision Q-HOLDLINE), a
-configured denied path or a [path floor](#merge-authority) path, a cost hold, an untrusted spec,
-the repeated-FAIL round cap, a security finding or a trusted-actor widening. It puts the label
-back while the comment stands unless a person removed it since; a person's own hold text gets
-neither. GitHub then merges the pull request through the merge queue
+label only for a cause a person must clear (owner rule 2026-10-26: an intent or design change or a
+CRITICAL security issue, with cost and trust holds and a hold no lane can clear kept): that hold
+line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
+a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, the
+repeated-FAIL round cap, a pull request too old to verify, a security finding, a high path, a
+trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
+unless a person removed it since; a person's own hold text gets neither. Every other refusal, a
+listing read that failed included, is the lanes': later scheduled runs judge it again, and once a
+lanes' refusal has stood at the head for `merge.risk-escalation-minutes`, timed from the first one
+noted there (the comment's `pr-merge-unarmed-since` line), the `unarmed-status` job posts a failing
+`pr-merge/unarmed` commit status on the head; arming, or the refusal becoming a person's, posts a
+passing one over it. The status is informational, not `ci-status`, and that job trusts only a status
+the GitHub Actions bot posted. GitHub then merges the pull request through the merge queue
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
 the body must still close, or with no closing issue name by a plain `Refs:` line, the issue the
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
@@ -1679,8 +1692,9 @@ exists (#7711).
 
 `verify:fail` and `verify:earlier-fail` only wait: the fail's notes go to an `address-feedback`
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
-`verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human. While `merge.report-only` is false the lane escalates such a
+`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a human;
+`verify:spec-changed` holds for the lanes (owner rule 2026-10-26). While `merge.report-only` is
+false the lane escalates such a
 refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
 for `verify:repeated-fail` with a `fail` at the head quoting as data the first 1500 characters of
