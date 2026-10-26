@@ -41,6 +41,9 @@ on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [pr-require-checks]
     types: [completed]
+    # Branches of the checks run. Only a pull_request run is judged, so a
+    # merge-queue or main run would only start a run that skips.
+    branches-ignore: [main, 'gh-readonly-queue/**']
 
 permissions: {}
 
