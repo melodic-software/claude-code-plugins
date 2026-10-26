@@ -1699,10 +1699,14 @@ whose run can reach it (a job-level `uses:` in `./` or `melodic-software/claude-
 form, any case) and down through every reusable workflow those runs call. It fails when a file of
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
-a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
-`claude_code_oauth_token`, `pr_unblock_claude_code_oauth_token`,
-`issue_lane_claude_code_oauth_token`, `claude_api_key`, `pr_unblock_claude_api_key`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
-`secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
+a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` (case-insensitive,
+`-` read as `_`) in the shared set `fallback_claude_code_oauth_token`, `claude_code_oauth_token`,
+`claude_api_key`, `github_token` or, in a workflow whose run reaches the read file, in that
+workflow's own entry of the caller map: `pr-refine.yml` and `pr-unblock.yml` may also name
+`pr_unblock_claude_code_oauth_token` and `pr_unblock_claude_api_key`, `work-resolve-issue.yml`
+`issue_lane_claude_code_oauth_token` and `issue_lane_claude_api_key`; `toJSON(secrets)`,
+`secrets[...]` and bare `secrets` fail. A workflow whose run reaches the read file and has no entry
+in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
