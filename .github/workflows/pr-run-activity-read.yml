@@ -486,12 +486,14 @@ jobs:
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
       # A skill that took no model turn fails. The scan job's verdict reads
-      # it. A skill runs on one of act-key and act-token.
+      # it. A skill runs on one of act-key, act-token and act-fallback.
       act-outcome: >-
-        ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
+        ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success'
+        || steps.act-fallback.outcome == 'success')
         && steps.act-turns.outcome != 'success' && 'failure'
         || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
         || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
+        || steps.act-fallback.outcome != 'skipped' && steps.act-fallback.outcome
         || steps.act-script.outcome }}
       # For the scan job's verdict. go and the gate fields come from steps
       # before any head code; skip-reason, dirty-tree and patch-collected

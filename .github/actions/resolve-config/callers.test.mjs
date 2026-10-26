@@ -1427,7 +1427,7 @@ const readsFallback = (job) =>
   (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
   (job.steps ?? []).some((step) => isLauncherStep(step, "run-claude-cli") && step.with?.["fallback-token"] === FALLBACK_VALUE) ||
   (job.uses === READ_RUNNER && job.with?.fallback === "fallback" && job.secrets?.["fallback-claude-code-oauth-token"] === FALLBACK_VALUE) ||
-  !claudeReads(withoutPresenceChecks(job)).includes(FALLBACK_SECRET);
+  (claudeReads(job).includes(FALLBACK_SECRET) && !claudeReads(withoutPresenceChecks(job)).includes(FALLBACK_SECRET));
 test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
   const jobs = claudeSecretJobs();
   for (const { role, lane, key } of catalogLanes()) {
@@ -1827,6 +1827,13 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
     assert.equal(atStep(step.if, { ...second, "steps.act-token.outcome": "success", "steps.act-token.outputs.handoff": "false", "steps.mode-token.outcome": "success" }), true, `${step.id ?? step.name} on the second call`);
     assert.equal(atStep(step.if, third), true, `${step.id ?? step.name} on the third call`);
   }
+  // The third call's result is the activity's outcome, which the scan's verdict reads.
+  const legs = { "steps.act-key.outcome": "skipped", "steps.act-token.outcome": "skipped", "steps.act-script.outcome": "skipped" };
+  const actOutcome = (fallback, turns) =>
+    atStep(run.outputs["act-outcome"], { ...legs, "steps.act-fallback.outcome": fallback, "steps.act-turns.outcome": turns });
+  assert.equal(actOutcome("success", "success"), "success", "a third call that ran reports success");
+  assert.equal(actOutcome("success", "failure"), "failure", "a third call that took no model turn fails");
+  assert.equal(actOutcome("failure", "skipped"), "failure", "a failed third call reports failure");
   // An issue run keeps a failed leg's partial patch only when its permission
   // mode checked out.
   const failed = { ...ran, "inputs.issue-number": "7", "job.status": "failure", "steps.act-key.outcome": "failure" };
