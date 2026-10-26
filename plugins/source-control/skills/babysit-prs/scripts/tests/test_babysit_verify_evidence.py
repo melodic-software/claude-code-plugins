@@ -2747,7 +2747,15 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         # short wait outlasts neither, so neither is read again.
         "gh: Too Many Requests (HTTP 429)",
         "gh: You have exceeded a secondary rate limit. (HTTP 403)",
-        "gh: API rate limit exceeded for installation ID 1. (HTTP 403)",
+        # As run 39906176584 logged it (pr-merge.yml, dispatch-full-run,
+        # 2026-10-23T05:30:57Z).
+        "gh: API rate limit exceeded for installation. If you reach out to"
+        " GitHub Support for help, please include the request ID"
+        " 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23"
+        " 05:30:57 UTC. For more on scraping GitHub and how it may affect"
+        " your rights, please review our Terms of Service"
+        " (https://docs.github.com/en/site-policy/github-terms/"
+        "github-terms-of-service) (HTTP 403)",
         # A read that used the whole gh timeout, gh with no credential
         # (exit 4), and gh missing from PATH (babysit_util.run_command).
         timed_out(),
