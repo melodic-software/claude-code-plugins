@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 // carry-run-cache.mjs: copies the reads in one pr-merge run cache
 // (babysit_run_cache.py) that can never change into a file the next run starts
-// from. pr-merge.yml runs it three times: after the gate, from this run's
-// cache into the file a scheduled or hand-started run uploads as the
-// pr-merge-run-cache artifact; before the gate, `read`, which fetches that
-// file; and then from it into this run's empty cache. Every entry is checked
-// again on each pass.
+// from. pr-merge.yml runs it in the merge and enable-auto-merge jobs: after
+// the gate or the arm step, from this run's cache into the file a scheduled or
+// hand-started run uploads (the merge job as the pr-merge-run-cache artifact,
+// enable-auto-merge, whose verdict reader is the only one that fills
+// run-record, as pr-merge-verify-run-cache); before them, `read`, which
+// fetches those files; and then from them into this run's empty cache. Every
+// entry is checked again on each pass.
 //
-// `read` takes the file from the newest scheduled or hand-started run of
-// main's pr-merge.yml, this run aside, holding the artifact, and only when
+// `read` takes each file from the newest scheduled or hand-started run of
+// main's pr-merge.yml, this run aside, holding that artifact, and only when
 // that run's head commit is on main, as head-ref-map.mjs reads its map. Only a
-// run's own steps can upload its artifacts, so the file was written by main's
+// run's own steps can upload its artifacts, so each file was written by main's
 // pr-merge.yml; it never goes through actions/cache, which any job in main's
 // cache scope can write and whose restore extracts its archive anywhere in
 // the workspace. `read` first removes any file at CARRY_TO, so a file left
-// there before it is never read, and writes the downloaded file as it is:
-// babysit_merge_skip.py reads its skip-unchanged section.
+// there before it is never read. It writes the pr-merge-run-cache file as it
+// is (babysit_merge_skip.py reads its skip-unchanged section), with only the
+// carried-* sections of the pr-merge-verify-run-cache file added to its own.
 //
 // The carried reads stay untrusted all the same: each kept read lands in a
 // carried-* section that babysit_verify_evidence.py reads only on a FAIL's
@@ -43,7 +46,8 @@
 //   CARRY_TO            the file to write
 //   GITHUB_REPOSITORY   owner/repo
 //   CARRY_BRANCH        the branch the verdicts are judged on (main)
-//   GITHUB_OUTPUT       gets carried=true once CARRY_TO is written
+//   GITHUB_OUTPUT       gets carried=true once CARRY_TO is written, and
+//                       kept=true when it holds a read
 //   ACTIONS_TOKEN       read: the job's GITHUB_TOKEN (actions: read)
 //   GITHUB_RUN_ID       read: this run, which has no file yet
 //   RUNNER_TEMP         read: where the artifact is downloaded
@@ -59,6 +63,8 @@ import { onMain } from "./head-ref-map.mjs";
 import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const CARRY_ARTIFACT = "pr-merge-run-cache";
+export const VERIFY_ARTIFACT = "pr-merge-verify-run-cache";
+const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch"];
 export const CARRY_FILE = "pr-merge-carried.json";
 
 // GitHub's default artifact retention; pr-verify.yml sets none.
@@ -119,7 +125,7 @@ function onBranch(key, value, repo, branch) {
 
 // The sections of `data` kept for the next run, each entry as saved.
 export function carry(data, { repo, branch, now }) {
-  const out = { "carried-run-record": {}, "carried-fail-head-ref": {}, "carried-on-branch": {} };
+  const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
   if (!isObject(data)) return out;
   const take = (from, to, keep, shape = (value) => value) => {
     if (!isObject(data[from])) return;
@@ -153,33 +159,52 @@ export function main(env = process.env, now = Date.now()) {
     const kept = carry(JSON.parse(readFileSync(from, "utf8")), { repo, branch, now });
     writeFileSync(`${to}.tmp`, JSON.stringify(kept));
     renameSync(`${to}.tmp`, to);
-    if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "carried=true\n");
+    const any = Object.values(kept).some((entries) => Object.keys(entries).length > 0);
+    if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `carried=true\n${any ? "kept=true\n" : ""}`);
     console.log(Object.entries(kept).map(([section, entries]) => `${section}=${Object.keys(entries).length}`).join(" "));
   } catch (error) {
     console.log(`::warning::the run cache was not carried: ${escapeCommand(error.message)}`);
   }
 }
 
-// `read`: the newest trusted run's file, written as it is to CARRY_TO.
+// `base` with the carried-* sections of `extra` added to its own; every
+// other section of `base` as it was, and none other of `extra`.
+export function withCarried(base, extra) {
+  const out = { ...base };
+  for (const section of CARRIED) {
+    if (isObject(extra[section])) out[section] = { ...extra[section], ...(isObject(base[section]) ? base[section] : {}) };
+  }
+  return out;
+}
+
+// `read`: the newest trusted run's pr-merge-run-cache file, with the carried
+// reads of the newest trusted run's pr-merge-verify-run-cache file added.
 export async function read({ env = process.env, actions: client, download } = {}) {
   const { CARRY_TO: to, GITHUB_REPOSITORY: repo = "" } = env;
   try {
     if (to) rmSync(to, { force: true });
     if (!to || !REPO.test(repo)) throw new Error("CARRY_TO and GITHUB_REPOSITORY are required");
     client ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: CARRY_ARTIFACT, file: CARRY_FILE });
+    download ??= (id, name) => ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name, file: CARRY_FILE })(id);
     const actions = sharedReads(client, env.PR_MERGE_READS_PATH);
     const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
-    const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name: CARRY_ARTIFACT, accept });
-    if (id === undefined) {
+    const fetch = async (name) => {
+      const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name, accept });
+      if (id === undefined) return undefined;
+      const text = download(id, name);
+      if (!isObject(JSON.parse(text))) throw new Error(`the ${name} file of run ${id} is not a JSON object`);
+      console.log(`${name} of run ${id}`);
+      return text;
+    };
+    const kept = await fetch(CARRY_ARTIFACT);
+    const verify = await fetch(VERIFY_ARTIFACT);
+    if (kept === undefined && verify === undefined) {
       console.log("no earlier run cache to carry");
       return;
     }
-    const text = download(id);
-    if (!isObject(JSON.parse(text))) throw new Error(`the run cache of run ${id} is not a JSON object`);
+    const text = verify === undefined ? kept : JSON.stringify(withCarried(JSON.parse(kept ?? "{}"), JSON.parse(verify)));
     writeFileSync(`${to}.tmp`, text);
     renameSync(`${to}.tmp`, to);
-    console.log(`run cache of run ${id}`);
   } catch (error) {
     console.log(`::warning::the run cache was not carried: ${escapeCommand(error?.message ?? error)}`);
   }
