@@ -58,6 +58,10 @@ jobs:
       pull-requests: read # list open pull requests
     outputs:
       units: ${{ steps.collect.outputs.units }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -106,6 +110,14 @@ jobs:
           path: ${{ runner.temp }}/lane-sweep
           if-no-files-found: error
           retention-days: 7
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   judge:
     needs: collect
@@ -264,6 +276,8 @@ jobs:
       actions: read # download the findings artifacts
       contents: read # check out main for the claim check
       issues: write # file, rewrite and comment on the digest issue
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -315,6 +329,14 @@ jobs:
           mkdir -p "$FINDINGS_DIR"
           node .base/.github/scripts/maintenance-audit-lane-runs/file-findings.mjs
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # A dispatch sent with this token starts a run as github-actions[bot]
   # (41898282), which intake-triage.yml admits; intake itself uses its own
   # GITHUB_TOKEN and the Claude OAuth secret, no App token. At most 120 REST
@@ -333,6 +355,8 @@ jobs:
       actions: write # dispatch intake-triage.yml and read its runs
       contents: read # check out main
       issues: write # write the state comment and file the needs-triage issue
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -363,3 +387,11 @@ jobs:
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           CALL_BUDGET: "120"
         run: node .base/.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

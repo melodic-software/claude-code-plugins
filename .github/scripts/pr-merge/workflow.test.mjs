@@ -59,7 +59,11 @@ test("a push job holds the group until the dispatched run finishes", () => {
 // it raises no workflow_run event.
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const SEND = `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242 -f inputs[head-sha]=${HEAD}`;
-function runWait(conclusion, { dispatchFails = false, limited = false, limitedMessage = "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" } = {}) {
+// With notModified N, the first read finds the run in progress with ETag
+// "e1", the next N reads (sent with If-None-Match on it) are answered 304
+// with gh's exit 1, and the one after finds it completed. With limited, every
+// read is refused with limitedMessage.
+function runWait(conclusion, { dispatchFails = false, notModified = 0, limited = false, limitedMessage = "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" } = {}) {
   const step = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   const body = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
     .exec(step)[1]
@@ -68,9 +72,12 @@ function runWait(conclusion, { dispatchFails = false, limited = false, limitedMe
     .join("\n");
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-wait-"));
   mkdirSync(join(dir, "bin"));
-  writeFileSync(join(dir, "bin", "sleep"), "#!/bin/sh\nexit 0\n", {
+  writeFileSync(join(dir, "bin", "sleep"), `#!/bin/sh\necho "$*" >>"${dir}/sleeps"\n`, {
     mode: 0o755,
   });
+  writeFileSync(join(dir, "n304"), String(notModified));
+  const done = `{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}`;
+  const first = notModified > 0 ? `{"status": "in_progress", "conclusion": null, "head_sha": "${HEAD}"}` : done;
   writeFileSync(
     join(dir, "bin", "gh"),
     `#!/usr/bin/env bash
@@ -78,7 +85,16 @@ printf '%s\\n' "$*" >>"${dir}/log"
 case "$*" in
   *-X\\ POST*) exit ${dispatchFails ? 1 : 0} ;;
   ${limited ? `*) echo '${limitedMessage}' >&2; exit 1 ;;` : ""}
-  *) jq -r "\${@: -1}" <<<'{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}' ;;
+  *'-H If-None-Match: "e1"')
+    n=$(cat "${dir}/n304")
+    if [ "$n" -gt 0 ]; then
+      echo $((n - 1)) >"${dir}/n304"
+      printf 'HTTP/2.0 304 Not Modified\\r\\nEtag: "e1"\\r\\n\\r\\n'
+      echo 'gh: HTTP 304' >&2
+      exit 1
+    fi
+    printf 'HTTP/2.0 200 OK\\r\\nEtag: "e2"\\r\\n\\r\\n%s\\n' '${done}' ;;
+  *) printf 'HTTP/2.0 200 OK\\r\\nEtag: "e1"\\r\\n\\r\\n%s\\n' '${first}' ;;
 esac
 `,
     { mode: 0o755 },
@@ -96,19 +112,21 @@ esac
     encoding: "utf8",
   });
   const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
+  const sleeps = existsSync(join(dir, "sleeps")) ? readFileSync(join(dir, "sleeps"), "utf8").split("\n").filter(Boolean) : [];
   rmSync(dir, { recursive: true, force: true });
   return {
     status: result.status,
     out: result.stdout + result.stderr,
     writes: log.split("\n").filter((l) => l.includes("-X POST")),
-    reads: log.split("\n").filter((l) => l && !l.includes("-X POST")).length,
+    reads: log.split("\n").filter((l) => l.startsWith("api -i ")),
+    sleeps,
   };
 }
 
 test("a rate-limited read of the full run stops the wait red after one read", () => {
   const { status, out, reads, writes } = runWait("failure", { limited: true });
   assert.equal(status, 1, out);
-  assert.equal(reads, 1);
+  assert.equal(reads.length, 1);
   assert.deepEqual(writes, []);
   assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
 });
@@ -117,9 +135,24 @@ test("a rate-limited read of the full run stops the wait red after one read", ()
 test("a bare HTTP 429 on the read of the full run stops the wait red after one read", () => {
   const { status, out, reads, writes } = runWait("failure", { limited: true, limitedMessage: "gh: Too Many Requests (HTTP 429)" });
   assert.equal(status, 1, out);
-  assert.equal(reads, 1);
+  assert.equal(reads.length, 1);
   assert.deepEqual(writes, []);
   assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+});
+
+// A 304 is the run as last read: the wait keeps its three-minute pace and
+// sends the red run once it completes, as with plain reads.
+test("a poll answered 304 waits on, then sends the red run once it completes", () => {
+  const { status, writes, reads, sleeps } = runWait("failure", { notModified: 2 });
+  assert.equal(status, 0);
+  assert.deepEqual(writes, [SEND]);
+  assert.deepEqual(sleeps, ["180", "180", "180", "180"]);
+  assert.deepEqual(reads, [
+    "api -i repos/o/r/actions/runs/4242",
+    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
+    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
+    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
+  ]);
 });
 
 // The alert serializes on signal and head SHA, so the send names the run's

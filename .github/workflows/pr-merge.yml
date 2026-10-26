@@ -1939,9 +1939,12 @@ jobs:
           RUN_ID: ${{ steps.dispatch.outputs.run-id }}
         run: |
           set -euo pipefail
+          # Each read after the first is conditional on the last ETag: a 304
+          # (gh exits 1) means the run is as last read, still going.
+          cond=()
           for _ in $(seq 13); do
             sleep 180
-            if ! state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + .head_sha + " " + (.conclusion // "")' 2>"$RUNNER_TEMP/wait-stderr"); then
+            if ! out=$(gh api -i "repos/$REPO/actions/runs/$RUN_ID" "${cond[@]}" 2>"$RUNNER_TEMP/wait-stderr"); then
               cat "$RUNNER_TEMP/wait-stderr" >&2
               # A read refused for a rate limit, a bare 429 included, is never
               # retried. This job has no checkout of the shared guard, so the
@@ -1952,6 +1955,10 @@ jobs:
               fi
               continue
             fi
+            etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
+            cond=()
+            [ -z "$etag" ] || cond=(-H "If-None-Match: $etag")
+            state=$(sed '1,/^\r\?$/d' <<<"$out" | jq -r '.status + " " + .head_sha + " " + (.conclusion // "")') || continue
             read -r status head_sha conclusion <<<"$state"
             if [ "$status" = completed ]; then
               echo "run $RUN_ID completed: $conclusion"

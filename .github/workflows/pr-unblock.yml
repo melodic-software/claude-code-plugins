@@ -97,6 +97,10 @@ jobs:
       # true when another lane's escalation put the human-gated label on, so
       # apply-conflict-patch pushes past it (lane-hold.mjs).
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -235,6 +239,14 @@ jobs:
           HEAD_SHA: ${{ steps.head.outputs.sha }}
           BASE_SHA: ${{ steps.base-sha.outputs.sha }}
         run: bash "$GITHUB_WORKSPACE/.base/.github/scripts/merge-base/run-prepare.sh"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # A select that skipped, merged cleanly, or handed the PR to a person runs
   # no model job, so no resolve-conflicts check would land on the head and
@@ -527,6 +539,10 @@ jobs:
       # The artifact name's attempt, so a re-run of a later job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -618,6 +634,14 @@ jobs:
             ${{ runner.temp }}/feedback-context/run.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # A select that kept nothing, or handed the PR to a person, runs no model
   # or reply job, so neither check would land on the head and
@@ -1254,6 +1278,10 @@ jobs:
       # The artifact name's attempt, so a re-run of a later job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1348,6 +1376,14 @@ jobs:
             ${{ runner.temp }}/dependency-context/context.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # A select that skipped, or handed the PR to a person, runs no model job,
   # so no review-dependency check would land on the head and
@@ -1611,6 +1647,10 @@ jobs:
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1660,6 +1700,14 @@ jobs:
           path: ${{ runner.temp }}/ci-context/context.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # A fix-ci-context skip (a closed PR, a human-gated hold, or no failing
   # check) runs no fix-ci job,
