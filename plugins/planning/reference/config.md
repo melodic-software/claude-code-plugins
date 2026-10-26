@@ -15,6 +15,9 @@ Decision 8):
 | 1 | per user | the plugin's `userConfig` option of the same name |
 | 2 | repository | `docs/conventions/planning.yaml` at the repository root, tracked, validated by [`schemas/planning.schema.json`](../schemas/planning.schema.json) |
 
+`plan_reader` alone has two layers above these: the `Reader depth:` line a plan records at its
+first publish, then a per-run `--reader` argument.
+
 No `~/.claude` file, `.claude/` file or local overlay sets these keys. The reading skill resolves
 each key in its own text, with no reader script, and reports one line naming the value and the
 layer that supplied it. `/planning:setup apply <key>=<value>` writes the repository file after
@@ -36,6 +39,7 @@ never used in its place. An invalid value never stops the run.
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
 | `plan_store` | `local`, `tracker` | `local` | `/planning:plan`, final persist step: `tracker` also publishes the approved plan to the claimed work item through `/work-items:track publish-plan` | repository file over user config over default |
+| `plan_reader` | `guardrails`, `standard`, `step-by-step` | `step-by-step` | `/planning:plan`, final persist step and `close-out`: how much of the approved plan the published copy and the pull request paste carry | a `--reader` argument over the plan's recorded `Reader depth:` line over repository file over user config over default |
 | `phase_order` | `composed`, `subtraction-first`, `riskiest-first` | `composed` | `/planning:plan` Step 2, after build-technique selection: the order of the plan's phases | repository file over user config over default |
 | `scaffold_stubs` | `true`, `false` (bare YAML booleans; a quoted `"true"` is invalid) | `false` | `/planning:design` handoff: names the stub files and their signatures; `/planning:plan` Step 2: places the stub phase | repository file over user config over default |
 | `time_units` | `true`, `false` (bare YAML booleans) | `false` | the procedure in [`../context/problem-framing.md`](../context/problem-framing.md) "Time units": whether an estimate or budget of work may be stated in hours, days or weeks | repository file over user config over default |
@@ -63,6 +67,17 @@ never used in its place. An invalid value never stops the run.
   rest in dependency order.
 
 Under every value a phase that needs another phase's output still follows it.
+
+`plan_reader` values, by the reader the published copy is for:
+
+- `guardrails`: an experienced developer who needs the architectural constraints, not the steps.
+- `standard`: a developer who also wants the order of work.
+- `step-by-step`: a developer or agent who executes the plan as written.
+
+A reduced depth publishes a derived file and leaves PLAN.md whole; the sections each depth keeps are
+in the plan skill's
+[`templates/plan-md-anatomy.md`](../skills/plan/templates/plan-md-anatomy.md) "Reader-depth
+renders".
 
 `scaffold_stubs: true` adds a stub commit ahead of the work: `/planning:design` lists each stub
 file with the signatures it declares, and `/planning:plan` makes those stubs one phase, placed right
