@@ -64,8 +64,15 @@ const SEND = `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.
 // With notModified N, the first read finds the run in progress with ETag
 // "e1", the next N reads (sent with If-None-Match on it) are answered 304
 // with gh's exit 1, and the one after finds it completed. With limited, every
-// read is refused with limitedMessage.
-function runWait(conclusion, { dispatchFails = false, notModified = 0, limited = false, limitedMessage = "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" } = {}) {
+// read is refused with limitedMessage. Each entry of sendErrors fails one send
+// in turn with that stderr; the send after them succeeds, unless
+// dispatchFails.
+// gh's stderr for a POST GitHub refused for a rate limit, as run 39906176584
+// logged it (pr-merge.yml, dispatch-full-run, "Start the full CI run on main",
+// 2026-10-23T05:30:57Z).
+const RATE_LIMITED_STDERR =
+  "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
+function runWait(conclusion, { dispatchFails = false, sendErrors = [], notModified = 0, limited = false, limitedMessage = RATE_LIMITED_STDERR } = {}) {
   const step = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   const body = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
     .exec(step)[1]
@@ -78,6 +85,7 @@ function runWait(conclusion, { dispatchFails = false, notModified = 0, limited =
     mode: 0o755,
   });
   writeFileSync(join(dir, "n304"), String(notModified));
+  sendErrors.forEach((stderr, i) => writeFileSync(join(dir, `send-stderr-${i + 1}`), stderr));
   const done = `{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}`;
   const first = notModified > 0 ? `{"status": "in_progress", "conclusion": null, "head_sha": "${HEAD}"}` : done;
   writeFileSync(
@@ -85,7 +93,10 @@ function runWait(conclusion, { dispatchFails = false, notModified = 0, limited =
     `#!/usr/bin/env bash
 printf '%s\\n' "$*" >>"${dir}/log"
 case "$*" in
-  *-X\\ POST*) exit ${dispatchFails ? 1 : 0} ;;
+  *-X\\ POST*)
+    s=$(($(cat "${dir}/sends" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/sends"
+    if [ -f "${dir}/send-stderr-$s" ]; then cat "${dir}/send-stderr-$s" >&2; exit 1; fi
+    exit ${dispatchFails ? 1 : 0} ;;
   ${limited ? `*) echo '${limitedMessage}' >&2; exit 1 ;;` : ""}
   *'-H If-None-Match: "e1"')
     n=$(cat "${dir}/n304")
@@ -189,6 +200,38 @@ test("a send that fails fails the job", () => {
   assert.match(out, /::error::could not send run 4242 to post-merge-demotion-alert\.yml/);
 });
 
+// The owner outage rule (Q677: at most three attempts, a capped full-jitter
+// backoff), sent again only when the request never left, as the dispatch.
+// The 180 s entries are the wait's own polls; the alert's waits come after.
+test("an alert send that never left is sent again after a jittered wait, at most three times", () => {
+  const timeout = 'Post "https://api.github.com/repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches": net/http: TLS handshake timeout';
+  const sent = runWait("failure", { sendErrors: [timeout, timeout] });
+  assert.equal(sent.status, 0, sent.out);
+  assert.deepEqual(sent.writes, [SEND, SEND, SEND]);
+  const waits = sent.sleeps.slice(1).map(Number);
+  assert.equal(waits.length, 2);
+  assert.ok(waits[0] >= 1 && waits[0] <= 10, `${waits[0]}`);
+  assert.ok(waits[1] >= 1 && waits[1] <= 20, `${waits[1]}`);
+  const spent = runWait("failure", { sendErrors: [timeout, timeout, timeout] });
+  assert.equal(spent.status, 1, spent.out);
+  assert.equal(spent.writes.length, 3);
+  assert.match(spent.out, /::error::could not send run 4242 to post-merge-demotion-alert\.yml after 3 attempt\(s\)/);
+  // A send that may have reached GitHub is not sent again.
+  const answered = runWait("failure", { sendErrors: ["gh: Server Error (HTTP 502)", ""] });
+  assert.equal(answered.status, 1);
+  assert.deepEqual(answered.writes, [SEND]);
+});
+
+test("a rate-limited alert send is sent once and stops red", () => {
+  for (const stderr of [RATE_LIMITED_STDERR, "gh: Too Many Requests (HTTP 429)"]) {
+    const { status, out, writes, sleeps } = runWait("failure", { sendErrors: [stderr] });
+    assert.equal(status, 1, out);
+    assert.deepEqual(writes, [SEND]);
+    assert.deepEqual(sleeps, ["180"]);
+    assert.match(out, /::error title=GitHub rate limit::the send of run 4242 to post-merge-demotion-alert\.yml was rate limited/);
+  }
+});
+
 test("the dispatch job's token is actions: write and nothing else", () => {
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(job("dispatch-full-run"))[1];
   assert.deepEqual(
@@ -268,7 +311,7 @@ test("the merge and enable-auto-merge jobs' kept-file readers share their reads"
 
 test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
   const arm = job("enable-auto-merge");
-  const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
+  const step = /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
   assert.ok(step, "the arm step names its timeout");
   // The room read, then the verdict budget and the last read it starts.
   assert.ok(LANE_ROOM_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
@@ -358,6 +401,29 @@ test("enable-auto-merge's step timeouts fit inside its job's", () => {
   const steps = [...arm.matchAll(/\n {8}timeout-minutes: ([0-9]+)\n/g)].map((m) => Number(m[1]));
   assert.ok(steps.length >= 4, "the post-merge check, the cache restore, the arm step and the budget step name timeouts");
   assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
+});
+
+// pr-unblock's report-conflict-status precedent: statuses: write only on a
+// job that holds no lane token and runs only main's script.
+test("the pr-merge/unarmed statuses are posted by a job of their own, with statuses: write and nothing it could run from a pull request", () => {
+  const arm = job("enable-auto-merge");
+  assert.match(arm, /\n {4}outputs:\n {6}unarmed-statuses: \$\{\{ steps\.arm\.outputs\.unarmed-statuses \}\}\n/);
+  assert.match(arm, /\n {6}- name: Arm and disarm auto-merge\n {8}id: arm\n/);
+  assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
+  const post = job("unarmed-status");
+  assert.match(post, /^ {4}needs: \[enable-auto-merge\]\n/);
+  // It runs whenever enable-auto-merge handed it statuses, after a failed
+  // step too, and only then.
+  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \}\}\n/);
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(post)[1];
+  assert.deepEqual(
+    [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
+    ["contents: read", "statuses: write"],
+  );
+  assert.doesNotMatch(post, /lane-token|request-lane-token|id-token/);
+  assert.match(post, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  // The statuses reach the script through its environment, never the shell.
+  assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
 });
 
 // The merge job's sizing comment: about a minute before the loop, then the
@@ -635,6 +701,44 @@ test("a request that never left is sent again after a jittered wait inside its b
   assert.ok(r.slept[1] >= 1 && r.slept[1] <= 20, `${r.slept[1]}`);
   assert.match(r.output, /^run-id=4246$/m);
   assert.equal(runDispatch([unsent[2], ok(4247)]).posts, 2);
+});
+
+// Go's net/http error when the TLS handshake outlasts its timeout, before any
+// request byte is written, so a resend cannot start a second run.
+const handshakeTimeout = { stderr: `Post "${DISPATCH_URL}": net/http: TLS handshake timeout` };
+
+test("a TLS handshake timeout is sent again in both jobs", () => {
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([handshakeTimeout, ok(4248)], { jobId, event: "schedule" });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.posts, 2, jobId);
+    assert.equal(r.slept.length, 1, jobId);
+    assert.ok(r.slept[0] >= 1 && r.slept[0] <= 10, `${r.slept[0]}`);
+    assert.match(r.output, /^run-id=4248$/m, jobId);
+  }
+});
+
+// The resend never reaches past a rate limit: the attempt after the timeout
+// is answered with one, and nothing is sent after it.
+test("a rate limit after a TLS handshake timeout still stops red, with no further send", () => {
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([handshakeTimeout, limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}`, "X-Ratelimit-Resource": "core" }), ok(1)], { jobId, event: "schedule" });
+    assert.equal(r.status, 1, r.out);
+    assert.equal(r.posts, 2, jobId);
+    assert.equal(r.slept.length, 1, jobId);
+    assert.match(r.output, /^rate-limited=true$/m, jobId);
+    assert.doesNotMatch(r.output, /run-id=/, jobId);
+  }
+});
+
+// Only a lane merge is picked up by the scheduled post-merge check; any other
+// merge waits for the next push or pr-require-checks.yml's own schedule.
+test("the exhausted-retry warning names who starts the run next", () => {
+  assert.match(read("pr-require-checks.yml"), /\n {2}schedule:\n {4}- cron: /);
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([refused()], { jobId, event: "schedule" });
+    assert.match(r.out, /::warning::no full CI run started .*; a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule$/m, jobId);
+  }
 });
 
 // A reset or a timeout on an open connection may come after GitHub took the

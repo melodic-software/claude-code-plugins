@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.5.5] - 2026-10-26
+
+### Changed
+
+- The pr-merge run cache is parsed once per gate process until another process replaces it, and its shared run records keep only each repository's `full_name`, the one field their readers check. A verifier read no longer re-parses a multi-megabyte file on every lookup.
+
 ## [3.5.4] - 2026-10-26
 
 ### Fixed
