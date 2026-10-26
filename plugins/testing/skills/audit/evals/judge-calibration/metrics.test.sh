@@ -331,6 +331,17 @@ assert_contains "a missing verdict is named" "$out" "sweep/sonnet-high.tsv: miss
 assert_contains "a duplicate verdict is named" "$out" "sweep/sonnet-low.tsv: duplicate r4"
 assert_contains "an unknown id is named" "$out" "sweep/opus-low.tsv: unknown r99"
 assert_not_contains "no arm is chosen from it" "$out" "chosen:"
+# Cost per row divides by the rows the runs judged, not the rows scored: with
+# r12's label blank, 11 rows are scored but the arm judged all 12, so sonnet
+# medium stays 0.03/12 = 0.0025 (0.03/11 would print 0.0027).
+TC="$TMP/table-cost"
+mkdir -p "$TC/sweep"
+awk -F'\t' -v OFS='\t' 'NR > 1 && $1 == "r12" { $7 = "" } { print }' "$TB/labels.tsv" >"$TC/labels.tsv"
+cp "$TB/sweep/sonnet-medium.runs.tsv" "$TC/sweep/"
+for i in $(seq 1 12); do v=PASS && ((i <= 4)) && v=FLAG; printf 'r%d\t%s\tsonnet\tmedium\treason\n' "$i" "$v"; done >"$TC/sweep/sonnet-medium.tsv"
+out="$(bash "$METRICS" --table "$TC/labels.tsv" 2>&1)"
+# shellcheck disable=SC2016 # a literal dollar amount
+assert_contains "cost per row counts every judged row" "$out" '| 1.0000 (11/11) | $0.0025 |'
 
 # --- --sweep through the judge command function, stub only -----------------------
 SW="$TMP/sweep"
