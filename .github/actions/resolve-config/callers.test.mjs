@@ -3493,12 +3493,14 @@ test("the collect step classes a run whose issue file was not written, ahead of 
       "steps.write-issue.outcome": "success",
       "steps.act-key.outputs.lane-class": "",
       "steps.act-token.outputs.lane-class": "",
+      "steps.act-fallback.outputs.lane-class": "",
       ...context,
     });
   assert.equal(at({ "steps.write-issue.outputs.refused": "edited", "steps.write-issue.outcome": "failure" }), "issue-edited");
   assert.equal(at({ "steps.write-issue.outcome": "failure" }), "issue-file");
   assert.equal(at({ "steps.act-key.outputs.lane-class": "max-turns" }), "max-turns");
   assert.equal(at({ "steps.act-token.outputs.lane-class": "rate-limit" }), "rate-limit");
+  assert.equal(at({ "steps.act-fallback.outputs.lane-class": "auth" }), "auth");
   assert.equal(at({}), "");
 });
 
