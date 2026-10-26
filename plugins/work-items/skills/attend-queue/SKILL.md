@@ -1,5 +1,5 @@
 ---
-description: "Attends the loop-lane human queue: drives escalated items to resolution and lists untriaged intake beside them, handing each to /work-items:triage. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
+description: "Attend the loop-lane human queue: drives escalated items to resolution and lists untriaged intake beside them, handing each intake row to /work-items:triage. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -259,7 +259,8 @@ not write the comment by hand.
 This lane consumes the shared subscription rate-limit windows. The operable floor below is inlined
 **verbatim** per the convention's inline-floor rule (byte-identical across lanes and to the
 `rate-limit-guard` plugin's reader contract floor,
-`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository).
+`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository). Cited for
+provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
 - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
 - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
@@ -323,7 +324,8 @@ tick and when the operator returns, and report a resume or a re-latch in the nex
 
 `.oauthAccount.emailAddress` is internal Claude Code state, not a documented surface; its
 verification record and recheck trigger are in the `rate-limit-guard` reader contract
-(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository).
+(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository, cited for
+provenance only).
 
 ## Spoke paths
 

@@ -1,5 +1,5 @@
 ---
-description: "Drains the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through /work-items:work under an adaptive cap, and tests the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
+description: "Drain the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through /work-items:work under an adaptive cap, and checks the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
 argument-hint: "[<owner/repo>] [--drain|--standing] [--single-pass] [--shard <i>/<n>] [--ordering newest-first…]"
 user-invocable: true
 disable-model-invocation: false
@@ -246,7 +246,9 @@ A lane not opted in clears all three together at cycle start when its block carr
    - **Worker-side provisioning, owned by `/work-items:work`.** The dispatched subagent
      materializes its own out-of-tree worktree first and works against it via `git -C` without
      entering it; the orchestrator never invokes `/source-control:worktree create`, whose
-     `EnterWorktree` terminal would transition this long-lived loop session.
+     `EnterWorktree` terminal would transition this long-lived loop session. `/work-items:work` and
+     `/implementation:implement-dispatch` own that behavior; this loop inherits it and restates
+     nothing beyond this caution.
    - **Dispatch discipline.** Worker briefs enumerate the required skills per phase and carry the
      convention's subagent discipline preamble (presence-gated discipline sweep with the inline
      fallback). Subagent escalation authority is an open-ended duty. Escalate decisions that are
@@ -278,7 +280,8 @@ A lane not opted in clears all three together at cycle start when its block carr
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
    worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
    `/harness-ops:lanes` launches) so the record Write lands in place. A launch from a checkout
-   that is not a linked worktree is not the recommended mode: its record Write can be refused, or
+   that is not a linked worktree is not the recommended mode: its record Write can be refused ("parent bg session
+   hasn't isolated yet, so writes to the shared checkout are blocked"), or
    the session moves into an auto-created worktree under `.claude/worktrees/`. Either way the
    tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator),
@@ -375,7 +378,8 @@ Hard gates that override any classification:
   escalate these, never edit them.
 - **First-drain C3 ratification (earn-trust).** A C3 bug-fix-shaped item dispatches only when
   EITHER it carries its own recorded ratification, the ratification reply
-  `/work-items:attend-queue` writes on the item's `kind=ratify-c3` machine-marked comment, OR
+  `/work-items:attend-queue` writes on the item's `kind=ratify-c3` machine-marked comment, which
+  is the recorded human ratification the autonomy matrix's promotion contract requires, OR
   `${CLAUDE_PLUGIN_ROOT}/scripts/first-drain-ratified.sh` exits 0 this cycle: a person applied
   `loop-lane: first-drain-ratified` to the telemetry issue, ending the blanket period. Durable
   state never ends it, and this lane never applies that label

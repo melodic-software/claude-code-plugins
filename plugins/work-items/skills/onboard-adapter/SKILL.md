@@ -1,5 +1,5 @@
 ---
-description: "Generates a consumer-owned adapter for a tracker this plugin does not bundle: interview for the provider's shape, probe the real instance, write the adapter and conformance binding to the consumer repo, then verify. Use when: 'add support for TRACKER', 'onboard a tracker', 'write a work-item adapter', 'generate a tracker adapter', 'my tracker is not supported', 'bring my own tracker'. Bundled providers (github, local-markdown, jira, gitea, linear) and provider switches: '/work-items:setup'."
+description: "Generate a consumer-owned adapter for a tracker this plugin does not bundle: interview for the provider's shape, probe the real instance, write the adapter and conformance binding into the consumer repo, then verify. Use when: 'add support for TRACKER', 'onboard a tracker', 'write a work-item adapter', 'generate a tracker adapter', 'my tracker is not supported', 'bring my own tracker'. Bundled providers (github, local-markdown, jira, gitea, linear) and provider switches: '/work-items:setup'."
 argument-hint: "[provider-name]"
 user-invocable: true
 # Model-invoked (fleet default); no exception class applies. Generation is gated by the
@@ -15,8 +15,8 @@ metadata:
 ## Purpose
 
 Walk a **consumer** from "my tracker is not supported" to an adapter that lives in
-**their** repo and passes the seam's conformance suite. Adapters resolve
-consumer-local-first (`CONTRACT.md` "Adapter resolution"), so it needs no fork, no vendored
+**their** repo, passes the seam's conformance suite, and keeps working as the plugin evolves.
+Adapters resolve consumer-local-first (`CONTRACT.md` "Adapter resolution"), so it needs no fork, no vendored
 engine, and no upstream PR.
 
 **Not for**: a provider already bundled (`github`, `local-markdown`, `jira`, `gitea`,
@@ -174,7 +174,9 @@ them, that is a finding to raise, not a guard to delete.
   url`. A mapping that plans to carry spec text through the seam is designing against a
   field that does not exist.
 - **`blocked_by_count` counts OPEN blockers, plus any closed as won't-do.** Counting every
-  closed one is the bug that keeps an item off the frontier forever. Reading a close reason is optional: when the provider records one, a blocker closed as
+  closed one is the bug that keeps an item off the frontier forever. GitHub's own
+  `totalCount` gets this wrong, which is why the bundled adapter counts nodes itself.
+  Reading a close reason is optional: when the provider records one, a blocker closed as
   not planned or duplicate still blocks and counts in `blocked_by_wont_do_count`; when it
   records none, closed means resolved and `blocked_by_wont_do_count` is `0`
   (CONTRACT.md "JSON output contract").

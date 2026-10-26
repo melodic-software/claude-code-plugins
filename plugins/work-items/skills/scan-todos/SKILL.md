@@ -1,5 +1,5 @@
 ---
-description: "Sweeps source comments, not tracker items, for TODO/FIXME/HACK/XXX markers and resolves or files each one. Use when: 'scan TODOs', 'scan for FIXME', 'sweep the codebase for markers', 'find TODO comments', 'resolve TODO/FIXME/HACK', 'scan for tech-debt comments', 'clean up markers'. Not for new work, which belongs in the tracker when written. Tracker items go to /work-items:track."
+description: "Sweep source comments, not tracker items, for TODO/FIXME/HACK/XXX markers and resolve or file each one. Use when: 'scan TODOs', 'scan for FIXME', 'sweep the codebase for markers', 'find TODO comments', 'resolve TODO/FIXME/HACK', 'scan for tech-debt comments', 'clean up markers'. Not the workflow for new work: durable work belongs in the tracker when it is written. Tracker items go to /work-items:track."
 argument-hint: "[--path <dir>] [--work]"
 user-invocable: true
 disable-model-invocation: false
@@ -48,7 +48,7 @@ git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TO
 
 ## Workflow
 
-1. **Scan** with the detection command above (or the repo's own tooling): one `git grep` pass, never a per-file loop.
+1. **Scan** using the detection command above (or the repo's own tooling). Avoid per-file grep loops over large trees, one `git grep` pass scales; per-file spawning is unusable on Windows.
 
 1. **Group** by parent folder. Count items per group.
 

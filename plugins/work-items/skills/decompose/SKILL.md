@@ -1,5 +1,5 @@
 ---
-description: "Turns a plan, spec, or PRD into independently-grabbable vertical-slice work items, classifies each AFK (agent-ready) or HITL (needs-human), and publishes them blockers-first with dependency edges, optionally under a spec container. Also re-slices (reroutes) on a mid-flight spec change. Use when the user wants a plan, PRD, or brief broken into tickets or work items, published to the tracker, or re-decomposed. Single-item CRUD: /work-items:track; executing one: /work-items:work."
+description: "Turn a plan, spec, or PRD into independently-grabbable vertical-slice work items, classify each AFK (agent-ready) or HITL (needs-human), and publish them blockers-first with dependency edges, optionally under a spec container. Also re-slices (reroutes) when the spec changes mid-flight. Use when the user wants a plan, PRD, or brief broken into tickets or work items, published to the tracker, or re-decomposed. Single-item CRUD is /work-items:track; executing one is /work-items:work."
 argument-hint: "[source]"
 user-invocable: true
 disable-model-invocation: false

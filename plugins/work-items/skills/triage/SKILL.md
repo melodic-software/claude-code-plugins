@@ -1,5 +1,5 @@
 ---
-description: "Evaluates raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, exiting to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number: the attention view. Escalations: /work-items:attend-queue."
+description: "Evaluate raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, with exits to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number: the attention view. Escalations: /work-items:attend-queue."
 argument-hint: "[--config-ref <ref>] [<number>]"
 user-invocable: true
 disable-model-invocation: false
@@ -134,7 +134,7 @@ step 1 and before any tracker read or write:
 Layers, lowest first: the manifest default, then the per-user `userConfig` value, then the
 repository's `docs/conventions/work-items.yaml` (schema:
 [`${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json);
-these keys have no `~/.claude` file or local overlay). For each key:
+layer order from ADR 0064 Decision 8; these keys have no `~/.claude` file or local overlay). For each key:
 
 1. **Repository.** When the invocation carried `--config-ref <ref>`, check `<ref>` before any
    command uses it: it must match `^[0-9a-f]{40}$`, or match `^origin/[A-Za-z0-9._/-]+$` and
@@ -150,7 +150,7 @@ these keys have no `~/.claude` file or local overlay). For each key:
    placeholder, or a value equal to the default, is layer `default`. Any other value is layer
    `userConfig`.
 3. **Check the value.** The repro count must be a whole number of at least 1, the window a number
-   of at least 0. A value outside that never stops the triage. Name where it
+   of at least 0. A value outside that never stops the triage (ADR 0064 Decision 7). Name where it
    came from (`docs/conventions/work-items.yaml` or the `userConfig` option), the key and the
    value, and drop that layer. Layers are read highest first, so no valid higher layer is left:
    the key takes its manifest default from layer `default`. Never use a lower layer's value, so an

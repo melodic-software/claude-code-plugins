@@ -1,5 +1,5 @@
 ---
-description: "Routes and runs a spec container's multi-session effort: where it stands, which execution shape is in effect (per-item PRs or one integration branch) and its discipline, the next step; `run` works its ready items in parallel, landing one at a time. Use when the user says 'ship' about a spec or container, asks where it stands or what is next, wants to run, drive or resume it, or close it out. One item: /work-items:work; re-slicing: /work-items:decompose."
+description: "Route and run one spec container's multi-session effort: where it stands, which execution shape is in effect (per-item PRs or one integration branch) and its discipline, the next step; `run` works its ready items in parallel, landing one at a time. Use when the user says 'ship' about a spec or container, asks where it stands or what is next, wants to run, drive or resume it, or close it out. One item: /work-items:work; re-slicing: /work-items:decompose."
 argument-hint: "[status|run] [#<container-id>|<topic-slug>]"
 user-invocable: true
 disable-model-invocation: false
