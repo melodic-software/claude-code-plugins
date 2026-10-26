@@ -66,8 +66,9 @@
 #   --agents-json FILE   read the session list from FILE instead of
 #                        `claude agents --json` (offline / test injection).
 #   --app-slug SLUG      the GitHub App whose installation token gh runs under;
-#                        lane comments are then read from SLUG[bot]. See
-#                        WRITE IDENTITY below.
+#                        lane comments are then read from SLUG[bot]. An empty
+#                        value or an unrendered `${user_config.*}` placeholder
+#                        means no slug. See WRITE IDENTITY below.
 #   --telemetry-json FILE
 #                        read lane telemetry from FILE instead of `gh`: a JSON
 #                        object mapping lane name -> that issue's comments array,
@@ -305,7 +306,12 @@ parse_args() {
       ;;
     --telemetry-json=*) TELEMETRY_JSON_FILE="${1#*=}" ;;
     --app-slug)
-      check_optarg "$1" "${2:-}" || exit 3
+      # An empty value is allowed: the lanes skill always passes the rendered
+      # lane_app_slug option, which is empty when the operator left it unset.
+      if (($# < 2)) || [[ "$2" == -* ]]; then
+        err "option '$1' requires a non-option argument"
+        exit 3
+      fi
       APP_SLUG="$2"
       shift
       ;;
@@ -377,6 +383,9 @@ parse_args() {
     esac
     shift
   done
+  # An unrendered `${user_config.lane_app_slug}` placeholder means the option is
+  # unset; treat it, like an empty value, as no slug.
+  [[ "$APP_SLUG" == "\${user_config."* ]] && APP_SLUG=""
   if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
     err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
     exit 3

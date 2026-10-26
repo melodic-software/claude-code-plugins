@@ -785,10 +785,12 @@ limits:
   # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
   # GitHub API margins per pool (`api:` with github-token, lanes-app,
-  # graphql, owner-token, content-creation), as shares of the limit each
-  # response's x-ratelimit-limit header reports: plan, writer-pause, breaker
-  # and read-floor; content-creation adds per-minute and per-hour. The rate
-  # guard reads only read-floor, to warn; the others are thresholds meant for
+  # graphql, owner-token, content-creation). limit-cap sets each pool's planned
+  # budget, the header's x-ratelimit-limit at most the cap (github-token: 1000,
+  # GitHub's documented GITHUB_TOKEN limit); plan and read-floor are shares of
+  # it, writer-pause and breaker shares of the header's limit; content-creation
+  # adds per-minute and per-hour. The rate guard reads only read-floor and
+  # limit-cap, to warn; the others are thresholds meant for
   # the hub's limits sampler, which nothing here enforces. Their
   # defaults live in pr-pipeline.schema.json ($defs/api-pool,
   # $defs/api-content-pool); add an `api:` entry here only to override one.
