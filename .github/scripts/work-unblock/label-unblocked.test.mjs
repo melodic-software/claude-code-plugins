@@ -554,6 +554,8 @@ test("a listed human's login held by a different id is not that human: the close
 });
 
 test("a failed or malformed read of this run's record answers no, and a close run stops before any issue read", async () => {
+  // A listed login in both triggering-actor variables: a login fallback on a failed read would admit.
+  const logins = { GITHUB_TRIGGERING_ACTOR: OWNER.login, TRIGGERING_ACTOR: OWNER.login };
   const failing = Object.assign(async () => {
     throw new Error("HTTP 502");
   }, { calls: [] });
@@ -567,11 +569,11 @@ test("a failed or malformed read of this run's record answers no, and a close ru
     ["no run id", ownRun(), { GITHUB_RUN_ID: "" }],
     ["no repository", ownRun(), { GITHUB_REPOSITORY: "" }],
   ]) {
-    const env = { ACTOR_ID: String(OWNER.id), TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1", ...extra };
+    const env = { ACTOR_ID: String(OWNER.id), TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1", ...logins, ...extra };
     assert.equal(await checkCloser(env, actions), false, name);
     // main itself fails red on a malformed repository, before the check.
     const { github, calls } = oneDependent();
-    assert.equal(await main({ env: envFor({}, extra), github, actions }), name === "no repository" ? 1 : 0, name);
+    assert.equal(await main({ env: envFor({}, { ...logins, ...extra }), github, actions }), name === "no repository" ? 1 : 0, name);
     assert.deepEqual(calls, [], name);
   }
 });
@@ -2293,6 +2295,27 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   // The write runner mints; the read runner resolve-issue calls never does.
   assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));
   assert.ok(!Object.values(read).some((block) => steps(block).includes("Request the lane token")));
+});
+
+// Each re-runner check matches by id. The dispatch lane cannot read its run's
+// record, so it refuses every re-run; work-unblock's who step reads the record
+// with the job token.
+test("the workflows match a re-runner by id: the dispatch lane refuses a re-run, and the who step reads this run's record", () => {
+  const step = (file, name) => {
+    const text = readFileSync(join(HERE, "../../workflows", file), "utf8");
+    const start = text.indexOf(`      - name: ${name}\n`);
+    assert.ok(start >= 0, `${file}: ${name}`);
+    const end = text.indexOf("\n      - name: ", start + 1);
+    return text.slice(start, end < 0 ? undefined : end);
+  };
+  const dispatch = step("eval-browser-dispatch.yml", "Check the dispatcher is a trusted human");
+  assert.match(dispatch, /^ {10}if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then\n {12}echo "::error::rerun-refused: [^\n]*"\n {12}exit 1\n {10}fi$/m);
+  assert.ok(dispatch.indexOf("GITHUB_RUN_ATTEMPT") < dispatch.indexOf("jq -e"), "the re-run refusal comes before the list check");
+  assert.doesNotMatch(dispatch, /triggering_actor|TRIGGERING_ACTOR/);
+  const who = step("work-unblock.yml", "Check who closed the issue");
+  assert.match(who, /^ {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}$/m);
+  assert.match(who, /label-unblocked\.mjs --check-closer$/m);
+  assert.doesNotMatch(who, /triggering_actor|TRIGGERING_ACTOR/);
 });
 
 test("re-fires of runs that did no work share the restarts-per-run cap", async () => {

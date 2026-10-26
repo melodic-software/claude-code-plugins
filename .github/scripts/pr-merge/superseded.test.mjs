@@ -130,6 +130,14 @@ test("a listed human's login held by a different id does not count as that human
   }
 });
 
+test("a listed human renamed since the list was written still counts, by id, as starter or re-runner", async () => {
+  const renamed = { id: OWNER.id, login: "renamed" };
+  for (const [actor, rerunner] of [[renamed, renamed], [OWNER, renamed], [renamed, OWNER]]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", actor, { rerunner })] });
+    assert.equal(run.superseded, true, `${actor.login} re-run by ${rerunner.login}`);
+  }
+});
+
 test("a run with no triggering actor id is not counted as a listed human's", async () => {
   for (const rerunner of [{ login: OWNER.login }, { id: String(OWNER.id), login: OWNER.login }, null]) {
     const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", OWNER, { rerunner })] });
@@ -160,8 +168,10 @@ test("a hand-started run never supersedes a scheduled run, which alone re-fires 
 });
 
 test("a run of any other event, or with no actor, supersedes nothing", async () => {
-  const run = await check({ runs: [pending(600, "push"), { id: 601, event: "workflow_dispatch", status: "pending" }] });
-  assert.equal(run.superseded, false);
+  for (const event of ["schedule", "pull_request_target"]) {
+    const run = await check({ event, runs: [pending(600, "push"), { id: 601, event: "workflow_dispatch", status: "pending" }, pending(602, "workflow_run")] });
+    assert.equal(run.superseded, false, event);
+  }
 });
 
 test("a run whose listed status is not pending supersedes nothing", async () => {
