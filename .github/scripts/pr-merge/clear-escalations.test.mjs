@@ -630,7 +630,9 @@ test("enable-auto-merge's label stays while its cause, or another a person must 
     },
   ]) {
     const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence });
-    await run(w, NATIVE);
+    const { code, logs } = await run(w, NATIVE);
+    // Kept as a verdict, never a per-PR error: a null answer included.
+    assert.equal(code, 0, `${evidence}\n${logs.join("\n")}`);
     assert.deepEqual(w.writes(), [], String(evidence));
   }
 });
