@@ -217,6 +217,26 @@ test("a run already re-fired is not re-fired again", async () => {
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
 });
 
+// #9828: pr-require-checks run 40118648493 ended cancelled at attempt 2 too
+// (test-bash (3) past its 9-minute limit both times). It is not re-run again,
+// and the summary names the head, the run, the attempt and who takes it.
+test("a CI run lost again at attempt 2 is named in the summary, not re-run", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-summary-"));
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const { code, reruns } = await reconcile({ pulls: [pr(1)], runs: [run(40118648493, sha(1), { attempt: 2 })], env: { GITHUB_STEP_SUMMARY: summary } });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.match(
+      readFileSync(summary, "utf8"),
+      /#1: run 40118648493 \(\.github\/workflows\/pr-require-checks\.yml\) ended cancelled again at attempt 2; not re-run: fix-ci takes a job past its time limit, any other cause waits for a push or a person's re-run/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // The fresh read before the write sees the run already re-run.
 const rerunSinceListing = (id) => (github) => async (method, apiPath, body) => {
   if (method === "GET" && apiPath.endsWith(`/actions/runs/${id}`)) {

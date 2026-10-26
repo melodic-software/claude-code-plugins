@@ -749,6 +749,27 @@
         "id-token": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/pr-review.yml@b26e355fe98c372f02a13d74c10a785ad8c9ce2d": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "incremental-review",
+        "allowed-bot-sender-ids",
+        "model-args",
+        "allowed-author-ids",
+        "fallback-credential-name"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}",
+        "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -963,6 +984,26 @@
       "allowedInputs": ["runner", "incremental-review", "allowed-bot-sender-ids", "model-args"],
       "allowedSecrets": {
         "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@b26e355fe98c372f02a13d74c10a785ad8c9ce2d": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "incremental-review",
+        "allowed-bot-sender-ids",
+        "model-args",
+        "fallback-credential-name"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}",
+        "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"
       },
       "allowedCallerPermissions": {
         "contents": "read",

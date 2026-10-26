@@ -3,7 +3,8 @@
 // result. A run that ended cancelled, timed_out or startup_failure, on its
 // first attempt, is re-run once with the job's own token. Its attempt number is
 // the record: a run at attempt 2 or later was already re-run, by this script
-// or a person, and is never touched again. No model.
+// or a person, and is never touched again: a CI run lost again is named in the
+// summary with who takes it. No model.
 //
 // These kinds are re-run:
 // - CI: a CI workflow's newest run on an open PR's current head. These
@@ -94,6 +95,7 @@ import {
   INFRA_BACKOFF_MINUTES,
   infraOnly,
   LOOKBACK_HOURS,
+  LOST,
   lostRunnerNoted,
   reconcilerRetries,
   stepsKnown,
@@ -107,7 +109,9 @@ export const GITHUB_STATUS_URL = "https://www.githubstatus.com/api/v2/status.jso
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RECORD = /^reconcile-rerun-[1-9][0-9]{0,19}-2-[0-9a-f]{40}$/;
-export const LOST = new Set(["cancelled", "timed_out", "startup_failure"]);
+
+export { LOST };
+
 // A recorded lane run is also lost when it failed: a judgment that broke after
 // it started, or a run the kill switch stopped, leaves the head with no verdict.
 export const LANE_LOST = new Set([...LOST, "failure"]);
@@ -194,6 +198,8 @@ function ciRunsByWorkflow(runs) {
 }
 
 const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
+// A CI run lost again after its one re-run: never re-run here.
+const isLostAgain = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt > 1 && Date.parse(r.created_at) >= since;
 const isFailedIntake = (r, since) =>
   r.path === INTAKE_LABEL && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) =>
@@ -241,13 +247,14 @@ const lostNow = (item, r, since) => {
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
 };
 
-// What one PR's head holds: CI runs to re-run, lost lane runs, and whether a
-// CI re-run is already in flight.
+// What one PR's head holds: CI runs to re-run, CI runs lost again after
+// their re-run, lost lane runs, and whether a CI re-run is already in flight.
 export function classify(runs, since) {
   const newest = newestByWorkflow(runs);
   const ci = newest.filter((r) => CI_WORKFLOWS.has(r.path));
   return {
     rerun: ci.filter((r) => r.event === "pull_request" && isLost(r, since)),
+    again: ci.filter((r) => r.event === "pull_request" && isLostAgain(r, since)),
     lane: newest.filter((r) => !CI_WORKFLOWS.has(r.path) && isLost(r, since)),
     inFlight: ci.some((r) => r.status !== "completed" && r.run_attempt > 1),
   };
@@ -465,10 +472,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       if (!Array.isArray(listing?.workflow_runs) || listing.total_count > 100) {
         throw new Error("its run listing is not one complete page");
       }
-      const { rerun, lane, inFlight: busy } = classify(listing.workflow_runs, since);
+      const { rerun, again, lane, inFlight: busy } = classify(listing.workflow_runs, since);
       inFlight += busy ? 1 : 0;
       for (const r of lane) {
         say(`#${pull.number}: lane run ${r.id} (${r.path}) ended ${r.conclusion}; a re-run of this lane needs a person`);
+      }
+      // The re-run is spent; a job past its time limit is a slow or hanging
+      // test, which fix-ci takes from its annotation (infra-failure.mjs
+      // timeLimitNoted). Named here, so the head is never red in silence.
+      for (const r of again) {
+        say(
+          `#${pull.number}: run ${r.id} (${r.path}) ended ${r.conclusion} again at attempt ${r.run_attempt}; not re-run: fix-ci takes a job past its time limit, any other cause waits for a push or a person's re-run`,
+        );
       }
       if (busy) {
         continue;
