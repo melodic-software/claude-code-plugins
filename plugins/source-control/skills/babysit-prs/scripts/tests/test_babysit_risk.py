@@ -1514,6 +1514,26 @@ class PersonReasonsTests(unittest.TestCase):
         codes = [r.code for r in babysit_risk.person_reasons(holding(result))]
         self.assertEqual(codes, ["security-finding"])
 
+    def test_a_size_reason_holds_nothing_so_no_one_is_needed(self):
+        # lines-over, files-over and no-patch are MED reasons an unattended
+        # merge passes (MERGEABLE_MED): they never hold, so they never sit
+        # unarmed waiting for a lane or a person.
+        result = score(
+            _input(
+                max_changed_lines=10,
+                max_changed_files=1,
+                files=(
+                    _file("plugins/foo/a.md", additions=50),
+                    _file("plugins/foo/logo.png", has_patch=False),
+                ),
+            )
+        )
+        codes = {r.code for r in result.reasons}
+        self.assertTrue({"lines-over", "files-over"} <= codes, codes)
+        self.assertTrue(any(c.startswith("no-patch:") for c in codes), codes)
+        self.assertFalse(holds(result), result.reasons)
+        self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
+
     def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
         capped = score(_input(files_complete=False, files_capped=True))
         self.assertEqual(

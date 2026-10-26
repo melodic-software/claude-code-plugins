@@ -3903,7 +3903,7 @@ class ReasonsComment(Unattended):
                         out["unattended"]["writes"]["riskComment"], "unchanged"
                     )
                     self.assertNotIn("riskEscalation", out["unattended"]["writes"])
-                    self.assertIn("The lanes clear these reasons", body)
+                    self.assertIn("The lanes clear its holding reasons", body)
 
     def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
         self,
@@ -4340,6 +4340,61 @@ class HeadFileFailure(unittest.TestCase):
                 with self.subTest(path), self.assertRaises(RuntimeError):
                     read(path, "b" * 40)
         self.assertEqual(capture.call_count, 1)
+
+    def test_a_path_the_comparison_cannot_prove_latches_nothing(self) -> None:
+        # old.py 404s and the comparison shows it renamed: a verdict about
+        # old.py alone. app.py, read next, still reads and its thread, whose
+        # flagged line is gone at the head, clears.
+        ev_tests = evidence_tests
+        bot = {"__typename": "Bot", "login": "someone-else"}
+
+        def outdated(path: str) -> dict[str, Any]:
+            item = ev_tests.thread(
+                resolved=True,
+                resolved_by=bot,
+                outdated=True,
+                created="2025-12-31T00:00:00Z",
+            )
+            item["comments"][0]["path"] = path
+            return item
+
+        def capture(args: list[str], **_: Any) -> Any:
+            if args[-1].startswith("repos/owner/repo/contents/old.py"):
+                return subprocess.CompletedProcess(
+                    args, 1, "", "gh: Not Found (HTTP 404)"
+                )
+            return subprocess.CompletedProcess(
+                args, 0, "context\nrun(clean(user_input))\n", ""
+            )
+
+        renamed = {"files": [{"filename": "old.py", "status": "renamed"}]}
+
+        def bind(threads: list[dict[str, Any]]) -> Any:
+            with (
+                mock.patch.object(merge, "gh_capture", side_effect=capture) as read,
+                mock.patch.object(merge, "gh_json", return_value=renamed),
+            ):
+                lanes = ev_tests.by_lane(
+                    merge.review_evidence.bind(
+                        ev_tests.S,
+                        [
+                            ev_tests.whole("claude-review", ev_tests.S, n=1, k=1),
+                            ev_tests.whole("claude-security-review", ev_tests.S),
+                        ],
+                        ev_tests.both_markers(),
+                        threads,
+                        is_human=ev_tests.is_human,
+                        changed_paths=(),
+                        head_file=merge._head_file("owner/repo", ev_tests.S),
+                    )
+                )
+            return lanes["claude-review"], [c.args[0][-1] for c in read.call_args_list]
+
+        alone, _ = bind([outdated("old.py")])
+        both, reads = bind([outdated("old.py"), outdated("app.py")])
+        self.assertTrue(any("contents/app.py" in r for r in reads), reads)
+        # The app.py thread cleared: the count is old.py's alone.
+        self.assertEqual(both.open_findings, alone.open_findings)
 
     def test_the_bind_and_its_carried_pass_send_one_read_after_a_rate_limit(
         self,

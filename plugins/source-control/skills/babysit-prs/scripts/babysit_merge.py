@@ -3117,13 +3117,20 @@ def _lane_evidence(
     return lanes, comments
 
 
+class HeadFileUnproven(RuntimeError):
+    """A verdict about one path (`_head_file`): it 404s at the head and the
+    comparison does not prove it removed. Another path may still read."""
+
+
 def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
     """`bind()`'s `head_file`: a file's text at `head`, or None only when the
     comparison from the thread's commit lists it removed. A rename, a capped
     file list or any other failure raises, so the thread keeps its human test.
-    After the first failure every later call raises without a read: a refused
-    read, a rate limit included, is never sent again, however many threads or
-    candidate heads (review_evidence._carried_blocking) ask."""
+    After the first failed read (a refused or rate-limited contents or
+    comparison read) every later call raises without a read: it is never sent
+    again, however many threads or candidate heads
+    (review_evidence._carried_blocking) ask. `HeadFileUnproven` is a verdict
+    about its own path and latches nothing."""
     cache: dict[tuple[str, str], str | None] = {}
     failed: list[str] = []
 
@@ -3134,6 +3141,8 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
             raise RuntimeError(f"head-file-not-read-after:{failed[0]}")
         try:
             text = _read_head_file(path, original)
+        except HeadFileUnproven:
+            raise
         except Exception as exc:
             failed.append(str(exc))
             raise
@@ -3168,7 +3177,7 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
                     for item in files
                 )
             ):
-                raise RuntimeError(f"head-file-unproven:{path}")
+                raise HeadFileUnproven(f"head-file-unproven:{path}")
             text = None
         return text
 
@@ -3433,7 +3442,8 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
         if _floor_held(risk)
         else "This pull request waits for one."
         if babysit_risk.person_reasons(babysit_risk.holding(risk))
-        else "The lanes clear these reasons; pr-merge judges it again each run."
+        else "The lanes clear its holding reasons (a size reason holds nothing); "
+        "pr-merge judges it again each run."
     )
     lines = [
         RISK_MARKER,

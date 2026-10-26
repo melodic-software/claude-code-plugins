@@ -864,12 +864,14 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (costHeld !== null) {
     return { action: armed ? "disarm" : "none", reason: costHeld, clears: "person" };
   }
+  // A hold a person set, read whole: `withdraw` marks a decided outcome,
+  // whose run may withdraw a lane's failing status.
   const vetoed = discussionHold(detail);
   if (vetoed !== null) {
-    return { action: armed ? "disarm" : "none", reason: vetoed };
+    return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
   }
   if (!armed && detail.timelineItems?.nodes?.at(-1)?.actor?.__typename === "User") {
-    return { action: "none", reason: "a person turned its auto-merge off" };
+    return { action: "none", reason: "a person turned its auto-merge off", withdraw: true };
   }
   if (!("verify" in detail)) {
     return { action: "verify", reason: "its verifier verdict is not read yet" };
@@ -960,7 +962,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       console.log(`enable-auto-merge: lane room: ${escapeCommand(JSON.stringify(lane))}`);
     }
     // After the room read, so the verdict reads keep their whole budget.
-    const deadline = Date.now() + VERIFY_BUDGET_MS;
+    const deadline = now() + VERIFY_BUDGET_MS;
     // Merges in flight: the gate's count, plus each armed lanes App pull
     // request the queue has not taken yet, which GitHub enqueues on its own.
     let inFlight = lane === null ? 0 : lane.count + pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
@@ -1056,6 +1058,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
       let clears;
       let comment;
+      let withdraw;
       let detail = null;
       let decided = false;
       // Checked before the reads, so a held lane spends none.
@@ -1084,14 +1087,14 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           detail = null;
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${describe(error)}`);
         }
-        ({ action, reason, clears, comment } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
+        ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
       if (action === "verify" && !reads) {
         ({ action, reason } =
           pull.autoMergeRequest != null
             ? { action: "none", reason: "already armed; the next scheduled run checks its verifier verdict" }
             : { action: "none", reason: "only a scheduled or hand-started run arms it, on the gate's verifier verdict" });
-      } else if (action === "verify" && Date.now() > deadline) {
+      } else if (action === "verify" && now() > deadline) {
         ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
       } else if (action === "verify") {
         let evidence = null;
@@ -1117,7 +1120,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`::warning title=enable-auto-merge::#${pull.number} its merge-queue ejections could not be read: ${escapeCommand(evidence.queue.readError)}`);
         }
         if (!decided) {
-          ({ action, reason, clears, comment } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+          ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
         }
       }
       // A pull request armed earlier in this run counts toward the cap.
@@ -1132,10 +1135,12 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         if (reason !== "not the lanes App's") {
           console.log(`enable-auto-merge: #${pull.number} left: ${escapeCommand(reason)}`);
         }
-        // A lane's refusal noted at this head that no longer stands (it
-        // cleared, or another hold now leaves the pull request unarmed):
-        // its failing status is withdrawn, as an arm withdraws it.
-        if (reads && write && clears !== "lane" && clears !== "person" && sinceAt(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid) !== undefined) {
+        // A lane's refusal noted at this head that a decided hold a person
+        // set now stands in for (a veto, auto-merge turned off): its failing
+        // status is withdrawn, as an arm withdraws it. An outcome that read
+        // nothing (no time left, unread hold paths, a verdict that did not
+        // read) leaves the status as it is.
+        if (reads && write && withdraw === true && sinceAt(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid) !== undefined) {
           statuses.push({ sha: pull.headRefOid, state: "success", description: "its lanes refusal no longer stands" });
         }
         await note(pull, detail, { clears, reason, comment });

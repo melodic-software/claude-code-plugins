@@ -39,6 +39,7 @@ import {
   ghCalls,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
+  VERIFY_BUDGET_MS,
   readRoom,
   TRUST_REFUSALS,
   FILES_CAPPED_REASON,
@@ -446,6 +447,25 @@ test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has
   assert.deepEqual(held.statuses, [{ sha: HEAD, state: "success", description: "its lanes refusal no longer stands" }]);
   // Report-only hands the status job nothing.
   assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
+});
+
+// A run that read nothing new about a standing lane refusal leaves its
+// failing status alone: no success that the next reading run turns back.
+test("an unread outcome withdraws no failing pr-merge/unarmed status", async () => {
+  const stood = (overrides = {}) => pull(1, { discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z"))] }, ...overrides });
+  const at = Date.parse("2026-10-23T11:00:00Z");
+  // No time left: the clock passes the verify budget after the room read.
+  let calls = 0;
+  const late = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + 1);
+  const cases = [
+    ["no time left to read the verdict", await run([stood()], {}, { now: late })],
+    ["the hold paths did not read", await run([stood()], { RESOLVED_CONFIG: "/nonexistent/resolved-config.json" }, { now: () => at })],
+    ["the verdict read threw", await run([stood({ verdict: new Error("boom") })], {}, { now: () => at })],
+  ];
+  for (const [name, result] of cases) {
+    assert.deepEqual(result.writes, [], name);
+    assert.deepEqual(result.statuses, [], name);
+  }
 });
 
 

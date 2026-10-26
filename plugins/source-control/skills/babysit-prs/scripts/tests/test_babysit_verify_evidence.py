@@ -1456,6 +1456,30 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
         self.assertTrue(evidence.needs_human)
         self.assertIn("3", evidence.detail or "")
 
+    def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
+        # A listing that does not read refuses rather than letting the pass
+        # decide, so a short read never lifts the cap.
+        fake = self.failed_at(EARLIER, IN_PR, UNRELATED)
+        fake.fail = {"actions/artifacts"}
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+
+    def test_its_own_fails_cannot_expire_before_it_is_too_old(self) -> None:
+        # Artifacts last 90 days here; a pull request is refused for a person
+        # past TOO_OLD_DAYS, before any of its own FAILs can expire, so an
+        # expired FAIL never lifts the cap of a pull request still judged.
+        self.assertLess(ve.TOO_OLD_DAYS, 90)
+        expired = passing(
+            *(
+                artifact(named(sha, "fail"), i, expired=True)
+                for i, sha in zip((2, 3, 4), (EARLIER, IN_PR, UNRELATED))
+            ),
+            runs={i: judged(i, OLDER_START) for i in (2, 3, 4)},
+        )
+        evidence = read(expired, pull(created_at="2026-07-27T23:00:00Z"))
+        self.assertEqual(evidence.refusal, "verify:too-old")
+        self.assertTrue(evidence.needs_human)
+
     def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
 
