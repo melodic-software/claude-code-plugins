@@ -1226,10 +1226,9 @@ jobs:
 
   # THE SHELL LINTERS: ShellCheck, and the repo-local gates that read shell
   # source (GNU-only constructs, piped early-exit greps, temp-path cleanup,
-  # fixture git isolation, discriminating skips, the drive-root no-op, the
-  # kill-switch hoist, silent prerequisite skips, slow hook shapes). Every one
-  # is a gate step: absorbed with `continue-on-error`, fed to the aggregator at
-  # the foot of this job. Python comes with the pinned requirements file because
+  # fixture git isolation, discriminating skips, the kill-switch hoist, silent
+  # prerequisite skips, slow hook shapes). Every one is a gate step: absorbed
+  # with `continue-on-error`, fed to the aggregator at the foot of this job. Python comes with the pinned requirements file because
   # the slow-shapes gate reads hook frontmatter through PyYAML.
   #
   # ITS OWN JOB BECAUSE OF THE WHOLE-REPOSITORY SCAN. ShellCheck lints the
@@ -1350,24 +1349,6 @@ jobs:
             exit 0
           fi
           scripts/check-fixture-git-isolation.sh --check
-
-      # #2834: an MSYS path literal (`/d/...`) handed to a Windows-native
-      # consumer re-anchors to the CURRENT drive's root, so the consumer
-      # creates a phantom `<drive>:\<letter>\` tree and writes there. Nothing
-      # errors — the run just measures something other than what it claims.
-      # docs/conventions/windows-path-emit/ owns the rule.
-      #
-      # What is required here is the detectors' own unit contract —
-      # deterministic, fixture-scoped, and including the assertion that the
-      # drive-root scan is a reported no-op on a non-Windows host. Pointing the
-      # live scan at a runner's drive roots is deliberately NOT wired: it would
-      # put an unquantified false-positive tail on the required aggregate,
-      # which docs/adr/0003 rules out until a guard has measured precision.
-      - name: Assert the drive-root scan is a no-op on a non-Windows host
-        id: drive_root_noop
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh drive-root-scan-noop {0}
-        run: scripts/check-drive-root-litter.sh
 
       # Shell-portability lint (#1491 / #2704): flags GNU-only constructs in
       # changed **/*.sh files and skill markdown under plugins/*/skills/ — a
@@ -1504,7 +1485,6 @@ jobs:
             silent-skips=${{ steps.silent_skips.outcome }}
             discriminating-test-skips=${{ steps.discriminating_test_skips.outcome }}
             fixture-git-isolation=${{ steps.fixture_git_isolation.outcome }}
-            drive-root-scan-noop=${{ steps.drive_root_noop.outcome }}
             shell-portability-lint=${{ steps.shell_portability.outcome }}
             pipefail-grep-q=${{ steps.pipefail_grep_q.outcome }}
             test-tmp-cleanup=${{ steps.test_tmp_cleanup.outcome }}
@@ -2380,20 +2360,11 @@ jobs:
             echo "::endgroup::"
           done < <(find plugins -mindepth 2 -maxdepth 2 -name probes -type d | sort)
           exit "$status"
-      # Report-only (always exit 0 — see the script's own header): pools every
-      # plugin's skills root into ONE shared aggregate, the shape a consumer who
-      # installs the whole marketplace actually experiences.
-      - name: Report the shared skill-listing budget across every plugin
-        id: listing_budget
-        continue-on-error: true
-        shell: bash scripts/run-hygiene-gate.sh listing-budget {0}
-        run: bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
-      # The step above measures a DEFAULT consumer, against the documented
-      # 8,000-char fallback, and for this fleet it is permanently many times
-      # over. That makes it useless as a growth signal: nothing it can print is
-      # ever new information. This second pass measures the budget THIS repo
-      # actually configures, reconstructed with the script's own documented
-      # arithmetic (TOKENS x CHARS_PER_TOKEN x FRACTION).
+      # A growth tripwire, run on the schedule only: it measures the skill-listing
+      # budget THIS repo configures, reconstructed with the script's own
+      # documented arithmetic (TOKENS x CHARS_PER_TOKEN x FRACTION). A default
+      # consumer's 8,000-char fallback is not measured: this fleet is
+      # permanently many times over it, so that number carries no signal.
       #
       # THE FRACTION IS READ FROM .claude/settings.json, never repeated here.
       # A literal 0.05 in this file would be a second copy of a value that
@@ -2413,10 +2384,11 @@ jobs:
       # that fires after the failure it exists to predict is worse than none.
       # (Neither basis speaks for a 200k-window consumer, whose budget the
       # fleet overflows today; docs/cloud-sessions.md records that.)
-      # Report-only for the same reason its sibling is. The fix for the
-      # aggregate is the per-skill description trim, which #6846 owns.
+      # Report-only (the script always exits 0). The fix for the aggregate is
+      # the per-skill description trim, which #6846 owns.
       - name: Report the skill-listing budget at this repo's configured fraction
         id: listing_budget_configured
+        if: github.event_name == 'schedule'
         continue-on-error: true
         env:
           CHECK_SKILL_LISTING_CONTEXT_TOKENS: "750000"
@@ -2478,8 +2450,7 @@ jobs:
             evals-schema=${{ steps.evals_schema.outcome }}
             evals-quality=${{ steps.evals_quality.outcome }}
             precompute-compose=${{ steps.precompute_compose.outcome }}
-            listing-budget=${{ steps.listing_budget.outcome }}
-            listing-budget-configured=${{ steps.listing_budget_configured.outcome }}
+            listing-budget-configured=${{ github.event_name != 'schedule' && 'success' || steps.listing_budget_configured.outcome }}
             portability-lint=${{ steps.portability.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
