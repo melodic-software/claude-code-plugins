@@ -501,6 +501,20 @@
         "The run requires the --brief cross-check to exit 0 before it hands off",
         "The handoff message lists Q3 and Q4 by id and question and does not route to /planning:plan"
       ]
+    },
+    {
+      "id": 36,
+      "name": "sweep-flags-coined-term-after-accept-all",
+      "prompt": "/planning:interview me Set up approval roles for production deploys.\n\n[Session state: in round 1 the user said their team already has a \"release captain\" who signs off each deploy. Round 3's Q9 recommended three approval roles, one named `GATEKEEPER`, a name coined in that recommendation: it was not defined in the question and the session-shorthand glossary has no line for it. Its duties overlap the release captain's. The user replied \"accept all\" to round 3, and Q9 through Q12 are `answered`. The frontier is now empty, so the assumption sweep runs.]",
+      "expected_output": "The sweep sub-agent is handed the session-shorthand glossary and the names the user has used, and returns a `coined-term` item for `GATEKEEPER`, sourced to Q9's recommendation, even though the user accepted it: \"accept all\" accepted the role set, not a name the user never saw defined. The skill writes that item as a register row at the next contiguous `Q<N>`, asking the user to accept `GATEKEEPER` or rename it, names the overlap with the release captain, and recommends the user's existing name, release captain. The run returns to Step 2 and does not lock the contract while that row is `open`.",
+      "files": [],
+      "expectations": [
+        "The sweep returns a `coined-term` item for `GATEKEEPER`, sourced to Q9's recommendation",
+        "The user's \"accept all\" is not treated as settling the coined name",
+        "The item becomes a register row at the next contiguous `Q<N>` (no `S<N>` id in the register) asking the user to accept or rename `GATEKEEPER`",
+        "The row names the overlap with the user's existing release captain role and recommends the name release captain",
+        "The run returns to Step 2 while that row is `open` and does not lock the contract over it"
+      ]
     }
   ]
 }

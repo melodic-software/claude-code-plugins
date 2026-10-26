@@ -269,6 +269,8 @@ The read-only decision table (the degrade):
 
 When a round coins or leans on session-local shorthand, a label, abbreviation, or cross-repo term the user may not share, define it once at first use and record it here so later rounds (and a resumed session) use it without re-explaining. Ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`); it lives only in the working ledger and is discarded with it.
 
+A question whose recommendation, option or `Commits you to:` part coins a name writes its glossary line to the ledger in the same step as its register row at ask-time, on every surface (on the page, also send the `glossary` op, [`surface.md`](surface.md)), and defines the name in the question itself. The assumption sweep reports a coined name missing from the glossary as a `coined-term` item ([`assumption-sweep.md`](assumption-sweep.md)).
+
 ```markdown
 **Session shorthand:**
 - lane: one parallel builder session working an isolated slice
