@@ -2772,6 +2772,11 @@ def evidence(
     )
 
 
+# A manifest the floor switch's manifest review holds; the floor itself holds
+# no path.
+MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
+
+
 def changed(path: str, additions: int = 1) -> unattended.ChangedFile:
     """A modified regular file in the diff."""
     return unattended.ChangedFile(
@@ -3285,7 +3290,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.config, denied_paths=(), max_changed_lines=None
         )
         self.unlabeled_lane_pr(real_denied_paths=True)
-        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        gate = "plugins/source-control/scripts/source-control-babysit-merge"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
         # The workflow's patch adds no cost line, so the cost hold passes it.
         self.files = (
@@ -3314,17 +3319,17 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.config = dataclasses.replace(
             self.config, high_path_floor=True, max_changed_files=8,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
-    def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
+    def test_the_lane_scores_a_manifest_from_the_config_high(self) -> None:
         self.config = dataclasses.replace(self.config, high_path_floor=True)
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["high-path:**/.gitmodules"])
+        self.assertEqual(codes, ["manifest-review-required"])
 
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
@@ -3384,13 +3389,13 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         self.config = dataclasses.replace(
             self.config, high_path_floor=False, max_changed_files=None,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_the_local_floor_holds_whatever_the_switch_says(self) -> None:
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         for on in (False, True):
             with self.subTest(high_path_floor=on):
                 self.config = dataclasses.replace(self.config, high_path_floor=on)
