@@ -1157,6 +1157,10 @@ jobs:
         continue-on-error: true
         env:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          # The surface-diff auto-approval fetches commit trees from api.github.com
+          # (runner-policy.mjs fetchCommitTree); authenticated, it skips the shared
+          # anonymous rate limit. The job token is read-only (`contents: read`).
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh runner-policy {0}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
