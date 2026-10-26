@@ -656,7 +656,8 @@ function reviewOf(lane, sha, job) {
 //   no severity line to read). A held review that left a summary finding
 //   needs a whole review of `head`.
 // - Each held review's inline findings still have that many of its lane's
-//   threads, opened by the time it completed: a deleted thread keeps the label.
+//   threads, opened after the lane's previous review completed and by the
+//   time the held one did: a deleted thread keeps the label.
 // - No thread of those lanes is open with a severity other than SUGGESTION
 //   (the Q26 B bar). A thread is closed only when resolved, by a trusted
 //   person, or by anyone when it was opened before the lane's newest review
@@ -690,12 +691,16 @@ export function laneLift(input) {
   const latest = {};
   // Whether any review of head, in any run or attempt, reported a finding.
   const spent = {};
+  // When each of a lane's status jobs in the window completed.
+  const ends = {};
   for (const [lane, check] of Object.entries(LANE_CHECKS)) {
     const runs = lanes[lane];
     if (!Array.isArray(runs)) return keep(`the ${lane} runs do not read`);
+    ends[lane] = [];
     for (const item of runs) {
       if (!Array.isArray(item?.jobs)) return keep(`the jobs of ${lane} run ${item?.id} do not read`);
       for (const job of item.jobs.filter((entry) => entry?.name === check && seconds(entry.completed_at) > since)) {
+        ends[lane].push(seconds(job.completed_at));
         const read = notes(job);
         if (read === null) return keep(`the annotations of ${lane} job ${job.id} do not read`);
         for (const notice of read.filter((entry) => String(entry.message ?? "").startsWith("claude-lane-hold "))) {
@@ -749,11 +754,15 @@ export function laneLift(input) {
   if (!Array.isArray(nodes) || !Number.isInteger(threads.totalCount) || threads.totalCount > nodes.length) return keep("the review threads do not read whole");
   // A deleted thread leaves no trace in the threads or the timeline, so each
   // held review's inline findings must still have that many of its lane's
-  // threads, opened by the time it completed.
+  // threads, opened after the lane's previous review completed (a lane's runs
+  // on a pull request are serialized) and by the time the held one did.
   for (const hold of holds.filter((one) => one.review?.inline > 0)) {
-    const recorded = holds.filter((one) => one.lane === hold.lane && one.at <= hold.at).reduce((sum, one) => sum + (one.review?.inline ?? 0), 0);
-    const left = nodes.filter((item) => laneThread(hold.lane, item) && seconds(item.comments.nodes[0].createdAt) <= hold.at).length;
-    if (left < recorded) return keep(`${hold.lane} recorded ${recorded} inline finding(s) at ${hold.sha}, and ${left} of its threads are left`);
+    const from = Math.max(since, ...ends[hold.lane].filter((end) => end < hold.at));
+    const left = nodes.filter((item) => {
+      const created = laneThread(hold.lane, item) ? seconds(item.comments.nodes[0].createdAt) : NaN;
+      return created > from && created <= hold.at;
+    }).length;
+    if (left < hold.review.inline) return keep(`${hold.lane} recorded ${hold.review.inline} inline finding(s) at ${hold.sha}, and ${left} of its threads are left`);
   }
   const open = nodes.find((item) => {
     const owners = judged.filter((lane) => laneThread(lane, item));

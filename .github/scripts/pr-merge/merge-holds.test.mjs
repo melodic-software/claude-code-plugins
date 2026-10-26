@@ -785,6 +785,17 @@ test("laneLift keeps the label when a thread the held review opened is gone", ()
   assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [later] } })).lift, false);
   // Another lane's thread does not count for the security lane.
   assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [thread("SUGGESTION", { lane: "claude-review" })] } })).lift, false);
+  // An earlier review's thread does not stand in for one the held review
+  // opened: the lane's runs are serialized, so the held review's threads
+  // opened after the lane's previous review completed.
+  const EARLY = "2222222222222222222222222222222222222222";
+  const earlyRun = run(19, EARLY, [job(SEC_CHECK, "2026-10-26T11:50:00Z", [record(EARLY, { findings: 1, inline: 1 })], { id: 191 })]);
+  const earlyThread = { ...thread("SUGGESTION"), comments: { nodes: [{ ...thread("SUGGESTION").comments.nodes[0], createdAt: "2026-10-26T11:45:00Z" }] } };
+  const withEarly = withSec([earlyRun, ...liftInput().lanes[SEC]]).lanes;
+  assert.equal(laneLift(liftInput({ threads: { totalCount: 1, nodes: [earlyThread] }, lanes: withEarly })).lift, false);
+  // With the held review's own thread still there, the earlier run changes nothing.
+  const both = { totalCount: 2, nodes: [earlyThread, thread("CRITICAL", { resolved: true, outdated: true })] };
+  assert.equal(laneLift(liftInput({ threads: both, lanes: withEarly })).lift, true);
 });
 
 test("laneLift keeps a label a person or another lane added", () => {

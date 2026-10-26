@@ -1853,7 +1853,8 @@ them on every `pull_request` run, contract-only runs included:
   escalation or comment deletion; each holding lane and the security lane completed a review of
   the head that recorded no hold and no summary finding (a held review's summary finding needs a
   whole review); each held review's inline findings still have that many of its lane's threads,
-  opened by the time it completed, so a deleted thread keeps the label; and no lane thread is open
+  opened after the lane's previous review completed and by the time it did, so a deleted thread
+  keeps the label; and no lane thread is open
   above SUGGESTION. A thread is closed only once resolved,
   by a trusted person, or by anyone when the lane's newest review of the head was whole, found
   nothing, completed after the thread opened, and no other review of the head reported a finding
