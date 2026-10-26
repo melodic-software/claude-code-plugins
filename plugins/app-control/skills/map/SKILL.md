@@ -16,7 +16,7 @@ e.g. /app-control:map create storefront, /app-control:map check .claude/skills/c
 
 Write a project's control skill, the files `/app-control:drive` reads to run the app. This skill is
 their only writer and never drives the app itself: it calls drive. The result follows
-[control-skill.md](../../reference/control-skill.md); read it before writing. Create writes files,
+[`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md); read it before writing. Create writes files,
 commits nothing, and never overwrites a control skill; check writes nothing; refresh commits only
 to its upkeep branch.
 
@@ -43,22 +43,22 @@ repository). It never changes what map writes, where, or which question or floor
 
 The control skill goes to `.claude/skills/control-<app slug>/`, which drive reads from disk, or to
 a `--dir` that names another such directory. The slug rule, the location rules and the real-path
-checks are in [reference/naming.md](reference/naming.md). A refused `--dir` never stops the run:
+checks are in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md). A refused `--dir` never stops the run:
 name the value and the rule, and use the default.
 
 Where the skill would go already holds a `SKILL.md`, stop and write nothing. Report the existing
 skill and the app its hub names; when that is another app, give the directory this app needs. A
 directory with files but no `SKILL.md` is an earlier create that stopped before its hub: resume it,
 and report each file that was already there. A `cli/` or `config/defaults.json` already there is
-not this run's: report it, and let the Floors check in prove.md decide the floor-enforcement line.
+not this run's: report it, and let the Floors check in `${CLAUDE_SKILL_DIR}/reference/prove.md` decide the floor-enforcement line.
 
 ### 2. Discover
 
-Walk every row of [reference/discovery.md](reference/discovery.md), read-only, before asking
+Walk every row of [`${CLAUDE_SKILL_DIR}/reference/discovery.md`](reference/discovery.md), read-only, before asking
 anything. Each row ends `found`, with the file or command that showed it, or `open`. Discovery
 launches nothing.
 
-Then check the app runs, with the step 2 calls in [reference/prove.md](reference/prove.md), unless
+Then check the app runs, with the step 2 calls in [`${CLAUDE_SKILL_DIR}/reference/prove.md`](reference/prove.md), unless
 the Side effects or Shared systems row is `open` or found that a local run sends or writes to a
 shared system: then launch nothing until a person answers it, and under `--unattended` list it as
 an open question. When
@@ -104,11 +104,11 @@ drive finds a control skill by its hub.
   recipe, first found: a `run-<name>` project skill; a recorded `.claude/skills/verify/SKILL.md`;
   else the documented start command, and offer the person `/run-skill-generator` to type. Our rule:
   name a recipe, never copy it or write into its directory; the upstream behavior of those two is
-  a pointer record in [reference/naming.md](reference/naming.md#upstream-recipes). Ready reads
+  a pointer record in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md#upstream-recipes). Ready reads
   `build: not exposed` when the app shows no build identifier, and checks the rest. When a test
   harness hosts its own instance, Ready checks the harness's build and the services it needs.
 - **Pointer.** One line naming the control skill, in the instruction file the repository treats as
-  its source, chosen by "Pointer target" in [reference/naming.md](reference/naming.md). Write it
+  its source, chosen by "Pointer target" in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md). Write it
   there only, never in both, and never in a new file when one exists.
 
 ### 5. Prove
@@ -125,7 +125,7 @@ form, `blocked: <reason>`, with its entry point, never a projected or guessed re
 When the tool the hub names cannot run on this host, the outcome is
 `blocked: driver unavailable` with drive's gap report; do not edit the hub or switch tools.
 
-[reference/prove.md](reference/prove.md) holds the sign-in rule, which comes first, the exact drive
+[`${CLAUDE_SKILL_DIR}/reference/prove.md`](reference/prove.md) holds the sign-in rule, which comes first, the exact drive
 calls, and the evidence and no-orphan checks that follow the run. A lesson the run learns is
 placed per Lessons below.
 
@@ -169,7 +169,7 @@ placed per Lessons below.
 
 ## Refresh
 
-Follow [reference/refresh.md](reference/refresh.md) for every step. A pass ends `clean`, `changed`
+Follow [`${CLAUDE_SKILL_DIR}/reference/refresh.md`](reference/refresh.md) for every step. A pass ends `clean`, `changed`
 or `blocked`, and edits only the control skill's directory, plus the legacy map directory a
 conversion moves out of.
 

@@ -1,6 +1,6 @@
 {
   "name": "app-control",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Runs the project's app and records evidence without judging it. /app-control:drive finds the project's control skill (or falls back to the bundled run skill or a project-type recipe), reports what is reachable, captures one artifact, stops only what it started, and writes report.md and report.json. /app-control:map writes and maintains that control skill: discovery first, questions only for what is left, and a driver CLI that enforces the safety floors.",
   "author": {
     "name": "Melodic Software",
