@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: repoint-moved-doc-links
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'readme-repointed'
+    type: 'regex'
+    pattern: '\]\((?:\./)?reference/routing/rubric\.md\)'
+    target: { source: file, path: plugins/multi-agent/README.md }
+  - name: 'readme-old-gone'
+    type: 'regex'
+    pattern: 'routing-rubric\.md'
+    match: 'not_contains'
+    target: { source: file, path: plugins/multi-agent/README.md }
+  - name: 'config-repointed'
+    type: 'regex'
+    pattern: '\]\((?:\./)?routing/rubric\.md\)'
+    target: { source: file, path: plugins/multi-agent/reference/config.md }
+  - name: 'config-old-gone'
+    type: 'regex'
+    pattern: 'routing-rubric\.md'
+    match: 'not_contains'
+    target: { source: file, path: plugins/multi-agent/reference/config.md }
+  - name: 'skill-repointed'
+    type: 'regex'
+    pattern: '\]\(\.\./\.\./reference/routing/rubric\.md#the-rule\)'
+    target: { source: file, path: plugins/multi-agent/skills/route/SKILL.md }
+  - name: 'skill-old-gone'
+    type: 'regex'
+    pattern: 'routing-rubric\.md'
+    match: 'not_contains'
+    target: { source: file, path: plugins/multi-agent/skills/route/SKILL.md }
+  - name: 'upstream-repointed'
+    type: 'regex'
+    pattern: '\]\(\.\./\.\./plugins/multi-agent/reference/routing/rubric\.md\)'
+    target: { source: file, path: docs/upstream/haiku-5-5-launch.md }
+  - name: 'upstream-old-gone'
+    type: 'regex'
+    pattern: 'reference/routing-rubric\.md'
+    match: 'not_contains'
+    target: { source: file, path: docs/upstream/haiku-5-5-launch.md }
+  - name: 'upstream-sibling-kept'
+    type: 'regex'
+    pattern: '\[the earlier routing record\]\(routing-rubric\.md\)'
+    target: { source: file, path: docs/upstream/haiku-5-5-launch.md }

@@ -66,7 +66,7 @@
       - For an `ABSENT` file only: **Remove from main**, offered only if the user confirms the file was deliberately deleted in this worktree this session. ABSENT is ambiguous (a manual or pre-`.worktreeinclude` worktree never received the copy), so default to **Skip**; never remove main's copy without that explicit confirmation
    4. If user chooses "copy to main": `mkdir -p "$(dirname "$MAIN_ROOT/$f")" && cp "$f" "$MAIN_ROOT/$f"` (a new topic slug has no parent directory in main yet); confirmed deliberate deletion: `rm "$MAIN_ROOT/$f"`
 
-   **Why here (not WorktreeRemove hook):** this is the last intentional checkpoint where user is engaged and can inspect a diff. WorktreeRemove hooks cannot block removal or prompt. A silent copy could overwrite concurrent session changes. One mechanism per concern.
+   **Why here (not WorktreeRemove hook):** this is the last intentional checkpoint where user is engaged and can inspect a diff. A WorktreeRemove hook cannot prompt, and this plugin's (`hooks/worktree-remove-gate.sh`) compares no carried file. A silent copy could overwrite concurrent session changes. One mechanism per concern.
 
    **Skip conditions:** not in a worktree, no `.worktreeinclude` file exists, no differences found.
 
@@ -216,19 +216,13 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 ### 2.4.1 Push and assemble PR body
 
 ```bash
-# Push via push-branch.sh, which resolves the push and fetch/rebase remotes
-# independently (resolve-remote.sh --push vs plain) and sets upstream (`-u`)
-# ONLY for a branch with NO existing upstream — branch.<name>.remote AND
-# branch.<name>.merge both unset — whose fetch and push resolve to the same
-# remote (a fresh feature branch's first push). `git push -u` rewrites the
-# branch's whole upstream — both keys — so any existing upstream (a real remote,
-# a deliberate local-only `.`, or a merge ref set with the remote defaulting to
-# `origin`) is preserved by a plain push instead. This closes two silent
-# corruptions: a triangular fork (push a fork via pushRemote/pushDefault, fetch
-# `origin`/`upstream`) no longer repoints the fetch remote to the fork, and a
-# branch with any configured tracking no longer has its merge ref overwritten.
-# See the script header for the full rationale.
-bash "<skill-dir>/scripts/push-branch.sh" || exit 1
+# Push via push-branch.sh, which resolves the push remote (resolve-remote.sh
+# --push), so a triangular fork checkout pushes to the fork. --dir names the
+# checkout being opened, as a literal absolute path, never one derived from the
+# cwd, which can reset to the main checkout. It pushes that checkout's HEAD by
+# refspec and writes no upstream (§2.4.3 names --head). The script refuses the
+# push remote's default branch. See the script header for the full rationale.
+bash "<skill-dir>/scripts/push-branch.sh" --dir "<checkout>" || exit 1
 ```
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered source-control config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
@@ -522,11 +516,16 @@ out of the gated content:
 # heredoc, so a `$`-bearing configured ATTRIBUTION value is never re-evaluated.
 [[ -n "$ATTRIBUTION" ]] && printf '\n\n%s\n' "$ATTRIBUTION" >>"$BODY_FILE"
 
-BRANCH=$(git branch --show-current)
+# Read the branch from the checkout §2.4.1 pushed (the same literal absolute
+# path), never the cwd, which can reset to the main checkout.
+BRANCH=$(git -C "<checkout>" branch --show-current)
 if [[ -z "$BRANCH" ]]; then
-  echo "Cannot create PR: not on a named branch (detached HEAD?)." >&2
+  echo "create: '<checkout>' is not on a named branch (detached HEAD?); not creating a PR" >&2
   exit 1
 fi
+# push-branch.sh's own check, pushing nothing: refuses main, master, the push
+# remote's default branch as the remote reports it, and an unreadable default.
+bash "<skill-dir>/scripts/push-branch.sh" --check --dir "<checkout>" "$BRANCH" || exit 1
 ```
 
 Then open the PR as a draft from head `$BRANCH`, with the title and the body file, and capture `PR_URL` and `PR_NUMBER`

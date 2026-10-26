@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "# Configuration\n\nA layer may set any role to `haiku`; the resolver then adds a note pointing at the\n[routing rubric](routing/rubric.md). The bundled layer is [defaults.yaml](defaults.yaml).\n",
+      "why": "repointed relative to reference/"
+    },
+    {
+      "answer": "[routing rubric](./routing/rubric.md)\n",
+      "why": "explicit ./ prefix"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "[routing rubric](routing-rubric.md)\n",
+      "why": "still the old path"
+    },
+    {
+      "answer": "[routing rubric](reference/routing/rubric.md)\n",
+      "why": "path written as if from the plugin root"
+    }
+  ]
+}

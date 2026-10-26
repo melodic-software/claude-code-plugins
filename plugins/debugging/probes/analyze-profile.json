@@ -7,10 +7,6 @@
     "debugging:debug",
     "app-control:drive"
   ],
-  "competitor_dirs": {
-    "debugging:debug": "plugins/debugging/skills/debug",
-    "app-control:drive": "plugins/app-control/skills/drive"
-  },
   "queries": [
     {
       "id": "pos-train-01",

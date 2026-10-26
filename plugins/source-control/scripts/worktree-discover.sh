@@ -6,6 +6,7 @@
 # Usage:
 #   worktree-discover.sh [--repo-dir REPO]... [--fallback-root-file PATH]
 #                        [--data-root-file PATH] [--project-dir DIR]
+#                        [--remove-input-files]
 #     --repo-dir            a repository to inventory (repeatable). When given,
 #                           only these repositories are discovered. Otherwise the
 #                           fleet audit's scope applies: fleet.root/fleet.repo
@@ -20,6 +21,13 @@
 #                           callers that have it
 #     --fallback-root-file  the worktree_root plugin option, as worktree-create.sh
 #     --data-root-file      the plugin data directory, as worktree-create.sh
+#     --remove-input-files  on exit, whatever the exit code, delete the files
+#                           handed to --fallback-root-file and --data-root-file,
+#                           then rmdir each one's directory (left in place when it
+#                           is not empty), as worktree-create.sh does. Armed when
+#                           the flag is parsed: a usage error before it leaves the
+#                           files. The files are read after every flag is parsed,
+#                           so an unreadable one is still removed
 #
 # Output, tab-separated:
 #   root      <path> <rung>         each distinct worktree root: the chain
@@ -63,7 +71,7 @@ source "$SCRIPT_DIR/scope-resolve.sh"
 source "$SCRIPT_DIR/fleet-discovery.sh"
 
 usage() {
-  printf 'Usage: %s [--repo-dir REPO]... [--fallback-root-file PATH] [--data-root-file PATH] [--project-dir DIR]\n' "$PROG" >&2
+  printf 'Usage: %s [--repo-dir REPO]... [--fallback-root-file PATH] [--data-root-file PATH] [--project-dir DIR] [--remove-input-files]\n' "$PROG" >&2
   exit 2
 }
 
@@ -83,9 +91,24 @@ read_root_file() {
   printf '%s' "$value"
 }
 
+# remove_input_files_on_exit: the EXIT trap behind --remove-input-files. Reads
+# the path variables at exit time. rm -f and rmdir only: a directory holding
+# anything else is left alone.
+# shellcheck disable=SC2329  # invoked by the EXIT trap
+remove_input_files_on_exit() {
+  local file
+  for file in "${fallback_root_file:-}" "${data_root_file:-}"; do
+    [[ -n "$file" ]] || continue
+    rm -f -- "$file"
+    rmdir -- "$(dirname -- "$file")" 2>/dev/null || true
+  done
+}
+
 named=()
 fallback_root=""
 data_root=""
+# Unset until the flag appears, so an empty value is still read, and refused.
+unset fallback_root_file data_root_file
 project_dir="${CLAUDE_PROJECT_DIR:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -96,12 +119,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   --fallback-root-file)
     [[ $# -ge 2 ]] || usage
-    fallback_root="$(read_root_file "$2")" || exit 2
+    fallback_root_file="$2"
     shift 2
     ;;
   --data-root-file)
     [[ $# -ge 2 ]] || usage
-    data_root="$(read_root_file "$2")" || exit 2
+    data_root_file="$2"
     shift 2
     ;;
   --project-dir)
@@ -109,9 +132,19 @@ while [[ $# -gt 0 ]]; do
     project_dir="$2"
     shift 2
     ;;
+  --remove-input-files)
+    trap remove_input_files_on_exit EXIT
+    shift
+    ;;
   *) usage ;;
   esac
 done
+if [[ -n "${fallback_root_file+x}" ]]; then
+  fallback_root="$(read_root_file "$fallback_root_file")" || exit 2
+fi
+if [[ -n "${data_root_file+x}" ]]; then
+  data_root="$(read_root_file "$data_root_file")" || exit 2
+fi
 
 # --- Repository discovery: the fleet audit's scope, without its CLI ----------
 SKIP_NAMES=()

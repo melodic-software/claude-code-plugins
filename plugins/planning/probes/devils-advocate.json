@@ -10,13 +10,6 @@
     "review:quality-gate",
     "discovery:research"
   ],
-  "competitor_dirs": {
-    "planning:audit-answers": "plugins/planning/skills/audit-answers",
-    "planning:plan": "plugins/planning/skills/plan",
-    "debugging:debug": "plugins/debugging/skills/debug",
-    "review:quality-gate": "plugins/review/skills/quality-gate",
-    "discovery:research": "plugins/discovery/skills/research"
-  },
   "queries": [
     {
       "id": "pos-train-01",
