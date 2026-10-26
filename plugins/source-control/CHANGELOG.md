@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.1] - 2026-10-26
+
+### Changed
+
+- babysit-prs holds the lanes' new retry-fetch modules for a person's review, as it holds the other lane scripts.
+
 ## [3.10.0] - 2026-10-26
 
 ### Added

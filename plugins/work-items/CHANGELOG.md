@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.0] - 2026-10-26
+
+### Added
+
+- **`attend-queue` lists `[held]` and `[post-merge]` rows.** A `[held]` row is an open pull request carrying the human-gated role label or `do-not-merge` that does not list as `[escalated]`, so no pull request lists twice. A `[post-merge]` row is an open human-gated issue whose first body line is a `babysit-merge-demotion` or `post-merge-failure` record marker, counted only from the workflow identity or a trusted escalation author; a record from anyone else is reported as a suspected spoof. Both rows only prompt the operator: the lane claims, edits, closes, reverts and merges nothing on them.
+
+### Changed
+
+- **`attend-queue`'s default order is owner-blocked pull requests (`[escalated]` pull requests, then `[held]`), then stopped work (`[ratify]`, then `[escalated]` issues), then `[post-merge]`, then `[intake]`,** oldest first within each row kind; the operator's chosen order still overrides it. Every row carries its link, and the skill states that issue-lane hand-backs arrive as `[escalated]` rows with their run link.
+
+### Fixed
+
+- The view bridge's session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
 ## [3.5.0] - 2026-10-26
 
 ### Added
