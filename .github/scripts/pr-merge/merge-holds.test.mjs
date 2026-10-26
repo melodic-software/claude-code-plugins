@@ -316,6 +316,7 @@ const FLOOR_FILES = [
   ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
   ".github/actions/check-kill-switch/check-kill-switch.mjs",
   ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
   ".github/CODEOWNERS",
   "plugins/foo/codeowners",
   ".gitmodules",
