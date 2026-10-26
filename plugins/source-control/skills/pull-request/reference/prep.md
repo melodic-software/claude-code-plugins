@@ -51,6 +51,8 @@ Run the audit each detected class owes, over the changed files of that class onl
 
 **Added suppressions (any diff that is not docs-only by file type; the instruction-surface definition in [ready-for-review.md](ready-for-review.md#docs-only-and-instruction-surfaces) does not widen it).** When `/code-metrics:audit-suppressions` is among the available skills, run it in its change scope against the base the pull request targets (`--base <remote>/<base-branch>`), and list in the 1.6 report every suppression the change adds, each with its file, line, rule ids and reason. This list is advisory: it never blocks pull request creation, and no suppression is removed or rewritten on its account without the user. When the skill is not available, or the scan exits non-zero, put `suppression check not run: <reason>` in the report (for example `suppression check not run: /code-metrics:audit-suppressions is not available`) and continue.
 
+**Pre-push warnings (every branch).** Run `bash "<skill-dir>/scripts/prep-warnings.sh" --base <remote>/<base-branch>` and list each line it prints in the 1.6 report. A `skill-cut` line names an existing `SKILL.md` or agent body that loses lines while no file under its eval home is added or changed; `/playbooks:skill-authoring` ships such a cut only with eval evidence of no loss. A `protected-path` line names a path the unattended merge (`/source-control:babysit-prs`) holds for a person, or a plugin manifest it holds when an executable key or plugin entry changes. This list is advisory: it never blocks pull request creation, since a person may make either change on purpose. When the script exits non-zero, put `prep warnings not run: <reason>` in the report and continue.
+
 Audits that persist findings hand them to one `/review:fanout fix` pass when the `review` plugin is enabled, and are applied by hand otherwise. Either way each finding goes through 1.3 first.
 
 ## 1.3 Verify every finding
@@ -94,6 +96,6 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 ## 1.6 Report
 
-Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
+Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
 **Prep before create is the developer loop.** The rebase in [create.md](create.md) §2.2 and the base merge in [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, which is why the ready step re-runs the verify gate on the head it flips.
