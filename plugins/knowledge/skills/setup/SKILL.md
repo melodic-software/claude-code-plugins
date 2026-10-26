@@ -46,15 +46,21 @@ config, or install anything.
    convention (or the portable `.` default with no distinct convention). FAIL on a mismatch
    (remediation: Claude Code's plugin configuration prompt for `knowledge`) or a machine-absolute
    path (not portable for repository work).
-2. **Extraction node deps**. INFO. Probe whether
+2. **`upstream_records_dir`**. INFO. Report the directory `/knowledge:absorb-upstream` writes to
+   and its layer: `upstream_records_dir` in `<home>/knowledge.yaml` (`<home>` from the pointer
+   region of `AGENTS.md` or `CLAUDE.md`, else `docs/conventions`), else the default
+   `docs/upstream`, under the root rule and value rules of
+   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. An invalid value is a FAIL naming the file, key and
+   value (remediation: edit the team file by hand; `apply` does not write it).
+3. **Extraction node deps**. INFO. Probe whether
    `${CLAUDE_PLUGIN_DATA}/node_modules/@melodic/video-digestion` exists (the video-digest and
    course-digest pipelines share it). Missing is INFO, not FAIL: each ingest skill self-provisions
    on first run, and `apply install-deps` pre-provisions. Remediation: `apply install-deps`.
-3. **Playwright Chromium**. INFO. Probe whether the browsers path
+4. **Playwright Chromium**. INFO. Probe whether the browsers path
    (`PLAYWRIGHT_BROWSERS_PATH`, else `${CLAUDE_PLUGIN_DATA}/ms-playwright`) holds a `chromium-*`
    or `chromium_headless_shell-*` build (course-digest frame capture). Missing is INFO with
    remediation `apply install-deps`.
-4. **OS-level media tools**. INFO. Probe `yt-dlp --version` (video acquisition), `ffmpeg
+5. **OS-level media tools**. INFO. Probe `yt-dlp --version` (video acquisition), `ffmpeg
    -version` (frame extraction, watch/course actions), and `magick -version` (ImageMagick 7,
    contact sheets. Watch/course actions). Each absence is INFO with the platform install command
    from the ingest skill's Prerequisites; this skill never installs system packages. `book-distill`
@@ -97,10 +103,12 @@ reports "already configured".
    A stored fingerprint gates reinstalls, so re-running is safe and cheap. After provisioning,
    re-run the `check` node-deps and Chromium probes and report their actual results, never claim
    provisioned on the script exit codes alone.
-3. **OS-level media tools. Guidance only.** For a missing `yt-dlp`, `ffmpeg`, or ImageMagick 7,
+3. **Invalid `upstream_records_dir`. Guidance only.** Name the file, key and value and the valid
+   forms from `${CLAUDE_PLUGIN_ROOT}/reference/config.md`; never write the team file.
+4. **OS-level media tools. Guidance only.** For a missing `yt-dlp`, `ffmpeg`, or ImageMagick 7,
    give the platform install command from the ingest skill's Prerequisites. This skill never
    installs system packages.
-4. **Confirm.** Report the observed `library_dir`, the repository convention and any mismatch, and
+5. **Confirm.** Report the observed `library_dir`, the repository convention and any mismatch, and
    whether extraction dependencies were provisioned or intentionally skipped. Note that
    `/knowledge:book-distill` writes to its explicitly named target skill rather than this setting.
 
