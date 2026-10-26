@@ -390,16 +390,18 @@ test("a head whose fix-ci runs include a run that is not retryable is not capped
   assert.deepEqual([1, 2, 3].map((number) => isHandled(record, "pr-unblock / fix-ci", head(number))), [true, false, false]);
 });
 
-test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit waits, any other error fails", async () => {
+test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit or a 5xx waits, any other error fails", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const limited = Object.assign(new Error("GET check-runs returned 403"), { rateLimited: true });
+  const outage = Object.assign(new Error("GET check-runs returned 502"), { status: 502 });
   const { lines, result } = await run(
-    { pages: [[pr(1), pr(2)]], history: new Map([[head(1), limited], [head(2), new Error("GET check-runs returned 502")]]) },
+    { pages: [[pr(1), pr(2), pr(3)]], history: new Map([[head(1), limited], [head(2), new Error("GET check-runs returned 404")], [head(3), outage]]) },
     { maxDispatch: 5 },
   );
   assert.deepEqual(result, { dispatched: [], failed: 1 });
   assert.ok(lines.includes("::warning::#1: its pr-unblock / fix-ci run read is rate limited (GET check-runs returned 403); no fix-ci dispatched, a later run retries"), lines.join("\n"));
-  assert.ok(lines.includes("::error::#2: could not read its pr-unblock / fix-ci runs (GET check-runs returned 502); left for a later run"), lines.join("\n"));
+  assert.ok(lines.includes("::error::#2: could not read its pr-unblock / fix-ci runs (GET check-runs returned 404); left for a later run"), lines.join("\n"));
+  assert.ok(lines.includes("::warning::#3: could not read its pr-unblock / fix-ci runs: GET check-runs returned 502; skipped, a later run retries"), lines.join("\n"));
 });
 
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
@@ -454,10 +456,21 @@ test("an awaiting-human skip left while the PR was held does not hold it once th
 test("a hold that cannot be read counts as a failed dispatch", async () => {
   const api = fakeApi({ pages: [[pr(1, humanGated)]] });
   api.listTimeline = async () => {
-    throw new Error("GET timeline returned 502");
+    throw Object.assign(new Error("GET timeline returned 404"), { status: 404 });
   };
   const result = await dispatchCiFixes({ api, runId: "1", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
   assert.deepEqual(result, { dispatched: [], failed: 1 });
+});
+
+test("a hold read GitHub still answers 5xx after its retries skips that PR with a warning and fails nothing", async () => {
+  const api = fakeApi({ pages: [[pr(1, humanGated), pr(2)]] });
+  api.listTimeline = async () => {
+    throw Object.assign(new Error("GET timeline returned 502"), { status: 502 });
+  };
+  const lines = [];
+  const result = await dispatchCiFixes({ api, runId: "1", log: (line) => lines.push(line), appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 2, workflowRunId: "7002" }], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#1:") && line.includes("502")));
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {
@@ -695,13 +708,24 @@ test("an adopted owner PR whose ci-status failed on infra only is the reconciler
 // no reason to wait, so fix-ci takes the head under its usual caps.
 test("a head whose required run's jobs cannot be read is dispatched fix-ci, and the log says why", async () => {
   const head = "5".padStart(40, "a");
-  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, new Error("GET returned 502")]]) });
+  const unreadable = Object.assign(new Error("GET returned 404"), { status: 404 });
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, unreadable]]) });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [5],
   );
-  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs (GET returned 502); dispatching fix-ci")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs (GET returned 404); dispatching fix-ci")), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: required run unreadable)")), lines.join("\n"));
+});
+
+// An outage is no reason to spend a model run either: a required-run read
+// GitHub still answers 5xx after its retries skips that head for a later run.
+test("a required-run read GitHub still answers 5xx after its retries skips that head with a warning and fails nothing", async () => {
+  const outage = Object.assign(new Error("GET https://api.example/runs returned 502"), { status: 502 });
+  const { api, lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns: new Map([["5".padStart(40, "a"), outage]]) });
+  assert.deepEqual(result, { dispatched: [{ number: 6, workflowRunId: "7006" }], failed: 0 });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["6"]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5:") && line.includes("502") && line.includes("skipped")), lines.join("\n"));
 });
 
 test("an unreadable required run still keeps the per-head cap, the restart count and an in-flight run", async () => {

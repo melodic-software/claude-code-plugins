@@ -175,7 +175,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .padlock{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .lockban .padlock{vertical-align:-1px;margin-right:5px}
 .s-wait{color:var(--res);background:var(--res-soft)}
-.s-need{color:var(--warn);background:var(--warn-soft)}
+.s-need,.s-prop{color:var(--warn);background:var(--warn-soft)}
 .qbtn.st-wait{border-left:3px solid var(--res)}
 .qbtn.st-need{border-left:3px solid var(--warn)}
 .qprev{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -227,6 +227,8 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 section.blk{display:grid;gap:8px}
 section.roundrestate{border-left:3px solid var(--res);background:var(--res-soft);padding:9px 14px;border-radius:0 6px 6px 0;margin-bottom:10px}
+section.proposal{border-left:3px solid var(--warn);background:var(--warn-soft);padding:9px 14px;border-radius:0 6px 6px 0}
+section.proposal textarea{width:100%;font:inherit}
 section.blk>h4,details.more>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
 details.more,details.src{display:grid;gap:12px}
 details.more>summary{cursor:pointer;padding:4px 0}
@@ -554,7 +556,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const fmtT = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}); };
   const NOTE_FOLD_AT = 5; // Notes panel: past this many notes, all but the newest fold to one line
   const trunc = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "..." : s; };
-  const LABEL = {open: "Open", accept: "Accepted", hedged: "Hedged", alt: "Alternative", own: "Own answer", defer: "Deferred", wait: "Pending research", need: "Needs your answer", sup: "Superseded", arch: "Archived"};
+  const LABEL = {open: "Open", accept: "Accepted", hedged: "Hedged", alt: "Alternative", own: "Own answer", defer: "Deferred", wait: "Pending research", need: "Needs your answer", sup: "Superseded", arch: "Archived", prop: "Proposed"};
   const DEC = new Set(["accept", "alt", "own", "defer", "hedged", "reopen"]);
   const SUMMARY = "__summary";
   const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30, frontierLock: "confirm", requireDepends: false};
@@ -593,7 +595,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -686,14 +688,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
   function stateOf(q){ // a hold wins over a recorded decision
     if (q.state === "archived" || q.archived) return "arch";
+    if (q.state === "proposed") return "prop"; // Claude proposes it: the user accepts, edits or declines it before it is a question
     if (q.waiting && !q.supersededBy) return q.waitingBy === "user" ? "need" : "wait";
     const d = counted(q);
     if (d) return d.decision;
     if (q.supersededBy) return "sup";
     return "open";
   }
-  const isAnswered = st => !["open", "wait", "need", "arch"].includes(st);
-  const isOpen = st => st === "open" || st === "need";
+  const isAnswered = st => !["open", "wait", "need", "arch", "prop"].includes(st);
+  const isOpen = st => st === "open" || st === "need" || st === "prop";
   const live = q => !["sup", "arch"].includes(stateOf(q));
   const isStale = q => q.state === "stale" && stateOf(q) !== "arch";
   const upChanged = q => q.state === "upstream-changed" && stateOf(q) !== "arch"; // an answer it depends on changed or was reopened, and Claude has not revised or reconfirmed it yet
@@ -1136,9 +1139,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (h.kind === "rephrase") return "Claude rephrased";
       if (h.kind === "revise") return "Claude revised";
       if (String(h.text).trim() === "Asked.") return "Claude asked";
+      if (h.kind === "propose") return "Claude proposed";
       return h.replyTo ? "Claude replied" : "Claude";
     }
-    const base = who() + (h.kind === "alt" ? " chose (" + (h.alt || "?") + ")" : h.kind === "confirm" ? " confirmed assumption " + (+h.alt + 1) : VERB[h.kind] ? " " + VERB[h.kind] : "");
+    const PROP = {accept: " accepted the proposal", edit: " edited the proposal", decline: " declined the proposal"};
+    const base = who() + (h.kind === "alt" ? " chose (" + (h.alt || "?") + ")" : h.kind === "confirm" ? " confirmed assumption " + (+h.alt + 1) : h.kind === "proposal" ? PROP[h.alt] || "" : VERB[h.kind] ? " " + VERB[h.kind] : "");
     return base + (h.by === "user-terminal" ? " in the terminal" : "");
   }
   function receipts(seq){
@@ -1248,8 +1253,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return proposes && old ? {proposes: String(proposes), was: String(old)} : null;
   }
   function altsOf(q){ return (q.alternatives || []).filter(a => !a.restates); } // the server flags an alternative that restates the recommendation: it folds into Accept
+  const awaitingRec = q => !!q.proposed && !q.recommendation; // an accepted proposal before Claude writes its recommendation: the server refuses an accept
   function choicesOf(q){
-    const r = reconfirmOf(q), c = r ? [r] : [], w = withheld(q); // a withheld question has nothing to accept, with or without a note or condition
+    const r = reconfirmOf(q), c = r ? [r] : [], w = withheld(q) || awaitingRec(q); // a withheld question has nothing to accept, with or without a note or condition
     if (!w) c.push({kind: "accept", label: "Rec", text: String(q.recommendation || "").replace(/[*`#]/g, "").replace(/\s+/g, " ").trim() || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
     altsOf(q).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
     c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "defer", who: true, label: "Someone else decides", text: "the note names who"});
@@ -1260,6 +1266,38 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const a = S.armed;
     return a ? cs.find(c => c.kind === a.kind && (c.alt ?? null) === a.alt && !!c.re === a.re && !!c.wn === !!a.wn && !!c.who === !!a.who) : undefined;
   }
+  function proposalHtml(q){ // a proposed question is one Needs-you card and no Decide list until the user accepts, edits or declines it
+    const g = groupById(q.group), from = (q.proposed || {}).fromSeq, edit = S.propEdit === q.id, msg = S.propMsg && S.propMsg.id === q.id ? S.propMsg.text : "";
+    let h = '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + (g ? "<span>" + esc(g.title) + "</span>" : "") + '<span class="chip s-prop">' + LABEL.prop + "</span></div></div>";
+    h += '<section class="blk proposal" id="proposal" aria-labelledby="propHead"><h4 id="propHead">Needs you</h4><p>Claude proposes adding: <b>' + inline(q.title) + "</b></p>" +
+      (from ? '<p class="kbd">From your question (#' + esc(String(from)) + ").</p>" : "") +
+      (edit ? '<label class="kbd" for="propText">Ask it as</label><textarea id="propText" rows="2" maxlength="' + LINE_CAP + '">' + esc(S.propDraft ?? q.title) + "</textarea>" : "") +
+      '<div class="arow">' + (edit
+        ? '<button class="act primary" data-proposal="edit" data-submit="1">Send edit</button><button class="act" data-proposal="cancel">Cancel</button>'
+        : '<button class="act primary" data-proposal="accept" data-submit="1">Accept</button><button class="act" data-proposal="open-edit">Edit</button><button class="act" data-proposal="decline" data-submit="1">Not this</button>') +
+      '</div><p class="kbd" id="propMsg" role="status">' + esc(msg) + "</p></section>";
+    const hist = historyOf(q);
+    return h + '<section class="blk" id="thread"><h4>Thread</h4>' + (hist.length ? '<ol class="hist">' + hist.map(x => histLine(x, q)).join("") + "</ol>" : '<p class="empty">No activity yet.</p>') + "</section>";
+  }
+  async function proposalAct(act){ // Accept, Edit then Send edit, or Not this; the server derives the question open, or archived on a decline
+    const q = Q[S.sel]; if (!q || stateOf(q) !== "prop" || S.busy) return;
+    const say = text => { S.propMsg = {id: q.id, text}; renderDetail(); };
+    if (act === "open-edit") { S.propEdit = q.id; S.propDraft = null; renderDetail(); const ta = $("propText"); if (ta) { ta.focus(); ta.select(); } return; }
+    if (act === "cancel") { S.propEdit = null; S.propDraft = null; renderDetail(); return; }
+    const alt = ["accept", "edit", "decline"].includes(act) ? act : null, text = alt === "edit" ? (($("propText") || {}).value || "").replace(/\s+/g, " ").trim() : ""; // the server takes the wording as one line
+    if (!alt) return;
+    if (alt === "edit" && !text) { say("Write the question as you would ask it."); return; }
+    if (closed()) { say(closedWhy()); return; }
+    S.busy = true;
+    try {
+      const {res, data} = await post({id: q.id, kind: "proposal", alt, text});
+      S.busy = false;
+      if (!res.ok) { await refresh().catch(() => {}); say("Not sent (" + (data.error || res.status) + ")."); return; }
+      S.propEdit = null; S.propDraft = null; S.propMsg = null;
+      await refresh();
+      toast(alt === "decline" ? "Declined. " + q.id + " is archived." : (alt === "edit" ? "Sent your wording. " : "Accepted. ") + "Claude writes the recommendation for " + q.id + " next." + queued());
+    } catch (e) { S.busy = false; if (!e.quiet) say("Not sent (" + e.message + ")."); }
+  }
   function renderDetail(opts){
     opts = opts || {};
     const el = $("dscroll"), top = el.scrollTop;
@@ -1267,6 +1305,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("answer").hidden = false;
     const q = Q[S.sel];
     if (!q) { el.innerHTML = '<p class="empty">' + (S.loaded ? "Pick a question." : "Loading questions.") + "</p>"; renderAnswer(); return; }
+    if (stateOf(q) === "prop") { // typing in the edit box survives a state push: S.propDraft holds it
+      const ta = $("propText"), typing = ta && document.activeElement === ta;
+      el.innerHTML = proposalHtml(q); el.scrollTop = opts.top ? 0 : top; $("answer").hidden = true;
+      const nt = typing && $("propText"); if (nt) { nt.focus(); nt.setSelectionRange(nt.value.length, nt.value.length); }
+      return;
+    }
     const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner() + roundRestateCard(q);
@@ -1280,7 +1324,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const links = link("Follow-up of", q.followUpOf ? [q.followUpOf] : []) + link("Follow-ups:", kids) + link("Needs", (q.dependsOn || []).filter(x => Q[x])) +
       link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
     if (links) h += '<div class="links">' + links + "</div>";
-    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : inline((q.archived || {}).why || "off the current path")) + "</div>"; // a replacement named here is the one banner for a superseded, archived card
+    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : q.archived ? inline(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
@@ -1290,6 +1334,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
     if (q.claudeRevising && st !== "arch") h += '<div class="banner"><b>Claude is revising this:</b> ' + inline(q.claudeRevising.why) + " You can still answer.</div>";
+    if (awaitingRec(q) && st !== "arch") h += '<div class="banner" id="awaitRec"><b>Claude is writing the recommendation.</b> You accepted this question; its recommendation and alternatives land here next. You can still answer in your own words, defer it or ask Claude.</div>';
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     const ups = lockMode() === "off" || !live(q) ? [] : openPrereqs(q);
     if (ups.length) h += '<div class="lockban" id="frontierLock">' + LOCK_SVG + "<b>Locked:</b> waits on " + ups.map(refHtml).join(" ") + ", still open. " + esc(lockAdvice(q)) + "</div>";
@@ -1992,6 +2037,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
     if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
+    if (isDec && stateOf(q) === "prop") return; // the keyboard: a proposal takes Accept, Edit or Not this, never a decision
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
     if (isDec && kind !== "reopen" && upLock(q).length) { toast("Not saved: " + upText(q), true); return; } // Save is disabled; this catches the keyboard
     const waits = isDec && kind !== "reopen" && lockMode() !== "off" ? openPrereqs(q) : [];
@@ -2330,6 +2376,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (sh) { const sec = sh.closest(".sec"), c = sec.dataset.collapsed !== "true"; sec.dataset.collapsed = String(c); sh.setAttribute("aria-expanded", String(!c)); lsSet("col:" + sec.dataset.key, {c, d: sec.dataset.dflt === "true"}); return; }
     const v = t.closest(".seg button"); if (v) { S.view = v.dataset.view; lsSet("view", S.view); renderRail(); return; }
     if (t.closest("[data-save]")) { submitArmed(); return; }
+    const pp = t.closest("button[data-proposal]"); if (pp && !pp.disabled) { proposalAct(pp.dataset.proposal); return; }
     const a = t.closest("button[data-act]"); if (a && !a.disabled) { send(a.dataset.act); return; }
     const rb = t.closest("button[data-research]"); if (rb && !rb.disabled) { researchNow(rb.dataset.research); return; }
     const cl = t.closest("button[data-clear]"); if (cl && !cl.disabled) { clearNote(); return; }
@@ -2387,9 +2434,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (e.target.id === "noteText") { lsSet("noteDraft", e.target.value); Kit.grow(e.target); }
     else if (e.target.id === "offText") S.offDraft = e.target.value;
     else if (e.target.id === "looseReply") S.looseDraft = e.target.value;
+    else if (e.target.id === "propText") S.propDraft = e.target.value;
   });
   document.addEventListener("paste", e => { // dictation tools insert by paste: text pasted with no text box focused lands in the current question's note
-    if (textFocused() || $("dlg").open || $("keysDlg").open || $("finDlg").open || !Q[S.sel]) return;
+    if (textFocused() || $("dlg").open || $("keysDlg").open || $("finDlg").open || !Q[S.sel] || stateOf(Q[S.sel]) === "prop") return; // a proposal shows no note box
     const note = $("note"), add = (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
     if (!add || note.disabled) return;
     e.preventDefault();
@@ -2412,7 +2460,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function ctrlEnter(target, shift){
     if ($("dlg").open || $("keysDlg").open || $("finDlg").open || !$("fs").hidden) return;
     if (target.id === "noteText") sendNote();
-    else if (S.sel === SUMMARY || !Q[S.sel]) return;
+    else if (target.id === "propText") proposalAct("edit");
+    else if (S.sel === SUMMARY || !Q[S.sel] || stateOf(Q[S.sel]) === "prop") return;
     else if (shift) { if ($("note").value.trim()) send("ask"); else toast("Write your question in the note first.", true); }
     else submitArmed();
   }
