@@ -16,9 +16,14 @@
 // only once it ends, so a run still in that job has no waiting job and is not
 // counted: this job then does its work.
 //
-// A pending run's job does the work when the run is scheduled, or when its
-// actor id and its triggering actor's login are both a listed human's (the
-// job's "Check who started the run" step stops any other run). A scheduled or
+// A pending run's job does the work when the run is scheduled, or when a
+// listed human started it (the job's "Check who started the run" step stops
+// any other run). This check counts a run only when its actor id and its
+// triggering actor id are both a listed human's, since a login can be
+// released and registered by someone else. The who step still matches the
+// triggering actor by login, so the two differ only on a renamed listed human
+// (counted here, stopped there: one sweep waits for the next scheduled run) or
+// a listed login someone else now holds (skipped here: one extra sweep). A scheduled or
 // hand-started run counts only on main, since another branch runs its own
 // copy; pull_request_target runs always run main's. And its
 // event must rank at least as high as this run's (RANKS). For `merge`, only a
@@ -59,17 +64,10 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-// The who step's test: the run's actor id and its triggering actor's login
-// (case-insensitive) each belong to a listed human.
-function startedByHuman({ humans, logins }, run) {
-  const login = run.triggering_actor?.login;
-  return (
-    Number.isInteger(run.actor?.id) &&
-    humans.has(run.actor.id) &&
-    typeof login === "string" &&
-    humans.has(logins.get(login.toLowerCase()))
-  );
-}
+// The run's actor and its triggering actor (who last re-ran it) are each a
+// listed human, by id.
+const startedByHuman = ({ humans }, run) =>
+  [run.actor?.id, run.triggering_actor?.id].every((id) => Number.isInteger(id) && humans.has(id));
 
 // The pending runs whose job, if still waiting, does all this run's job does.
 export function eligible(runs, { runId, event, trusted, ranks }) {
