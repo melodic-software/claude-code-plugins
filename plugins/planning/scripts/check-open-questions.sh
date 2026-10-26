@@ -30,7 +30,9 @@
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate, an
-#          out-of-order or a missing (gap) Q id, or a named `--brief` that is
+#          out-of-order or a missing (gap) Q id, an unfenced `- Q<N> |` row
+#          outside the register section (any heading ends the section, a
+#          sub-heading inside it included), or a named `--brief` that is
 #          missing. Row errors are collected in one pass, each on stderr with
 #          its own ledger line, and the verdict keeps the counts of the rows
 #          that parsed.
@@ -180,6 +182,20 @@ extract_section() {
     { print ".\t" $0 }
     END { if (fenced) { exit 4 } }
   ' "$2"
+}
+
+# Print the line number of each unfenced `- Q<N> |` row outside lines `lo` to
+# `hi` (inclusive), the register section's body. The register reads only the
+# rows above its next heading, so a row below a sub-heading would otherwise go
+# ungraded while the gate reports clean. The pipe is required: the exported
+# ledger's deferred-questions list (`- Q3: <question>`) is not a register row.
+rows_outside() {
+  awk -v lo="$1" -v hi="$2" "$fence_awk"'
+    fence_line($0) { next }
+    fenced { next }
+    NR >= lo && NR <= hi { next }
+    /^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*[|]/ { print NR }
+  ' "$3"
 }
 
 # Set brief_lo and brief_hi to the Brief's own lines in "$brief". A PLAN.md holds
@@ -507,6 +523,15 @@ while IFS= read -r line; do
   shopt -u nocasematch
   registered=$((registered + 1))
 done <<<"$section"
+
+# The loop read one line per ledger line, so lineno is the section's last line
+# (an empty section reads one empty line: the line after the heading, which is
+# a heading or past the end of the file, never a row).
+outside_lines="$(rows_outside $((register_line + 1)) "$lineno" "$ledger")" ||
+  die_ungradeable "could not read the rows of: $ledger"
+for lineno in $outside_lines; do
+  row_error "question row outside the register section (any heading ends it, a sub-heading included); move the row into the register, above its next heading"
+done
 
 # A gap is a number missing below the highest id; one sort over the whole set,
 # not a walk to the highest id, so a mistyped Q99999 costs nothing extra.

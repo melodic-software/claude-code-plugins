@@ -6358,3 +6358,44 @@ test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and 
   assert.equal(status("fallback"), 0, "the third call");
   for (const fallback of ["credit-stop", "no-key"]) assert.equal(status(fallback), 1, fallback);
 });
+
+// --- npm's fetch bound: one file, read by every hosted-runner npm ci ---
+
+// npm's documented defaults, fetch-timeout 300000 and fetch-retries 2
+// (https://docs.npmjs.com/cli/v11/using-npm/config); the bound is below both.
+test("npm-fetch.npmrc sets fetch-timeout and fetch-retries below npm's defaults", () => {
+  const values = Object.fromEntries(
+    read("../../npm-fetch.npmrc")
+      .split("\n")
+      .filter((line) => /^[a-z-]+=/.test(line))
+      .map((line) => line.split("=")),
+  );
+  assert.ok(Number(values["fetch-timeout"]) > 0 && Number(values["fetch-timeout"]) < 300000, `fetch-timeout ${values["fetch-timeout"]}`);
+  assert.ok(Number(values["fetch-retries"]) >= 0 && Number(values["fetch-retries"]) < 2, `fetch-retries ${values["fetch-retries"]}`);
+});
+
+// A job that runs npm ci (directly, through run-tests.sh, or through
+// check-wip-cap) names that file as npm's global config, at the path its own
+// full checkout holds it; resolve-config's action.yml install is left alone.
+test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () => {
+  const installs = (step) => /\bnpm ci\b|run-tests\.sh (?:install|test)\b/.test(step.run ?? "") || /\/check-wip-cap$/.test(step.uses ?? "");
+  let covered = 0;
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      const steps = job.steps ?? [];
+      const first = steps.findIndex(installs);
+      if (first < 0) continue;
+      const checkout = steps.slice(0, first).findLast((step) => /^actions\/checkout@/.test(step.uses ?? ""));
+      assert.ok(checkout, `${file} ${id}: no checkout before its npm ci`);
+      assert.equal(checkout.with?.["sparse-checkout"], undefined, `${file} ${id}: a sparse checkout may lack the file`);
+      const dir = checkout.with?.path ? `${checkout.with.path}/` : "";
+      const value = job.env?.npm_config_globalconfig ?? doc.env?.npm_config_globalconfig;
+      assert.equal(value, `\${{ github.workspace }}/${dir}.github/npm-fetch.npmrc`, `${file} ${id}`);
+      covered += 1;
+    }
+  }
+  // The jobs that ran npm ci when the bound was added: pr-require-checks' five,
+  // and one each in ten other workflows.
+  assert.ok(covered >= 15, `only ${covered} installing jobs found`);
+});

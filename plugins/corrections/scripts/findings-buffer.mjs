@@ -48,12 +48,22 @@ const USER_SCHEMA = {
 // A repository's settings env block reaches this process, and GIT_* there could point git at another repository.
 const GIT_ENV = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
 
+const SHOWN = 5;
+
 const say = (text) => process.stderr.write(`findings-buffer: ${text}\n`);
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
 const isContainer = (v) => v !== null && typeof v === "object";
 
 function lines(text) {
   return text.split("\n").filter((line) => /\S/.test(line));
+}
+
+/** Each layer's first SHOWN errors on stderr, then a count of the rest, so a file of unknown keys cannot flood it. */
+function sayErrors(layers) {
+  for (const { name, path, errors } of layers) {
+    for (const error of errors.slice(0, SHOWN)) say(error);
+    if (errors.length > SHOWN) say(`${name}${path ? ` (${path})` : ""}: and ${errors.length - SHOWN} more`);
+  }
 }
 
 // ---------- adapter ----------
@@ -141,7 +151,7 @@ function userBinding(project, scratch) {
   const userConfig = Object.fromEntries(Object.entries(options).map(([key, { value }]) => [key, value]));
   // The scratch home holds no file, so only the userConfig layer can set a value.
   const out = resolve({ plugin: PLUGIN, projectRoot: project, home: scratch, schema: USER_SCHEMA, defaults: {}, userConfig, userHome: scratch });
-  for (const layer of out.layers) for (const error of layer.errors) say(error);
+  sayErrors(out.layers);
   const { adapter_repository: repository, adapter_path: path } = out.values.findings_buffer ?? {};
   if (repository === undefined && path === undefined) return null;
   if (repository === undefined || path === undefined) return { why: `it needs both ${USER_KEYS.join(" and ")}` };
@@ -204,7 +214,7 @@ function fileBinding(project, scratch) {
     return "local-file";
   }
   const out = resolve({ plugin: PLUGIN, projectRoot: project, home, schema, defaults: { adapter: "local-file" }, userHome: scratch });
-  for (const layer of out.layers) for (const error of layer.errors) say(error);
+  sayErrors(out.layers);
   const token = out.values.adapter;
   const from = out.provenance.adapter;
   if (from === "defaults") {
