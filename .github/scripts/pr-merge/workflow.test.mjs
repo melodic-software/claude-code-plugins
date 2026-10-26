@@ -272,11 +272,45 @@ test("a pull request event wakes enable-auto-merge only for a lanes App pull req
   const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
   assert.match(
     armIf,
-    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\)\)\n/,
+    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\n {6}&& github\.event\.sender\.type != 'Bot'\)\)\n/,
   );
   assert.match(armIf, /^ {6}!cancelled\(\)\n/);
   assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
 });
+
+// A bot-sent pull_request_target run would wait in the queue and then stop at
+// who.mjs (a bot is never a listed human), so the job's condition skips it
+// first. The condition's syntax is the subset JavaScript reads the same way,
+// so the test evaluates it against hand-written events.
+const evalIf = (id, event) => {
+  const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(job(id))[1].replaceAll("\n", " ");
+  const format = (template, value) => template.replace("{0}", value);
+  return new Function("github", "vars", "cancelled", "format", `return (${text});`)(
+    { ref: "refs/heads/main", repository: "o/r", ...event },
+    { AUTOMATION_LANES_APP_SENDER_ID: "99" },
+    () => false,
+    format,
+  );
+};
+const pullRequestEvent = (senderType) => ({
+  event_name: "pull_request_target",
+  event: { sender: { type: senderType }, pull_request: { head: { repo: { full_name: "o/r" } }, user: { id: 99 } } },
+});
+
+for (const id of ["merge", "enable-auto-merge"]) {
+  test(`${id} skips a bot-sent pull_request_target run and runs a user-sent one`, () => {
+    assert.equal(evalIf(id, pullRequestEvent("Bot")), false);
+    assert.equal(evalIf(id, pullRequestEvent("User")), true);
+  });
+
+  test(`${id} does not gate schedule or workflow_dispatch on the sender type`, () => {
+    for (const event_name of ["schedule", "workflow_dispatch"]) {
+      for (const type of ["Bot", "User"]) {
+        assert.equal(evalIf(id, { event_name, event: { sender: { type } } }), true, `${event_name} sent by ${type}`);
+      }
+    }
+  });
+}
 
 // The merge job's skip, run for enable-auto-merge's own group before the lane
 // token or any other read.
