@@ -5106,7 +5106,7 @@ CHECK_CODE_PATHS = (
     "plugins/source-control/skills/babysit-prs/scripts",
     "docs/conventions/pr-pipeline.yaml",
 )
-CHECK_CODE_ROOT = Path(__file__).resolve().parents[4]
+CHECK_CODE_ROOT = Path(__file__).resolve().parents[5]
 
 
 def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:

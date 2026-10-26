@@ -980,6 +980,18 @@ class CheckCodeUnchanged(unittest.TestCase):
             with self.subTest(kept):
                 self.assertFalse(self.unchanged(kept, "config"))
 
+    def test_the_default_root_is_this_repository(self) -> None:
+        # The brief's two paths, read from the checkout the script runs in.
+        for path in policy.CHECK_CODE_PATHS:
+            self.assertTrue((policy.CHECK_CODE_ROOT / path).exists(), path)
+        here = subprocess.run(
+            ["git", "-C", str(policy.CHECK_CODE_ROOT), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertTrue(policy.check_code_unchanged(here))
+
     def test_a_git_failure_refuses(self) -> None:
         kept = self.commits["config"]
         self.git("checkout", "-q", "--detach", kept)
