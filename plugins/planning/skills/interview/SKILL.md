@@ -261,9 +261,9 @@ non-interactive, so never read an environment variable to decide this.
 ### EARS tags, when the convention selects them
 
 Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every
-degrade, emit criteria exactly as today: `- <testable criterion>`, untagged, byte-comparable in
-shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
-bracketed pattern prefix on that same plain-bullet form:
+degrade, emit criteria exactly as today: `- AC<n>: <testable criterion>`, untagged, byte-comparable
+in shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
+bracketed pattern prefix after its id on that same plain-bullet form:
 
 | Tag | Pattern |
 |---|---|
@@ -274,8 +274,8 @@ bracketed pattern prefix on that same plain-bullet form:
 | `[optional-feature]` | `WHERE <feature is included>, <response>` |
 
 ```text
-- [event-driven] WHEN the upload completes, the manifest is rewritten
-- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
+- AC1: [event-driven] WHEN the upload completes, the manifest is rewritten
+- AC2: [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 ```
 
 The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
@@ -288,7 +288,7 @@ owed a sixth pattern.
 Where the tags travel: they land in the Brief's `### Acceptance criteria`, and a consumer that
 publishes the Brief verbatim as a tracker container body carries them with it. They do not reach
 per-slice criteria, which are freshly authored by whatever decomposes the work, because a vertical
-slice owns everything it grades.
+slice owns everything it grades; a slice keeps only the criterion's id.
 
 ### Resolution ladder for `acceptance_criteria_format`
 

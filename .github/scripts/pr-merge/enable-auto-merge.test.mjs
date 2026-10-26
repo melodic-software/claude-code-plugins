@@ -317,6 +317,7 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/check-kill-switch/check-kill-switch.mjs",
     ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/rate-limits.json",
     ".github/CODEOWNERS",
     "vendor/.gitmodules",
     ".github/scripts/pr-merge/merge-holds.mjs",
@@ -1646,7 +1647,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     garbage: "print('not json')\n",
     other: `import json\nprint(json.dumps({"refusal": None, "head": "${"c".repeat(40)}"}))\n`,
     unlinked: `import json, sys\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
-    passes: `import json, sys\nassert sys.argv[2:5] == ["--lane-link", "--lane-reviews", "--lane-queue"] and sys.argv[-6:-2] == ["--base-sha", "${"d".repeat(40)}", "--rung", "C2"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None, "queue": {"failedEjections": 0, "limit": 2, "refusal": None, "comment": None}}))\n`,
+    passes: `import json, sys\nassert sys.argv[2:6] == ["--lane-link", "--lane-reviews", "--lane-queue", "--shared-listing"] and sys.argv[-6:-2] == ["--base-sha", "${"d".repeat(40)}", "--rung", "C2"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None, "queue": {"failedEjections": 0, "limit": 2, "refusal": None, "comment": None}}))\n`,
   };
   for (const [name, body] of Object.entries(scripts)) {
     writeFileSync(join(dir, `${name}.py`), body);
@@ -1765,6 +1766,77 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
   }
   assert.ok(lines.some((line) => /#3 left: pr-merge's lane does not take its issue link \(refs-issues:2\)/.test(line)), lines.join("\n"));
   assert.ok(lines.some((line) => /#4 left: pr-merge's lane does not take its issue link \(unreadable: /.test(line)), lines.join("\n"));
+});
+
+// The reader's own listing rules (babysit_verify_evidence.py main and
+// Reader._current_listing), its judgment stubbed to a pass that reads the
+// listing: every candidate is allowed, so a run that lists again before an
+// allow on the saved listing would page once per candidate.
+test("a reader run pages the artifact listing once for all its candidates", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-listing-"));
+  const wrapper = join(dir, "shared_listing.py");
+  writeFileSync(
+    wrapper,
+    `import json, os, subprocess, sys
+sys.path.insert(0, os.environ["SCRIPTS"])
+from unittest import mock
+import babysit_merge
+import babysit_merge_policy as policy
+import babysit_postmerge as postmerge
+import babysit_verify_evidence as ve
+
+def gh(args, **_):
+    if args[1].endswith("/timeline?per_page=100"):
+        return subprocess.CompletedProcess(args, 0, "[[]]", "")
+    n = next(a for a in args if a.startswith("n="))[2:]
+    def ok(data):
+        return subprocess.CompletedProcess(args, 0, json.dumps({"data": {"repository": data}}), "")
+    nodes = [{"number": 11, "repository": {"nameWithOwner": os.environ["GITHUB_REPOSITORY"]}, "labels": {"totalCount": 0, "nodes": []}}]
+    return ok({"pullRequest": {"body": "Closes #11", "closingIssuesReferences": {"totalCount": 1, "nodes": nodes}}})
+
+def listing(self):
+    with open(os.environ["LISTINGS"], "a") as log:
+        log.write("listing\\n")
+    return [{"total_count": 0, "artifacts": []}]
+
+def passes(self, number, head, pr=None):
+    self._listing()
+    return ve.Evidence(None, head, (ve.Verdict(head, "pass", 1),), 0)
+
+argv = sys.argv[1:]
+pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "_read_listing", listing), mock.patch.object(ve.Reader, "_evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), mock.patch.object(babysit_merge, "read_merge_queue", lambda repo, number: {"readError": None, "failedEjections": 0}):
+    sys.exit(ve.main(argv))
+`,
+  );
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  for (const count of [1, 3, 5]) {
+    const listings = join(dir, `listings-${count}`);
+    writeFileSync(listings, "");
+    const numbers = Array.from({ length: count }, (_, i) => i + 1);
+    const { github, writes } = world(numbers.map((n) => pull(n, { body: "Closes #11" })));
+    const env = {
+      ...ENV,
+      PATH: process.env.PATH,
+      SCRIPTS: scripts,
+      LISTINGS: listings,
+      BABYSIT_VERIFY_LISTING: join(dir, `verify-listing-${count}.json`),
+      VERIFY_EVIDENCE_SCRIPT: wrapper,
+    };
+    const log = console.log;
+    console.log = () => {};
+    try {
+      assert.equal(await main({ env, github, room: room() }), 0);
+    } finally {
+      console.log = log;
+    }
+    assert.deepEqual(
+      writes().map(({ mutation, id }) => [mutation, id]),
+      numbers.map((n) => ["arm", `PR_${n}`]),
+      `${count} candidates`,
+    );
+    assert.equal(readFileSync(listings, "utf8").split("\n").filter(Boolean).length, 1, `${count} candidates`);
+  }
 });
 
 // An event run reads no link and no verdict, so it never disarms an armed
