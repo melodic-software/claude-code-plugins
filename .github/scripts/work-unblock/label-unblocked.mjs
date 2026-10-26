@@ -102,7 +102,9 @@
 // `Ask the broker whether the lane may run` or at a `Request the lane token`
 // step, is a breaker trip, not a fault in the issue or the lanes; only the
 // refused job's log names the reason (the jobs listing reads the same for a
-// workflow-modified refusal). It is re-fired limits.reset-clamp-min hours after
+// workflow-modified refusal). So is a run whose broker-check `Check the kill
+// switch` step saw a kill switch on and skipped the broker ask: that run ends
+// green, and the jobs listing alone shows it. It is re-fired limits.reset-clamp-min hours after
 // the run ended with a breaker record of its own, and after
 // limits.limit-stops-per-issue trips since a listed human last added
 // agent-ready or a run last reported, on the stranded backoff. A breaker
@@ -205,6 +207,8 @@ const BLOCKER_STEP = "Wait for open blockers";
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
 // broker-check's step, which asks the broker before any resolve-issue run job.
 const BROKER_STEP = "Ask the broker whether the lane may run";
+// broker-check's step before BROKER_STEP, which skips it while a kill switch is on.
+const KILL_STEP = "Check the kill switch";
 // request-lane-token's last line when the broker refuses it, in check mode
 // (BROKER_STEP) or token mode (MINT_STEP), and the runner's line that follows
 // it when the step fails. Only the reason word is read.
@@ -755,7 +759,8 @@ async function laneRuns(actions, repo, number, addedAt) {
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step fail (`mint-failed`, which
 // wins), had the broker refuse it for the kill switch at broker-check or a
-// mint (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
+// mint, or had broker-check skip its broker ask for the kill switch
+// (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
 // resolve-issue did not), or was skipped by the admit job's blocker gate
 // (`blocked`: its BLOCKER_STEP ran and pick-slot did not). A broker-check
 // refusal for another reason, or one whose log gives none, is none of these.
@@ -780,7 +785,9 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       return null;
     }
     const named = (name) => namedJobs(jobs, name);
-    const failedAt = (job, name) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === "failure");
+    const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
+    const failedAt = (job, name) => endedAt(job, name, "failure");
+    const killed = named("resolve-issue").some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
     const checked = named("resolve-issue").find((job) => failedAt(job, BROKER_STEP));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const capped =
@@ -791,8 +798,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
     // One log per run: broker-check's when it refused, else the first failed mint's.
-    const refused = checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
-    if ((await refused) === BREAKER) {
+    const refused = killed ? null : checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
+    if (killed || (await refused) === BREAKER) {
       atLeast("breaker");
     } else if (minting) {
       atLeast("mint-failed");
