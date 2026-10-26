@@ -574,7 +574,7 @@ const WAITS = "none: admission waits for intake to run again, since a blocked-by
 // moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
   admission?.outcome === "refused"
-    ? NEEDS_DECISION
+    ? (admission.status ?? NEEDS_DECISION)
     : admission?.outcome === "error"
       ? "not settled: admission did not finish"
       : admission?.outcome === EDGE_MISSING
@@ -593,8 +593,8 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
   }
   const body = plan.ready
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
-        after === NEEDS_DECISION
-          ? `admission moved the issue to \`${NEEDS_DECISION}\`; its comment says why.`
+        admission?.outcome === "refused"
+          ? `admission moved the issue to \`${after}\`; its comment says why.`
           : after === WAITS
             ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.`
             : after

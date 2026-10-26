@@ -134,7 +134,9 @@ a trusted human's `workflow_dispatch`:
 - It skips a PR whose head already has a `pr-unblock / resolve-conflicts` check run from the
   GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`, or a
   `Skipped: awaiting-human` (a skip while held), a limit stop past its reset or a failure, until
-  `limits.limit-stops-per-head` of those last three stand on the head.
+  `limits.limit-stops-per-head` of those last three stand on the head. A limit stop is a run its
+  lane record marks `class=rate-limit` or `class=auth` (a refused credential); until it resets the
+  dispatcher logs a notice naming the class and the reset time.
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
@@ -1189,12 +1191,14 @@ neither. GitHub then merges the pull request through the merge queue
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
 the body must still close, or with no closing issue name by a plain `Refs:` line, the issue the
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
-edited after arming to drop its link or name another issue does not merge on that pass. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
-armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
-adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
-missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a
-listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
-`merge.report-only` is true it reports each decision and writes nothing.
+edited after arming to drop its link or name another issue does not merge on that pass. The
+15-minute schedule arms a pull request the issue lane opened, so it waits up to one scheduled
+interval, and arms or disarms what the events missed; a listed human's edit, unlabel or ready
+wakes it too, so adding a `Hold:` line disarms at once. The issue lane finishing does not wake it:
+an event run never arms, and a pull request the lane just opened is not armed, so there is nothing
+to disarm. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only
+for a listed human's run. While `merge.report-only` is true it reports each decision and writes
+nothing.
 
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
@@ -2140,7 +2144,7 @@ with defaults.
 
 | Key | Default | What it sets |
 |---|---|---|
-| `fallback-reset` | 5 | Hours after a limit stop that names no reset time before the limit counts as reset. |
+| `fallback-reset` | 5 | Hours after a limit stop that names no reset time (every `auth` stop) before the limit counts as reset. |
 | `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
@@ -2180,7 +2184,7 @@ label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status:
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
 | `pause-from` | empty | UTC date or date-time from which runs pause over the WIP cap or the held cap, and new admissions over the queued cap; empty never pauses. This repository sets 2026-10-22. |
 
-A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
+A held lane PR carries `needs-human` or `do-not-merge` in any case, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, at or over the queued cap, or with a held PR past the alarm age, the check
