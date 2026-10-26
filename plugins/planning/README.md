@@ -99,6 +99,15 @@ unrecognized value, so a repo that declares nothing sees no change in output.
 in `docs/conventions/planning.yaml` (schema: `schemas/planning.schema.json`), which wins over this
 option. Any other value resolves `local`. `tracker` needs the work-items plugin and a claimed item.
 
+**`plan_reader`.** How much of an approved plan reaches the work item and the pull request paste:
+`step-by-step` (default) the whole plan, `standard` the design plus a phase outline, `guardrails`
+the design alone, each reduced copy also keeping the Brief. A reduced depth publishes a derived file and
+leaves PLAN.md whole. `--reader <depth>` on `/planning:plan` overrides it for one run, and the plan
+records the depth it published at so a later close-out keeps it. A repository sets it for everyone
+with the `plan_reader` key in `docs/conventions/planning.yaml`, which wins over this option. A value
+outside the three is named and that layer is dropped; with no valid layer the plan publishes
+`step-by-step`. `/planning:setup apply plan_reader=<value>` writes the repository file.
+
 **`phase_order`.** Decides the order of a plan's phases after the build technique is chosen.
 `composed` removes dead code the change touches first (a bug fix skips this), then builds the
 integration slice, then the riskiest remaining unknown, then scaffold, then the remaining features.
@@ -141,6 +150,7 @@ reads it from.
 | `tunnel_hostname` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_TUNNEL_HOSTNAME` | Hostname of a named Cloudflare tunnel for /planning:interview shared sessions (such as interview.example.com), so the guest link survives a restart. Set it on one machine only. Empty (default): a quick tunnel, whose link changes on restart. Setup: shared/README.md. |
 | `tunnel_token_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_TUNNEL_TOKEN_FILE` | Absolute path of a file holding the named tunnel's token, readable only by you; cloudflared reads it, nothing else does. Used only when tunnel_hostname is set. Default: empty. |
 | `plan_store` | string | `"local"` | `CLAUDE_PLUGIN_OPTION_PLAN_STORE` | Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value. |
+| `plan_reader` | string | `"step-by-step"` | `CLAUDE_PLUGIN_OPTION_PLAN_READER` | How much of an approved plan /planning:plan publishes: step-by-step (default, the whole plan), standard (Brief, design, phase outline) or guardrails (Brief and design). A --reader argument overrides it per run; a repository's docs/conventions/planning.yaml plan_reader key overrides this value. |
 | `phase_order` | string | `"composed"` | `CLAUDE_PLUGIN_OPTION_PHASE_ORDER` | How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value. |
 | `scaffold_stubs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SCAFFOLD_STUBS` | When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value. |
 | `time_units` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TIME_UNITS` | When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value. |
