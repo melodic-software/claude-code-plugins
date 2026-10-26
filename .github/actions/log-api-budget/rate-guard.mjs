@@ -89,6 +89,35 @@ export function poolOf(url) {
 export const entryOf = (pool, token = process.env.API_BUDGET_TOKEN) =>
   pool === "graphql" ? "graphql" : API_POOLS.includes(token) ? token : "github-token";
 
+// One rate-limit reading, from a response's x-ratelimit-* headers, in
+// api-budget.bash's line shape, appended to $RUNNER_TEMP/api-budget/<token>
+// for the job-end notice the log-api-budget action writes. `token` names the
+// bucket (`github-token`, `lanes-app`); without it or RUNNER_TEMP nothing is
+// written. It lives here, not in api-budget.mjs (which re-exports it), so the
+// guard below keeps every call's reading without loading another module.
+// Never throws.
+const READING = { limit: /^\d+$/, remaining: /^\d+$/, used: /^\d+$/, reset: /^\d+$/, resource: /^[a-z_]+$/ };
+
+export function readingLine(status, headers) {
+  const values = Object.entries(READING).map(([key, re]) => {
+    const value = String(headers?.get?.(`x-ratelimit-${key}`) ?? "");
+    return re.test(value) ? value : "na";
+  });
+  return `${status} ${values.join(" ")}\n`;
+}
+
+export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = process.env.RUNNER_TEMP, status, headers }) {
+  if (!dir || !/^[a-z][a-z0-9-]{0,39}$/.test(token ?? "")) {
+    return;
+  }
+  try {
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    appendFileSync(join(dir, "api-budget", token), readingLine(status, headers));
+  } catch {
+    // A reading is never worth failing the job.
+  }
+}
+
 const intHeader = (get, name) => {
   const value = String(get(name) ?? "");
   return /^\d{1,12}$/.test(value) ? Number(value) : null;
@@ -286,11 +315,15 @@ export function createRateLimitLatch({
     check,
     observe,
     belowFloor: (url) => low.get(poolOf(url)) === true,
-    // A fetch that checks the latch before each request and reads each answer.
+    // A fetch that checks the latch before each request and reads each answer,
+    // keeping its reading under API_BUDGET_TOKEN (recordReading). That one
+    // name covers every guarded call in the process, so a step sets it only
+    // when all its calls spend one token.
     guard: (fetchImpl) =>
       async function guarded(url, init = {}) {
         check(url, init.method);
         const response = await fetchImpl(url, init);
+        recordReading({ status: response.status, headers: response.headers });
         await observe(url, response, init.method);
         return response;
       },
