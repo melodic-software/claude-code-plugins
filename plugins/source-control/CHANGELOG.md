@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.5.2] - 2026-10-26
+
+### Fixed
+
+- `/source-control:worktree status` outside a repository now runs its cross-repository block to completion under zsh and leaves no temp files: `worktree-discover.sh --remove-input-files` deletes the two rendered input files and their directory on every exit, so the block is the bare helper call with no `status=$?` (read-only in zsh) and no `rm` (which leaked the directory when denied).
+
+## [3.5.1] - 2026-10-26
+
+### Fixed
+
+- `/source-control:babysit-prs` binds a review lane's second attempt after a kill switch stopped the first: the caller's `kill-switch` job succeeded and wrote its lane's `a kill switch stops this review (` or `security review (` notice, and the first attempt has no lane job, so the review never started. ci-status tells a person to re-run such a run once the switch is off, and that re-run was refused as `rerun-not-allowed`. A kill-switched run on an earlier head also no longer unbinds the lane as `no-lane-job`. The lane-run collector reads the kill-switch job's annotations only for an attempt with no lane job. The merge gate does not start this re-run, because it cannot read the switch.
+
 ## [3.5.0] - 2026-10-26
 
 ### Changed
