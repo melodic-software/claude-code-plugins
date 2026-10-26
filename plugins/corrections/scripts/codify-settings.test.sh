@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests for codify-settings.mjs: the default, the team value, the overlay over the team value, and
-# invalid values falling back with a note on stderr.
+# invalid values falling back with a note on stderr, and the per-layer cap on those notes.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
 
@@ -95,7 +95,39 @@ check "invalid team: exits 0" test "$RC" -eq 0
 check "invalid team: default 2 from defaults" test "$(got '"\(.min_occurrences) \(.layer)"')" == "2 defaults"
 check "invalid team: stderr names the key and the team file" grep -q 'team (.*corrections.yaml).*recurrence.min_occurrences' <<<"$ERR"
 
-# 6. A pointer line moves the convention home.
+# 6. A team value above the maximum falls to the default and says why on stderr.
+new_repo
+setting "$R/docs/conventions/corrections.yaml" 1001
+run "$R"
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "over the maximum: default 2 from defaults" test "$(got '"\(.min_occurrences) \(.layer)"')" == "2 defaults"
+check "over the maximum: stderr names the key and the bound" grep -q 'team (.*corrections.yaml).*recurrence.min_occurrences.*at most 1000' <<<"$ERR"
+setting "$R/docs/conventions/corrections.yaml" 1000
+run "$R"
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "at the maximum: 1000 from the team file" test "$(got '"\(.min_occurrences) \(.layer)"')" == "1000 team"
+
+# 7. A layer's errors print the first five, then a count of the rest; five or fewer print in full.
+new_repo
+{
+  for i in $(seq 1 1200); do printf 'unknown_%d: x\n' "$i"; done
+  printf 'recurrence:\n  min_occurrences: 4\n'
+} >"$R/docs/conventions/corrections.yaml"
+run "$R"
+DETAIL="exit $RC; out: $OUT; stderr: $(head -c 2000 <<<"$ERR")"
+check "1200 unknown keys: the valid team value still applies" test "$(got '"\(.min_occurrences) \(.layer)"')" == "4 team"
+check "1200 unknown keys: six stderr lines for the layer" test "$(grep -c 'team (' <<<"$ERR")" -eq 6
+check "1200 unknown keys: the last line counts the rest" grep -q 'team (.*corrections.yaml): and 1195 more$' <<<"$ERR"
+new_repo
+{
+  for i in $(seq 1 5); do printf 'unknown_%d: x\n' "$i"; done
+} >"$R/docs/conventions/corrections.yaml"
+run "$R"
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "five unknown keys: all five print" test "$(grep -c 'team (.*unknown key' <<<"$ERR")" -eq 5
+check "five unknown keys: no count line" test "$(grep -c 'more$' <<<"$ERR")" -eq 0
+
+# 8. A pointer line moves the convention home.
 new_repo
 mkdir -p "$R/conventions"
 cat >"$R/AGENTS.md" <<'EOF'
