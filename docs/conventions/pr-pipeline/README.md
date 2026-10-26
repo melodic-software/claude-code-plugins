@@ -2105,7 +2105,9 @@ that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-
 with it empty, the subscription leg is the last. The read runner's callers
 do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
 and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
-([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). Each lane's workflow names
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and with
+`FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, a third call on that token after the second hands off
+([Two calls on one credential each](pr-run-activity.md#two-calls-on-one-credential-each)). Each lane's workflow names
 its role as a literal, and the runner policy admits it. A lane on pr-run-activity-write.yml passes
 its role as the `role` input, and the lane record names that role's token as the run's credential.
 
