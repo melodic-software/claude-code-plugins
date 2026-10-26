@@ -60,7 +60,9 @@ max-mutants: <n>
 # be a standalone, unquoted word; it is replaced with the test paths, each
 # single-quoted as its own argument, so the runner
 # must take file paths (`python -m pytest {tests}`, `npx vitest run {tests}`).
-# A runner that only filters by name (`dotnet test --filter`) cannot use it.
+# `dotnet test {tests}` is the one name-filter form: the audit runs it once per
+# test project, with `{tests}` replaced by that project and a class filter.
+# Other runners that only filter by name (Maven `-Dtest`) cannot use it.
 test-command: <command containing {tests}>
 ```
 
