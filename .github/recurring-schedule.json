@@ -98,7 +98,7 @@
       "triggers": [],
       "last_checked": "2026-10-25",
       "next_due": "2026-12-27",
-      "notes": "One-off. plugins/source-control/reference/config-resolution.md keeps the fallback until no earlier than 2026-12-27. On or after that date, reopen #5653 (closed not planned on 2026-10-25) and remove the userConfig fallback and its deprecation note for the six migrated keys, with a CHANGELOG Removed entry. The review pair (babysit_review_bot_logins, babysit_review_settle_minutes) stays userConfig-only. Retire this row when the removal lands. Spec: #5653.",
+      "notes": "One-off; retire this row when the removal lands (cadence annual is only the schema's required value). Owner decision on #5653, 2026-10-26: closed not planned, reopen on or after 2026-12-27, the date plugins/source-control/reference/config-resolution.md:115-116 keeps the fallback until. next_due is that reopen date; the removal itself must not land before 2026-12-29, the date #5653 gates it on, and its CHANGELOG Removed entry is dated on or after 2026-12-29 (fix the reference's 12-27 line when it lands). Scope: remove the userConfig fallback and its deprecation note for the six migrated keys and the deprecated branch_issue_pattern userConfig twin, in the same minor release under one CHANGELOG Removed entry. The review pair (babysit_review_bot_logins, babysit_review_settle_minutes) stays userConfig-only. Spec: #5653.",
       "close_previous": true
     }
   ]
