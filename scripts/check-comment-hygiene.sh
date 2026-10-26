@@ -195,14 +195,16 @@ scan() (
     [[ -n "$content" ]] || continue
     rc=0
     hits="$(chp::scan_text "$content")" || rc=$?
+    # A printed hit is a violation whatever the return code, so a library
+    # that reports by output alone cannot pass a file it flagged.
     case "$rc" in
-    0) continue ;;
-    1) found=$((found + 1)) ;;
+    0 | 1) [[ $rc == 1 || -n "$hits" ]] || continue ;;
     *)
       echo "comment-hygiene: chp::scan_text exited $rc on $f" >&2
       exit 2
       ;;
     esac
+    found=$((found + 1))
     [[ -n "$hits" ]] || echo "$f: chp::scan_text reported a violation without its line" >&2
     while IFS= read -r h; do
       [[ -n "$h" ]] && printf '%s:%s\n' "$f" "$h" >&2

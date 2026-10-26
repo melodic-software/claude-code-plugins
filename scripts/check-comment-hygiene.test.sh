@@ -207,6 +207,11 @@ cp "$action_dir/comment-hygiene-patterns.sh" "$tmp/lib.keep"
 printf 'true\n' >"$action_dir/comment-hygiene-patterns.sh"
 run -- base src/bad.py
 check "a library with no chp::scan_text exits 2" '[[ $RC == 2 && $ERR == *"defines no chp::scan_text"* ]]'
+printf '%s\n' 'chp::scan_text() { [[ "$1" != *BANNED* ]] || echo "2:marker:BANNED"; return 0; }' \
+  >"$action_dir/comment-hygiene-patterns.sh"
+run -- base src/clean.sh src/bad.py
+check "a hit printed with return 0 is still a violation" \
+  '[[ $RC == 1 && $ERR == *"src/bad.py:2:marker:BANNED"* && $ERR == *"violations in 1 of 2 files"* ]]'
 cp "$tmp/lib.keep" "$action_dir/comment-hygiene-patterns.sh"
 
 run -- base
