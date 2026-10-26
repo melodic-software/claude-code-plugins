@@ -293,7 +293,9 @@ environments; this control skill never copies them. The hub lists each one above
   setting's name and the repository to clone.
 - **Checkout off the pin.** After that check and before launching anything, the run stops unless
   `pins.<app>` is set at HEAD, `git -C <checkout> cat-file -e <sha>^{commit}` succeeds,
-  `git -C <checkout> diff --quiet <sha> -- .claude/skills/control-<app>/` exits 0, and
+  `git -C <checkout> diff --quiet <sha> -- .claude/skills/control-<app>/` and
+  `git -C <checkout> diff --quiet <sha> HEAD -- .claude/skills/control-<app>/` both exit 0 (so
+  that app's CLI, which reads its floors at its own HEAD, reads the pinned ones), and
   `git -C <checkout> ls-files --others -- .claude/skills/control-<app>/` lists nothing but that
   app's `config/local.json`; ignored files count. It prints the setting's name, the pinned SHA
   (or that `pins.<app>` is unset) and `fetch or check out`. The run passes no revision to that
