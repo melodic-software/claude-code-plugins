@@ -197,10 +197,10 @@ amendment. The decision stands: no policy narrowing of what a mod may do.
   that has managed settings. A session that runs on a long-lived `CLAUDE_CODE_OAUTH_TOKEN` doesn't
   count as that login either, even when a Team or Enterprise login is stored on the machine."
   Besides the owner's Max machines, that covers every CI lane that writes no managed settings: the
-  claude-code-action lanes (`maintenance-audit-lane-runs.yml:227`, `intake-triage.yml:753`,
+  claude-code-action lanes (`maintenance-audit-lane-runs.yml:227`, `intake-triage.yml:755`,
   `pr-run-activity-write.yml:1417`) and `eval-browser-dispatch.yml:203`. Lanes that run through
   ci-workflows' `run-claude-cli` first write root-owned `/etc/claude-code/managed-settings.json`
-  (`pr-verify.yml:213`, `pr-run-activity-read.yml:1062`, `pr-unblock.yml:938`, and the review and
+  (`pr-verify.yml:216`, `pr-run-activity-read.yml:1062`, `pr-unblock.yml:938`, and the review and
   intake reusables), and the launcher refuses to start without it, so the guard loads there.
 - **Without the guard, a mod gets past `ask` rules and `PreToolUse` hooks as well as `deny`.**
   [overview: what a mod can reach](https://code.claude.com/docs/en/plugins/mods/overview#what-a-mod-can-reach):

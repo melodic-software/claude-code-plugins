@@ -76,10 +76,10 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@3180217076b19bbdfccc43026c7f91c604da673d # v0\.65\.14$' "$caller"; then
-    ok "$file calls pr-review-cli v0.65.14 as job ${job%:} with publish: comments and hold-label: needs-human"
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$' "$caller"; then
+    ok "$file calls pr-review-cli as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or v0.65.14 pin"
+    fail "$file lost its job id, publish: comments, hold-label or SHA pin with a version comment"
   fi
   # pr-review-cli's check-key-credit job requests actions: read; a caller that
   # does not grant it fails at startup.
@@ -95,6 +95,14 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
     fail "$file hold-paths are '$paths'"
   fi
 done
+
+# Both callers pin the same pr-review-cli commit.
+pins="$(sed -nE 's/^    uses: .*pr-review-cli\.yml@([0-9a-f]{40}) .*/\1/p' "$ROOT/.github/workflows/pr-review-hosted.yml" "$ROOT/.github/workflows/pr-review-security-hosted.yml" | sort -u)"
+if [[ -n "$pins" && "$pins" != *$'\n'* ]]; then
+  ok "both review callers pin one pr-review-cli commit"
+else
+  fail "the review callers pin different or no pr-review-cli commits: ${pins//$'\n'/ }"
+fi
 
 # An exempt author's pull request, which no review lane reads, still fails on
 # the four trust-gate paths in bash form: `**/X` is X or */X, a trailing `**`
