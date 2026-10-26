@@ -2661,6 +2661,19 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
             read(fake)
         self.assertEqual(self.run_reads(fake, 2), 1)
 
+    def test_a_shared_run_record_keeps_only_repository_names(self) -> None:
+        fake = self.other_fail()
+        fat = {"full_name": REPO, "id": 1, "owner": {"login": "o"}, "x": "y" * 99}
+        fake.runs[2] = run(2, repository=fat, head_repository=dict(fat))
+        self.assertIsNone(read(fake).refusal)
+        path = pathlib.Path(os.environ["BABYSIT_RUN_CACHE"])
+        stored = json.loads(path.read_text())["run-record"][f"{REPO}|2"]["value"]
+        self.assertEqual(stored["repository"], {"full_name": REPO})
+        self.assertEqual(stored["head_repository"], {"full_name": REPO})
+        # The slim record serves the next candidate as the full one did.
+        self.assertIsNone(read(fake).refusal)
+        self.assertEqual(self.run_reads(fake, 2), 1)
+
     def test_a_re_run_of_a_counted_pass_does_not_allow(self) -> None:
         fake = passing()
         self.assertIsNone(read(fake).refusal)
@@ -2815,6 +2828,57 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
         self.assertFalse(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
         self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 2), 0)
+
+    def test_slim_and_full_run_records_both_count_a_fail(self) -> None:
+        # Records saved before repositories were trimmed to their names
+        # still carry and count, as trimmed ones do.
+        name = named(UNRELATED, "fail", 99)
+        full = {"full_name": REPO, "id": 1, "owner": {"login": "o"}}
+        for label, repository in (("slim", {"full_name": REPO}), ("full", full)):
+            for section in ("run-record", "carried-run-record"):
+                with self.subTest(record=label, section=section):
+                    (self.dir / "run.json").unlink(missing_ok=True)
+                    fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
+                    stored = run(
+                        2, repository=repository, head_repository=dict(repository)
+                    )
+                    self.restore(
+                        {
+                            section: {f"{REPO}|2": stored},
+                            "fail-head-ref": {f"{REPO}|20": {"head_ref": "feat/x"}},
+                            "on-branch": {f"{REPO}|{MAIN_SHA}...main": True},
+                        }
+                    )
+                    self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                    self.assertFalse(
+                        any(c[-1].endswith("/actions/runs/2") for c in fake.calls)
+                    )
+
+    def test_a_slim_record_of_another_repository_is_not_origin(self) -> None:
+        # A trimmed record naming another repository is no origin, so the
+        # run is read from GitHub, as for a full one.
+        name = named(UNRELATED, "fail", 99)
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
+        other = {"full_name": "someone/fork"}
+        at = datetime.now(UTC).isoformat()
+        # Written as it lands, past carry-run-cache.mjs, which would drop it.
+        (self.dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "carried-run-record": {
+                        f"{REPO}|2": {
+                            "at": at,
+                            "value": run(2, repository=other, head_repository=other),
+                        }
+                    },
+                    "fail-head-ref": {
+                        f"{REPO}|20": {"at": at, "value": {"head_ref": "feat/x"}}
+                    },
+                }
+            )
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertTrue(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
 
 
 # --- A transient listing failure is read again --------------------------------
