@@ -68,6 +68,8 @@
 #                               each resource, core last; cost is
 #                               the rise in used since the first earlier reading
 #                               with the same reset and resource, else na
+#   api_budget_emit_content     the notice for the job's content-creating
+#                               writes: count and most in any 60 s
 #
 # pr-require-checks.yml's ci-status job carries this file verbatim in its
 # API_BUDGET_SH env (it has no checkout of this directory);
@@ -116,6 +118,7 @@ api_budget_wrap_gh() {
     local arg out pool rc=0
     pool=$(api_budget_pool "$@")
     api_budget_refuse "$pool" "gh $*" || return 1
+    ! api_budget_is_content "$@" || api_budget_count_content
     if [[ ${1:-} != api ]]; then
       api_budget_pass "$@"
       return
@@ -301,6 +304,67 @@ api_budget_observe() {
     : >"$dir/low-$pool"
     echo "::warning::GitHub's $pool API has under its read floor left; reads continue" >&2
   fi
+}
+
+# A gh call that creates or changes content GitHub's content-creation limit
+# counts, as rate-guard.mjs's isContentWrite judges a request: a gh api write
+# (-X POST, PATCH or PUT, or a field with no -X, which gh sends as POST) to an
+# issue, pull request, comment, review or label path, a graphql mutation, or
+# a gh issue or pr command that writes.
+api_budget_is_content() {
+  local method='' fields='' mutation='' path='' arg prev=''
+  case "${1:-} ${2:-}" in
+    "issue create" | "issue comment" | "issue edit" | "issue close" | "issue reopen" | \
+      "pr create" | "pr comment" | "pr edit" | "pr review" | "pr close" | "pr reopen" | "label create") return 0 ;;
+    api\ *) ;;
+    *) return 1 ;;
+  esac
+  for arg in "${@:2}"; do
+    # A value joined to its flag (--method=POST, -XPOST, -fquery=...) is read
+    # as the separated form.
+    if [[ -z $prev ]]; then
+      case $arg in
+        --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
+        -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} arg=${arg#=} ;;
+        *) ;;
+      esac
+    fi
+    case $prev in
+      -X | --method) method=${arg^^} ;;
+      -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
+      --input) fields=1 ;;
+      -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) ;;
+      *) [[ $arg == -* || -n $path ]] || path=$arg ;;
+    esac
+    case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) prev=$arg ;; *) prev= ;; esac
+  done
+  [[ -n $method ]] || { [[ -n $fields ]] && method=POST; } || method=GET
+  [[ $method == POST || $method == PATCH || $method == PUT ]] || return 1
+  if [[ $path == graphql ]]; then
+    [[ -n $mutation ]]
+    return
+  fi
+  [[ /${path#/} =~ ^/repos/[^/]+/[^/]+/(issues|pulls)(/[0-9]+(/(comments|labels|reviews|assignees|requested_reviewers))?|/[0-9]+/comments/[0-9]+/replies|/comments/[0-9]+)?/?(\?|$) ]]
+}
+
+api_budget_count_content() {
+  local dir=${RUNNER_TEMP:-}/api-budget
+  [[ -n ${RUNNER_TEMP:-} ]] && mkdir -p "$dir" 2>/dev/null && date +%s >>"$dir/content-creation"
+  return 0
+}
+
+# The job's content-creating writes, from the lines rate-guard.mjs and the gh
+# wrapper append: the count and the most in any sixty seconds. Nothing without
+# a write.
+api_budget_emit_content() {
+  local file=${RUNNER_TEMP:-}/api-budget/content-creation where workflow=${GITHUB_WORKFLOW_REF:-}
+  [[ -n ${RUNNER_TEMP:-} && -s $file ]] || return 0
+  workflow=${workflow%%@*}
+  workflow=${workflow#*/*/}
+  where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
+  sort -n "$file" | awk -v where="$where" '/^[0-9]+$/ { t[++n] = $1; while (t[n] - t[j + 1] >= 60) j++; if (n - j > max) max = n - j }
+    END { if (n) printf "::notice title=api-budget::content-creation %s count=%d max-per-minute=%d\n", where, n, max }'
+  return 0
 }
 
 api_budget_emit() {

@@ -448,6 +448,14 @@ async function changedFiles(github, slug, number) {
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 
+// How verifyHold opens the reason for each answer that refuses: the issue
+// link, the verifier verdict and the risk score.
+export const READER_HOLDS = Object.freeze({
+  link: "pr-merge's lane does not take its issue link (",
+  verdict: "pr-merge's gate refuses its verifier verdict (",
+  risk: "pr-merge's gate holds it on its risk score (",
+});
+
 // Why the gate's `evidence --lane-link` (babysit_verify_evidence.py's report)
 // keeps a pull request at `head` from merging, or null when it allows it.
 export function verifyHold(evidence, head) {
@@ -458,17 +466,17 @@ export function verifyHold(evidence, head) {
     return "its verifier verdict was read at another head";
   }
   if (typeof evidence.ineligible === "string") {
-    return `pr-merge's lane does not take its issue link (${escapeCommand(evidence.ineligible)})`;
+    return `${READER_HOLDS.link}${escapeCommand(evidence.ineligible)})`;
   }
   if (evidence.refusal !== null) {
-    return `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
+    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)})`;
   }
   // A line without the link's or the reviews' answer read neither: it allows nothing.
   if (evidence.ineligible !== null) {
     return "its issue link could not be read";
   }
   if (typeof evidence.reviews === "string") {
-    return `pr-merge's gate holds it on its risk score (${escapeCommand(evidence.reviews)})`;
+    return `${READER_HOLDS.risk}${escapeCommand(evidence.reviews)})`;
   }
   return evidence.reviews === null ? null : "its risk score could not be read";
 }
