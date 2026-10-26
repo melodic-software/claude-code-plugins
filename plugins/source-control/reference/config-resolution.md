@@ -350,9 +350,10 @@ file's H2 only. Two readers apply this order:
 
 The merge gate (`babysit_merge.py --unattended`) reads `babysit_loop_merge` from both files at the
 pull request's base SHA and takes the lower of the values they set, so a demotion in either file
-holds the gate, and a file that sets none does not count. A YAML the gate cannot read, the shared
-reader rejects, or that holds an empty, non-scalar or unknown value turns the rung off, never
-falling back to the legacy value. A raise therefore reaches the gate only when both files carry
+holds the gate, and a file that sets none does not count. Either file that the gate cannot read
+or trust turns the rung off, never falling back to the other file's value: a YAML the shared
+reader rejects or whose value is empty, non-scalar or unknown, and a legacy file the parser
+rejects or whose `## babysit_loop_merge` H2 is empty or repeated. A raise therefore reaches the gate only when both files carry
 it: every change to `babysit_loop_merge` is written to both files while the legacy file exists.
 
 | Key | Value | Default when absent |

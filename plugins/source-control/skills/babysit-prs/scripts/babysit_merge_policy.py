@@ -668,13 +668,14 @@ def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
         raise PolicyReadError(f"{path} at {sha} is unreadable: {exc}") from exc
 
 
-def _loop_merge(text: str) -> str | None:
-    """The one `## babysit_loop_merge` value, or None for none, two, or a file
-    the repository-config parser rejects."""
+def _loop_merge(text: str) -> tuple[str | None, bool]:
+    """(the one `## babysit_loop_merge` value or None when the file has no
+    such H2, whether the file can be trusted: False for a file the
+    repository-config parser rejects, two such H2s or an empty one)."""
     try:
         repo_config.parse_repo_config(text)
     except repo_config.RepoConfigError:
-        return None
+        return None, False
     values: list[str] = []
     current: list[str] | None = None
     in_fence = False
@@ -693,7 +694,9 @@ def _loop_merge(text: str) -> str | None:
                 values.append("")
         elif current is not None and raw.strip() and not values[-1]:
             values[-1] = raw.strip().strip("`").strip()
-    return values[0] if len(values) == 1 and values[0] else None
+    if not values:
+        return None, True
+    return (values[0], True) if len(values) == 1 and values[0] else (None, False)
 
 
 def _team_loop_merge(text: str) -> tuple[str | None, str | None]:
@@ -719,14 +722,16 @@ def _resolve_loop_merge(
 ) -> str | None:
     """The lower of the team YAML's and the legacy file's `babysit_loop_merge`
     at `base_sha`, counting only the files that set one, so a demotion in
-    either file reaches the gate. A team YAML that is unreadable or
-    untrustworthy yields None (off), never the legacy value alone."""
+    either file reaches the gate. Either file unreadable or untrustworthy
+    yields None (off), never the other file's value alone."""
     try:
         source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
-        source = None
         notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
-    legacy = _loop_merge(source) if source is not None else None
+        return None
+    legacy, trusted = _loop_merge(source) if source is not None else (None, True)
+    if not trusted:
+        return None
     try:
         team_text = file_at(repo_config.YAML_CONFIG_PATH, base_sha)
     except PolicyReadError as exc:

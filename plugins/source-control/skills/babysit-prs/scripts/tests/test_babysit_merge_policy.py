@@ -499,6 +499,19 @@ class ReadConfigAt(unittest.TestCase):
                 self.assertIsNone(config.loop_merge)
                 self.assertTrue(any(noted in n for n in config.notes), config.notes)
 
+    def test_an_untrustworthy_legacy_file_holds_the_gate_over_the_team_value(
+        self,
+    ) -> None:
+        team = "babysit_loop_merge: c3-autonomous\n"
+        for source in (
+            502,
+            SOURCE_CONTROL + "\n## babysit_loop_merge\n\nhuman-only\n",
+            "## babysit_loop_merge\n\n## next\n",
+        ):
+            with self.subTest(source=source):
+                config_fake(self, PIPELINE, source, team)
+                self.assertIsNone(policy.read_config_at(REPO, SHA).loop_merge)
+
 
 class EffectiveRung(unittest.TestCase):
     def rung(self, **overrides: Any) -> Any:
