@@ -17,6 +17,7 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 HEAD=$(printf 'a%.0s' {1..40})
+OLD=$(printf 'b%.0s' {1..40})
 FIX=$(printf 'f%.0s' {1..40})
 TOKEN=ghs_secretlanetoken1234567890
 # The stateless installation token is ghs_ then a JWT of about 520 characters: three
@@ -58,8 +59,8 @@ setup() {
   cat >"$STUB/threads.json" <<EOF
 {"version":1,"repository":"o/r","pr":42,"head_sha":"$HEAD",
  "threads":[
-  {"id":"PRRT_a","path":"src/a.js","line":3,"review_commit":"$HEAD","root_comment_id":100,"comments":[{"id":100,"body":"null deref at line 3"}]},
-  {"id":"PRRT_b","path":"docs/b.md","line":1,"review_commit":"$HEAD","root_comment_id":200,"comments":[{"id":200,"body":"typo"}]}
+  {"id":"PRRT_a","path":"src/a.js","line":3,"review_commit":"$HEAD","is_outdated":false,"root_comment_id":100,"comments":[{"id":100,"body":"null deref at line 3"}]},
+  {"id":"PRRT_b","path":"docs/b.md","line":1,"review_commit":"$OLD","is_outdated":true,"root_comment_id":200,"comments":[{"id":200,"body":"typo"}]}
  ]}
 EOF
 }
@@ -82,6 +83,8 @@ recorded() {
 setup
 out=$(run list)
 assert_eq "list prints the kept thread ids" "PRRT_a PRRT_b" "$(jq -r 'map(.id) | join(" ")' <<<"$out")"
+assert_eq "list prints each thread's review commit" "$HEAD $OLD" "$(jq -r 'map(.review_commit) | join(" ")' <<<"$out")"
+assert_eq "list prints each thread's outdated state" "false true" "$(jq -r 'map(.is_outdated | tostring) | join(" ")' <<<"$out")"
 
 # check-paths
 setup

@@ -89,6 +89,7 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
         path: "src/a.js",
         line: 5,
         review_commit: HEAD,
+        is_outdated: false,
         root_comment_id: 100,
         comments: [{ id: 100, author: "reviewer", body: "finding 100" }],
       },
@@ -421,6 +422,13 @@ test("a fix request works a thread whose review is on an earlier head, in the se
   assert.equal(result.file.threads[0].review_commit, OLD_HEAD);
   const { kept } = await currentThreads({ api, pr: 42, reviewerId: REVIEWER, appId: APP, trustedHumans: new Set([HUMAN]) });
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+});
+
+test("a kept thread's is_outdated is true only when GitHub reports isOutdated true", async () => {
+  for (const [isOutdated, expected] of [[true, true], [false, false], [undefined, false], ["true", false]]) {
+    const result = await run(fakeApi({ threads: [thread("PRRT_1", [100], { isOutdated })] }));
+    assert.equal(result.file.threads[0].is_outdated, expected, String(isOutdated));
+  }
 });
 
 // #8233: the reviewer bot's finding, the lanes App's UNCERTAIN reply, then the

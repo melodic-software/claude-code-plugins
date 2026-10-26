@@ -430,6 +430,8 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       path: rows[0].path,
       line: rows[0].line ?? rows[0].original_line ?? null,
       review_commit: review.commit_id,
+      // Newer changes moved the thread's code, so its line may be stale.
+      is_outdated: thread.isOutdated === true,
       root_comment_id: rows[0].id,
       // A lane only from the github-actions[bot] author whose footer the
       // review lanes write; claude[bot] writes its own body.
@@ -613,7 +615,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
     pullRequest(number: $pr) {
       reviewThreads(first: 100, after: $after) {
         nodes {
-          id isResolved
+          id isResolved isOutdated
           comments(first: 100) {
             totalCount
             nodes { databaseId lastEditedAt editor { ... on User { databaseId } ... on Bot { databaseId } } }
