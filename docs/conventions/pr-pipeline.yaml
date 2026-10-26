@@ -785,10 +785,12 @@ limits:
   # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
   # GitHub API margins per pool (`api:` with github-token, lanes-app,
-  # graphql, owner-token, content-creation), as shares of the limit each
-  # response's x-ratelimit-limit header reports: plan, writer-pause, breaker
-  # and read-floor; content-creation adds per-minute and per-hour. The rate
-  # guard reads only read-floor, to warn; the others are thresholds meant for
+  # graphql, owner-token, content-creation). limit-cap sets each pool's planned
+  # budget, the header's x-ratelimit-limit at most the cap (github-token: 1000,
+  # GitHub's documented GITHUB_TOKEN limit); plan and read-floor are shares of
+  # it, writer-pause and breaker shares of the header's limit; content-creation
+  # adds per-minute and per-hour. The rate guard reads only read-floor and
+  # limit-cap, to warn; the others are thresholds meant for
   # the hub's limits sampler, which nothing here enforces. Their
   # defaults live in pr-pipeline.schema.json ($defs/api-pool,
   # $defs/api-content-pool); add an `api:` entry here only to override one.
@@ -960,14 +962,24 @@ merge:
   dependabot:
     mode: enforce
     majors: review
-  # The HIGH path floor is on in both lanes. It holds only the takeover set
-  # (owner direction 2026-10-23): the trusted-actor list, the trusted-trigger
-  # check, code owners, submodules and resolve-config (babysit_risk.py
-  # HIGH_FLOOR). A lane PR touching one
-  # scores HIGH and waits for a human, who merges it in person; a denied path
-  # would instead make the PR ineligible. The verifier verdict, both AI
-  # review lanes, ci-status and the post-merge revert breaker still gate every
-  # lane PR.
+  # No path is held for being trusted alone (owner direction 2026-10-24)
+  # except the narrow HIGH path floor (babysit_risk.py HIGH_FLOOR, owner
+  # decision Q-FLOOR (B)): resolve-config, request-lane-token,
+  # check-trusted-trigger, check-kill-switch, the rate guard, CODEOWNERS,
+  # .gitmodules and the files that enforce the floor (owner decision
+  # Q-ENFORCE (A)): merge-holds, enable-auto-merge, superseded,
+  # clear-escalations, babysit_risk.py, pr-require-checks.yml, this file,
+  # every module those scripts import (pr-unblock's address-feedback,
+  # gate-source and thread-scope, work-resolve-issue's report-outcome and
+  # limits), and the babysit-prs Python that decides the holds
+  # (babysit_risk.py, babysit_verify_evidence.py, which enable-auto-merge
+  # runs, and every module they import), which test_merge_holds_sync.py
+  # derives and requires on the floor.
+  # It holds whatever `high-path-floor` says. `high-path-floor:
+  # false` turns off the manifest review, which the security lane flags
+  # instead. The trusted-actor widening and cost holds stay on either way. The
+  # verifier verdict, both AI review lanes, ci-status and the post-merge
+  # revert breaker still gate every lane PR.
   # Owner decision Q624 still holds for the rest: no denied path or size cap.
   # Each comes back by setting it here: list denied-paths, or set
   # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
@@ -978,4 +990,4 @@ merge:
   # verifier verdict.
   diff-check:
     denied-paths: []
-    high-path-floor: true
+    high-path-floor: false

@@ -234,7 +234,8 @@ Three artifacts, one direction of flow:
 
 1. **The store**, a committed, hand-editable JSON file (default `docs/native-surfaces/records.json`
    in this repository; configurable). It is the SSOT. Every row carries: the native surface with its
-   provenance class and markers (`hidden`, `gated`, `model-invocation-disabled`), our component, the
+   provenance class and markers (`hidden`, `gated`, `model-invocation-disabled`; an optional
+   `docs_markers` names those whose basis is the docs, not the extraction), our component, the
    verdict and its reason, `integration` (`route`, `wrap`, or `suggest`), evidence, a class-tagged
    observation record, a recheck trigger with its verified date, `baked` flags (`description_phrase`,
    `boundary_section`, `native_step`, `suggest_sentence`), and the budget caveat. An optional
@@ -260,8 +261,9 @@ bundled skill in this row's lane" qualifies; a bare date does not. That bar is t
 convention's, and this skill's self-check enforces trigger *presence* only. Deciding whether an
 event actually fired is a session act performed by the report, because an offline gate cannot
 re-fetch an upstream basis. After each release, `/harness-ops:changelog apply` judges the part an
-extraction observes (a row's surface removed or renamed, its class, its markers) and files a
-recheck item per fired row, plus one per new candidate with no store row.
+extraction observes (a row's surface removed or renamed, its class, its markers other than
+`docs_markers`) and files a recheck item per fired row, plus one per new candidate with no store
+row.
 
 ## Dismissals
 
