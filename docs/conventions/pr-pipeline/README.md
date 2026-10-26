@@ -2499,7 +2499,9 @@ rule, issue, pr, deletedAt}` to the step summary and the run's
 `branch-cleanup-ledger-<run>-<attempt>` artifact. The delete is one GraphQL `updateRefs` per
 branch whose `beforeOid` is the listed tip and whose `afterOid` is all zeros, so GitHub checks the
 tip and deletes in one step; a push that lands after the re-read makes GitHub refuse the delete,
-and the branch is reported as skipped. The ledger SHA restores the deleted tip:
+the branch is reported as skipped, and a second ledger line `{repo, branch, sha, notDeletedAt,
+reason}` records that it still stands. The ledger SHA of a branch with no such line restores the
+deleted tip:
 `git push origin <sha>:refs/heads/<branch>`. A scheduled run deletes; a manual run is a dry-run
 unless `dry-run` is set to false, and a dry-run starts no delete job. The kill switch, checked by
 each job, stops it.

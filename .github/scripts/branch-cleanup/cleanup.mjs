@@ -340,13 +340,15 @@ export async function remove(env, { call, clock, loadConfig, append, list, log =
       // A tip that moved after the re-read makes GitHub refuse the update:
       // that branch is skipped, not a failed delete.
       const tip = await call("GET", `/repos/${repo}/git/ref/heads/${refPath(candidate.name)}`).catch(() => undefined);
-      skipped.push({
-        ...candidate,
-        reason:
-          tip !== undefined && tip?.object?.sha !== candidate.sha
-            ? `the tip moved to ${tip?.object?.sha ?? "nothing"} before the delete; GitHub refused it`
-            : `the delete failed: ${error.message}`,
-      });
+      const reason =
+        tip !== undefined && tip?.object?.sha !== candidate.sha
+          ? `the tip moved to ${tip?.object?.sha ?? "nothing"} before the delete; GitHub refused it`
+          : `the delete failed: ${error.message}`;
+      skipped.push({ ...candidate, reason });
+      // The write-ahead line said deleted: record that the branch still stands.
+      if (typeof tip?.object?.sha === "string") {
+        append({ repo, branch: candidate.name, sha: candidate.sha, notDeletedAt: clock(), reason });
+      }
     }
   }
 

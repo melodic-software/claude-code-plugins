@@ -364,6 +364,11 @@ test("a tip that moved after the delete-time re-read is not deleted and is repor
   assert.equal(r.skipped.length, 1);
   assert.equal(r.skipped[0].name, "feat/raced");
   assert.match(r.skipped[0].reason, /^the tip moved to 7{40} before the delete/);
+  // The write-ahead line stays; a second line records that the branch was not deleted.
+  assert.deepEqual(r.ledger, [
+    { repo: REPO, branch: "feat/raced", sha: sha("2"), rule: "pr-merged", issue: null, pr: 4, deletedAt: NOW },
+    { repo: REPO, branch: "feat/raced", sha: sha("2"), notDeletedAt: NOW, reason: r.skipped[0].reason },
+  ]);
 });
 
 test("the client throws on a GraphQL errors list answered with HTTP 200", async (t) => {
