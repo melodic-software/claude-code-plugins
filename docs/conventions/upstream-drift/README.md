@@ -318,7 +318,8 @@ for real: the same 2026-08-11 sweep advertised a nonexistence claim of exactly t
 withdrew it on re-check ([#2190](https://github.com/melodic-software/claude-code-plugins/pull/2190)).
 The conclusion it supported survived on a different premise. That is worth stating as its own rule,
 since it is the reason to care: **a sound conclusion resting on a false premise is not safe, it is
-fragile**, because the next reader who checks the premise discards the conclusion with it. Fix the
+fragile**, because the next reader who
+checks the premise discards the conclusion with it. Fix the
 premise and keep the conclusion; never keep a premise because the conclusion it props up is
 convenient.
 
