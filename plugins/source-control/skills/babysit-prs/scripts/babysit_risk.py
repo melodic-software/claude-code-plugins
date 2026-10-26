@@ -17,7 +17,10 @@ that override their own behavior are out of scope. A count outside
 The HIGH path floor and the lane table are fixed here, never read from
 configuration. The floor is narrow (owner decision Q-FLOOR (B)): the code
 main runs to mint and scope lane tokens and judge triggers, code owners and
-submodules, and it holds whatever the floor switch says. No other path rates
+submodules, and it holds whatever the floor switch says. Its
+`enforcement` entries (`REVIEW_FLOOR`) rate HIGH as `review-path:<glob>`
+instead, which a clean security review bound to the head clears
+(`security_review_clean`, owner decision Q26 option B). No other path rates
 HIGH for being trusted alone, and the two review lanes, which are the gate,
 judge it, except the cost and trusted-actor holds below. The configured
 `merge.diff-check.denied-paths` are joined to the floor. Every glob matches
@@ -181,58 +184,78 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
-# What a lane pull request must not change unattended (owner decision
-# Q-FLOOR (B)): resolve-config, whose code the token broker runs from main in
-# its signer process, request-lane-token, which mints and hands out the lanes
-# App token, check-trusted-trigger and the rate guard it sends every call
-# through, check-kill-switch, whose writeOutputs both of those actions write
-# their verdicts through, code owners and submodules; and the files that
-# enforce the floor (owner decision Q-ENFORCE (A)): the merge-holds,
-# enable-auto-merge, superseded and clear-escalations scripts, this module,
-# the ci-status workflow, the pr-merge workflow that wires those scripts,
-# the pipeline config, every module those scripts import, and the babysit-prs modules this module and the Python those
-# scripts run (babysit_verify_evidence.py) import (test_merge_holds_sync.py
-# derives both closures and requires them here). merge-holds.mjs
-# HOLD_PATH_FLOOR is the same list (test_merge_holds_sync.py).
-HIGH_FLOOR: tuple[str, ...] = (
-    ".github/actions/check-trusted-trigger/**",
-    "**/CODEOWNERS",
-    "**/.gitmodules",
-    ".github/actions/resolve-config/**",
-    ".github/actions/check-kill-switch/**",
-    ".github/actions/request-lane-token/**",
-    ".github/actions/log-api-budget/rate-guard.mjs",
-    ".github/scripts/pr-merge/merge-holds.mjs",
-    ".github/scripts/pr-merge/enable-auto-merge.mjs",
-    ".github/scripts/pr-merge/superseded.mjs",
-    ".github/scripts/pr-merge/clear-escalations.mjs",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
-    ".github/workflows/pr-require-checks.yml",
-    ".github/workflows/pr-merge.yml",
-    "docs/conventions/pr-pipeline.yaml",
-    ".github/scripts/pr-unblock/address-feedback.mjs",
-    ".github/scripts/pr-unblock/gate-source.mjs",
-    ".github/scripts/pr-unblock/thread-scope.mjs",
-    ".github/scripts/work-resolve-issue/report-outcome.mjs",
-    ".github/scripts/work-resolve-issue/limits.mjs",
-)
+# What a lane pull request must not change unattended (owner decisions
+# Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B), each glob with its class:
+# - `trust`: what mints and scopes lane tokens and judges triggers
+#   (request-lane-token, check-trusted-trigger, check-kill-switch, whose
+#   writeOutputs both of those write their verdicts through), code owners
+#   and submodules.
+# - `gate`: the merge gate's own code and the config the token broker loads:
+#   resolve-config (which the broker runs from main in its signer process,
+#   effect-grants.json included), the rate guard, every pr-merge script and
+#   the workflow that wires them, babysit_merge*, the ci-status workflow and
+#   the pipeline config.
+# - `enforcement`: the rest of the modules the floored scripts import and
+#   the Python that decides the holds (test_merge_holds_sync.py derives both
+#   closures and requires them here).
+# A `trust` or `gate` path holds for a person (HIGH_FLOOR). An `enforcement`
+# path holds until the security lane's review binds to the head with no
+# open finding (REVIEW_FLOOR, `review-path:`), so no person is needed.
+# merge-holds.mjs HOLD_PATH_CLASSES is the same list (test_merge_holds_sync.py).
+FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
+    (".github/actions/check-trusted-trigger/**", "trust"),
+    ("**/CODEOWNERS", "trust"),
+    ("**/.gitmodules", "trust"),
+    (".github/actions/resolve-config/**", "gate"),
+    (".github/actions/check-kill-switch/**", "trust"),
+    (".github/actions/request-lane-token/**", "trust"),
+    (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
+    (".github/scripts/pr-merge/merge-holds.mjs", "gate"),
+    (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
+    (".github/scripts/pr-merge/superseded.mjs", "gate"),
+    (".github/scripts/pr-merge/clear-escalations.mjs", "gate"),
+    (".github/scripts/pr-merge/carry-run-cache.mjs", "gate"),
+    (".github/scripts/pr-merge/gate-check.mjs", "gate"),
+    (".github/scripts/pr-merge/head-ref-map.mjs", "gate"),
+    (".github/scripts/pr-merge/lane-records.mjs", "gate"),
+    (".github/scripts/pr-merge/rate-stop.bash", "gate"),
+    (".github/scripts/pr-merge/refire-refused.mjs", "gate"),
+    (".github/scripts/pr-merge/rotation.mjs", "gate"),
+    (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
+    (".github/scripts/pr-merge/who.mjs", "gate"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
+    (".github/workflows/pr-require-checks.yml", "gate"),
+    (".github/workflows/pr-merge.yml", "gate"),
+    ("docs/conventions/pr-pipeline.yaml", "gate"),
+    (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
+    (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
+    (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
+)  # fmt: skip
+PERSON_CLASSES = frozenset({"trust", "gate"})
+HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)
+REVIEW_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c == "enforcement")
+# Every floor glob, whichever clears it.
+FLOOR: tuple[str, ...] = tuple(g for g, _ in FLOOR_CLASSES)
+REVIEW_PATH_PREFIX = "review-path:"
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
@@ -586,6 +609,14 @@ def _high_path_reasons(
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
+    if not security_review_clean(inp.lanes):
+        for pattern in REVIEW_FLOOR:
+            hits = [path for path in paths if glob_match(pattern, path)]
+            if hits:
+                detail = f"{', '.join(hits)}; a clean claude-security-review bound to this head clears it"
+                reasons.append(
+                    Reason(f"{REVIEW_PATH_PREFIX}{pattern}", Risk.HIGH, detail)
+                )
     review = [
         f"{f.path}: {', '.join(changes)}"
         for f, raw in zip(files, raw_files)
@@ -965,6 +996,29 @@ def blocking(lane: Any) -> Any:
     every open finding when that is None."""
     count = getattr(lane, "blocking_findings", None)
     return getattr(lane, "open_findings", None) if count is None else count
+
+
+def security_review_clean(raw_lanes: Any) -> bool:
+    """Whether the security lane's review clears a `REVIEW_FLOOR` path: its
+    one evidence entry is bound to the head, with no unbound reason, and
+    counts no open finding at all, CRITICAL or below (the evidence does not
+    tell IMPORTANT from SUGGESTION, so any open finding holds). Anything
+    else, a missing or doubled entry included, holds."""
+    lanes = _sequence(raw_lanes) or ()
+    entries = [lane for lane in lanes if getattr(lane, "lane", None) == _HOLDING_LANE]
+    if len(entries) != 1:
+        return False
+    lane = entries[0]
+    total = getattr(lane, "open_findings", None)
+    count = blocking(lane)
+    return (
+        getattr(lane, "bound", None) is True
+        and getattr(lane, "unbound_reason", None) is None
+        and _is_count(total)
+        and total == 0
+        and _is_count(count)
+        and count == 0
+    )
 
 
 def _lane_reasons(raw_lanes: Any) -> list[Reason]:

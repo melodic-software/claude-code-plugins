@@ -57,7 +57,7 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
-    HIGH_FLOOR,
+    FLOOR,
     ChangedFile,
     glob_match,
     is_trusted_actors_path,
@@ -4088,8 +4088,9 @@ def foreign_paths(
 
 
 # Paths never a trusted author's own, whoever wrote them: the HIGH path floor
-# itself, so an adopted pull request's own lines hold there too.
-NEVER_FLOOR_EXEMPT = HIGH_FLOOR
+# itself, the entries a security review clears included, so an adopted pull
+# request's own lines hold there too.
+NEVER_FLOOR_EXEMPT = FLOOR
 
 
 # A model-driven App's own lines skip the denied paths and the manifest review

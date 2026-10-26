@@ -210,6 +210,15 @@ jobs:
         .github/scripts/pr-merge/enable-auto-merge.mjs
         .github/scripts/pr-merge/superseded.mjs
         .github/scripts/pr-merge/clear-escalations.mjs
+        .github/scripts/pr-merge/carry-run-cache.mjs
+        .github/scripts/pr-merge/gate-check.mjs
+        .github/scripts/pr-merge/head-ref-map.mjs
+        .github/scripts/pr-merge/lane-records.mjs
+        .github/scripts/pr-merge/rate-stop.bash
+        .github/scripts/pr-merge/refire-refused.mjs
+        .github/scripts/pr-merge/rotation.mjs
+        .github/scripts/pr-merge/sweep-summary.mjs
+        .github/scripts/pr-merge/who.mjs
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/gate-source.mjs
         .github/scripts/pr-unblock/thread-scope.mjs

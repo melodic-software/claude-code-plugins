@@ -16,7 +16,9 @@
 //   (babysit_merge.HUMAN_MERGE_VETO_RE). A later one by the same person
 //   lifts it; an item with no text lifts nothing.
 // - A hold path: a changed file, or a renamed file's old path, matching the
-//   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR. A person on
+//   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR (the floor's
+//   `trust` and `gate` globs; its `enforcement` globs are the merge gate's,
+//   which a clean security review clears). A person on
 //   the trusted-actor list lifts it by approving the head: their newest
 //   review of the head that approves, requests changes or was dismissed must
 //   approve. No other path is held for being trusted alone: the review lanes
@@ -220,60 +222,73 @@ export const fromRest = (row) => ({
 const undot = (text) => String(text).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001");
 export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), undot(glob));
 
-// The narrow floor every hold path check adds to the configured globs (owner
-// decision Q-FLOOR (B)): the code main runs to mint and scope lane tokens
-// and judge triggers (resolve-config, request-lane-token,
-// check-trusted-trigger, check-kill-switch, the rate guard), code owners and
-// submodules; and the files that enforce the floor (owner decision
-// Q-ENFORCE (A)): this module, enable-auto-merge, superseded,
-// clear-escalations, babysit_risk.py, the ci-status workflow, the pr-merge
-// workflow that wires them, the pipeline config, every module those scripts
-// import, and the babysit-prs modules
-// babysit_risk.py and the Python those scripts run (babysit_verify_evidence.py)
-// import (test_merge_holds_sync.py derives both closures and requires them
-// here). babysit_risk.HIGH_FLOOR, which
-// test_merge_holds_sync.py checks this equals. A constant of the module
-// ci-status and enable-auto-merge run from the base commit, so a pull
-// request cannot rewrite it.
-export const HOLD_PATH_FLOOR = Object.freeze([
-  ".github/actions/check-trusted-trigger/**",
-  "**/CODEOWNERS",
-  "**/.gitmodules",
-  ".github/actions/resolve-config/**",
-  ".github/actions/check-kill-switch/**",
-  ".github/actions/request-lane-token/**",
-  ".github/actions/log-api-budget/rate-guard.mjs",
-  ".github/scripts/pr-merge/merge-holds.mjs",
-  ".github/scripts/pr-merge/enable-auto-merge.mjs",
-  ".github/scripts/pr-merge/superseded.mjs",
-  ".github/scripts/pr-merge/clear-escalations.mjs",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
-  ".github/workflows/pr-require-checks.yml",
-  ".github/workflows/pr-merge.yml",
-  "docs/conventions/pr-pipeline.yaml",
-  ".github/scripts/pr-unblock/address-feedback.mjs",
-  ".github/scripts/pr-unblock/gate-source.mjs",
-  ".github/scripts/pr-unblock/thread-scope.mjs",
-  ".github/scripts/work-resolve-issue/report-outcome.mjs",
-  ".github/scripts/work-resolve-issue/limits.mjs",
+// The narrow floor every hold path check adds to the configured globs, each
+// glob with its class (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26
+// option B): `trust`, what mints and scopes lane tokens and judges triggers
+// (request-lane-token, check-trusted-trigger, check-kill-switch), code owners
+// and submodules; `gate`, the merge gate's own code (every pr-merge script,
+// the pr-merge and ci-status workflows, babysit_merge*, the rate guard) and
+// the config the token broker loads (resolve-config, effect-grants.json
+// included, and the pipeline config); `enforcement`, the other modules the
+// floored scripts import and the Python that decides the holds
+// (test_merge_holds_sync.py derives both closures and requires them here).
+// babysit_risk.FLOOR_CLASSES, which test_merge_holds_sync.py checks this
+// equals. A constant of the module ci-status and enable-auto-merge run from
+// the base commit, so a pull request cannot rewrite it.
+export const HOLD_PATH_CLASSES = Object.freeze([
+  [".github/actions/check-trusted-trigger/**", "trust"],
+  ["**/CODEOWNERS", "trust"],
+  ["**/.gitmodules", "trust"],
+  [".github/actions/resolve-config/**", "gate"],
+  [".github/actions/check-kill-switch/**", "trust"],
+  [".github/actions/request-lane-token/**", "trust"],
+  [".github/actions/log-api-budget/rate-guard.mjs", "gate"],
+  [".github/scripts/pr-merge/merge-holds.mjs", "gate"],
+  [".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"],
+  [".github/scripts/pr-merge/superseded.mjs", "gate"],
+  [".github/scripts/pr-merge/clear-escalations.mjs", "gate"],
+  [".github/scripts/pr-merge/carry-run-cache.mjs", "gate"],
+  [".github/scripts/pr-merge/gate-check.mjs", "gate"],
+  [".github/scripts/pr-merge/head-ref-map.mjs", "gate"],
+  [".github/scripts/pr-merge/lane-records.mjs", "gate"],
+  [".github/scripts/pr-merge/rate-stop.bash", "gate"],
+  [".github/scripts/pr-merge/refire-refused.mjs", "gate"],
+  [".github/scripts/pr-merge/rotation.mjs", "gate"],
+  [".github/scripts/pr-merge/sweep-summary.mjs", "gate"],
+  [".github/scripts/pr-merge/who.mjs", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
+  [".github/workflows/pr-require-checks.yml", "gate"],
+  [".github/workflows/pr-merge.yml", "gate"],
+  ["docs/conventions/pr-pipeline.yaml", "gate"],
+  [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/gate-source.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"],
+  [".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"],
+  [".github/scripts/work-resolve-issue/limits.mjs", "enforcement"],
 ]);
+// The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
+// person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge
+// gate holds it (babysit_risk `review-path:`) until a clean security review
+// binds to the head, and enable-auto-merge arms only a head the gate passed.
+export const HOLD_PATH_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
+export const REVIEW_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`
 // or HOLD_PATH_FLOOR. Null `holdPaths` or `files` (unreadable) holds it.

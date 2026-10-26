@@ -298,7 +298,9 @@ test("a refusal a person must clear, a cost path or a configured denied path, is
 // Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): a floor path, the files
 // that enforce the floor included, holds with no configured glob naming it,
 // as a cause a person must clear, so it gets the label; a trusted path off
-// the floor arms.
+// the floor arms. Owner decision Q26 option B: an `enforcement` floor path is
+// left to the gate's verifier read, whose risk score holds it until a clean
+// security review binds to the head, so it arms on a passing read.
 test("a floor path no configured glob names is commented on and labeled human-gated; a trusted path off it arms", async () => {
   const floor = [
     ".github/actions/resolve-config/resolve.mjs",
@@ -312,21 +314,23 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/enable-auto-merge.mjs",
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    ".github/scripts/pr-merge/gate-check.mjs",
+    ".github/scripts/pr-merge/who.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
     ".github/workflows/pr-require-checks.yml",
+    ".github/workflows/pr-merge.yml",
     "docs/conventions/pr-pipeline.yaml",
-    ".github/scripts/pr-unblock/address-feedback.mjs",
-    ".github/scripts/pr-unblock/gate-source.mjs",
-    ".github/scripts/pr-unblock/thread-scope.mjs",
-    ".github/scripts/work-resolve-issue/report-outcome.mjs",
-    ".github/scripts/work-resolve-issue/limits.mjs",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
-    pull(99, { files: [{ filename: ".github/scripts/pr-merge/gate-check.mjs" }] }),
+    pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py" }] }),
+    pull(99, { files: [{ filename: ".github/scripts/pr-unblock/other.mjs" }] }),
   ]);
   assert.equal(code, 0);
-  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_99", head: HEAD }]);
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_98", head: HEAD },
+    { mutation: "arm", id: "PR_99", head: HEAD },
+  ]);
   assert.deepEqual(
     notes,
     floor.flatMap((filename, index) => [
@@ -401,7 +405,14 @@ test("a changed refusal edits the one comment instead of posting another", async
 test("a risk hold is a person's only for a security finding, an aliasing path, a trusted-actor widening or a cost hold", async () => {
   const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
-  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "high-path:docs/**: docs/a.md"];
+  const lane = [
+    "evidence-unbound:claude-review: no-marker",
+    "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks",
+    "high-path:docs/**: docs/a.md",
+    // Owner decision Q26 option B: an enforcement floor path waits on the
+    // security review, which the lanes run, so no person is asked.
+    "review-path:.github/scripts/work-resolve-issue/limits.mjs: .github/scripts/work-resolve-issue/limits.mjs; a clean claude-security-review bound to this head clears it",
+  ];
   const person = [
     "security-finding: 1 CRITICAL",
     "high-path:**: 'a' mode '120000' (symlink)",
@@ -1014,7 +1025,7 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     pull(4, { files: [{ filename: "docs/held.md" }] }),
     pull(5),
     // The rest of .github merges on the review lanes.
-    pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-merge/gate-check.mjs" }] }),
+    pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-unblock/other.mjs" }] }),
   ]);
   assert.deepEqual(writes, [
     { mutation: "disarm", id: "PR_2" },

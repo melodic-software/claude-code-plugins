@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { BODY_WRITERS_QUERY, COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, deletedSince, linkHold, main, sameNetChange } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, changeOf, costDecision, costHold, costMarker, deletedSince, linkHold, main, pathHold, sameNetChange } from "./merge-holds.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -296,7 +296,9 @@ const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "
 // check-kill-switch, the rate guard, CODEOWNERS and .gitmodules hold with no
 // configured glob, and so do the files that enforce it (owner decision
 // Q-ENFORCE (A)); a trusted person's approval of the head lifts them as it
-// lifts a configured one.
+// lifts a configured one. Owner decision Q26 option B: only the `trust` and
+// `gate` entries hold here; an `enforcement` one is the merge gate's, which a
+// clean security review bound to the head clears (ENFORCEMENT_FILES).
 const FLOOR_FILES = [
   ".github/actions/resolve-config/resolve.mjs",
   ".github/actions/Resolve-Config/lane-rules.json",
@@ -312,15 +314,44 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/enable-auto-merge.mjs",
   ".github/scripts/pr-merge/superseded.mjs",
   ".github/scripts/pr-merge/clear-escalations.mjs",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  ".github/scripts/pr-merge/gate-check.mjs",
+  ".github/scripts/pr-merge/who.mjs",
+  ".github/scripts/pr-merge/rate-stop.bash",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
   ".github/workflows/pr-require-checks.yml",
+  ".github/workflows/pr-merge.yml",
   "docs/conventions/pr-pipeline.yaml",
+];
+const ENFORCEMENT_FILES = [
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
 ];
+test("the floor's enforcement globs are the merge gate's, every other one holds here", () => {
+  assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
+  assert.deepEqual(HOLD_PATH_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
+  assert.deepEqual([...new Set(HOLD_PATH_CLASSES.map(([, kind]) => kind))].sort(), ["enforcement", "gate", "trust"]);
+  for (const path of ENFORCEMENT_FILES) {
+    assert.ok(REVIEW_FLOOR.includes(path), path);
+    assert.equal(pathHold([path], []), null, path);
+  }
+});
+test("ci-status leaves an enforcement path to the merge gate's security review", async () => {
+  for (const path of ENFORCEMENT_FILES) {
+    const passed = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(passed.code, 0, `${path}: ${passed.out}`);
+  }
+  // Beside a gate path it still holds on that one.
+  const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/scripts/pr-merge/who.mjs", status: "modified" }]);
+  assert.equal(both.code, 1, both.out);
+  assert.ok(both.out.includes("it changes .github/scripts/pr-merge/who.mjs, a hold path"), both.out);
+});
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {
     const held = await ci([{ filename: path, status: "modified" }]);
@@ -344,7 +375,7 @@ test("ci-status holds no other trusted path or manifest change, only a configure
     ".github/actions/log-api-budget/action.yml",
     ".github/actions/log-api-budget/rate-guard.test.mjs",
     ".github/actions/check-trusted-trigger-x/a.mjs",
-    ".github/scripts/pr-merge/gate-check.mjs",
+    ".github/scripts/pr-unblock/other.mjs",
     "docs/CODEOWNERS.md",
   ]) {
     const passed = await ci([{ filename: path, status: "modified" }]);

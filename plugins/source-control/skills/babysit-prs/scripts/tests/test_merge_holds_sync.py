@@ -9,13 +9,17 @@ at most actions), so no lanes App push changes a workflow file. That covers
 lanes App pushes only: another identity with write access can still push a
 workflow change after auto-merge is armed.
 
-- The floor (owner decisions Q-FLOOR (B) and Q-ENFORCE (A)): `HOLD_PATH_FLOOR` is
-  `babysit_risk.HIGH_FLOOR`, and `pathHold` holds, with no configured glob,
-  exactly the paths `glob_match` matches over it, case variants included;
-  a trusted path off the floor holds only for a configured glob. Every module
-  the floor actions load is on it, and of babysit-prs/scripts/ exactly the
-  Python that decides the holds. The review callers' `hold-paths` and
-  ci-status's exempt-author `hold_patterns` each match every floor entry.
+- The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
+  `HOLD_PATH_CLASSES` is `babysit_risk.FLOOR_CLASSES`, glob and class alike,
+  `HOLD_PATH_FLOOR` is `babysit_risk.HIGH_FLOOR` (its `trust` and `gate`
+  globs), and `pathHold` holds, with no configured glob, exactly the paths
+  `glob_match` matches over that, case variants included; an `enforcement`
+  path is the gate's (`review-path:`), and a trusted path off the floor holds
+  only for a configured glob. Every module the floor actions load is on the
+  floor, every pr-merge script as `gate`, and of babysit-prs/scripts/ exactly
+  the Python that decides the holds, `babysit_merge*` as `gate`. The review
+  callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
+  match every floor entry, whatever its class.
 - The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
   paths matched (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
@@ -85,7 +89,7 @@ PY_RUN = re.compile(r"""["'`][^"'`\s]*?(plugins/[^"'`\s]+\.py)["'`]""")
 
 def python_closure(js_files: list[str]) -> list[str]:
     todo = [SCRIPTS / "babysit_risk.py"]
-    floored = {g for g in risk.HIGH_FLOOR if g.endswith(".mjs")}
+    floored = {g for g in risk.FLOOR if g.endswith(".mjs")}
     for name in sorted(floored | set(js_files)):
         for path in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
             todo.append(ROOT / path)
@@ -110,11 +114,13 @@ def python_closure(js_files: list[str]) -> list[str]:
 
 
 NODE = """
-import { COST_PATHS, HOLD_PATH_FLOOR, costHold, pathHold } from %s;
+import { COST_PATHS, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, REVIEW_FLOOR, costHold, pathHold } from %s;
 const [paths, globs] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
   costPaths: COST_PATHS,
+  classes: HOLD_PATH_CLASSES,
   floor: HOLD_PATH_FLOOR,
+  review: REVIEW_FLOOR,
   cost: paths.map((path) => costHold([path], null) !== null),
   held: paths.map((path) => pathHold([path], []) !== null),
   configured: paths.map((path) => pathHold([path], globs) !== null),
@@ -167,6 +173,11 @@ FLOOR_PATHS = [
     ".github/Standards/trusted-actors/trusted-actors.json",
     ".github/actions/check-trusted-trigger/action.yml",
     ".github/actions/Check-Trusted-Trigger/action.yml",
+    ".github/scripts/pr-merge/rotation.mjs",
+    ".github/scripts/pr-merge/rotation.test.mjs",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+    ".github/scripts/work-resolve-issue/report-outcome.mjs",
     "Docs/Conventions/PR-Pipeline.yaml",
     ".github/actions/other/action.yml",
     ".github/workflows/x.yml",
@@ -201,8 +212,14 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_is_the_same_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
+        self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
         self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
-        self.assertEqual(len(risk.HIGH_FLOOR), 37)
+        self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
+        self.assertEqual(len(risk.FLOOR_CLASSES), 46)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 21)
+        self.assertEqual(
+            {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
+        )
         for path, held, configured in zip(
             FLOOR_PATHS, answer["held"], answer["configured"], strict=True
         ):
@@ -225,8 +242,25 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(held)
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR))
+                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertEqual(
+                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                )
+
+    def test_every_pr_merge_script_is_gate_code(self) -> None:
+        # Owner decision Q26 option B: the merge gate's own code stays a
+        # person's, every script pr-merge.yml runs from that directory.
+        folder = ROOT / ".github/scripts/pr-merge"
+        scripts = sorted(
+            f".github/scripts/pr-merge/{f.name}"
+            for f in folder.iterdir()
+            if f.is_file() and f.suffix in {".mjs", ".bash"} and ".test." not in f.name
+        )
+        self.assertIn(".github/scripts/pr-merge/who.mjs", scripts)
+        gate = {g for g, kind in risk.FLOOR_CLASSES if kind == "gate"}
+        for path in scripts:
+            with self.subTest(path):
+                self.assertIn(path, gate)
 
     def test_the_floor_holds_the_python_that_decides_the_holds(self) -> None:
         files = python_closure(import_closure(FLOOR_ENTRIES))
@@ -236,11 +270,15 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(held)
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR))
+                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                # babysit_merge* is the gate's own code, a person's; the
+                # rest is enforcement, which a clean security review clears.
+                gate = pathlib.PurePosixPath(path).name.startswith("babysit_merge")
+                self.assertEqual(held, gate)
+                self.assertEqual(path in risk.REVIEW_FLOOR, not gate)
         # Nothing else of that directory: the floor tracks the closure.
         self.assertEqual(
-            sorted(g for g in risk.HIGH_FLOOR if g.startswith(f"{scripts}/")), files
+            sorted(g for g in risk.FLOOR if g.startswith(f"{scripts}/")), files
         )
 
 
@@ -276,7 +314,7 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
         )
         for name, (patterns, match) in lists.items():
             self.assertTrue(patterns, name)
-            for entry in risk.HIGH_FLOOR:
+            for entry in risk.FLOOR:
                 with self.subTest(list=name, entry=entry):
                     self.assertTrue(any(match(p, entry) for p in patterns))
 
