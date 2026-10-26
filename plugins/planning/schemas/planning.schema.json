@@ -12,6 +12,11 @@
       "enum": ["local", "tracker"],
       "default": "local"
     },
+    "plan_reader": {
+      "description": "How much of an approved plan /planning:plan publishes to the work item or pastes into the pull request. step-by-step: the whole plan. standard: the Brief, the Design section and a phase outline. guardrails: the Brief and the Design section, with its conventions followed, net-new and challenged-pattern lines. A --reader argument overrides it for one run.",
+      "enum": ["guardrails", "standard", "step-by-step"],
+      "default": "step-by-step"
+    },
     "phase_order": {
       "description": "How /planning:plan orders phases. composed: remove dead code the change touches (skipped for a bug fix), then the integration slice, then the riskiest remaining unknown, then scaffold, then the remaining features. subtraction-first: dead code, scaffold, features. riskiest-first: the step whose failure would invalidate the most downstream work goes first.",
       "enum": ["composed", "subtraction-first", "riskiest-first"],

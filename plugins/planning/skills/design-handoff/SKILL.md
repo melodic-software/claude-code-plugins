@@ -123,7 +123,10 @@ memory:
   the seam or containing module, and the recorded reason; an abstraction question left to a human
   is listed with its arbiter
 - **Conventions followed**: repository paths of the existing patterns, rules, and ADRs the design
-  follows. Never a memory-slice path: PLAN.md is published, and that path would dangle
+  follows. Never a memory-slice path: PLAN.md is published, and that path would dangle. Under them,
+  from the resolved threads' rationale: one `Net new:` line listing each part no existing pattern
+  covers and why none fits, and one `Challenges a pattern:` line listing each pattern the design
+  departs from or questions, its path and the reason; `none` when a line has nothing to list
 
 An early exit (`design-resolution.md`) writes the section as one line naming the early exit and
 its reason. A Tier B early exit adds a `### Contracts` subsection under that line, quoting the
