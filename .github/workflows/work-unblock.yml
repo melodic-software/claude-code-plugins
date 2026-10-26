@@ -154,16 +154,19 @@ jobs:
 
       # The broker mints only when the person who closed the issue and the one
       # who started this run (a re-runner may be someone else) are each a
-      # listed human (trusted-actors.json on main). Anything else stops here
-      # quietly, before the token request. The script makes the same check
-      # again. A scheduled sweep has no closer, and its actor is whoever last
-      # changed the schedule, so it skips this check.
+      # listed human (trusted-actors.json on main), matched by id: the
+      # re-runner's is read from this run's own record with the job token.
+      # Anything else, or a failed read, stops here quietly, before the token
+      # request. The script makes the same check again. A scheduled sweep has
+      # no closer, and its actor is whoever last changed the schedule, so it
+      # skips this check.
       - name: Check who closed the issue
         id: who
         if: steps.kill.outputs.proceed == 'true' && github.event_name == 'issues'
         env:
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          # The job's own read-only token, to read this run's record.
+          ACTIONS_TOKEN: ${{ github.token }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-unblock/label-unblocked.mjs --check-closer
 
@@ -222,7 +225,6 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: node ".base/$SCRIPT"
 
       # The token is cancelled as soon as the job is done; it would otherwise

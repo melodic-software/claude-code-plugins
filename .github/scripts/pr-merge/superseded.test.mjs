@@ -1,7 +1,9 @@
 // Expected values come from pr-merge.yml: a job waiting in its concurrency
 // group starts after the running one, and it sweeps every candidate when its
 // run is scheduled or a listed human started it (the "Check who started the
-// run" step). Only schedule runs re-fire refused lane runs, and
+// run" step). superseded.mjs counts the starter and any re-runner as listed
+// humans only by account id, since a login can pass to another account. Only
+// schedule runs re-fire refused lane runs, and
 // pull_request_target runs start no full CI run, so a merge job is superseded
 // only by one that does at least what it does. Every enable-auto-merge run
 // disarms on a hold, and only a scheduled or hand-started one arms. GitHub
@@ -120,9 +122,19 @@ test("a pending run a bot started stops before its sweep, so it supersedes nothi
   assert.equal(run.superseded, false);
 });
 
-test("a listed id with another login does not count as the listed human", async () => {
-  const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", { id: OWNER.id, login: "someone-else" })] });
-  assert.equal(run.superseded, false);
+test("a listed human's login held by a different id does not count as that human, as starter or re-runner", async () => {
+  const impostor = { id: 999001, login: OWNER.login };
+  for (const [actor, rerunner] of [[impostor, impostor], [OWNER, impostor], [impostor, OWNER]]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", actor, { rerunner })] });
+    assert.equal(run.superseded, false, `${actor.id} re-run by ${rerunner.id}`);
+  }
+});
+
+test("a run with no triggering actor id is not counted as a listed human's", async () => {
+  for (const rerunner of [{ login: OWNER.login }, { id: String(OWNER.id), login: OWNER.login }, null]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", OWNER, { rerunner })] });
+    assert.equal(run.superseded, false, JSON.stringify(rerunner));
+  }
 });
 
 test("a bot's run a listed human re-ran stops at the who step, so it supersedes nothing", async () => {

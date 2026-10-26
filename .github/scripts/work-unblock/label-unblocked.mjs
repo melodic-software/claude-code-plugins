@@ -149,13 +149,17 @@
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
 //                          (`issues` only)
-//   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
-//                          must be a listed human (`issues` only)
-//   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
+//   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to read
+//                          this run's record (`issues`), list
 //                          work-resolve-issue runs, read a refused job's log,
-//                          and find the last sweep and its jobs;
-//                          unset skips the re-fire and uses the full window
-//   GITHUB_RUN_ID          this run, skipped when reading the last sweep
+//                          and find the last sweep and its jobs; on
+//                          `schedule`, unset skips the re-fire and uses the
+//                          full window
+//   GITHUB_RUN_ID          this run, read for who started this attempt (a
+//                          re-runner may differ; it must be a listed human,
+//                          `issues` only) and skipped when reading the last
+//                          sweep
+//   GITHUB_RUN_ATTEMPT     this run's attempt, checked against its record
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -168,7 +172,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
@@ -251,16 +255,30 @@ const backoffDue = (since, refires) => since + Math.min(STRANDED_HOURS * 2 ** re
 const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
-// Whether the account that closed the issue (ACTOR_ID, by id) and the one
-// that started this run (TRIGGERING_ACTOR, by login; a re-runner may be
-// another account) are each a listed human. The broker mints only then.
-export function checkCloser(env) {
+// Whether the account that closed the issue (ACTOR_ID) and the one that
+// started this run attempt (a re-runner may be another account) are each a
+// listed human, by id. The re-runner's id is read from this run's own record
+// with `actions` (default: the job token), since a login can pass to another
+// account; a failed or malformed read answers false. The broker mints only
+// when this holds.
+export async function checkCloser(env, actions) {
   if (!NUMBER.test(env.ACTOR_ID ?? "")) {
     return false;
   }
-  const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-  const rerunner = logins.get(String(env.TRIGGERING_ACTOR ?? "").toLowerCase());
-  return humans.has(Number(env.ACTOR_ID)) && rerunner !== undefined && humans.has(rerunner);
+  const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+  if (!humans.has(Number(env.ACTOR_ID))) {
+    return false;
+  }
+  try {
+    if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
+      throw new Error("GITHUB_REPOSITORY is not owner/repo");
+    }
+    actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    return humans.has(await readRerunner(actions, env.GITHUB_REPOSITORY, String(env.GITHUB_RUN_ID ?? ""), String(env.GITHUB_RUN_ATTEMPT ?? "")));
+  } catch (error) {
+    console.log(`::warning title=label-unblocked::this run's record names no re-runner it could read (${escapeCommand(error?.message ?? error)}); treated as unlisted`);
+    return false;
+  }
 }
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -1526,7 +1544,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
         return 0;
       }
-      if (!checkCloser(env)) {
+      if (!(await checkCloser(env, actions))) {
         console.log("label-unblocked: the closer or the re-runner is not a listed human; nothing read or labeled");
         return 0;
       }
@@ -1569,7 +1587,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
 // output, so the workflow can stop before it requests a token.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   if (process.argv[2] === "--check-closer") {
-    const proceed = checkCloser(process.env);
+    const proceed = await checkCloser(process.env);
     writeOutputs({ proceed: String(proceed) });
     console.log(`label-unblocked: closer and re-runner ${proceed ? "are" : "are not both"} listed humans`);
   } else {
