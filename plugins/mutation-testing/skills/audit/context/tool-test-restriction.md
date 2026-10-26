@@ -19,11 +19,11 @@ pitest and infection are not probed and use the manual protocol.
 | JavaScript/TypeScript | vitest | `npx vitest run {tests}` (positional filters match by path substring, not glob or regexp) | path list | https://vitest.dev/guide/cli.html |
 | JavaScript/TypeScript | jest | `npx jest --runTestsByPath {tests}` | path list | https://jestjs.io/docs/cli |
 | JavaScript/TypeScript | mocha | `npx mocha {tests}` | path list | https://mochajs.org/ |
-| .NET | dotnet test | `dotnet test --filter "<expression>"` (no file path form) | name filter only | https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests |
+| .NET | dotnet test (VSTest runner) | `dotnet test {tests}`, run once per line `scripts/dotnet-test-selection.sh <test file>...` prints: the owning project, then `--filter 'FullyQualifiedName~<Namespace>.<Class>.\|...'` for each top-level class in that project's files, plus `<Class>+` for a class holding nested classes and no trailing dot for a generic one (`~` is contains, `\|` is or; there is no file path form). Keep `--filter` out of `test-command`. A filter that matches no test still exits 0, with a warning | project and name filter | https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests, https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-test-vstest |
 | JVM | maven surefire | `mvn test -Dtest=<class or pattern>` | name filter only | https://maven.apache.org/surefire/maven-surefire-plugin/examples/single-test.html |
 | JVM | gradle | `gradle test --tests "<class or pattern>"` | name filter only | https://docs.gradle.org/current/userguide/java_testing.html |
 | PHP | phpunit | `vendor/bin/phpunit {tests}` | path list | https://docs.phpunit.de/en/12.0/textui.html |
 | Python | pytest | `python -m pytest {tests}` | path list | https://docs.pytest.org/en/stable/how-to/usage.html |
 | Python | unittest | `python -m unittest {tests}` (test modules may be given as file paths) | path list | https://docs.python.org/3/library/unittest.html |
 
-Recheck trigger: a new major release of StrykerJS, Stryker.NET or mutmut, or a change to the named option on its configuration docs page.
+Recheck trigger: a new major release of StrykerJS, Stryker.NET or mutmut, or a change to the named option on its configuration docs page. For the .NET row: a change to the filter syntax on the selective-tests page, or to the project argument or the no-matching-tests exit code on the VSTest `dotnet test` page (both read 2026-10-26).
