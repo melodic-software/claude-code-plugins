@@ -472,8 +472,8 @@ wcifs attribution does not hold on that host, although it runs WSL2 and loads th
 Separately, on the host of the 2026-09-18 attribution runs, `SPI_GETFOREGROUNDLOCKTIMEOUT` read
 2,147,483,647 ms live while `HKCU\Control Panel\Desktop\ForegroundLockTimeout` held the 200,000
 default, which is the always-armed precondition the foreground-lock write-up names. The logon reset
-described in "The per-logon workaround" below is the likely cause; the A/B that would confirm the
-mechanism there is written and has not been run.
+that the write-up linked under "The per-logon workaround" below reports is the likely cause; the
+A/B that would confirm the mechanism there is written and has not been run.
 
 **Four service arms came back NO CANDIDATE.** On 2026-09-18 the elevated runbook below was run
 four times over the NVIDIA display container, Razer Game Manager, THX spatial audio and Wispr
@@ -538,10 +538,11 @@ leaking, are the recheck trigger for them.
 
 ### The per-logon workaround, on trial on melo-lap-001
 
-We reapply the workaround after every logon rather than once, from the first interactive
-terminal, because a one-time setting did not hold on this host. melo-lap-001's own probe (the
-rendered `foreground-lock.ps1` run from a background process over the WSL hop, 2026-10-26)
-logged `before=2147483647 after=2147483647 set=False error=87`.
+We reapply the workaround after every logon because the write-up linked below reports that the
+live value is reset at logon; we have not yet observed that reset on melo-lap-001. We run it from
+the first interactive terminal because melo-lap-001's own probe (the rendered
+`foreground-lock.ps1` run from a background process over the WSL hop, 2026-10-26) shows a
+background caller is refused: `before=2147483647 after=2147483647 set=False error=87`.
 
 - **Pointer**: for why the live value reverts at logon and which callers may set it, read the
   [gunrgbcr/windows-token-leak-logon-fix README](https://github.com/gunrgbcr/windows-token-leak-logon-fix#why-setting-it-to-0-doesnt-stick)
