@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/billing/export/add-note.yaml"
+          }
+        }
+      ],
+      "why": "read the included file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/billing/export/steps.yaml"
+          }
+        }
+      ],
+      "why": "never opened the included steps, so their ids were guessed"
+    }
+  ]
+}

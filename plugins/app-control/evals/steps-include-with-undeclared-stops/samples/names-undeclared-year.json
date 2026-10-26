@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The run cannot start. The to- include passes `year`, which pick-month.yaml does not declare (its params are field and month), so drive stops the feature before launching anything.",
+      "why": "names the undeclared with value"
+    },
+    {
+      "answer": "Stopped: the include of pick-month.yaml with prefix to- carries an undeclared with name, year.",
+      "why": "names it with the word first"
+    },
+    {
+      "answer": "Stopped before launch: the to- include passes `year`, which is not a parameter of pick-month.yaml.",
+      "why": "names it as not a parameter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The run can start: open-billing, from-open-picker (Start), from-choose-month (2026-01), to-open-picker (End), to-choose-month (2026-03), press-export. The extra year value is unused.",
+      "why": "ignores the undeclared value and expands"
+    },
+    {
+      "answer": "Nothing undeclared. Steps: open-billing, from-open-picker, from-choose-month, to-open-picker, to-choose-month for year 2026, press-export.",
+      "why": "denies an undeclared name and mentions only a calendar year"
+    }
+  ]
+}
