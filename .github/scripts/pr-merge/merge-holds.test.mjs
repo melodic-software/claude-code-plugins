@@ -30,9 +30,10 @@ const OLD = "fedcba9876543210fedcba9876543210fedcba98";
 const CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
 // A review lane's pull_request run on `sha`, started at `created`, whose
 // status job (or `job`) finished at `at` and recorded a hold notice naming
-// `notice`.
-const laneRun = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", lane = "pr-review-hosted.yml", job = CHECKS[lane], notice = sha, created = "2026-10-22T10:30:00Z" } = {}) => ({
+// `notice`, with its head in `repo`.
+const laneRun = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", lane = "pr-review-hosted.yml", job = CHECKS[lane], notice = sha, created = "2026-10-22T10:30:00Z", repo = REPO } = {}) => ({
   lane,
+  repo,
   sha,
   at,
   job,
@@ -96,7 +97,7 @@ function world({
       throw new Error(`${read} failed`);
     }
     if (listing) {
-      return { workflow_runs: runs.flatMap((run, i) => (run.lane === listing[1] ? [{ id: i + 1, head_sha: run.sha, created_at: run.created }] : [])) };
+      return { workflow_runs: runs.flatMap((run, i) => (run.lane === listing[1] ? [{ id: i + 1, head_sha: run.sha, created_at: run.created, head_repository: run.repo && { full_name: run.repo } }] : [])) };
     }
     if (jobs) {
       const run = runs[Number(jobs[1]) - 1];
@@ -586,6 +587,8 @@ test("the decided head is the newest cost notice a lane's status job recorded be
     "the other lane's status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: CHECKS["pr-review-security-hosted.yml"] }),
     "a notice naming another head than its run's": laneRun(OLD, "2026-10-22T11:30:00Z", { notice: HEAD }),
     "a notice without cost": laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "trust-gate" }),
+    "a run whose head is in another repository": laneRun(HEAD, "2026-10-22T11:30:00Z", { repo: "fork/repo" }),
+    "a run with no head repository": laneRun(HEAD, "2026-10-22T11:30:00Z", { repo: null }),
   })) {
     assert.equal((await runs(extra)).link, null, name);
   }

@@ -2260,8 +2260,9 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     """The head a decision made at `at` decided, from the review lanes'
     check-run annotations, never a comment (any GITHUB_TOKEN workflow posts as
     github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
-    the head `branch` started before `at`, each run's head vetted against
-    `base` (`lane_change`), its status job's cost notices (`cost_notices`)
+    the head `branch` of `owner`/`name` started before `at` (a run from
+    another repository's same-named branch speaks for another pull request),
+    each run's head vetted against `base` (`lane_change`), its status job's cost notices (`cost_notices`)
     from jobs done before `at`, then `decided_head`. A run on a head that fails
     the vet decides nothing, and a read that fails raises."""
     cutoff = parse_timestamp(at)
@@ -2281,7 +2282,8 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
         )
         for run in runs:
             started = parse_timestamp(run.get("created_at"))
-            if started is None or started >= cutoff:
+            head_repo = json_object(run.get("head_repository")).get("full_name")
+            if head_repo != f"{owner}/{name}" or started is None or started >= cutoff:
                 continue
             head = str(run.get("head_sha") or "")
             if not re.fullmatch(r"[0-9a-f]{40}", head):

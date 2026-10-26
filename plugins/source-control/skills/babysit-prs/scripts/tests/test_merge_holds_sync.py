@@ -457,9 +457,11 @@ def _run(
     job: str | None = None,
     notice: str | None = None,
     created: str = "2026-01-02T11:00:00Z",
+    repo: str | None = "o/r",
 ) -> dict[str, Any]:
-    """A review lane's run on `sha`, started at `created`, whose status job
-    (or `job`) finished at `at` with a hold notice naming `notice`."""
+    """A review lane's run on `sha` with its head in `repo`, started at
+    `created`, whose status job (or `job`) finished at `at` with a hold notice
+    naming `notice`."""
     message = f"claude-lane-hold lane=claude-review sha={notice or sha} criteria={criteria} label=needs-human"
     return {
         "lane": lane,
@@ -467,6 +469,7 @@ def _run(
         "at": at,
         "job": job or CHECKS[lane],
         "created": created,
+        "repo": repo,
         "notes": [{"annotation_level": "notice", "message": message}],
     }
 
@@ -531,6 +534,8 @@ CARRIES = {
     },
     "a notice naming another head than its run's": {"runs": [_run(OLD, notice=HEAD)]},
     "a notice without cost": {"runs": [_run(HEAD, criteria="trust-gate")]},
+    "a run whose head is in another repository": {"runs": [_run(HEAD, repo="f/r")]},
+    "a run with no head repository": {"runs": [_run(HEAD, repo=None)]},
     "two heads at the newest time": {
         "runs": [_run(HEAD), _run(OLD, lane="pr-review-security-hosted.yml")]
     },
@@ -576,7 +581,7 @@ const github = async (method, path, data) => {
   }
   const runs = /\\/actions\\/workflows\\/([a-z-]+\\.yml)\\/runs\\?event=pull_request&branch=b&per_page=100&page=1$/.exec(path);
   if (method === "GET" && runs) {
-    return { workflow_runs: heads.runs.flatMap((r, i) => (r.lane === runs[1] ? [{ id: i + 1, head_sha: r.sha, created_at: r.created }] : [])) };
+    return { workflow_runs: heads.runs.flatMap((r, i) => (r.lane === runs[1] ? [{ id: i + 1, head_sha: r.sha, created_at: r.created, head_repository: r.repo && { full_name: r.repo } }] : [])) };
   }
   const jobs = /\\/actions\\/runs\\/([0-9]+)\\/jobs\\?filter=all&per_page=100&page=1$/.exec(path);
   if (method === "GET" && jobs) {
@@ -647,7 +652,12 @@ def py_decision(
                 "/runs?event=pull_request&branch=b&per_page=100"
             ), endpoint
             return [
-                {"id": i + 1, "head_sha": r["sha"], "created_at": r["created"]}
+                {
+                    "id": i + 1,
+                    "head_sha": r["sha"],
+                    "created_at": r["created"],
+                    "head_repository": r["repo"] and {"full_name": r["repo"]},
+                }
                 for i, r in enumerate(heads["runs"])
                 if r["lane"] == lane
             ]

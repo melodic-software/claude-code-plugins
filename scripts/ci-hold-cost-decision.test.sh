@@ -158,7 +158,7 @@ job() { jq -cn --argjson id "$1" --arg name "$2" --arg at "$3" '{id: $id, name: 
 # lanes <code-notes> <security-notes>: one run per lane, its status job done
 # at 13:20:30 and 13:21:00, and the decided run (decided "$HEAD").
 lanes() {
-  STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:00Z","updated_at":"2026-10-23T13:20:40Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:30Z","updated_at":"2026-10-23T13:21:10Z"}]}}')"
+  STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:00Z","updated_at":"2026-10-23T13:20:40Z","head_repository":{"full_name":"o/r"}}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:30Z","updated_at":"2026-10-23T13:21:10Z","head_repository":{"full_name":"o/r"}}]}}')"
   STUB_JOBS="$(jq -cn --argjson a "$(job 11 "$CODE_CHECK" 2026-10-23T13:20:30Z)" --argjson b "$(job 21 "$SEC_CHECK" 2026-10-23T13:21:00Z)" \
     '{"1": {jobs: [{id: 10, name: "kill-switch", completed_at: "2026-10-23T13:19:00Z"}, $a]}, "2": {jobs: [$b]}}')"
   STUB_NOTES="$(jq -cn --argjson a "$1" --argjson b "$2" '{"11": $a, "21": $b, "10": []}')"
@@ -173,7 +173,7 @@ lanes() {
 decided() {
   local id=$((DECIDED += 1)) at="${2:-2026-10-23T13:10:00Z}"
   STUB_RUNS="$(jq -c --arg f "${4:-pr-review-hosted.yml}" --argjson id "$id" --arg sha "$1" --arg at "$at" \
-    '.[$f].workflow_runs += [{id: $id, head_sha: $sha, created_at: "2026-10-23T13:00:00Z", updated_at: $at}]' <<<"$STUB_RUNS")"
+    '.[$f].workflow_runs += [{id: $id, head_sha: $sha, created_at: "2026-10-23T13:00:00Z", updated_at: $at, head_repository: {full_name: "o/r"}}]' <<<"$STUB_RUNS")"
   STUB_JOBS="$(jq -c --arg id "$id" --argjson j "$(job "$id" "${5:-$CODE_CHECK}" "$at")" '. + {($id): {jobs: [$j]}}' <<<"$STUB_JOBS")"
   STUB_NOTES="$(jq -c --arg id "$id" --argjson n "[$(note "claude-lane-hold lane=claude-review sha=${6:-$1} criteria=${3:-cost} label=needs-human")]" \
     '. + {($id): $n}' <<<"$STUB_NOTES")"
@@ -421,6 +421,17 @@ expect "a later notice without cost decides nothing, so the older cost notice do
 nodecided
 decided "$OLD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$CODE_CHECK" "$HEAD"
 expect "a notice naming a head its run did not run on decides nothing" no no no "covering this head"
+# A run on a same-named branch of another repository (a fork pull request)
+# speaks for that pull request, not this one.
+for head_repo in '{"full_name":"f/r"}' null; do
+  nodecided
+  decided "$OLD"
+  decided "$HEAD" 2026-10-23T13:12:00Z
+  nets "[$TF]" "[$TF,$MORE]"
+  STUB_RUNS="$(jq -c --argjson r "$head_repo" '.["pr-review-hosted.yml"].workflow_runs |= map(if .id == 102 then .head_repository = $r else . end)' <<<"$STUB_RUNS")"
+  export STUB_RUNS
+  expect "a notice from a run whose head repository is $head_repo decides nothing" no no no "covering this head"
+done
 nodecided
 decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml 'pr-review / review-key'
 expect "a notice from a job other than the lane's status job decides nothing" no no no "covering this head"
@@ -447,7 +458,7 @@ STUB_COMPARE="$(jq -cn --arg o "$OLD" --arg h "$HEAD" '{($o): {files: [{filename
 expect "a run before the decision on a head that changes a review-lane workflow keeps the hold" no no no "changes a review-lane workflow"
 reset
 nodecided
-STUB_RUNS="$(jq -c --arg o "$OLD" '.["pr-review-hosted.yml"].workflow_runs += [{id: 5, head_sha: $o, created_at: "2026-10-23T13:16:00Z", updated_at: "2026-10-23T13:17:00Z"}]' <<<"$STUB_RUNS")"
+STUB_RUNS="$(jq -c --arg o "$OLD" '.["pr-review-hosted.yml"].workflow_runs += [{id: 5, head_sha: $o, created_at: "2026-10-23T13:16:00Z", updated_at: "2026-10-23T13:17:00Z", head_repository: {full_name: "o/r"}}]' <<<"$STUB_RUNS")"
 STUB_JOBS="$(jq -c --argjson j "$(job 5 "$CODE_CHECK" 2026-10-23T13:12:00Z)" '. + {"5": {jobs: [$j]}}' <<<"$STUB_JOBS")"
 STUB_NOTES="$(jq -c --argjson n "[$(hold_note cost)]" '. + {"5": $n}' <<<"$STUB_NOTES")"
 STUB_EVENTS="[$(event unlabeled "$OWNER" 2026-10-23T13:18:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
@@ -521,7 +532,7 @@ decided "$HEAD"
 expect "a re-run attempt that held for trust-gate clears nothing" no no no "is not cost-only"
 
 reset
-STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:00Z","updated_at":"2026-10-23T13:20:40Z"},{"id":3,"head_sha":"fedcba9876543210fedcba9876543210fedcba98","created_at":"2026-10-23T13:09:00Z","updated_at":"2026-10-23T13:10:10Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:30Z","updated_at":"2026-10-23T13:21:10Z"}]}}')"
+STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:00Z","updated_at":"2026-10-23T13:20:40Z","head_repository":{"full_name":"o/r"}},{"id":3,"head_sha":"fedcba9876543210fedcba9876543210fedcba98","created_at":"2026-10-23T13:09:00Z","updated_at":"2026-10-23T13:10:10Z","head_repository":{"full_name":"o/r"}}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"head_sha":"0123456789abcdef0123456789abcdef01234567","created_at":"2026-10-23T13:19:30Z","updated_at":"2026-10-23T13:21:10Z","head_repository":{"full_name":"o/r"}}]}}')"
 STUB_JOBS="$(jq -c --argjson c "$(job 31 "$CODE_CHECK" 2026-10-23T13:10:00Z)" '. + {"3": {jobs: [$c]}}' <<<"$STUB_JOBS")"
 STUB_NOTES="$(jq -c --argjson c "[$(hold_note trust-gate)]" '. + {"31": $c}' <<<"$STUB_NOTES")"
 export STUB_RUNS STUB_JOBS STUB_NOTES

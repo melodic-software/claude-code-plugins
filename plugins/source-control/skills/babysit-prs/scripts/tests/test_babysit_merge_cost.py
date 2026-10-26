@@ -42,10 +42,11 @@ def _run(
     job: str | None = None,
     notice: str | None = None,
     created: str = "2026-10-22T10:30:00Z",
+    repo: str | None = REPO,
 ) -> dict[str, Any]:
-    """A review lane's pull_request run on `sha`, started at `created`, whose
-    status job (or `job`) finished at `at` and recorded a hold notice naming
-    `notice` (default `sha`)."""
+    """A review lane's pull_request run on `sha` with its head in `repo`,
+    started at `created`, whose status job (or `job`) finished at `at` and
+    recorded a hold notice naming `notice` (default `sha`)."""
     message = (
         f"claude-lane-hold lane=claude-review sha={notice or sha} "
         f"criteria={criteria} label=needs-human"
@@ -56,6 +57,7 @@ def _run(
         "at": at,
         "job": job or CHECKS[lane],
         "created": created,
+        "repo": repo,
         "notes": [{"annotation_level": "notice", "message": message}],
     }
 
@@ -100,7 +102,12 @@ class Lanes:
             ), endpoint
             assert items_key == "workflow_runs"
             return [
-                {"id": i + 1, "head_sha": r["sha"], "created_at": r["created"]}
+                {
+                    "id": i + 1,
+                    "head_sha": r["sha"],
+                    "created_at": r["created"],
+                    "head_repository": r["repo"] and {"full_name": r["repo"]},
+                }
                 for i, r in enumerate(self.runs)
                 if r["lane"] == lane
             ]
@@ -399,6 +406,8 @@ class CostDecision(unittest.TestCase):
             ),
             "a notice naming another head than its run's": _run(OLD, late, notice=HEAD),
             "a notice without cost": _run(HEAD, late, criteria="trust-gate"),
+            "a run whose head is in another repository": _run(HEAD, late, repo="fork/repo"),
+            "a run with no head repository": _run(HEAD, late, repo=None),
             "two heads at the newest time": _run(
                 HEAD, lane="pr-review-security-hosted.yml"
             ),

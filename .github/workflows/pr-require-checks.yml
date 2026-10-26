@@ -3992,9 +3992,10 @@ jobs:
           [ -n "$chosen" ] || keep "the body cites no recorded owner cost decision covering this head"
           decided_at=$(jq -r '.at' <<<"$chosen") || keep "the decisions do not parse"
           # Every hold notice a review lane's status job recorded in a run
-          # updated in the window or started before the decision, as {at,
-          # criteria, sha, run}: `sha` as the notice names it, `run` the head
-          # its run ran on.
+          # whose head is in this repository (a fork's same-named branch speaks
+          # for another pull request), updated in the window or started before
+          # the decision, as {at, criteria, sha, run}: `sha` as the notice
+          # names it, `run` the head its run ran on.
           notices='[]' vetted=''
           while read -r file check; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
@@ -4020,7 +4021,8 @@ jobs:
                   | {at: ($at | fromdateiso8601), criteria: $m.c, sha: $m.sha, run: $run}]' \
                   <<<"$notes") || keep "the annotations of job ${job%%/*} do not parse"
               done
-            done < <(jq -nr --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
+            done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
+              | select(.head_repository.full_name == $repo)
               | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'

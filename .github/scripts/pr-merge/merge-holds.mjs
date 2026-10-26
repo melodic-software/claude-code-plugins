@@ -566,7 +566,9 @@ async function listed(read, path, key) {
 // The head a decision made at `at` decided, from the review lanes' check-run
 // annotations, never a comment (any GITHUB_TOKEN workflow posts as
 // github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
-// the head `branch` started before `at`, each run's head vetted against
+// the head `branch` of `repo` started before `at` (a run from another
+// repository's same-named branch speaks for another pull request), each
+// run's head vetted against
 // `base` (laneChange), its status job's cost notices (costNotices) from jobs
 // done before `at`, then decidedHead. A run on a head that fails the vet, or
 // a read that fails, decides nothing. `read` holds actions: read and
@@ -581,7 +583,7 @@ async function noticedHead(read, repo, branch, base, at) {
   for (const [file, check] of REVIEW_LANES) {
     const runs = await listed(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
     for (const run of runs) {
-      if (!(Date.parse(run?.created_at) < cutoff)) {
+      if (run?.head_repository?.full_name !== repo || !(Date.parse(run.created_at) < cutoff)) {
         continue;
       }
       const head = String(run.head_sha ?? "");
