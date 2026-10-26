@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched |\n|---|---|---|---|---|\n| topic | sql-joins | 4 | closed | 2026-10-13 |",
+      "why": "table row with closed in the frontier column"
+    },
+    {
+      "answer": "topic/sql-joins: mission closed, 4 learning records, last touched 2026-10-13.",
+      "why": "prose line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "topic/sql-joins: 4 learning records, frontier FULL OUTER JOIN, last touched 2026-10-13, nothing due for review.",
+      "why": "near miss: lists the closed workspace as active"
+    },
+    {
+      "answer": "The sql-joins workspace has 4 records.\nIts mission is closed.",
+      "why": "closed is not on the workspace's own line"
+    }
+  ]
+}
