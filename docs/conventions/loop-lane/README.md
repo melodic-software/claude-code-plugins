@@ -1246,8 +1246,9 @@ that lane's own invocation overrides it. Remove the label to release the PR.
 same-repository, non-draft PR: the suite of each plugin whose `skills/`, `agents/` or `evals/` the
 PR changes, deterministic graders only, under `--max-cost-usd`, with a PASS or NOT COMPARABLE
 verdict per case in the job summary. Only a listed human's label starts a run, and a selected plugin
-that changes anything but its `evals/` and the markdown in its `skills/` or `agents/`, or that
-changes a skill's or agent's tool, hook or shell settings, is refused. It is
+that changes anything but its `evals/` and the markdown in its `skills/` or `agents/`, that
+changes a skill's or agent's tool, hook or shell settings, or that holds a symlink or submodule, is
+refused. It is
 advisory: no required check reads it. Add the label again to run the current head.
 
 ```bash

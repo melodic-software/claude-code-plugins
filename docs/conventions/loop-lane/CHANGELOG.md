@@ -10,7 +10,8 @@ table (§3); drift found by that audit is recorded here.
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
 
 - **Operator steering.** §7 documents the `eval: run` pull request label, which runs the changed
-  plugins' eval suites when a listed human adds it.
+  plugins' eval suites when a listed human adds it, and refuses a plugin whose tree holds a
+  symlink or submodule.
 
 ## [12.6.0] - 2026-10-26
 

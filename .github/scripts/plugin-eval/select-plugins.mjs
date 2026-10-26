@@ -22,7 +22,10 @@
 //   shape frontmatter() can read and with no YAML alias in those keys, and
 //   adds or changes no `!` shell-preprocessing line. Without --repo it cannot be read, so it
 //   is refused;
-// - no path is one git quoted (a leading `"`), whose real name is unknown.
+// - no path is one git quoted (a leading `"`), whose real name is unknown;
+// - a selected plugin's tree at --head holds no symlink or submodule, since
+//   the loader follows a link to content no rule above inspected. Without
+//   --repo the tree cannot be read, so the plugin is refused.
 //
 // When a path breaks a rule, `<path>: <reason>` lines go to stderr
 // and the exit is 1. Exit 0 otherwise.
@@ -182,6 +185,42 @@ export function refusals(paths, plugins, read = () => undefined) {
   return out;
 }
 
+// `<path>: <reason>` for each symlink or submodule in a selected plugin's
+// tree. tree(plugin) returns its entries as { mode, path }, or undefined when
+// it cannot be read.
+export function linkRefusals(plugins, tree = () => undefined) {
+  const out = [];
+  for (const plugin of plugins) {
+    const entries = tree(plugin);
+    if (entries === undefined) {
+      out.push(`${plugin}: its tree cannot be read to check for symlinks and submodules`);
+      continue;
+    }
+    for (const { mode, path } of entries) {
+      if (mode === "120000") {
+        out.push(`${path}: is a symlink`);
+      } else if (mode === "160000") {
+        out.push(`${path}: is a submodule`);
+      }
+    }
+  }
+  return out;
+}
+
+// Every entry under plugin at ref, submodules included, from `git ls-tree -r -z`.
+const gitTree = (repo, ref) => (plugin) =>
+  execFileSync("git", ["-C", repo, "ls-tree", "-r", "-z", "--full-tree", ref, "--", `${plugin}/`], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split("\0")
+    .filter(Boolean)
+    .map((line) => {
+      const tab = line.indexOf("\t");
+      return { mode: line.slice(0, line.indexOf(" ")), path: line.slice(tab + 1) };
+    });
+
 // A ref git cannot resolve would read every file as absent, so it throws.
 const gitReader = (repo, refs) => {
   for (const ref of Object.values(refs)) {
@@ -204,10 +243,12 @@ const gitShow = (repo, ref, path) => {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const { values } = parseArgs({ options: { repo: { type: "string" }, base: { type: "string" }, head: { type: "string" } } });
-  const read = values.repo && values.base && values.head ? gitReader(values.repo, { base: values.base, head: values.head }) : undefined;
+  const inRepo = values.repo && values.base && values.head;
+  const read = inRepo ? gitReader(values.repo, { base: values.base, head: values.head }) : undefined;
+  const tree = inRepo ? gitTree(values.repo, values.head) : undefined;
   const paths = readFileSync(0, "utf8").split("\n").filter(Boolean);
   const selected = selectPlugins(paths);
-  const refused = refusals(paths, selected, read);
+  const refused = [...refusals(paths, selected, read), ...linkRefusals(selected, tree)];
   if (refused.length) {
     console.error(`a selected plugin changes more than its suite may run with the credential:\n${refused.join("\n")}`);
     process.exitCode = 1;

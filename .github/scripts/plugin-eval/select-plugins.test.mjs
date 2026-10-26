@@ -160,9 +160,90 @@ test("the command reads both sides from git and refuses a hooks frontmatter chan
   }
 });
 
-test("the command prints one plugin per line, and nothing for no match", () => {
-  assert.equal(run("plugins/testing/evals/x\ndocs/y.md\n").stdout, "plugins/testing\n");
+test("the command prints nothing for no match, and refuses a selected plugin whose tree it cannot read", () => {
   const none = run("docs/y.md\n");
   assert.equal(none.status, 0);
   assert.equal(none.stdout, "");
+  const unread = run("plugins/testing/evals/x\ndocs/y.md\n");
+  assert.equal(unread.status, 1);
+  assert.equal(unread.stdout, "");
+  assert.match(unread.stderr, /plugins\/testing: its tree cannot be read/);
+});
+
+// A repository whose commits are built from the index, so a symlink (120000)
+// or gitlink (160000) entry needs no filesystem link.
+const linkRepo = () => {
+  const repo = mkdtempSync(join(tmpdir(), "select-plugins-links-"));
+  const git = (...args) => execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" }).trim();
+  const blob = (text) => execFileSync("git", ["-C", repo, "hash-object", "-w", "--stdin"], { input: text, encoding: "utf8" }).trim();
+  const entry = (mode, sha, path) => git("update-index", "--add", "--cacheinfo", `${mode},${sha},${path}`);
+  const commit = (message) => {
+    git("commit", "-qm", message);
+    return git("rev-parse", "HEAD");
+  };
+  git("init", "-q");
+  return { repo, blob, entry, commit };
+};
+
+test("a skill markdown file replaced by a symlink is refused, though the link text has no frontmatter", () => {
+  const { repo, blob, entry, commit } = linkRepo();
+  try {
+    entry("100644", blob(SKILL("name: s\ndescription: d")), "plugins/x/skills/s/SKILL.md");
+    entry("100644", blob(SKILL("name: s\nhooks:\n  SessionStart: []")), "plugins/other/notes/x.md");
+    const base = commit("base");
+    entry("120000", blob("../../../other/notes/x.md"), "plugins/x/skills/s/SKILL.md");
+    const head = commit("link");
+    const out = run("plugins/x/skills/s/SKILL.md\n", ["--repo", repo, "--base", base, "--head", head]);
+    assert.equal(out.status, 1);
+    assert.equal(out.stdout, "");
+    assert.match(out.stderr, /plugins\/x\/skills\/s\/SKILL\.md: is a symlink/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("a submodule in a selected plugin is refused", () => {
+  const { repo, blob, entry, commit } = linkRepo();
+  try {
+    entry("100644", blob("case\n"), "plugins/x/evals/c/prompt.md");
+    const base = commit("base");
+    entry("160000", "1".repeat(40), "plugins/x/evals/vendored");
+    const head = commit("gitlink");
+    const out = run("plugins/x/evals/vendored\n", ["--repo", repo, "--base", base, "--head", head]);
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /plugins\/x\/evals\/vendored: is a submodule/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("a symlink already in a selected plugin is refused when only its eval changes", () => {
+  const { repo, blob, entry, commit } = linkRepo();
+  try {
+    entry("120000", blob("../../../../docs/x.md"), "plugins/x/skills/s/SKILL.md");
+    entry("100644", blob("case\n"), "plugins/x/evals/c/prompt.md");
+    const base = commit("base");
+    entry("100644", blob("case, edited\n"), "plugins/x/evals/c/prompt.md");
+    const head = commit("eval");
+    const out = run("plugins/x/evals/c/prompt.md\n", ["--repo", repo, "--base", base, "--head", head]);
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /plugins\/x\/skills\/s\/SKILL\.md: is a symlink/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("a new regular skill markdown file is let through", () => {
+  const { repo, blob, entry, commit } = linkRepo();
+  try {
+    entry("100644", blob("case\n"), "plugins/x/evals/c/prompt.md");
+    const base = commit("base");
+    entry("100644", blob(SKILL("name: t\ndescription: d")), "plugins/x/skills/t/SKILL.md");
+    const head = commit("add");
+    const out = run("plugins/x/skills/t/SKILL.md\n", ["--repo", repo, "--base", base, "--head", head]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stdout, "plugins/x\n");
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
