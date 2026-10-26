@@ -1184,9 +1184,9 @@ the repeated-FAIL round cap, a security finding or a trusted-actor widening. It 
 back while the comment stands unless a person removed it since; a person's own hold text gets
 neither. GitHub then merges the pull request through the merge queue
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
-the body must still close, or with no closing issue name by a plain `Refs:` line, the one issue
-the pass judged, linked the same way (`merge-holds.mjs` `linkHold`), so a body edited after arming
-does not merge on a pass for another issue. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
+the body must still close, or with no closing issue name by a plain `Refs:` line, the issue the
+pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
+edited after arming to drop its link or name another issue does not merge on that pass. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
 armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
 adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
 missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a

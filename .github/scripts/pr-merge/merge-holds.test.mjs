@@ -604,12 +604,20 @@ test("linkHold binds a pass to the issue and link kind it judged", () => {
   assert.match(linkHold(record(5, "refs"), "Closes #5", closes(5), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "closes"), "Refs: #5", closes(), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "refs"), "Refs: #6", closes(), "o/r"), /refs #6, and the pass judged #5/);
-  // A link of no issue, or of more than one, holds nothing here; the
-  // fix loop rewrites it. Only a link that drops the judged issue holds.
+  // A link of several issues that still names the judged one binds; the
+  // fix loop rewrites it. A link that drops the judged issue holds, and so
+  // does one removed, a Refs: line hidden in a comment included.
   assert.equal(linkHold(record(5, "refs"), "Refs: #5\nRefs: #6", closes(), "o/r"), null);
-  assert.equal(linkHold(record(5, "refs"), "<!-- Refs: #5 -->", closes(), "o/r"), null);
   assert.equal(linkHold(record(5, "closes"), "Closes #5", closes(5, 6), "o/r"), null);
   assert.match(linkHold(record(5, "closes"), "Closes #6", closes(6, 7), "o/r"), /it closes #6, #7, and the pass judged #5/);
+  assert.match(linkHold(record(5, "closes"), "", closes(), "o/r"), /it refs no issue, and the pass judged #5 \(closes\)/);
+  assert.match(linkHold(record(5, "refs"), "## Summary", closes(), "o/r"), /it refs no issue, and the pass judged #5 \(refs\)/);
+  assert.match(linkHold(record(5, "refs"), "<!-- Refs: #5 -->", closes(), "o/r"), /it refs no issue/);
+  assert.match(linkHold(record(5, "refs"), "Refs: #6\nRefs: #7", closes(), "o/r"), /it refs #6, #7, and the pass judged #5/);
+  assert.match(linkHold(record(5, "refs"), "Refs: x/y#5", closes(), "o/r"), /it refs no issue/);
+  // A pass judged as a Refs slice never covers a body that closes the issue,
+  // with other issues or alone.
+  assert.match(linkHold(record(5, "refs"), "Closes #5, #6", closes(5, 6), "o/r"), /it closes #5, #6, and the pass judged #5 \(refs\)/);
   // Closing issues all in another repository drop the judged one.
   const foreign = { number: 5, repository: { nameWithOwner: "x/y" } };
   assert.match(linkHold(record(5, "closes"), "Closes x/y#5", { totalCount: 1, nodes: [foreign] }, "o/r"), /it closes x\/y#5, and the pass judged #5/);

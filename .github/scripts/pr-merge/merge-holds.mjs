@@ -84,6 +84,13 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const REFS_LINE = /^[Rr][Ee][Ff][Ss]:/;
 const REFS_PLAIN = /^Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*$/;
 export function refsIssue(body) {
+  const numbers = refsNumbers(body);
+  return numbers?.size === 1 ? [...numbers][0] : null;
+}
+
+// The issues the visible plain `Refs: #<n>` lines of `body` name, as
+// refsIssue reads them, or null when such a line is in any other form.
+function refsNumbers(body) {
   const numbers = new Set();
   let fence = "";
   for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
@@ -107,17 +114,18 @@ export function refsIssue(body) {
     }
     numbers.add(Number(plain[1]));
   }
-  return numbers.size === 1 ? [...numbers][0] : null;
+  return numbers;
 }
 
 // Why the pass `record` (its verdict.json) does not bind the pull request's
 // live link, or null when it does. The live link is its closing issues in
 // `repo`, or, with no closing issue at all, the one issue its plain `Refs:`
-// lines name (refsIssue). The pass binds unless the live link names an issue
-// and drops the one it judged (closing issues all in another repository drop
-// it), or names only that issue linked another way (its `spec_kind`, `closes`
-// when absent, as the reader reads an older record). A link of no issue, or
-// of more than one, holds nothing here: the fix loop rewrites it.
+// lines name (refsNumbers). The pass binds unless the live link drops the
+// issue it judged (a link removed, or closing issues all in another
+// repository, drop it), or names that issue linked another way (its
+// `spec_kind`, `closes` when absent, as the reader reads an older record). A
+// link of several issues that still names the judged one binds: the fix loop
+// rewrites it.
 export function linkHold(record, body, closing, repo) {
   if (record === null || typeof record !== "object" || !Array.isArray(record.linked_issues)) {
     return "its verifier pass's record could not be read";
@@ -131,11 +139,10 @@ export function linkHold(record, body, closing, repo) {
   }
   const own = (issue) => String(issue?.repository?.nameWithOwner).toLowerCase() === String(repo).toLowerCase();
   const linked = closing.totalCount > 0 ? "closes" : "refs";
-  const refs = linked === "refs" ? refsIssue(body) : null;
-  const live = linked === "closes" ? closing.nodes.filter(own).map((issue) => issue.number) : refs === null ? [] : [refs];
+  const live = linked === "closes" ? closing.nodes.filter(own).map((issue) => issue.number) : [...(refsNumbers(body) ?? [])];
   const judged = record.linked_issues.map((issue) => issue?.number);
   const [only] = judged;
-  if (judged.length !== 1 || ((linked === "closes" || live.length > 0) && !live.includes(only)) || (live.length === 1 && kind !== linked)) {
+  if (judged.length !== 1 || !live.includes(only) || kind !== linked) {
     const named = linked === "closes" ? closing.nodes.map((issue) => `${own(issue) ? "" : issue?.repository?.nameWithOwner}#${issue?.number}`) : live.map((n) => `#${n}`);
     return `its link changed since pr-verify passed it: it ${linked} ${named.join(", ") || "no issue"}, and the pass judged ${judged.map((n) => `#${n}`).join(", ") || "no issue"} (${kind})`;
   }
