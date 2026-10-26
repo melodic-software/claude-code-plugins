@@ -37,6 +37,8 @@ import {
   ReaderRateLimited,
   costLine,
   cacheLine,
+  CACHE_ONLY_TIMEOUT_MS,
+  CACHE_ONLY_WINDOW_MS,
   ghCalls,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
@@ -2474,6 +2476,11 @@ test("past the verify budget, serve answers an unarmed pull request only from a 
   assert.deepEqual(served.writes, []);
   assert.ok(served.lines.includes(`enable-auto-merge: #1 left: ${MISSING_REASON}`), served.lines.join("\n"));
   assert.ok(served.lines.includes("enable-auto-merge: #2 left: no time left in this run to read its verifier verdict"), served.lines.join("\n"));
+  // Past the window, nothing more is read.
+  seen.length = 0;
+  let calls = 0;
+  const past = () => (calls++ === 0 ? at : at + VERIFY_BUDGET_MS + CACHE_ONLY_WINDOW_MS + 1);
+  assert.deepEqual((await run(pulls(), { VERIFY_CACHE: "serve" }, { now: past })).verified, []);
   seen.length = 0;
   const shadow = await run(pulls(), {}, { now: late() });
   assert.deepEqual(seen, []);
@@ -2542,7 +2549,10 @@ test("shadow never changes a decision: the same arms, disarms and notes with and
 
 test("serve asks for a kept answer only for an unarmed pull request, and never on a fresh read", async () => {
   const env = { ...ENV, VERIFY_CACHE: "serve", VERIFY_ANSWERS_IN: "/tmp/in.json", VERIFY_ANSWERS_OUT: "/tmp/out.json" };
-  const { spawn, spawned } = shadowReader({ 1: MISSING, 2: MISSING });
+  const reader = shadowReader({ 1: MISSING, 2: MISSING });
+  const { spawned } = reader;
+  const timeouts = [];
+  const spawn = (cmd, args, options) => (timeouts.push(options.timeout), reader.spawn(cmd, args));
   const verify = pythonVerify(env, { spawn, clock: () => 0 });
   const log = console.log;
   console.log = () => {};
@@ -2557,5 +2567,6 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   const mode = (args) => args[args.indexOf("--answers-mode") + 1];
   assert.deepEqual(spawned.map(mode), ["serve", "shadow", "shadow", "serve"]);
   assert.deepEqual(spawned.map((args) => args.includes("--answers-only")), [false, false, false, true]);
+  assert.deepEqual(timeouts, [VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, CACHE_ONLY_TIMEOUT_MS]);
   assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
 });

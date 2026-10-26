@@ -778,7 +778,8 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
       }
     }
     const started = clock();
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    const timeout = args.includes("--answers-only") ? CACHE_ONLY_TIMEOUT_MS : VERIFY_TIMEOUT_MS;
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout });
     const cost = { number, calls: ghCalls(done.stderr), ms: clock() - started };
     let evidence;
     if (done.status === 0) {
@@ -875,6 +876,11 @@ export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 // timeout still reads as unreadable, which holds the lane.
 export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
+// Under merge.verify-cache serve, how long past VERIFY_BUDGET_MS a read that
+// only looks up a kept refusal may start, and its own limit: the last ends
+// well before the last full read's VERIFY_TIMEOUT_MS would.
+export const CACHE_ONLY_WINDOW_MS = 60_000;
+export const CACHE_ONLY_TIMEOUT_MS = 30_000;
 
 // `pulls` started at an offset that moves with the run number, so a run
 // that reaches VERIFY_BUDGET_MS leaves different pull requests for the next
@@ -1173,9 +1179,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         ({ action, reason, clears, comment, withdraw } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
       // Past the budget, under serve, an unarmed pull request is answered
-      // only from a kept refusal, which reads no more than its key.
-      const late = now() > deadline;
-      const cacheOnly = late && serve && pull.autoMergeRequest == null;
+      // only from a kept refusal, which reads no more than its key, for
+      // CACHE_ONLY_WINDOW_MS.
+      const at = now();
+      const late = at > deadline;
+      const cacheOnly = late && at <= deadline + CACHE_ONLY_WINDOW_MS && serve && pull.autoMergeRequest == null;
       if (action === "verify" && !reads) {
         ({ action, reason } =
           pull.autoMergeRequest != null

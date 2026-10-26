@@ -288,6 +288,9 @@ class KeyTest(unittest.TestCase):
             "9 FAIL naming the issue": lambda w: w.listing.append(
                 artifact(f"pr-verify-98-{OTHER}-fail-i1041", 6)
             ),
+            "10 untied FAIL recording a head ref": lambda w: w.listing.append(
+                artifact(f"pr-verify-97-{OTHER}-fail-0123456789abcdef", 9)
+            ),
             "11 off-grammar FAIL": lambda w: w.listing.append(
                 artifact(f"pr-verify-0041-{OTHER}-fail-x", 7)
             ),
