@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"$(git rev-parse --show-toplevel)\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+          }
+        }
+      ],
+      "why": "scan only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/alpha/csv_tools.py"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/zeta/label.js",
+            "old_string": "  // T\u004fDO: pluralize the unit\n",
+            "new_string": ""
+          }
+        }
+      ],
+      "why": "removes a marker"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"$(git rev-parse --show-toplevel)\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/alpha/csv_tools.py",
+            "old_string": "  // T\u004fDO: pluralize the unit\n",
+            "new_string": ""
+          }
+        }
+      ],
+      "why": "edits after the scan"
+    }
+  ]
+}

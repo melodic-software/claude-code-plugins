@@ -16,12 +16,6 @@
         }
       ],
       "why": "two create-item calls"
-    }
-  ],
-  "fail": [
-    {
-      "answer": [],
-      "why": "empty run"
     },
     {
       "answer": [
@@ -32,7 +26,13 @@
           }
         }
       ],
-      "why": "only one item"
+      "why": "one item covering both phases is a valid slice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "empty run"
     },
     {
       "answer": [

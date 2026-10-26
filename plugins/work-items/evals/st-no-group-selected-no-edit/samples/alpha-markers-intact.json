@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "def parse(text):\n    # T\u004fDO: reject empty input\n    return text.split(\",\")\n\ndef render(rows):\n    # FI\u0058ME: rows with commas break the output\n    return \"\\n\".join(rows)\n\ndef load(path):\n    # T\u004fDO: stream large files instead of reading them whole\n    return open(path).read()\n",
+      "why": "untouched"
+    },
+    {
+      "answer": "import os\n\ndef parse(text):\n    # T\u004fDO: reject empty input\n    return text.split(\",\")\n\ndef render(rows):\n    # FI\u0058ME: rows with commas break the output\n    return \"\\n\".join(rows)\n\ndef load(path):\n    # T\u004fDO: stream large files instead of reading them whole\n    return open(path).read()\n",
+      "why": "other edits, markers kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def parse(text):\n    return text.split(\",\")\n\ndef render(rows):\n    # FI\u0058ME: rows with commas break the output\n    return \"\\n\".join(rows)\n\ndef load(path):\n    # T\u004fDO: stream large files instead of reading them whole\n    return open(path).read()\n",
+      "why": "one marker removed"
+    },
+    {
+      "answer": "def parse(text):\n    return text.split(\",\")\n",
+      "why": "rewritten"
+    },
+    {
+      "answer": "",
+      "why": "emptied or deleted"
+    }
+  ]
+}

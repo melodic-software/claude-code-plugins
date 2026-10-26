@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1'"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work/lanes/lanes.json"
+          }
+        }
+      ],
+      "why": "reads the item and lane config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/triage/notes.md",
+            "old_string": "labels: [\"needs-triage\"]",
+            "new_string": "labels: []"
+          }
+        }
+      ],
+      "why": "note outside the store"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "labels: [\"needs-triage\"]",
+            "new_string": "labels: []"
+          }
+        }
+      ],
+      "why": "rewrites the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work-items/1.md"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "labels: [\"needs-triage\"]",
+            "new_string": "labels: []"
+          }
+        }
+      ],
+      "why": "reads then rewrites the item"
+    }
+  ]
+}

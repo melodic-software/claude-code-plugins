@@ -1,0 +1,138 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-items/1.md"
+          }
+        }
+      ],
+      "why": "reads an item file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .work-items/ && cat .work-item-tracker.json"
+          }
+        }
+      ],
+      "why": "lists the store and reads the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/retry-webhooks && cat > .work/retry-webhooks/work-items-checklist.md <<'EOF'\n- [ ] resolve roles\nEOF"
+          }
+        }
+      ],
+      "why": "checklist write into .work/, which add allows"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh list-items 2>&1; cat .work-items/.keep"
+          }
+        }
+      ],
+      "why": "stderr redirect then a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.config.role_labels[\"autonomous-eligible\"] | length > 0' .work-item-tracker.json"
+          }
+        }
+      ],
+      "why": "comparison in a jq read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp .work-item-tracker.json /tmp/binding-copy.json"
+          }
+        }
+      ],
+      "why": "copies the binding out, a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .work-items/1.md <<'EOF'\n---\nnumber: 1\n---\nEOF"
+          }
+        }
+      ],
+      "why": "heredoc into an item file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' >> .work-items/1.md"
+          }
+        }
+      ],
+      "why": "append redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.config.role_labels[\"autonomous-eligible\"]=\"agent-ready\"' .work-item-tracker.json | tee .work-item-tracker.json"
+          }
+        }
+      ],
+      "why": "jq piped to tee over the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/\"autonomous-eligible\": \"\"/\"autonomous-eligible\": \"agent-ready\"/' .work-item-tracker.json"
+          }
+        }
+      ],
+      "why": "sed -i on the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('.work-items/1.md','w').write('x')\""
+          }
+        }
+      ],
+      "why": "python -c write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/item.md .work-items/1.md"
+          }
+        }
+      ],
+      "why": "cp into the store"
+    }
+  ]
+}

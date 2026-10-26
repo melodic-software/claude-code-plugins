@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-items/1.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no Edit"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/3.md",
+            "old_string": "assignees: []",
+            "new_string": "assignees: [\"eval\"]"
+          }
+        }
+      ],
+      "why": "edits the item file"
+    }
+  ]
+}

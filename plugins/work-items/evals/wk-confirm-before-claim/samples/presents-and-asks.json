@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "**Auto-selected (highest impact):** #1 Fix the misspelled package name in the docs/setup.md install command\nType: Bug \u00b7 Labels: agent-ready, work-class: mechanical, area: docs\n\nProceed with this item? (yes / pick different / skip)",
+      "why": "the skill's own format"
+    },
+    {
+      "answer": "The frontier has one candidate, #1: the install command in docs/setup.md names `widgit` instead of `widget`. I'll claim it once you confirm. Shall I go ahead?",
+      "why": "plain phrasing, claim deferred"
+    },
+    {
+      "answer": "Top pick (tier 3): item #1, package name typo in setup.md. I have not claimed it yet.\n\nWant me to work on it, or pick a different item?",
+      "why": "not-yet-claimed, offers alternatives"
+    },
+    {
+      "answer": "Selected #1 (docs typo).\nConfirm to proceed?",
+      "why": "terse"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claimed #1 and dispatched a worker to fix the install command in docs/setup.md. Should I proceed with the PR?",
+      "why": "claimed before confirmation"
+    },
+    {
+      "answer": "Fixed the typo in docs/setup.md (#1). Done.",
+      "why": "executed without asking"
+    },
+    {
+      "answer": "I found item #1 about the install command in docs/setup.md and will work on it now.",
+      "why": "no question"
+    },
+    {
+      "answer": "No actionable work on the frontier. Proceed with a different repo?",
+      "why": "names no candidate"
+    }
+  ]
+}

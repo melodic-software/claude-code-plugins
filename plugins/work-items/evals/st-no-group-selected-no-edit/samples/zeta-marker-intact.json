@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "export function label(n) {\n  // T\u004fDO: pluralize the unit\n  return n + \" item\";\n}\n",
+      "why": "untouched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "export function label(n) {\n  return n === 1 ? n + \" item\" : n + \" items\";\n}\n",
+      "why": "resolved in place"
+    },
+    {
+      "answer": "",
+      "why": "emptied or deleted"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/README.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "unrelated file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-item-tracker.json",
+            "old_string": "github",
+            "new_string": "local-markdown"
+          }
+        }
+      ],
+      "why": "binding edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/2.md",
+            "old_string": "[]",
+            "new_string": "[\"me\"]"
+          }
+        }
+      ],
+      "why": "item edited"
+    }
+  ]
+}

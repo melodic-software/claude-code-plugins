@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no wakeup"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        }
+      ],
+      "why": "other tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "ScheduleWakeup",
+          "input": {
+            "delaySeconds": 600
+          }
+        }
+      ],
+      "why": "next cycle scheduled"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "ScheduleWakeup",
+          "input": {
+            "delaySeconds": 60
+          }
+        }
+      ],
+      "why": "wakeup after a read"
+    }
+  ]
+}

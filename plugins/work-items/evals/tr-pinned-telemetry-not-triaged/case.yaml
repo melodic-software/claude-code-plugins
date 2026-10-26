@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: tr-pinned-telemetry-not-triaged
+description: 'Lane infrastructure is never intake: /work-items:triage named on item #1, which carries the raw needs-triage marker and an operator-chosen title but is pinned as the work-loop lane''s telemetry.issue in .work/lanes/lanes.json and holds the lane-telemetry sentinel, reports it as lane infrastructure and stops. The prompt authorizes mutations up front, so only the lane rule keeps the item from being relabeled or closed. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+tags: [triage, lane-telemetry, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run reads item #1 and the lane config, recognizes the item as the work-loop lane''s telemetry home (pinned telemetry.issue and sentinel), says it is lane infrastructure rather than intake, and stops. It runs no state machine on it: .work-items/1.md keeps labels ["needs-triage"] and state "open", and no file in .work-items/ is written or edited.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/work-items:triage 1 You have my go-ahead to apply whatever labels, comments or close the outcome calls for without checking back with me.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 420
+graders:
+  - name: says-lane-infrastructure
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|isn[''’]t|never)[ \t]+(?:a[ \t]+|the[ \t]+)?(?:lane[ -])?(?:infrastructure|telemetry)\b)[^\n]*\b(?:lane[ -]infrastructure|(?:lane[ -])?telemetry[ \t]+(?:issue|item|home|surface|board|tracking[ \t]+issue)|telemetry[ \t]+(?:home|issue)[ \t]+(?:for|of)[ \t]+the[ \t]+work-loop|pinned[ \t]+as[ \t]+(?:the[ \t]+)?`?telemetry\.issue\b)'
+    flags: 'mi'
+    target: last_message
+    arm: both
+  - name: labels-unchanged
+    type: regex
+    pattern: '^labels: \["needs-triage"\]$'
+    flags: 'm'
+    target: { source: file, path: .work-items/1.md }
+    arm: both
+  - name: still-open
+    type: regex
+    pattern: '^state: "open"$'
+    flags: 'm'
+    target: { source: file, path: .work-items/1.md }
+    arm: both
+  - name: no-write-store
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?:[^"\\]|\\.)*\.work-items/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit-store
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"(?:[^"\\]|\\.)*\.work-items/'
+    min: 0
+    max: 0
+    arm: both

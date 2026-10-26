@@ -1,0 +1,123 @@
+{
+  "skill": "work-items:decompose",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/decompose",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are track, work and ship, plus planning:plan and planning:prd.",
+  "competitors": [
+    "work-items:track",
+    "work-items:work",
+    "work-items:ship",
+    "planning:plan",
+    "planning:prd"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's the PRD for the notifications feature. Slice it into tickets I can hand out."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn this plan into vertical-slice issues with blockers wired up in the right order."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Split the approved design into work items and mark which ones an agent can take alone and which need a person."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Break the migration brief into independently shippable tickets and publish them to the tracker."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The spec changed after we cut the tickets. Re-slice the remaining work to match."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take PLAN.md and create the issues under a new container, with dependency links between them."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Convert this spec into a set of small tickets, each cutting through UI, API and storage."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I have a long design doc. Decompose it into backlog entries ordered blockers-first."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make tickets out of the checkout rewrite proposal and tag the human-only ones."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our scope shifted mid-sprint; redo the ticket breakdown from the updated spec."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Publish the phases of this plan as linked issues so people can grab them independently."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write an implementation plan for adding rate limiting, with a test strategy and approval gate."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draft a product requirements doc for the new onboarding flow."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add one ticket for fixing the typo on the pricing page."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where does the billing-rewrite effort stand and what's the next step?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Pick up the next ticket and implement it end to end."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Interview me until we agree on what the export feature should do."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Close issue 88, it shipped last week."
+    }
+  ]
+}

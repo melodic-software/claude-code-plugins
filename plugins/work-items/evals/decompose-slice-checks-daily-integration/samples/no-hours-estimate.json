@@ -11,6 +11,10 @@
     {
       "answer": "It stays a three-file slice, so it merges at least daily.",
       "why": "a number without hours"
+    },
+    {
+      "answer": "Window bar: one window, merges at least once a day; no time estimate given.",
+      "why": "no estimate"
     }
   ],
   "fail": [
@@ -29,6 +33,18 @@
     {
       "answer": "Window bar passes; budget 8 hours, merge at least daily.",
       "why": "budgeted hours"
+    },
+    {
+      "answer": "Window bar: a few hours of work, merges at least daily.",
+      "why": "word-quantity hours"
+    },
+    {
+      "answer": "Window bar passes; about an hour, merge at least daily.",
+      "why": "an hour"
+    },
+    {
+      "answer": "Window bar: roughly two hours; integrate at least daily.",
+      "why": "spelled-out number"
     }
   ]
 }

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "work-loop: `autopilot` is a babysit tier keyword owned by `/source-control:babysit-loop`, not this worker lane. Rejected; relaunch as `/work-items:work-loop --drain`.",
+      "why": "skill-shaped rejection"
+    },
+    {
+      "answer": "I stopped before any cycle work: the token autopilot belongs to /source-control:babysit-loop (the merge lane). This loop never merges.",
+      "why": "belongs-to phrasing"
+    },
+    {
+      "answer": "Unknown argument for this lane: autopilot.\nThat tier keyword is for /source-control:babysit-loop; run it there, or drop it here.",
+      "why": "unknown plus owner"
+    },
+    {
+      "answer": "Refusing to start: `autopilot` isn't a work-loop flag. Use `/source-control:babysit-loop autopilot` for that tier.",
+      "why": "refusing, use the owner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Cycle 1: triaged 0 items, admitted #1, opened a PR. Running in autopilot mode.",
+      "why": "ran the loop"
+    },
+    {
+      "answer": "Ignoring autopilot (belongs to /source-control:babysit-loop) and starting the drain.",
+      "why": "silent ignore and proceed"
+    },
+    {
+      "answer": "autopilot is not a valid flag. Stopping.",
+      "why": "no owner named"
+    },
+    {
+      "answer": "Rejected autopilot; do not use /source-control:babysit-loop for this.",
+      "why": "negated routing"
+    }
+  ]
+}

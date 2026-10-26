@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no Write"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/jira-spec.json",
+            "content": "{\"provider\": \"jira\"}"
+          }
+        }
+      ],
+      "why": "writes a spec"
+    }
+  ]
+}

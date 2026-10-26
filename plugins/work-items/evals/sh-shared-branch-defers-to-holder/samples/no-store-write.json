@@ -1,0 +1,181 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-items/2.md",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -l alice .work-items/*.md 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" list-sub-items \"local-markdown:local/markdown#1\" --state all > /tmp/rollup.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect to scratch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json,sys; print(open('.work-items/1.md').read())\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "f=.work-items/2.md; cat \"$f\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable path, read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "f=.work-items/2.md; grep alice \"$f\" > /tmp/out.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable path, redirect to scratch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'assignees: [\"eval\"]\\n' >> .work-items/3.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "append redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/assignees: \\[\\]/assignees: [\"eval\"]/' .work-items/3.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo lease | tee -a .work-items/3.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/3.md .work-items/3.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp over the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .work-items/3.md <<'EOF'\n---\nassignees: [\"eval\"]\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('.work-items/3.md','a').write('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python append"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').appendFileSync('.work-items/3.md','x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node append"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git checkout -b feat/invoice-export 2>&1 | tail -1\nf=.work-items/3.md\nnow=$(date -u +%Y-%m-%dT%H:%M:%SZ)\nsed -i 's/^assignees: \\[\\]/assignees: [\"eval\"]/' $f\nprintf '\\n<!-- work-item-lease v1 {\"schema_version\":\"1.0\",\"holder\":\"eval\",\"acquired_at\":\"%s\",\"renewed_at\":\"%s\",\"ttl_hours\":24,\"lease_comment_id\":1,\"session_id\":\"sess-eval\"} -->\\n' \"$now\" \"$now\" >> $f\ncat $f; git status --short",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed without-arm: sed -i and >> through a path variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "F=\".work-items/3.md\" && printf x >> \"${F}\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "braced variable append"
+    }
+  ]
+}

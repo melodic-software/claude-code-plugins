@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/retry-webhooks/work-items-checklist.md",
+            "old_string": "\"\"",
+            "new_string": "\"agent-ready\""
+          }
+        }
+      ],
+      "why": "checklist under .work/"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/webhooks/deliver.py",
+            "old_string": "\"\"",
+            "new_string": "\"agent-ready\""
+          }
+        }
+      ],
+      "why": "unrelated source file"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "\"\"",
+            "new_string": "\"agent-ready\""
+          }
+        }
+      ],
+      "why": "edits an item file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-item-tracker.json",
+            "old_string": "\"\"",
+            "new_string": "\"agent-ready\""
+          }
+        }
+      ],
+      "why": "fixes the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/notes.md",
+            "old_string": "\"\"",
+            "new_string": "\"agent-ready\""
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/2.md",
+            "old_string": "\"\"",
+            "new_string": "\"agent-ready\""
+          }
+        }
+      ],
+      "why": "item file after a note"
+    }
+  ]
+}

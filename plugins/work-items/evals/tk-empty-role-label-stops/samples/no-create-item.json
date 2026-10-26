@@ -1,0 +1,77 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-item-tracker.json"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh list-items --state open"
+          }
+        }
+      ],
+      "why": "reads binding and lists"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.config.role_labels' .work-item-tracker.json"
+          }
+        }
+      ],
+      "why": "inspects role_labels"
+    },
+    {
+      "answer": [],
+      "why": "stops at once"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" create-item --title \"Retry failed webhook deliveries\" --labels \"category:general,area: webhooks,agent-ready\" --body \"x\""
+          }
+        }
+      ],
+      "why": "creates the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-item-tracker.json"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/tools/work-item-tracker/work-item-tracker.sh create-item --title t --labels agent-ready"
+          }
+        }
+      ],
+      "why": "creates after reading the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq . .work-item-tracker.json\n/p/tools/work-item-tracker/work-item-tracker.sh create-item --title t"
+          }
+        }
+      ],
+      "why": "create on a later line"
+    }
+  ]
+}

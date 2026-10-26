@@ -1,0 +1,77 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/retry-webhooks/work-items-checklist.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "checklist under .work/"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/webhooks/deliver.py",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "unrelated source file"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes an item file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-item-tracker.json",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/notes.md",
+            "content": "x"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/2.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "item file after a note"
+    }
+  ]
+}

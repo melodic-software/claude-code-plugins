@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "- Container: local-markdown:local/markdown#1. Invoice export\n- Progress: 0/2 closed; 1 in flight (#2, held by alice, live lease)",
+      "why": "macro map line"
+    },
+    {
+      "answer": "#2 is claimed by alice with a live lease, so the shared branch already has an item in flight.",
+      "why": "claimed by alice"
+    },
+    {
+      "answer": "Alice holds #2 (Monthly invoice query) on feat/invoice-export.",
+      "why": "capitalized holder"
+    },
+    {
+      "answer": "In flight elsewhere: #2, assigned to alice.",
+      "why": "assigned wording"
+    },
+    {
+      "answer": "- **In flight:** #2 \"Monthly invoice query\" is assigned to `alice`. Its lease was acquired 2026-10-26 with a 720-hour TTL, so it is live and not stale.",
+      "why": "observed: negated stale on a live lease"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I claimed #3 and started the CSV download endpoint on feat/invoice-export.",
+      "why": "no holder named"
+    },
+    {
+      "answer": "alice's lease on #2 has expired, so #3 is free to take.",
+      "why": "treats the lease as expired"
+    },
+    {
+      "answer": "No one holds #2 any more; alice released it.",
+      "why": "released, nobody holds it"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "alice's lease on #2 is stale, so I claimed #3.",
+      "why": "treats the lease as stale"
+    },
+    {
+      "answer": "alice doesn't hold #2 anymore, so I claimed #3.",
+      "why": "negated holder"
+    }
+  ]
+}

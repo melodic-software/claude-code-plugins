@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: sh-shared-branch-defers-to-holder
+description: 'Shared-branch one-in-flight gate: a spec container in the integration branch → single PR shape has one sub-item held by another session (alice) under a live lease and one open sub-item on the frontier. Told to pick up and start the next checkpoint, the run reports who holds the in-flight item and defers: it claims nothing, writes no tracker file, and edits nothing. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+tags: [ship, shared-branch, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run resolves container local-markdown:local/markdown#1, reads its rollup and frontier, finds the integration branch → single PR shape line, and sees #2 held by alice with a live lease. Because only one item may be in flight on the shared branch, it reports that alice holds #2 and defers instead of claiming #3. It makes no claim, reclaim or lease renewal, writes nothing under .work-items/, and makes no Write or Edit call.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/work-items:ship local-markdown:local/markdown#1 Pick up the next checkpoint on this container and start it.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: names-holder
+    type: regex
+    pattern: '^(?![^\n]*(?<!\bnot\s)(?<!\bnever\s)(?<!n[''’]t\s)\b(?:expired|stale|lapsed|released|abandoned)\b)(?![^\n]*\bno longer\b)(?![^\n]*\b(?:nobody|no one|no-one)\b)(?![^\n]*\balice\s+(?:is\s+)?(?:not|does\s+not|doesn[''’]t|did\s+not|didn[''’]t|isn[''’]t)\s+(?:\w+\s+)?(?:hold|holding|own|owning|working)\b)(?=[^\n]*\balice\b)[^\n]*\b(?:holds?|held|holding|holder|claimed|claim|lease[sd]?|in[ -]flight|working on|assigned)\b'
+    flags: 'mi'
+    target: last_message
+  - name: says-defer
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no need to|not|don[''’]t|didn[''’]t|won[''’]t)\s+(?:\w+\s+)?(?:defer(?:ring)?|wait(?:ing)?)\b)[^\n]*(?:\bdefer(?:s|red|ring|ral)?\b|\bwait(?:ing)?\s+(?:for|until|on)\b|\bhold(?:ing)?\s+off\b|\b(?:did not|didn[''’]t|will not|won[''’]t|not|cannot|can[''’]t|shouldn[''’]t|should not|never|no)\s+(?:\w+\s+){0,2}?(?:claim|claiming|start|starting|pick(?:ing)? up|take|taking)\b|\bone (?:item|checkpoint) (?:is )?(?:in[ -]flight|at a time)\b)'
+    flags: 'mi'
+    target: last_message
+  - name: reads-rollup
+    type: tool_used
+    tool: Bash
+    input_match: '\blist-(?:sub-items|frontier)\b'
+    min: 1
+  - name: no-tracker-claim
+    type: tool_used
+    tool: Bash
+    input_match: '(?:work-item-tracker\.sh|\$\{?[A-Za-z_]\w*\}?)(?:\\")?[ \t]+(?:claim|reclaim|renew-lease|release)\b|local-markdown/(?:claim|reclaim|renew-lease|release)\.sh'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-store-write
+    type: tool_used
+    tool: Bash
+    input_match: '>>?[ \t]*[^ \t;&|]*\.work-items/|(?:^|[ \t;&|("]|\\n)(?:tee|cp|mv|install|dd|rm|truncate|touch|ln)\b(?:(?!\\n|;|&&|\|)[^\n])*?\.work-items/|\bsed\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]-[a-zA-Z]*i(?:(?!\\n|;|&&|\|)[^\n])*?\.work-items/|\bperl\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]-[a-zA-Z]*i(?:(?!\\n|;|&&|\|)[^\n])*?\.work-items/|\b(?:python3?|node|ruby|perl)\b(?:[^"\\]|\\.)*?(?:open\([^)]*?\.work-items/[^)]*?[''\\"]+[wa]\+?[''\\"]+|(?:writeFile|appendFile)(?:Sync)?\([^)]*?\.work-items/|\.work-items/(?:[^"\\]|\\.)*?(?:\.write|writeFile|appendFile|open\([^)]*?[''\\"]+[wa]\+?[''\\"]+))|(?:\\n|[ \t;&|("])([A-Za-z_]\w*)=(?:\\"|'')?[^ \t;&|"''\\]*\.work-items/(?:[^"\\]|\\.)*?(?:>>?[ \t]*(?:\\"|'')?\$\{?\1\b|(?:^|[ \t;&|(]|\\n)(?:tee|cp|mv|install|dd|rm|truncate|touch|ln)\b(?:(?!\\n|;|&&|\|)[^\n])*?\$\{?\1\b|\b(?:sed|perl)\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]-[a-zA-Z]*i(?:(?!\\n|;|&&|\|)[^\n])*?\$\{?\1\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

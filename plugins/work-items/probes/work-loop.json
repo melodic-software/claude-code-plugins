@@ -1,0 +1,123 @@
+{
+  "skill": "work-items:work-loop",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/work-loop",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are work, attend-queue, ship and triage, plus source-control:babysit-loop.",
+  "competitors": [
+    "work-items:work",
+    "work-items:attend-queue",
+    "work-items:ship",
+    "work-items:triage",
+    "source-control:babysit-loop"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Get the backlog worker going on this repo and have it chew through the queue."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Leave a loop running overnight so issues turn into PRs without me."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Loop over the backlog autonomously until nothing agent-ready is left."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Kick off the autonomous drain in standing mode."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Spin up the issue worker with a single pass first to see what it does."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Empty out the issue list on a self-paced loop until it's finished."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Launch the backlog loop sharded 1 of 3."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want agents continually picking up eligible issues and authoring PRs; set that going."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Start the loop that triages intake and works admitted items on its own."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run the drain with newest-first ordering."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Keep the backlog moving automatically while I'm away."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Pick one item and do it, then stop."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Answer what the loop escalated to me."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run the merge lane for the PR queue."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Triage a single issue, number 90."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Where does the spec container stand?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a backlog item for the typo."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cut this plan into tickets."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Folder | Markers |\n|---|---|---|\n| 1 | zeta/ | 1 |\n| 2 | alpha/ | 3 |\n\nWhich group should I work on?",
+      "why": "table smallest first"
+    },
+    {
+      "answer": "Found 4 markers in 2 folders:\n1. zeta/ (1 marker)\n2. alpha/ (3 markers)\nPick a group by number.",
+      "why": "numbered list"
+    },
+    {
+      "answer": "Groups, smallest first:\n- `zeta` - 1\n- `alpha` - 3",
+      "why": "bullets"
+    },
+    {
+      "answer": "zeta/ has one marker and alpha/ has three, so zeta/ comes first.",
+      "why": "counts in words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| # | Folder | Markers |\n|---|---|---|\n| 1 | alpha/ | 3 |\n| 2 | zeta/ | 1 |\n",
+      "why": "largest first"
+    },
+    {
+      "answer": "Resolved every marker; the codebase is clean.",
+      "why": "no groups"
+    },
+    {
+      "answer": "alpha/ has 3 markers and zeta/ has 1.",
+      "why": "alphabetical prose order only"
+    }
+  ]
+}

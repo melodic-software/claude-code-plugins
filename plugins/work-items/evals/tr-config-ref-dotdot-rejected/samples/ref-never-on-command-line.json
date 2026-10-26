@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs/conventions"
+          }
+        }
+      ],
+      "why": "no ref"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel"
+          }
+        }
+      ],
+      "why": "no ref"
+    },
+    {
+      "answer": [],
+      "why": "no command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/triage/scripts/parse-concern-value.sh --ref 'origin/main..HEAD' docs/conventions/work-items.yaml triage_repro_count"
+          }
+        }
+      ],
+      "why": "ref passed to the parser"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo origin/main..HEAD | grep -q '\\.\\.' && echo bad"
+          }
+        }
+      ],
+      "why": "ref echoed to test it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse origin/main..HEAD"
+          }
+        }
+      ],
+      "why": "ref resolved with git"
+    }
+  ]
+}

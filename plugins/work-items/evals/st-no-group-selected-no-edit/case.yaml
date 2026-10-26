@@ -1,0 +1,63 @@
+schema_version: "1.1"
+name: st-no-group-selected-no-edit
+description: 'Selection gate: /work-items:scan-todos without --work scans tracked files in one pass, presents the marker groups by parent folder smallest first (zeta/ with one marker before alpha/ with three), and waits for the user to pick a group. It resolves, removes and files nothing before that pick, even when the prompt urges cleanup. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+tags: [scan-todos, selection-gate, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run scans the committed files (one git grep pass), groups the four comment markers by parent folder, lists zeta/ (1) before alpha/ (3), and asks which group to work. Every marker line in alpha/csv_tools.py and zeta/label.js is still present, no source file is written or edited, and no work item is filed.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/work-items:scan-todos These comment markers have piled up and I want them cleaned out of the codebase.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 360
+graders:
+  - name: groups-smallest-first
+    type: regex
+    pattern: '\bzeta\b[^\n]*\b(?:1|one)\b[\s\S]*\balpha\b[^\n]*\b(?:3|three)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: asks-for-group
+    type: regex
+    pattern: '^(?:(?=[^\n]*\b(?:groups?|folders?|director(?:y|ies))\b)[^\n]*\?|(?=[^\n]*\b(?:tell me|let me know)\b)[^\n]*\bwhich\b|[ \t>*_-]*(?:pick|choose|select|reply with)\b[^\n]*(?:\b(?:groups?|folders?|number)\b|#))'
+    flags: 'mi'
+    target: last_message
+    arm: both
+  - name: alpha-markers-intact
+    type: regex
+    pattern: '^[ \t]*#[ \t]*(?:T[O]DO|F[I]XME):'
+    flags: 'm'
+    match: 'count:3'
+    target: { source: file, path: alpha/csv_tools.py }
+    arm: both
+  - name: zeta-marker-intact
+    type: regex
+    pattern: '^[ \t]*//[ \t]*T[O]DO: pluralize the unit$'
+    flags: 'm'
+    target: { source: file, path: zeta/label.js }
+    arm: both
+  - name: scans-with-git-grep
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b(?:[^"\\]|\\.)*\bgrep\b'
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-item-filed
+    type: tool_used
+    tool: Bash
+    input_match: '\bcreate-item\b'
+    min: 0
+    max: 0
+    arm: both

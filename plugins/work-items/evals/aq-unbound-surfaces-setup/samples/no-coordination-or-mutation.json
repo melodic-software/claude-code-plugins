@@ -1,0 +1,101 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -a"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git remote -v"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -f .work-item-tracker.json || echo unbound"
+          }
+        }
+      ],
+      "why": "presence checks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-item-tracker.json 2>/dev/null"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue list --label needs-human --json number,title"
+          }
+        }
+      ],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" claim \"github:o/r#4\""
+          }
+        }
+      ],
+      "why": "row claim"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" reclaim \"github:o/r#4\""
+          }
+        }
+      ],
+      "why": "session reclaim"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue edit 4 --add-label agent-ready --remove-label needs-human"
+          }
+        }
+      ],
+      "why": "label flip"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue comment 4 --body \"answered\""
+          }
+        }
+      ],
+      "why": "comment write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '{\"provider\":\"local-markdown\"}' > .work-item-tracker.json"
+          }
+        }
+      ],
+      "why": "hand-written binding"
+    }
+  ]
+}

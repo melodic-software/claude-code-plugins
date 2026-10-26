@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"$(git rev-parse --show-toplevel)\" grep -nE '\\b(T\u004fDO|FI\u0058ME|H\u0041CK|\u0058XX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+          }
+        }
+      ],
+      "why": "the skill's detection command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git grep -n -e T\u004fDO -e FI\u0058ME"
+          }
+        }
+      ],
+      "why": "git grep with -e"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git --no-pager grep -nE 'T\u004fDO' -- ."
+          }
+        }
+      ],
+      "why": "git grep after ls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no scan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn T\u004fDO ."
+          }
+        }
+      ],
+      "why": "plain recursive grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "T\u004fDO",
+            "path": "."
+          }
+        }
+      ],
+      "why": "Grep tool"
+    }
+  ]
+}

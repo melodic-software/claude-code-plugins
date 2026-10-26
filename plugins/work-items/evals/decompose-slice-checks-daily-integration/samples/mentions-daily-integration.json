@@ -19,6 +19,18 @@
     {
       "answer": "Window bar: pass, thin enough to integrate within a day.",
       "why": "within-a-day form"
+    },
+    {
+      "answer": "Window bar: pass. It fits one fresh context window and can merge to `main` at least once a day.",
+      "why": "once-a-day synonym with a code span"
+    },
+    {
+      "answer": "Window bar: pass; the slice integrates into the mainline every day.",
+      "why": "every-day form"
+    },
+    {
+      "answer": "Window bar: pass, and it can be merged at least daily.",
+      "why": "can be merged"
     }
   ],
   "fail": [
@@ -41,6 +53,14 @@
     {
       "answer": "Window bar: a cold session cannot merge it the same day, so split it.",
       "why": "negated same-day mention"
+    },
+    {
+      "answer": "Window bar: this slice cannot be merged at least daily, so split it.",
+      "why": "negated passive"
+    },
+    {
+      "answer": "Window bar: we are unable to integrate at least daily, so reshape it.",
+      "why": "unable to"
     }
   ]
 }

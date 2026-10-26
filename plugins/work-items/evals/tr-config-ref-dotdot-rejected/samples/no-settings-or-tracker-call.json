@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        }
+      ],
+      "why": "unrelated read"
+    },
+    {
+      "answer": [],
+      "why": "stops at once"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/skills/triage/scripts/parse-concern-value.sh\" docs/conventions/work-items.yaml triage_repro_count"
+          }
+        }
+      ],
+      "why": "working-tree fallback"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#12'"
+          }
+        }
+      ],
+      "why": "tracker read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue view 12 --json title,body"
+          }
+        }
+      ],
+      "why": "provider read"
+    }
+  ]
+}

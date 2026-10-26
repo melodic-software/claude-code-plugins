@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped: `--config-ref origin/main..HEAD` is rejected. A ref must be a 40-hex commit id or `origin/<name>` with no `..`. Nothing was read or changed.",
+      "why": "names the rule"
+    },
+    {
+      "answer": "The --config-ref value contains \"..\" and is not accepted, so I stopped the triage.",
+      "why": "not accepted"
+    },
+    {
+      "answer": "Invalid config ref (contains `..`); triage stopped with no mutation.",
+      "why": "invalid"
+    },
+    {
+      "answer": "Refusing the ref: it contains a range operator. Rerun with a commit id or origin/<branch>.",
+      "why": "refusing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_repro_count=2 (default), triage_objection_window_hours=0 (default)\nItem #12 not found.",
+      "why": "proceeded to settings"
+    },
+    {
+      "answer": "The config ref was not rejected; it resolves to a range, so I read settings from origin/main.",
+      "why": "negated"
+    },
+    {
+      "answer": "Which ref did you mean?",
+      "why": "question only"
+    },
+    {
+      "answer": "Item 12: needs-info. Posted a structured comment.",
+      "why": "triaged anyway"
+    }
+  ]
+}

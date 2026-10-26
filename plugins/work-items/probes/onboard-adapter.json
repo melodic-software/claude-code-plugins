@@ -1,0 +1,120 @@
+{
+  "skill": "work-items:onboard-adapter",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/onboard-adapter",
+  "ranking_note": "Authored from the before descriptions at commit 2d6ae703aa665a2b25b30fe44d5a093db481ec22, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are track and triage; the bundled-provider setup path is work-items:setup.",
+  "competitors": [
+    "work-items:track",
+    "work-items:triage"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We use YouTrack for tickets and your tracker support doesn't cover it. Can you build an adapter?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My tracker isn't supported. Generate whatever's needed so the work-item skills can talk to it."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write an adapter for Shortcut so these skills can read and write its stories; I can give you API access."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Add support for Azure DevOps boards as a backend."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Bring our in-house ticket system into this workflow; it has a REST API and I can share the docs."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Onboard a new tracker called Height so backlog commands work against it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need a custom adapter for Asana plus the conformance binding in our repo."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you set this up for ClickUp? It's not one of the built-in providers."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Interview me about how our Phabricator instance models tasks and then generate the adapter."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our company runs a homegrown issue tracker. Make these skills work with it."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Build and verify a connector for Trello cards so list and add work."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Switch this repo from the local markdown tracker to GitHub issues."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a backlog item for upgrading the Postgres client."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me all open items assigned to me."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which trackers does the plugin already ship adapters for?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Start the worker loop against our Jira project."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Evaluate the new bug reports that came in overnight."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Pick the next item from the frontier and work it."
+    }
+  ]
+}

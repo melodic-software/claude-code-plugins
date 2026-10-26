@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Folder | Markers |\n|---|---|---|\n| 1 | zeta/ | 1 |\n| 2 | alpha/ | 3 |\n\nWhich group should I work on?",
+      "why": "which group question"
+    },
+    {
+      "answer": "Pick a group by # and I'll start on it.",
+      "why": "imperative pick"
+    },
+    {
+      "answer": "Want me to start with zeta/, the smallest folder?",
+      "why": "question naming the folder"
+    },
+    {
+      "answer": "Reply with the group number to resolve.",
+      "why": "reply with number"
+    },
+    {
+      "answer": "Which group should I start with? Reply with its #.",
+      "why": "question mid-line"
+    },
+    {
+      "answer": "Tell me which group to start with.",
+      "why": "tell me which"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll select the smallest group and start resolving it now.",
+      "why": "announces auto-select"
+    },
+    {
+      "answer": "Resolved the zeta group: removed 1 marker. Moving on to alpha.",
+      "why": "acted without a pick"
+    },
+    {
+      "answer": "| # | Folder | Markers |\n|---|---|---|\n| 1 | zeta/ | 1 |\n| 2 | alpha/ | 3 |\n",
+      "why": "table with no ask"
+    }
+  ]
+}

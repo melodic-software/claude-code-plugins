@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Jira is bundled, so there is nothing to generate. Bind it with `/work-items:setup` instead.",
+      "why": "routes in prose"
+    },
+    {
+      "answer": "Next: /work-items:setup to bind the bundled jira adapter.",
+      "why": "Next line"
+    },
+    {
+      "answer": "Run `/work-items:setup jira`; it binds bundled providers and switches providers.",
+      "why": "with argument"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I generated tools/work-item-tracker/adapters/jira/ for you.",
+      "why": "no route"
+    },
+    {
+      "answer": "Generate it here rather than /work-items:setup.",
+      "why": "rejects the route"
+    },
+    {
+      "answer": "Don't use /work-items:setup for this; I'll write the adapter.",
+      "why": "negated route"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

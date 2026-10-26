@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/README.md"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/body.md",
+            "content": "cycle 1"
+          }
+        }
+      ],
+      "why": "telemetry body"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/lane-escalations/x.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "escalation record"
+    }
+  ]
+}

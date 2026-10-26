@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/widget/work-items-checklist.md",
+            "old_string": "- [ ] select",
+            "new_string": "- [x] select"
+          }
+        }
+      ],
+      "why": "checklist tick"
+    },
+    {
+      "answer": [],
+      "why": "nothing edited"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/docs/setup.md",
+            "old_string": "widgit",
+            "new_string": "widget"
+          }
+        }
+      ],
+      "why": "source edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "assignees: []",
+            "new_string": "assignees: [\"eval\"]"
+          }
+        }
+      ],
+      "why": "item assignee edited"
+    }
+  ]
+}

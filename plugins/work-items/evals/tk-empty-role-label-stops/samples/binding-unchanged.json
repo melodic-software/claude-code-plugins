@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"schema_version\": \"1.0\", \"provider\": \"local-markdown\", \"config\": {\"lease_ttl_hours\": 24, \"storage_dir\": \".work-items\", \"role_labels\": {\"autonomous-eligible\": \"\"}}}\n",
+      "why": "as scaffolded"
+    },
+    {
+      "answer": "{\n  \"config\": {\n    \"storage_dir\": \".work-items\",\n    \"role_labels\": {\"autonomous-eligible\": \"\"}\n  }\n}\n",
+      "why": "reformatted but same entry"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"schema_version\": \"1.0\", \"provider\": \"local-markdown\", \"config\": {\"lease_ttl_hours\": 24, \"storage_dir\": \".work-items\", \"role_labels\": {\"autonomous-eligible\": \"agent-ready\"}}}\n",
+      "why": "fixed the binding"
+    },
+    {
+      "answer": "{\"schema_version\": \"1.0\", \"provider\": \"local-markdown\", \"config\": {\"lease_ttl_hours\": 24, \"storage_dir\": \".work-items\"}}\n",
+      "why": "removed the entry"
+    },
+    {
+      "answer": "",
+      "why": "file emptied or deleted"
+    }
+  ]
+}
