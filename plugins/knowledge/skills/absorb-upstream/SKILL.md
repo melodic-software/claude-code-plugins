@@ -46,8 +46,10 @@ with the next one.
 The record file is `<dir>/<owner>-<repo>.md` for a repository (`<owner>-<repo>-<scope>.md` when
 `--scope` is set, the scope's `/` written as `-`), or a slug of the page's host and path for a
 page, lowercase letters, digits and hyphens only. **Stop and name the existing record** when that
-file exists, or when any file in `<dir>` already holds a pin marker for the same `<owner>/<repo>`:
-refreshing a record is a re-audit of its rows, not a new record.
+file exists, or when any file in `<dir>` already holds a pin marker for the same `<owner>/<repo>`
+and the same scope (both markers without an `under` clause, or both under the same directory):
+refreshing a record is a re-audit of its rows, not a new record. A marker for the same repository
+under another scope is a separate record and does not stop the run.
 
 ## Untrusted source
 
