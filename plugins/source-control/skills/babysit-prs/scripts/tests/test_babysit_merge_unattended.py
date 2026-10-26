@@ -2282,6 +2282,19 @@ class EachRefusalMakesNoMergeCall(Unattended):
             )
         )
 
+    def test_a_failed_runs_read_still_refuses_and_records_its_error(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        with mock.patch.object(
+            merge, "_failed_merge_group_runs", side_effect=RuntimeError("boom")
+        ):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "error: boom")
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
+        )
+
     def test_one_ejection_still_enqueues(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=1)
         code, out = self.run_main()
@@ -3497,10 +3510,10 @@ class ReasonsComment(Unattended):
         self.now = self.WRITTEN + timedelta(minutes=61)
         self.lanes = UNBOUND
         _, out = self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"],
-            {"label": "added", "comment": "updated"},
+            {"label": "added", "comment": "created"},
         )
 
     def patched_body(self) -> str:
@@ -3513,20 +3526,31 @@ class ReasonsComment(Unattended):
         self.assertEqual(len(patches), 1)
         return patches[0]
 
-    def test_escalating_rewrites_the_comment_before_the_label(self) -> None:
-        # The rewrite stamps the comment's updated_at beside the label, so
-        # the head-moved clear pairs the two.
+    def posted_escalation(self) -> str:
+        """The body this run's POST of a new reasons comment wrote."""
+        posts = [
+            c.args[0][-1].removeprefix("body=")
+            for c in self.capture.call_args_list
+            if "POST" in c.args[0] and "babysit-merge-risk" in " ".join(c.args[0])
+        ]
+        self.assertEqual(len(posts), 1)
+        return posts[0]
+
+    def test_escalating_posts_a_new_comment_before_the_label(self) -> None:
+        # An edit notifies no one and keeps the old date, so the escalation
+        # is a new comment, created beside the label the head-moved clear
+        # pairs it with.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
         self.lanes = UNBOUND
         self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
-        patched = self.patched_body()
-        self.assertEqual(patched.split("\n")[:2], body.split("\n")[:2])
-        self.assertTrue(patched.startswith(body))
-        self.assertEqual(patched.count(merge.RISK_ESCALATION_LINE), 1)
-        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
+        posted = self.posted_escalation()
+        self.assertEqual(posted.split("\n")[:2], body.split("\n")[:2])
+        self.assertTrue(posted.startswith(body))
+        self.assertEqual(posted.count(merge.RISK_ESCALATION_LINE), 1)
+        self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
 
     def test_an_escalated_comment_is_not_extended_again(self) -> None:
         # A rerun after a failed label write retries only the label.
@@ -3778,10 +3802,10 @@ class ReasonsComment(Unattended):
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
         _, out = self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"],
-            {"label": "added", "comment": "updated"},
+            {"label": "added", "comment": "created"},
         )
         self.assertEqual(self.timeline_reads, [])
 
@@ -3813,7 +3837,7 @@ class ReasonsComment(Unattended):
         self.now = self.WRITTEN + timedelta(minutes=1)
         self.lanes = UNBOUND
         self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
 
     def test_another_bot_accounts_marker_is_not_an_earlier_sweep(self) -> None:
         body = self.body()
@@ -3846,10 +3870,10 @@ class ReasonsComment(Unattended):
                 self.earlier_sweep(body)
                 _, out = self.run_main()
                 self.assertEqual(out["unattended"]["risk"]["score"], name)
-                self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+                self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
                 self.assertEqual(
                     out["unattended"]["writes"]["riskEscalation"],
-                    {"label": "added", "comment": "updated"},
+                    {"label": "added", "comment": "created"},
                 )
 
     def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
@@ -3873,6 +3897,44 @@ class ReasonsComment(Unattended):
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"],
             {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_a_stored_escalation_differing_only_in_whitespace_writes_nothing(
+        self,
+    ) -> None:
+        # GitHub can return a body with CRLF endings or trailing spaces; a
+        # re-post would notify on every run.
+        body = self.body()
+        self.setUp()
+        stored = f"{body}\n\n{merge.RISK_ESCALATION_LINE}".replace("\n", "  \r\n")
+        self.earlier_sweep(stored + "  ")
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_changed_reasons_on_an_escalated_comment_keep_the_escalation(
+        self,
+    ) -> None:
+        # The label stays on, so the comment beside it must still say why.
+        self.earlier_sweep(
+            f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`."
+            f"\n\n{merge.RISK_ESCALATION_LINE}"
+        )
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+        posted = self.posted_escalation()
+        self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
+        self.assertEqual(posted.count(merge.RISK_ESCALATION_LINE), 1)
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "created"},
         )
 
     def test_a_new_head_rewrites_the_comment_without_a_label(self) -> None:
@@ -3922,6 +3984,15 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+
+    def test_a_low_score_leaves_an_escalated_comment_stored_with_crlf(self) -> None:
+        # GitHub can return the escalation with CRLF and trailing spaces; it
+        # is still escalated, so the label it explains keeps its line.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}  \r\n")
         self.run_main()
         self.assertEqual(self.comment_writes(), [])
 
@@ -4054,11 +4125,10 @@ class WholeReviewRequest(Unattended):
         self.now = self.WRITTEN + timedelta(hours=3)
         self.run_main()
         self.assertNotIn("toggle", self.log)
-        patched = next(
-            c.args[0][-1] for c in self.capture.call_args_list if "PATCH" in c.args[0]
-        )
-        self.assertTrue(merge.whole_review.recorded(patched, HEAD))
-        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+        self.assertEqual(self.log[0], "risk-comment:POST")
+        posted = self.posted()
+        self.assertTrue(merge.whole_review.recorded(posted, HEAD))
+        self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
 
     def test_a_record_at_an_older_head_does_not_stop_a_new_one(self) -> None:
         self.run_main()
@@ -4136,6 +4206,17 @@ class WholeReviewRequest(Unattended):
         self.earlier_sweep(
             f"{merge.whole_review.RECORD_RE.sub('', body).rstrip()}"
             f"\n\n{merge.RISK_ESCALATION_LINE}"
+        )
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_an_escalated_comment_stored_with_crlf_is_not_toggled(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(
+            f"{merge.whole_review.RECORD_RE.sub('', body).rstrip()}"
+            f"\n\n{merge.RISK_ESCALATION_LINE}  \r\n"
         )
         self.run_main()
         self.assertNotIn("toggle", self.log)
@@ -5196,7 +5277,7 @@ class DependabotMajorEscalation(unittest.TestCase):
         # attend-queue lists `escalated` and `routed-advisory` as escalated rows.
         self.assertIn(match["kind"], ("escalated", "routed-advisory"))
 
-    def test_an_old_format_comment_is_rewritten_not_duplicated(self) -> None:
+    def test_an_old_format_comment_is_reposted_as_a_new_escalation(self) -> None:
         self.pr_labels = [{"name": "status: needs-decision"}]
         old = merge.major_escalation_body("x", self.HEAD).removeprefix(
             merge.ATTEND_QUEUE_MARKER + "\n"
@@ -5210,11 +5291,31 @@ class DependabotMajorEscalation(unittest.TestCase):
             }
         ]
         out = self.writes("ineligible:dependabot-major-held:x")
+        # A changed escalation is a new comment, as at a new head.
         (comment,) = self.calls
-        self.assertIn("PATCH", comment)
-        self.assertIn(f"repos/{self.REPO}/issues/comments/92", comment)
+        self.assertIn("POST", comment)
+        self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
         self.assertEqual(
-            out["majorEscalation"], {"label": "present", "comment": "updated"}
+            out["majorEscalation"], {"label": "present", "comment": "created"}
+        )
+
+    def test_a_stored_body_differing_only_in_whitespace_is_not_reposted(
+        self,
+    ) -> None:
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        stored = merge.major_escalation_body("x", self.HEAD).replace("\n", " \r\n")
+        self.comments = [
+            {
+                "id": 93,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": stored + "\r\n",
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
         )
 
     def test_a_held_major_under_an_earlier_refusal_escalates_once(self) -> None:

@@ -884,7 +884,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   head last changed; the queue would eject it again on the same commits. A push resets the count.
   An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
-  failing `merge_group` runs.
+  failing `merge_group` runs. Under `merge.lane-prs` `native`, `enable-auto-merge` applies the
+  same cap before it arms a lanes App pull request (see [Native auto-merge](#native-auto-merge)).
 - **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
   When the base changed one since a pull request's merge base, the wrapper updates the branch from
   the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
@@ -950,7 +951,9 @@ except six:
   or submitted the newest review since that pin), a recent `updatedAt` does not refuse, since the
   pin comment and the enqueue refresh it; any other comment or review, such as a request to
   wait, refuses again, as does an unreadable one. The head commit test and every hold still
-  apply. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`);
+  apply. A person's merge-queue enqueue that the queue removed for failed checks also excuses
+  both idle tests ([Adoption](#adoption)). The decision records it as `eligibility.adoption`
+  (`idle-owner:<hours>h`, or `requeue-after-ejection`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
   request that is not adopted refuses `not-adopted:<reason>`. The candidate listing adds each
   trusted actor's open pull requests by its login on the list.
@@ -1006,12 +1009,16 @@ naming the score, the reasons and the head. While `merge.report-only` is false, 
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
-rewrites that comment once to end with a line saying the refusal persisted and needs a person, then
-adds the tracker's human-gated role label when no label matches it ignoring case, so the pull
-request leaves the WIP count and reaches the attended queue. The rewrite dates the comment beside
-the label, which the head-moved clear needs to pair them. The minimum lets a review still
+posts a new comment, that comment's text ending with a line saying the refusal persisted and needs a
+person, then adds the tracker's human-gated role label when no label matches it ignoring case, so
+the pull request leaves the WIP count and reaches the attended queue. A new comment notifies and is
+dated beside the label, which the head-moved clear needs to pair them; an edit would do neither. An
+unchanged escalation is never posted again. The minimum lets a review still
 running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
-restart the time; a new head, or a score back at LOW, writes no label. A LOW score rewrites a
+restart the time, except on a comment already escalated at that head, where they are posted as a
+new escalation so the label never stands beside a comment without the escalation line; a new head,
+or a score back at LOW, writes no label. A comment that differs only in line endings or trailing
+whitespace counts as unchanged. A LOW score rewrites a
 refusal comment naming that head, unless it is escalated, to say the refusal no longer holds, so a
 later refusal at the head starts its time afresh. The merge gate never removes the label; the
 `head-moved` clear above removes it once the head moves, and otherwise a person does. When the
@@ -1021,10 +1028,9 @@ with write access; an unreadable default branch lifts nothing), it lifts that es
 run that finds the comment unchanged (same head and reasons) adds no label. A removal by a bot,
 the lanes App included, by an account off that list, or made through a GitHub App
 (`performed_via_github_app`) lifts nothing, and a new head or new
-reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
-escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes App pull
-request instead, and posts the escalation to a person as a new comment rather than rewriting its
-earlier one, since an edit notifies no one and keeps the comment's old date.
+reasons escalate afresh, each as a new comment. The same holds for pr-merge's verifier, held-major
+and shared-copy escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes
+App pull request instead, and posts its escalation to a person as a new comment the same way.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also
@@ -1119,11 +1125,19 @@ heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` find
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
-review, the trust gate and the cost review all hold. Each such run also
+review, the trust gate and the cost review all hold; and `evidence --lane-queue` finds the merge
+queue has removed the head for failed checks fewer than `merge.max-queue-ejections` times since it
+last changed, the gate's own count and limit (`babysit_merge.queue_ejection_refusal`). GitHub does
+not re-arm a pull request the queue removes, so without this cap each scheduled run would arm a head
+that keeps failing its merge group again. At the cap the pull request is left unarmed with the
+gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a push resets the
+count; an unread count leaves it unarmed with no comment, and the next run reads it again. An
+armed one is not disarmed on the count. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
-report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report, or
-one the gate would not reuse (`shared_refusal`: too old, a demotion record changed since, or a lane
-merge landed since that it does not count), it holds as a refusal does; one past the gate's
+report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
+holds as a refusal does; one the gate would not reuse, for any `shared_refusal`, is checked again
+as the gate does; one refused only because a demotion record was filed or changed since is first
+kept when the demotion records alone read as they were; one past the gate's
 two-minute reuse age only because a lane merge is still unverified is kept while main's head, its
 config commit, the demotion records and the unverified merges' full and canary runs are as they
 were (no run reached a conclusion since, no merge is past the six-hour dispatch deadline, and no
@@ -2241,6 +2255,33 @@ person opened. A PR is adopted when all of these hold:
   whitespace (NBSP included), with a bare CR also ending a line;
 - for a person's PR, its last update (`updatedAt`) and its head commit's committer date are both
   at least `idle-hours` old. Neither one alone is enough. An App's PR does not wait.
+
+A person's PR also skips the wait when a person put it in the merge queue and the queue removed
+it for failed checks (owner decision Q-REQ (a)). The person's enqueue of that head stands in for
+the idle wait, and grants nothing beyond it. In pr-merge, `babysit_merge_policy.ejected_enqueue`
+reads the enqueue from `read_merge_queue`, and `requeued_by_person` accepts it only when all of
+these hold:
+
+- the PR's newest merge-queue event is a `RemovedFromMergeQueueEvent` with reason
+  `failed_checks`, with no pushed commit or force push after it;
+- the `AddedToMergeQueueEvent` that queued the removed entry has an `actor` and an `enqueuer`
+  whose ids are both `kind: human` on the trusted-actor list. Logins and GitHub types are not
+  read, because GitHub types an App's enqueuer as a `User`;
+- GitHub had seen this head on the branch by the enqueue, and not since. That check reads the
+  newest `created_at` of GitHub Actions' check suites for the head commit on the PR's head
+  branch, which must be no later than the enqueue. GitHub sets it when a push arrives. A commit
+  dated in the past but pushed after the removal therefore does not pass, and neither does a head
+  that was reset away and pushed back;
+- no person has commented, reviewed or commented inline since the enqueue, counting a comment
+  edited since then. The lanes App and bots do not count. A request to wait, made before or after
+  the run failed, therefore keeps the idle rule, as a comment after the lane's pin does for its
+  own queued entry.
+
+The only newer queue event allowed is the lane's own entry at this head, as described in
+[The pr-merge lane](#the-pr-merge-lane). Anything else, or anything unreadable, falls back to the
+idle rule. The decision records `requeue-after-ejection`. The gate then runs unchanged: every
+hold, the verifier verdict, the head pin, and the `merge.max-queue-ejections` cap. If the lane's
+own retry is removed too, its enqueue is not a person's, so the PR waits `idle-hours`.
 
 An adopted PR that closes no issue in this repository is judged against its own title and body
 when a person (a `kind: human` id on the trusted list, not merely a GitHub `User`) opened it or

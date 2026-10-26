@@ -1,6 +1,7 @@
 # Adopt Claude Code mods
 
-- Status: accepted
+- Status: accepted; amended 2026-10-25 (where the guard is absent, and the mod reach it never
+  covers, see the amendment below)
 - Date: 2026-10-03
 - Supersedes: [ADR 0035](0035-defer-claude-code-mods-with-five-go-criteria.md)
 
@@ -183,9 +184,43 @@ lines, band and contract file do not depend on it. Organization-admin features a
 - `scripts/test-plugin-mods.sh` runs `claude plugin test` on every plugin whose `hooks.json` names
   `modules`, and skips when the `claude` on `PATH` predates `claude plugin test`.
 
+## Amendment (2026-10-25): where the guard is absent, and what it never covers
+
+Where the Decision says the guard does not load "as on the owner's Max machines", read this
+amendment. The decision stands: no policy narrowing of what a mod may do.
+
+- **The guard is absent wherever a session has neither managed settings nor a Team or Enterprise
+  `/login`, and a token or API key is never that login.**
+  [admin: know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default)
+  (quoted with link markup removed): "A user who authenticates with an API key, or through Amazon
+  Bedrock, Google Cloud's Agent Platform, or Microsoft Foundry, gets the guard only on a machine
+  that has managed settings. A session that runs on a long-lived `CLAUDE_CODE_OAUTH_TOKEN` doesn't
+  count as that login either, even when a Team or Enterprise login is stored on the machine."
+  Besides the owner's Max machines, that covers every CI lane that writes no managed settings: the
+  claude-code-action lanes (`maintenance-audit-lane-runs.yml:227`, `intake-triage.yml:755`,
+  `pr-run-activity-write.yml:1417`) and `eval-browser-dispatch.yml:203`. Lanes that run through
+  ci-workflows' `run-claude-cli` first write root-owned `/etc/claude-code/managed-settings.json`
+  (`pr-verify.yml:216`, `pr-run-activity-read.yml:1062`, `pr-unblock.yml:938`, and the review and
+  intake reusables), and the launcher refuses to start without it, so the guard loads there.
+- **Without the guard, a mod gets past `ask` rules and `PreToolUse` hooks as well as `deny`.**
+  [overview: what a mod can reach](https://code.claude.com/docs/en/plugins/mods/overview#what-a-mod-can-reach):
+  "Without either, a mod can approve a call that an `ask` rule would prompt for, or that your
+  `PreToolUse` hook blocked."
+- **With or without the guard, a mod is unsandboxed and its own calls bypass permission rules.**
+  The same overview section (quoted with link markup removed): "Mods aren't sandboxed. If you turn
+  on sandboxing, the sandbox isolates the Bash commands Claude runs, and a process that a mod
+  starts runs outside it." The same admin section: "Permission rules and `PreToolUse` hooks apply
+  to Claude's tool calls, not to a mod's `$.fs` and `$.process` calls."
+- **Containment is unchanged.** No mod in this repository registers `tool.check`, and the CI write
+  runner installs plugins only from the base copy
+  ([ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md), decision 3).
+
+These pointers are as of 2026-10-25, Claude Code 2.1.310. Recheck when either quoted section
+changes, or when a CI lane adds a Claude step without the managed-settings write or drops it.
+
 ## Recheck triggers
 
-Every pointer above is as of 2026-10-03, Claude Code 2.1.288. Re-derive this record when:
+Every pointer above outside the amendment is as of 2026-10-03, Claude Code 2.1.288. Re-derive this record when:
 
 - a pull request bumps the `@anthropic-ai/claude-code` pin in `package.json`: run the quick check in
   [go-no-go.md](../upstream/claude-code-mods/go-no-go.md#quick-check-for-a-claude-code-pin-bump);

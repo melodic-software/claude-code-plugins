@@ -601,6 +601,16 @@ class TestAffects(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], [])
 
+    def test_revise_line_records_the_fields_it_changed(self):
+        rc, out, err = self.rp("revise", "Q1", "--title", "New title?", "--short", "New short")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["title", "short"])
+        rc, out, err = self.rp(
+            "revise", "Q1", "--rec", "New.", "--affects", "none", "--keep-alternatives"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["recommendation"])
+
     def test_reply_without_rec_needs_no_affects(self):
         rc, out, err = self.rp("reply", "Q1", "--text", "Thread only.")
         self.assertEqual(rc, 0, out + err)
@@ -1245,6 +1255,71 @@ class TestRecChangeStampsPageSeq(DirCase):
         self.assertEqual(lines[0]["affects"], ["Q3"])
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+
+class TestReconfirm(DirCase):
+    """#9714: Q1's changed answer leaves its undecided dependent Q2 upstream-changed; `reconfirm`
+    clears it with a reviewSeq history line, refuses any other question, and a revise line carries
+    reviewSeq too."""
+
+    def setUp(self):
+        super().setUp()
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [
+                {"seq": 1, "id": "Q1", "kind": "accept", "alt": None, "text": "", "at": at},
+                {"seq": 2, "id": "Q1", "kind": "alt", "alt": "a", "text": "", "at": at},
+            ]
+        )
+
+    def upstream_changed(self):
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        return json.loads(out)["upstreamChanged"]
+
+    def test_status_names_it_and_reconfirm_clears_it(self):
+        self.assertEqual(self.upstream_changed(), [{"id": "Q2", "changedBy": ["Q1"]}])
+        rc, out, err = self.rp("status")
+        self.assertIn("upstream changed: Q2 (Q1 changed); revise or reconfirm it", out)
+        ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"], "why": "It holds either way."}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        line = self.q("Q2")["history"][-1]
+        self.assertEqual(
+            {k: line[k] for k in ("by", "kind", "text", "reviewSeq", "rev")},
+            {
+                "by": "claude",
+                "kind": "reconfirm",
+                "text": "Reconfirmed after Q1 changed: It holds either way.",
+                "reviewSeq": 2,
+                "rev": self.doc()["rev"],
+            },
+        )
+        self.assertNotIn("pageSeq", line)
+        self.assertEqual(self.upstream_changed(), [])
+        self.assertEqual(self.doc()["activity"][-1]["ids"], ["Q2"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_refusals_write_nothing(self):
+        out = self.assert_refused("reconfirm", "Q3", "--why", "Fine.")
+        self.assertIn("refused: Q3 not upstream-changed; nothing to reconfirm", out)
+        out = self.assert_refused("reconfirm", "Q2", "Q3", "--why", "Fine.")
+        self.assertIn("refused: Q3 not upstream-changed", out)
+        out = self.assert_refused("reconfirm", "Q2", "--why", "  ")
+        self.assertIn("refused: reconfirm needs a why", out)
+        out = self.assert_refused("reconfirm", "Q9", "--why", "Fine.")
+        self.assertIn("unknown question: Q9", out)
+        ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_a_revise_line_carries_review_seq_and_clears_it(self):
+        rc, out, err = self.rp("revise", "Q2", "--title", "Still the question?")
+        self.assertEqual(rc, 0, out + err)
+        line = self.q("Q2")["history"][-1]
+        self.assertEqual((line["kind"], line["reviewSeq"]), ("revise", 2))
+        self.assertNotIn("pageSeq", line)
+        self.assertEqual(self.upstream_changed(), [])
 
 
 class TestSupersedeRepoint(DirCase):

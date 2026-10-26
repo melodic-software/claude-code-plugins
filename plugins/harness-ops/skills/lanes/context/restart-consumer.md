@@ -133,7 +133,11 @@ from cmd.exe.
 
 Two scheduled forms, different trade-offs:
 
-- **Headless skill form**: `claude -p "/harness-ops:lanes consume-restarts run"`.
+- **Headless skill form**: `claude -p "/harness-ops:lanes consume-restarts run"
+  --permission-mode auto --permission-prompts none`. The mode is stated, never
+  inherited from user settings; `--permission-prompts none` is printed only when
+  the CLI that runs `print-schedule` accepts it, so regenerate the schedule after
+  upgrading from an older CLI.
   Survives plugin updates (the skill resolves `${CLAUDE_PLUGIN_ROOT}` freshly at
   each invocation, so the task never embeds a plugin cache path that rots), but
   each tick is a paid model turn. Bound the spend: `claude` supports `--model`
