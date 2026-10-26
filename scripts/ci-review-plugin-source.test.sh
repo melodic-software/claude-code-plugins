@@ -50,10 +50,10 @@ for (const file of ["pr-review-hosted.yml", "pr-review-security-hosted.yml"]) {
 }
 
 // The check itself rejects each shape it guards against.
-const sha = "4fbceb4b75ffd568dfa5db31de0d0e753c0c64e6";
+const sha = "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8";
 const call = (uses, inputs) => ({ review: { uses, with: inputs } });
 for (const [name, jobs] of [
-  ["a tag ref", call(`${REUSABLE}v0.65.9`, {})],
+  ["a tag ref", call(`${REUSABLE}v0.65.11`, {})],
   ["a short SHA", call(`${REUSABLE}${sha.slice(0, 12)}`, {})],
   ["another repository's copy", call(`someone/ci-workflows/.github/workflows/pr-review-cli.yml@${sha}`, {})],
   ["a plugin-dirs input", call(`${REUSABLE}${sha}`, { "plugin-dirs": "plugins/review" })],
