@@ -401,6 +401,13 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
     });
 
+    test("admits a criterion whose nested bullet cites a protected path as evidence", () => {
+      for (const bullet of ["  - Basis: .github/workflows/pr-require-checks.yml:40", "  * see .github/CODEOWNERS", "  1. .gitmodules lists it"]) {
+        const issue = withCriteria("- [ ] The job times out at 3 minutes.", bullet);
+        assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] }, bullet);
+      }
+    });
+
     const admitted = [
       // #9137's shape.
       "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
