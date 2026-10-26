@@ -2538,16 +2538,16 @@ def open_browser(url, cmd):
 
 
 def emoji_flag(value):
-    """true, 1, yes and on (any case) mean true; anything else, an unexpanded token included, means false."""
-    return value.strip().lower() in ("true", "1", "yes", "on")
+    """false, 0, no and off (any case) mean false; anything else, an unexpanded token included, means true."""
+    return value.strip().lower() not in ("false", "0", "no", "off")
 
 
 def record_emoji_markers(d, want):
     """meta.emojiMarkers through the normal write path; writes only on a change or a new file.
-    want None keeps the recorded value, and a new file records false."""
+    want None keeps the recorded value, and a new file records true."""
     doc = load(d)
     if not (d / "questions.json").exists():
-        want = bool(want)
+        want = want is not False
     elif want is None or doc["meta"].get("emojiMarkers") is want:
         return
     doc["meta"]["emojiMarkers"] = want
@@ -3057,9 +3057,9 @@ def main(argv=None):
     s.add_argument(
         "--emoji-markers",
         dest="emoji_markers",
-        help="record meta.emojiMarkers in questions.json: true, 1, yes or on mean true, "
-        "any other value means false; without the flag the recorded value stays, and a new "
-        "file records false",
+        help="record meta.emojiMarkers in questions.json: false, 0, no or off mean false, "
+        "any other value means true; without the flag the recorded value stays, and a new "
+        "file records true",
     )
     s.set_defaults(fn=cmd_ensure_running)
 

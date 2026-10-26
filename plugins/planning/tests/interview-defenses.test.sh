@@ -488,8 +488,9 @@ done
 # accept-shorthand resolves; the surface sentence only names where a round is asked. None
 # qualifies the no-silent-resolve rule or any other defense here. The out-of-band check
 # also covers `superseded-by-plan` rows, which it restates and never resolves. The emoji
-# paragraph now defaults the anchors off and lets a user instruction against emoji win over
-# the option; it changes presentation only and weakens no defense. The recommendation-basis
+# paragraph defaults the anchors on (an unexpanded or empty token means on) and lets a user
+# instruction against emoji win over the option; it changes presentation only and weakens no
+# defense. The recommendation-basis
 # rules add a `Basis:` line per recommendation, make grounding mandatory for a consequential
 # recommendation, and restrict convention-only recommending to non-consequential questions.
 # Each adds a requirement on the recommendation; none resolves a row or relaxes a defense. A

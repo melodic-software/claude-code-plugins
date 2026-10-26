@@ -3192,7 +3192,7 @@ class TestMeta(DirCase):
 
 
 class TestEmojiMarkersValue(unittest.TestCase):
-    """`--emoji-markers` takes any value: true, 1, yes, on mean true; anything else means false."""
+    """`--emoji-markers` takes any value: false, 0, no, off mean false; anything else means true."""
 
     @classmethod
     def setUpClass(cls):
@@ -3220,13 +3220,14 @@ class TestEmojiMarkersValue(unittest.TestCase):
             ("TRUE", True),
             ("0", False),
             ("1", True),
-            ("", False),
+            ("", True),
             ("No", False),
             (" Yes ", True),
-            ("${user_config.use_emoji_question_markers}", False),
+            ("${user_config.use_emoji_question_markers}", True),
             ("OFF", False),
             ("on", True),
-            ("yes please", False),
+            (" False ", False),
+            ("yes please", True),
         ]
         for value, want in cases:
             with self.subTest(value=value):

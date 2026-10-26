@@ -118,7 +118,7 @@ a `**Planned breakage:**` line. A repository sets it for everyone with `scaffold
 `docs/conventions/planning.yaml`, which wins over this option.
 `/planning:setup apply scaffold_stubs=true` writes it.
 
-**`use_emoji_question_markers`.** On the page surface the anchors sit on the question title and
+**`use_emoji_question_markers`.** On by default; set it to `false` for the plain shape. On the page surface the anchors sit on the question title and
 the Recommendation heading; the terminal line they lead is `My recommendation:`. Q<N> numbering
 stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the
 emoji. A user instruction against emoji wins over this option, and the page is then started with
@@ -136,7 +136,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview. |
 | `use_ask_user_question` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_ASK_USER_QUESTION` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call instead of inline prose. Default: inline prose (dictation-friendly). |
-| `use_emoji_question_markers` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
+| `use_emoji_question_markers` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: on. |
 | `shared_session_open_browser` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SHARED_SESSION_OPEN_BROWSER` | When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on. |
 | `tunnel_hostname` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_TUNNEL_HOSTNAME` | Hostname of a named Cloudflare tunnel for /planning:interview shared sessions (such as interview.example.com), so the guest link survives a restart. Set it on one machine only. Empty (default): a quick tunnel, whose link changes on restart. Setup: shared/README.md. |
 | `tunnel_token_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_TUNNEL_TOKEN_FILE` | Absolute path of a file holding the named tunnel's token, readable only by you; cloudflared reads it, nothing else does. Used only when tunnel_hostname is set. Default: empty. |

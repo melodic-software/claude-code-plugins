@@ -19,6 +19,10 @@
     {
       "answer": "**Q1. Storage**\nWhere should the demo keep its data between reloads?",
       "why": "question on the line after the Q1 label"
+    },
+    {
+      "answer": "Here is what I see.\n\n❓ Q1: Should habits persist across reloads?\n➡️ My recommendation: **yes, in localStorage**.",
+      "why": "Q1 line led by the default emoji anchor"
     }
   ],
   "fail": [

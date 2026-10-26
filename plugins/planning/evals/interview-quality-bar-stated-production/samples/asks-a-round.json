@@ -11,6 +11,10 @@
     {
       "answer": "### Q1\nWhich accounting systems must the first release support?",
       "why": "heading form"
+    },
+    {
+      "answer": "Here is what I see.\n\n❓ Q1: Which accounting systems must the first release support?",
+      "why": "Q1 line led by the default emoji anchor"
     }
   ],
   "fail": [

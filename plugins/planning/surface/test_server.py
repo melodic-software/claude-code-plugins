@@ -2880,9 +2880,9 @@ class TestEmojiMarkers(ServerCase):
     def meta(self):
         return self.state()["questions"]["meta"]
 
-    def test_1_no_flag_on_a_new_file_records_false(self):
+    def test_1_no_flag_on_a_new_file_records_true(self):
         self.assertTrue((self.dir / "questions.json").exists())
-        self.assertIs(self.meta().get("emojiMarkers"), False)
+        self.assertIs(self.meta().get("emojiMarkers"), True)
 
     def test_2_false_is_recorded_and_a_repeat_does_not_bump_rev(self):
         p = ensure_running(self.dir, "--emoji-markers", "false")

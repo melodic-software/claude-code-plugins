@@ -21,8 +21,8 @@
     "use_emoji_question_markers": {
       "type": "boolean",
       "title": "Interview question emoji anchors",
-      "description": "When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text.",
-      "default": false
+      "description": "When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: on.",
+      "default": true
     },
     "shared_session_open_browser": {
       "type": "boolean",

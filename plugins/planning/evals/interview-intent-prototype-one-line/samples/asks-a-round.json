@@ -3,6 +3,10 @@
     {
       "answer": "Here is what I see: an empty reports package.\n\nQ1: Which order fields should the CSV carry?\nMy recommendation: **id, date, total**.",
       "why": "a numbered question"
+    },
+    {
+      "answer": "Here is what I see: an empty reports package.\n\n❓ Q1: Which order fields should the CSV carry?\n➡️ My recommendation: **id, date, total**.",
+      "why": "a numbered question led by the default emoji anchor"
     }
   ],
   "fail": [

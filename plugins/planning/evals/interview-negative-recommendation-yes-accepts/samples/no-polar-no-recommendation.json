@@ -21,6 +21,10 @@
       "why": "the next question's No does not count against the rewrite question"
     },
     {
+      "answer": "❓ Q2: Should we rewrite the admin page in React as part of this?\n➡️ My recommendation: **Yes** - the page needs it for the export.\n\n❓ Q3: Should the export respect the current filters?\n➡️ My recommendation: **No** - export everything.",
+      "why": "with the emoji anchors, the next question's No still does not count against the rewrite question"
+    },
+    {
       "answer": "Q1: Is the page already using React components?\nMy recommendation: **No** - it is server-rendered.",
       "why": "a fact question that names React, not the rewrite"
     },
