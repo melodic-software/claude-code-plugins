@@ -11,12 +11,13 @@ git config user.name eval
 printf '.work/\n' >.gitignore
 printf '# widget\n\nA small widget library.\n' >README.md
 mkdir -p docs
-printf '# Setup\n\nInstall with:\n\n    pip install widgit\n' >docs/setup.md
+printf '# Setup\n\nInstall with:\n\n    pip install widgit\n' >docs/setup.md # spellchecker:disable-line
 cat >.work-item-tracker.json <<'JSON'
 {"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items"}}
 JSON
 
 mkdir -p .work-items
+# spellchecker:off
 cat >.work-items/1.md <<'MD'
 ---
 id: "local-markdown:local/markdown#1"
@@ -37,6 +38,7 @@ The install command in docs/setup.md says `pip install widgit`; the package is `
 
 - [ ] docs/setup.md shows `pip install widget`.
 MD
+# spellchecker:on
 
 git add .
 git commit -q -m "chore: scaffold widget docs"

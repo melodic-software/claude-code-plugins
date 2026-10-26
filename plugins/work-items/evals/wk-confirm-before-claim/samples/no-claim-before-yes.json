@@ -91,7 +91,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "sed -i 's/widgit/widget/' docs/setup.md"
+            "command": "sed -i 's/wodget/widget/' docs/setup.md"
           }
         }
       ],

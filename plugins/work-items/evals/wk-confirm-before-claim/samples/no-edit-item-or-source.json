@@ -25,7 +25,7 @@
           "tool": "Edit",
           "input": {
             "file_path": "/w/docs/setup.md",
-            "old_string": "widgit",
+            "old_string": "wodget",
             "new_string": "widget"
           }
         }

@@ -14,7 +14,7 @@ execution:
 graders:
   - name: rejects-and-names-owner
     type: regex
-    pattern: '^(?![\s\S]*\b(?:do not|don''t|never|no need to)\s+(?:use|run|launch|invoke)\s+`?/?(?:source-control:)?babysit-loop)(?![\s\S]*\b(?:ignore|ignored|ignoring|skipped|skipping)\b[^\n]*\bautopilot\b[^\n]*\b(?:and|then)\s+(?:start|run|began|launch)\w*)(?=[\s\S]*\bautopilot\b)(?=[\s\S]*source-control:babysit-loop)(?=[\s\S]*\b(?:reject(?:ed|ing|s)?|refuse[sd]?|refusing|stop(?:ped|ping)?|not (?:a )?(?:valid|recognized|recognised|supported|accepted|a work-loop)|unknown|belongs? to|owned by|(?:does not|doesn''t) (?:accept|take)|cannot|can''t|will not|won''t)\b)'
+    pattern: '^(?![\s\S]*\b(?:do not|don''t|never|no need to)\s+(?:use|run|launch|invoke)\s+`?/?(?:source-control:)?babysit-loop)(?![\s\S]*\b(?:ignore|ignored|ignoring|skipped|skipping)\b[^\n]*\bautopilot\b[^\n]*\b(?:and|then)\s+(?:start|run|began|launch)\w*)(?=[\s\S]*\bautopilot\b)(?=[\s\S]*source-control:babysit-loop)(?=[\s\S]*\b(?:reject(?:ed|ing|s)?|refuse[sd]?|refusing|stop(?:ped|ping)?|not (?:a )?(?:valid|recogni[sz]ed|supported|accepted|a work-loop)|unknown|belongs? to|owned by|(?:does not|doesn''t) (?:accept|take)|cannot|can''t|will not|won''t)\b)'
     flags: 'i'
     target: last_message
     arm: with-only
