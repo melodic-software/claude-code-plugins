@@ -151,8 +151,9 @@ machines; neither on the attended box.
 > the direction that `/work-items:triage`'s mutation gate and the
 > self-observation filing contract require: triage, classify, label,
 > comment, file follow-up items, claim items, author branches and PRs,
-> all without a human turn. Prefix every comment and item you create with
-> the AI disclaimer specified by triage. You never merge.
+> all without a human turn. Prefix comments and items you create with the
+> AI disclaimer only as work-items' `ai_disclaimer` setting says. You never
+> merge.
 >
 > **Discipline.** Invoke `/discipline:sweep-all`'s **full batch pass once per
 > cycle, at the cycle root only**, never from inside that skill's own audit

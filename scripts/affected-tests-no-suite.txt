@@ -205,3 +205,4 @@ docs/conventions/code-metrics.yaml
 docs/conventions/pr-pipeline.yaml
 docs/conventions/source-control.yaml
 docs/conventions/testing.yaml
+docs/conventions/work-items.yaml

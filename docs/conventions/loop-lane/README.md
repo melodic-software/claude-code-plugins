@@ -900,7 +900,8 @@ offer to persist the answer; the headless path never waits on one.
 time that the lane's own process could edit (audited in #7680). work-loop and attend-queue read
 the tracker binding `.work-item-tracker.json` from the checkout, including the role labels that
 admission matches on. The triage step they run reads `docs/conventions/work-items.yaml` and
-`docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given. The
+`docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given, and
+both lanes read that `work-items.yaml` for `ai_disclaimer` the same way. The
 babysit loop reads its `babysit_loop_*` keys from the `source-control` config seam's user-global,
 team and local layers, and reads the team layer from the working tree when the checkout is the
 target repository. A deny rule makes such a file read-only to a lane only when at least these four
@@ -1210,8 +1211,8 @@ gh issue comment <n> -R "$R" --body "Parked by operator: <reason>."
 
 When an `attend-queue` session writes this comment, or the hold comment below, on the operator's
 behalf, it opens with the
-[AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md); the operator's own words
-need none.
+[AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md) when that file's setting
+resolves `true`; the operator's own words need none.
 
 `list-frontier --autonomous` excludes that label, so `work-loop` stops selecting the item from its
 next cycle-start snapshot. The comment carries no machine marker, which is what marks the item

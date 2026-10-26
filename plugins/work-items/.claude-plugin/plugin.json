@@ -37,6 +37,12 @@
       "default": 0,
       "min": 0
     },
+    "ai_disclaimer": {
+      "type": "boolean",
+      "title": "AI disclaimer on lane posts",
+      "description": "When true, autonomous work-items lanes (triage, work-loop, attend-queue answers, autonomous filing) start each tracker item and comment they create with the AI disclaimer. Default false. The repository's docs/conventions/work-items.yaml overrides this per repo.",
+      "default": false
+    },
     "work_dispatch_concurrency_cap": {
       "type": "number",
       "title": "Autonomous dispatch concurrency cap",

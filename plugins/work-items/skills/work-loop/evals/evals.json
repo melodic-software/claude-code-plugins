@@ -4,8 +4,8 @@
     {
       "id": 1,
       "name": "work-loop-admission-gate-fail-closed-with-hard-gates",
-      "prompt": "/work-items:work-loop\n\nRunning as a /loop autonomous lane whose standing rules authorize triage mutations. The frontier snapshot contains: a C2 mechanical doc fix; a C3 bug-fix-shaped item; a C3 feature-shaped item; an unclassified item; and a C2-looking dependency bump that recomputes a pinned checksum. A workflow bot filed two new advisory issues mid-cycle. The lane's telemetry issue does not carry the loop-lane: first-drain-ratified label.",
-      "expected_output": "The cycle re-reads durable loop state from the telemetry comment first, takes a cycle-start snapshot, and sweeps intake via /work-items:triage in its autonomous lane (standing rules satisfy the direction gate; AI disclaimer on comments). Admission is fail-closed: the C2 item is admitted; the C3 bug-fix item is NOT dispatched because first-drain-ratified.sh does not exit 0 (the label is absent) and it carries no recorded ratification \u2014 it is queued with the human-gated role label (resolved from config.role_labels) plus a machine-marked kind=ratify-c3 comment; a C3 item already carrying attend-queue's ratification reply would dispatch instead of being re-queued; the C3 feature-shaped and unclassified items are human-gated; the checksum-recomputation bump is human-gated by the path/topic hard gate regardless of its C2 surface reading. Bot-authored advisories route to the human-gated role by default and, arriving mid-cycle, are reported, never chased this cycle. Escalations use the role label plus the machine-marked escalation comment, never a new label. The loop authors PRs only and never merges.",
+      "prompt": "/work-items:work-loop\n\nRunning as a /loop autonomous lane whose standing rules authorize triage mutations. The frontier snapshot contains: a C2 mechanical doc fix; a C3 bug-fix-shaped item; a C3 feature-shaped item; an unclassified item; and a C2-looking dependency bump that recomputes a pinned checksum. A workflow bot filed two new advisory issues mid-cycle. The lane's telemetry issue does not carry the loop-lane: first-drain-ratified label. The repository's work-items settings file sets ai_disclaimer: true.",
+      "expected_output": "The cycle re-reads durable loop state from the telemetry comment first, takes a cycle-start snapshot, and sweeps intake via /work-items:triage in its autonomous lane (standing rules satisfy the direction gate; AI disclaimer on comments, since ai_disclaimer resolves true). Admission is fail-closed: the C2 item is admitted; the C3 bug-fix item is NOT dispatched because first-drain-ratified.sh does not exit 0 (the label is absent) and it carries no recorded ratification \u2014 it is queued with the human-gated role label (resolved from config.role_labels) plus a machine-marked kind=ratify-c3 comment; a C3 item already carrying attend-queue's ratification reply would dispatch instead of being re-queued; the C3 feature-shaped and unclassified items are human-gated; the checksum-recomputation bump is human-gated by the path/topic hard gate regardless of its C2 surface reading. Bot-authored advisories route to the human-gated role by default and, arriving mid-cycle, are reported, never chased this cycle. Escalations use the role label plus the machine-marked escalation comment, never a new label. The loop authors PRs only and never merges.",
       "files": [],
       "expectations": [
         "Re-reads the machine-readable durable loop state from the telemetry comment at cycle start rather than trusting conversation context",
@@ -462,6 +462,31 @@
         "Does not admit or dispatch #43 despite the admit row in stdout",
         "Changes no label on #43",
         "Continues the cycle rather than stopping"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "work-loop-intake-sweep-posts-without-disclaimer-when-setting-off",
+      "prompt": "/work-items:work-loop\n\nRunning as a /loop autonomous lane whose standing rules authorize triage mutations. ai_disclaimer is unset per user and the repository has no docs/conventions/work-items.yaml. The cycle-start snapshot holds one untriaged item, #88, a clear documentation typo report.",
+      "expected_output": "The intake sweep runs /work-items:triage in its autonomous lane on #88. ai_disclaimer resolves false from the manifest default, so the comments and items the sweep creates carry no AI disclaimer prefix. The sweep's mutations otherwise proceed as usual.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the intake sweep via /work-items:triage in its autonomous lane on #88",
+        "Resolves ai_disclaimer to its default, false, since no layer sets it",
+        "Creates the sweep's comments and items with no AI disclaimer prefix"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "work-loop-escalation-answer-is-not-a-new-objection",
+      "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. ai_disclaimer resolves false. #306 is agent-ready and work-class: mechanical with no open closing PR. Its objection window comment from the seam's write identity ended at 2026-10-04T10:00:00Z. At 2026-10-04T11:00:00Z the write identity posted a lane=work-loop kind=escalated marker for a maintainer's objection. At 2026-10-05T09:00:00Z the operator's account (write permission, not the write identity, no AI disclaimer) commented 'Decision: keep the old config format.' At 09:01 the same operator applied agent-ready; label-provenance reports that application as trusted. No comment follows it.",
+      "expected_output": "The operator's 09:00 comment sits after the work-loop escalation marker and before the latest trusted application of agent-ready, so it answers that escalation and is not a new objection; the maintainer's earlier objection is answered by the marker. With the window over, #306 continues to classification and is not escalated again.",
+      "files": [],
+      "expectations": [
+        "Does not treat the operator's 09:00 comment as a new objection",
+        "Does not escalate #306 again",
+        "Continues #306 to classification"
       ]
     }
   ]

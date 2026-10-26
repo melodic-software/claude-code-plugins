@@ -17,9 +17,15 @@ a window. Check in this order:
    already answered by a later `lane=work-loop` escalation marker on the item. An escalation
    marker answers an objection only when the seam's configured write identity posted it, as with
    the window marker; the same marker text from any other author is an ordinary comment, so a
-   pasted marker cannot cancel an objection (and, posted by a person, is itself an objection). A person here is an
+   pasted marker cannot cancel an objection (and, posted by a person, is itself an objection).
+   A comment posted after such a marker and before the latest application of the
+   autonomous-eligible role label (its `at` in the labeler precondition's `label-provenance` read,
+   from a trusted labeler) answers that escalation, as `/work-items:attend-queue` writes its
+   answers, and is not a new objection. A person here is an
    author that is not the seam's write identity, is not a bot account (the tracker reports its
-   user type as `Bot`, or its login ends in `[bot]`), and whose comment carries no AI disclaimer. Step 5 escalates the item as
+   user type as `Bot`, or its login ends in `[bot]`), and whose comment carries no AI disclaimer
+   (a lane adds one only when the setting in
+   [`../../../reference/ai-disclaimer.md`](../../../reference/ai-disclaimer.md) resolves `true`). Step 5 escalates the item as
    `kind=escalated`, whose one-line question names the objecting comment, and it leaves the
    autonomous frontier. The cycle report lists it as `objection: #<item> -> escalated`.
 2. **Window still open** (`<end>` after the cycle-start time): skip the candidate this cycle. It is

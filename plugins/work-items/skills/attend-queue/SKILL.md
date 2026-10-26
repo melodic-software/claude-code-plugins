@@ -243,8 +243,11 @@ answer without stopping the pass to ask which item is in front of them.
     completion route for this lane to hand it to, and the human-gated role label is what keeps
     it in front of an operator.
 
-Answers and dispositions written by the agent on the operator's behalf carry triage's AI
-disclaimer; the operator's own words need none.
+Answers and dispositions written by the agent on the operator's behalf carry the AI disclaimer
+when the setting resolves `true`
+([`${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md`](${CLAUDE_PLUGIN_ROOT}/reference/ai-disclaimer.md),
+`{lane}` → `attend-queue`; the per-user value it reads is `${user_config.ai_disclaimer}`); the
+operator's own words need none.
 
 The operator reads those answers between rows, so each one opens with the decision and stops
 there: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed;

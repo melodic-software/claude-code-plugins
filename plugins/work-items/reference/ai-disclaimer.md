@@ -1,8 +1,29 @@
 # AI disclaimer: the lane-neutral provenance prefix
 
-When an autonomous lane creates a tracker item or comment without a human turn, prefix the body with
-this disclaimer so readers know the text is model-generated. The `{lane}` token is the invoking lane's
-short name (for example `triage`, `work-loop`, `scan-todos`, `babysit-prs`).
+When an autonomous lane creates a tracker item or comment without a human turn, or an agent writes
+one on an operator's behalf, and the `ai_disclaimer` setting resolves `true`, prefix the body with
+this disclaimer so readers know the text is model-generated. When it resolves `false`, add no
+prefix. The `{lane}` token is the invoking lane's short name (for example `triage`, `work-loop`,
+`scan-todos`, `babysit-prs`).
+
+## Setting
+
+`ai_disclaimer` is a boolean, default `false`. Resolve it once per run, before the first post. Layers,
+lowest first: the manifest default, then the per-user `userConfig` value, then the repository's
+`docs/conventions/work-items.yaml` (schema: [`../schemas/work-items.schema.json`](../schemas/work-items.schema.json)),
+the same order as `/work-items:triage`'s "Triage settings":
+
+1. **Repository.** From the repository root, run
+   `bash "<plugin-root>/skills/triage/scripts/parse-concern-value.sh" docs/conventions/work-items.yaml ai_disclaimer`,
+   `<plugin-root>` being this plugin's root directory, with `--ref '<ref>'` before the file argument
+   when the invocation carried a `--config-ref` that triage's check accepted. Non-empty output is
+   the value, from the repository layer.
+2. **Per user.** When the output is empty (no file or no key), the value is the
+   `${user_config.ai_disclaimer}` the invoking skill's body renders (`triage`, `attend-queue`,
+   `work-loop`, `work` and `scan-todos` render it). A surviving literal `${user_config.…}`
+   placeholder, or a skill that renders none, means unset: take the default.
+3. **Check the value.** Anything other than `true` or `false` names its source and the value, and
+   drops that layer to the default, never to a lower layer. It never stops the run.
 
 ## Canonical form
 
@@ -15,9 +36,15 @@ when the provenance phase differs. Triage's `during triage` form is correct only
 
 ## Where this applies
 
-Every cross-lane self-observation and autonomous mutation contract points here rather than restating
-the sentence:
+Every cross-lane self-observation and autonomous mutation contract points here for both the
+condition and the sentence, rather than restating either:
 
-- [`dogfood-filing.md`](dogfood-filing.md): autonomous filing sequence
+- [`dogfood-filing.md`](dogfood-filing.md): autonomous filing sequence, from `work` and `scan-todos`
 - [`../skills/triage/SKILL.md`](../skills/triage/SKILL.md): triage mutations
+- [`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md): answers written on the operator's behalf
+- [`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md): the intake sweep
 - Loop-lane standing prompts and lane-absorption skills: reconcile against this contract
+
+A reader that tells lane text from a person's by the prefix (the work-loop objection window) cannot
+rely on it while the setting resolves `false`, so it does not rest on the prefix alone: the
+objection window also reads the author and when the item was returned to the frontier.

@@ -71,9 +71,10 @@
     {
       "id": 6,
       "name": "triage-autonomous-lane-treats-standing-rules-as-direction",
-      "prompt": "/work-items:triage 71 — running unattended as a /loop AFK lane whose standing rules authorize triage label and comment mutations; #71 is an external bug report you have just reproduced",
-      "expected_output": "Recognizes the autonomous branch of the direction gate: the lane's standing rules ARE the direction the gate requires, so it proceeds through verification and outcome without waiting for a human turn rather than blocking (which would deadlock the lane). Applies the outcome's label and comment writes and prefixes every comment and item it creates with the AI disclaimer. Does not fall back to the interactive wait-gate, which applies only when a human operator is present and no standing lane rules were supplied.",
+      "prompt": "/work-items:triage 71 — running unattended as a /loop AFK lane whose standing rules authorize triage label and comment mutations; the repository's docs/conventions/work-items.yaml sets ai_disclaimer: true; #71 is an external bug report you have just reproduced",
+      "expected_output": "Recognizes the autonomous branch of the direction gate: the lane's standing rules ARE the direction the gate requires, so it proceeds through verification and outcome without waiting for a human turn rather than blocking (which would deadlock the lane). Applies the outcome's label and comment writes and, since ai_disclaimer resolves true from the repository layer, prefixes every comment and item it creates with the AI disclaimer. Does not fall back to the interactive wait-gate, which applies only when a human operator is present and no standing lane rules were supplied.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Selects the autonomous-lane branch of the direction gate — the /loop standing rules satisfy the direction requirement, so mutation proceeds without a human turn",
         "Does NOT wait for explicit user direction — that gate is the interactive-session default, not the autonomous-lane path; blocking here would deadlock the lane",
@@ -447,6 +448,19 @@
         "Sets size=huge through set-dimensions.sh and does not apply agent-ready",
         "Applies needs-human and status:ready and clears the raw-intake marker",
         "Comments naming /work-items:decompose as the next step and does not run it"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "triage-autonomous-lane-posts-without-disclaimer-when-setting-off",
+      "prompt": "/work-items:triage 72 — running unattended as a /loop AFK lane whose standing rules authorize triage label and comment mutations. The repository's docs/conventions/work-items.yaml sets ai_disclaimer: false, and your per-user ai_disclaimer is true. #72 is an external bug report you have just reproduced twice and are posting the verification comment for.",
+      "expected_output": "Resolves ai_disclaimer from its layers, the repository file winning over the per-user value, so it resolves false. Posts the verification comment and the outcome's comments without the AI disclaimer prefix, the verification comment starting with its **Verified: bug reproduced** line, and still proceeds through the outcome without waiting for a human turn.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves ai_disclaimer to false because the repository's docs/conventions/work-items.yaml wins over the per-user true",
+        "Posts the verification comment and every other comment it creates without the AI disclaimer prefix",
+        "Proceeds through the outcome without waiting for a human turn"
       ]
     }
   ]

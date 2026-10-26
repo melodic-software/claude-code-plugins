@@ -174,7 +174,7 @@ off) have a repository layer as well: the same keys in the consuming repo's
 `docs/conventions/work-items.yaml`, checked by
 [`schemas/work-items.schema.json`](schemas/work-items.schema.json), win over the
 per-user values. Lowest first: the manifest default, `userConfig`, the
-repository file. Only `/work-items:triage` reads the file, through the bundled
+repository file. Only `/work-items:triage` reads these two keys, through the bundled
 `parse-concern-value.sh`, and reports which layer supplied each value; the
 work-loop admission gate reads the window's end from the marker comment triage
 posts. A lane that passes `--config-ref <ref>` to triage has the
@@ -184,6 +184,11 @@ bug needs before triage marks it `status: confirmed`. With a window above 0,
 triage posts an "Objection window until <UTC>" comment beside the brief of each
 item it makes autonomous-eligible; the work-loop lane skips the item until the
 window ends and escalates it if a person replies inside the window.
+
+`ai_disclaimer` (default `false`) takes the same layers, in the same order:
+when it resolves `true`, autonomous lanes start each tracker item and comment
+they create with the AI disclaimer. The key, its layers and the prefix are
+stated once in [`reference/ai-disclaimer.md`](reference/ai-disclaimer.md).
 
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
@@ -226,6 +231,7 @@ reads it from.
 | `decompose_container_publish` | boolean | *(none)* | `CLAUDE_PLUGIN_OPTION_DECOMPOSE_CONTAINER_PUBLISH` | When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns; the approval gate stays mandatory. Unset or false: the plain ask, with a default answer of no. No default is declared, so unset stays distinct from false. |
 | `triage_repro_count` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_TRIAGE_REPRO_COUNT` | Independent reproductions /work-items:triage needs, each with evidence in its comment, before it marks a bug confirmed. Default 2. The repository's docs/conventions/work-items.yaml overrides this per repo. |
 | `triage_objection_window_hours` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_TRIAGE_OBJECTION_WINDOW_HOURS` | Hours after triage makes an item autonomous-eligible during which the work-loop lane skips it, so a person can object in a reply. 0 (the default) is off. The repository's docs/conventions/work-items.yaml overrides this per repo. |
+| `ai_disclaimer` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_AI_DISCLAIMER` | When true, autonomous work-items lanes (triage, work-loop, attend-queue answers, autonomous filing) start each tracker item and comment they create with the AI disclaimer. Default false. The repository's docs/conventions/work-items.yaml overrides this per repo. |
 | `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once in one plan phase, passed as its --wave-cap ceiling. A fractional value is floored. Unset: implement-dispatch's implement_dispatch_wave_cap option, else its internal default. |
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
 | `lane_app_slug` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_APP_SLUG` | Slug of the GitHub App whose installation token the work-loop lane runs under, passed as --app-slug to its telemetry upsert so the write identity resolves to <slug>\[bot\]. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^\[a-z0-9\]\[a-z0-9-\]*$. |

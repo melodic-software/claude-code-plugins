@@ -19,9 +19,10 @@
     {
       "id": 2,
       "name": "attend-queue-answers-write-back-ratify-and-flip",
-      "prompt": "/work-items:attend-queue\n\nThe operator works three rows: an [escalated] item where the worker asked which of two API shapes to keep; a [ratify] row for a C3 bug-fix admission; and an [intake] bug report. The operator answers the API question, ratifies the C3 admission, and directs triage on the bug.",
-      "expected_output": "For each row, the session acquires the seam claim (assignee + lease) before any comment, label, or triage mutation. For the escalated row, the decision is driven via /planning:interview when the planning plugin is installed (inline focused questions, one at a time, as the documented fallback) and the answer is written back as an issue comment on the item — the decision lives on the tracker, not only in the session — after which the item is flipped in one edit while the claim is still held: the autonomous-eligible role label applied and the human-gated role label removed, both resolved from config.role_labels, then @me cleared from assignees via the adapter assignee edit. For the ratify row, the ratification is recorded as a reply comment and the same flip-while-claimed then assignee-clear sequence applies; the item re-enters the worker loop's frontier — this lane never dispatches or executes it. For the intake row, /work-items:triage runs under its interactive direction gate: recommendation first, mutation only after the operator's direction. Agent-authored comments carry the AI disclaimer.",
+      "prompt": "/work-items:attend-queue\n\nThe operator works three rows: an [escalated] item where the worker asked which of two API shapes to keep; a [ratify] row for a C3 bug-fix admission; and an [intake] bug report. The operator answers the API question, ratifies the C3 admission, and directs triage on the bug. The per-user ai_disclaimer is true and the repository has no docs/conventions/work-items.yaml.",
+      "expected_output": "For each row, the session acquires the seam claim (assignee + lease) before any comment, label, or triage mutation. For the escalated row, the decision is driven via /planning:interview when the planning plugin is installed (inline focused questions, one at a time, as the documented fallback) and the answer is written back as an issue comment on the item — the decision lives on the tracker, not only in the session — after which the item is flipped in one edit while the claim is still held: the autonomous-eligible role label applied and the human-gated role label removed, both resolved from config.role_labels, then @me cleared from assignees via the adapter assignee edit. For the ratify row, the ratification is recorded as a reply comment and the same flip-while-claimed then assignee-clear sequence applies; the item re-enters the worker loop's frontier — this lane never dispatches or executes it. For the intake row, /work-items:triage runs under its interactive direction gate: recommendation first, mutation only after the operator's direction. Since ai_disclaimer resolves true from the per-user layer, agent-authored comments carry the AI disclaimer.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Acquires the seam claim before mutating each row — assignee + lease, same protocol as /work-items:work",
         "Uses /planning:interview behind an installed-ness gate with the inline focused-questions fallback documented at the site",
@@ -157,6 +158,19 @@
         "Removes the human-gated role label from #980 once the answer removes the blocker",
         "Applies neither the autonomous-eligible role label nor a work-class label to #980",
         "Does not merge #980"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "attend-queue-writes-answer-without-disclaimer-when-setting-off",
+      "prompt": "/work-items:attend-queue\n\nThe repository's docs/conventions/work-items.yaml sets ai_disclaimer: false. The operator works one [escalated] row, #612 \"Exporter drops the trailing newline\", which carries work-class: mechanical and whose marker asks whether to keep or strip the trailing newline; the operator answers: keep it.",
+      "expected_output": "After the brief-before-ask restatement and the operator's answer, the session holds the seam claim, writes the answer back as a comment on #612 and flips the item. ai_disclaimer resolves false from the repository layer, so the answer comment it writes on the operator's behalf carries no AI disclaimer prefix; it opens with the decision.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves ai_disclaimer to false from the repository's docs/conventions/work-items.yaml",
+        "Writes the operator's answer back as a comment on #612 with no AI disclaimer prefix",
+        "Opens the answer comment with the decision (keep the trailing newline)"
       ]
     }
   ]

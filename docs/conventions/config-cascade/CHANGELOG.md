@@ -11,6 +11,9 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`work-items` gains `ai_disclaimer`.** The Implementers row, renamed `work-items` (settings
+  keys), adds the key beside the triage keys; this repository's `docs/conventions/work-items.yaml`
+  now exists and sets it `false`.
 - **`corrections` (`findings-buffer`) gains a user-scope adapter binding.** Its Implementers row
   declares two `userConfig` options, outside the file schema and read from user and managed
   settings only, that bind a repository's own adapter in that repository alone; the team file and
