@@ -316,6 +316,16 @@ class LaneRoom(unittest.TestCase):
                 "rung-off:demotion",
             ),
             "another record": (policy.Demotion(False, None, (9,)), None),
+            # The same records with another clear or newest record: the
+            # keep binds every field, not the record numbers alone.
+            "another clear": (
+                policy.Demotion(False, None, (), cleared_at=NEW_FLOOR),
+                None,
+            ),
+            "another newest record": (
+                policy.Demotion(False, None, (), newest_created=NEW_FLOOR),
+                None,
+            ),
         }
         for name, (demotion, refusal) in cases.items():
             with self.subTest(name):
