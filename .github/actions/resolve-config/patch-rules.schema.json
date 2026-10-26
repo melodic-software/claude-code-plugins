@@ -35,7 +35,7 @@
               "rename-into-refused"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path another refusal matches."
+          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json outside plugins/; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path another refusal matches."
         },
         "allow": {
           "type": "array",
