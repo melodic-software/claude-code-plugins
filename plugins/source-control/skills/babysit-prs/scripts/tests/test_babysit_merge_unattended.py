@@ -702,6 +702,8 @@ QUEUE_RULES = [*fixtures.RULES, {"type": "merge_queue", "parameters": {}}]
 LOW_FILE = ChangedFile(
     "docs/guide.md", None, "modified", 3, 1, True, "100644", "100644"
 )
+# A configured high path: the floor itself holds none.
+HELD = ("**/.gitmodules",)
 BOUND = tuple(
     LaneEvidence(lane, True, None, 0)
     for lane in ("claude-review", "claude-security-review")
@@ -1206,7 +1208,7 @@ class LaneMode(Unattended):
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
         # Owner decision Q14 (c): a model-driven App's own lines skip the
-        # denied paths only under plugins/*/scripts/; the floor always scores.
+        # denied paths only under plugins/*/scripts/.
         self.config = dataclasses.replace(self.config, high_path_floor=True)
         self.lane_eligible = policy.Eligibility(
             True, None, "C2", 41, adoption="trusted-app"
@@ -1219,7 +1221,6 @@ class LaneMode(Unattended):
             (
                 "scripts/release-plugins.sh",
                 "plugins/p/hooks/x.md",
-                ".gitmodules",
                 "plugins/p/skills/s/scripts/x.md",
             ),
         )
@@ -2372,7 +2373,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
     def test_a_cost_hold_holds(self) -> None:
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         pipeline = dataclasses.replace(
-            LOW_FILE, path="docs/conventions/pr-pipeline.yaml", patch=patch
+            LOW_FILE, path="plugins/foo/pr-pipeline.yaml", patch=patch
         )
         self.files = ((pipeline,), True)
         code, out = self.run_main()
@@ -3394,6 +3395,7 @@ class ReasonsComment(Unattended):
 
     def test_a_floor_hold_says_a_human_merges_it(self) -> None:
         # Owner decision Q648: only the owner merges a floor-held PR.
+        self.config = dataclasses.replace(self.config, denied_paths=HELD)
         self.files = ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)
         self.run_main()
         body = next(
@@ -3862,9 +3864,11 @@ class ReasonsComment(Unattended):
         ):
             with self.subTest(name):
                 self.setUp()
+                self.config = dataclasses.replace(self.config, denied_paths=HELD)
                 self.files = files
                 body = self.body()
                 self.setUp()
+                self.config = dataclasses.replace(self.config, denied_paths=HELD)
                 self.files = files
                 self.lanes = UNBOUND
                 self.earlier_sweep(body)

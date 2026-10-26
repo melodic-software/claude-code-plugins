@@ -89,8 +89,13 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
     fail "$file does not grant actions: read to job ${job%:}"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
-  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then
-    ok "$file sends the four trust-gate paths to extra security scrutiny"
+  # test_merge_holds_sync.py checks the list covers the path floor; here the
+  # two callers agree and keep the trusted-actor list and the security
+  # review's own files.
+  first_paths="${first_paths-$paths}"
+  if [[ "$paths" == "$first_paths" && $'\n'"$paths"$'\n' == *$'\n.github/standards/trusted-actors/**\n'* &&
+    $'\n'"$paths"$'\n' == *$'\nplugins/review/skills/security-review/**\nplugins/review/evals/security-review-*/**\n' ]]; then
+    ok "$file names the same hold-paths as pr-review-hosted.yml, ending with the security review's own files"
   else
     fail "$file hold-paths are '$paths'"
   fi
@@ -105,14 +110,14 @@ else
 fi
 
 # An exempt author's pull request, which no review lane reads, still fails on
-# the four trust-gate paths in bash form: `**/X` is X or */X, a trailing `**`
-# is `*`.
-want_patterns="$(printf '%s\n' '.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' CODEOWNERS '*/CODEOWNERS' .gitmodules '*/.gitmodules' | sort)"
+# the trust-gate paths in bash form: `**/X` is X or */X, a trailing `**` is
+# `*`. The security review's own files in hold-paths are scrutiny only.
+want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
-  ok "the exempt-author hold patterns are the four trust-gate paths"
+  ok "the exempt-author hold patterns are the trust-gate paths"
 else
-  fail "exempt-author hold patterns '$got_patterns' are not the four trust-gate paths '$want_patterns'"
+  fail "exempt-author hold patterns '$got_patterns' are not the trust-gate paths '$want_patterns'"
 fi
 
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
@@ -355,11 +360,14 @@ else
 fi
 # Every hold path the callers list holds an exempt author's PR, nested and renamed ones too.
 for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
+  .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
+  .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
   .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS'; do
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
 done
-for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs; do
+for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml .github/scripts/pr-merge/gate.mjs \
+  plugins/review/skills/security-review/SKILL.md plugins/review/evals/security-review-kill-switch-narrowed/prompt.md; do
   STUB_FILES="$(files "$changed")" STUB_CHANGED=1
   AUTHOR_ID=300666570 expect "an exempt author changing $changed passes" 0 "no trust-gate path changed"
 done
