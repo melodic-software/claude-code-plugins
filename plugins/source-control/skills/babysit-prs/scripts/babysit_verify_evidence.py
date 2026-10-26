@@ -1991,6 +1991,41 @@ def lane_queue(
     }
 
 
+def _settle(repo: str, path: str, code_sha: str) -> int:
+    """`settle`: whether this run's post-merge report at `path`, its check
+    run by the code at commit `code_sha`, stands for the check at the default
+    branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
+    but never read again), as the lane's agent identity in the config there.
+    Changed check code refuses before any read. Prints `{"reuse", "reason"}`;
+    exit 0 when it stands, else 1, and the caller runs the check."""
+    shared = postmerge.read_shared(path)
+    reason: str | None = "post-merge answer missing or unreadable"
+    if not merge_policy.check_code_unchanged(code_sha):
+        reason = "post-merge answer code-changed"
+    elif shared is not None:
+        try:
+            default = merge_policy._default_branch(repo, shared=True)
+            config = merge_policy._default_branch_config(repo, default)
+            if not config.agent_identity:
+                reason = "no agent identity"
+            else:
+                _, reason = merge_policy.settle_shared(
+                    repo,
+                    shared,
+                    default=default,
+                    base_sha=config.base_sha,
+                    identity=config.agent_identity,
+                    code_unchanged=True,
+                    runs_unchanged=lambda answer, branch: (
+                        postmerge.pending_runs_unchanged(repo, answer, branch)
+                    ),
+                )
+        except (RuntimeError, ValueError, OSError) as exc:
+            reason = f"unreadable: {exc}"
+    print(json.dumps({"reuse": reason is None, "reason": reason}))
+    return 0 if reason is None else 1
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -2029,7 +2064,15 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     the gate would not reuse, for any `shared_refusal`, is checked again; one
     refused only as `unverified-stale` is first kept while nothing it was
     read from has moved, and one refused only as `demotion-changed` when the
-    demotion reads the same."""
+    demotion reads the same.
+
+    `lane-room` and `settle` take `--code-sha`, the commit whose code ran the
+    report's check (empty when unknown): changed check code reads the report
+    again or refuses it (`merge_policy.check_code_unchanged`).
+
+    `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
+    rule for the merge job's reuse of this run's report, which never reads it
+    again (`_settle`)."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -2050,13 +2093,21 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     room.add_argument("--repo", required=True)
     room.add_argument("--postmerge-result", required=True)
     room.add_argument("--rung-cap", default=None)
+    room.add_argument("--code-sha", required=True)
+    settle = sub.add_parser("settle", allow_abbrev=False)
+    settle.add_argument("--repo", required=True)
+    settle.add_argument("--postmerge-result", required=True)
+    settle.add_argument("--code-sha", required=True)
     args = parser.parse_args(argv)
+    if args.command == "settle":
+        return _settle(args.repo, args.postmerge_result, args.code_sha)
     if args.command == "lane-room":
         shared = postmerge.read_shared(args.postmerge_result)
         answer = merge_policy.lane_room(
             args.repo,
             shared,
             lane_rung_cap=args.rung_cap,
+            code_unchanged=merge_policy.check_code_unchanged(args.code_sha),
             # The gate's recompute, bound as the room binds, and the one run
             # listing that spares it while the pending merges' runs hold.
             post_merge=postmerge.gate_reader(args.repo, (), lane_merges_only=True),
