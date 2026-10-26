@@ -157,9 +157,12 @@ concurrency:
 # NO AUDIT OR FUND REQUEST ON INSTALL. `npm ci` otherwise posts an audit report
 # to the registry after installing, and a stalled request held jobs for npm's
 # fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
+# NPM'S FETCH TIMEOUT AND RETRIES ARE BOUNDED. .github/npm-fetch.npmrc sets them,
+# read as npm's global config by every npm call here, run-tests.sh's included.
 env:
   npm_config_audit: "false"
   npm_config_fund: "false"
+  npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
@@ -3096,13 +3099,18 @@ jobs:
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
     # review-lane step's six and the lanes-hold step's eight (in the merge
-    # queue up to four verdict lookups and their run reads more), about four
+    # queue the verdict reader's reads more, about 73 with pr-merge's carried
+    # reads and about 860 without them, measured 2026-10-25; its wall time is
+    # unmeasured, and a cold one can reach the cap, which fails red), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight (nine on a Refs issue), and two more per review
     # run since the window opened, plus the base-config checkout's fetch
     # (seconds; its retries replace the contents reads' 15 s each).
-    timeout-minutes: 11
+    # 20: a cold verdict reader in the merge queue takes about 6 to 11
+    # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
+    # calls), on top of the job's other reads.
+    timeout-minutes: 20
     env:
       # gh_read's wait budget: a rate-limit wait must end by
       # GH_READ_JOB_SECONDS (timeout-minutes in seconds) less
@@ -3110,7 +3118,7 @@ jobs:
       # five minutes for the job's setup and the steps after the wait:
       # aggregate-results' 60 s rate-limit wait, 45 s of own-gate retries, 7 s
       # of status writes and the 90 s rerun wait, plus retry sleeps.
-      GH_READ_JOB_SECONDS: 660
+      GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 300
       # The lanes App's bot account id, which the trust-hold and lanes-hold
       # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
@@ -3120,9 +3128,9 @@ jobs:
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
       # gh-read.sh, so each step that sources that file reads through it.
-      # Its read floor and limit cap are pr-pipeline.schema.json's read-floor
-      # and github-token limit-cap defaults (log-api-budget.test.mjs checks),
-      # as this job has no schema checkout.
+      # Its read floor and limit cap are github-token's read-floor and
+      # limit-cap defaults in .github/actions/log-api-budget/rate-limits.json
+      # (log-api-budget.test.mjs checks), as this job has no checkout of it.
       API_BUDGET_READ_FLOOR: "0.1"
       API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
@@ -3187,7 +3195,7 @@ jobs:
         #                               answer is a 2xx; under
         #                               API_BUDGET_READ_FLOOR of the planned budget
         #                               left, warns once (unset: no floor; ci-status
-        #                               sets it to the schema's read-floor default);
+        #                               sets it to the read-floor default);
         #                               the plan is the header's limit, at most
         #                               API_BUDGET_LIMIT_CAP (unset: no cap; ci-status
         #                               sets github-token's limit-cap default)
@@ -3735,21 +3743,37 @@ jobs:
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
       # The cost-hold and lanes-hold steps below run node; pin it to main's
       # .node-version, as every other Node job is, rather than the runner
-      # image's default.
-      - name: Check out main's Node pin
+      # image's default. The same checkout of the default branch holds the
+      # merge queue's verdict reader as main has it: babysit_verify_evidence.py
+      # with its sibling modules and its config parser, and the pr-merge
+      # scripts that start its run cache and read its head-ref map, with every
+      # module they import (scripts/ci-lanes-pr-hold.test.sh checks the list).
+      # No pull request code is checked out and no credential is kept.
+      - name: Check out main's Node pin and verdict reader
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: .base
           persist-credentials: false
-          sparse-checkout: .node-version
+          sparse-checkout: |
+            /.node-version
+            /plugins/source-control/skills/babysit-prs/scripts/*.py
+            /plugins/source-control/lib/parse-concern-value.sh
+            /plugins/source-control/lib/yaml-subset.awk
+            /.github/scripts/pr-merge/head-ref-map.mjs
+            /.github/scripts/pr-merge/carry-run-cache.mjs
+            /.github/scripts/pr-merge/rotation.mjs
+            /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/log-api-budget/rate-guard.mjs
           sparse-checkout-cone-mode: false
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .base/.node-version
+          package-manager-cache: false
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
       # config names the human-gated label and the trusted-actor list names who
       # may lift a hold; both are read at the base so the pull request cannot
@@ -4297,7 +4321,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
@@ -4605,6 +4629,40 @@ jobs:
           done <<<"$issues"
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
+      # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
+      # The reads that never change (FAIL run records, FAIL head refs, run
+      # heads on main) that pr-merge's last scheduled or hand-started run kept,
+      # so the lanes-hold step's reader reads only what landed since: about 73
+      # requests for a lanes App pull request where a cold reader makes about
+      # 860 (one run read and compare per FAIL and a download per untied
+      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs. They
+      # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
+      # finds it (carry-run-cache.mjs `read`): only that run's steps could
+      # upload it. This job holds write scopes and is the required check, so it
+      # restores no Actions cache, which any job in main's cache scope can
+      # write and whose restore extracts its archive anywhere in the workspace
+      # (#9455). Every kept read still lands in a carried-* section the reader
+      # uses only where it counts a FAIL, never to turn one away or allow a
+      # pass. Any error leaves the cache empty, and the step holds a cold
+      # reader. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
+      - name: Read the verdict reads pr-merge's last scheduled run kept
+        id: verdict_reads_restore
+        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
+      - name: Start the run cache from them
+        id: verdict_reads_carry
+        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        continue-on-error: true
+        env:
+          CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
+          CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails
@@ -4645,10 +4703,10 @@ jobs:
       # both proceeds. Every other author's pull request is not affected.
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
-      # pr-verify.yml run on main (merge-holds.mjs verdictHold), looked up by
-      # exact name, with and without the head-branch digest, stopping at the
-      # first name that holds such a run: 2 reads for a plain-named pass, at most 4 lookups plus
-      # one run read per artifact found. The same approval of the head lifts
+      # pr-verify.yml run on main (merge-holds.mjs verdictHold), taken by
+      # exact name from the reader's listing (below), with and without the
+      # head-branch digest, stopping at the first name that holds such a run:
+      # one run read per artifact taken. The same approval of the head lifts
       # it. Only in the queue: pr-verify runs only after a successful
       # pull_request run of this workflow, so a red ci-status there would
       # never get a verdict, and a pull request event reads nothing for it.
@@ -4656,7 +4714,29 @@ jobs:
       # (one mutation, no read), so enable-auto-merge's reader judges each
       # new head before it is armed again; the queue still checks the head
       # it merges.
-      # FAILs and the repeated-FAIL cap are enable-auto-merge.mjs's.
+      # AND NO FAIL PR-MERGE'S READER COUNTS: the step runs
+      # babysit_verify_evidence.py `evidence --base-sha <group base>` from
+      # the .base checkout of main for the pull request at its head, the
+      # reader enable-auto-merge armed it on, on a listing of its own (every
+      # page, saved to BABYSIT_VERIFY_LISTING) with pr-merge's head-ref map and
+      # carried run cache, so a FAIL uploaded after enable-auto-merge's one
+      # listing of its run still holds. Its report goes to merge-holds.mjs
+      # evidenceHold, which holds on every refusal but the three a pass decides
+      # (those stay with verdictHold and linkHold): every FAIL class,
+      # verify:unreadable and verify:too-old. The same approval of the head
+      # lifts it. The reader reads with this job's token, which holds no
+      # issues scope: on this public repository its issue reads answer as
+      # public reads, and one that does not read refuses verify:unreadable,
+      # which holds. Its gh calls go to the gh binary, outside this step's
+      # gh_read wait; babysit_gh.py's own rate guard shares this job's stop
+      # file, so a stop either side records holds the other (this checkout
+      # has no pr-pipeline.yaml, so only a rate-limit signal stops it, with no
+      # writer-pause or read-floor margin), and it records
+      # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
+      # stops on a rate limit, or prints no report for the head holds, as
+      # does one that allows the head with no listing. A refusal it returns
+      # before listing (verify:too-old, an unread config) reaches
+      # merge-holds.mjs with no pass names, where the same approval lifts it.
       # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
       # (one artifact download) and the closing issues (one GraphQL read) go
       # to merge-holds.mjs linkHold, which holds when the body now closes or
@@ -4668,9 +4748,21 @@ jobs:
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:
           GH_TOKEN: ${{ github.token }}
+          # The merge queue's verdict reader, as main has it, and its inputs
+          # (pr-merge.yml's enable-auto-merge step passes the same).
+          VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
+          PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge
+          ACTIONS_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EVENT_ACTION: ${{ github.event.action }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
           # The lanes kill switches, as check-kill-switch reads them: only the
           # exact value `false` lets a lanes App pull request merge.
           LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
@@ -4786,13 +4878,82 @@ jobs:
               exit 1
             fi
             digest=$(printf '%s' "$ref" | sha256sum | cut -c1-16)
+            # pr-merge's head-ref map: a read that fails leaves none, and the
+            # reader downloads each untied FAIL instead.
+            node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            # A cold reader runs only with the headroom for it. With no carried
+            # run cache, or one whose carried sections (carry-run-cache.mjs
+            # carry) are all empty, the reader reads every FAIL: about 860
+            # GITHUB_TOKEN requests, measured 2026-10-25, so a cold read costs
+            # 900. A missing cache is shared, so every entry the queue builds at
+            # once goes cold together: the cost counts max_entries_to_build of
+            # the base branch's merge_queue rule (one read of
+            # repos/<repo>/rules/branches/<base>, the largest any ruleset sets).
+            # It runs when the core pool's remaining count, read once from
+            # /rate_limit (which "does not count against your REST API rate
+            # limit", https://docs.github.com/en/rest/rate-limit/rate-limit), is
+            # at least that cost plus the read floor the job env inlines from
+            # pr-pipeline.yaml limits.api (API_BUDGET_READ_FLOOR of
+            # min(limit, API_BUDGET_LIMIT_CAP)), so cold reads never take the
+            # pool under the floor. A rate limit that does not read, or a
+            # stop in the job's stop file (gh_read's rate guard refuses the
+            # pool), holds. The reader's own babysit_gh.py guard shares that
+            # stop file.
+            if ! jq -e '[.["carried-run-record"], .["carried-fail-head-ref"], .["carried-on-branch"]] | map(objects | length) | add > 0' \
+              "$BABYSIT_RUN_CACHE" >/dev/null 2>&1; then
+              cold="#$pr is held: no carried run cache from pr-merge's last run"
+              branch=${GROUP_BASE_REF#refs/heads/}
+              entries=
+              if [[ $branch =~ ^[A-Za-z0-9._/-]+$ ]] && rules=$(read_api "the merge queue rule of $branch" "repos/$GITHUB_REPOSITORY/rules/branches/$branch"); then
+                entries=$(jq -er '[.[] | select(.type == "merge_queue") | .parameters.max_entries_to_build | numbers | floor | select(. > 0)] | max // empty' <<<"$rules" 2>/dev/null) || entries=
+              fi
+              if [ -z "$entries" ]; then
+                echo "::error::$cold, and the merge queue's max_entries_to_build could not be read, so the headroom for cold reads cannot be judged. Re-queue it."
+                exit 1
+              fi
+              rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
+              if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
+                ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
+                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" \
+                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 900 * entries + int(floor * cap + 0.999999) }'); then
+                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (about 860 requests) is not started. Re-queue it."
+                exit 1
+              fi
+              if [ "$remaining" -lt "$need" ]; then
+                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (900 for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
+                exit 1
+              fi
+              echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
+            fi
+            rm -f "$BABYSIT_VERIFY_LISTING"
+            report=$(python3 "$VERIFY_EVIDENCE_SCRIPT" evidence --repo "$GITHUB_REPOSITORY" --base-sha "$BASE_SHA" "$pr" "$head") || {
+              echo "::error::babysit_verify_evidence.py could not judge #$pr at $head; re-run this run."
+              exit 1
+            }
+            printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
             : >"$RUNNER_TEMP/verdicts.jsonl"
-            for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
+            # A refusal returned before any listing (verify:too-old, an unread
+            # config or commit list) goes on with no pass names: merge-holds.mjs
+            # holds on it and on the missing pass, and a trusted approval of the
+            # head lifts both. An allow with no listing has no pass to bind.
+            listed=true
+            if [ ! -s "$BABYSIT_VERIFY_LISTING" ]; then
+              if jq -e --arg head "$head" '.head == $head and (.refusal | type) == "string"' "$RUNNER_TEMP/evidence.json" >/dev/null 2>&1; then
+                listed=false
+                echo "::notice::the verdict reader refused #$pr before listing artifacts; merge-holds.mjs judges its refusal with no pass."
+              else
+                echo "::error::the verdict reader read no artifact listing for #$pr: $(tr -d '\r\n%' <"$RUNNER_TEMP/evidence.json")"
+                exit 1
+              fi
+            fi
+            [ "$listed" = false ] || for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
               "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest"; do
               verdict=${name#"pr-verify-$pr-$head-"}
               verdict=${verdict%"-$digest"}
-              runs=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" \
-                --jq ".artifacts[] | select(.name == \"$name\" and .expired == false) | \"\(.workflow_run.id) \(.id)\"") || exit 1
+              runs=$(jq -r --arg name "$name" '.artifacts[] | select(.name == $name and .expired == false) | "\(.workflow_run.id) \(.id)"' "$BABYSIT_VERIFY_LISTING") || {
+                echo "::error::the verdict reader's artifact listing does not parse."
+                exit 1
+              }
               while read -r run artifact; do
                 [[ $run =~ ^[1-9][0-9]*$ && $artifact =~ ^[1-9][0-9]*$ ]] || continue
                 record=$(read_api "run $run" "repos/$GITHUB_REPOSITORY/actions/runs/$run") || exit 1
@@ -4826,7 +4987,7 @@ jobs:
               echo "::error::the verdict record or closing issues of #$pr do not parse."
               exit 1
             }
-            verdicts=("$RUNNER_TEMP/verdicts.jsonl" "$RUNNER_TEMP/link.json")
+            verdicts=("$RUNNER_TEMP/verdicts.jsonl" "$RUNNER_TEMP/link.json" "$RUNNER_TEMP/evidence.json")
           fi
           export BASE_SHA
           out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
@@ -4839,6 +5000,10 @@ jobs:
           grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
           if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no verifier hold: " <<<"$out"; then
             echo "::error::merge-holds.mjs exited 0 without its verifier verdict."
+            exit 1
+          fi
+          if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no pr-verify FAIL hold: " <<<"$out"; then
+            echo "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict."
             exit 1
           fi
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`

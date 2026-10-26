@@ -6,6 +6,7 @@ import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-t
 import {
   checkActors,
   earlierFlags,
+  FORBIDDEN_EDGE,
   MARKER,
   missedAnnotation,
   NEEDS_DECISION,
@@ -1424,8 +1425,23 @@ describe("run", () => {
       assert.ok(said?.body.body.startsWith(`${VERDICT_MARKER}\n`), said?.body.body);
       assert.ok(!said.body.body.includes(`is at \`${READY}\``), said.body.body);
       assert.match(said.body.body, /blocked-by edge is missing/);
+      if (status === 403) {
+        assert.ok(said.body.body.endsWith(`starts. GitHub answered 403 for an edge, and ${FORBIDDEN_EDGE}.`), said.body.body);
+      } else {
+        assert.ok(said.body.body.endsWith("which the hourly triage sweep starts."), said.body.body);
+        assert.ok(!said.body.body.includes("Issues repository permission"), said.body.body);
+      }
     });
   }
+
+  test("the 403 text names the Issues permission at write and how to grant it", () => {
+    assert.match(FORBIDDEN_EDGE, /otherwise the lanes App lacks the Issues repository permission at write, which no re-run fixes/);
+    assert.match(FORBIDDEN_EDGE, /the App's owner sets Issues to Read and write under Repository permissions on the App's Permissions & events settings page/);
+    assert.match(FORBIDDEN_EDGE, /the owner of the account it is installed on approves the updated permissions$/);
+    assert.match(FORBIDDEN_EDGE, /^a 403 is a rate limit when this run's label writes landed, since this token makes them through the same grant/);
+    assert.ok(!FORBIDDEN_EDGE.includes("dependencies permission"), "GitHub has no dependencies permission");
+    assert.ok(!/[\r\n%]/.test(FORBIDDEN_EDGE), "an annotation line carries no newline or percent sign");
+  });
 
   test("a missed edge is an error that fails the job on a 403, else a warning", () => {
     assert.equal(missedAnnotation([]), null);
@@ -1439,7 +1455,14 @@ describe("run", () => {
       { number: 13, status: 403 },
     ]);
     assert.equal(forbidden.fail, true);
-    assert.match(forbidden.line, /^::error title=apply-verdict::blocked-by edges not written: #12 not written \(GitHub answered 502\); #13 not written \(GitHub answered 403\);/);
+    assert.equal(
+      forbidden.line,
+      `::error title=apply-verdict::blocked-by edges not written: #12 not written (GitHub answered 502); #13 not written (GitHub answered 403); ${FORBIDDEN_EDGE}. The verdict's labels are written without status: ready, and admission waits for intake to run again`,
+    );
+    assert.deepEqual(missedAnnotation([{ number: 12, status: 429 }]), {
+      fail: false,
+      line: "::warning title=apply-verdict::blocked-by edges not written: #12 not written (GitHub answered 429); the verdict's labels are written without status: ready, and admission waits until the hourly triage sweep runs intake again, which writes them",
+    });
   });
 
   for (const status of [403, 429]) {
