@@ -59,7 +59,9 @@
 # script runs from the copy with CHECK_DATA_ROOT passed on, markdownlint
 # reads only the copy's configs (a branch config can load a custom rule, which
 # is code), and checks that run the branch's own code skip: --tests, changed-skills, and the
-# validate-plugins steps that report `SKIP` themselves.
+# validate-plugins steps that report `SKIP` themselves. plugin-options-docs
+# skips when the branch changes its generator, whose output the copy's older
+# generator would reject.
 #
 # CI is still the gate that decides: this covers the diff-scoped LINT tier and
 # the plugin and skill contract checks above, not CI's whole-repo scanners, and
@@ -368,8 +370,14 @@ fi
 run_check spoke-plugin-root "scripts/check-spoke-plugin-root.sh --check" \
   "$tools/scripts/check-spoke-plugin-root.sh" --check
 
-run_check plugin-options-docs "python3 scripts/sync-plugin-options-docs.py --check" \
-  python3 "$tools/scripts/sync-plugin-options-docs.py" --check
+# The generator writes the READMEs, so a copy's older generator fails a branch
+# that changes it and regenerates them.
+if ((foreign)) && grep -qx scripts/sync-plugin-options-docs.py <<<"$all_raw"; then
+  skip plugin-options-docs "the branch changes the generator; CI runs the branch's copy"
+else
+  run_check plugin-options-docs "python3 scripts/sync-plugin-options-docs.py --check" \
+    python3 "$tools/scripts/sync-plugin-options-docs.py" --check
+fi
 
 # The modes the pull_request run of the changelog-parity gates uses. The bump
 # check's collision findings are advisory there too: a branch only behind its

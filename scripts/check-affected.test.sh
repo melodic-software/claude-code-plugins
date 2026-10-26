@@ -292,6 +292,29 @@ check "a copy run elsewhere skips changed-skills, which runs the checked tree's 
   '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
 
+# The options-docs generator writes the READMEs, so a branch that changes it and
+# regenerates them fails the copy's older generator; a README-only drift is
+# still the copy's to judge.
+pre_docs="$(git_test_config "$repo" rev-parse HEAD)"
+mkdir -p "$repo/plugins/demo"
+printf '# Demo\n' >"$repo/plugins/demo/README.md"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m readme
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere checks a README-only change with its own options-docs generator" \
+  '[[ $RC == 1 && $ERR == *"copy of sync-plugin-options-docs read $repo"* && $ERR == *"FAIL plugin-options-docs"* ]]'
+printf '# changed generator\n' >>"$repo/scripts/sync-plugin-options-docs.py"
+git_test_config "$repo" commit -q -am generator
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere skips options-docs when the branch changes the generator" \
+  '[[ $ERR == *"SKIP plugin-options-docs (the branch changes the generator"* && $ERR != *"copy of sync-plugin-options-docs"* && $ERR != *"FAIL plugin-options-docs"* ]]'
+run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
+check "the branch's own run still checks options-docs when it changes the generator" \
+  '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_docs"
+
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   printf '{ "config": { "MD013": false } }\n' >"$tools/.markdownlint-cli2.jsonc"
   mkdir -p "$repo/docs"
