@@ -848,8 +848,10 @@ A `--merge` run the gate holds does that rerun itself (`aiReviewReruns` in its J
 of these hold: the failed check is an AI review check on the pinned live head of an open, non-draft
 PR, or of a stack layer below it that the gate evaluated; the Actions job its `details_url` names
 emitted that check (the job's own check-run id, name and workflow match the check, and the check's
-id when the rollup carries one); its check run carries a `class=rate-limit` annotation; its job
-finished at least five hours ago;
+id when the rollup carries one); its check run carries a failure annotation the review evidence
+accepts a second attempt after, `class=rate-limit` or that lane's publish-review
+`failure-class=publish-failed` line on GitHub's API rate limit; its job finished at least five hours
+ago;
 and the run is on its first attempt. Five hours is the plan's session-limit window, so that window
 has reset whenever it started. A weekly limit outlasts it, and the rerun then fails again and stays
 failed, because an attempt above one is never rerun: at most one gate rerun per check per head. Any
@@ -858,11 +860,16 @@ review; the PR still merges only once the check reports SUCCESS.
 
 - **Pointer**: the `class=<token>` contract in ci-workflows
   [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),
+  the publish-review failure line (`fail`) in ci-workflows
+  [`.github/actions/publish-review/publish.cjs`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/publish-review/publish.cjs),
+  the rate-limit messages in GitHub's
+  [rate limits for the REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
   and the session window under "What happens when you hit usage limits" in
   [Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
-- **As of**: 2026-10-09
-- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` class token, or a
-  change to the plan's session-limit window.
+- **As of**: 2026-10-25
+- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` class token or changes
+  publish-review's failure line, a change to GitHub's rate-limit messages, or a change to the
+  plan's session-limit window.
 
 Auto-merge stays off because `ci-status` is the only required check and does not wait on the
 review workflows, so an armed auto-merge could merge before AI review posts. None of these enables
