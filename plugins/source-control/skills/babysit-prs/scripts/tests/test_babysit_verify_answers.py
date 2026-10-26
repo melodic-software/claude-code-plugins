@@ -729,14 +729,37 @@ class AnsweredTest(unittest.TestCase):
                     self.reads = 0
                     answer = self.run_main("--answers-mode", mode)
                     self.assertEqual(self.reads, 1)
-                    self.assertEqual(answer, MISSING)
+                    # The plain read, and a cache object the run log shows.
+                    self.assertEqual(
+                        answer, MISSING | {"cache": {"mode": mode, "error": True}}
+                    )
 
     def test_a_cache_error_under_answers_only_is_no_answer_and_no_read(self) -> None:
         self.keep(MISSING)
         with mock.patch.object(ve, "_code_digest", side_effect=OSError("disk")):
             answer = self.run_main("--answers-mode", "serve", "--answers-only")
         self.assertEqual(self.reads, 0)
-        self.assertEqual(answer, {"head": HEAD, "cached": False})
+        self.assertEqual(
+            answer,
+            {"head": HEAD, "cached": False, "cache": {"mode": "serve", "error": True}},
+        )
+
+    def test_answers_only_with_no_kept_entry_spends_no_probe(self) -> None:
+        self.keep(MISSING)
+        data = json.loads(self.answers_in.read_text(encoding="utf-8"))
+        data["entries"] = {"7": data["entries"][str(PR)]}
+        self.answers_in.write_text(json.dumps(data), encoding="utf-8")
+        answer = self.run_main("--answers-mode", "serve", "--answers-only")
+        self.assertEqual(self.world.calls, [])
+        self.assertEqual(self.reads, 0)
+        self.assertEqual(answer["cache"]["key"], "miss")
+        self.assertNotIn("refusal", answer)
+        # The other pull request's entry is carried to the out file.
+        self.assertEqual(list(self.written()), ["7"])
+        # With an entry kept for this one, the probe runs.
+        self.keep(MISSING)
+        self.run_main("--answers-mode", "serve", "--answers-only")
+        self.assertEqual([c[:2] for c in self.world.calls], [["api", "graphql"]])
 
     def test_shadow_prints_the_plain_read_and_its_cache_object(self) -> None:
         # The real full read, kept inside World: no lane flags, and no

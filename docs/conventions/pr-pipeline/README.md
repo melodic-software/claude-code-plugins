@@ -1244,7 +1244,8 @@ plain full read. `merge.verify-cache` (default `shadow`; any other value fails t
 resolve-config stops the run) decides what a kept answer does:
 under `shadow` every pull request is still read in full and the run logs one
 `verify-cache shadow: #<n> key=hit|miss stored=<kind> fresh=<kind> agree=yes|no|n/a` line per read,
-where `agree` compares only on `key=hit`; under `serve` an unarmed pull request whose kept refusal's
+where `agree` compares only on `key=hit`, or `verify-cache <mode>: #<n> cache=error` when the cache
+work failed and the read went on without it; under `serve` an unarmed pull request whose kept refusal's
 key still matches is left unarmed on it with no further read (`cached=1` on its cost line), and one
 past the read budget is answered only from a kept refusal, or not read at all when the run has no
 answers file. An armed pull request is always read in full, so the disarm path stays as fresh as
@@ -1256,7 +1257,12 @@ whose `verify-cache shadow` lines hold 50 or more `key=hit` lines in all, 5 or m
 kind seen fewer than 5 times, keeps the lane in `shadow` until more runs add to the count, so a
 quiet day cannot pass the check on zero hits. Basis: judgment. A disagreement in 1 hit in 20 shows
 at least once in 50 hits about 92% of the time (1 - 0.95^50), and 5 per kind keeps one rare refusal
-kind from passing on a single agreeing hit.
+kind from passing on a single agreeing hit. A day with any `cache=error` line does not qualify,
+whatever its hits say: the cache failed on reads it would have served. The two modes also key in
+a different order. Shadow takes the key after its full read, while serve probes first and reads in
+full only on a miss, so an input that moves during a shadow read is hashed in while the kept report
+predates it. Shadow's `agree` figures therefore come from the other order than serve would run;
+the effect can only delay an arm, since only refusals are kept.
 
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate

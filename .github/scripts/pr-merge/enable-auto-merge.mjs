@@ -731,12 +731,16 @@ export const costLine = ({ number, calls, ms, cached }) =>
 
 // The reader's `cache` object as one greppable line: whether the key matched
 // a kept refusal, what was kept and read, and whether the two decide alike
-// (`agree` is n/a on a miss). Null for an answer without one.
+// (`agree` is n/a on a miss), or `cache=error` when the cache failed and the
+// read went on without it. Null for an answer without one.
 export const VERIFY_CACHE_PREFIX = "verify-cache ";
 export function cacheLine(number, cache) {
   const word = (value) => (typeof value === "string" && /^[a-z:-]+$/.test(value) ? value : "?");
   if (cache === null || typeof cache !== "object") {
     return null;
+  }
+  if (cache.error === true) {
+    return `${VERIFY_CACHE_PREFIX}${word(cache.mode)}: #${number} cache=error`;
   }
   return `${VERIFY_CACHE_PREFIX}${word(cache.mode)}: #${number} key=${word(cache.key)} stored=${word(cache.stored)} fresh=${word(cache.fresh)} agree=${cache.agree === "n/a" ? "n/a" : word(cache.agree)}`;
 }

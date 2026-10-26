@@ -2530,6 +2530,27 @@ test("costLine shows whether a kept answer served the read, and cacheLine the sh
   assert.equal(cacheLine(7, undefined), null);
 });
 
+test("a read the cache failed on logs cache=error, in each mode", async () => {
+  assert.equal(cacheLine(7, { mode: "shadow", error: true }), "verify-cache shadow: #7 cache=error");
+  assert.equal(cacheLine(7, { mode: "serve", error: true }), "verify-cache serve: #7 cache=error");
+  // The reader's answer reaches the log through pythonVerify.
+  const files = { VERIFY_ANSWERS_IN: "/tmp/in.json", VERIFY_ANSWERS_OUT: "/tmp/out.json" };
+  for (const mode of ["shadow", "serve"]) {
+    const answer = { ...MISSING, head: HEAD, cache: { mode, error: true } };
+    const spawn = () => ({ status: 0, stdout: `${JSON.stringify(answer)}\n`, stderr: "" });
+    const verify = pythonVerify({ ...ENV, ...files, VERIFY_CACHE: mode }, { spawn, clock: () => 0 });
+    const lines = [];
+    const log = console.log;
+    console.log = (line) => lines.push(line);
+    try {
+      await verify(pull(1));
+    } finally {
+      console.log = log;
+    }
+    assert.ok(lines.includes(`enable-auto-merge: verify-cache ${mode}: #1 cache=error`), lines.join("\n"));
+  }
+});
+
 // A stand-in for the reader process: the same answer whatever the flags, with
 // the shadow comparison added when it is given answers files.
 function shadowReader(answers) {

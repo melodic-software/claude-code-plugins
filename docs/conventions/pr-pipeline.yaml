@@ -941,7 +941,10 @@ merge:
   # Moved to serve only when at least a day of scheduled runs has logged 50
   # or more `key=hit` lines, 5 or more for each `stored=<kind>` among them,
   # and none with `agree=no` (judgment; README.md, Native auto-merge); a kind
-  # under 5 keeps it in shadow. Any other value fails the schema.
+  # under 5 keeps it in shadow, and a day with any `cache=error` line does
+  # not count. Shadow keys after its full read and serve before it, so
+  # shadow's `agree` figures come from the other order. Any other value
+  # fails the schema.
   verify-cache: shadow
   # A candidate the last run refused on unchanged inputs is reported with that
   # refusal instead of gated again (babysit_merge_skip.py); it is gated again

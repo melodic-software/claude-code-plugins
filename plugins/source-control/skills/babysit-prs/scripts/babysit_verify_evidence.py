@@ -2428,17 +2428,19 @@ class _Lookup:
 
 def _lookup(args: argparse.Namespace, reader: Reader, now: datetime) -> _Lookup:
     """The kept answer for this pull request and the key it must match. A
-    probe that cannot key is a miss; any other error raises."""
+    probe that cannot key is a miss; any other error raises. Under serve's
+    `--answers-only` no kept entry is a miss with no probe: nothing could hit."""
     code = _code_digest()
     kept = load_answers(args.answers_in, args.repo, code, now)
+    entry = kept.get(args.number)
     key: str | None = None
     too_old: datetime | None = None
     pass_expiry: datetime | None = None
-    try:
-        key, too_old, pass_expiry = _answer_key(args, reader)
-    except Exception as exc:  # noqa: BLE001 - no key is a full read
-        print(f"verify-cache: #{args.number} no key: {exc}", file=sys.stderr)
-    entry = kept.get(args.number)
+    if entry is not None or not (args.answers_mode == SERVE and args.answers_only):
+        try:
+            key, too_old, pass_expiry = _answer_key(args, reader)
+        except Exception as exc:  # noqa: BLE001 - no key is a full read
+            print(f"verify-cache: #{args.number} no key: {exc}", file=sys.stderr)
     stored = json_object(entry.get("report")) if entry else None
     hit = (
         key is not None
@@ -2494,11 +2496,14 @@ def _answered(
     The cache never costs the read: any error of its own (an answers file
     json cannot load, a module that cannot be hashed, a write that fails)
     leaves the plain report, as without answers files, and under
-    `--answers-only` no answer at all. The probe's rate guard is not such an
+    `--answers-only` no answer at all, each with a `cache` object marking
+    the error. The probe's rate guard is not such an
     error: a rate limit behind the key exits the process (`os._exit(75)`) as
     any other read's does, the price of one GraphQL point a read."""
     serve = args.answers_mode == SERVE
     look: _Lookup | None = None
+    # What the run logs for a read the cache failed on (`cache=error`).
+    failed = {"mode": SERVE if serve else SHADOW, "error": True}
     if serve:
         # The lookup first, so a hit reads nothing more.
         try:
@@ -2532,14 +2537,14 @@ def _answered(
         except Exception as exc:  # noqa: BLE001 - the cache never costs the read
             print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
             if args.answers_only:
-                return {"head": args.head, "cached": False}
-            return _evidence_report(args, reader)
+                return {"head": args.head, "cached": False, "cache": failed}
+            return _evidence_report(args, reader) | {"cache": failed}
     report = _evidence_report(args, reader)
     try:
         return _kept_report(args, now, look or _lookup(args, reader, now), report)
     except Exception as exc:  # noqa: BLE001 - the cache never costs the read
         print(f"verify-cache: #{args.number} cache error: {exc!r}", file=sys.stderr)
-        return report
+        return report | {"cache": failed}
 
 
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
