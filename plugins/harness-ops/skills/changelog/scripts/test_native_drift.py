@@ -294,6 +294,44 @@ class TriggerTests(unittest.TestCase):
         )
         self.assertTrue(any(r.startswith("reclassified") for r in reasons))
 
+    def test_docs_sourced_marker_does_not_fire(self):
+        # The skill-doctor shape: gated comes from the docs, and the extraction
+        # sets no gated flag, so only the extracted marker is compared.
+        r = row("usage", "builtin-command", ["gated", "model-invocation-disabled"])
+        self.assertIn(
+            "markers differ",
+            native_drift.evaluate_row(r, self.cur, None, {})[0],
+        )
+        r["native"]["docs_markers"] = ["gated"]
+        self.assertEqual(native_drift.evaluate_row(r, self.cur, None, {}), [])
+
+    def test_docs_sourced_marker_does_not_mask_other_markers(self):
+        cur = native_drift.summarize(
+            inventory(builtin_commands={"usage": cmd("usage", model_invocable=True)}),
+            None,
+        )
+        r = row("usage", "builtin-command", ["gated", "model-invocation-disabled"])
+        r["native"]["docs_markers"] = ["gated"]
+        reasons = native_drift.evaluate_row(r, cur, None, {})
+        self.assertEqual(
+            reasons,
+            ["markers differ: recorded model-invocation-disabled, extracted none"],
+        )
+
+    def test_unrecorded_docs_marker_does_not_hide_an_extracted_one(self):
+        cur = native_drift.summarize(
+            inventory(builtin_commands={"usage": cmd("usage", hidden=True)}), None
+        )
+        r = row("usage", "builtin-command", ["model-invocation-disabled"])
+        r["native"]["docs_markers"] = ["hidden"]
+        self.assertEqual(
+            native_drift.evaluate_row(r, cur, None, {}),
+            [
+                "markers differ: recorded model-invocation-disabled, "
+                "extracted hidden, model-invocation-disabled"
+            ],
+        )
+
     def test_unknown_invocability_ignores_the_invocation_marker(self):
         r = row("twin", "bundled-skill", ["model-invocation-disabled"])
         self.assertEqual(native_drift.evaluate_row(r, self.cur, None, {}), [])
@@ -599,6 +637,8 @@ class CliTests(unittest.TestCase):
 
         store_row = row("usage", "builtin-command", [])
         store_row["native"]["class"] = ["builtin-command"]
+        docs_row = row("usage", "builtin-command", ["gated"])
+        docs_row["native"]["docs_markers"] = "gated"
         full = detect()
         cases = {
             "--current": [
@@ -639,6 +679,7 @@ class CliTests(unittest.TestCase):
                 {"schema": 1, "rows": ["x"]},
                 {"schema": 1, "rows": [{"observation": "x"}]},
                 {"schema": 1, "rows": [store_row]},
+                {"schema": 1, "rows": [docs_row]},
             ],
         }
         with tempfile.TemporaryDirectory() as tmp:

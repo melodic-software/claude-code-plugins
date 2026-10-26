@@ -65,6 +65,20 @@
         "Does not start the app a second way beside drive's launch",
         "Names the drive route in its report"
       ]
+    },
+    {
+      "id": 6,
+      "name": "suite-run-fails-before-comparing",
+      "narration": true,
+      "prompt": "/testing:check-visual-parity compare. The repository has tests/visual/orders.spec.ts using Playwright's toHaveScreenshot for the order list and order detail; the suite also runs with `npx playwright test`, and the README says to run tests with `npm test`, whose script runs them inside a pinned Linux container. At this checkpoint the suite run exits 1 before any test runs: its last lines say the container image's Playwright version does not match the @playwright/test version in package-lock.json. /app-control:drive is among the available skills.",
+      "expected_output": "It runs the suite with `npm test`, not `npx playwright test`, and names `npm test` in the report. It reports the run as an environment failure, not a verdict, quoting the last lines about the Playwright version mismatch. The order list and order detail take the gap report: the states, the command, and that they need it to run to a verdict. It does not capture or compare those states through drive, the Playwright CLI or a direct test-tool run, and it does not report them as passing or failing.",
+      "files": [],
+      "expectations": [
+        "Runs the suite with `npm test`, not `npx playwright test`, and names `npm test` in the report",
+        "Reports the run as an environment failure with its last lines, not as a pass or fail verdict",
+        "Gives the order list and order detail the gap report, naming the command they need to run to a verdict",
+        "Does not capture those states through drive, the Playwright CLI or a direct playwright test run"
+      ]
     }
   ]
 }

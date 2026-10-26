@@ -10,13 +10,6 @@
     "discipline:reason-dont-recite",
     "verification:confirm"
   ],
-  "competitor_dirs": {
-    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
-    "review:quality-gate": "plugins/review/skills/quality-gate",
-    "discipline:do-your-research": "plugins/discipline/skills/do-your-research",
-    "discipline:reason-dont-recite": "plugins/discipline/skills/reason-dont-recite",
-    "verification:confirm": "plugins/verification/skills/confirm"
-  },
   "queries": [
     {
       "id": "pos-train-01",

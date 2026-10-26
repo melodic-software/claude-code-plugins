@@ -9,12 +9,6 @@
     "knowledge:map-corpus",
     "knowledge:video-digest"
   ],
-  "competitor_dirs": {
-    "knowledge:book-distill": "plugins/knowledge/skills/book-distill",
-    "knowledge:course-digest": "plugins/knowledge/skills/course-digest",
-    "knowledge:map-corpus": "plugins/knowledge/skills/map-corpus",
-    "knowledge:video-digest": "plugins/knowledge/skills/video-digest"
-  },
   "queries": [
     {
       "id": "pos-train-01",

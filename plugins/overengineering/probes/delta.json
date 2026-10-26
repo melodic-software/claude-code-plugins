@@ -10,13 +10,6 @@
     "harness-config:audit-automation-gaps",
     "improvement:find"
   ],
-  "competitor_dirs": {
-    "overengineering:audit": "plugins/overengineering/skills/audit",
-    "overengineering:justify": "plugins/overengineering/skills/justify",
-    "overengineering:realign": "plugins/overengineering/skills/realign",
-    "harness-config:audit-automation-gaps": "plugins/harness-config/skills/audit-automation-gaps",
-    "improvement:find": "plugins/improvement/skills/find"
-  },
   "queries": [
     {
       "id": "pos-train-01",

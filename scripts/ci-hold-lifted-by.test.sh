@@ -146,6 +146,11 @@ expect "a hold comment from a person or with no lane footer is not a hold" 0 "No
 export STUB_COMMENTS="[$OLD_HOLD,$HOLD]"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
 expect "a trusted person's removal after the hold passes" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$(jq -c '.performed_via_github_app = null' <<<"$OWNER_LIFT")]"
+expect "a trusted person's direct removal (performed_via_github_app null) passes" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$(jq -c '.performed_via_github_app = {slug: "some-app"}' <<<"$OWNER_LIFT")]"
+expect "a removal an App made for a trusted person fails, naming the App" 1 \
+  "::error::kyle-sexton removed 'needs-human' from #6419 through the App some-app after a review lane held it"
 export STUB_EVENTS="[$OWNER_LIFT][$BOT_LIFT]"
 expect "a later escalation's removal by a bot, across pages, does not undo the trusted lift" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
 STUB_EVENTS="[$(unlabeled needs-human 2026-10-23T10:30:00Z 337595936 'melodic-automation-lanes[bot]'),$OWNER_LIFT]"
