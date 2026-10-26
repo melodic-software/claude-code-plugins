@@ -5112,11 +5112,20 @@ CHECK_CODE_ROOT = Path(__file__).resolve().parents[5]
 def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:
     """Whether the check's code (`CHECK_CODE_PATHS`) at `root`'s HEAD is the
     code at `code_sha`, the commit a kept post-merge report's check ran. A
-    sha that is not 40 hex digits, a commit missing from the clone or any git
+    sha that is not 40 hex digits, a commit missing from the clone, a path
+    missing at HEAD (a diff of a path at neither commit is empty) or any git
     failure is not unchanged."""
     if not SHA_RE.fullmatch(code_sha):
         return False
     try:
+        for path in CHECK_CODE_PATHS:
+            if subprocess.run(
+                ["git", "-C", str(root), "cat-file", "-e", f"HEAD:{path}"],
+                capture_output=True,
+                timeout=60,
+                check=False,
+            ).returncode:
+                return False
         done = subprocess.run(
             ["git", "-C", str(root), "diff", "--quiet", code_sha, "HEAD", "--"]
             + list(CHECK_CODE_PATHS),

@@ -942,6 +942,8 @@ class CheckCodeUnchanged(unittest.TestCase):
         self.git("init", "-q")
         self.commits: dict[str, str] = {}
         for name, path in (
+            ("init", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
+            ("init", "docs/conventions/pr-pipeline.yaml"),
             ("base", "README.md"),
             ("elsewhere", "README.md"),
             ("scripts", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
@@ -979,6 +981,13 @@ class CheckCodeUnchanged(unittest.TestCase):
         for kept in ("", "HEAD", "--output=x", "c" * 39, "f" * 40):
             with self.subTest(kept):
                 self.assertFalse(self.unchanged(kept, "config"))
+
+    def test_a_guarded_path_missing_at_head_refuses(self) -> None:
+        # A diff of a path at neither commit is empty, so a renamed path
+        # would otherwise read as unchanged.
+        moved = (*policy.CHECK_CODE_PATHS, "docs/conventions/renamed.yaml")
+        with mock.patch.object(policy, "CHECK_CODE_PATHS", moved):
+            self.assertFalse(self.unchanged(self.commits["config"], "config"))
 
     def test_the_default_root_is_this_repository(self) -> None:
         # The brief's two paths, read from the checkout the script runs in.
