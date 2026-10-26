@@ -951,7 +951,9 @@ except six:
   or submitted the newest review since that pin), a recent `updatedAt` does not refuse, since the
   pin comment and the enqueue refresh it; any other comment or review, such as a request to
   wait, refuses again, as does an unreadable one. The head commit test and every hold still
-  apply. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`);
+  apply. A person's merge-queue enqueue that the queue removed for failed checks also excuses
+  both idle tests ([Adoption](#adoption)). The decision records it as `eligibility.adoption`
+  (`idle-owner:<hours>h`, or `requeue-after-ejection`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
   request that is not adopted refuses `not-adopted:<reason>`. The candidate listing adds each
   trusted actor's open pull requests by its login on the list.
@@ -2253,6 +2255,33 @@ person opened. A PR is adopted when all of these hold:
   whitespace (NBSP included), with a bare CR also ending a line;
 - for a person's PR, its last update (`updatedAt`) and its head commit's committer date are both
   at least `idle-hours` old. Neither one alone is enough. An App's PR does not wait.
+
+A person's PR also skips the wait when a person put it in the merge queue and the queue removed
+it for failed checks (owner decision Q-REQ (a)). The person's enqueue of that head stands in for
+the idle wait, and grants nothing beyond it. In pr-merge, `babysit_merge_policy.ejected_enqueue`
+reads the enqueue from `read_merge_queue`, and `requeued_by_person` accepts it only when all of
+these hold:
+
+- the PR's newest merge-queue event is a `RemovedFromMergeQueueEvent` with reason
+  `failed_checks`, with no pushed commit or force push after it;
+- the `AddedToMergeQueueEvent` that queued the removed entry has an `actor` and an `enqueuer`
+  whose ids are both `kind: human` on the trusted-actor list. Logins and GitHub types are not
+  read, because GitHub types an App's enqueuer as a `User`;
+- GitHub had seen this head on the branch by the enqueue, and not since. That check reads the
+  newest `created_at` of GitHub Actions' check suites for the head commit on the PR's head
+  branch, which must be no later than the enqueue. GitHub sets it when a push arrives. A commit
+  dated in the past but pushed after the removal therefore does not pass, and neither does a head
+  that was reset away and pushed back;
+- no person has commented, reviewed or commented inline since the enqueue, counting a comment
+  edited since then. The lanes App and bots do not count. A request to wait, made before or after
+  the run failed, therefore keeps the idle rule, as a comment after the lane's pin does for its
+  own queued entry.
+
+The only newer queue event allowed is the lane's own entry at this head, as described in
+[The pr-merge lane](#the-pr-merge-lane). Anything else, or anything unreadable, falls back to the
+idle rule. The decision records `requeue-after-ejection`. The gate then runs unchanged: every
+hold, the verifier verdict, the head pin, and the `merge.max-queue-ejections` cap. If the lane's
+own retry is removed too, its enqueue is not a person's, so the PR waits `idle-hours`.
 
 An adopted PR that closes no issue in this repository is judged against its own title and body
 when a person (a `kind: human` id on the trusted list, not merely a GitHub `User`) opened it or
