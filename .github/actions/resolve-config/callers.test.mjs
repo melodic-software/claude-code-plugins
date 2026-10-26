@@ -1552,7 +1552,8 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   const { jobs } = workflow("pr-run-activity-read.yml");
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
   const step = (id) => jobs.run.steps.find((s) => s.id === id);
-  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@ba7af78d291f10bd75651857a0db2357c23df0fe";
+  const launcher = step("act-key").uses;
+  assert.match(launcher, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/, "a full SHA pin of run-claude-cli");
   for (const [id, input, secret] of [
     ["act-key", "api-key", "claude-api-key"],
     ["act-token", "subscription-token", "claude-code-oauth-token"],
