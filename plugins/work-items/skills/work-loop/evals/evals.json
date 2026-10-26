@@ -481,12 +481,25 @@
       "id": 34,
       "name": "work-loop-escalation-answer-is-not-a-new-objection",
       "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. ai_disclaimer resolves false. #306 is agent-ready and work-class: mechanical with no open closing PR. Its objection window comment from the seam's write identity ended at 2026-10-04T10:00:00Z. At 2026-10-04T11:00:00Z the write identity posted a lane=work-loop kind=escalated marker for a maintainer's objection. At 2026-10-05T09:00:00Z the operator's account (write permission, not the write identity, no AI disclaimer) commented 'Decision: keep the old config format.' At 09:01 the same operator applied agent-ready; label-provenance reports that application as trusted. No comment follows it.",
-      "expected_output": "The operator's 09:00 comment sits after the work-loop escalation marker and before the latest trusted application of agent-ready, so it answers that escalation and is not a new objection; the maintainer's earlier objection is answered by the marker. With the window over, #306 continues to classification and is not escalated again.",
+      "expected_output": "The operator's 09:00 comment sits after the newest work-loop escalation marker, which is newer than the window comment, and before the latest trusted application of agent-ready, and its author is the actor of that application, so it answers that escalation and is not a new objection; the maintainer's earlier objection is answered by the marker. With the window over, #306 continues to classification and is not escalated again.",
       "files": [],
       "expectations": [
         "Does not treat the operator's 09:00 comment as a new objection",
         "Does not escalate #306 again",
         "Continues #306 to classification"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "work-loop-other-persons-comment-before-relabel-is-still-an-objection",
+      "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. ai_disclaimer resolves false. #307 is agent-ready and work-class: mechanical with no open closing PR. Its objection window comment from the seam's write identity ended at 2026-10-04T10:00:00Z. At 2026-10-04T11:00:00Z the write identity posted a lane=work-loop kind=escalated marker for a maintainer's objection. At 2026-10-05T08:30:00Z an outside commenter (no write permission, not a bot, no AI disclaimer) commented 'I object, this breaks the importer.' At 09:01 the operator applied agent-ready; label-provenance reports that application as trusted, with the operator as its actor. No comment follows it.",
+      "expected_output": "The outside commenter's 08:30 comment sits between the escalation marker and the latest agent-ready application, but its author is not that application's actor, so it does not answer the escalation: it is a new human objection. #307 is escalated as kind=escalated with a one-line question naming that comment, leaves the autonomous frontier, and the cycle report lists objection: #307 -> escalated.",
+      "files": [],
+      "expectations": [
+        "Treats the outside commenter's 08:30 comment as a new objection, since its author is not the actor of the trusted agent-ready application",
+        "Escalates #307 as kind=escalated naming the objecting comment",
+        "Does not continue #307 to classification",
+        "Lists objection: #307 -> escalated in the cycle report"
       ]
     }
   ]
