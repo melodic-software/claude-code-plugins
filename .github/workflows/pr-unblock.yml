@@ -1879,6 +1879,8 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
