@@ -23,7 +23,9 @@
 // from GitHub.
 //   run-record        a pr-verify run's record of origin shape (a run of
 //                     pr-verify.yml on the branch of this repository), kept
-//                     as carried-run-record; used only when it shows origin
+//                     as carried-run-record with each repository trimmed to
+//                     its full_name (all either reader reads); used only
+//                     when it shows origin
 //   fail-head-ref     the head ref an untied FAIL's verdict.json records, by
 //                     artifact id, kept as carried-fail-head-ref; used only
 //                     when it names the PR's head ref
@@ -93,6 +95,13 @@ function originRecord(key, value, repo, branch) {
   );
 }
 
+// A run record with each repository kept as its name.
+function slimRecord(value) {
+  const out = { ...value };
+  for (const k of ["repository", "head_repository"]) out[k] = { full_name: value[k].full_name };
+  return out;
+}
+
 function headRef(key, value, repo) {
   return (
     /^[1-9][0-9]{0,15}$/.test(key.slice(repo.length + 1)) &&
@@ -112,15 +121,15 @@ function onBranch(key, value, repo, branch) {
 export function carry(data, { repo, branch, now }) {
   const out = { "carried-run-record": {}, "carried-fail-head-ref": {}, "carried-on-branch": {} };
   if (!isObject(data)) return out;
-  const take = (from, to, keep) => {
+  const take = (from, to, keep, shape = (value) => value) => {
     if (!isObject(data[from])) return;
     for (const [key, entry] of Object.entries(data[from])) {
-      if (dated(entry, now) && keep(key, entry.value)) out[to][key] = { at: entry.at, value: entry.value };
+      if (dated(entry, now) && keep(key, entry.value)) out[to][key] = { at: entry.at, value: shape(entry.value) };
     }
   };
   // Each section is kept from this run's reads and from what it carried in.
   for (const from of ["carried-run-record", "run-record"]) {
-    take(from, "carried-run-record", (k, v) => originRecord(k, v, repo, branch));
+    take(from, "carried-run-record", (k, v) => originRecord(k, v, repo, branch), slimRecord);
   }
   for (const from of ["carried-fail-head-ref", "fail-head-ref"]) {
     take(from, "carried-fail-head-ref", (k, v) => headRef(k, v, repo));
