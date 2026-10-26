@@ -142,6 +142,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import { BODY_HOLD, costDecision, costHold, humansOf, LANE_HOLD, pathHold, personWrote, vetoers } from "./merge-holds.mjs";
@@ -602,7 +603,7 @@ export function liftedByPerson(timeline, label, since) {
 
 // A reader child's exit when babysit_gh's rate guard stopped it
 // (RATE_LIMIT_EXIT). Its stop is in the job's stop file, which this process's
-// latch read before the child wrote it, so the run itself stops calling.
+// latch read before the child wrote it and takes in again (reload) on this exit.
 export const READER_RATE_LIMIT_EXIT = 75;
 const GUARD_ERROR = "::error title=GitHub rate limit::";
 
@@ -859,7 +860,15 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const onResponse = (response) => {
       answer = { limited: response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"), text: response.clone().text().catch(() => "") };
     };
+    latch ??= rateLimitLatch;
     github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse, latch }), { sleep, random });
+    // A reader child that stops on a rate limit writes its stop to the job's
+    // stop file; set from then on. Its stop holds every lanes App pull request
+    // as an unread room does, so an armed one is disarmed, unless the disarm's
+    // own pool (GraphQL) is stopped too: then it stays armed, named in an
+    // error, and the run fails.
+    let stopped = null;
+    const disarmStop = () => (stopped === null ? null : latch.until(`${env.GITHUB_API_URL || "https://api.github.com"}/graphql`));
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
@@ -870,13 +879,12 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       try {
         lane = readRoom(await (room ?? pythonRoom(env))());
       } catch (error) {
-        // An unread room would disarm lane pull requests: no call goes out.
         if (error instanceof ReaderRateLimited) {
-          console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(error.message)}; no pull request is read, armed or disarmed this run`);
-          return 1;
+          stopped = error;
+          latch.reload?.();
         }
         lane = readRoom(null);
-        lane.unreadable = describe(error);
+        lane.unreadable = stopped === null ? describe(error) : stopped.message;
       }
       console.log(`enable-auto-merge: lane room: ${escapeCommand(JSON.stringify(lane))}`);
     }
@@ -888,7 +896,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     // Why the room keeps `pull` from arming, with `disarm` when it also turns
     // an armed one off; null when it has room.
     // An unknown room holds as a refusal does: unknown holds.
-    const laneHeld =
+    let laneHeld =
       lane?.refusal != null ? `pr-merge's gate holds its lane off (${lane.refusal})` : lane?.unreadable != null ? `the lane's room could not be read (${lane.unreadable})` : null;
     const roomHold = (pull) => {
       if (lane === null || !lanes(pull)) {
@@ -912,7 +920,6 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     let networkArms = 0;
     let unexplainedArms = 0;
     const skippedArms = [];
-    let stopped = null;
     if (holdPaths === null) {
       console.log("::warning title=enable-auto-merge::the resolved config's hold paths did not read, so nothing is armed this run; the next run reads them again");
     }
@@ -922,7 +929,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     // under merge.lane-prs native the gate never lists it, so a log line
     // would be all anyone saw.
     const note = async (pull, detail, refusal) => {
-      if (!reads || refusal.clears === undefined) {
+      if (!reads || stopped !== null || refusal.clears === undefined) {
         return;
       }
       const writes = refusalWrites(pull, detail?.comments?.nodes, refusal, { bot: slug, label: humanGated });
@@ -959,7 +966,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       }
     };
     for (let pull of rotated(pulls, Number(env.GITHUB_RUN_NUMBER))) {
-      if (lanes(pull) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
+      if (stopped === null && lanes(pull) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
         try {
           pull = { ...pull, labels: await allLabels(github, repo[0], pull.number) };
         } catch (error) {
@@ -970,6 +977,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       let clears;
       let comment;
       let detail = null;
+      let decided = false;
       // Checked before the reads, so a held lane spends none.
       const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
       if (held?.disarm) {
@@ -1010,18 +1018,27 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         try {
           evidence = await verify(pull, lane?.rung);
         } catch (error) {
-          // Before decide and note: this pull request's note writes too.
+          // No decide and no note, whose writes would follow the stop: this
+          // and every later lanes App pull request is held as an unread room.
           if (error instanceof ReaderRateLimited) {
             stopped = error;
-            break;
+            latch.reload?.();
+            laneHeld = `the lane's room could not be read (${error.message})`;
+            const armed = pull.autoMergeRequest != null;
+            roomHeld.set(pull.number, armed ? "armed" : "unarmed");
+            ({ action, reason, clears, comment } = { action: armed ? "disarm" : "none", reason: laneHeld, clears: undefined, comment: undefined });
+            decided = true;
+          } else {
+            console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
           }
-          console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${describe(error)}`);
         }
         // A read failing on every run holds every clean lane pull request: say why.
         if (typeof evidence?.queue?.readError === "string") {
           console.log(`::warning title=enable-auto-merge::#${pull.number} its merge-queue ejections could not be read: ${escapeCommand(evidence.queue.readError)}`);
         }
-        ({ action, reason, clears, comment } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+        if (!decided) {
+          ({ action, reason, clears, comment } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+        }
       }
       // A pull request armed earlier in this run counts toward the cap.
       const full = action === "arm" ? roomHold(pull) : null;
@@ -1056,6 +1073,11 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`::error title=enable-auto-merge::#${pull.number} pin, so not armed: ${describe(error)}`);
           continue;
         }
+      }
+      if (action === "disarm" && disarmStop() !== null) {
+        failed += 1;
+        console.log(`::error title=enable-auto-merge::#${pull.number} disarm not sent: GitHub's GraphQL rate limit is stopped until ${new Date(disarmStop() * 1000).toISOString()}, so it stays armed`);
+        continue;
       }
       try {
         if (action === "arm") {
@@ -1134,7 +1156,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     }
     if (stopped !== null) {
       failed += 1;
-      console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no later pull request is read or armed this run`);
+      console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no pull request is read, noted or armed after it this run, and each armed lanes App pull request is disarmed`);
     }
     // Each verifier read's cost too, so a run's spend reads per pull request.
     const summary = [...lines.map(([, text]) => text), ...(verify.costs ?? []).map(costLine)];
