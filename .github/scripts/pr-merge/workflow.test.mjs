@@ -669,11 +669,23 @@ test("a dispatch that failed skips the record and the wait", () => {
 // released and registered by someone else. The listed human is
 // trusted-actors.json's entry 153232337.
 const OWNER = { id: 153232337, login: "kyle-sexton" };
-async function runWho(jobId, { actor = OWNER, rerunner = actor, record = { id: 4242, run_attempt: 2, actor, triggering_actor: rerunner } } = {}) {
+const BOT = { id: 41898282, login: "github-actions[bot]" };
+async function runWho(
+  jobId,
+  {
+    event = "workflow_dispatch",
+    attempt = "2",
+    actor = OWNER,
+    actorId = String(actor.id),
+    rerunner = actor,
+    record = { id: 4242, run_attempt: Number(attempt), actor, triggering_actor: rerunner },
+    env: extra = {},
+  } = {},
+) {
   const step = /- name: Check who started the run\n([\s\S]*?)(?=\n {6}- name: )/.exec(job(jobId))[1];
   const context = {
-    "github.event_name": "workflow_dispatch",
-    "github.actor_id": String(actor.id),
+    "github.event_name": event,
+    "github.actor_id": actorId,
     "github.triggering_actor": rerunner.login,
     "github.token": "t",
   };
@@ -701,31 +713,43 @@ async function runWho(jobId, { actor = OWNER, rerunner = actor, record = { id: 4
       GITHUB_OUTPUT: output,
       GITHUB_REPOSITORY: "o/r",
       GITHUB_RUN_ID: "4242",
-      GITHUB_RUN_ATTEMPT: "2",
-      GITHUB_EVENT_NAME: "workflow_dispatch",
+      GITHUB_RUN_ATTEMPT: attempt,
+      GITHUB_EVENT_NAME: event,
       GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
       // .base is a link here, a checkout in CI: keep the script's own path.
       NODE_OPTIONS: "--preserve-symlinks-main",
+      ...extra,
     };
-    const status = await new Promise((resolve) => spawn("bash", ["-e", join(dir, "body.sh")], { cwd: dir, env, stdio: "ignore" }).on("close", resolve));
+    let stdout = "";
+    const status = await new Promise((resolve) => {
+      const child = spawn("bash", ["-e", join(dir, "body.sh")], { cwd: dir, env, stdio: ["ignore", "pipe", "ignore"] });
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.on("close", resolve);
+    });
     assert.equal(status, 0);
-    return { proceed: /^proceed=(.*)$/m.exec(readFileSync(output, "utf8"))?.[1], reads };
+    return { proceed: /^proceed=(.*)$/m.exec(readFileSync(output, "utf8"))?.[1], reads, stdout };
   } finally {
     server.close();
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
+const RUN_READ = ["/repos/o/r/actions/runs/4242"];
+
 for (const jobId of ["merge", "enable-auto-merge"]) {
   test(`${jobId}: a listed human's id proceeds whatever its login now reads`, async () => {
     const renamed = { id: OWNER.id, login: "kyle-renamed" };
     const { proceed, reads } = await runWho(jobId, { actor: renamed });
     assert.equal(proceed, "true");
-    assert.deepEqual(reads, ["/repos/o/r/actions/runs/4242"]);
+    assert.deepEqual(reads, RUN_READ);
   });
 
-  test(`${jobId}: a re-runner holding a listed login under another id stops`, async () => {
-    assert.equal((await runWho(jobId, { rerunner: { id: 999, login: OWNER.login } })).proceed, "false");
+  test(`${jobId}: a re-runner holding a listed login under another id stops, naming both ids`, async () => {
+    const { proceed, stdout } = await runWho(jobId, { rerunner: { id: 999, login: OWNER.login } });
+    assert.equal(proceed, "false");
+    assert.match(stdout, /::notice::.*actor id 153232337, re-runner id 999\)/);
   });
 
   test(`${jobId}: an unreadable run record stops`, async () => {
@@ -735,5 +759,49 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
   test(`${jobId}: another attempt's record or a missing id stops`, async () => {
     assert.equal((await runWho(jobId, { record: { id: 4242, run_attempt: 1, actor: OWNER, triggering_actor: OWNER } })).proceed, "false");
     assert.equal((await runWho(jobId, { record: { id: 4242, run_attempt: 2, actor: OWNER, triggering_actor: { login: OWNER.login } } })).proceed, "false");
+  });
+
+  test(`${jobId}: an unlisted actor stops before any read, whoever re-ran it`, async () => {
+    const { proceed, reads, stdout } = await runWho(jobId, { actor: { id: 999, login: "someone" }, rerunner: OWNER });
+    assert.equal(proceed, "false");
+    assert.deepEqual(reads, []);
+    assert.match(stdout, /::notice::.*\(actor id 999\)/);
+    const malformed = await runWho(jobId, { actorId: "abc", rerunner: OWNER });
+    assert.equal(malformed.proceed, "false");
+    assert.deepEqual(malformed.reads, []);
+    // Number() reads this as the listed id; only the id's own shape refuses it.
+    const padded = await runWho(jobId, { actorId: `0${OWNER.id}`, rerunner: OWNER });
+    assert.equal(padded.proceed, "false");
+    assert.deepEqual(padded.reads, []);
+  });
+
+  // GitHub names as a scheduled run's actor whoever last changed the
+  // schedule, often a bot, and a re-run keeps the schedule event.
+  test(`${jobId}: a scheduled run's first attempt proceeds without a read`, async () => {
+    const { proceed, reads } = await runWho(jobId, { event: "schedule", attempt: "1", actor: BOT, record: null });
+    assert.equal(proceed, "true");
+    assert.deepEqual(reads, []);
+  });
+
+  test(`${jobId}: a re-run of a scheduled run proceeds only for a listed re-runner`, async () => {
+    const listed = await runWho(jobId, { event: "schedule", actor: BOT, rerunner: OWNER });
+    assert.equal(listed.proceed, "true");
+    assert.deepEqual(listed.reads, RUN_READ);
+    assert.equal((await runWho(jobId, { event: "schedule", actor: BOT, rerunner: { id: 999, login: "someone" } })).proceed, "false");
+    assert.equal((await runWho(jobId, { event: "schedule", actor: BOT, rerunner: OWNER, record: null })).proceed, "false");
+  });
+
+  test(`${jobId}: a repository name GitHub cannot hold stops before any read`, async () => {
+    const { proceed, reads } = await runWho(jobId, { env: { GITHUB_REPOSITORY: "o/.." } });
+    assert.equal(proceed, "false");
+    assert.deepEqual(reads, []);
+  });
+
+  test(`${jobId}: an unreadable trusted list stops with its own reason`, async () => {
+    const { proceed, reads, stdout } = await runWho(jobId, { env: { TRUSTED_ACTORS_PATH: "missing.json" } });
+    assert.equal(proceed, "false");
+    assert.deepEqual(reads, []);
+    assert.match(stdout, /::warning title=who::ENOENT/);
+    assert.doesNotMatch(stdout, /record/);
   });
 }
