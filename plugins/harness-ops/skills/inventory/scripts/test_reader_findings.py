@@ -181,8 +181,9 @@ class TestOpenFindings(unittest.TestCase):
 
     def test_a_known_safe_read_keeps_the_literal(self) -> None:
         """The parser's only safe reads: a spread into an array or a call,
-        which copies the elements, and a member read used as a value. Both
-        readers keep the literal."""
+        which copies the elements, and a member read used as a value. In a
+        bundle with no module that may patch what they look up, both readers
+        keep the literal."""
         for read in (
             "pY.length",
             "x=pY[0]",
@@ -616,6 +617,73 @@ class TestOpenFindings(unittest.TestCase):
             True, reexport + 'f(){}export*from"/d.js";', awaited, "export var then;"
         )
 
+    # The third #5891 verifier: the engine looks names up on the prototypes
+    # for a spread and for a method building a new array, and a read the
+    # writes op deems safe still looks its key up, so a patch of any of them
+    # runs code the walk does not see.
+    #
+    # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5960777823
+
+    def test_a_patched_iterator_leaves_a_spread_partial(self) -> None:
+        """A spread calls Array.prototype[Symbol.iterator], so a patched one
+        yields `B` into the probe's own spread."""
+        patch = 'Array.prototype[Symbol.iterator]=function*(){yield"B"};'
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];' + patch, INITIAL, ["Agent", "B"], parser=PARTIAL
+        )
+        for named in (
+            'import{pY}from"/a.js";var c=[...pY];',
+            'import{pY}from"/a.js";f(...pY);',
+        ):
+            with self.subTest(named=named):
+                self.assert_across_modules(True, named, patch)
+
+    def test_a_patched_species_leaves_a_mapped_list_partial(self) -> None:
+        """`map` builds its result through the array's `constructor` and
+        that constructor's @@species. A `constructor` getter runs with the
+        array as `this` and pushes onto it; a @@species getter runs code
+        the walk does not follow. Either reads partial."""
+        named = 'import{pY}from"/a.js";var c=pY.map(function(e){return e});'
+        for module in (
+            'Object.defineProperty(Array,Symbol.species,{get(){g();return Array}});',
+            'Object.defineProperty(Array.prototype,"constructor",'
+            '{get(){this.push("B");return Array}});',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
+    def test_a_patched_concat_spreadable_leaves_the_list_partial(self) -> None:
+        """`concat` reads @@isConcatSpreadable on the array, so a getter for
+        it on Array.prototype runs with the array as `this`."""
+        patch = (
+            "Object.defineProperty(Array.prototype,Symbol.isConcatSpreadable,"
+            '{get(){this.push("B");return!0}});'
+        )
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];' + patch + "pY.concat([]);",
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
+        self.assert_across_modules(
+            True, 'import{pY}from"/a.js";var c=pY.concat(["x"]);', patch
+        )
+
+    def test_a_prototype_getter_leaves_a_member_read_partial(self) -> None:
+        """A member read used as a value changes nothing itself, but a
+        getter the prototypes hold for its key runs with the array as
+        `this`. A computed key the parser cannot name could be that key."""
+        getter = 'Object.defineProperty(Array.prototype,"zz",{get(){this.push("B")}});'
+        for read in ("var z=pY.zz;", 'var k="zz";var z=pY[k];'):
+            with self.subTest(read=read):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + getter + read,
+                    INITIAL,
+                    ["Agent", "Edit", "Artifact", "B"],
+                    parser=PARTIAL,
+                )
+        self.assert_across_modules(True, 'import{pY}from"/a.js";var z=pY.zz;', getter)
+
     def test_a_computed_key_known_to_name_no_trusted_name_clears(self) -> None:
         """#5901 key provenance: the flow trusts `includes`, so any module
         that may write `includes` on an object that could be a prototype
@@ -823,6 +891,97 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(modules=modules):
                 self.assert_across_modules(True, *modules)
 
+    # #9954, the Codex findings on #5891 head d53b60dcd:
+    # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5962096909
+
+    DEFAULTED = 'function f({cb=a=>a.push("B")}){cb(pY)}'
+
+    def test_an_undefined_argument_runs_the_destructuring_default(self) -> None:
+        """A key whose value is undefined takes the destructuring default,
+        which pushes `B`. So may one whose value may be undefined: a branch,
+        a `var` read before its initializer runs, a binding another module
+        exports."""
+        imp = 'import{pY}from"/a.js";'
+        for call in (
+            "f({cb:undefined});",
+            "f({cb:void 0});",
+            "var g;f({cb:g});",
+            'f({cb:g});var g=(a)=>a.includes("x");',
+            'f({cb:[].length?(a)=>a.includes("x"):undefined});',
+        ):
+            with self.subTest(call=call):
+                self.assert_across_modules(True, imp + self.DEFAULTED + call)
+        self.assert_across_modules(
+            True,
+            imp + 'import{g}from"/c.js";' + self.DEFAULTED + "f({cb:g});",
+            "var g;export{g};",
+        )
+
+    def test_a_defined_destructured_callback_keeps_the_literal(self) -> None:
+        """The control: `g` is a local function that never changes its
+        argument, so the default never runs and the list stands."""
+        for g in (
+            'function g(a){return a.includes("x")}',
+            'const g=(a)=>a.includes("x");',
+        ):
+            with self.subTest(g=g):
+                self.assert_across_modules(
+                    False, 'import{pY}from"/a.js";' + g + self.DEFAULTED + "f({cb:g});"
+                )
+
+    def test_a_destructured_key_is_read_where_destructuring_finds_it(self) -> None:
+        """A numeric key matches the literal's key of that number, and a key
+        the literal lacks is read from its prototype: the one `__proto__:`
+        sets, or Object.prototype, where another module may put it."""
+        imp = 'import{pY}from"/a.js";'
+        keep = '(a)=>a.includes("x")'
+        push = '(a)=>a.push("B")'
+        for module in (
+            imp + f"function f({{1:cb={keep}}}){{cb(pY)}}f({{1:{push}}});",
+            imp + f"function f({{cb={keep}}}){{cb(pY)}}f({{__proto__:{{cb:{push}}}}});",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, module)
+        self.assert_across_modules(
+            True,
+            imp + f"function f({{cb={keep}}}){{cb(pY)}}f({{}});",
+            f"Object.prototype.cb={push};",
+        )
+
+    def test_function_prototype_constructor_is_a_sink(self) -> None:
+        """`Function.prototype.constructor` is the Function constructor, so a
+        `.prototype` read that can go on to it, by name, by a computed key
+        that may spell it, through an alias or a call's result, or in code
+        it is handed to, builds code from a string as `Function(...)` does.
+        A chain that names other members only and is discarded stays
+        clear."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        code = "\"Array.prototype.includes=function(){this.push('B')}\""
+        for module in (
+            f"Function.prototype.constructor({code})();",
+            f'Function.prototype["constructor"]({code})();',
+            f'var k="constr"+"uctor";Function.prototype[k]({code})();',
+            f"var P=Function.prototype;P.constructor({code})();",
+            f"Function.prototype.toString.constructor({code})();",
+            f"Function.prototype.valueOf().constructor({code})();",
+            f"class H{{static[Symbol.hasInstance](a){{a.constructor({code})()}}}}"
+            "Function.prototype instanceof H;",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+        self.assert_across_modules(False, named, "Function.prototype.toString.call(f);")
+
+    def test_an_importer_with_a_comment_before_from_is_followed(self) -> None:
+        """Importers come from the parsed import and re-export declarations,
+        so a comment beside `from` hides none."""
+        for modules in (
+            ('import{pY}/*c*/from"/a.js";pY.push("B");',),
+            ('import{pY}from/*c*/"/a.js";pY.push("B");',),
+            ('export{pY as W}/*c*/from"/a.js";', 'import{W}from"/b.js";W.push("B");'),
+        ):
+            with self.subTest(modules=modules):
+                self.assert_across_modules(True, *modules)
+
     def test_finding_4_an_arrow_earlier_in_the_statement_leaves_a_spread_partial(
         self,
     ) -> None:
@@ -999,10 +1158,12 @@ class TestInstalledBuilds(unittest.TestCase):
     returned to a `.some(t)` caller and passed to an imported function.
     The flow follows every hop, and since #5901 every whole load of the
     re-exporting chunk too (13 to 14 per build, each read by name). It
-    trusts `some`, `includes` and `has` as built in, and the namespace
-    loads trust Promise.all and await, but every one of these builds has
-    modules that may write those names on an object the sink rule cannot
-    show is no prototype (a write whose key names nothing,
+    trusts `some`, `includes` and `has` as built in, each spread of the
+    array trusts `@@iterator` and `next` (2.1.287's yallist writes
+    `Symbol.iterator` on a prototype the sink rule cannot clear), and the
+    namespace loads trust Promise.all and await, but every one of these
+    builds has modules that may write those names on an object the sink
+    rule cannot show is no prototype (a write whose key names nothing,
     `Object.defineProperty(o,k,...)`) or that run code built from a string
     (ajv's `Function(...)`, a direct `eval`); 2.1.288 also has 3 modules
     with a load the parser cannot name. So both lists read partial

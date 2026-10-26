@@ -12,7 +12,10 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal, cast, overload
 from urllib.parse import quote, unquote, urlparse
 
@@ -182,9 +185,6 @@ def _emit_gh_call_summary() -> None:
         print(line, file=sys.stderr, flush=True)
 
 
-atexit.register(_emit_gh_call_summary)
-
-
 def _run_gh(
     args: list[str],
     *,
@@ -198,37 +198,705 @@ def _run_gh(
     `GH_TOKEN` other than the process's; `binary` keeps stdout as bytes. Every
     call is counted before it runs, so a failed or timed-out call is counted
     too, and the process prints the counts to stderr on exit
-    (`gh_call_summary`)."""
+    (`gh_call_summary`). A REST `api <endpoint> --paginate --slurp` read goes
+    one guarded page at a time (`_run_pages`)."""
+    if not binary and _is_paged_read(args):
+        proc = _run_pages(
+            args, timeout_seconds=timeout_seconds, env_overrides=env_overrides
+        )
+    else:
+        proc, _ = _send(
+            args,
+            timeout_seconds=timeout_seconds,
+            env_overrides=env_overrides,
+            binary=binary,
+        )
+    if check and proc.returncode != 0:
+        detail = proc.stderr.strip() or ("" if binary else proc.stdout.strip())
+        raise RuntimeError(f"{' '.join(['gh', *args])} failed: {detail}")
+    return proc
+
+
+# A `Link` header's next page (GitHub's REST pagination), and the API origin
+# gh adds back to the path it is given.
+_LINK_NEXT = re.compile(r'<([^<>\s]+)>;\s*rel="next"')
+_API_ORIGIN = re.compile(r"^https://[^/]+/(api/v3/)?")
+
+
+def _is_paged_read(args: list[str]) -> bool:
+    """Whether a call is the REST `api <endpoint> --paginate --slurp` read the
+    babysit scripts make; gh would send its later pages unseen by the guard."""
+    return (
+        len(args) == 4
+        and args[0] == "api"
+        and sorted(args[2:]) == ["--paginate", "--slurp"]
+        and not args[1].startswith("-")
+        and _call_pool(args) != "graphql"
+    )
+
+
+def _run_pages(
+    args: list[str],
+    *,
+    timeout_seconds: float | None,
+    env_overrides: Mapping[str, str] | None,
+) -> subprocess.CompletedProcess[Any]:
+    """`gh api --paginate --slurp` rebuilt from guarded single-page calls
+    following `Link: rel="next"`, so each page's headers can stop the next
+    page and every later call. Returns the `--slurp` shape, a JSON array of
+    the page bodies, or the first failed page's answer. The pages share the
+    one timeout a single call would get."""
+    total = _default_timeout_seconds if timeout_seconds is None else timeout_seconds
+    deadline = time.monotonic() + total
+    endpoint, bodies = args[1], []
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise RuntimeError(f"{' '.join(['gh', *args])} timed out after {total:g}s")
+        proc, headers = _send(
+            ["api", endpoint],
+            timeout_seconds=left,
+            env_overrides=env_overrides,
+            binary=False,
+        )
+        if proc.returncode != 0:
+            return proc
+        try:
+            bodies.append(json.loads(proc.stdout))
+        except ValueError:
+            return subprocess.CompletedProcess(
+                proc.args, 1, proc.stdout, f"page {len(bodies) + 1} is not JSON"
+            )
+        following = _LINK_NEXT.search(headers.get("link", ""))
+        if following is None:
+            return subprocess.CompletedProcess(
+                proc.args, 0, json.dumps(bodies), proc.stderr
+            )
+        endpoint = _API_ORIGIN.sub("", following[1])
+
+
+def _send(
+    args: list[str],
+    *,
+    timeout_seconds: float | None,
+    env_overrides: Mapping[str, str] | None,
+    binary: bool,
+) -> tuple[subprocess.CompletedProcess[Any], dict[str, str]]:
+    """One guarded gh invocation and its response headers (empty unless the
+    call ran with -i)."""
+    guarded = bool(args) and args[0] not in _LOCAL_SUBCOMMANDS
+    pool = _call_pool(args)
+    limits_pool = _limits_pool(args, env_overrides)
+    if guarded:
+        _refuse_if_exhausted(pool, limits_pool)
+    if guarded and _is_write(args) and writes_paused(limits_pool):
+        raise WritesPaused(
+            f"{' '.join(['gh', *args[:2]])} not sent: the {limits_pool} pool "
+            "is below its writer-pause share"
+        )
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
-    token = None if binary else _api_budget_token(args, env_overrides)
+    include = not binary and _includes_headers(args)
     proc = run_command(
-        ["gh", "api", "-i", *args[1:]] if token else ["gh", *args],
+        ["gh", "api", "-i", *args[1:]] if include else ["gh", *args],
         allowed_executables=("gh",),
         timeout_seconds=(
             timeout_seconds if timeout_seconds is not None else _default_timeout_seconds
         ),
-        check=check and not token,
+        check=False,
         env_overrides=env_overrides,
         binary=binary,
     )
-    if token:
-        proc.stdout = _api_budget_read(proc.stdout, token)
-        if check and proc.returncode != 0:
-            detail = proc.stderr.strip() or proc.stdout.strip()
-            raise RuntimeError(f"{' '.join(['gh', *args])} failed: {detail}")
-    return proc
+    status, headers = None, {}
+    if include:
+        status, headers, proc.stdout = _split_headers(proc.stdout)
+        token = _api_budget_token(env_overrides)
+        if token and status is not None:
+            _api_budget_write(token, status, headers)
+    if guarded:
+        _guard_response(limits_pool, args, proc, status, headers, binary=binary)
+    return proc, headers
+
+
+# The rate-limit guard. GitHub: "Continuing to make requests while you are rate
+# limited may result in the banning of your integration." Once a response
+# shows a pool exhausted, this process sends nothing more to that pool until
+# its reset: every later call raises `RateLimitExhausted` before it runs, and
+# the process exits red naming the reset, with no retry and no wait. The
+# signals are the documented ones below; the shares of each pool's limit
+# (`writer-pause`, `read-floor`) are `limits.api` in pr-pipeline.yaml, unset
+# fields filled from the schema's defaults, and an unreadable block or schema
+# refuses every call. With no pr-pipeline.yaml at all (an installed plugin, a
+# consumer repo) there are no margins, and the signals alone still latch. `evaluate_rate_response` is the shared decision table's
+# port: .github/actions/log-api-budget/rate-guard.vectors.json tests it here
+# and in the JavaScript client. In a job (RUNNER_TEMP set), each stop also goes
+# in the job's stop file that rate-guard.mjs and api-budget.bash share, and a
+# stop recorded there holds in this process too, so one stop holds for every
+# step and every process of the job; the same vectors file's `stop_files`
+# pins its reading. A stop the file cannot take is reported, naming the pool,
+# and the in-process trip still holds. A stop file that is missing holds no
+# stop; one that exists but cannot be read holds every pool until MAX_RESET,
+# with an `::error` naming it (the vectors file's `stop_file_errors`).
+#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
+#   and <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api>
+#   As-of: 2026-10-24.
+#   Recheck trigger: either page changes the headers, statuses or messages
+#   that signal a primary or secondary limit.
+RATE_LIMIT_STATUSES = frozenset({403, 429})
+RATE_LIMIT_MESSAGE = re.compile(r"rate limit|abuse detection", re.IGNORECASE)
+SECONDARY_MESSAGE = re.compile(r"secondary rate limit|abuse detection", re.IGNORECASE)
+GRAPHQL_RATE_LIMITED = "RATE_LIMITED"
+# No header gives a reset still ahead: a secondary limit waits the pages'
+# minute, as does a header time already past; any other stop waits the hour.
+FALLBACK_RESET_SECONDS = 60
+PRIMARY_FALLBACK_SECONDS = 3600
+# Stop-file readers take at most 12 digits, so a later stop is written at the
+# largest they read, as rate-guard.mjs MAX_RESET clamps it.
+MAX_RESET = 999_999_999_999
+RESOURCE_RE = re.compile(r"^[a-z_]+$")
+# The pool a URL spends when the response names none; else `core`.
+URL_POOLS = (
+    (re.compile(r"(^|/)graphql(\?|$)"), "graphql"),
+    (re.compile(r"(^|/)search/code([/?]|$)"), "code_search"),
+    (re.compile(r"(^|/)search/"), "search"),
+)
+_INT_HEADER = re.compile(r"\d{1,12}")
+ALL_POOLS = "*"
+# The pools a non-`api` subcommand (`gh pr view`, `gh repo list`) may spend:
+# gh picks GraphQL or REST per command.
+_SUBCOMMAND_POOLS = ("core", "graphql")
+# The repository root, five levels up; None in a copy too shallow for one,
+# which then has no config and no margins.
+_PARENTS = Path(__file__).resolve().parents
+_REPO_ROOT = _PARENTS[5] if len(_PARENTS) > 5 else None
+_CONVENTIONS = None if _REPO_ROOT is None else _REPO_ROOT / "docs" / "conventions"
+LIMITS_CONFIG = None if _CONVENTIONS is None else _CONVENTIONS / "pr-pipeline.yaml"
+LIMITS_SCHEMA = (
+    None
+    if _CONVENTIONS is None
+    else _CONVENTIONS / "pr-pipeline" / "pr-pipeline.schema.json"
+)
+LIMITS_FIELDS = ("writer-pause", "read-floor")
+# The shares with no repo config: no margin, so only a signal stops a call.
+NO_MARGINS = dict.fromkeys(LIMITS_FIELDS, 0.0)
+TOKEN_POOLS = frozenset({"github-token", "lanes-app", "owner-token"})
+# GITHUB_TOKEN's documented ceiling, whatever x-ratelimit-limit reports: "The
+# rate limit for GITHUB_TOKEN is 1,000 requests per hour per repository." The
+# read floor counts against min(header limit, this); the writer pause and the
+# exhausted stop keep the header's own numbers.
+#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
+#   As-of: 2026-10-25.
+#   Recheck trigger: that page changes the GITHUB_TOKEN figure.
+GITHUB_TOKEN_LIMIT_CAP = 1000
+# The YAML reader's runner, bound at import: a test that fakes `gh` through
+# `run_command` still reads the real limits.
+_reader_run = run_command
+# Subcommands that send no request at all.
+_LOCAL_SUBCOMMANDS = frozenset({"--version", "version", "help", "config"})
+# Subcommand verbs that only read; any other subcommand verb writes.
+_READ_VERBS = frozenset({"checks", "diff", "download", "list", "status", "view"})
+
+
+class RateLimitExhausted(BaseException):
+    """A GitHub rate-limit pool is exhausted: nothing is sent to it before
+    `reset`. A BaseException, like `DeadlineReached`, so no `except Exception`
+    handler on the way up turns it into a verdict."""
+
+    def __init__(self, pool: str, reset: float | None, reason: str) -> None:
+        super().__init__(pool, reset, reason)
+        self.pool = pool
+        self.reset = reset
+        self.reason = reason
+
+    def error_line(self) -> str:
+        pool = "every" if self.pool == ALL_POOLS else f"the {self.pool}"
+        try:
+            reset = (
+                "unknown"
+                if self.reset is None
+                else datetime.fromtimestamp(self.reset, UTC).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+            )
+        except (OverflowError, OSError, ValueError):
+            # MAX_RESET is past the year 9999 datetime can show.
+            reset = f"epoch second {int(self.reset)}"
+        return (
+            f"::error title=GitHub rate limit::{pool} pool is exhausted "
+            f"({self.reason}); no GitHub call is sent before {reset}"
+        )
+
+    def __str__(self) -> str:
+        return self.error_line()
+
+
+class WritesPaused(RuntimeError):
+    """A write was not sent: its pool is below the `writer-pause` share. A
+    RuntimeError, so each write path reports it as a write that did not land."""
+
+
+_tripped: dict[str, RateLimitExhausted] = {}
+_headroom: dict[str, tuple[int, int]] = {}
+_limits: dict[str, dict[str, float]] = {}
+_trip_reported = False
+# The job's stop file, read once before the first call; None until then.
+_job_stops: dict[str, int] | None = None
+# Why the job's stop file exists but could not be read; None when it was read
+# or is missing.
+_job_stops_error: str | None = None
+# One line of it, as rate-guard.mjs reads one: `<pool> <reset epoch>`, ASCII
+# digits only. Lines split on \n alone, so a line holding a \r is skipped, and
+# the piece after the last \n is no line.
+_STOP_LINE = re.compile(r"([a-z_]+|\*) ([0-9]{1,12})")
+
+
+def reset_rate_guard() -> None:
+    """Forget every trip, reading, loaded share and job stop (tests)."""
+    global _trip_reported, _job_stops, _job_stops_error
+    _tripped.clear()
+    _headroom.clear()
+    _limits.clear()
+    _trip_reported = False
+    _job_stops = None
+    _job_stops_error = None
+
+
+def _stop_file() -> str | None:
+    temp = os.environ.get("RUNNER_TEMP")
+    return os.path.join(temp, "api-budget", "stop") if temp else None
+
+
+def _read_job_stops() -> dict[str, int]:
+    """Each pool's latest reset in the job's stop file. A missing file holds no
+    stop and a malformed line is skipped, as rate-guard.mjs `readStops` reads
+    them; any other read error holds every pool until MAX_RESET, reported
+    once with an `::error` naming the file."""
+    global _job_stops_error
+    path = _stop_file()
+    try:
+        # Bytes, not read_text: universal newlines would turn \r into \n.
+        text = Path(path).read_bytes().decode("utf-8", "replace") if path else ""
+    except FileNotFoundError:
+        text = ""
+    except OSError as exc:
+        _job_stops_error = (
+            f"the job's stop file {path} cannot be read ({exc.strerror or exc})"
+        )
+        print(
+            f"::error title=GitHub rate limit::{_job_stops_error}, so every "
+            "GitHub API pool counts as stopped",
+            file=sys.stderr,
+            flush=True,
+        )
+        return {ALL_POOLS: MAX_RESET}
+    stops: dict[str, int] = {}
+    for line in text.split("\n")[:-1]:
+        match = _STOP_LINE.fullmatch(line)
+        if match:
+            stops[match[1]] = max(stops.get(match[1], 0), int(match[2]))
+    return stops
+
+
+def stopped_until(pool: str, *, now: float | None = None) -> int | None:
+    """The epoch second the job's stop file holds `pool` until, or None: the
+    later of its own stop and a `*` stop, while still ahead of `now`."""
+    global _job_stops
+    if _job_stops is None:
+        _job_stops = _read_job_stops()
+    at = max(_job_stops.get(ALL_POOLS, 0), _job_stops.get(pool, 0))
+    return at if at > (time.time() if now is None else now) else None
+
+
+def _record_stop(pool: str, reset: float) -> None:
+    """Append a stop to the job's stop file, as rate-guard.mjs writes one.
+    Never raises: the in-process trip still holds, and a stop the file cannot
+    take is reported on stderr, naming the pool."""
+    path = _stop_file()
+    if path is None:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(f"{pool} {int(reset)}\n")
+    except OSError as exc:
+        name = "every" if pool == ALL_POOLS else f"the {pool}"
+        print(
+            f"::error title=GitHub rate limit::{name} pool's stop could not be "
+            f"recorded in the job's stop file ({exc.strerror or exc}), so later "
+            "steps do not see it",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+def _int_header(headers: Mapping[str, Any], name: str) -> int | None:
+    value = headers.get(name)
+    text = "" if value is None or isinstance(value, bool) else str(value)
+    return int(text) if _INT_HEADER.fullmatch(text) else None
+
+
+def evaluate_rate_response(
+    *,
+    url: str,
+    status: int | None,
+    headers: Mapping[str, Any],
+    body: Any,
+    now: float,
+    read_floor: float,
+    limit_cap: int | None = None,
+) -> dict[str, Any]:
+    """One response against the decision table: `latched`, `low`, `pool`,
+    `reset` (epoch seconds) and `reset_source`. `headers` are lowercase.
+    `low` measures what is left of the planned budget, the header's limit at
+    most `limit_cap`, as rate-guard.mjs planOf does."""
+    remaining = _int_header(headers, "x-ratelimit-remaining")
+    limit = _int_header(headers, "x-ratelimit-limit")
+    reset_header = _int_header(headers, "x-ratelimit-reset")
+    ra = _int_header(headers, "retry-after")
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except ValueError:
+            body = None
+    body = json_object(body)
+    errors = [json_object(error) for error in json_array(body.get("errors"))]
+    # GraphQL answers a secondary limit with a 200 or a 403 and an error
+    # message, so for a GraphQL call any status counts, and so do its errors'.
+    graphql = any(r.search(url) for r, p in URL_POOLS if p == "graphql")
+    messages = [body.get("message")]
+    if graphql:
+        messages += [error.get("message") for error in errors]
+    texts = [str(text if text is not None else "") for text in messages]
+    signaled = status in RATE_LIMIT_STATUSES or graphql
+    msg = signaled and any(RATE_LIMIT_MESSAGE.search(text) for text in texts)
+    secondary = signaled and any(SECONDARY_MESSAGE.search(text) for text in texts)
+    gql = any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
+    too_many = status == 429
+    latched = remaining == 0 or ra is not None or msg or gql or too_many
+    low = False
+    if limit and remaining is not None:
+        planned = limit if limit_cap is None else min(limit, limit_cap)
+        low = planned - (limit - remaining) < read_floor * planned
+    result: dict[str, Any] = {
+        "latched": latched,
+        "low": low,
+        "pool": None,
+        "reset": None,
+        "reset_source": None,
+    }
+    if not latched:
+        return result
+    # A secondary limit is not per resource, whatever remaining says.
+    if ra is not None or secondary or ((msg or too_many) and remaining != 0):
+        pool = ALL_POOLS
+    else:
+        resource = str(headers.get("x-ratelimit-resource") or "")
+        pool = resource if RESOURCE_RE.fullmatch(resource) else None
+        pool = pool or next((p for r, p in URL_POOLS if r.search(url)), "core")
+    candidates = []
+    now = math.floor(now)
+    if ra is not None:
+        candidates.append((now + ra, 1, "retry-after"))
+    if remaining == 0 and reset_header is not None:
+        candidates.append((reset_header, 0, "x-ratelimit-reset"))
+    best = max(candidates, default=None)
+    if best is not None and best[0] > now:
+        reset, _, source = best
+    else:
+        wait = FALLBACK_RESET_SECONDS if best or secondary else PRIMARY_FALLBACK_SECONDS
+        reset, source = now + wait, "fallback"
+    result.update(pool=pool, reset=min(reset, MAX_RESET), reset_source=source)
+    return result
+
+
+def _endpoint(args: list[str]) -> str:
+    """The URL an `api` call names; empty for any other subcommand."""
+    if args[:1] != ["api"]:
+        return ""
+    rest = iter(args[1:])
+    for arg in rest:
+        flag = arg.partition("=")[0]
+        if arg.startswith("-"):
+            if flag in _GH_API_VALUE_FLAGS and "=" not in arg:
+                next(rest, "")
+            continue
+        return arg
+    return ""
+
+
+def _call_pool(args: list[str]) -> str | None:
+    """The pool a call spends, before it runs; None for a non-`api`
+    subcommand, which may spend any of `_SUBCOMMAND_POOLS`."""
+    if args[:1] == ["search"]:
+        return "search"
+    if args[:1] != ["api"]:
+        return None
+    url = _endpoint(args)
+    return next((p for r, p in URL_POOLS if r.search(url)), "core")
+
+
+def _limits_pool(args: list[str], env_overrides: Mapping[str, str] | None) -> str:
+    """The `limits.api` entry a call spends: `graphql` for a GraphQL call,
+    else the token's pool, which the job names in API_BUDGET_TOKEN (its
+    API_BUDGET_OVERRIDE_TOKEN for a call with its own GH_TOKEN). Unnamed, it is
+    `github-token` in Actions and `owner-token` anywhere else."""
+    if _call_pool(args) == "graphql":
+        return "graphql"
+    own = bool(env_overrides and "GH_TOKEN" in env_overrides)
+    name = os.environ.get("API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN")
+    if name in TOKEN_POOLS:
+        return str(name)
+    return (
+        "github-token" if os.environ.get("GITHUB_ACTIONS") == "true" else "owner-token"
+    )
+
+
+def pool_limits(pool: str) -> dict[str, float] | str:
+    """`limits.api.<pool>`'s shares, unset ones from the schema's defaults, or
+    why they cannot be read. Read through the pipeline config's own reader;
+    only a read that succeeded is kept, so a failure is read again next call."""
+    limits = _limits.get(pool) or _read_pool_limits(pool)
+    if not isinstance(limits, str):
+        _limits[pool] = limits
+    return limits
+
+
+def warm_rate_guard() -> None:
+    """Read every `limits.api` pool the schema names now, before a test fakes
+    the subprocess seam the reader runs through."""
+    if LIMITS_SCHEMA is None:
+        return
+    try:
+        schema = json.loads(LIMITS_SCHEMA.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    pools = dig(schema, "properties", "limits", "properties", "api", "properties")
+    for pool in json_object(pools):
+        pool_limits(str(pool))
+
+
+def _read_pool_limits(pool: str) -> dict[str, float] | str:
+    import babysit_merge_policy as merge_policy  # noqa: PLC0415 - imports this module
+
+    if LIMITS_CONFIG is None or LIMITS_SCHEMA is None or not LIMITS_CONFIG.exists():
+        return dict(NO_MARGINS)
+    try:
+        schema = json.loads(LIMITS_SCHEMA.read_text(encoding="utf-8"))
+        fields = dig(schema, "$defs", "api-pool", "properties")
+        text = LIMITS_CONFIG.read_text(encoding="utf-8")
+        keys = [(f"limits.api.{pool}.{name}", False) for name in LIMITS_FIELDS]
+        values = merge_policy._concern_values(text, keys, _reader_run)
+    except (OSError, ValueError, merge_policy.PolicyReadError) as exc:
+        return f"limits.api unreadable: {exc}"
+    if values is None:
+        return f"{LIMITS_CONFIG.name} does not parse"
+    shares: dict[str, float] = {}
+    for name, (key, _) in zip(LIMITS_FIELDS, keys, strict=True):
+        raw = values[key][0] if values[key] else dig(fields, name, "default")
+        try:
+            share = float(raw)
+        except (TypeError, ValueError):
+            share = math.nan
+        if isinstance(raw, bool) or not 0 <= share <= 1:
+            return f"limits.api.{pool}.{name} is not a share: {raw!r}"
+        shares[name] = share
+    return shares
+
+
+def _refuse_if_exhausted(pool: str | None, limits_pool: str) -> None:
+    pools = _SUBCOMMAND_POOLS if pool is None else (pool,)
+    for name in (*pools, ALL_POOLS):
+        trip = _tripped.get(name)
+        if trip is None:
+            continue
+        if trip.reset is not None and time.time() >= trip.reset:
+            del _tripped[name]
+            continue
+        raise RateLimitExhausted(trip.pool, trip.reset, trip.reason)
+    for name in pools:
+        at = stopped_until(name)
+        if at is not None:
+            held = name if (_job_stops or {}).get(name) == at else ALL_POOLS
+            raise _trip(held, at, _job_stops_error or "a stop this job recorded")
+    limits = pool_limits(limits_pool)
+    if isinstance(limits, str):
+        raise RateLimitExhausted(ALL_POOLS, None, f"fail closed: {limits}")
+
+
+def _trip(pool: str, reset: float | None, reason: str) -> RateLimitExhausted:
+    trip = RateLimitExhausted(pool, reset, reason)
+    _tripped[pool] = trip
+    return trip
+
+
+def _guard_response(
+    limits_pool: str,
+    args: list[str],
+    proc: subprocess.CompletedProcess[Any],
+    status: int | None,
+    headers: Mapping[str, str],
+    *,
+    binary: bool,
+) -> None:
+    """Record the response's headroom and trip the latch when it shows its
+    pool exhausted. A rate-limited failure raises now; a success that spent
+    the pool returns its answer, and the next call to the pool raises. Either
+    way the process exits `RATE_LIMIT_EXIT` (`_exit_red_if_tripped`): pr-merge.yml's
+    shell steps after it read no stop file, only that exit code.
+
+    A non-`api` subcommand prints no headers, only gh's message: one naming a
+    rate limit reads as a 403 carrying it, which latches every pool."""
+    limits = pool_limits(limits_pool)
+    if isinstance(limits, str):
+        raise RateLimitExhausted(ALL_POOLS, None, f"fail closed: {limits}")
+    url, body = _endpoint(args), None
+    if proc.returncode != 0:
+        text = "" if binary else proc.stdout
+        try:
+            body = json.loads(text)
+        except ValueError:
+            body = None
+        if not is_json_object(body):
+            body = {"message": proc.stderr}
+        if status is None:
+            status = gh_http_status(proc.stderr)
+        if not url and RATE_LIMIT_MESSAGE.search(proc.stderr or ""):
+            status = status or 403
+    reading = evaluate_rate_response(
+        url=url,
+        status=status,
+        headers=headers,
+        body=body,
+        now=time.time(),
+        read_floor=limits["read-floor"],
+    )
+    remaining = _int_header(headers, "x-ratelimit-remaining")
+    limit = _int_header(headers, "x-ratelimit-limit")
+    # `limits.api` shares a token's core and GraphQL pools; a smaller pool
+    # (search, code search) is no reading of either.
+    if (
+        remaining is not None
+        and limit
+        and headers.get("x-ratelimit-resource")
+        in (
+            None,
+            "core",
+            "graphql",
+        )
+    ):
+        _headroom[limits_pool] = (remaining, limit)
+    if not reading["latched"]:
+        return
+    trip = _trip(
+        reading["pool"],
+        reading["reset"],
+        f"{reading['reset_source']} reset, HTTP {status if status is not None else 'error'}",
+    )
+    _record_stop(reading["pool"], reading["reset"])
+    if proc.returncode != 0:
+        raise trip
+
+
+def _below(pool: str | None, field: str) -> bool:
+    pools = list(_headroom) if pool is None else [pool]
+    for name in pools:
+        limits = pool_limits(name)
+        if isinstance(limits, str):
+            return True
+        reading = _headroom.get(name)
+        if not reading:
+            continue
+        remaining, limit = reading
+        cap = _limit_cap(name) if field == "read-floor" else None
+        if cap is not None and cap < limit:
+            remaining, limit = max(0, cap - (limit - remaining)), cap
+        if remaining < limits[field] * limit:
+            return True
+    return False
+
+
+def _limit_cap(pool: str) -> int | None:
+    """The absolute ceiling under a pool's header limit, or None."""
+    return GITHUB_TOKEN_LIMIT_CAP if pool == "github-token" else None
+
+
+def low_headroom(pool: str | None = None) -> bool:
+    """Whether `pool` (any pool read so far, when None) last read below its
+    `read-floor` share (for `github-token`, of `GITHUB_TOKEN_LIMIT_CAP` when
+    the header reports more), or its limits are unreadable. Report-only reads
+    are skipped then."""
+    return _below(pool, "read-floor")
+
+
+def writes_paused(pool: str | None = None) -> bool:
+    """Whether `pool` (any pool read so far, when None) last read below its
+    `writer-pause` share, or its limits are unreadable. `_run_gh` sends no
+    write then."""
+    return _below(pool, "writer-pause")
+
+
+def _is_write(args: list[str]) -> bool:
+    """Whether a call changes GitHub: a GraphQL mutation, a REST call other
+    than GET, or a subcommand whose verb is not a read."""
+    if args[:1] == ["search"]:
+        return False
+    if args[:1] != ["api"]:
+        return len(args) > 1 and args[1] not in _READ_VERBS
+    if _call_pool(args) == "graphql":
+        query = next((a.partition("=")[2] for a in args if a.startswith("query=")), "")
+        return query.lstrip().startswith("mutation")
+    return gh_call_kind(args, None).split(" ")[1] != "GET"
+
+
+# The exit code of a process the guard stopped, which no caller reads as a
+# verdict (EX_TEMPFAIL): pr-merge.yml stops calling on it.
+RATE_LIMIT_EXIT = 75
+
+
+def _report_trip(exc: RateLimitExhausted) -> None:
+    """Print the one `::error` naming the pool and the reset."""
+    global _trip_reported
+    if not _trip_reported:
+        _trip_reported = True
+        print(exc.error_line(), file=sys.stderr, flush=True)
+
+
+def _rate_limit_excepthook(kind: Any, value: Any, traceback: Any) -> None:
+    if isinstance(value, RateLimitExhausted):
+        _report_trip(value)
+        return
+    _previous_excepthook(kind, value, traceback)
+
+
+def _exit_red_if_tripped() -> None:
+    """A process the guard stopped exits `RATE_LIMIT_EXIT`, whether the trip
+    reached the top or a handler swallowed it."""
+    if _tripped or _trip_reported:
+        if _tripped:
+            _report_trip(next(iter(_tripped.values())))
+        with contextlib.suppress(OSError, ValueError):
+            sys.stdout.flush()
+        os._exit(RATE_LIMIT_EXIT)
+
+
+_previous_excepthook = sys.excepthook
+sys.excepthook = _rate_limit_excepthook
+# atexit runs last-registered first: the call summary prints before this.
+atexit.register(_exit_red_if_tripped)
+atexit.register(_emit_gh_call_summary)
 
 
 # Rate-limit readings for the job-end api-budget notice
 # (.github/actions/log-api-budget/api-budget.bash holds the line shape and the
-# notice). Only in a job that names the token: API_BUDGET_TOKEN for a call on
-# the process's own GH_TOKEN, API_BUDGET_OVERRIDE_TOKEN for one that carries
-# its own. Such an `api` call runs with -i; its leading header block becomes one
-# reading line in $RUNNER_TEMP/api-budget/<token> and is dropped from stdout,
-# so the caller sees the output it would have without -i.
+# notice). Every `api` call runs with -i so the guard reads its headers; the
+# leading header block is dropped from stdout, so the caller sees the output it
+# would have without -i. In a job that names the token (API_BUDGET_TOKEN for a
+# call on the process's own GH_TOKEN, API_BUDGET_OVERRIDE_TOKEN for one that
+# carries its own), the block also becomes one reading line in
+# $RUNNER_TEMP/api-budget/<token>.
 # --paginate prints a header block per page, which could not be told from
-# body text that looks like one, so such a call runs as it is.
+# body text that looks like one, so such a call runs as it is; the scripts'
+# own `--paginate --slurp` reads never reach gh so (`_run_pages`).
 _API_BUDGET_SKIP_FLAGS = frozenset(
     {"-i", "--include", "--silent", "--slurp", "--paginate"}
 )
@@ -243,17 +911,16 @@ _API_BUDGET_VALUES = {
 }
 
 
-def _api_budget_token(
-    args: list[str], env_overrides: Mapping[str, str] | None
-) -> str | None:
+def _includes_headers(args: list[str]) -> bool:
     # GET /rate_limit reports another bucket than the one the calls spend.
-    if (
-        not args
-        or args[0] != "api"
-        or "rate_limit" in args
-        or _API_BUDGET_SKIP_FLAGS.intersection(args)
-    ):
-        return None
+    return (
+        args[:1] == ["api"]
+        and "rate_limit" not in args
+        and not _API_BUDGET_SKIP_FLAGS.intersection(args)
+    )
+
+
+def _api_budget_token(env_overrides: Mapping[str, str] | None) -> str | None:
     own = bool(env_overrides and "GH_TOKEN" in env_overrides)
     name = os.environ.get(
         "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
@@ -263,15 +930,14 @@ def _api_budget_token(
     return name
 
 
-def _api_budget_read(stdout: str, token: str) -> str:
-    """`gh api -i` output without its leading header block, which is appended
-    as a reading. Only the block at the very start is headers: body text that
-    looks like a status line stays body. Never raises: a reading that cannot be
-    written is dropped."""
+def _split_headers(stdout: str) -> tuple[int | None, dict[str, str], str]:
+    """`gh api -i` output split into its status, its lowercase headers and the
+    body after them. Only the block at the very start is headers: body text
+    that looks like a status line stays body."""
     lines = stdout.splitlines(keepends=True)
     match = _API_BUDGET_STATUS.match(lines[0].rstrip("\r\n")) if lines else None
     if match is None:
-        return stdout
+        return None, {}, stdout
     headers: dict[str, str] = {}
     offset = len(lines[0])
     for line in lines[1:]:
@@ -280,17 +946,25 @@ def _api_budget_read(stdout: str, token: str) -> str:
         if bare == "":
             break
         name, _, value = bare.partition(":")
-        key = name.strip().lower()
-        if key.startswith("x-ratelimit-"):
-            headers[key.removeprefix("x-ratelimit-")] = value.strip()
+        headers[name.strip().lower()] = value.strip()
+    return int(match.group(1)), headers, stdout[offset:]
+
+
+def _api_budget_write(token: str, status: int, headers: Mapping[str, str]) -> None:
+    """Append one reading. Never raises: a reading that cannot be written is
+    dropped."""
+    readings = {
+        key.removeprefix("x-ratelimit-"): value
+        for key, value in headers.items()
+        if key.startswith("x-ratelimit-")
+    }
     try:
         path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
         os.makedirs(path, exist_ok=True)
         with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
-            handle.write(_api_budget_line(match.group(1), headers))
+            handle.write(_api_budget_line(str(status), readings))
     except OSError:
         pass
-    return stdout[offset:]
 
 
 def _api_budget_line(status: str, headers: Mapping[str, str]) -> str:
@@ -1613,7 +2287,8 @@ def collect_lane_runs(
     from a fresh `GET actions/runs/{id}` taken after the listing, and that
     response stands in for its latest attempt, so only earlier attempts are
     read from `attempts/{n}`; each attempt
-    carries its jobs, and each lane job its check run's annotations. Any read
+    carries its jobs, and each lane job its check run's annotations, as does
+    the succeeded `kill-switch` job of an attempt with no lane job. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence; so does a listing that reached
     RUN_SEARCH_CAP, which may be missing runs. `env_overrides` applies to
@@ -1675,8 +2350,19 @@ def collect_lane_runs(
                 # differ only in `jobs_url` and `logs_url`, which nothing reads.
                 attempt = latest if n == count else json_object(read(base))
                 jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
+                lane_jobs = [
+                    job
+                    for job in jobs
+                    if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix
+                ]
                 for job in jobs:
-                    if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix:
+                    # With no lane job, the kill-switch notice shows the review
+                    # never started (`babysit_review_evidence.rerun_binds`).
+                    if job in lane_jobs or (
+                        not lane_jobs
+                        and job.get("name") == "kill-switch"
+                        and job.get("conclusion") == "success"
+                    ):
                         job["annotations"] = pages(
                             f"repos/{repo}/check-runs/{job.get('id')}/annotations"
                             "?per_page=100",

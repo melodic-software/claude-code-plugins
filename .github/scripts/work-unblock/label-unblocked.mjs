@@ -102,7 +102,9 @@
 // `Ask the broker whether the lane may run` or at a `Request the lane token`
 // step, is a breaker trip, not a fault in the issue or the lanes; only the
 // refused job's log names the reason (the jobs listing reads the same for a
-// workflow-modified refusal). It is re-fired limits.reset-clamp-min hours after
+// workflow-modified refusal). So is a run whose broker-check `Check the kill
+// switch` step saw a kill switch on and skipped the broker ask: that run ends
+// green, and the jobs listing alone shows it. It is re-fired limits.reset-clamp-min hours after
 // the run ended with a breaker record of its own, and after
 // limits.limit-stops-per-issue trips since a listed human last added
 // agent-ready or a run last reported, on the stranded backoff. A breaker
@@ -149,13 +151,17 @@
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
 //                          (`issues` only)
-//   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
-//                          must be a listed human (`issues` only)
-//   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to list
+//   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to read
+//                          this run's record (`issues`), list
 //                          work-resolve-issue runs, read a refused job's log,
-//                          and find the last sweep and its jobs;
-//                          unset skips the re-fire and uses the full window
-//   GITHUB_RUN_ID          this run, skipped when reading the last sweep
+//                          and find the last sweep and its jobs; on
+//                          `schedule`, unset skips the re-fire and uses the
+//                          full window
+//   GITHUB_RUN_ID          this run, read for who started this attempt (a
+//                          re-runner may differ; it must be a listed human,
+//                          `issues` only) and skipped when reading the last
+//                          sweep
+//   GITHUB_RUN_ATTEMPT     this run's attempt, checked against its record
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -168,13 +174,14 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { splitParentClosed, splitRecord } from "../intake-triage/admit.mjs";
+import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
@@ -201,6 +208,8 @@ const BLOCKER_STEP = "Wait for open blockers";
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
 // broker-check's step, which asks the broker before any resolve-issue run job.
 const BROKER_STEP = "Ask the broker whether the lane may run";
+// broker-check's step before BROKER_STEP, which skips it while a kill switch is on.
+const KILL_STEP = "Check the kill switch";
 // request-lane-token's last line when the broker refuses it, in check mode
 // (BROKER_STEP) or token mode (MINT_STEP), and the runner's line that follows
 // it when the step fails. Only the reason word is read.
@@ -251,16 +260,30 @@ const backoffDue = (since, refires) => since + Math.min(STRANDED_HOURS * 2 ** re
 const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
-// Whether the account that closed the issue (ACTOR_ID, by id) and the one
-// that started this run (TRIGGERING_ACTOR, by login; a re-runner may be
-// another account) are each a listed human. The broker mints only then.
-export function checkCloser(env) {
+// Whether the account that closed the issue (ACTOR_ID) and the one that
+// started this run attempt (a re-runner may be another account) are each a
+// listed human, by id. The re-runner's id is read from this run's own record
+// with `actions` (default: the job token), since a login can pass to another
+// account; a failed or malformed read answers false. The broker mints only
+// when this holds.
+export async function checkCloser(env, actions) {
   if (!NUMBER.test(env.ACTOR_ID ?? "")) {
     return false;
   }
-  const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-  const rerunner = logins.get(String(env.TRIGGERING_ACTOR ?? "").toLowerCase());
-  return humans.has(Number(env.ACTOR_ID)) && rerunner !== undefined && humans.has(rerunner);
+  const { humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+  if (!humans.has(Number(env.ACTOR_ID))) {
+    return false;
+  }
+  try {
+    if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
+      throw new Error("GITHUB_REPOSITORY is not owner/repo");
+    }
+    actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    return humans.has(await readRerunner(actions, env.GITHUB_REPOSITORY, String(env.GITHUB_RUN_ID ?? ""), String(env.GITHUB_RUN_ATTEMPT ?? "")));
+  } catch (error) {
+    console.log(`::warning title=label-unblocked::this run's record names no re-runner it could read (${escapeCommand(error?.message ?? error)}); treated as unlisted`);
+    return false;
+  }
 }
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -737,7 +760,8 @@ async function laneRuns(actions, repo, number, addedAt) {
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step fail (`mint-failed`, which
 // wins), had the broker refuse it for the kill switch at broker-check or a
-// mint (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
+// mint, or had broker-check skip its broker ask for the kill switch
+// (`breaker`), was skipped by the WIP cap (`capped`: pick-slot ran,
 // resolve-issue did not), or was skipped by the admit job's blocker gate
 // (`blocked`: its BLOCKER_STEP ran and pick-slot did not). A broker-check
 // refusal for another reason, or one whose log gives none, is none of these.
@@ -762,7 +786,9 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       return null;
     }
     const named = (name) => namedJobs(jobs, name);
-    const failedAt = (job, name) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === "failure");
+    const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
+    const failedAt = (job, name) => endedAt(job, name, "failure");
+    const killed = named("resolve-issue").some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
     const checked = named("resolve-issue").find((job) => failedAt(job, BROKER_STEP));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const capped =
@@ -773,8 +799,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
     // One log per run: broker-check's when it refused, else the first failed mint's.
-    const refused = checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
-    if ((await refused) === BREAKER) {
+    const refused = killed ? null : checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
+    if (killed || (await refused) === BREAKER) {
       atLeast("breaker");
     } else if (minting) {
       atLeast("mint-failed");
@@ -1505,6 +1531,12 @@ const baseAdmission = (env) => {
     })());
 };
 
+// The rate guard's latch with its readings recorded under token, so a second
+// client's readings never mix with the App token's.
+export function budgetLatch(token, latch = rateLimitLatch) {
+  return { ...latch, guard: (fetchImpl) => latch.guard(fetchImpl, { token }) };
+}
+
 export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
@@ -1526,7 +1558,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
         return 0;
       }
-      if (!checkCloser(env)) {
+      if (!(await checkCloser(env, actions))) {
         console.log("label-unblocked: the closer or the re-runner is not a listed human; nothing read or labeled");
         return 0;
       }
@@ -1535,8 +1567,9 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
     if (sweep) {
-      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
-      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
+      const latch = budgetLatch("github-token");
+      actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
+      jobLog ??= env.ACTIONS_TOKEN ? createJobLogReader({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;
     }
     const window = sweep ? await sweepSince({ actions, repo, now, runId: env.GITHUB_RUN_ID }) : null;
     const closed = sweep ? await closedSince(github, repo, new Date(window.since)) : [Number(event.issue.number)];
@@ -1569,7 +1602,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
 // output, so the workflow can stop before it requests a token.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   if (process.argv[2] === "--check-closer") {
-    const proceed = checkCloser(process.env);
+    const proceed = await checkCloser(process.env);
     writeOutputs({ proceed: String(proceed) });
     console.log(`label-unblocked: closer and re-runner ${proceed ? "are" : "are not both"} listed humans`);
   } else {

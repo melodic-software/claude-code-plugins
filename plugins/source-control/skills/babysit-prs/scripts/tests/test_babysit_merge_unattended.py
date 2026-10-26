@@ -35,6 +35,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_dependabot as dependabot
 import babysit_gh as gh
 import babysit_merge as merge
+import test_babysit_review_evidence as evidence_tests
 import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
@@ -702,6 +703,8 @@ QUEUE_RULES = [*fixtures.RULES, {"type": "merge_queue", "parameters": {}}]
 LOW_FILE = ChangedFile(
     "docs/guide.md", None, "modified", 3, 1, True, "100644", "100644"
 )
+# A configured high path: the floor itself holds none.
+HELD = ("**/.gitmodules",)
 BOUND = tuple(
     LaneEvidence(lane, True, None, 0)
     for lane in ("claude-review", "claude-security-review")
@@ -710,6 +713,8 @@ UNBOUND = tuple(
     LaneEvidence(lane, False, "no-marker", None)
     for lane in ("claude-review", "claude-security-review")
 )
+# An open CRITICAL security finding: a hold only a person clears.
+PERSON_HELD = (BOUND[0], LaneEvidence("claude-security-review", True, None, 1))
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
 REAL_ASYNC_MERGE = merge.async_merge
@@ -1206,7 +1211,7 @@ class LaneMode(Unattended):
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
         # Owner decision Q14 (c): a model-driven App's own lines skip the
-        # denied paths only under plugins/*/scripts/; the floor always scores.
+        # denied paths only under plugins/*/scripts/.
         self.config = dataclasses.replace(self.config, high_path_floor=True)
         self.lane_eligible = policy.Eligibility(
             True, None, "C2", 41, adoption="trusted-app"
@@ -1219,7 +1224,6 @@ class LaneMode(Unattended):
             (
                 "scripts/release-plugins.sh",
                 "plugins/p/hooks/x.md",
-                ".gitmodules",
                 "plugins/p/skills/s/scripts/x.md",
             ),
         )
@@ -2282,6 +2286,19 @@ class EachRefusalMakesNoMergeCall(Unattended):
             )
         )
 
+    def test_a_failed_runs_read_still_refuses_and_records_its_error(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        with mock.patch.object(
+            merge, "_failed_merge_group_runs", side_effect=RuntimeError("boom")
+        ):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "error: boom")
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
+        )
+
     def test_one_ejection_still_enqueues(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=1)
         code, out = self.run_main()
@@ -2359,7 +2376,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
     def test_a_cost_hold_holds(self) -> None:
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         pipeline = dataclasses.replace(
-            LOW_FILE, path="docs/conventions/pr-pipeline.yaml", patch=patch
+            LOW_FILE, path="plugins/foo/pr-pipeline.yaml", patch=patch
         )
         self.files = ((pipeline,), True)
         code, out = self.run_main()
@@ -3359,7 +3376,7 @@ class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 
     def body(self) -> str:
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         posted = [
             c
@@ -3381,6 +3398,7 @@ class ReasonsComment(Unattended):
 
     def test_a_floor_hold_says_a_human_merges_it(self) -> None:
         # Owner decision Q648: only the owner merges a floor-held PR.
+        self.config = dataclasses.replace(self.config, denied_paths=HELD)
         self.files = ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)
         self.run_main()
         body = next(
@@ -3484,7 +3502,7 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(body)
         self.now = self.WRITTEN + timedelta(minutes=10)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [])
         self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
@@ -3495,12 +3513,12 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(body)
         self.now = self.WRITTEN + timedelta(minutes=61)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"],
-            {"label": "added", "comment": "updated"},
+            {"label": "added", "comment": "created"},
         )
 
     def patched_body(self) -> str:
@@ -3513,27 +3531,38 @@ class ReasonsComment(Unattended):
         self.assertEqual(len(patches), 1)
         return patches[0]
 
-    def test_escalating_rewrites_the_comment_before_the_label(self) -> None:
-        # The rewrite stamps the comment's updated_at beside the label, so
-        # the head-moved clear pairs the two.
+    def posted_escalation(self) -> str:
+        """The body this run's POST of a new reasons comment wrote."""
+        posts = [
+            c.args[0][-1].removeprefix("body=")
+            for c in self.capture.call_args_list
+            if "POST" in c.args[0] and "babysit-merge-risk" in " ".join(c.args[0])
+        ]
+        self.assertEqual(len(posts), 1)
+        return posts[0]
+
+    def test_escalating_posts_a_new_comment_before_the_label(self) -> None:
+        # An edit notifies no one and keeps the old date, so the escalation
+        # is a new comment, created beside the label the head-moved clear
+        # pairs it with.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
-        patched = self.patched_body()
-        self.assertEqual(patched.split("\n")[:2], body.split("\n")[:2])
-        self.assertTrue(patched.startswith(body))
-        self.assertEqual(patched.count(merge.RISK_ESCALATION_LINE), 1)
-        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
+        posted = self.posted_escalation()
+        self.assertEqual(posted.split("\n")[:2], body.split("\n")[:2])
+        self.assertTrue(posted.startswith(body))
+        self.assertEqual(posted.count(merge.RISK_ESCALATION_LINE), 1)
+        self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
 
     def test_an_escalated_comment_is_not_extended_again(self) -> None:
         # A rerun after a failed label write retries only the label.
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [self.LABEL])
         self.assertEqual(
@@ -3563,7 +3592,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
 
     def test_a_person_removing_the_label_after_the_escalation_keeps_it_off(
         self,
@@ -3773,15 +3802,15 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.timeline = [
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
         _, out = self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"],
-            {"label": "added", "comment": "updated"},
+            {"label": "added", "comment": "created"},
         )
         self.assertEqual(self.timeline_reads, [])
 
@@ -3789,7 +3818,7 @@ class ReasonsComment(Unattended):
         old = self.body().replace(HEAD, "d" * 40)
         self.setUp()
         self.earlier_sweep(f"{old}\n\n{merge.RISK_ESCALATION_LINE}")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn(merge.RISK_ESCALATION_LINE, self.patched_body())
@@ -3800,7 +3829,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body, updated=self.now - timedelta(minutes=10))
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -3811,53 +3840,77 @@ class ReasonsComment(Unattended):
         self.earlier_sweep(body)
         self.config = dataclasses.replace(self.config, risk_escalation_minutes=0)
         self.now = self.WRITTEN + timedelta(minutes=1)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
 
     def test_another_bot_accounts_marker_is_not_an_earlier_sweep(self) -> None:
         body = self.body()
         self.setUp()
         self.earlier_sweep(body, login="other-app[bot]", kind="Bot")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
 
     def test_the_first_sweep_comments_without_a_label(self) -> None:
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
-    def test_a_second_sweep_at_the_same_head_adds_the_human_gated_label(self) -> None:
-        # A MED or HIGH refusal on two sweeps at one head is
-        # labeled, the reasons comment first extended to say so.
-        for name, files in (
-            ("MED", ((LOW_FILE,), True)),
-            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)),
+    def test_a_second_sweep_at_the_same_head_labels_only_a_person_hold(self) -> None:
+        # A refusal a person clears (a high path) on two sweeps at one head
+        # is labeled, the reasons comment first extended to say so. One the
+        # lanes clear (review evidence not bound, MED) keeps its comment and
+        # gets no label however long it stands (owner rule 2026-10-26).
+        for name, files, lanes, person in (
+            ("MED", ((LOW_FILE,), True), UNBOUND, False),
+            (
+                "HIGH",
+                ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True),
+                BOUND,
+                True,
+            ),
         ):
             with self.subTest(name):
                 self.setUp()
+                self.config = dataclasses.replace(self.config, denied_paths=HELD)
                 self.files = files
-                body = self.body()
+                self.lanes = lanes
+                self.run_main()
+                body = next(
+                    c.args[0][-1].removeprefix("body=")
+                    for c in self.capture.call_args_list
+                    if "babysit-merge-risk" in " ".join(c.args[0])
+                )
                 self.setUp()
+                self.config = dataclasses.replace(self.config, denied_paths=HELD)
                 self.files = files
-                self.lanes = UNBOUND
+                self.lanes = lanes
                 self.earlier_sweep(body)
+                self.now = self.WRITTEN + timedelta(minutes=61)
                 _, out = self.run_main()
                 self.assertEqual(out["unattended"]["risk"]["score"], name)
-                self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
-                self.assertEqual(
-                    out["unattended"]["writes"]["riskEscalation"],
-                    {"label": "added", "comment": "updated"},
-                )
+                if person:
+                    self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
+                    self.assertEqual(
+                        out["unattended"]["writes"]["riskEscalation"],
+                        {"label": "added", "comment": "created"},
+                    )
+                else:
+                    self.assertEqual(self.log, [])
+                    self.assertEqual(
+                        out["unattended"]["writes"]["riskComment"], "unchanged"
+                    )
+                    self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+                    self.assertIn("The lanes clear its holding reasons", body)
 
     def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
         self,
     ) -> None:
         # The rewrite restarts the age the next sweep measures.
         self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`.")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -3867,7 +3920,7 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
         self.pr_labels = [{"name": "Needs-Human"}]
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, [])
         self.assertEqual(
@@ -3875,9 +3928,47 @@ class ReasonsComment(Unattended):
             {"label": "present", "comment": "unchanged"},
         )
 
+    def test_a_stored_escalation_differing_only_in_whitespace_writes_nothing(
+        self,
+    ) -> None:
+        # GitHub can return a body with CRLF endings or trailing spaces; a
+        # re-post would notify on every run.
+        body = self.body()
+        self.setUp()
+        stored = f"{body}\n\n{merge.RISK_ESCALATION_LINE}".replace("\n", "  \r\n")
+        self.earlier_sweep(stored + "  ")
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = PERSON_HELD
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_changed_reasons_on_an_escalated_comment_keep_the_escalation(
+        self,
+    ) -> None:
+        # The label stays on, so the comment beside it must still say why.
+        self.earlier_sweep(
+            f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`."
+            f"\n\n{merge.RISK_ESCALATION_LINE}"
+        )
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = PERSON_HELD
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+        posted = self.posted_escalation()
+        self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
+        self.assertEqual(posted.count(merge.RISK_ESCALATION_LINE), 1)
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "created"},
+        )
+
     def test_a_new_head_rewrites_the_comment_without_a_label(self) -> None:
         self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **MED** at head `{'d' * 40}`.")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -3888,7 +3979,7 @@ class ReasonsComment(Unattended):
         body = self.body()
         self.setUp()
         self.earlier_sweep(body, login="maintainer")
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
 
@@ -3925,6 +4016,15 @@ class ReasonsComment(Unattended):
         self.run_main()
         self.assertEqual(self.comment_writes(), [])
 
+    def test_a_low_score_leaves_an_escalated_comment_stored_with_crlf(self) -> None:
+        # GitHub can return the escalation with CRLF and trailing spaces; it
+        # is still escalated, so the label it explains keeps its line.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}  \r\n")
+        self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+
     def test_a_low_score_leaves_a_comment_at_an_old_head(self) -> None:
         # A later refusal at this head renders a different body anyway.
         old = self.body().replace(HEAD, "d" * 40)
@@ -3937,7 +4037,7 @@ class ReasonsComment(Unattended):
         # MED, then LOW, then MED again with the same reasons: the cleared
         # comment has stood two hours, but the refusal is new.
         self.earlier_sweep(merge.risk_cleared_body(HEAD))
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH"])
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
@@ -3947,7 +4047,7 @@ class ReasonsComment(Unattended):
         self.setUp()
         self.earlier_sweep(body)
         self.config = dataclasses.replace(self.config, report_only=True)
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertIs(out["unattended"]["reportOnly"], True)
         self.capture.assert_not_called()
@@ -3967,7 +4067,7 @@ class ReasonsComment(Unattended):
                 "body": f"{merge.RISK_MARKER}\nquoted by a human",
             },
         ]
-        self.lanes = UNBOUND
+        self.lanes = PERSON_HELD
         _, out = self.run_main()
         self.assertEqual(out["unattended"]["writes"]["riskComment"], "updated")
         self.assertEqual(self.log, ["risk-comment:PATCH"])
@@ -4054,11 +4154,10 @@ class WholeReviewRequest(Unattended):
         self.now = self.WRITTEN + timedelta(hours=3)
         self.run_main()
         self.assertNotIn("toggle", self.log)
-        patched = next(
-            c.args[0][-1] for c in self.capture.call_args_list if "PATCH" in c.args[0]
-        )
-        self.assertTrue(merge.whole_review.recorded(patched, HEAD))
-        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+        self.assertEqual(self.log[0], "risk-comment:POST")
+        posted = self.posted()
+        self.assertTrue(merge.whole_review.recorded(posted, HEAD))
+        self.assertTrue(posted.endswith(merge.RISK_ESCALATION_LINE))
 
     def test_a_record_at_an_older_head_does_not_stop_a_new_one(self) -> None:
         self.run_main()
@@ -4140,6 +4239,17 @@ class WholeReviewRequest(Unattended):
         self.run_main()
         self.assertNotIn("toggle", self.log)
 
+    def test_an_escalated_comment_stored_with_crlf_is_not_toggled(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(
+            f"{merge.whole_review.RECORD_RE.sub('', body).rstrip()}"
+            f"\n\n{merge.RISK_ESCALATION_LINE}  \r\n"
+        )
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
     def test_a_limit_writes_no_record_and_no_toggle(self) -> None:
         self.limit = "running-jobs:40"
         _, out = self.run_main()
@@ -4210,6 +4320,138 @@ class HeadFile(unittest.TestCase):
         ):
             with self.subTest(name), self.assertRaises(RuntimeError):
                 self.read(proc, files)
+
+
+class HeadFileFailure(unittest.TestCase):
+    """A head-file read that fails, a rate limit included, is never sent
+    again in that bind, not for another thread and not for the carried
+    security pass (review_evidence._carried_blocking)."""
+
+    RATE_LIMITED = subprocess.CompletedProcess(
+        [], 1, "", "gh: API rate limit exceeded (HTTP 403)"
+    )
+
+    def test_a_failed_read_is_not_sent_again(self) -> None:
+        with mock.patch.object(
+            merge, "gh_capture", return_value=self.RATE_LIMITED
+        ) as capture:
+            read = merge._head_file("owner/repo", HEAD)
+            for path in ("app.py", "lib.py", "app.py"):
+                with self.subTest(path), self.assertRaises(RuntimeError):
+                    read(path, "b" * 40)
+        self.assertEqual(capture.call_count, 1)
+
+    def test_a_path_the_comparison_cannot_prove_latches_nothing(self) -> None:
+        # old.py 404s and the comparison shows it renamed: a verdict about
+        # old.py alone. app.py, read next, still reads and its thread, whose
+        # flagged line is gone at the head, clears.
+        ev_tests = evidence_tests
+        bot = {"__typename": "Bot", "login": "someone-else"}
+
+        def outdated(path: str) -> dict[str, Any]:
+            item = ev_tests.thread(
+                resolved=True,
+                resolved_by=bot,
+                outdated=True,
+                created="2025-12-31T00:00:00Z",
+            )
+            item["comments"][0]["path"] = path
+            return item
+
+        def capture(args: list[str], **_: Any) -> Any:
+            if args[-1].startswith("repos/owner/repo/contents/old.py"):
+                return subprocess.CompletedProcess(
+                    args, 1, "", "gh: Not Found (HTTP 404)"
+                )
+            return subprocess.CompletedProcess(
+                args, 0, "context\nrun(clean(user_input))\n", ""
+            )
+
+        renamed = {"files": [{"filename": "old.py", "status": "renamed"}]}
+
+        def bind(threads: list[dict[str, Any]]) -> Any:
+            with (
+                mock.patch.object(merge, "gh_capture", side_effect=capture) as read,
+                mock.patch.object(merge, "gh_json", return_value=renamed),
+            ):
+                lanes = ev_tests.by_lane(
+                    merge.review_evidence.bind(
+                        ev_tests.S,
+                        [
+                            ev_tests.whole("claude-review", ev_tests.S, n=1, k=1),
+                            ev_tests.whole("claude-security-review", ev_tests.S),
+                        ],
+                        ev_tests.both_markers(),
+                        threads,
+                        is_human=ev_tests.is_human,
+                        changed_paths=(),
+                        head_file=merge._head_file("owner/repo", ev_tests.S),
+                    )
+                )
+            return lanes["claude-review"], [c.args[0][-1] for c in read.call_args_list]
+
+        alone, _ = bind([outdated("old.py")])
+        both, reads = bind([outdated("old.py"), outdated("app.py")])
+        self.assertTrue(any("contents/app.py" in r for r in reads), reads)
+        # The app.py thread cleared: the count is old.py's alone.
+        self.assertEqual(both.open_findings, alone.open_findings)
+
+    def test_the_bind_and_its_carried_pass_send_one_read_after_a_rate_limit(
+        self,
+    ) -> None:
+        # claude-review binds at S and reads the head for its outdated
+        # thread; the security lane's newest marker names a later head whose
+        # review failed, so it unbinds and the carried pass judges S again,
+        # which would read the head for its own outdated thread.
+        ev_tests = evidence_tests
+        sec = "claude-security-review"
+        later = "c2" * 20
+        bot = {"__typename": "Bot", "login": "someone-else"}
+
+        def outdated(body: str) -> dict[str, Any]:
+            return ev_tests.thread(
+                body,
+                resolved=True,
+                resolved_by=bot,
+                outdated=True,
+                created="2025-12-31T00:00:00Z",
+            )
+
+        failed = ev_tests.run(
+            sec,
+            later,
+            attempts=[ev_tests.attempt(sec, later, 1, [], "failure")],
+            created="2026-01-02T00:00:00Z",
+        )
+        newer = {**ev_tests.marker(sec, later), "created_at": "2026-01-02T01:00:00Z"}
+        runs = [
+            ev_tests.whole("claude-review", ev_tests.S, n=1, k=1),
+            ev_tests.whole(sec, ev_tests.S, n=1, k=1),
+            failed,
+        ]
+        threads = [
+            outdated("a finding"),
+            outdated(f"finding\n\nseverity: CRITICAL\n`claude-lane: {sec}`"),
+        ]
+        with mock.patch.object(
+            merge, "gh_capture", return_value=self.RATE_LIMITED
+        ) as capture:
+            lanes = ev_tests.by_lane(
+                merge.review_evidence.bind(
+                    ev_tests.S,
+                    runs,
+                    [*ev_tests.both_markers(), newer],
+                    threads,
+                    is_human=ev_tests.is_human,
+                    changed_paths=(),
+                    head_file=merge._head_file("owner/repo", ev_tests.S),
+                )
+            )
+        self.assertTrue(lanes["claude-review"].bound)
+        self.assertEqual(lanes[sec].unbound_reason, "no-marker")
+        # The carried pass still ran and carried a blocking count.
+        self.assertGreater(lanes[sec].blocking_findings or 0, 0)
+        self.assertEqual(capture.call_count, 1)
 
 
 class HeadPushers(unittest.TestCase):
@@ -5196,7 +5438,7 @@ class DependabotMajorEscalation(unittest.TestCase):
         # attend-queue lists `escalated` and `routed-advisory` as escalated rows.
         self.assertIn(match["kind"], ("escalated", "routed-advisory"))
 
-    def test_an_old_format_comment_is_rewritten_not_duplicated(self) -> None:
+    def test_an_old_format_comment_is_reposted_as_a_new_escalation(self) -> None:
         self.pr_labels = [{"name": "status: needs-decision"}]
         old = merge.major_escalation_body("x", self.HEAD).removeprefix(
             merge.ATTEND_QUEUE_MARKER + "\n"
@@ -5210,11 +5452,31 @@ class DependabotMajorEscalation(unittest.TestCase):
             }
         ]
         out = self.writes("ineligible:dependabot-major-held:x")
+        # A changed escalation is a new comment, as at a new head.
         (comment,) = self.calls
-        self.assertIn("PATCH", comment)
-        self.assertIn(f"repos/{self.REPO}/issues/comments/92", comment)
+        self.assertIn("POST", comment)
+        self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
         self.assertEqual(
-            out["majorEscalation"], {"label": "present", "comment": "updated"}
+            out["majorEscalation"], {"label": "present", "comment": "created"}
+        )
+
+    def test_a_stored_body_differing_only_in_whitespace_is_not_reposted(
+        self,
+    ) -> None:
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        stored = merge.major_escalation_body("x", self.HEAD).replace("\n", " \r\n")
+        self.comments = [
+            {
+                "id": 93,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": stored + "\r\n",
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
         )
 
     def test_a_held_major_under_an_earlier_refusal_escalates_once(self) -> None:
