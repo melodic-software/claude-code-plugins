@@ -3811,9 +3811,10 @@ jobs:
           actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || keep "the trusted-actor list is unreadable"
           humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
           events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
-          # The window opens at the newest removal by a trusted person.
+          # The window opens at the newest removal a trusted person made directly, not through an App.
           since=$(jq -n --arg label "$label" --argjson humans "$humans" '[inputs[] | select(.label.name == $label
-            and .event == "unlabeled" and (.actor.id as $id | $humans | index($id))) | .created_at | fromdateiso8601] | max // -1' \
+            and .event == "unlabeled" and .performed_via_github_app == null
+            and (.actor.id as $id | $humans | index($id))) | .created_at | fromdateiso8601] | max // -1' \
             <<<"$events") || keep "the events do not parse"
           # Cheap reads first: most pull requests stop here.
           added=$(jq -nr --arg label "$label" --argjson since "$since" '[inputs[] | select(.label.name == $label
