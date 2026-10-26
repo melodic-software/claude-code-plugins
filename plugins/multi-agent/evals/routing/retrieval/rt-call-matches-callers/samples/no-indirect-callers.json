@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "grade_tool_used\ngrade_tool_order\n",
+      "why": "only the direct callers"
+    },
+    {
+      "answer": "- `grade_tool_used`\n- `grade_tool_order` (through its nested `first` helper)\n",
+      "why": "mentions the nested helper inside the grade_tool_order line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "grade_tool_used\ngrade_tool_order\nrun_samples\n",
+      "why": "adds run_samples, which reaches call_matches only through the GRADE table"
+    },
+    {
+      "answer": "grade_regex\ngrade_tool_used\ngrade_tool_order\ngrade_file_exists\n",
+      "why": "lists every grade_ function"
+    },
+    {
+      "answer": "grade_tool_used\ngrade_tool_order\nfirst\n",
+      "why": "lists the nested helper as a function of its own"
+    },
+    {
+      "answer": "- `grade_tool_used`\n- `grade_tool_order`\n- `first()`\n",
+      "why": "lists the nested helper as a bullet"
+    }
+  ]
+}

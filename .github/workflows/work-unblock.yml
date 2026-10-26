@@ -92,6 +92,7 @@ jobs:
       pull-requests: read # count the lanes App's pull requests
       issues: read # count the queued agent-ready issues
     env:
+      API_BUDGET_TOKEN: github-token
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -106,6 +107,14 @@ jobs:
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
           save-state: "true"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   label-unblocked:
     # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
@@ -157,16 +166,19 @@ jobs:
 
       # The broker mints only when the person who closed the issue and the one
       # who started this run (a re-runner may be someone else) are each a
-      # listed human (trusted-actors.json on main). Anything else stops here
-      # quietly, before the token request. The script makes the same check
-      # again. A scheduled sweep has no closer, and its actor is whoever last
-      # changed the schedule, so it skips this check.
+      # listed human (trusted-actors.json on main), matched by id: the
+      # re-runner's is read from this run's own record with the job token.
+      # Anything else, or a failed read, stops here quietly, before the token
+      # request. The script makes the same check again. A scheduled sweep has
+      # no closer, and its actor is whoever last changed the schedule, so it
+      # skips this check.
       - name: Check who closed the issue
         id: who
         if: steps.kill.outputs.proceed == 'true' && github.event_name == 'issues'
         env:
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          # The job's own read-only token, to read this run's record.
+          ACTIONS_TOKEN: ${{ github.token }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-unblock/label-unblocked.mjs --check-closer
 
@@ -219,13 +231,15 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          # The App token's readings; the ACTIONS_TOKEN client logs its own
+          # under github-token.
+          API_BUDGET_TOKEN: lanes-app
           # The job's own read-only token; the App token has no actions grant.
           ACTIONS_TOKEN: ${{ github.token }}
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: node ".base/$SCRIPT"
 
       # The token is cancelled as soon as the job is done; it would otherwise
@@ -246,3 +260,11 @@ jobs:
           else
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token

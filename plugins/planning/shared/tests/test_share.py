@@ -385,6 +385,20 @@ class TestLogsSummary(unittest.TestCase):
         self.assertEqual((out["latency"]["/api/vote"]["actions"], out["latency"]["/api/vote"]["rollbacks"]), (1, 0))
         self.assertEqual(out["reconnect"]["count"], 0)
 
+    def test_the_text_prints_the_sections_the_host_health_panel_shows(self):
+        """README "Logs", "Host Health": the panel shows summary_sections; the plain text is those sections, a titled
+        one's lines indented under it. Expected titles and lines are the ones test_text_reads_the_same_counts reads."""
+        out = share_cli.summarize([])
+        sections = share_cli.summary_sections(out)
+        self.assertEqual([x["title"] for x in sections], [
+            "", "Top errors:", "Refusals by route and code (the server's own entries):", "Network failures and unanswered actions:",
+            "Action latency, tap to answer (p50 and p95 as the upper edge of their bucket), with the server's own time:", "", "Layout anomalies by device:", "",
+            "Feature use, taps by component:", "Rage taps (three quick taps on one control) by component:", "Dead taps (a tap that changed nothing on the page) by component:"])
+        self.assertEqual((sections[1]["lines"], sections[4]["lines"]), (["none"], ["none", "Rollback rate: 0 of 0 actions (-)"]))
+        text = share_cli.summary_text(out)
+        self.assertIn("\n\nTop errors:\n  none\n\nRefusals by route and code", text)
+        self.assertIn("\n  none\n  Rollback rate: 0 of 0 actions (-)\n\nReconnect gaps after the page shows again: 0, 0 over 10 s, worst - ()\n\nLayout", text)
+
     def test_an_empty_log_summarizes_to_nothing(self):
         code, out, err = share(tmpdir(self), "logs", "--summary", "--json")
         self.assertEqual(code, 0, err)

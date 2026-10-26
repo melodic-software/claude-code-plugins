@@ -48,7 +48,10 @@ jobs:
       contents: write # list branches, compare, delete a branch ref
       issues: read # read linked issues
       pull-requests: read # read each branch's pull requests
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
     env:
+      API_BUDGET_TOKEN: github-token
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -111,3 +114,11 @@ jobs:
           path: ${{ runner.temp }}/branch-cleanup-ledger.jsonl
           if-no-files-found: ignore
           retention-days: 90
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

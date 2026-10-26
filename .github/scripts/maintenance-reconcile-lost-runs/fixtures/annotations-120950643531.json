@@ -1,0 +1,4 @@
+[
+  { "path": ".github", "start_line": 1, "end_line": 1, "annotation_level": "failure", "title": "", "message": "The job has exceeded the maximum execution time of 9m0s" },
+  { "path": ".github", "start_line": 32, "end_line": 32, "annotation_level": "failure", "title": "", "message": "The operation was canceled." }
+]

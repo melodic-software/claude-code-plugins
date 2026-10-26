@@ -3,6 +3,24 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-26
+
+### Added
+
+- The control-skill contract gains a "Steps files" section: a feature may keep its Drive steps in a machine-readable file whose format stays the project's choice. Step ids are unique after includes expand and use letters, digits, `-` and `_` only; a repeated or malformed id stops the run before anything starts. Includes stay inside the control skill's own directory. An include can carry `prefix` (one file included twice with unique ids), `with` (parameter values for that include only; an undeclared name stops the run), `kind` (added to every included step, never removed) and `finally` (steps that run after a failure, where a write's reset goes). An optional step whose target is absent is recorded as skipped, with no retry or wait.
+- `/app-control:drive` reads a feature's steps file as data: it expands includes and checks ids before launching, reports each step by id, records an absent optional step as `skipped: optional`, and runs the finally steps after the others, failed or not. Each such step in `report.json` carries its `id`, an `outcome` and, for a finally step, `finally: true`.
+
+### Fixed
+
+- `/app-control:drive` and `/app-control:map` name each reference file they send the model to by its full plugin path, so a run reads it directly and does not search the plugin directory for it.
+
+## [0.10.0] - 2026-10-25
+
+### Added
+
+- `/app-control:map` create and refresh place a lesson learned while driving by its scope: a lesson about one feature goes in that feature's `## Gotchas`, one that holds for every feature goes in a new optional `## Gotchas` section of the control skill's hub, and any other lesson is written nowhere in the control skill and reported for `/corrections:codify`. In refresh a placed lesson is doc drift and ships in the upkeep pull request.
+- `/app-control:map refresh <feature>` narrows the source wave and live pass to one feature of the control skill that holds it; a clean narrowed pass records no state.
+
 ## [0.9.0] - 2026-10-25
 
 ### Added

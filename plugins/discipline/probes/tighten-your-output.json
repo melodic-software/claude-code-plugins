@@ -10,13 +10,6 @@
     "code-tidying:dissolve-comments",
     "discipline:mind-your-maxims"
   ],
-  "competitor_dirs": {
-    "writing:be-concise": "plugins/writing/skills/be-concise",
-    "docs-hygiene:compress": "plugins/docs-hygiene/skills/compress",
-    "adhd:shape": "plugins/adhd/skills/shape",
-    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments",
-    "discipline:mind-your-maxims": "plugins/discipline/skills/mind-your-maxims"
-  },
   "queries": [
     {
       "id": "pos-train-01",

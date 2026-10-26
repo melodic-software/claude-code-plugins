@@ -96,6 +96,17 @@ permissions: {}
 jobs:
   alert:
     name: File the demotion issue
+    # The file step's early exits, read from the event before any checkout: a
+    # workflow_run event that is not a signal, a pass on attempt 1, an
+    # action_required, or a run off this repository's main starts no job. A
+    # dispatch always runs; the Read step checks it.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && contains(fromJSON('["pr-require-checks:schedule", "pr-require-checks:workflow_dispatch", "post-merge-detect-silent-revert:push"]'), format('{0}:{1}', github.event.workflow_run.name, github.event.workflow_run.event))
+      && (contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
+      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)))
     runs-on: ubuntu-24.04
     # Up to 20 minutes waiting on the re-run, 40 for a dispatched run.
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 50 || 30 }}
@@ -900,6 +911,8 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Each call's rate-limit reading, for the api-budget notice below.
+          API_BUDGET_TOKEN: github-token
           REPOSITORY: ${{ github.repository }}
           BASE_PATH: .base
           CALL_BUDGET: "300"
@@ -909,3 +922,11 @@ jobs:
           RUN_WORKFLOW_ID: ${{ needs.alert.outputs.workflow-id }}
           RUN_CREATED: ${{ needs.alert.outputs.created }}
         run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

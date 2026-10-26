@@ -81,8 +81,14 @@ test("refuses .gitmodules", () => {
   assert.deepEqual(refusalsOf(entry(".gitmodules")), ["gitmodules"]);
 });
 
-test("refuses plugins/p/settings.local.json", () => {
-  assert.deepEqual(refusalsOf(entry("plugins/p/settings.local.json")), ["settings"]);
+test("admits a settings file anywhere under plugins/", () => {
+  for (const path of ["plugins/p/settings.local.json", "Plugins/harness-ops/skills/behavior-probes/cases/c/settings.json"]) {
+    assert.deepEqual(refusalsOf(entry(path)), [], path);
+  }
+});
+
+test("refuses a settings file that leaves plugins/ through a .. segment", () => {
+  assert.deepEqual(refusalsOf(entry("plugins/../.claude/settings.json")), ["settings"]);
 });
 
 test("refuses a symbolic link, mode 120000", () => {

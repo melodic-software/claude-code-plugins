@@ -296,7 +296,8 @@ class FakeGh:
                 (run_id, attempt),
                 [failed_job(run_id * 10 + attempt, "test-bash", "Run the bash tests")],
             )
-            return completed([{"total_count": len(jobs), "jobs": jobs}])
+            page = {"total_count": len(jobs), "jobs": jobs}
+            return completed([page] if "--slurp" in args else page)
         if "/check-runs/" in endpoint:
             value = self.annotations.get(
                 int(endpoint.split("/check-runs/")[1].split("/")[0]), []
