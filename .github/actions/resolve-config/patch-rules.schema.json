@@ -38,7 +38,7 @@
               "skill-md"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path github-workflows, codeowners, gitmodules or settings matches, or that holds a backslash. Optional, refused only where a row names them, in any case and through any .. segment: skills: a path under a skills/ directory at any depth; skill-md: a SKILL.md at any depth."
+          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json outside plugins/; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path github-workflows, codeowners, gitmodules or settings matches, or that holds a backslash. Optional, refused only where a row names them, in any case and through any .. segment: skills: a path under a skills/ directory at any depth; skill-md: a SKILL.md at any depth."
         },
         "allow": {
           "type": "array",

@@ -578,10 +578,11 @@ function stopTimer(timer: Timer | undefined) {
   return undefined
 }
 
-// The band row: ctx <n>% (<zone>).
+// The band row: context-guard: <zone> <n>%. The zone comes before the figure, so a cut row still shows it.
 export const bandText = (r: Reading | undefined) => {
-  const zone = r?.zone === undefined ? '' : ` (${r.degraded && r.zone === 'dumb' ? 'dumb, compacted' : r.zone})`
-  return `ctx ${r?.percent === undefined ? '-' : `${r.percent}%${zone}`}`
+  if (r?.percent === undefined) return `${PREFIX}-`
+  const zone = r.zone === undefined ? '' : `${r.degraded && r.zone === 'dumb' ? 'dumb, compacted' : r.zone} `
+  return `${PREFIX}${zone}${r.percent}%`
 }
 
 const USAGE = 'usage: /context-guard [band [on|off]]'

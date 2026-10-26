@@ -24,12 +24,16 @@
 // (dispatch-record.mjs), so later runs skip it before any read; the next push
 // makes a new head.
 // A head whose lanes passed but whose pr-test-windows run failed is a
-// candidate too. A head is skipped only while a re-run of its tested run is
-// queued or going, or while an infra-only first failure's one re-run by the
+// candidate too. A head is skipped while a re-run of its tested run is
+// queued or going, while an infra-only first failure's one re-run by the
 // lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
-// RERUN_DUE_MINUTES); a real failure (a test, lint or typecheck step), an
-// infra failure that failed again, and a run or field that cannot be read go
-// to fix-ci, with the cause logged.
+// RERUN_DUE_MINUTES), and when its tested run ended cancelled with no check on
+// the head that fix-ci-context counts as failing (its failingChecks, over the
+// same check-run read), which would only post not-applicable (the reconciler
+// re-runs a cancelled first attempt); a real
+// failure (a test, lint or typecheck step), an infra failure that failed
+// again, and a run or field that cannot be read go to fix-ci, with the cause
+// logged.
 // The fix-ci-context job decides the round cap. Logs carry PR numbers, SHAs,
 // run ids, counts and failed job and step names (control characters dropped,
 // 80 characters each at most) only.
@@ -37,7 +41,9 @@
 import { AGGREGATE_JOBS, FAILED, infraCause, infraOnly, RERUN_DUE_MINUTES, reconcilerOwns, reconcilerRetries, stepsKnown, stepsUnread } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
+import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold } from "./gate-source.mjs";
+import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -184,6 +190,7 @@ function lanesState(node) {
 
 const failedState = (state) => ["FAILURE", "ERROR"].includes(state);
 const lanesFailed = (node) => failedState(lanesState(node));
+const cancelled = (required) => required?.run?.status === "completed" && required.run.conclusion === "cancelled";
 
 // The lanes passed and another check failed: an advisory lane's, if any.
 const advisoryFailed = (node, checks, checkName) =>
@@ -292,8 +299,9 @@ export function skipReason(
     return failedState(lanesStatus(node)?.state) ? "ci-lanes failed but the GitHub Actions bot did not set it" : "ci-lanes has not failed";
   }
   // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
-  // when only an advisory check failed) and its latest jobs, is attached by
-  // dispatchCiFixes just before it would dispatch.
+  // when only an advisory check failed) and its latest jobs, and, when that run
+  // ended cancelled, node.headCheckRuns, every REST check run on the head, are
+  // attached by dispatchCiFixes just before it would dispatch.
   const required = node.requiredRun;
   if (required !== undefined) {
     if (advisory && required.run?.conclusion !== "failure") {
@@ -302,6 +310,9 @@ export function skipReason(
     const owned = reconcilerOwns(required, now);
     if (owned !== "") {
       return owned;
+    }
+    if (cancelled(required) && node.headCheckRuns !== undefined && failingChecks(node.headCheckRuns).length === 0) {
+      return `tested run ${required.run.id} attempt ${required.run.run_attempt} ended cancelled and no check failed for fix-ci to fix`;
     }
   }
   // node.fixCiRuns, every fix-ci run on the head (the rollup holds only the
@@ -432,6 +443,10 @@ export async function dispatchCiFixes({
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
       continue;
@@ -444,6 +459,8 @@ export async function dispatchCiFixes({
     } catch (error) {
       if (error.rateLimited) {
         log(`::warning::#${node.number}: its ${checkName} run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+      } else if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its ${checkName} runs: ${error.message}; skipped, a later run retries`);
       } else {
         failed += 1;
         log(`::error::#${node.number}: could not read its ${checkName} runs (${error.message}); left for a later run`);
@@ -470,9 +487,27 @@ export async function dispatchCiFixes({
         log(`::warning::#${node.number}: its required run read is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
         continue;
       }
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its required run's jobs: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); dispatching fix-ci under its caps`);
     }
-    const reason = skipReason({ ...node, requiredRun, laneGate, fixCiRuns }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+    // A cancelled tested run can hide a failed job behind a later skipped run
+    // of it, which the rollup does not show: read what fix-ci-context reads.
+    let headCheckRuns;
+    if (cancelled(requiredRun)) {
+      try {
+        headCheckRuns = await api.listCommitCheckRuns(node.headRefOid);
+      } catch (error) {
+        if (error.rateLimited || serverFailure(error)) {
+          log(`::warning::#${node.number}: could not read its head's check runs: ${error.message}; skipped, a later run retries`);
+          continue;
+        }
+        log(`::warning::#${node.number}: could not read its head's check runs (${error.message}); dispatching fix-ci under its caps`);
+      }
+    }
+    const reason = skipReason({ ...node, requiredRun, laneGate, fixCiRuns, headCheckRuns }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;
