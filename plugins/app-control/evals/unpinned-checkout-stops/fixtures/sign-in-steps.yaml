@@ -1,0 +1,9 @@
+params:
+  account: none
+steps:
+  - id: open-login
+    action: goto /login
+  - id: fill-user
+    action: fill field "Username" with the {account} account's username
+  - id: submit
+    cli: sign-in {account}

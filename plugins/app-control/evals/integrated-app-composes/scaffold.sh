@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Seeds the shop control skill and a checkout of the identity repository with its own control skill;
-# both apps are the two-process identity fixture. Each is its own repository with its config committed.
+# both apps are the two-process identity fixture. Each is its own repository with its config committed,
+# and the shop's committed config pins the identity checkout's HEAD commit.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,6 +31,8 @@ commit() {
 }
 git init -q -b main checkouts/identity
 commit checkouts/identity "Identity server with its control skill"
+sha="$(git -C checkouts/identity rev-parse HEAD)"
+sed "s/@IDENTITY_SHA@/$sha/" "$here/fixtures/defaults.json" >"$skill/config/defaults.json"
 if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; then
   git init -q -b main
 fi

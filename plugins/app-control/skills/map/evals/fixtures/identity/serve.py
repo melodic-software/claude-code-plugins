@@ -69,6 +69,20 @@ def make_handler(role, identity):
     return Handler
 
 
+def http_url(value):
+    """argparse type: an http(s) URL with a host and no whitespace or control character."""
+    if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in value):
+        raise argparse.ArgumentTypeError(f"{value!r} holds whitespace or a control character")
+    try:
+        u = urllib.parse.urlsplit(value)
+        u.port
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(f"{value!r}: {error}") from None
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise argparse.ArgumentTypeError(f"{value!r} is not an http or https URL")
+    return value
+
+
 def serve(role, port, identity):
     server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(role, identity))
     print(server.server_address[1], flush=True)
@@ -157,6 +171,17 @@ def self_test():
             query = urllib.parse.urlencode({"redirect_uri": bad})
             status, _, _ = get(f"{idp_url}/authorize?{query}")
             check(status == 400, f"identity /authorize accepted {bad!r} with {status}")
+
+        for bad in ("file:///etc/passwd", "http://", f"{idp_url} --port 1", "http://127.0.0.1:x"):
+            try:
+                code = subprocess.run(
+                    [sys.executable, "-I", __file__, "app", "--port", "0", "--identity", bad],
+                    capture_output=True,
+                    timeout=5,
+                ).returncode
+            except subprocess.TimeoutExpired:
+                code = None
+            check(code == 2, f"app accepted --identity {bad!r}")
     finally:
         for proc in procs:
             proc.terminate()
@@ -173,7 +198,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("role", nargs="?", choices=["app", "idp"])
     parser.add_argument("--port", type=int, default=0)
-    parser.add_argument("--identity", default="")
+    parser.add_argument("--identity", type=http_url)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -181,7 +206,7 @@ def main():
     elif args.role == "app" and not args.identity:
         parser.error("app needs --identity URL")
     elif args.role:
-        serve(args.role, args.port, args.identity.rstrip("/"))
+        serve(args.role, args.port, (args.identity or "").rstrip("/"))
     else:
         parser.error("give a role or --self-test")
 

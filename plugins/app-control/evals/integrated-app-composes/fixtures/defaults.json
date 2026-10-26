@@ -11,6 +11,9 @@
       }
     }
   },
+  "pins": {
+    "identity": "@IDENTITY_SHA@"
+  },
   "credentials": {
     "shopper": {
       "password": "SHOP_SHOPPER_PASSWORD"

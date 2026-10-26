@@ -195,7 +195,8 @@ CLI through it. Otherwise write a script in the language the repository already 
 
 - prints one JSON document on stdout under `--json`, and progress on stderr;
 - rejects an unknown flag, a repeated step id, or an app, environment or feature id that does not
-  exist, before it starts anything;
+  exist, before it starts anything; a write whose `--step` key has no grant is refused by the
+  Write grants floor, not rejected here;
 - records the app's own pid, not a wrapper shell's;
 - reads its settings through the Config layers below and reports each value's layer, and has a
   `config` command that changes nothing and prints each value with its layer;
@@ -228,6 +229,7 @@ them:
 | `environment` | The environment a run targets, by name; any layer may select one |
 | `environments` | The environment entries, committed only, per [Environments](#environments) |
 | `checkouts` | Per integrated app in another repository, the path of its local checkout, per [Integrated apps](#integrated-apps) |
+| `pins` | Per integrated app in another repository, the full 40-hex commit SHA its checkout must hold, committed only, per [Integrated apps](#integrated-apps) |
 | `timeouts` | How long launch, ready and each step may take |
 | `credentials` | Per account, the names of the environment variables that hold its credentials |
 | `safety` | The floors below |
@@ -237,10 +239,11 @@ them:
 
 An environment's targets come only from committed config: the `environments` field of
 `config/defaults.json` at HEAD, read the way Safety floors reads it. The local, environment and
-flag layers may select an environment by name through `environment`, never add or redefine one; a
-layer that sets `environments` or any field of an entry makes the CLI do nothing and exit 4,
-printing the layer and the entry, and `config` exits 4 the same way. Selecting a name that is not
-an entry at HEAD is an unknown environment id.
+flag layers may select an environment by name through `environment`, never add or redefine one.
+`environments` and `pins` are committed-only fields: a local, environment or flag layer that sets
+either, or any field inside one, makes the CLI do nothing and exit 4, printing the layer and the
+field, and `config` exits 4 the same way. Selecting a name that is not an entry at HEAD is an
+unknown environment id.
 
 Each entry, keyed by the name the team gave it, may hold:
 
@@ -249,12 +252,19 @@ Each entry, keyed by the name the team gave it, may hold:
 | `url` | Where the app answers in this environment |
 | `services` | Per dependency service a journey crosses: its `url` and an optional read-only `ready` command, or `app` and `environment` naming an integrated app's environment, which supplies both |
 | `extends` | Another entry in the same file whose fields this one starts from; its own fields replace them one by one, and `services` merge by name |
-| `writes` | Per write, keyed by step id (or `cli/` command for a feature without a steps file): `never`, `attended` or `unattended`. A write not listed has no grant |
+| `writes` | Per write, keyed by step id (or `cli/` command for a feature without a steps file), the key the caller passes as `--step` per the Write grants floor: `never`, `attended` or `unattended`. A write not listed has no grant |
 | `production` | `true` marks the environment production, per the Production floor |
 
 An `extends` naming no entry, or a chain that loops, is rejected before anything starts. An entry
 that extends a production entry is production too; it cannot clear the mark. External systems a
 step writes to take a `writes` map of the same shape under `systems`.
+
+A `## Launch` or `## Ready` command names these urls by placeholder: `<environment url>` for the
+selected entry's `url`, `<<service> service url>` for a dependency service's. The run splits the
+command into arguments first, fills each placeholder as exactly one argument, and runs the command
+without a shell. The value must parse as an `http` or `https` URL and hold no whitespace or control
+character; a value that does not, or a placeholder that is not a whole argument, stops the run
+before it launches anything, naming the placeholder and the value.
 
 ## Integrated apps
 
@@ -267,21 +277,34 @@ environments; this control skill never copies them. The hub lists each one above
 ```
 
 - **Include by reference.** A steps-file include names `<app>:<path>`, a steps file inside that
-  app's control skill, and expands as any include does.
+  app's control skill, and expands as any include does. An included `cli:` step runs the owning
+  app's `cli/`, from its checkout, with that app's config layers and credential variables, never
+  this control skill's.
 - **Checkout.** For an app in another repository, `checkouts.<app>` holds the path of its local
   checkout, relative to the project directory the Hub index's `sources` resolve against. It is
   one person's value, from any layer; it says where code is, not where an environment is, so the
   committed-only rule above does not apply.
-  That app's environments and floors are read from its own committed config, at that checkout's
-  HEAD.
+- **Pin.** For the same app, `pins.<app>` in this control skill's committed config holds the full
+  commit SHA of that app's control skill this one was written against; a ref name is not a pin.
+  That app's environments, floors and `writes` are read from its own committed config at the pin,
+  `git -C <checkout> show <sha>:.claude/skills/control-<app>/config/defaults.json`.
 - **Missing checkout.** When the setting is unset, its path does not exist, or the path holds no
   `.claude/skills/control-<app>/SKILL.md`, the run stops before launching anything and prints the
   setting's name and the repository to clone.
+- **Checkout off the pin.** After that check and before launching anything, the run stops unless
+  `pins.<app>` is set at HEAD, `git -C <checkout> cat-file -e <sha>^{commit}` succeeds,
+  `git -C <checkout> diff --quiet <sha> -- .claude/skills/control-<app>/` exits 0, and
+  `git -C <checkout> ls-files --others -- .claude/skills/control-<app>/` lists nothing but that
+  app's `config/local.json`; ignored files count. It prints the setting's name, the pinned SHA
+  (or that `pins.<app>` is unset) and `fetch or check out`. The run passes no revision to that
+  app's CLI; this check is what makes its config, floors, steps and `cli/` the pinned ones.
 - **Floors.** A step that targets the integrated app's environment runs under that app's committed
   floors and this control skill's; an include never loosens a floor, and the per-run sign-in count
   spans both apps.
 - **Launch.** When the selected environment runs the integrated app locally, the run launches it
   with that app's Launch and stops it at cleanup, keeping one launch record and one log per app.
+  This control skill's Launch takes the app's url through a `<<service> service url>` placeholder,
+  filled per [Environments](#environments).
 
 ## Safety floors
 
@@ -305,11 +328,16 @@ caller reads exit 4 as refused by a floor, never as a failure to retry.
   for an account. The CLI keeps no state between calls, so the caller that owns the run (whatever runs the
   feature's `## Drive` steps) keeps the per-run count: it calls `sign-in` for an account at most once, and a failed attempt stops the run,
   with no switch to another account.
+- **Write grants.** Every write command takes `--step <id>`: the step's id as its owning steps
+  file writes it, without an include's prefix, or the `cli/` command's name for a feature without
+  a steps file. The CLI looks that key up in the committed `writes` of the selected environment, or
+  of the external system it writes to. A missing `--step`, a key not listed, `never`, and
+  `attended` without `--attended` are refused.
 - **Production.** An environment marked `production: true` in committed config is read-only. A
-  write to it runs only when committed config grants that write (`attended` or `unattended` in its
-  `writes`) and the command carries `--yes`, which a caller passes only after the person said yes in
+  write to it runs only when committed config grants that write's `--step` key (`attended` or
+  `unattended` in its `writes`) and the command carries `--yes`, which a caller passes only after the person said yes in
   this session. `--yes` without `--attended` is refused, so no config turns on an unattended
   production write.
 - **Unattended writes.** Off. A write command treats a call without `--attended` (passed only when
   a person is present in this session) as unattended, and writes then only where committed config
-  marks that write `unattended` for that environment or external system.
+  marks that write's `--step` key `unattended` for that environment or external system.

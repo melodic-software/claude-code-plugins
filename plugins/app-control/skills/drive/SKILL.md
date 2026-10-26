@@ -87,8 +87,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
    and stop that feature rather than guess a file.
 9. An include from an integrated app resolves through the contract's "Integrated apps", and its
-   control skill is read from disk at that app's checkout like any other: a missing checkout stops
-   that feature before launching, naming the setting and the repository to clone.
+   control skill is read from disk at that app's checkout like any other. A missing checkout, or one
+   off its committed pin, stops that feature before launching with the message that section gives.
+   An included `cli:` step runs that app's `cli/`, not this one's.
 
 The bundled `run` skill and how it defers to a project skill:
 <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
@@ -118,10 +119,11 @@ All as of 2026-10-25; recheck when any of them changes.
   where the app exposes its target (a sign-in redirect, a health field), the app sends to its url.
 - **Read-only by default.** A step that would write outside the app's own data, or needs a grant the
   run lacks, is not performed. The report names the narrowest grant that would allow it. Pass
-  `--attended` only with a person present and `--yes` only after that person said yes in this
-  session. A write to an environment marked `production: true` needs a committed grant for it
-  and `--yes`, and `--yes` needs `--attended`; without them, or on exit 4, the step is `blocked:`
-  with the floor, never retried. A capture
+  `--attended` only with a person present, `--yes` only after that person said yes in this
+  session, and each write's `--step` key; the contract's "Safety floors" (Write grants,
+  Production, Unattended writes) says which writes they allow. A step those floors refuse, or one
+  that exits 4, is `blocked:` with the floor, never retried. Launch and Ready placeholders are
+  filled per the contract's "Environments". A capture
   that needs elevation follows "Elevated captures go through a shown script" instead.
 - **Name the tool, never substitute.** Capture uses the tool the control skill names for the kind,
   one tool per tier. Drive implements no capture and picks no tool of its own. When no tool is named,
