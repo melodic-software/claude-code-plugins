@@ -1869,5 +1869,67 @@ class ReviewClearedFloorTests(unittest.TestCase):
         )
         files = tuple(_file(each) for each in changed)
         result = score(_input(files=files, lanes=lanes))
-        self.assertIn(f"review-path:{path}", _codes(result))
+        self.assertIn(f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{path}", _codes(result))
         self.assertTrue(holds(result))
+
+
+class UnbindableReviewPathTests(unittest.TestCase):
+    """Owner decision Q26 option B, follow-up: an enforcement path whose
+    security review can never bind at this head, because the pull request
+    also changes a lane source (`lane-source-changed`), is a person's
+    reason; a review not yet run or not read stays a lane's."""
+
+    PATH = B + "babysit_risk.py"
+
+    def _score(self, security):
+        lanes = (_lane("claude-review"), security)
+        return score(_input(files=(_file(self.PATH),), lanes=lanes))
+
+    def test_a_lane_source_change_makes_the_hold_a_persons(self):
+        security = _lane(
+            "claude-security-review", bound=False, unbound_reason="lane-source-changed"
+        )
+        result = self._score(security)
+        code = f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.PATH}"
+        self.assertIn(code, _codes(result))
+        self.assertNotIn(f"review-path:{self.PATH}", _codes(result))
+        self.assertTrue(holds(result))
+        self.assertIn(
+            code, [r.code for r in babysit_risk.person_reasons(result.reasons)]
+        )
+
+    def test_a_workflow_change_through_bind_is_a_persons(self):
+        import babysit_review_evidence
+
+        changed = [self.PATH, ".github/workflows/pr-review-security-hosted.yml"]
+        lanes = babysit_review_evidence.bind(
+            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=changed
+        )
+        result = score(_input(files=tuple(_file(p) for p in changed), lanes=lanes))
+        persons = [r.code for r in babysit_risk.person_reasons(result.reasons)]
+        self.assertIn(f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.PATH}", persons)
+
+    def test_a_transient_unbind_stays_a_lanes(self):
+        for reason in ("no-run", "evidence-error", "changed-files-unread", None):
+            with self.subTest(reason):
+                security = _lane(
+                    "claude-security-review", bound=False, unbound_reason=reason
+                )
+                result = self._score(security)
+                self.assertIn(f"review-path:{self.PATH}", _codes(result))
+                self.assertEqual(
+                    [
+                        r.code
+                        for r in babysit_risk.person_reasons(result.reasons)
+                        if self.PATH in r.code
+                    ],
+                    [],
+                )
+
+    def test_a_lane_source_change_on_the_code_lane_alone_is_not_enough(self):
+        lanes = (
+            _lane("claude-review", bound=False, unbound_reason="lane-source-changed"),
+            _lane("claude-security-review", bound=False, unbound_reason="no-run"),
+        )
+        result = score(_input(files=(_file(self.PATH),), lanes=lanes))
+        self.assertIn(f"review-path:{self.PATH}", _codes(result))

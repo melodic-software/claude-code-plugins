@@ -255,7 +255,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         scripts = sorted(
             f".github/scripts/pr-merge/{f.name}"
             for f in folder.iterdir()
-            if f.is_file() and f.suffix in {".mjs", ".bash"} and ".test." not in f.name
+            if f.is_file()
+            and f.suffix in {".mjs", ".bash"}
+            and ".test." not in f.name
+            and ".fixture." not in f.name
         )
         self.assertIn(".github/scripts/pr-merge/who.mjs", scripts)
         gate = {g for g, kind in risk.FLOOR_CLASSES if kind == "gate"}
