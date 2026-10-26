@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.3] - 2026-10-26
+
+### Added
+
+- The git-hook installer's shared plan (`lib/git-hooks/install.mjs plan --scope shared`, plain hooks, `core.hooksPath` not yet `.githooks`) returns a `shared-entries` decision before `hooks-path`, listing what setting `core.hooksPath` would also run that this plugin did not install: `<event>.d/` markers other than its own, any `.githooks/*.pre-checks` hook, any other hook file there that is not the dispatcher, and every tracked file under `.githooks/local/` ([#7613](https://github.com/melodic-software/claude-code-plugins/issues/7613)). Setup shows the list and sets `core.hooksPath` only on the user's yes. With none present the plan is unchanged.
+
+## [0.59.2] - 2026-10-26
+
+### Fixed
+
+- `secret_pattern_detection_allowed_roots` now grants a Windows write whose path reaches an allowed root through a junction into the temp folder, as it does on Linux. Git Bash answers such a junction in the `/tmp` mount spelling, and the long drive spelling of that answer is now taken from the existing ancestor alone, before the components still to be created are joined. A path that resolves outside every root, or that cannot be resolved, is still scanned.
+
 ## [0.59.1] - 2026-10-25
 
 ### Fixed

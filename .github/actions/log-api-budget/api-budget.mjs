@@ -5,4 +5,4 @@
 // Never throws. The rate guard keeps each guarded call's reading with it, so
 // it lives in rate-guard.mjs.
 
-export { readingLine, recordReading } from "./rate-guard.mjs";
+export { readingLine, recordContentWrite, recordReading } from "./rate-guard.mjs";

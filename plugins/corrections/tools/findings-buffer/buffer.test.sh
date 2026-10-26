@@ -321,6 +321,19 @@ DETAIL="exit $RC; stderr: $ERR"
 check "a user-scope binding with one option set: refused, append uses local-file and says so" refused_user "$RC" "$R" "$ERR"
 rm -f "$CONFIG/settings.json"
 
+# A binding file of unknown keys prints the first five errors, then a count of the rest.
+new_repo
+mkdir -p "$R/docs/conventions"
+{
+  for i in $(seq 1 1200); do printf 'unknown_%d: x\n' "$i"; done
+  printf 'adapter: local-file\n'
+} >"$R/docs/conventions/findings-buffer.yaml"
+run "$R" append < <(printf '%s\n' "$ROW")
+DETAIL="exit $RC; stderr: $(head -c 2000 <<<"$ERR")"
+check "1200 unknown keys: append exits 0" test "$RC" -eq 0
+check "1200 unknown keys: six stderr lines for the layer" test "$(grep -c 'team (' <<<"$ERR")" -eq 6
+check "1200 unknown keys: the last line counts the rest" grep -q 'team (.*findings-buffer.yaml): and 1195 more$' <<<"$ERR"
+
 # Usage.
 new_repo
 run "$R" bogus

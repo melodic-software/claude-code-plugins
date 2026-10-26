@@ -110,6 +110,19 @@ for (const job of JOBS) {
     assert.equal(input(resolve, "model-route"), JUDGE.modelRoute);
   });
 
+  test(`${job}: every local action runs from the base checkout`, () => {
+    // A local path outside .base/ runs the pull request head's copy of the
+    // action, resolve-config included, which the head can rewrite.
+    const local = [...jobText(job).matchAll(/^\s*(?:-\s+)?uses:\s*["']?(\.[^\s"']*)/gm)].map((m) => m[1]);
+    assert.ok(local.length > 0, `${job} runs local actions`);
+    for (const uses of local) {
+      assert.match(uses, /^\.\/\.base\//, `${job}: ${uses}`);
+      assert.doesNotMatch(uses, /(^|\/)\.\.(\/|$)/, `${job}: ${uses}`);
+    }
+    const resolve = /^ {8}uses: (\S+)/m.exec(step(job, "Resolve the verifier's model"))?.[1];
+    assert.equal(resolve, "./.base/.github/actions/resolve-config");
+  });
+
   test(`${job}: run-claude-cli and the managed settings are at the replay's pin`, () => {
     for (const [name, action] of [
       ["Judge the pull request", "run-claude-cli"],

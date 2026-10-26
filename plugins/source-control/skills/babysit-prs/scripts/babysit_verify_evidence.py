@@ -73,13 +73,15 @@ from a completed, successful one. Any other artifact is ignored.
   head whose passes all predate the spec's last change, and the lost-run
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
-  for a person;
+  for a new head;
 - otherwise `verify:missing`.
 
-`verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and
-`verify:untrusted-spec` need a human, who merges in person; a
-`verify:repeated-fail` escalation quotes the newest head FAIL's summary
-(`Reader.fail_summary`). A `verify:fail` or `verify:earlier-fail` only waits:
+`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a
+human (`NEEDS_HUMAN`), who merges in person; a `verify:repeated-fail`
+escalation quotes the newest head FAIL's summary (`Reader.fail_summary`).
+`verify:spec-changed` holds for the lanes (owner rule 2026-10-26), and
+enable-auto-merge.mjs shows one that stands as a failing `pr-merge/unarmed`
+status. A `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
@@ -98,7 +100,11 @@ error is read again after each of `LISTING_WAITS`, every read inside one gh
 timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
 included, is not. A failed listing is never saved, and is kept as well, so one
 outage refuses every entry of the gate run without paging again: it holds the
-whole queue rather than merging blind.
+whole queue rather than merging blind. `evidence --shared-listing`
+(enable-auto-merge.mjs's reader) takes the run's saved listing at any age and
+allows on it without listing again, so its run lists once: ci-status's
+merge-queue step runs this reader again, on a listing of its own, for a lanes
+App pull request at the head it merges.
 
 An untied FAIL's recorded head branch is read from the head-ref map pr-merge.yml
 names in `HEAD_REFS_ENV` before it is downloaded: artifact id to the head_ref
@@ -209,7 +215,8 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
-# The oldest listing any judgment uses, saved or in memory (see the bound).
+# The oldest listing a judgment uses, saved or in memory (see the bound),
+# unless `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
@@ -235,12 +242,14 @@ INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
-NEEDS_HUMAN = (
-    REPEATED_FAIL,
-    TOO_OLD,
-    UNTRUSTED_SPEC,
-    SPEC_CHANGED,
-)
+# The refusals only a person clears (owner rule 2026-10-26: a person only
+# for an intent or design change or a CRITICAL security issue, with trust
+# holds kept): an untrusted spec (provenance), and the two no lane can clear,
+# the repeated-FAIL cap (terminal: `merge.max-verify-fails`) and an old pull
+# request (judged from its creation, so it never clears). A changed spec
+# holds for the lanes, which judge it again. The one list the merge gate and
+# enable-auto-merge.mjs (`needsHuman`) read.
+NEEDS_HUMAN = (REPEATED_FAIL, TOO_OLD, UNTRUSTED_SPEC)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -453,9 +462,9 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
 # What earlier pr-merge runs read, copied into this run's cache by
-# .github/scripts/pr-merge/carry-run-cache.mjs from a cache entry any job in
-# the default branch's cache scope could have written. Each is used only
-# where it counts a FAIL; any other answer is read from GitHub.
+# .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted runs'
+# pr-merge-run-cache and pr-merge-verify-run-cache artifacts. Each is still used only where it counts a FAIL;
+# any other answer is read from GitHub.
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
@@ -477,6 +486,17 @@ RUN_FIELDS = (
     "run_attempt",
     "run_started_at",
 )
+# `_origin` and carry-run-cache.mjs read only these objects' `full_name`.
+REPOSITORY_FIELDS = ("repository", "head_repository")
+
+
+def _run_fields(record: dict[str, Any]) -> dict[str, Any]:
+    """The `RUN_FIELDS` of a run record, each repository kept as its name."""
+    fields = {k: record.get(k) for k in RUN_FIELDS}
+    for k in REPOSITORY_FIELDS:
+        if is_json_object(fields[k]):
+            fields[k] = {"full_name": fields[k].get("full_name")}
+    return fields
 
 
 class _Unreadable(Exception):
@@ -514,12 +534,15 @@ def _wall_clock() -> datetime:
     return datetime.now(UTC)
 
 
-def _recent(fetched_at: datetime | None) -> bool:
-    """A listing begun at most `LISTING_MAX_AGE` ago; a time with no zone, or
-    one in the future, is not."""
+def _recent(
+    fetched_at: datetime | None, max_age: timedelta | None = LISTING_MAX_AGE
+) -> bool:
+    """A listing begun at most `max_age` ago (None: any time before now); a
+    time with no zone, or one in the future, is not."""
     if fetched_at is None or fetched_at.tzinfo is None:
         return False
-    return timedelta(0) <= _wall_clock() - fetched_at <= LISTING_MAX_AGE
+    age = _wall_clock() - fetched_at
+    return timedelta(0) <= age and (max_age is None or age <= max_age)
 
 
 def dependency_bot(user: Any) -> bool:
@@ -706,6 +729,9 @@ class Reader:
     # the author a size split's sub-issue needs (`_split_child`); unset, no
     # sub-issue counts.
     agent_identity: str | None = None
+    # The oldest listing a judgment uses; None (`evidence --shared-listing`)
+    # takes the run's saved listing at any age.
+    listing_max_age: timedelta | None = LISTING_MAX_AGE
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -750,13 +776,15 @@ class Reader:
         return listing
 
     def _current_listing(self) -> list[dict[str, Any]]:
-        """Every repository artifact, read at most `LISTING_MAX_AGE` before
+        """Every repository artifact, read at most `listing_max_age` before
         this judgment (from the run's saved listing when it is that recent): a
         failed read is kept too, so one outage refuses each later entry
         without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
-        if self._artifacts is not None and _recent(self._fetched_at):
+        if self._artifacts is not None and _recent(
+            self._fetched_at, self.listing_max_age
+        ):
             return self._artifacts
         saved = None if self._own else self._load_saved()
         if saved is not None:
@@ -798,7 +826,7 @@ class Reader:
 
     def _load_saved(self) -> tuple[datetime, list[dict[str, Any]]] | None:
         """The run's saved listing and when it began to be read. A missing or
-        malformed file, or one with no `fetchedAt` within `LISTING_MAX_AGE`,
+        malformed file, or one with no `fetchedAt` within `listing_max_age`,
         is none, so the listing is read from the API instead."""
         if not self.listing_path:
             return None
@@ -811,7 +839,7 @@ class Reader:
             return None
         listing = saved.get("artifacts")
         if (
-            not _recent(fetched_at)
+            not _recent(fetched_at, self.listing_max_age)
             or not is_json_array(listing)
             or not all(map(is_json_object, listing))
         ):
@@ -951,7 +979,7 @@ class Reader:
         if not cached:
             self._started[run_id] = record.get("run_started_at")
             self._created[run_id] = record.get("created_at")
-            run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
+            run_cache.put(RUN_SECTION, key, _run_fields(record))
         done = (
             record.get("status") == "completed"
             and record.get("conclusion") == "success"
@@ -1868,8 +1896,9 @@ def lane_risk_refusal(
     pr: dict[str, Any],
     config: merge_policy.PipelineConfig,
     issue: int | None,
-) -> str | None:
-    """Why pr-merge's gate would hold the pull request on its risk score, or
+) -> tuple[str, bool] | None:
+    """Why pr-merge's gate would hold the pull request on its risk score, and
+    whether only a person clears it (`babysit_risk.person_reasons`), or
     None: `babysit_risk.score` and `holding` over the inputs the gate builds
     (`babysit_merge.score_unattended`) for a lane pull request, with `config`
     the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
@@ -1885,7 +1914,7 @@ def lane_risk_refusal(
     try:
         identity = config.agent_identity
         if not identity:
-            return "unreadable: no agent identity"
+            return "unreadable: no agent identity", False
         permission = merge_policy.permission_reader(repo)
         files, complete = merge_policy.changed_files(repo, pr)
         lanes, _ = babysit_merge._lane_evidence(
@@ -1904,6 +1933,7 @@ def lane_risk_refusal(
         risk_input = babysit_risk.RiskInput(
             files=files,
             files_complete=complete,
+            files_capped=merge_policy.files_capped(pr),
             max_changed_lines=config.max_changed_lines,
             high_paths=config.denied_paths,
             lanes=lanes,
@@ -1921,9 +1951,10 @@ def lane_risk_refusal(
             if decision:
                 risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
-        return f"unreadable: {type(exc).__name__}: {exc}"
+        return f"unreadable: {type(exc).__name__}: {exc}", False
     held = babysit_risk.holding(risk)
-    return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
+    text = "; ".join(f"{r.code}: {r.detail}" for r in held)
+    return (text, bool(babysit_risk.person_reasons(held))) if text else None
 
 
 def lane_queue(
@@ -1972,7 +2003,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     lower one (`with_default_branch`), each read once per run by commit
     (`merge_policy.config_at`); a config that cannot be read refuses
     `verify:unreadable`. A pass judged on the run's saved listing is judged
-    again on a listing of its own, as the gate does before it allows.
+    again on a listing of its own, as the gate does before it allows. With
+    `--shared-listing` the run's saved listing serves at any age, an allow
+    included: ci-status's merge-queue step runs this reader again at the head.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
     pull request's issue link is one the pr-merge lane takes and its issue
@@ -1981,7 +2014,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
-    the pull request on its risk score (`lane_risk_refusal`), else why. With
+    the pull request on its risk score (`lane_risk_refusal`), else why, and
+    `reviewsPerson`: whether only a person clears that hold. With
     `--lane-queue` too, a line whose `reviews` is null also carries `queue`
     (`lane_queue`): the head's failed-check merge-queue removals, the
     `merge.max-queue-ejections` limit, and the gate's refusal and comment at
@@ -2009,6 +2043,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--lane-reviews", action="store_true")
     cmd.add_argument("--lane-queue", action="store_true")
     cmd.add_argument("--rung", default=None)
+    cmd.add_argument("--shared-listing", action="store_true")
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     room = sub.add_parser("lane-room", allow_abbrev=False)
@@ -2046,6 +2081,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews and --base-sha")
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
+    if args.shared_listing:
+        reader.listing_max_age = None
     link: dict[str, Any] = {}
     config: merge_policy.PipelineConfig | None = None
     if args.lane_link:
@@ -2075,11 +2112,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             print(json.dumps(refusal.report() | link))
             return 0
     evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved:
+    if evidence.refusal is None and reader.saved and not args.shared_listing:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:
         head = json_object(json_object(pr).get("head")).get("sha")
+        # Whether only a person clears `reviews`; an unread score the lanes
+        # read again.
+        link["reviewsPerson"] = False
         if head != args.head:
             link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
         elif config is None:
@@ -2092,8 +2132,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                 cap=args.rung if args.rung in merge_policy.RUNG_RANK else "off",
                 demoted=False,
             ).rung
-            link["reviews"] = (
-                f"unreadable: the lane's rung is {args.rung}"
+            held = (
+                (f"unreadable: the lane's rung is {args.rung}", False)
                 if rung == "off"
                 else lane_risk_refusal(
                     args.repo,
@@ -2103,6 +2143,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
                     reader.linked_issue.get(args.number),
                 )
             )
+            link["reviews"], link["reviewsPerson"] = held or (None, False)
         if args.lane_queue and link["reviews"] is None and config is not None:
             link["queue"] = lane_queue(
                 args.repo,

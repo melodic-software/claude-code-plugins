@@ -3,6 +3,78 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.9.0] - 2026-10-26
+
+### Changed
+
+- `/source-control:pull-request create` arms event delivery for the PR it opened (the push channel, else the Monitor watch; polling in a cloud session) when the session will keep acting on it, through Steps 1-3 of the Monitor entry checklist, instead of ending Phase 2 and leaving monitoring to a separate `monitor` invocation. `create --pushed` still hands monitoring to its caller, which arms delivery through the same checklist.
+
+## [3.8.2] - 2026-10-26
+
+### Fixed
+
+- The babysit-prs verdict-evidence script's comment now names both artifacts pr-merge's carried reads come from: `pr-merge-run-cache` and `enable-auto-merge`'s `pr-merge-verify-run-cache`. Behavior is unchanged; a carried read still counts only toward a FAIL.
+
+## [3.8.1] - 2026-10-26
+
+### Changed
+
+- `babysit_gh.py` reads its `limits.api` defaults (`writer-pause`, `read-floor`, and github-token's `limit-cap`, which replaces the `GITHUB_TOKEN_LIMIT_CAP` constant) from `.github/actions/log-api-budget/rate-limits.json` instead of the pipeline schema, with the same values. A missing or invalid file still refuses every call, and a default that is not a number now does too.
+- `babysit_risk.HIGH_FLOOR` also holds `.github/actions/log-api-budget/rate-limits.json`, the rate-limit defaults `rate-guard.mjs` reads, so a change to one waits for a person.
+
+## [3.8.0] - 2026-10-26
+
+### Added
+
+- `/source-control:pull-request create` builds the `Summary` section's Problem and intent line from the linked item's `Problem:` and `- Intent (why, in the user's words):` lines when no local plan is found, reading the body from the GitHub issue read or, with a work-item tracker bound, `/work-items:track view`. A found plan still wins; the item text is framed as data and gets the plan line's shape and scrub, minus any closing keyword or `@` mention.
+
+## [3.7.1] - 2026-10-26
+
+### Changed
+
+- `babysit_verify_evidence.py evidence --shared-listing` judges on the run's saved artifact listing at any age and allows on it without listing again, so a run that passes it lists once for all its pull requests. Without the flag, the gate's two-minute bound and its own listing before an allow are unchanged.
+
+## [3.7.0] - 2026-10-26
+
+### Added
+
+- A `WorktreeRemove` hook (`hooks/worktree-remove-gate.sh`) reaps the project- and local-scope plugin install records of a worktree Claude Code removes itself (a `--worktree` session exit, `ExitWorktree`, a background-session delete, a `claude remote-control` cleanup) through `scripts/reap-project-plugin-records.sh`, then removes the worktree with plain `git worktree remove`, so those removals stop leaving stale records behind. It leaves the worktree on disk and exits non-zero for uncommitted or untracked changes, an operation in progress, submodules, a detached HEAD holding commits no ref holds, a lock whose reason names another session, or a reap that exits non-zero, and it keeps the branch. The hook needs the `claude` CLI on its `PATH`, now a declared prerequisite. Subagent and workflow-agent worktrees never reach the hook; `/source-control:worktree audit` Step 2b now says so, and `cleanup` still removes them.
+
+### Changed
+
+- A worktree Claude Code removes with uncommitted or untracked work now stays on disk: before this hook, Claude Code fell back to removing it with git, which discarded that work.
+
+## [3.6.1] - 2026-10-26
+
+### Fixed
+
+- The babysit-prs merge-skip and verdict-evidence scripts now say where pr-merge's carried store comes from: the `pr-merge-run-cache` artifact of a trusted run on main, no longer an Actions cache entry (#9455). Behavior is unchanged. A carried read still counts only toward a FAIL, and a carried refusal can only repeat a refusal.
+
+## [3.6.0] - 2026-10-26
+
+### Changed
+
+- The merge gate pulls a person in only for a reason a person must clear (owner rule 2026-10-26): `babysit_risk.person_reasons` (`PERSON_CODES`: a CRITICAL security finding, a trusted-actor widening, a cost hold, every high path, and `files-capped`, a listing past the files API's 3000-file cap) is the one list the gate and `enable-auto-merge.mjs` read. A risk hold the lanes clear, such as review evidence not bound to the head or a listing a read did not finish, keeps its reasons comment and no longer gets the human-gated label however long it stands.
+- A blocking security finding a bound review left open holds as `security-finding` after the lane unbinds (a new head, a newer marker, a retargeted base): the binder carries the count from the newest head of the pull request the security lane's evidence binds at, from the runs, comments and threads it already read. The gate's head-file reader sends no read again after a contents or comparison read fails, a rate limit included; a path it only cannot prove removed (`HeadFileUnproven`) stops nothing else.
+- `babysit_verify_evidence.NEEDS_HUMAN` drops `verify:spec-changed`, which the lanes judge again; the terminal repeated-FAIL cap, `verify:too-old` and `verify:untrusted-spec` stay a person's.
+- `evidence --lane-reviews` reports `reviewsPerson`, whether only a person clears the risk hold it names.
+
+### Fixed
+
+- The merge gate re-runs a rate-limited AI review only when the run's attempt 1 concluded `failure`, the condition under which the review binding takes attempt 2, so a re-run never spends the one allowed attempt on a hold.
+
+## [3.5.5] - 2026-10-26
+
+### Changed
+
+- The pr-merge run cache is parsed once per gate process until another process replaces it, and its shared run records keep only each repository's `full_name`, the one field their readers check. A verifier read no longer re-parses a multi-megabyte file on every lookup.
+
+## [3.5.4] - 2026-10-26
+
+### Fixed
+
+- The `pr-body-linkage-gate` and `pr-linkage-mcp-gate` hooks enforce again in a repository that wires in the contract composite at its current path, `.github/actions/pr-require-checks/check-contract`. Their scope guard matched only the old `.github/actions/pr-contract` path, so after the composite's rename neither hook fired anywhere that had moved to the new one. Both paths now count.
+
 ## [3.5.3] - 2026-10-26
 
 ### Fixed
