@@ -5094,11 +5094,12 @@ def lane_room(
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
-    `post_merge` is `assess`'s: an answer refused only as `unverified-stale`
-    is kept when nothing it was read from has moved (`_still_current`, with
-    `runs_unchanged(shared, branch)` for its unverified merges' runs), else
-    read again as the gate reads it (`_recompute_shared`), and a readable
-    one stands in for `shared`.
+    `post_merge` is `assess`'s: an answer the gate would not reuse
+    (`shared_refusal`) is read again as the gate reads it
+    (`_recompute_shared`, with the room's self logins, none), and a readable
+    one stands in for `shared`; one refused only as `unverified-stale` is
+    first kept when nothing it was read from has moved (`_still_current`,
+    with `runs_unchanged(shared, branch)` for its unverified merges' runs).
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
@@ -5110,12 +5111,9 @@ def lane_room(
 
     Any read failure, a missing `shared` and an in-flight count that could
     not be read included, is `unreadable`. So is a `shared` the gate would
-    not reuse (`shared_refusal`): too old (a re-run job downloads the run's
-    first report, up to a day old), a demotion record filed or changed
-    since, or a lane merge landed since that it does not count. An
-    `unverified-stale` one is kept or read again instead, since a lane
-    merge's verifying run may have passed or failed since; a read that fails
-    or is not readable leaves it `unreadable`."""
+    not reuse (too old, a demotion record filed or changed since, a lane
+    merge landed since that it does not count) when there is no `post_merge`
+    to read it again, or that read fails or is not readable."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
     try:
@@ -5143,18 +5141,21 @@ def lane_room(
         authority=PR_MERGE,
         now=now,
     )
-    if unusable == "unverified-stale" and post_merge is not None:
-        # Kept when nothing it was read from moved, else read again.
+    if unusable and post_merge is not None:
+        # As the gate, any refusal reads afresh; an unverified-stale answer
+        # is first kept when nothing it was read from moved.
         try:
-            current = runs_unchanged is not None and _still_current(
-                repo, default, identity, shared, runs_unchanged
+            current = (
+                unusable == "unverified-stale"
+                and runs_unchanged is not None
+                and _still_current(repo, default, identity, shared, runs_unchanged)
             )
         except (RuntimeError, ValueError, OSError):
             current = False
         if not current:
             try:
                 fresh = _recompute_shared(
-                    repo, default, identity, shared.self_logins, post_merge, now
+                    repo, default, identity, frozenset(), post_merge, now
                 )
             except (RuntimeError, ValueError, OSError) as exc:
                 return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
