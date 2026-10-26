@@ -72,9 +72,9 @@
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
 # then update the skill body and this suite in one change. Any session, a lane included, may
-# re-pin a digest after that re-read: tests/repin.sh rewrites one sha256 literal, and the commit
-# records the old and new digest and why the defense still holds, so the PR review judges the
-# change against the text it guards.
+# re-pin a digest after that re-read: tests/repin.sh rewrites the sha256 literal of each pin
+# it names, and the commit records the old and new digest and why the defense still holds, so
+# the PR review judges the change against the text it guards.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
@@ -104,7 +104,7 @@ FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 UPDATE_RULE="Read the git diff of this text first; the commit that updates the pin states, for each pin, old -> new and why the defense still holds."
 # Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
 # pins and the boundary failure have nothing for it to recompute.
-REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>' '<why the defense still holds>'"
+REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>'... '<why the defense still holds>'"
 PASS=0
 FAIL=0
 fail() {

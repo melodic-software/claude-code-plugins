@@ -738,6 +738,21 @@
         "create does not run the ready phase or flip the PR",
         "The report names the supplying level as the request"
       ]
+    },
+    {
+      "id": 56,
+      "name": "prep-lists-pre-push-warnings-advisory",
+      "narration": true,
+      "prompt": "/pull-request prep. Branch fix/review-gate changes plugins/review/skills/gate/SKILL.md (two lines removed) and .github/workflows/pr-require-checks.yml against origin/main; nothing under plugins/review/skills/gate/evals/ changes. prep-warnings.sh prints `skill-cut plugins/review/skills/gate/SKILL.md: 2 line(s) removed with no file added or changed under plugins/review/skills/gate/evals/; a cut ships only with eval evidence of no loss` and `protected-path .github/workflows/pr-require-checks.yml: the guarded merge holds it for a person (high-path:.github/workflows/pr-require-checks.yml)`.",
+      "expected_output": "Prep runs prep-warnings.sh against origin/main and lists both lines in the prep report, each naming its file. It treats them as advisory: it does not block or delay pull request creation on them and does not restore the removed lines or revert the workflow edit on its own.",
+      "files": [],
+      "expectations": [
+        "Runs prep-warnings.sh with --base origin/main",
+        "The prep report names plugins/review/skills/gate/SKILL.md as a skill cut with no eval change",
+        "The prep report names .github/workflows/pr-require-checks.yml as a path the merge holds for a person",
+        "Does not block pull request creation because of the warnings",
+        "Does not revert either change without the user"
+      ]
     }
   ]
 }
