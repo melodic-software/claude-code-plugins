@@ -105,8 +105,9 @@ the design alone, each reduced copy also keeping the Brief. A reduced depth publ
 leaves PLAN.md whole. `--reader <depth>` on `/planning:plan` overrides it for one run, and the plan
 records the depth it published at so a later close-out keeps it. A repository sets it for everyone
 with the `plan_reader` key in `docs/conventions/planning.yaml`, which wins over this option. A value
-outside the three is named and that layer is dropped; with no valid layer the plan publishes
-`step-by-step`. `/planning:setup apply plan_reader=<value>` writes the repository file.
+outside the three, `--reader` included, is named and that layer is dropped: a valid higher layer
+still wins, otherwise the plan publishes `step-by-step`, never a lower layer's value.
+`/planning:setup apply plan_reader=<value>` writes the repository file.
 
 **`phase_order`.** Decides the order of a plan's phases after the build technique is chosen.
 `composed` removes dead code the change touches first (a bug fix skips this), then builds the
