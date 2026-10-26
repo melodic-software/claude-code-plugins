@@ -2326,7 +2326,7 @@ def _answer_key(
             [c.get("databaseId")]
             if _self_written(c, bot)
             else [c.get("databaseId"), c.get("updatedAt")]
-            for c in map(json_object, json_array(comments.get("nodes")))
+            for c in map(json_object, _whole(comments, "pull request comments"))
         ],
         "threads": [
             [

@@ -406,6 +406,9 @@ class KeyTest(unittest.TestCase):
             "cut suites": lambda w: w.repository["head"]["checkSuites"].update(
                 totalCount=101
             ),
+            "cut pull request comments": lambda w: w.repository["pullRequest"][
+                "comments"
+            ].update(totalCount=101),
             "cut issue labels": lambda w: w.repository["pullRequest"][
                 "closingIssuesReferences"
             ]["nodes"][0]["labels"].update(totalCount=101),
