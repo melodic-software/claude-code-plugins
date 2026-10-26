@@ -1164,6 +1164,24 @@ for (const [why, reply, rung, want] of [
   });
 }
 
+// fix-docs's push takes the default row, which reads no report, so even a
+// reply that would rung-up fix-ci never selects rung-up there: an empty patch
+// escalates patch-empty and a written one pushes.
+test("the default row (fix-docs) never selects rung-up, for an empty or a written patch", (t) => {
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated unfixed three fixes failed\n");
+  const dir = scratch(t);
+  writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
+  const head = "a".repeat(40);
+  const base = { row: row("default"), patchHeadSha: head, headSha: head, reportDir };
+  for (const rung of [0, 1]) {
+    const empty = select({ ...base, patchState: "empty", patchSha256: "", patchDir: scratch(t), rung });
+    assert.deepEqual(empty, { proceed: false, skipReason: "awaiting-human", escalationReason: "patch-empty" }, `empty, rung ${rung}`);
+    const written = select({ ...base, patchState: "written", patchSha256: sha256("diff --git a/x b/x\n"), patchDir: dir, rung });
+    assert.deepEqual(written, { proceed: true, skipReason: "", escalationReason: "" }, `written, rung ${rung}`);
+  }
+});
+
 // A written fix pushes a new head whose own CI has not run yet: escalating
 // then would hand a PR to a person on the old head's checks. The new head's
 // CI decides, and a later fix-ci run on it escalates or meets the round cap.

@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { createGitHubApi } from "./dispatch.mjs";
 import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
+import { DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
@@ -335,6 +335,46 @@ test("a head fix-ci-context skips after every base move is dispatched three time
   for (const { calls } of cycles.slice(4)) {
     assert.deepEqual({ runs: calls.runs, timeline: calls.timeline, history: calls.history, jobs: calls.jobs }, { runs: 0, timeline: [], history: [], jobs: [] });
   }
+});
+
+// #9022 L3: fix-ci's retry one model rung up (pr-unblock.yml fix-ci-rung-up and
+// its subscription and fallback legs) runs pr-run-activity-read.yml as lane
+// pr-unblock, activity fix-ci, whose report job posts `<lane> / <activity>`:
+// the name this dispatcher counts. So a dispatch that rang up leaves two
+// counted runs on its head, and the per-head cap bounds rung-ups too: a head
+// gets at most two. Both runs failing is the case the cap decides; a run that
+// passed or escalated stops the head sooner.
+test("a rung-up retry's check is the counted fix-ci check, so it spends one of the head's runs toward the cap", async () => {
+  const unblock = readFileSync(new URL("../../workflows/pr-unblock.yml", import.meta.url), "utf8").split("\n");
+  for (const job of ["fix-ci-rung-up", "fix-ci-rung-up-subscription", "fix-ci-rung-up-fallback"]) {
+    const start = unblock.indexOf(`  ${job}:`);
+    assert.notEqual(start, -1, job);
+    const end = unblock.findIndex((line, i) => i > start && /^ {2}[a-z][\w-]*:$/.test(line));
+    const block = unblock.slice(start + 1, end === -1 ? undefined : end);
+    assert.ok(block.some((line) => line.startsWith("    uses: ./.github/workflows/pr-run-activity-read.yml")), job);
+    assert.ok(block.includes('      model-rung: "1"'), job);
+    const [lane, activity] = ["lane", "activity"].map((key) => block.find((line) => line.startsWith(`      ${key}: `))?.slice(`      ${key}: `.length));
+    assert.equal(`${lane} / ${activity}`, DEFAULTS.checkName, job);
+  }
+
+  const head = "9".padStart(40, "a");
+  const failedRun = (completedAt) => ({ name: DEFAULTS.checkName, status: "completed", conclusion: "failure", output: { title: null }, completed_at: completedAt });
+  // One dispatch on the old base: the rung-0 run and its rung-up retry.
+  const rungUpRound = [failedRun("2026-10-22T09:30:00Z"), failedRun("2026-10-22T09:50:00Z")];
+  const dispatchOn = (history) =>
+    run(
+      {
+        pages: [[pr(9, { checks: [lanes("FAILURE"), check(DEFAULTS.checkName, "FAILURE", { completedAt: history.at(-1).completed_at })] })]],
+        history: new Map([[head, history]]),
+        baseCommittedAt: "2026-10-22T11:00:00Z",
+      },
+      { record: emptyRecord() },
+    );
+  const second = await dispatchOn(rungUpRound);
+  assert.deepEqual(second.result.dispatched.map((d) => d.number), [9], "the rung-up round spent two of three runs; a new base dispatches once more");
+  const third = await dispatchOn([...rungUpRound, failedRun("2026-10-22T11:30:00Z")]);
+  assert.deepEqual(third.result.dispatched, []);
+  assert.ok(third.lines.includes(`::warning::#9: head ${head}'s ${DEFAULTS.checkName} ran 3 time(s), the most one head gets; no fix-ci until a new push`), third.lines.join("\n"));
 });
 
 // #9828: its tested run ended cancelled (a job past its timeout), which
