@@ -16,7 +16,7 @@
 //
 // `write`, after the gate: that map's entries and the head refs this run
 // downloaded (the run cache's fail-head-ref section, which only this run's
-// gate writes: carry-run-cache.mjs restores carried-* sections alone), each
+// gate writes: carry-run-cache.mjs carries in carried-* sections alone), each
 // kept only while the run's saved artifact listing lists its id unexpired,
 // written to HEAD_REFS_OUT for actions/upload-artifact. With no listing file
 // (no candidates, or a listing the run could not read) the map read before

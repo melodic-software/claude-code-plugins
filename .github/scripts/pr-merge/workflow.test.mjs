@@ -7,7 +7,7 @@
 // no pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -399,7 +399,7 @@ test("enable-auto-merge's step timeouts fit inside its job's", () => {
   const arm = job("enable-auto-merge");
   const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(arm)[1]);
   const steps = [...arm.matchAll(/\n {8}timeout-minutes: ([0-9]+)\n/g)].map((m) => Number(m[1]));
-  assert.ok(steps.length >= 4, "the post-merge check, the cache restore, the arm step and the budget step name timeouts");
+  assert.ok(steps.length >= 4, "the post-merge check, the run cache read, the arm step and the budget step name timeouts");
   assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
 });
 
@@ -897,3 +897,65 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
     assert.doesNotMatch(stdout, /record/);
   });
 }
+
+// A job holding `id-token: write` (the token broker's proof) or a lanes App
+// token restores no Actions cache by a bare `restore-keys` prefix: any job in
+// the default branch's cache scope can write such an entry, and the pinned
+// restore extracts its archive with no entry filter, so a crafted entry could
+// replace a checked-out script before it runs (#9455). In pr-merge.yml no such
+// job restores a cache at all. Steps of a local composite action count as the
+// job's own.
+const root = new URL("../../../", import.meta.url);
+const workflowsDir = new URL(".github/workflows/", root);
+const stepsIn = (text) => text.split(/\n(?=\s*- (?:name|uses|id|if|run|env|with|shell|continue-on-error|timeout-minutes):)/).slice(1);
+const restoresOf = (stepTexts, seen = new Set()) =>
+  stepTexts.flatMap((s) => {
+    const uses = /^\s*(?:- )?uses: *['"]?([^\s'"#]+)/m.exec(s)?.[1] ?? "";
+    if (/^actions\/cache(?:\/restore)?@/.test(uses)) return [{ uses, prefix: /\n\s*restore-keys:/.test(s) }];
+    // setup-node restores a package cache unless told not to
+    // (package-manager-cache defaults to true); any setup action with a
+    // `cache:` input restores one.
+    const setupNode = /^actions\/setup-node@/.test(uses) && !/\n\s*package-manager-cache: false\b/.test(s);
+    if (setupNode || (/^actions\/setup-[a-z]+@/.test(uses) && /\n\s*cache: *\S/.test(s))) return [{ uses, prefix: false }];
+    const local = /^\.\/(?:\.base\/)?(\.github\/actions\/[^@]+)$/.exec(uses)?.[1];
+    if (!local || seen.has(local)) return [];
+    seen.add(local);
+    const action = ["action.yml", "action.yaml"].map((f) => new URL(`${local.replace(/\/$/, "")}/${f}`, root)).find((u) => existsSync(u));
+    return action ? restoresOf(stepsIn(readFileSync(action, "utf8")), seen) : [];
+  });
+function tokenJobRestores(text) {
+  const head = text.slice(0, text.indexOf("\njobs:\n"));
+  const workflowIdToken = /\npermissions:\n(?: {2}.*\n)*? {2}id-token: write/.test(`${head}\n`);
+  const body = text.slice(text.indexOf("\njobs:\n") + 6);
+  return body
+    .split(/\n(?= {2}[A-Za-z0-9_-]+:\n)/)
+    .map((block) => ({ id: /^ {2}([A-Za-z0-9_-]+):/m.exec(block)?.[1], block }))
+    .filter(({ id, block }) => id && (workflowIdToken || /\n {6}id-token: write/.test(block) || /request-lane-token|create-github-app-token/.test(block)))
+    .flatMap(({ id, block }) => restoresOf(stepsIn(block)).map((r) => ({ job: id, ...r })));
+}
+
+test("no job holding id-token or a lanes App token restores a cache by a bare prefix", () => {
+  const found = readdirSync(workflowsDir)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .flatMap((f) => tokenJobRestores(readFileSync(new URL(f, workflowsDir), "utf8")).map((r) => ({ file: f, ...r })))
+    .filter((r) => r.prefix);
+  assert.deepEqual(found, []);
+});
+
+test("no token-holding job in pr-merge.yml restores a cache", () => {
+  assert.deepEqual(tokenJobRestores(merge), []);
+  // The check sees a restore a token-holding job adds, directly or through a
+  // local composite action, and ignores one in a job holding neither token.
+  const withStep = (job, step) => merge.replace(new RegExp(`(\\n  ${job}:\\n[\\s\\S]*?\\n    steps:\\n)`), `$1${step}`);
+  const exact = "      - name: Restore\n        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          key: k\n";
+  const composite = "      - name: Count\n        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]\n";
+  const setupNode = "      - name: Node\n        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0\n        with:\n          node-version: 24\n";
+  const setupPython = "      - name: Python\n        uses: actions/setup-python@v6\n        with:\n          cache: pip\n";
+  for (const job of ["merge", "enable-auto-merge"]) {
+    for (const added of [exact, setupNode, setupPython]) {
+      assert.deepEqual(tokenJobRestores(withStep(job, added)).map((r) => [r.job, r.prefix]), [[job, false]], job);
+    }
+    assert.deepEqual(tokenJobRestores(withStep(job, composite)).map((r) => [r.job, r.prefix]), [[job, true]], job);
+  }
+  assert.deepEqual(tokenJobRestores(withStep("gate-check", exact)), []);
+});

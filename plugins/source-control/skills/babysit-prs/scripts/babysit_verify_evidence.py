@@ -458,9 +458,9 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
 # What earlier pr-merge runs read, copied into this run's cache by
-# .github/scripts/pr-merge/carry-run-cache.mjs from a cache entry any job in
-# the default branch's cache scope could have written. Each is used only
-# where it counts a FAIL; any other answer is read from GitHub.
+# .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted run's
+# pr-merge-run-cache artifact. Each is still used only where it counts a FAIL;
+# any other answer is read from GitHub.
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
