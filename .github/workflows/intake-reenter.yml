@@ -1,8 +1,9 @@
 name: intake-reenter
 
 # Sends an answered issue back to intake triage. A listed human's
-# `**Decision recorded.**` comment on a `status: needs-decision` issue, or the
-# author's or a listed human's reply on a `status: needs-info` issue, takes
+# `**Decision recorded.**` comment on a `status: needs-decision` issue or on
+# one admission parked at `status: confirmed`, or the author's or a listed
+# human's reply on a `status: needs-info` issue, takes
 # the status label off (and `needs-human`, for a decision), adds
 # `needs-triage`, and dispatches intake-triage.yml once when intake admits
 # the issue's author (a listed human or the lanes App). It never adds
@@ -54,6 +55,7 @@ jobs:
            && github.event.comment.user.type == 'User'
            && !github.event.comment.performed_via_github_app
            && (contains(github.event.issue.labels.*.name, 'status: needs-decision')
+               || contains(github.event.issue.labels.*.name, 'status: confirmed')
                || contains(github.event.issue.labels.*.name, 'status: needs-info')))
           || (github.event_name == 'issues'
               && github.event.label.name == 'needs-human'))

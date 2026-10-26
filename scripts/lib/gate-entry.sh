@@ -18,11 +18,10 @@
 # check-skill-portability, check-skill-precompute-compose, check-changed-skills,
 # check-stale-base-overlap, check-vendor-version-bump, check-changelog-parity,
 # and check-changelog-fragments. check-guardrails-ps-differential uses only
-# require_base. Three gates stay outside:
+# require_base. Two gates stay outside:
 #   check-docs-only                exits 0 on every fail-closed path, an
 #                                  unresolvable ref included, so the full suite runs
 #   affected-tests                 exits 0, 1, 2, or 3, not the 0/1/2 map above
-#   check-skill-description-voice  keeps its own dispatch and exit mapping
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/gate-entry.sh is sourced-only\n' >&2

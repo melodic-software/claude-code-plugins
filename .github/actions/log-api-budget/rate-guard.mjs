@@ -23,6 +23,7 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import process from "node:process";
 
+
 // GitHub's documented rate-limit signals, same page: a 403 or 429 whose
 // message names a rate limit, retry-after, x-ratelimit-remaining 0, and
 // "wait for at least one minute" when neither header gives the time. GraphQL
@@ -88,6 +89,28 @@ export function poolOf(url) {
   return /^(\/api\/v3)?\/search\//.test(path) ? "search" : "core";
 }
 
+// A write that creates or changes content GitHub's content-creation limit
+// counts (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits):
+// the issues, pull requests, comments, reviews and labels the lanes write,
+// and a GraphQL mutation. GitHub publishes no list of the endpoints it counts.
+const CONTENT_PATH =
+  /\/repos\/[^/]+\/[^/]+\/(issues|pulls)(\/\d+(\/(comments|labels|reviews|assignees|requested_reviewers))?|\/\d+\/comments\/\d+\/replies|\/comments\/\d+)?\/?(\?|$)/;
+export function isContentWrite(url, method = "GET", body) {
+  if (!["POST", "PATCH", "PUT"].includes(String(method).toUpperCase())) {
+    return false;
+  }
+  if (poolOf(url) === "graphql") {
+    let query = "";
+    try {
+      query = String(JSON.parse(String(body ?? "")).query ?? "");
+    } catch {
+      query = "";
+    }
+    return /^\s*mutation\b/.test(query);
+  }
+  return CONTENT_PATH.test(String(url).replace(/^[a-z]+:\/\/[^/]+/i, ""));
+}
+
 // The limits.api entry a resource's margins come from: graphql its own, any
 // other the token's (API_BUDGET_TOKEN, as api-budget.mjs names it).
 export const entryOf = (pool, token = process.env.API_BUDGET_TOKEN) =>
@@ -119,6 +142,22 @@ export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = proc
     appendFileSync(join(dir, "api-budget", token), readingLine(status, headers));
   } catch {
     // A reading is never worth failing the job.
+  }
+}
+
+// Appends one content-creating write, as its epoch second, to
+// $RUNNER_TEMP/api-budget/content-creation, which api-budget.bash's gh wrapper
+// also appends to, for the job-end content-creation notice. Without
+// RUNNER_TEMP nothing is written. Never throws.
+export function recordContentWrite({ dir = process.env.RUNNER_TEMP, at }) {
+  if (!dir || !Number.isSafeInteger(at)) {
+    return;
+  }
+  try {
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    appendFileSync(join(dir, "api-budget", "content-creation"), `${at}\n`);
+  } catch {
+    // A count is never worth failing the job.
   }
 }
 
@@ -265,7 +304,8 @@ export function createRateLimitLatch({
   const low = new Map();
   const warned = new Set();
   let config;
-  function margin(pool, key) {
+  // A token-pinned guard plans to its own token's entry (entryOf).
+  function margin(pool, key, token) {
     if (config === undefined) {
       try {
         config = limits();
@@ -274,7 +314,7 @@ export function createRateLimitLatch({
         log("::warning::rate guard: limits.api and its schema defaults could not be read; the read floor is not checked");
       }
     }
-    const value = config?.[entryOf(pool)]?.[key];
+    const value = config?.[entryOf(pool, token)]?.[key];
     return typeof value === "number" ? value : null;
   }
 
@@ -295,12 +335,12 @@ export function createRateLimitLatch({
     throw stop;
   }
 
-  async function observe(url, response, method = "GET") {
+  async function observe(url, response, method = "GET", token = undefined) {
     const pool = poolOf(url);
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
-    const limitCap = margin(pool, "limit-cap");
-    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor"), limitCap });
+    const limitCap = margin(pool, "limit-cap", token);
+    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap });
     low.set(pool, verdict.low);
     if (verdict.latched) {
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
@@ -344,16 +384,19 @@ export function createRateLimitLatch({
       }
     },
     belowFloor: (url) => low.get(poolOf(url)) === true,
-    // A fetch that checks the latch before each request and reads each answer,
-    // keeping its reading under API_BUDGET_TOKEN (recordReading). That one
-    // name covers every guarded call in the process, so a step sets it only
-    // when all its calls spend one token.
-    guard: (fetchImpl) =>
+    // A fetch that checks the latch before each request, counts a
+    // content-creating write, and reads each answer, keeping its rate-limit
+    // reading under token (API_BUDGET_TOKEN when unset, recordReading), so a
+    // second client's readings never mix with the first's.
+    guard: (fetchImpl, { token } = {}) =>
       async function guarded(url, init = {}) {
         check(url, init.method);
+        if (isContentWrite(url, init.method, init.body)) {
+          recordContentWrite({ at: Math.floor(now() / 1000) });
+        }
         const response = await fetchImpl(url, init);
-        recordReading({ status: response.status, headers: response.headers });
-        await observe(url, response, init.method);
+        recordReading({ token, status: response.status, headers: response.headers });
+        await observe(url, response, init.method, token);
         return response;
       },
   };
