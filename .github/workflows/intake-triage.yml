@@ -201,7 +201,7 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8 # v0.65.11
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@78ee7a2609a84b0073c5e09dfe3bc59613e689dc # v0.65.12
     with:
       runner: ubuntu-24.04
       role: intake
@@ -330,9 +330,12 @@ jobs:
         e. When the decision settles every open question and no person is needed, apply no status
            label, quote the decision, say in one sentence that it settles the open questions, and ask
            nothing again. Triage the rest as usual.
+    # Named secrets only, never `secrets: inherit`. The central fallback token
+    # runs only after the subscription token hands off.
     secrets:
       CLAUDE_API_KEY: ${{ secrets.INTAKE_CLAUDE_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}
+      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   # Writes the triage run's verdict on the issue as the lanes App, so the work
   # lanes count it: the work-class label, the Size, Complexity and Uncertainty

@@ -1367,12 +1367,20 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 });
 
 // run-claude-cli names the lane record's credential from `role:`, never from
-// the secret passed, so the role and the secret are checked together.
+// the secret passed, so the role and the secret are checked together. The one
+// exception is the central fallback token, the same org secret for every role,
+// which only a call of a ci-workflows reusable with a fallback job may pass
+// (intake-triage.yml and pr-review-cli.yml from v0.65.12, ci-workflows#890).
+const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
+const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@[0-9a-f]{40}$/;
 test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
   const jobs = claudeSecretJobs();
   for (const { role, lane, key } of catalogLanes()) {
-    for (const name of lane.currentSecrets) assert.ok([role.keySecret, role.tokenSecret].includes(name), `${key} reads ${name}`);
     const { job } = jobs.get(key);
+    const fallback = FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === `\${{ secrets.${FALLBACK_SECRET} }}`;
+    for (const name of lane.currentSecrets) {
+      assert.ok([role.keySecret, role.tokenSecret, ...(fallback ? [FALLBACK_SECRET] : [])].includes(name), `${key} reads ${name}`);
+    }
     const roles = [job.with?.role, ...(job.steps ?? []).map((step) => step.with?.role)].filter((value) => value !== undefined);
     for (const value of roles) assert.equal(value, role.id, key);
   }
@@ -1537,7 +1545,7 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   const { jobs } = workflow("pr-run-activity-read.yml");
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
   const step = (id) => jobs.run.steps.find((s) => s.id === id);
-  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8";
+  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@78ee7a2609a84b0073c5e09dfe3bc59613e689dc";
   for (const [id, input, secret] of [
     ["act-key", "api-key", "claude-api-key"],
     ["act-token", "subscription-token", "claude-code-oauth-token"],
@@ -1594,13 +1602,15 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // Launcher SHAs checked to pass `--permission-prompts none` unconditionally,
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
-// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358; in cliArgs. A pin
+// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
+// 78ee7a26: lane.cjs:404-405; in cliArgs. A pin
 // bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
   "164c2809f6150429b6f24d4a2777bb377af953d9",
   "d02b8697e092705153f0996549b05f95a446bb52",
   "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8",
+  "78ee7a2609a84b0073c5e09dfe3bc59613e689dc",
 ]);
 
 test("pr-run-activity-read.yml: every run-claude-cli pin is a launcher checked to pass --permission-prompts none", () => {
@@ -3703,7 +3713,7 @@ test("scan job: every gate, skip and launcher class value the runner sets passes
   const schema = JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
   const gateReasons = Object.keys(JSON.parse(read("../report-check-run/gate-skip-reasons.json")));
   // run-claude-cli's failure classes, the keys of SUMMARY_NOTES in lane.cjs at
-  // the pinned e5167fc2. cant-fail-ok: an external contract's value list.
+  // the pinned 78ee7a26. cant-fail-ok: an external contract's value list.
   const laneClasses = ["credit-stop", "rate-limit", "auth", "overloaded", "max-turns", "timeout", "other"];
   const cases = [
     ...schema.$defs["skip-reason"].enum.map((value) => ["skip-reason", value]),

@@ -76,10 +76,10 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8 # v0\.65\.11$' "$caller"; then
-    ok "$file calls pr-review-cli v0.65.11 as job ${job%:} with publish: comments and hold-label: needs-human"
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@78ee7a2609a84b0073c5e09dfe3bc59613e689dc # v0\.65\.12$' "$caller"; then
+    ok "$file calls pr-review-cli v0.65.12 as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or v0.65.11 pin"
+    fail "$file lost its job id, publish: comments, hold-label or v0.65.12 pin"
   fi
   # pr-review-cli's check-key-credit job requests actions: read; a caller that
   # does not grant it fails at startup.
