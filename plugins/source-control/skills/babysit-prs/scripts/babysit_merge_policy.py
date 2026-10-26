@@ -4494,11 +4494,13 @@ def shared_refusal(
     demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
     while it passes with a merge unverified), have no demotion record filed
     or changed since (`_demotion_changed`), and judge every merge the
-    post-merge check would judge now. The binding comes before the age, so a
-    candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and does not
-    replace the run's answer. The floor is compared under the shared answer's
-    demotion, which may be out of date; that changes only the reason and the
-    write-back, since any refusal reads afresh.
+    post-merge check would judge now. The demotion comes last, so
+    `demotion-changed` means nothing else refused (`lane_room` keeps such an
+    answer when the demotion reads the same). The binding comes before the
+    age, so a candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and
+    does not replace the run's answer. The floor is compared under the
+    shared answer's demotion, which may be out of date; that changes only the
+    reason and the write-back, since any refusal reads afresh.
 
     The check judges `branch` from the floor, never the base, so the answer
     holds for any base with that floor. A newer default-branch head changes
@@ -4535,33 +4537,32 @@ def shared_refusal(
     refusal = _shared_age_refusal(shared, age)
     if refusal:
         return refusal
-    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
-        return "demotion-changed"
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     head = payload.get("sha") if status == 200 and is_json_object(payload) else None
-    if head == shared.main_sha:
-        return None
-    counted = {
-        json_object(m).get("number")
-        for m in json_array(shared.gate.report.get("autoMerges"))
-    }
-    try:
-        merges = _merged_since(owner, name, branch, shared.floor)
-        if merges is None:
-            return "merged-history-truncated"
-        for pr in merges:
-            # Treating no actor as human counts a superset of the check's
-            # merges, so no merge it would judge is missed.
-            merge = derive_auto_merge(
-                pr,
-                lambda actor: False,
-                identity,
-                lane_merges_only=shared.lane_merges_only,
-            )
-            if isinstance(merge, AutoMerge) and merge.number not in counted:
-                return f"new-merge:#{merge.number}"
-    except PolicyReadError:
-        return "merged-unreadable"
+    if head != shared.main_sha:
+        counted = {
+            json_object(m).get("number")
+            for m in json_array(shared.gate.report.get("autoMerges"))
+        }
+        try:
+            merges = _merged_since(owner, name, branch, shared.floor)
+            if merges is None:
+                return "merged-history-truncated"
+            for pr in merges:
+                # Treating no actor as human counts a superset of the check's
+                # merges, so no merge it would judge is missed.
+                merge = derive_auto_merge(
+                    pr,
+                    lambda actor: False,
+                    identity,
+                    lane_merges_only=shared.lane_merges_only,
+                )
+                if isinstance(merge, AutoMerge) and merge.number not in counted:
+                    return f"new-merge:#{merge.number}"
+        except PolicyReadError:
+            return "merged-unreadable"
+    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+        return "demotion-changed"
     return None
 
 
@@ -5094,11 +5095,14 @@ def lane_room(
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
-    `post_merge` is `assess`'s: an answer refused only as `unverified-stale`
-    is kept when nothing it was read from has moved (`_still_current`, with
-    `runs_unchanged(shared, branch)` for its unverified merges' runs), else
-    read again as the gate reads it (`_recompute_shared`), and a readable
-    one stands in for `shared`.
+    `post_merge` is `assess`'s: an answer the gate would not reuse, for any
+    `shared_refusal`, is read again as the gate reads it
+    (`_recompute_shared`, with the room's self logins, none), and a readable
+    one stands in for `shared`. Two refusals are first kept: one refused only
+    as `unverified-stale` when nothing it was read from has moved
+    (`_still_current`, with `runs_unchanged(shared, branch)` for its
+    unverified merges' runs), and one refused only as `demotion-changed`
+    when `read_demotion` alone reads the shared demotion again.
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
@@ -5110,12 +5114,8 @@ def lane_room(
 
     Any read failure, a missing `shared` and an in-flight count that could
     not be read included, is `unreadable`. So is a `shared` the gate would
-    not reuse (`shared_refusal`): too old (a re-run job downloads the run's
-    first report, up to a day old), a demotion record filed or changed
-    since, or a lane merge landed since that it does not count. An
-    `unverified-stale` one is kept or read again instead, since a lane
-    merge's verifying run may have passed or failed since; a read that fails
-    or is not readable leaves it `unreadable`."""
+    not reuse (any `shared_refusal`) when there is no `post_merge` to read it
+    again, or that read fails or is not readable."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
     try:
@@ -5143,18 +5143,31 @@ def lane_room(
         authority=PR_MERGE,
         now=now,
     )
-    if unusable == "unverified-stale" and post_merge is not None:
-        # Kept when nothing it was read from moved, else read again.
+    if unusable and post_merge is not None:
+        # As the gate, any refusal reads afresh; an unverified-stale answer
+        # is first kept when nothing it was read from moved, a
+        # demotion-changed one when the demotion reads the same (an issue
+        # the lane opened that triage edited, most runs).
         try:
-            current = runs_unchanged is not None and _still_current(
-                repo, default, identity, shared, runs_unchanged
-            )
+            if unusable == "demotion-changed":
+                current = shared.demotion == read_demotion(
+                    repo,
+                    agent_identity=identity,
+                    self_logins=frozenset(),
+                    permission=permission_reader(repo),
+                )
+            else:
+                current = (
+                    unusable == "unverified-stale"
+                    and runs_unchanged is not None
+                    and _still_current(repo, default, identity, shared, runs_unchanged)
+                )
         except (RuntimeError, ValueError, OSError):
             current = False
         if not current:
             try:
                 fresh = _recompute_shared(
-                    repo, default, identity, shared.self_logins, post_merge, now
+                    repo, default, identity, frozenset(), post_merge, now
                 )
             except (RuntimeError, ValueError, OSError) as exc:
                 return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")

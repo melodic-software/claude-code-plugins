@@ -71,9 +71,10 @@
 # Rewording, extending, or qualifying a pinned line is EXPECTED to fail, including a typo
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
-# then update the skill body and this suite in one change. Recomputing a digest or pin here is
-# attended-only: an unattended run that hits a failing digest reports the pin and the git diff,
-# then stops, and never updates it.
+# then update the skill body and this suite in one change. Any session, a lane included, may
+# re-pin a digest after that re-read: tests/repin.sh rewrites one sha256 literal, and the commit
+# records the old and new digest and why the defense still holds, so the PR review judges the
+# change against the text it guards.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
@@ -100,10 +101,10 @@ AUDIT="$PLUGIN_DIR/skills/audit-answers/SKILL.md"
 EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
-ATTENDED_ONLY="Recomputing a pin or digest is attended-only: an unattended run reports this pin and the git diff, then stops."
+UPDATE_RULE="Read the git diff of this text first; the commit that updates the pin states, for each pin, old -> new and why the defense still holds."
 # Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
 # pins and the boundary failure have nothing for it to recompute.
-REPIN_HINT="After reading the diff, a person re-pins this digest by running, in their own terminal (a Claude Code ! line has no terminal): bash plugins/planning/tests/repin.sh '<pin label text>' '<justification>'"
+REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>' '<why the defense still holds>'"
 PASS=0
 FAIL=0
 fail() {
@@ -176,7 +177,7 @@ pin_exact() {
   if grep -Fxq -- "$line" "$file"; then
     ok "$label"
   else
-    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line ${ATTENDED_ONLY}"
+    fail "$label — no line in ${file#"$PLUGIN_DIR/"} matches the pinned defense text EXACTLY. The rule was reworded, extended, or qualified. Re-read it, confirm the defense still holds, then update the pin. Pinned: $line ${UPDATE_RULE}"
   fi
 }
 
@@ -243,7 +244,7 @@ pin_section() {
   n_open="$(grep -Fxc -- "$open" "$file" || true)"
   n_close="$(grep -Fxc -- "$close" "$file" || true)"
   if [[ "$n_open" != "1" || "$n_close" != "1" ]]; then
-    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest. ${ATTENDED_ONLY}"
+    fail "$label — the section boundaries are no longer unique whole lines in ${file#"$PLUGIN_DIR/"} (\"$open\" x$n_open, \"$close\" x$n_close). A duplicated or renamed boundary moves the digested region, which is how a region pin gets silently emptied. Restore the headings, or re-anchor the pin and update the digest. ${UPDATE_RULE}"
     return
   fi
   got="$(section_digest "$file" "$open" "$close")"
@@ -252,7 +253,7 @@ pin_section() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -272,7 +273,7 @@ pin_frontmatter() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -290,7 +291,7 @@ pin_case_digest() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -307,7 +308,7 @@ pin_file() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -327,7 +328,7 @@ pin_case_set() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
+    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${UPDATE_RULE} ${REPIN_HINT}"
   fi
 }
 
@@ -430,7 +431,8 @@ declares_both_fixtures B "$CASE_B"
 #
 # Update procedure when one of these fires: read `git diff` for the named section or case,
 # confirm in words that neither defense was weakened, qualified, or contradicted by the
-# change, then recompute and replace the digest below IN THE SAME COMMIT.
+# change, then re-pin the digest below IN THE SAME COMMIT (tests/repin.sh), with old -> new
+# and that reason in the commit message.
 #
 # The boundary tests below MUST match `section_digest`'s — whole-line equality, not a
 # prefix match. They agree on today's content and diverge in exactly the crafted-heading

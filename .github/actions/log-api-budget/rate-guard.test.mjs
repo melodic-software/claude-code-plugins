@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -331,6 +331,33 @@ for (const vector of VECTORS.stop_file_errors) {
       undo();
     }));
 }
+
+// Every guarded answer leaves one reading for the job-end notice, under the
+// bucket API_BUDGET_TOKEN names; without that name it leaves none.
+test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none without it", async () =>
+  withDir(async (dir) => {
+    const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
+    process.env.RUNNER_TEMP = dir;
+    const ok = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" }];
+    const options = { now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null };
+    try {
+      delete process.env.API_BUDGET_TOKEN;
+      await createRateLimitLatch(options).guard(fakeGitHub([ok]).fetch)(URL_A);
+      assert.equal(readdirSync(dir).length, 0);
+      process.env.API_BUDGET_TOKEN = "github-token";
+      const gh = fakeGitHub([ok, [404, { ...ok[1], "x-ratelimit-remaining": "4989", "x-ratelimit-used": "11" }], [500]]);
+      const guarded = createRateLimitLatch(options).guard(gh.fetch);
+      for (const url of [URL_A, URL_A, URL_B]) {
+        await guarded(url);
+      }
+      assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1792751600 core\n404 5000 4989 11 1792751600 core\n500 na na na na na\n");
+    } finally {
+      for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }));
 
 // No lane script calls fetch outside the guard, except the files below, each
 // for its stated reason. A new raw fetch fails here until it is guarded or

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: steps-optional-skipped
+description: An optional step whose target is absent is recorded in report.json with the contract's skipped outcome and the run goes on, with no retry, wait or failure
+tags: [drive, steps-files, invented]
+expected_outcome: "The reply's report.json steps list gives each step its id and outcome: accept-cookies has the outcome `skipped: optional` (its target absent), and open-billing, press-export and check-download have the outcome `done`, in that order. No retry or wait is added for the banner."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps file. Treat the run as having reached /billing with no cookie banner anywhere on the page, and every other step's target as present and acting as written. Reply with the `steps` list this run's report.json would hold, as one fenced JSON block, one object per step in order. Then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: reads-steps-file
+    type: tool_used
+    tool: Read
+    input_match: 'billing/export/steps\.yaml'
+    min: 1
+    arm: both
+  - name: records-skipped-optional
+    type: regex
+    pattern: '\{(?=[^{}]*"id"\s*:\s*"accept-cookies")(?=[^{}]*"outcome"\s*:\s*"skipped: optional)[^{}]*\}'
+    arm: both
+  - name: records-export-done
+    type: regex
+    pattern: '\{(?=[^{}]*"id"\s*:\s*"press-export")(?=[^{}]*"outcome"\s*:\s*"done")[^{}]*\}'
+    arm: both
+  - name: optional-skip-continues
+    type: llm
+    criteria: "PASS only if the reply's steps list (1) records accept-cookies with the outcome `skipped: optional`, not failed or blocked, (2) adds no retry, wait or sleep step for the banner, and (3) records open-billing, press-export and check-download with the outcome done, in that order. FAIL if it fails or stops the run at accept-cookies, uses another word than `skipped: optional` for it, waits or retries for the banner, omits a step, or says it launched the app."

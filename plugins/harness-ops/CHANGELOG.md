@@ -3,6 +3,19 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.9] - 2026-10-26
+
+### Fixed
+
+- **changelog:** the native-drift pass no longer refiles a recheck item on every apply for a store row whose marker comes from the docs. A row lists such markers in the new optional `native.docs_markers`, and the pass leaves them out of the marker comparison; any other marker change still fires.
+- **audit-native-overlap:** the store self-check rejects a `native.docs_markers` entry that the row's `native.markers` does not also record.
+
+## [4.5.8] - 2026-10-26
+
+### Fixed
+
+- The `consume-restarts print-schedule` command prints `--permission-mode auto`, plus `--permission-prompts none` when the CLI is 2.1.259 or later, on every scheduled `claude -p` line, so the reader no longer inherits the user's `defaultMode`. Regenerate an existing schedule to pick this up.
+
 ## [4.5.7] - 2026-10-25
 
 ### Fixed
