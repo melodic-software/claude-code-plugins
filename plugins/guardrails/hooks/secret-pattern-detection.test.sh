@@ -1269,6 +1269,53 @@ if make_dir_link "$SPE/outside" "$SPE/D/out-link" && make_dir_link "$SPE/D" "$SP
 else
   echo "SKIP: allowed roots directory-link cases (no directory link could be made on this host)"
 fi
+# A Windows junction into temp resolves to a mount spelling (/tmp/...), which
+# cygpath -l maps to a long drive path only where the path exists. The seam runs
+# with OSTYPE forced to msys in a fixture holding a `c:` directory: a stub
+# resolver answers through the mount symlink M, and a stub cygpath expands to
+# the long `c:/long` spelling only for an existing path, else to `c:/runner~1`.
+# POSIX hosts only: on Git Bash a `c:/...` name is drive C:, not the fixture.
+SPE_W="$TEST_TMPDIR/spe-win"
+if ((!D1_WIN)); then
+  mkdir -p "$SPE_W/c:/long/D" "$SPE_W/c:/long/outside" "$SPE_W/c:/long/home"
+  ln -s "$SPE_W/c:/long" "$SPE_W/mnt" 2>/dev/null
+fi
+# shellcheck disable=SC2016  # sed and grep patterns, not expansions
+SPE_SEAM=$(sed -n '/^spd_win=0$/,/^spd_temp_declines "\$FILE" && exit 0$/p;/^spd_et=""$/,/^spd_opt_roots=/p' "$HOOK" |
+  grep -v '^spd_temp_declines "\$FILE" && exit 0$\|^spd_opt_roots=')
+spe_win_rc() { # <target> -> spd_under_allowed_root's status for <target> with root c:/long/D
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  (cd "$SPE_W" && HOME="$SPE_W/c:/long/home" USERPROFILE='' bash -c 'OSTYPE=msys; source "$1/hook-utils.sh"; eval "$2"
+    M="$PWD/mnt"
+    hook::_physical_prime() { :; }
+    hook::physical_path_to() {
+      case "$2" in
+      c:/long/to-d) printf -v "$1" %s "$M/D" ;;
+      c:/long/D/out-link) printf -v "$1" %s "$M/outside" ;;
+      c:/long/broken) return 1 ;;
+      *) printf -v "$1" %s "$2" ;;
+      esac
+    }
+    cygpath() {
+      local p="${!#}"
+      [[ "$p" == "$M"/* ]] || { printf "%s\n" "$p"; return 0; }
+      if [[ -e "c:/long${p#"$M"}" ]]; then printf "%s\n" "c:/long${p#"$M"}"; else printf "%s\n" "c:/runner~1${p#"$M"}"; fi
+    }
+    spd_opt_roots=c:/long/D
+    spd_exempt_target "$3" || { printf %s target-refused; exit; }
+    spd_under_allowed_root; printf %s "$?"' _ "$HOOK_DIR" "$SPE_SEAM" "$1")
+}
+if ((!D1_WIN)) && [[ -L "$SPE_W/mnt" ]] && ln -s "$SPE_W/mnt/D" "$SPE_W/c:/long/to-d" 2>/dev/null &&
+  ln -s "$SPE_W/mnt/outside" "$SPE_W/c:/long/D/out-link" 2>/dev/null && mkdir -p "$SPE_W/c:/long/broken"; then
+  assert_eq "allowed roots win sim: junction outside D into D, mount-spelled answer → granted" 0 \
+    "$(spe_win_rc c:/long/to-d/sub/x.md)"
+  assert_eq "allowed roots win sim: junction under D to outside → not granted" 1 \
+    "$(spe_win_rc c:/long/D/out-link/sub/x.md)"
+  assert_eq "allowed roots win sim: unresolvable ancestor → not granted" 1 \
+    "$(spe_win_rc c:/long/broken/x.md)"
+else
+  echo "SKIP: allowed roots Windows mount-spelling simulation (a Windows host, or no symlink could be made)"
+fi
 : >"$SPE/outside/target.md"
 if ln -s "$SPE/outside/target.md" "$SPE/D/file-link.md" 2>/dev/null && [[ -L "$SPE/D/file-link.md" ]]; then
   assert_exit "allowed roots: a file symlink under D to outside → exit 2" 2 \
