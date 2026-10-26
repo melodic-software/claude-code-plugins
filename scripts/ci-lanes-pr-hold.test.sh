@@ -333,17 +333,29 @@ if ((${#missing[@]} == 0)); then
 else
   fail "the reader's checkout lacks: ${missing[*]}"
 fi
-restore="$(step_of "Restore the verdict reads pr-merge's last run kept")"
+restore="$(step_of "Read the verdict reads pr-merge's last scheduled run kept")"
 carry="$(step_of "Start the run cache from them")"
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 queue_only='if: ${{ !cancelled() && github.event_name == '"'merge_group'"' }}'
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-if [[ "$restore" == *"uses: actions/cache/restore@"* && "$restore" == *"restore-keys: pr-merge-run-cache-"* &&
-  "$restore" == *'path: ${{ runner.temp }}/pr-merge-carried.json'* && "$restore" == *"continue-on-error: true"* &&
-  "$restore" == *"$queue_only"* ]]; then
-  ok "in the merge queue, pr-merge's carried reads are restored, and a miss only leaves the reader cold"
+if [[ "$restore" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read"* && "$restore" != *"uses:"* &&
+  "$restore" == *'CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json'* && "$restore" == *'ACTIONS_TOKEN: ${{ github.token }}'* &&
+  "$restore" == *"continue-on-error: true"* && "$restore" == *"$queue_only"* ]]; then
+  ok "in the merge queue, pr-merge's carried reads come from its trusted run's artifact, and a miss only leaves the reader cold"
 else
-  fail "no merge_group-only, continue-on-error restore of pr-merge's carried reads"
+  fail "no merge_group-only, continue-on-error 'carry-run-cache.mjs read' of pr-merge's carried reads"
+fi
+# ci-status holds actions, pull-requests and statuses write: no step restores
+# an Actions cache, whose archive any job in main's cache scope can write and
+# whose restore extracts it anywhere in the workspace (#9455).
+ci_status="$(awk '/^  ci-status:/ { on = 1; print; next } on && /^  [A-Za-z0-9_-]+:$/ { exit } on { print }' "$WORKFLOW")"
+if grep -qE '^ +uses: actions/cache(/restore)?@' <<<"$ci_status"; then
+  fail "ci-status restores an Actions cache"
+elif grep -A3 -E '^ +uses: actions/setup-node@' <<<"$ci_status" | grep -q 'package-manager-cache: false' &&
+  [[ "$(grep -cE '^ +uses: actions/setup-node@' <<<"$ci_status")" -eq "$(grep -cE '^ +package-manager-cache: false$' <<<"$ci_status")" ]]; then
+  ok "ci-status restores no Actions cache, setup-node's package cache included"
+else
+  fail "ci-status's setup-node may restore a package cache (no package-manager-cache: false)"
 fi
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 if [[ "$carry" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs"* && "$carry" == *'CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json'* &&
@@ -353,10 +365,10 @@ if [[ "$carry" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 else
   fail "no merge_group-only, continue-on-error carry into the reader's run cache"
 fi
-order="$(grep -nxF -e "      - name: Check out main's Node pin and verdict reader" -e "      - name: Restore the verdict reads pr-merge's last run kept" \
+order="$(grep -nxF -e "      - name: Check out main's Node pin and verdict reader" -e "      - name: Read the verdict reads pr-merge's last scheduled run kept" \
   -e "      - name: Start the run cache from them" -e "      - name: $NAME" "$WORKFLOW" | cut -d: -f2- | sed 's/^      - name: //' | paste -sd'|')"
-if [[ "$order" == "Check out main's Node pin and verdict reader|Restore the verdict reads pr-merge's last run kept|Start the run cache from them|$NAME" ]]; then
-  ok "the checkout, the restore and the carry come before the step, in that order"
+if [[ "$order" == "Check out main's Node pin and verdict reader|Read the verdict reads pr-merge's last scheduled run kept|Start the run cache from them|$NAME" ]]; then
+  ok "the checkout, the read and the carry come before the step, in that order"
 else
   fail "the reader's steps are out of order: $order"
 fi

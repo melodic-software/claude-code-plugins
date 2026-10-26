@@ -3751,6 +3751,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .base/.node-version
+          package-manager-cache: false
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
       # config names the human-gated label and the trusted-actor list names who
       # may lift a hold; both are read at the base so the pull request cannot
@@ -4608,28 +4609,30 @@ jobs:
           echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
       # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
       # The reads that never change (FAIL run records, FAIL head refs, run
-      # heads on main) that pr-merge's last run kept, as pr-merge.yml restores
-      # them, so the lanes-hold step's reader reads only what landed since:
-      # about 73 requests for a lanes App pull request where a cold reader
-      # makes about 860 (one run read and compare per FAIL and a download per
-      # untied FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs. A
-      # run may restore the default branch's caches
-      # (https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
-      # Any job in that scope can write the prefix, so every kept read lands in
-      # a carried-* section the reader uses only where it counts a FAIL, never
-      # to turn one away or allow a pass. Any error leaves the cache empty, and
-      # the reader reads GitHub: more requests, never a pass.
-      # Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
-      - name: Restore the verdict reads pr-merge's last run kept
+      # heads on main) that pr-merge's last scheduled or hand-started run kept,
+      # so the lanes-hold step's reader reads only what landed since: about 73
+      # requests for a lanes App pull request where a cold reader makes about
+      # 860 (one run read and compare per FAIL and a download per untied
+      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs. They
+      # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
+      # finds it (carry-run-cache.mjs `read`): only that run's steps could
+      # upload it. This job holds write scopes and is the required check, so it
+      # restores no Actions cache, which any job in main's cache scope can
+      # write and whose restore extracts its archive anywhere in the workspace
+      # (#9455). Every kept read still lands in a carried-* section the reader
+      # uses only where it counts a FAIL, never to turn one away or allow a
+      # pass. Any error leaves the cache empty, and the step holds a cold
+      # reader. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
+      - name: Read the verdict reads pr-merge's last scheduled run kept
         id: verdict_reads_restore
         if: ${{ !cancelled() && github.event_name == 'merge_group' }}
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/pr-merge-carried.json
-          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-merge-run-cache-
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
         if: ${{ !cancelled() && github.event_name == 'merge_group' }}
