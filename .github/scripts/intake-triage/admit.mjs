@@ -655,7 +655,7 @@ export async function sayWhy(github, repository, base, comments, text) {
 // The body, the comment count and the first 100 comments, each with its
 // author, last editor and edit time: the first 100 comments are what pr-verify
 // reads, and it stops on an issue with more.
-const SPEC_COMMENTS = 100;
+export const SPEC_COMMENTS = 100;
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
     body lastEditedAt author { ...actor } editor { ...actor }
