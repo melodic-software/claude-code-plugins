@@ -86,8 +86,9 @@ function fakeApi({
   labelEvents = new Map(),
   history = new Map(),
   annotations = new Map(),
+  commitRuns = new Map(),
 } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], annotations: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [], annotations: [], commit: [] };
   return {
     calls,
     // One check run's annotations, by its id; none unless the test names it.
@@ -98,6 +99,22 @@ function fakeApi({
         throw rows;
       }
       return rows ?? [];
+    },
+    // Every check run on the head over REST: the test's rows for the head,
+    // else the rollup's runs in REST's shape, ids in rollup order.
+    async listCommitCheckRuns(sha) {
+      calls.commit.push(sha);
+      const rows = commitRuns.get(sha);
+      if (rows instanceof Error) {
+        throw rows;
+      }
+      if (rows) {
+        return rows;
+      }
+      const node = pages.flat().find((pull) => pull.headRefOid === sha);
+      return (node?.commits.nodes[0].commit.statusCheckRollup.contexts.nodes ?? [])
+        .filter((run) => run.__typename === "CheckRun")
+        .map((run, index) => ({ id: index + 1, ...toRest(run) }));
     },
     // The head's check runs of one name and app over REST, every one of them:
     // the test's history for the head, else the rollup's runs in REST's shape.
@@ -389,8 +406,17 @@ const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was 
 const stranded = (number, notes) => {
   const head = String(number).padStart(40, "a");
   return {
-    pages: [[pr(number, { checks: [lanes("FAILURE"), check("test-bash (3)", "CANCELLED", { databaseId: 120950643531 }), check("ci-status", "FAILURE", { databaseId: 120952904939 })] })]],
+    pages: [[pr(number, { checks: [lanes("FAILURE"), check("test-bash (3)", "CANCELLED"), check("ci-status", "FAILURE")] })]],
     requiredRuns: new Map([[head, { run: { ...tested(2), id: 40118648493, conclusion: "cancelled" }, jobs: null }]]),
+    commitRuns: new Map([
+      [
+        head,
+        [
+          { id: 120950643531, ...toRest(check("test-bash (3)", "CANCELLED")) },
+          { id: 120952904939, ...toRest(check("ci-status", "FAILURE")) },
+        ],
+      ],
+    ]),
     annotations: new Map([[120950643531, notes]]),
   };
 };
@@ -418,6 +444,38 @@ test("a cancelled check with no time-limit note leaves the head skipped; an unre
   assert.ok(unreadable.lines.some((line) => line.startsWith("::error::#9828: could not read its cancelled checks' annotations")), unreadable.lines.join("\n"));
 });
 
+// A cancelled tested run's failed job that a later contract-only run skipped:
+// the rollup shows only the skip, and fix-ci-context still finds the failure.
+test("a cancelled tested run whose failed job a later run skipped is dispatched", async () => {
+  const head = "8".padStart(40, "a");
+  const rest = (id, conclusion) => ({ id, name: "test-bash (3)", status: "completed", conclusion, output: { title: null }, completed_at: "2026-10-22T10:00:00Z" });
+  const { lines, result, api } = await run({
+    pages: [[pr(8, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED"), check("ci-status", "FAILURE")] })]],
+    requiredRuns: new Map([[head, { run: { ...tested(2), conclusion: "cancelled" }, jobs: MIXED_JOBS }]]),
+    commitRuns: new Map([[head, [rest(1, "failure"), rest(2, "skipped")]]]),
+  });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [8], lines.join("\n"));
+  assert.deepEqual(api.calls.commit, [head]);
+});
+
+test("a cancelled tested run whose head's check runs cannot be read waits on a server error and dispatches on another error", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const serverError = Object.assign(new Error("HTTP 502"), { status: 502 });
+  const { lines, result } = await run(
+    {
+      pages: [[pr(3, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED")] }), pr(4, { checks: [lanes("FAILURE"), check("test-bash (3)", "SKIPPED")] })]],
+      requiredRuns: new Map([3, 4].map((number) => [head(number), { run: { ...tested(2), conclusion: "cancelled" }, jobs: null }])),
+      commitRuns: new Map([
+        [head(3), serverError],
+        [head(4), new Error("not JSON")],
+      ]),
+    },
+    { maxDispatch: 5 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [4], lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("::warning::#3: could not read its head's check runs: HTTP 502; skipped")), lines.join("\n"));
+});
+
 test("a head whose fix-ci runs include a run that is not retryable is not capped, and an untrusted-trigger skip does not count", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const rest = (conclusion, title = null) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion, output: { title }, completed_at: "2026-10-22T10:00:00Z" });
@@ -439,16 +497,18 @@ test("a head whose fix-ci runs include a run that is not retryable is not capped
   assert.deepEqual([1, 2, 3].map((number) => isHandled(record, "pr-unblock / fix-ci", head(number))), [true, false, false]);
 });
 
-test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit waits, any other error fails", async () => {
+test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit or a 5xx waits, any other error fails", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const limited = Object.assign(new Error("GET check-runs returned 403"), { rateLimited: true });
+  const outage = Object.assign(new Error("GET check-runs returned 502"), { status: 502 });
   const { lines, result } = await run(
-    { pages: [[pr(1), pr(2)]], history: new Map([[head(1), limited], [head(2), new Error("GET check-runs returned 502")]]) },
+    { pages: [[pr(1), pr(2), pr(3)]], history: new Map([[head(1), limited], [head(2), new Error("GET check-runs returned 404")], [head(3), outage]]) },
     { maxDispatch: 5 },
   );
   assert.deepEqual(result, { dispatched: [], failed: 1 });
   assert.ok(lines.includes("::warning::#1: its pr-unblock / fix-ci run read is rate limited (GET check-runs returned 403); no fix-ci dispatched, a later run retries"), lines.join("\n"));
-  assert.ok(lines.includes("::error::#2: could not read its pr-unblock / fix-ci runs (GET check-runs returned 502); left for a later run"), lines.join("\n"));
+  assert.ok(lines.includes("::error::#2: could not read its pr-unblock / fix-ci runs (GET check-runs returned 404); left for a later run"), lines.join("\n"));
+  assert.ok(lines.includes("::warning::#3: could not read its pr-unblock / fix-ci runs: GET check-runs returned 502; skipped, a later run retries"), lines.join("\n"));
 });
 
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
@@ -503,10 +563,21 @@ test("an awaiting-human skip left while the PR was held does not hold it once th
 test("a hold that cannot be read counts as a failed dispatch", async () => {
   const api = fakeApi({ pages: [[pr(1, humanGated)]] });
   api.listTimeline = async () => {
-    throw new Error("GET timeline returned 502");
+    throw Object.assign(new Error("GET timeline returned 404"), { status: 404 });
   };
   const result = await dispatchCiFixes({ api, runId: "1", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
   assert.deepEqual(result, { dispatched: [], failed: 1 });
+});
+
+test("a hold read GitHub still answers 5xx after its retries skips that PR with a warning and fails nothing", async () => {
+  const api = fakeApi({ pages: [[pr(1, humanGated), pr(2)]] });
+  api.listTimeline = async () => {
+    throw Object.assign(new Error("GET timeline returned 502"), { status: 502 });
+  };
+  const lines = [];
+  const result = await dispatchCiFixes({ api, runId: "1", log: (line) => lines.push(line), appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 2, workflowRunId: "7002" }], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#1:") && line.includes("502")));
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {
@@ -718,6 +789,26 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   }
 });
 
+test("the adapter reads a head's check runs as fix-ci-context does: latest, 100 a page, at most 3 pages", async () => {
+  const urls = [];
+  const api = createGitHubApi({
+    token: "t",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ check_runs: Array.from({ length: 100 }, (_, index) => ({ id: urls.length * 100 + index })) }), { status: 200 });
+    },
+  });
+  const runs = await api.listCommitCheckRuns("a".repeat(40));
+  assert.equal(runs.length, 300);
+  assert.deepEqual(
+    urls,
+    [1, 2, 3].map((page) => `https://api.example/repos/octo/repo/commits/${"a".repeat(40)}/check-runs?filter=latest&per_page=100&page=${page}`),
+  );
+});
+
 test("a head whose ci-status failed on infra only gets no fix-ci run, and takes no place under the cap", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const { api, lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns: new Map([[head(5), { run: tested(1), jobs: INFRA_JOBS }]]) });
@@ -744,13 +835,24 @@ test("an adopted owner PR whose ci-status failed on infra only is the reconciler
 // no reason to wait, so fix-ci takes the head under its usual caps.
 test("a head whose required run's jobs cannot be read is dispatched fix-ci, and the log says why", async () => {
   const head = "5".padStart(40, "a");
-  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, new Error("GET returned 502")]]) });
+  const unreadable = Object.assign(new Error("GET returned 404"), { status: 404 });
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, unreadable]]) });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [5],
   );
-  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs (GET returned 502); dispatching fix-ci")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs (GET returned 404); dispatching fix-ci")), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: required run unreadable)")), lines.join("\n"));
+});
+
+// An outage is no reason to spend a model run either: a required-run read
+// GitHub still answers 5xx after its retries skips that head for a later run.
+test("a required-run read GitHub still answers 5xx after its retries skips that head with a warning and fails nothing", async () => {
+  const outage = Object.assign(new Error("GET https://api.example/runs returned 502"), { status: 502 });
+  const { api, lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns: new Map([["5".padStart(40, "a"), outage]]) });
+  assert.deepEqual(result, { dispatched: [{ number: 6, workflowRunId: "7006" }], failed: 0 });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["6"]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5:") && line.includes("502") && line.includes("skipped")), lines.join("\n"));
 });
 
 test("an unreadable required run still keeps the per-head cap, the restart count and an in-flight run", async () => {

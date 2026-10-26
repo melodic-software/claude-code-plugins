@@ -45,7 +45,7 @@ import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, permanentlyHandles } from "./limit-stop.mjs";
-import { budgetedFetch } from "./request-budget.mjs";
+import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -216,6 +216,10 @@ export async function dispatchConflicting({
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(
         `::error::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}`,
@@ -285,7 +289,7 @@ export function createGitHubApi({
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -296,7 +300,7 @@ export function createGitHubApi({
     while (url) {
       const response = await fetch(url, { headers });
       if (!response.ok) {
-        throw new Error(`GET ${url} returned ${response.status}`);
+        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
       }
       rows.push(...(await response.json()));
       url = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1] ?? "";
@@ -355,6 +359,19 @@ export function createGitHubApi({
     },
     // A held PR's issue timeline (gate-source.mjs reads its REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
+    // Every check run on a commit, up to 300, as fix-ci-context reads them
+    // (address-feedback.mjs listCommitCheckRuns).
+    async listCommitCheckRuns(sha) {
+      const runs = [];
+      for (let page = 1; page <= 3; page += 1) {
+        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        runs.push(...(data.check_runs ?? []));
+        if ((data.check_runs ?? []).length < 100) {
+          break;
+        }
+      }
+      return runs;
+    },
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,

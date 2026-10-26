@@ -1992,9 +1992,10 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     (`merge_policy.lane_room`, `LaneRoom.report`), from this run's
     `babysit_postmerge.py` report and the `CLAUDE_LANES_MERGE_RUNG_CAP` value
     the workflow read (empty is no cap; missing holds the rung off). A report
-    the gate would not reuse is checked again; one refused only as
-    `unverified-stale` is first kept while nothing it was read from has
-    moved."""
+    the gate would not reuse, for any `shared_refusal`, is checked again; one
+    refused only as `unverified-stale` is first kept while nothing it was
+    read from has moved, and one refused only as `demotion-changed` when the
+    demotion reads the same."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
