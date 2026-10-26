@@ -29,8 +29,12 @@ const APP_KEY_INPUTS = new Set(["app-private-key", "private-key"]);
 // role's name; pr-unblock.yml's fix-ci-subscription read job runs on it.
 // claude_api_key, pr_unblock_claude_api_key and issue_lane_claude_api_key are
 // a role's Claude Console API key, which fix-ci's and resolve-issue's first
-// read jobs run on.
+// read jobs run on. fallback_claude_code_oauth_token is the central fallback
+// subscription's token, the same kind of credential for every role: each
+// lane's third read call runs on it, and its handoff job reads whether it is
+// set.
 const ALLOWED_SECRETS = new Set([
+  "fallback_claude_code_oauth_token",
   "claude_code_oauth_token",
   "pr_unblock_claude_code_oauth_token",
   "issue_lane_claude_code_oauth_token",

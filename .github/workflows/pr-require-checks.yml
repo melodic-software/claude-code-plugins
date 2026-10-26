@@ -349,7 +349,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           filters: |
             shell:
@@ -878,7 +878,7 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -903,7 +903,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -926,7 +926,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -941,7 +941,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           config: lychee.toml
           exclude: >-
@@ -951,7 +951,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           config: .editorconfig-checker.json
 
@@ -965,13 +965,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -979,7 +979,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -991,12 +991,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1029,12 +1029,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1157,6 +1157,10 @@ jobs:
         continue-on-error: true
         env:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          # The surface-diff auto-approval fetches commit trees from api.github.com
+          # (runner-policy.mjs fetchCommitTree); authenticated, it skips the shared
+          # anonymous rate limit. The job token is read-only (`contents: read`).
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh runner-policy {0}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
@@ -1500,7 +1504,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1932,7 +1936,7 @@ jobs:
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -1940,7 +1944,7 @@ jobs:
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -2340,7 +2344,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -2583,7 +2587,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -3054,7 +3058,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -3148,9 +3152,11 @@ jobs:
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
       # gh-read.sh, so each step that sources that file reads through it.
-      # Its read floor is pr-pipeline.schema.json's read-floor default
-      # (log-api-budget.test.mjs checks), as this job has no schema checkout.
+      # Its read floor and limit cap are pr-pipeline.schema.json's read-floor
+      # and github-token limit-cap defaults (log-api-budget.test.mjs checks),
+      # as this job has no schema checkout.
       API_BUDGET_READ_FLOOR: "0.1"
+      API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
         # shellcheck shell=bash
         # Rate-limit readings from a job's own API responses. GET /rate_limit reports
@@ -3199,7 +3205,8 @@ jobs:
         # leaves the step running.
         #
         #   api_budget_classify         jq filter: rate-guard.mjs's classify over
-        #                               {status, headers, body, now (ms), pool, floor}
+        #                               {status, headers, body, now (ms), pool, floor,
+        #                               cap}
         #   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
         #                               code_search or core, `any` for a non-api call
         #   api_budget_stop_until <pool>
@@ -3210,9 +3217,12 @@ jobs:
         #                               reads gh api -i output and stops its pool when
         #                               it is exhausted, returning 1 unless the
         #                               answer is a 2xx; under
-        #                               API_BUDGET_READ_FLOOR of the limit left, warns
-        #                               once (unset: no floor; ci-status sets it to
-        #                               the schema's read-floor default)
+        #                               API_BUDGET_READ_FLOOR of the planned budget
+        #                               left, warns once (unset: no floor; ci-status
+        #                               sets it to the schema's read-floor default);
+        #                               the plan is the header's limit, at most
+        #                               API_BUDGET_LIMIT_CAP (unset: no cap; ci-status
+        #                               sets github-token's limit-cap default)
         #   api_budget_emit <token>...  the hub collector's notice for each refused
         #                               (403/429) reading and for the last reading of
         #                               each resource, core last; cost is
@@ -3413,7 +3423,8 @@ jobs:
           | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
               | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql
           | ($rem == 0 or $ra != null or $msg or $gql or $many) as $latched
-          | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $rem < $in.floor * $lim) as $low
+          | (if $in.cap != null and $lim != null then ([$lim, $in.cap] | min) else $lim end) as $planned
+          | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $planned - ($lim - $rem) < $in.floor * $planned) as $low
           | if ($latched | not) then {latched: false, low: $low, reset_source: null, reset: null, pool: null}
             else (($in.now / 1000) | floor) as $n
             | [(if $ra != null then [$n + $ra, "retry-after"] else empty end),
@@ -3432,11 +3443,11 @@ jobs:
           start=$(awk 'NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { exit } { sub(/\r$/, "") } NR > 1 && $0 == "" { print NR; exit }' "$file")
           [[ -n $start ]] || return 0
           verdict=$(jq -rn --rawfile raw "$file" --argjson start "$start" --arg pool "$pool" --argjson now "$(($(date +%s) * 1000))" \
-            --arg floor "${API_BUDGET_READ_FLOOR:-}" '($raw | split("\n")) as $l
+            --arg floor "${API_BUDGET_READ_FLOOR:-}" --arg cap "${API_BUDGET_LIMIT_CAP:-}" '($raw | split("\n")) as $l
             | ($l[0] | split(" ")[1] | tonumber) as $status
             | ([$l[1:$start - 1][] | sub("\r$"; "") | capture("^(?<k>[^:]+):[ \t]*(?<v>.*)$") | {(.k | ascii_downcase): .v}] | add // {}) as $headers
             | {status: $status, headers: $headers, body: ($l[$start:] | join("\n")), now: $now, pool: $pool,
-               floor: ($floor | tonumber? // null)}
+               floor: ($floor | tonumber? // null), cap: ($cap | tonumber? // null)}
             | '"$API_BUDGET_CLASSIFY"' | "\(.latched) \(.low) \(.reset_source) \(.reset) \(.pool)"' 2>/dev/null) || return 0
           read -r latched low source reset stop <<<"$verdict"
           if [[ $latched == true ]]; then
@@ -3567,7 +3578,7 @@ jobs:
           # the lane-scope step writes.
           { echo 'exec 9>&2'; declare -f gh_read; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -4247,7 +4258,7 @@ jobs:
           }
           if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
@@ -4561,12 +4572,13 @@ jobs:
       # on the holds that gate honors: a body hold, a member's veto comment,
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
-      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), or a plugin or
-      # marketplace manifest change the merge gate reviews (merge-holds.mjs
-      # manifestChanges, both sides read at BASE_SHA and the head), so a push
-      # after arming is held on its own pull request event; a person on the
-      # trusted-actor list (as main has it) lifts either by approving the head,
-      # then re-runs ci-status. A changed cost path (merge-holds.mjs COST_PATHS) also holds,
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after
+      # arming is held on its own pull request event; a person on the
+      # trusted-actor list (as main has it) lifts it by approving the head,
+      # then re-runs ci-status. A trusted-actor list
+      # change that adds or widens an entry (merge-holds.mjs actorsHold, both
+      # sides read at BASE_SHA and the head) holds too, lifted the same way.
+      # A changed cost path (merge-holds.mjs COST_PATHS) also holds,
       # and only the owner's cost decision linked from the body lifts it; the
       # module reads that decision with this step's GH_TOKEN, only when the
       # body links one. All by the rules in
@@ -4826,7 +4838,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
