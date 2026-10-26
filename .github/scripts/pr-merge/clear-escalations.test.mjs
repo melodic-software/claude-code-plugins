@@ -518,6 +518,10 @@ const UNBOUND = "pr-merge's gate holds it on its risk score (evidence-unbound:cl
 const SECURITY = "pr-merge's gate holds it on its risk score (security-finding: 1 open CRITICAL finding)";
 const REPEATED = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
 const UNTRUSTED = "pr-merge's lane does not take its issue link (untrusted-provenance)";
+const UNTRUSTED_SPEC = "pr-merge's gate refuses its verifier verdict (verify:untrusted-spec)";
+const COST = "pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)";
+// Labels enable-auto-merge set before #9826 made these lane causes.
+const SPEC_CHANGED = "pr-merge's gate refuses its verifier verdict (verify:spec-changed)";
 const NATIVE = { LANE_PRS: "native" };
 const nativeEscalated = (reason, head = HEAD) => mergeEscalated(refusalBody(true, reason, head, "needs-human"));
 const clean = (pull) => ({ head: pull.headRefOid, refusal: null, ineligible: null, reviews: null });
@@ -540,9 +544,9 @@ test("enable-auto-merge's label at the current head comes off once the gate's re
 
 test("enable-auto-merge's label comes off when the reader now reads a refusal the lanes clear for the same cause", async () => {
   for (const [reason, evidence] of [
-    // A verifier label: any verdict the lanes clear, read whole.
-    [REPEATED, refusing("verify:fail")],
-    [REPEATED, refusing("verify:earlier-fail")],
+    // A lane-class verifier label: any verdict the lanes clear, read whole.
+    [SPEC_CHANGED, refusing("verify:fail")],
+    [SPEC_CHANGED, refusing("verify:earlier-fail")],
     // A risk label: a risk score read whole, now naming only lane causes.
     [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
   ]) {
@@ -567,6 +571,14 @@ test("a risk, verifier or issue-link label stays when the reader's answer no lon
     [REPEATED, (pull) => ({ ...clean(pull), reviews: "unreadable: the lane's rung is off" })],
     [UNTRUSTED, ineligible("not-agent-ready")],
     [UNTRUSTED, refusing("verify:fail")],
+    [SPEC_CHANGED, refusing("verify:unreadable")],
+    // A person's recorded cause clears only when nothing refuses: an unbound
+    // review or a partial file listing never read it, and a verdict that is not
+    // a pass never checks the spec's trust.
+    [SECURITY, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-security-review: not bound: threads-unread" })],
+    [COST, (pull) => ({ ...clean(pull), reviews: "files-incomplete: the changed-file listing did not read whole" })],
+    [UNTRUSTED_SPEC, refusing("verify:fail")],
+    [REPEATED, refusing("verify:fail")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
     await run(w, NATIVE);
@@ -669,6 +681,16 @@ test("enable-auto-merge's comment beside another pr-merge escalation is not read
     const timeline = [commented(BOT, other, "2026-10-18T09:59:50Z"), ...nativeEscalated(UNBOUND)];
     const w = world({ timeline, author: BOT, evidence: clean });
     await run(w, NATIVE);
+    assert.deepEqual(w.reads, [], other);
+    assert.deepEqual(w.writes(), [], other);
+  }
+});
+
+test("another pr-merge escalation alone at the head is not read as enable-auto-merge's", async () => {
+  for (const other of [verifyBody(HEAD), sharedCopyBody(HEAD)]) {
+    const w = world({ timeline: mergeEscalated(other), author: BOT, evidence: clean });
+    const { code, logs } = await run(w, NATIVE);
+    assert.equal(code, 0, logs.join("\n"));
     assert.deepEqual(w.reads, [], other);
     assert.deepEqual(w.writes(), [], other);
   }

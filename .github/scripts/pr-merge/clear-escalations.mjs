@@ -60,14 +60,16 @@
 // again at that head: the gate's reader (`evidence`, as enable-auto-merge
 // reads it, the room's rung cap passed as C3 so the scorer answers at the
 // config's rung) runs, and the label comes off as `refusal-cleared` when
-// nothing refuses, or when the answer was read whole and what refuses now
-// is a lane's (verifyClears `lane`) for the same cause: for a verifier
-// reason a verdict, read once the link passes, that is neither unreadable
-// nor missing; for a risk reason a risk score, which the reader computes
-// only once the link and verdict pass. An issue-link reason comes off only
-// when nothing refuses. A person's
-// refusal, an unread answer and a failed read keep it; so does a hold or
-// cost path, which no reader answer clears. At most NATIVE_READS_PER_RUN
+// nothing refuses. A recorded cause the lanes clear (a label set before it
+// became a lane's) also comes off when the answer was read whole and what
+// refuses now is a lane's (verifyClears `lane`) for the same cause: for a
+// verifier reason a verdict, read once the link passes, that is neither
+// unreadable nor missing; for a risk reason a risk score, which the reader
+// computes only once the link and verdict pass. An issue-link reason, and a
+// recorded cause a person must clear (PERSON_RISK, PERSON_REFUSALS), come
+// off only when nothing refuses. A person's refusal, an unread answer and a
+// failed read keep it; so does a hold or cost path, which no reader answer
+// clears. At most NATIVE_READS_PER_RUN
 // reads a run, starting at an offset that moves with the run number
 // (rotated), so labels past the cap are read on a later run.
 //
@@ -107,7 +109,7 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { personBodies, pythonVerify, READER_HOLDS, REFUSAL_MARKER, rotated, verifyClears, verifyHold } from "./enable-auto-merge.mjs";
+import { PERSON_REFUSALS, PERSON_RISK, personBodies, pythonVerify, READER_HOLDS, REFUSAL_MARKER, rotated, verifyClears, verifyHold } from "./enable-auto-merge.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const REASON = /^- Reason: `([a-z-]+)`$/m;
@@ -213,16 +215,22 @@ function nativeRefusal(appComments, merged, label, head) {
   return kind !== undefined && personBodies(reason, head, label).includes(newest.body) ? { kind, reason } : null;
 }
 
-// Whether the reader's `evidence` at `head` lifts a `kind` refusal: nothing
-// refuses, or the answer was read whole and what refuses is a lane's for the
-// same cause. The reader reads the verdict only once the link passes, and
-// the risk score only once the verdict passes too, so a refusal of either
-// hides what comes after it.
-function liftsRefusal(kind, evidence, head) {
+// Whether the reader's `evidence` at `head` lifts the `kind` refusal recorded
+// as `reason`: nothing refuses, or, for a recorded cause the lanes clear (a
+// label set before that cause became a lane's), the answer was read whole and
+// what refuses is a lane's for the same cause. A recorded cause a person must
+// clear (PERSON_RISK, PERSON_REFUSALS) lifts only when nothing refuses: an
+// unbound review or a partial file listing is a lane-class answer that never
+// checked it, and the spec's trust is checked only on a pass. The reader reads
+// the verdict only once the link passes, and the risk score only once the
+// verdict passes too, so a refusal of either hides what comes after it.
+function liftsRefusal(kind, reason, evidence, head) {
   if (verifyHold(evidence, head) === null) {
     return true;
   }
-  if (kind === "link" || evidence.ineligible !== null || verifyClears(evidence, head) !== "lane" || UNREAD.includes(evidence.refusal) || UNREAD_REVIEWS.test(evidence.reviews ?? "")) {
+  const recorded = reason.slice(READER_HOLDS[kind].length, -1);
+  const person = kind === "risk" ? PERSON_RISK.test(recorded) : PERSON_REFUSALS.includes(recorded);
+  if (kind === "link" || person || evidence.ineligible !== null || verifyClears(evidence, head) !== "lane" || UNREAD.includes(evidence.refusal) || UNREAD_REVIEWS.test(evidence.reviews ?? "")) {
     return false;
   }
   return kind === "verdict" || evidence.refusal === null;
@@ -324,7 +332,7 @@ async function verdict({ github, repo, number, label, bot, mainSha, lanePrs, ver
         return { reason: `the gate's reader did not answer: ${escapeCommand(error?.message ?? error)}` };
       }
       const held = verifyHold(evidence, pull.head.sha);
-      if (!liftsRefusal(native.kind, evidence, pull.head.sha)) {
+      if (!liftsRefusal(native.kind, native.reason, evidence, pull.head.sha)) {
         return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
       }
       return cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
