@@ -457,7 +457,11 @@ Each leaf declares:
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
-  report. A script in both lists fails red.
+  report. A script in both lists fails red. On a skill whose effect is not `read`, whose run job
+  holds the lane token and `id-token: write`, neither list may name a script that runs the
+  checkout's test files (`affected-tests.sh`, `run-outside-node-suites.sh`, `selection-audit.sh`,
+  `check-guardrails-ps-differential.sh`, `run-test-file.sh`); `check-affected.sh --tests` stays
+  allowed, since from the base copy it skips the branch's tests.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that the skill may run with any arguments
   but a path outside the checkout. The runner that gives the skill its edit tools runs each from a read-only base copy of its plugin (or of `scripts/`) against
@@ -469,7 +473,9 @@ Each leaf declares:
   inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
   `scripts/new-changelog-fragment.sh` (new files under the checkout's `.changes/` only) do,
   or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
-  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does.
+  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does. Those two run checkout
+  code, so the schema refuses them on a skill whose effect is not `read`: its run job holds the
+  lane token and `id-token: write`.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, the skill may search the web, fetch
   those domains, and run the research skills, wherever the runner gives it its edit tools

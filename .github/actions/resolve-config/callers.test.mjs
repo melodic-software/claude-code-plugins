@@ -1042,6 +1042,15 @@ test("no job using pr-run-activity-write.yml runs the resolve-issue model step, 
   assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
 });
 
+// The write runner's run job holds the lane token and id-token: write, so it
+// prepares no runner for head test files: the schema refuses run-test-file.sh
+// and check-skill.sh on a write-effect skill (verify-scripts.test.mjs), and a
+// read skill runs them in pr-run-activity-read.yml, whose run job holds neither
+// (pinned below with its read-only permissions).
+test("pr-run-activity-write.yml prepares no head test-file runner", () => {
+  assert.doesNotMatch(read("../../workflows/pr-run-activity-write.yml"), /run-test-file|check-skill/);
+});
+
 // The admission gate: on an issue anyone can open, only a listed human's
 // agent-ready label (or the lanes App's own) may start a job that gets the
 // issue lane's Claude credential or runs the read runner.

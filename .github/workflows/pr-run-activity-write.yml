@@ -450,7 +450,9 @@ jobs:
     timeout-minutes: ${{ inputs.timeout-minutes }}
     # id-token: write is only for the broker request. Any step of this job can
     # request an OIDC token for another audience: an accepted residual (ADR
-    # 0058), bounded by the broker's one mint per job.
+    # 0058), bounded by the broker's one mint per job. So no step runs a
+    # PR-head test file: the schema refuses the verify-scripts, checks and
+    # self-checks that run checkout tests on a write-effect skill.
     permissions:
       contents: read
       pull-requests: read
@@ -995,19 +997,6 @@ jobs:
           prepare: ${{ steps.config.outputs.prepare }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
           issue-number: ${{ inputs.issue-number }}
-
-      # The run-test-file verify-script runs test_*.py under pytest, which the
-      # runner image lacks. When the stage granted its wrapper, install the
-      # base's hash-pinned CI requirements, before the head checkout replaces
-      # .base.
-      - name: Set up Python for the test-file runner
-        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: .base/.python-version
-      - name: Install the pinned pytest for the test-file runner
-        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        run: python -m pip install --only-binary ':all:' --require-hashes --requirement .base/.github/requirements-ci.txt
 
       # A script reads the base's work-item tracker config (report-escalation's
       # human-gated role label), which the head checkout would replace. Its

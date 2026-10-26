@@ -504,6 +504,10 @@
       ],
       "description": "Only the runner that stages a skill's edit tools grants checks, self-checks, verify-scripts and web-access: the write runner, or the read runner for a skill with applied-by.patch and no prepare: ci-context. Anywhere else they would do nothing, so they are refused."
     },
+    "no-head-test-check": {
+      "not": { "pattern": "^scripts/(affected-tests|run-outside-node-suites|selection-audit|check-guardrails-ps-differential|run-test-file)\\.sh( |$)" },
+      "description": "A check or self-check of a skill whose effect is not read runs in the write runner's run job, which holds the lane token and id-token: write, so it may not be a script that runs the checkout's test files. check-affected.sh --tests is allowed: run from the base copy against the checkout, it skips the branch's tests."
+    },
     "leaf": {
       "type": "object",
       "additionalProperties": false,
@@ -543,6 +547,18 @@
         "$ref": "#/$defs/edit-runner"
       },
       "allOf": [
+        {
+          "if": { "required": ["effect"], "properties": { "effect": { "not": { "const": "read" } } } },
+          "then": {
+            "properties": {
+              "checks": { "items": { "$ref": "#/$defs/no-head-test-check" } },
+              "self-checks": { "items": { "$ref": "#/$defs/no-head-test-check" } },
+              "verify-scripts": {
+                "items": { "not": { "enum": ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"] } }
+              }
+            }
+          }
+        },
         {
           "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "enum": ["ci-context", "review-threads", "merge-base"] } } },
           "then": { "required": ["applied-by"], "properties": { "applied-by": { "required": ["patch"] } } }
@@ -602,7 +618,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
+          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does. Those two run checkout code, so a skill whose effect is not read, whose run job holds the lane token and id-token: write, may list neither."
         },
         "web-access": {
           "type": "object",
