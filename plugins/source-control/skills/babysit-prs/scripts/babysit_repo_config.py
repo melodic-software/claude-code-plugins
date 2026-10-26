@@ -562,7 +562,8 @@ def resolve_loop_keys(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Resolve babysit configuration from a target repository's "
-        "default branch."
+        "default branch.",
+        allow_abbrev=False,
     )
     commands = parser.add_subparsers(dest="command", required=True)
     loop = commands.add_parser(
@@ -570,6 +571,7 @@ def main(argv: list[str] | None = None) -> int:
         help="print the four babysit_loop_* keys as JSON, with the layer that "
         f"supplied each: {YAML_CONFIG_PATH}, {LEGACY_LAYER} or {DEFAULT_LAYER}; "
         "exit 1 when the repository's config cannot be read",
+        allow_abbrev=False,
     )
     loop.add_argument("repo", metavar="OWNER/REPO")
     args = parser.parse_args(argv)

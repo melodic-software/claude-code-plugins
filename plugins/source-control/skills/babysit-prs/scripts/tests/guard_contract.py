@@ -51,6 +51,7 @@ SKIP_CLI = "skills/babysit-prs/scripts/babysit_merge_skip.py"
 VERIFY_EVIDENCE_CLI = "skills/babysit-prs/scripts/babysit_verify_evidence.py"
 WHOLE_REVIEW_CLI = "skills/babysit-prs/scripts/babysit_whole_review.py"
 THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
+REPO_CONFIG_CLI = "skills/babysit-prs/scripts/babysit_repo_config.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
 MERGE_WRAPPER = "scripts/source-control-babysit-merge"
 RESOLVE_WRAPPER = "scripts/source-control-babysit-resolve-thread"
@@ -1605,6 +1606,20 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "The pull-request skill's readiness thread gate. It reads unresolved review "
             "threads and reports THREADS_OK / THREADS_BLOCKED / THREADS_UNPROVEN; "
             "it writes no file and performs no GitHub write."
+        ),
+        backed_by=(),
+    ),
+    EntryPoint(
+        path=REPO_CONFIG_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "`loop-keys <owner/repo>` reads docs/conventions/source-control.yaml and "
+            ".claude/source-control.md from the target's default branch through the "
+            "contents API and prints the four babysit_loop_* values as JSON; it performs "
+            "no GitHub write and writes only a temporary file for the shared YAML reader."
         ),
         backed_by=(),
     ),

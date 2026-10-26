@@ -3403,7 +3403,10 @@ class TheConfigKey(unittest.TestCase):
             "version: 1\nmerge:\n  rung: C2\n  authority: pr-merge\n"
             "  agent-identity: agent-lanes[bot]\n" + line
         )
-        with mock.patch.object(policy, "_file_at", side_effect=[None, text]):
+        def file_at(owner: str, name: str, path: str, sha: str) -> str | None:
+            return text if path == policy.CONFIG_PATH else None
+
+        with mock.patch.object(policy, "_file_at", side_effect=file_at):
             return policy.read_config_at(REPO, "e" * 40)
 
     def test_absent_is_off_and_true_is_on(self) -> None:

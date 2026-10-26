@@ -89,16 +89,13 @@ lane may launch from a neutral directory), and the config resolver's ambient tea
 current git root, so for every policy key that can raise behavior (the merge rung and its
 tracked-adoption activation above all), the lane reads the TARGET repository's tracked
 `docs/conventions/source-control.yaml` and `.claude/source-control.md` from its default branch (the
-forge's contents read; provider
-reference: [GitHub](../../reference/providers/github/README.md)) whenever the current
-checkout is not that repository. For the four YAML keys, run
-`python3 ${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/babysit_repo_config.py loop-keys <owner/repo>`,
-which prints each value with the layer that supplied it and exits 1 when the team layer cannot be
-read. Without Python, make the same two reads by hand, YAML first. Unreadable or absent = no tracked adoption = merges stay
-human-only (fail closed); a caller-side tracked file can never enable merges for a target that did
-not adopt the lane. Full precedence mechanics are owned by the config reference above. Report the
-effective config, which source supplied each value, and which repository's team layer bound the
-merge rung, at lane start.
+forge's contents read; provider reference: [GitHub](../../reference/providers/github/README.md))
+whenever the current checkout is not that repository. For the four YAML keys, run
+`python3 ${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/babysit_repo_config.py loop-keys <owner/repo>`, which prints each value with the layer that supplied it and exits 1 when the team layer cannot be read;
+without Python, make the same two reads by hand, YAML first. Unreadable or absent = no tracked
+adoption = merges stay human-only (fail closed); a caller-side tracked file can never enable merges
+for a target that did not adopt the lane. Full precedence mechanics are owned by the config
+reference above. Report the effective config, which source supplied each value, and which repository's team layer bound the merge rung, at lane start.
 
 **Interactive ambiguity**, an interactive launch with absent or ambiguous config (no stop mode,
 no tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
@@ -122,9 +119,7 @@ including the merge dimension's policy-floor exception, are owned by the config 
 **Dimension 6 ships safe: with no tracked adoption, every merge is human.** The convention's
 baseline rung, human merge for everything except gate-proven C2-mechanical PRs, is what a
 repository gets by *adopting* the lane in its team-tracked config: while neither the target repo's
-tracked `docs/conventions/source-control.yaml` nor its `.claude/source-control.md` carries a
-loop-lane key, the merge dimension resolves to
-`human-only`, and a merge-capable tier from the invocation or any other source never substitutes
+tracked `docs/conventions/source-control.yaml` nor its `.claude/source-control.md` carries a loop-lane key, the merge dimension resolves to `human-only`, and a merge-capable tier from the invocation or any other source never substitutes
 for that recorded adoption, the lane merges nothing and reports why. Once tracked adoption is in
 place, the C2-mechanical exception is a work-class test irrespective of author: a PR qualifies only
 when its work item classifies C2 mechanical, whoever authored it; bot authorship alone never
