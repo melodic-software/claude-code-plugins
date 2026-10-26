@@ -2309,7 +2309,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(code, 0, out["blockers"])
 
     def test_a_head_removed_once_on_a_cancelled_run_is_enqueued_again(self) -> None:
-        # Issue 8566: GitHub records a cancelled merge_group run as a
+        # GitHub records a cancelled merge_group run as a
         # failed-check removal, which no longer spends the failure cap.
         self.queue = {
             **fixtures._queue_read(required=True, failed_ejections=2),

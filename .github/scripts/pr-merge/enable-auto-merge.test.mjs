@@ -2008,7 +2008,7 @@ with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
 // and the limit from the config (merge.max-queue-ejections, default 2), so
 // only Python holds any of them. One removal arms; two after failed runs, or
 // an unread count, do not; one after a failed run and one after a cancelled
-// one arm again (issue 8566).
+// one arm again.
 test("the gate's CLI holds a head the merge queue removed merge.max-queue-ejections times, and an unread count, and re-arms one a cancel removed", async () => {
   const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-queue-"));
   const wrapper = join(dir, "queue.py");

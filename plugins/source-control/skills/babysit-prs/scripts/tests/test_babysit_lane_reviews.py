@@ -358,7 +358,7 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
         )
 
     def test_a_cancelled_run_rearms_and_a_failed_one_does_not(self) -> None:
-        # Issue 8566: a removal after a cancelled merge_group run does not
+        # A removal after a cancelled merge_group run does not
         # spend the failure cap, so native auto-merge arms the head again.
         removed = {
             "readError": None,
