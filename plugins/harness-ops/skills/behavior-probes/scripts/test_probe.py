@@ -759,6 +759,29 @@ CHANGELOG = """# Claude Code changelog
 """
 
 
+CHANGELOG_CURRENT = """# Claude Code changelog
+
+**2.1.300**
+
+October 23, 2026
+
+**Added**
+
+* Fixed EnterWorktree entering a path outside the project
+
+**2 bug fixes**
+
+* Fixed a typo in /help
+* \\[VSCode] Fixed the panel
+
+**2.1.299**
+
+October 22, 2026
+
+* PreToolUse hooks can now return updatedInput for MCP tools
+"""
+
+
 class RecheckTests(unittest.TestCase):
     def setUp(self):
         self.cases = probe.discover(probe.DEFAULT_CASES)
@@ -767,6 +790,16 @@ class RecheckTests(unittest.TestCase):
     def test_items_get_stable_ids(self):
         self.assertEqual(
             [i for i, _ in self.items], ["2.1.300-001", "2.1.300-002", "2.1.299-001"]
+        )
+
+    def test_current_release_headings_give_the_same_ids(self):
+        items = probe.changelog_items(CHANGELOG_CURRENT)
+        self.assertEqual(
+            [i for i, _ in items],
+            ["2.1.300-001", "2.1.300-002", "2.1.300-003", "2.1.299-001"],
+        )
+        self.assertEqual(
+            items[0][1], "Fixed EnterWorktree entering a path outside the project"
         )
 
     def test_range_lists_cases_whose_tags_match(self):
