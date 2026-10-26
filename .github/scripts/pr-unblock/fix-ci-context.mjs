@@ -6,7 +6,8 @@
 // another lane's escalation put the label on (gate-source.mjs prHold),
 // escalates `ci-fix-round-cap` once the lanes App has pushed
 // `loop.fix-ci-rounds` fix-ci commits to the pull request, skips a closed pull
-// request or a head with no failing check, and otherwise writes the context
+// request or a head with no failing check (one cancelled past its time limit
+// counts), and otherwise writes the context
 // file the `source-control:pull-request ci --ci` skill reads: each failing
 // check's name, the workflow file that defines its job, its annotations and
 // the end of its log, and the review findings address-feedback would work
@@ -20,6 +21,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, SHA } from "./address-feedback.mjs";
 import { prHold } from "./gate-source.mjs";
 
@@ -68,8 +70,10 @@ export function logExcerpt(text) {
 const SILENT = new Set(["skipped", "neutral"]);
 const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
 
-// The latest run of each check name that is not a skip, when it failed.
-function failingChecks(checkRuns) {
+// The latest run of each check name that is not a skip, when it failed or was
+// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
+// dispatcher reads a cancelled head through it too, so the two agree.
+export function failingChecks(checkRuns) {
   const latest = new Map();
   for (const run of checkRuns) {
     const kept = latest.get(run.name);
@@ -78,7 +82,7 @@ function failingChecks(checkRuns) {
     }
   }
   return [...latest.values()]
-    .filter((run) => run.name !== AGGREGATE && run.status === "completed" && FAILING.has(run.conclusion))
+    .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
     .sort((a, b) => a.id - b.id);
 }
 
@@ -91,7 +95,8 @@ const annotationOf = (row) => ({
 
 // A GitHub Actions check run is a job, with the same id. One that is no job
 // was posted through the checks API: a lane's own check, never a CI failure.
-async function contextOf(api, run) {
+// notes are the run's annotations when select already read them.
+async function contextOf(api, run, notes) {
   let workflow = null;
   let excerpt = "";
   if (run.app?.slug === "github-actions") {
@@ -112,7 +117,7 @@ async function contextOf(api, run) {
       excerpt = "";
     }
   }
-  const annotations = (await api.listAnnotations(run.id)).slice(0, MAX_ANNOTATIONS).map(annotationOf);
+  const annotations = (notes ?? (await api.listAnnotations(run.id))).slice(0, MAX_ANNOTATIONS).map(annotationOf);
   return { name: String(run.name), workflow, annotations, log_excerpt: excerpt };
 }
 
@@ -161,7 +166,16 @@ export async function select({ api, pr, appId, reviewerId, maxRounds, humanGated
     if (checks.length === MAX_CHECKS) {
       break;
     }
-    const context = await contextOf(api, run);
+    // A job past its timeout-minutes ends cancelled; its time-limit note is
+    // the cause the model reads (#9828). Any other cancel has nothing to fix.
+    let notes;
+    if (run.conclusion === "cancelled") {
+      notes = await api.listAnnotations(run.id);
+      if (!timeLimitNoted(notes)) {
+        continue;
+      }
+    }
+    const context = await contextOf(api, run, notes);
     if (context) {
       checks.push(context);
     }

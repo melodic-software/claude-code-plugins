@@ -13,10 +13,14 @@ import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { createJobLogReader } from "./job-log.mjs";
 import {
+  budgetLatch,
   checkCloser,
   escalationComment,
-  main,
+  main as runMain,
   RECURRENCE_PREFIX,
   recurrenceComment,
   refireComment,
@@ -34,6 +38,25 @@ const OWNER = { id: 153232337, login: "kyle-sexton" };
 const SECOND = { id: 2001, login: "second-maintainer" };
 const LANES_APP_ID = 337595936;
 const STAMP = "2026-10-16T12:00:00Z";
+const RUN_ID = "39500000088";
+
+// This run's own record, the one read a close run makes with the job token:
+// who started this attempt (`rerunner`), with `record` laid over it.
+function ownRun(rerunner = OWNER, record = {}) {
+  const calls = [];
+  const actions = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (method === "GET" && path === `/repos/${REPO}/actions/runs/${RUN_ID}`) {
+      return { id: Number(RUN_ID), run_attempt: 1, triggering_actor: rerunner, ...record };
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return Object.assign(actions, { calls });
+}
+
+// A close run reads who started it from its own record; unless a test passes
+// its own `actions`, a listed human did.
+const main = (args) => runMain(args.env.GITHUB_EVENT_NAME === "schedule" || "actions" in args ? args : { ...args, actions: ownRun() });
 
 const CLOSED = "2026-10-16T11:30:00Z";
 const issue = (
@@ -287,7 +310,8 @@ function envFor(event = {}, extra = {}) {
     KILL_SWITCH: "proceed",
     TRUSTED_ACTORS_PATH: TRUSTED,
     ACTOR_ID: String(OWNER.id),
-    TRIGGERING_ACTOR: OWNER.login,
+    GITHUB_RUN_ID: RUN_ID,
+    GITHUB_RUN_ATTEMPT: "1",
     ...extra,
   };
 }
@@ -481,47 +505,81 @@ test("a failed read on one issue still lets the others through, and fails the ru
 });
 
 // The broker mints only when the closer and any re-runner are each a listed
-// human, so anyone else stops the run quietly, before any API call (and, in
-// the workflow, before the token request, through --check-closer).
-test("a closer or re-runner who is not a listed human stops the run before any API call", async () => {
-  for (const [id, login] of [
+// human, by id, so anyone else stops the run quietly, before any issue read
+// (and, in the workflow, before the token request, through --check-closer).
+// The re-runner's id comes from this run's own record, never a login.
+const IMPOSTOR = { id: 999001, login: OWNER.login };
+test("a closer or re-runner who is not a listed human stops the run before any issue read", async () => {
+  for (const [id, rerunner] of [
     // An unlisted closer, re-run by nobody else.
-    ["1234", "someone-else"],
+    ["1234", { id: 1234, login: "someone-else" }],
     // An unlisted closer, re-run by a listed human.
-    ["1234", OWNER.login],
+    ["1234", OWNER],
     // A listed bot is not a listed human, as closer or as re-runner.
-    [String(LANES_APP_ID), "melodic-automation-lanes[bot]"],
-    [String(OWNER.id), "melodic-automation-lanes[bot]"],
-    // An unlisted re-runner.
-    [String(OWNER.id), "someone-else"],
-    ["", ""],
-    [String(OWNER.id), ""],
+    [String(LANES_APP_ID), { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]" }],
+    [String(OWNER.id), { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]" }],
+    // An unlisted re-runner, and one holding a listed human's login.
+    [String(OWNER.id), { id: 1234, login: "someone-else" }],
+    [String(OWNER.id), IMPOSTOR],
+    ["", OWNER],
   ]) {
     const { github, calls } = oneDependent();
-    assert.equal(await main({ env: envFor({}, { ACTOR_ID: id, TRIGGERING_ACTOR: login }), github }), 0);
-    assert.deepEqual(calls, [], `${id} ${login}`);
+    assert.equal(await main({ env: envFor({}, { ACTOR_ID: id }), github, actions: ownRun(rerunner) }), 0);
+    assert.deepEqual(calls, [], `${id} ${rerunner.id}`);
   }
 });
 
 test("a re-run by a different listed human labels the unblocked issues", async () => {
   const { github, calls } = oneDependent();
-  assert.equal(await main({ env: envFor({}, { ACTOR_ID: String(OWNER.id), TRIGGERING_ACTOR: SECOND.login }), github }), 0);
+  assert.equal(await main({ env: envFor(), github, actions: ownRun(SECOND) }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("the closer check answers proceed only when the closer and the re-runner are each a listed human", () => {
-  const check = (id, login) => checkCloser({ ACTOR_ID: id, TRIGGERING_ACTOR: login, TRUSTED_ACTORS_PATH: TRUSTED });
-  assert.equal(check(String(OWNER.id), OWNER.login), true);
-  assert.equal(check(String(OWNER.id), "Kyle-Sexton"), true);
-  assert.equal(check(String(OWNER.id), SECOND.login), true);
-  assert.equal(check(String(SECOND.id), "Kyle-Sexton"), true);
-  assert.equal(check("1234", "someone-else"), false);
-  assert.equal(check("1234", OWNER.login), false);
-  assert.equal(check(String(LANES_APP_ID), "melodic-automation-lanes[bot]"), false);
-  assert.equal(check(String(OWNER.id), "claude[bot]"), false);
-  assert.equal(check(String(OWNER.id), "someone-else"), false);
-  assert.equal(check(String(OWNER.id), ""), false);
-  assert.equal(check("x", OWNER.login), false);
+test("the closer check answers proceed only when the closer and the re-runner are each a listed human, by id", async () => {
+  const env = (id) => ({ ACTOR_ID: id, TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1" });
+  const check = (id, rerunner) => checkCloser(env(id), ownRun(rerunner));
+  assert.equal(await check(String(OWNER.id), OWNER), true);
+  assert.equal(await check(String(OWNER.id), SECOND), true);
+  assert.equal(await check(String(SECOND.id), OWNER), true);
+  assert.equal(await check("1234", { id: 1234, login: "someone-else" }), false);
+  assert.equal(await check("1234", OWNER), false);
+  assert.equal(await check(String(LANES_APP_ID), { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]" }), false);
+  assert.equal(await check(String(OWNER.id), { id: 209825114, login: "claude[bot]" }), false);
+  assert.equal(await check(String(OWNER.id), { id: 1234, login: "someone-else" }), false);
+  assert.equal(await check("x", OWNER), false);
+});
+
+test("a listed human's login held by a different id is not that human: the closer check answers no", async () => {
+  // TRIGGERING_ACTOR is the login the runner would pass; it is never read.
+  const actions = ownRun(IMPOSTOR);
+  const env = { ACTOR_ID: String(OWNER.id), TRIGGERING_ACTOR: OWNER.login, TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1" };
+  assert.equal(await checkCloser(env, actions), false);
+  assert.deepEqual(actions.calls, [`GET /repos/${REPO}/actions/runs/${RUN_ID}`]);
+});
+
+test("a failed or malformed read of this run's record answers no, and a close run stops before any issue read", async () => {
+  // A listed login in both triggering-actor variables: a login fallback on a failed read would admit.
+  const logins = { GITHUB_TRIGGERING_ACTOR: OWNER.login, TRIGGERING_ACTOR: OWNER.login };
+  const failing = Object.assign(async () => {
+    throw new Error("HTTP 502");
+  }, { calls: [] });
+  for (const [name, actions, extra] of [
+    ["failed read", failing, {}],
+    ["string id", ownRun({ id: String(OWNER.id), login: OWNER.login }), {}],
+    ["no triggering actor", ownRun(null), {}],
+    ["another attempt's record", ownRun(OWNER, { run_attempt: 2 }), {}],
+    ["another run's record", ownRun(OWNER, { id: 1 }), {}],
+    ["no run attempt", ownRun(), { GITHUB_RUN_ATTEMPT: "" }],
+    ["no run id", ownRun(), { GITHUB_RUN_ID: "" }],
+    ["no repository", ownRun(), { GITHUB_REPOSITORY: "" }],
+  ]) {
+    const env = { ACTOR_ID: String(OWNER.id), TRUSTED_ACTORS_PATH: TRUSTED, GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: RUN_ID, GITHUB_RUN_ATTEMPT: "1", ...logins, ...extra };
+    assert.equal(await checkCloser(env, actions), false, name);
+    // main itself fails red on a malformed repository, before the check.
+    const { github, calls } = oneDependent();
+    assert.equal(await main({ env: envFor({}, { ...logins, ...extra }), github, actions }), name === "no repository" ? 1 : 0, name);
+    assert.deepEqual(calls, [], name);
+  }
 });
 
 test("a pull request in the blocking list is skipped", async () => {
@@ -561,7 +619,6 @@ const sweep = (args, extra = {}) =>
     env: envFor({ schedule: "47 * * * *" }, {
       GITHUB_EVENT_NAME: "schedule",
       ACTOR_ID: String(LANES_APP_ID),
-      TRIGGERING_ACTOR: LANES_BOT.login,
       ...extra,
     }),
     // A job's log goes through the same fake as every other read.
@@ -2146,6 +2203,57 @@ test("a refusal whose log does not name the kill switch on the step's last line 
   assert.deepEqual(writes(unread.calls), refired(30));
 });
 
+// Run 40127232943: broker-check's `Check the kill switch` read
+// the repository kill switch on, so its broker ask was skipped and the run
+// ended green with no job failed and no log naming the reason.
+const KILL_SKIPPED = [
+  ADMITTED,
+  pickSlot,
+  {
+    name: "resolve-issue / broker-check",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "skipped" },
+    ],
+  },
+  { name: "report-skip", conclusion: "skipped", steps: [] },
+  {
+    name: "resolve-issue / run",
+    conclusion: "success",
+    steps: [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Assert the broker allowed this attempt", conclusion: "skipped" },
+    ],
+  },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+test("a green run whose broker ask the kill switch skipped is a breaker trip, read from the job listing alone", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), []);
+  // Three hours on, it is still a trip, never stranded as a run with no report.
+  const late = stalledRun({ jobs: KILL_SKIPPED, conclusion: "success" });
+  assert.equal(await sweep({ github: late.github, actions: late.actions, now: Date.parse("2026-10-16T14:05:00Z") }), 0);
+  tripped(late.calls);
+});
+
+test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
+  const [kill, ask] = KILL_SKIPPED[2].steps;
+  const check = (steps) => ({ ...KILL_SKIPPED[2], steps });
+  for (const [name, broker] of [
+    ["kill-switch check skipped", check([{ ...kill, conclusion: "skipped" }, ask])],
+    ["no kill-switch check listed", check([ask])],
+    ["broker ask ran", check([kill, { ...ask, conclusion: "success" }])],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: [ADMITTED, pickSlot, broker, KILL_SKIPPED[4]], conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+  }
+});
+
 test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {
   for (const [name, jobs] of [
     ["stop step skipped", [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped")]],
@@ -2182,6 +2290,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
+  assert.ok(steps(read["broker-check"]).includes("Check the kill switch"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {
@@ -2190,6 +2299,27 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   // The write runner mints; the read runner resolve-issue calls never does.
   assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));
   assert.ok(!Object.values(read).some((block) => steps(block).includes("Request the lane token")));
+});
+
+// Each re-runner check matches by id. The dispatch lane cannot read its run's
+// record, so it refuses every re-run; work-unblock's who step reads the record
+// with the job token.
+test("the workflows match a re-runner by id: the dispatch lane refuses a re-run, and the who step reads this run's record", () => {
+  const step = (file, name) => {
+    const text = readFileSync(join(HERE, "../../workflows", file), "utf8");
+    const start = text.indexOf(`      - name: ${name}\n`);
+    assert.ok(start >= 0, `${file}: ${name}`);
+    const end = text.indexOf("\n      - name: ", start + 1);
+    return text.slice(start, end < 0 ? undefined : end);
+  };
+  const dispatch = step("eval-browser-dispatch.yml", "Check the dispatcher is a trusted human");
+  assert.match(dispatch, /^ {10}if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then\n {12}echo "::error::rerun-refused: [^\n]*"\n {12}exit 1\n {10}fi$/m);
+  assert.ok(dispatch.indexOf("GITHUB_RUN_ATTEMPT") < dispatch.indexOf("jq -e"), "the re-run refusal comes before the list check");
+  assert.doesNotMatch(dispatch, /triggering_actor|TRIGGERING_ACTOR/);
+  const who = step("work-unblock.yml", "Check who closed the issue");
+  assert.match(who, /^ {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}$/m);
+  assert.match(who, /label-unblocked\.mjs --check-closer$/m);
+  assert.doesNotMatch(who, /triggering_actor|TRIGGERING_ACTOR/);
 });
 
 test("re-fires of runs that did no work share the restarts-per-run cap", async () => {
@@ -3440,5 +3570,29 @@ test("the App's close of a split made by hand counts as done for what it blocks"
     });
     assert.equal(await sweep({ github }), 0);
     assert.deepEqual(writes(calls), expected);
+  }
+});
+
+test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "label-unblocked-budget-"));
+  const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
+  process.env.API_BUDGET_TOKEN = "lanes-app";
+  process.env.RUNNER_TEMP = dir;
+  try {
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4999", "x-ratelimit-used": "1", "x-ratelimit-reset": "1792378942", "x-ratelimit-resource": "core" };
+    const fetchImpl = async () => new Response("{}", { status: 200, headers });
+    const latch = createRateLimitLatch();
+    const actions = budgetLatch("github-token", latch);
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("GET", "/repos/o/r/actions/runs");
+    await createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("o/r", 1, { maxBytes: 10 });
+    await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch })("GET", "/repos/o/r/issues");
+    const line = "200 5000 4999 1 1792378942 core\n";
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line + line);
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line);
+  } finally {
+    for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 });
