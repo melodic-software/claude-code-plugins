@@ -23,7 +23,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=186 [e]=20 [journey]=235 [live]=11 [page]=83)
+declare -A CHECKS=([ab]=97 [c]=186 [e]=20 [journey]=235 [live]=18 [page]=83)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -402,14 +402,15 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
 
   group_live() {
     # ui_live runs against a sixth server on the journey's first round. One tab stays open with a note
-    # half typed while the shell applies as Claude: reply with rec, revise, record-terminal, handle-only.
+    # half typed while the shell applies as Claude: reply with rec, revise, record-terminal, handle-only,
+    # then a revise of only an accepted question's title and short.
     l="$tmp/live"
     mkdir -p "$l/ops"
     cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$l/"
     bash "$here/round.sh" --dir "$l" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
     bash "$here/round.sh" --dir "$l" ensure-running --port 0 >/dev/null
     lport=$(sed -n 's/^PORT=//p' "$l/.interview-session.env" | tr -d '\r')
-    for n in 1 2 3 4; do
+    for n in 1 2 3 4 5 6; do
       sed "s/__PORT__/$lport/; s/__PHASE__/$n/" tests/ui_live.js >"$tmp/ul$n.js"
     done
     lrun() { pw run-code --filename "$(script_path "$tmp/ul$1.js")" >"$tmp/ul$1.out" 2>&1; }
@@ -426,8 +427,13 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     printf '%s' '{"ops": [{"op": "handle", "seqs": ['"${ls[*]// /, }"']}]}' >"$l/ops/c.json"
     bash "$here/round.sh" --dir "$l" apply --file "$l/ops/c.json" >/dev/null || bad "live: handle op refused"
     lrun 4
+    # #7757: the page ticks Q3's commitment, then a revise of only its title and short must leave it closed
+    lrun 5
+    bash "$here/round.sh" --dir "$l" revise Q3 --title "Should the build cache its dependencies between runs?" --short "Dependency cache" --force >/dev/null || bad "live: title and short revise refused"
+    grep -qE 'open: .*Q3 |Q3 .*to confirm' <<<"$(bash "$here/round.sh" --dir "$l" status)" && bad "live: status lists Q3 open or to confirm after the title and short revise"
+    lrun 6
     bash "$here/round.sh" --dir "$l" stop >/dev/null 2>&1
-    for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
+    for n in 1 2 3 4 5 6; do grade "ui_live.$n" "$tmp/ul$n.out"; done
   }
 
   group_page() {

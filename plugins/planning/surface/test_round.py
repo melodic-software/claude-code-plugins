@@ -601,6 +601,16 @@ class TestAffects(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], [])
 
+    def test_revise_line_records_the_fields_it_changed(self):
+        rc, out, err = self.rp("revise", "Q1", "--title", "New title?", "--short", "New short")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["title", "short"])
+        rc, out, err = self.rp(
+            "revise", "Q1", "--rec", "New.", "--affects", "none", "--keep-alternatives"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["recommendation"])
+
     def test_reply_without_rec_needs_no_affects(self):
         rc, out, err = self.rp("reply", "Q1", "--text", "Thread only.")
         self.assertEqual(rc, 0, out + err)

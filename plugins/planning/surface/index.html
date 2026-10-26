@@ -760,9 +760,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!h.replyTo) return h.kind !== "revise"; // a heads-up: Claude spoke first and nothing of yours follows it
     return !!events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase"));
   }
-  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a reply recording the decision itself is not
+  const WORDING = new Set(["title", "short"]);
+  const wordingOnly = h => h.kind === "revise" && (Array.isArray(h.changed) ? h.changed.length > 0 && h.changed.every(f => WORDING.has(f)) : /^Revised (?:title|short)(?:, (?:title|short))*\.$/.test(String(h.text || ""))); // a line from before revise recorded changed reads its default text
+  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a reply recording the decision itself, and a revise of only the title or short, are not
     const d = counted(q), recorded = x => x.kind !== "revise" && events().some(e => e.seq === x.replyTo && DEC.has(e.kind));
-    const h = d && historyOf(q).find(x => talks(x) && !recorded(x));
+    const h = d && historyOf(q).find(x => talks(x) && !recorded(x) && !wordingOnly(x));
     return h && String(h.at) > String(d.updatedAt) ? h : null;
   }
   const waitingReply = q => events().some(e => e.id === q.id && (e.kind === "ask" || e.kind === "rephrase") && !e.withdrawn && !answered(q, e.seq)); // your ask or rephrase has no later reply from Claude

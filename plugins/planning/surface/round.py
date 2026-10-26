@@ -1253,6 +1253,7 @@ def op_revise(d, doc, a):
             or "Revised "
             + ", ".join(changed)
             + (" (alternatives kept)." if kept else "."),
+            "changed": list(changed),
         }
         if affects is not None:
             line["affects"] = affects
