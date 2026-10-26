@@ -41,18 +41,19 @@ keep going.
 
 Every stop below writes its `blocked: <reason>` line, and any list or path it prints, in the report.
 
-1. **Repository control skills.** The roots are this checkout and, in a worktree, the main checkout,
-   read from `git worktree list --porcelain` (see its output format below). Glob each root for
-   `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
+1. **Repository control skills.** The roots are this checkout and, in a worktree, the main
+   checkout, read from `git worktree list --porcelain` (see its output format below). Glob each
+   root for `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
    `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). First drop every
-   file they return from inside a submodule, a dependency folder such as `node_modules` or `vendor`,
-   or a repository plugin folder, and a main-checkout file at a path this checkout also holds. A
-   repository plugin folder is a `.claude/skills/*/` folder holding `.claude-plugin/plugin.json`
-   (see repository plugins below). Search each one as step 2 searches a listed plugin's folder, in
-   place of the dropped files. Of the files left and those found, keep each whose folder name, file
-   name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`: starts with
-   `control-`). Its source is `project`.
+   file they return from inside a submodule, a dependency folder such as `node_modules` or
+   `vendor`, or a repository plugin folder, and a main-checkout file at a path this checkout also
+   holds. A repository plugin folder is a `.claude/skills/*/` folder that the plugin pages load as
+   a plugin from the skills directory (read which folders qualify at the repository plugins pointer
+   below). Search each one as step 2 searches a listed plugin's folder, in place of the dropped
+   files. Of the files left and those found, keep each whose folder name, file name without `.md`,
+   or frontmatter `name` is `control-<app>` (no `<app>`: starts with `control-`). Its source is
+   `project`.
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports whose
    folder step 1 did not already search, take the folder the list reports for it (see the plugin
    list below) and search the skill and command files it loads from its default folders and its
@@ -63,12 +64,12 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    `plugin` and its full name `<plugin>:control-<app>`, where `<plugin>` is the `name` in that
    folder's `.claude-plugin/plugin.json`, not the list's entry name (see the plugin names below); a
    folder with no manifest takes the name the manifest page gives it (see the manifest file below).
-   Session-only plugins are not read. Two cases record a `blocked:` line and stop the run, each only
-   for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`) when step
-   1 kept no repository match for that app: a listed plugin whose manifest defines `control-<app>`
-   as an inline command, with no file (`control skill <name> has no file to read`; see the
-   manifest's commands below), and a name this session shows whose `<plugin>` is no listed plugin's
-   `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
+   Session-only plugins are not read. Two cases record a `blocked:` line and stop the run, each
+   only for a `<plugin>:control-<app>` of the requested `<app>` (no `<app>`: any `*:control-*`)
+   when step 1 kept no repository match for that app: a listed plugin whose manifest defines
+   `control-<app>` as an inline command, with no file (`control skill <name> has no file to read`;
+   see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
+   plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
    below). A repository file for an `<app>`
