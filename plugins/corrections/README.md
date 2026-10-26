@@ -8,9 +8,9 @@ mistake it targets and to pass on the current code.
 |---|---|
 | `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
 | `/corrections:codify note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer |
-| `/corrections:codify group [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by mistake, each group's count next to the threshold; writes nothing |
+| `/corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by the named fields (default `producer`) and by mistake, naming the keys, each mistake's count next to the threshold; writes nothing |
 
-`codify` counts at `recurrence.min_occurrences` occurrences (default 2; set it in
+`codify` counts at `recurrence.min_occurrences` occurrences (default 2, at most 1000; set it in
 `corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
 there for yourself), or at once on a person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any
@@ -21,6 +21,7 @@ unproven.
 |---|---|
 | `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs and exits 0 only when it fails at the old ref and passes at the new one |
 | `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences` and the layer that set it, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
+| `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` | Runs `buffer.sh read` and prints its rows grouped by the named top-level fields (default `producer`): the keys first, then each group with its row and occurrence counts (distinct `source_id`) and its members |
 
 ## prove-check
 

@@ -42,7 +42,8 @@ Usage: list-workspaces.sh <project-dir> <root>...
                   placeholder is skipped as unset.
 
 Prints up to 20 `<root>/<project-slug>/<mode>/<topic>/` paths, one per line
-(pre-ladder per-worktree slugs are listed too, marked `(legacy worktree slug)`),
+(a workspace whose MISSION.md has a `Status: closed` line is marked `(closed)`;
+pre-ladder per-worktree slugs are listed too, marked `(legacy worktree slug)`),
 or `none` when the project has no workspaces. Exits 2 on a usage error —
 including when every supplied root was filtered out as unset.
 
@@ -165,15 +166,26 @@ legacy_slug=""
 # whitespace that a line-oriented pipeline would split. `nullglob` makes a non-match an
 # empty array instead of the literal pattern. Roots are scanned in the order given —
 # callers pass them ladder-highest first, so the cap keeps the highest-precedence hits.
+#
+# A closed mission is a `Status: closed` line in MISSION.md (context/mission.md "Closing and
+# reopening"); `[[:space:]]*$` also absorbs a CRLF line ending. The `if` keeps the helper's
+# exit status 0 for an active workspace, so the `lines+=` assignment that calls it never fails.
+closed_mark() {
+  if [[ -f "$1MISSION.md" ]] &&
+    grep -qE '^Status:[[:space:]]*closed[[:space:]]*$' "$1MISSION.md" 2>/dev/null; then
+    printf ' (closed)'
+  fi
+}
+
 lines=()
 shopt -s nullglob
 for root in "${roots[@]}"; do
   for w in "${root}/${slug}"/*/*/; do
-    lines+=("$w")
+    lines+=("$w$(closed_mark "$w")")
   done
   if [[ -n "$legacy_slug" ]]; then
     for w in "${root}/${legacy_slug}"/*/*/; do
-      lines+=("$w (legacy worktree slug)")
+      lines+=("$w$(closed_mark "$w") (legacy worktree slug)")
     done
   fi
 done

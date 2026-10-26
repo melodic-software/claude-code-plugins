@@ -16,7 +16,7 @@ After Phase 2 reports the PR URL, detect session mode:
 - **Interactive** (no autonomous-session marker like `CLAUDE_CODE_REMOTE=true`): ask the user whether to proceed to Phase 2.5 (ready) and Phase 3 (monitor) in this session. Acceptable responses: proceed (continue to Phase 2.5) / stop (end after create, leaving the draft) / handoff (end; another session/routine will pick up the flip and monitoring). Default on no-response is stop.
 - **Autonomous** (`CLAUDE_CODE_REMOTE=true` or equivalent): no prompt; continue to Phase 2.5 without pausing. There is no user to ask.
 
-Standalone `create` (not invoked inside `full`) stops after Phase 2, and after Phase 2.5 when its open state is `ready`; it never monitors. See [reference/create.md](create.md) §2.6.
+Standalone `create` (not invoked inside `full`) ends after Phase 2, and after Phase 2.5 when its open state is `ready`; when its session keeps acting on the PR, it arms event delivery first. See [reference/create.md](create.md) §2.6.
 
 **Decision gates (pause for user):**
 
