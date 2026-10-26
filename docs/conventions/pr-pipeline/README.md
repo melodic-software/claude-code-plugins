@@ -2054,7 +2054,9 @@ the earlier one-issue-per-key form (a marker key without `family:`) is closed as
 comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
 label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
 no `intake-label-needs-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
-cannot read is listed in the step summary and the other signals still run.
+cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
+to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
