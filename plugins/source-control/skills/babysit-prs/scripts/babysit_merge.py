@@ -89,8 +89,7 @@ Contract enforced here (encoded as code, not convention):
   clears, the human-gated role label once an earlier run's identical comment
   has stood for `merge.risk-escalation-minutes`), a verifier refusal that
   needs a human gets the tracker's human-gated role label and one upserted
-  `<!-- babysit-merge-verify-escalation -->` comment (the repeated-FAIL cap
-  the comment alone), a Dependabot update held
+  `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
   `<!-- babysit-merge-dependabot-major -->` comment, and a ready pull request whose
   score does not hold it (`babysit_risk.holds`) is
@@ -3269,6 +3268,7 @@ def score_unattended(
     risk_input = babysit_risk.RiskInput(
         files=files,
         files_complete=complete,
+        files_capped=merge_policy.files_capped(pr),
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
         lanes=lanes,
@@ -3524,27 +3524,18 @@ def verify_escalation_body(
     head: str,
     summary: str | None = None,
     carried: tuple[str, str] | None = None,
-    person: bool = True,
 ) -> str:
-    """The comment for a verifier refusal a person clears (`person`), or for
-    the repeated-FAIL round cap, which the lanes rework: a function of the
-    refusal, the head, the class and the quoted fail summary only, so a
-    rerun renders the same body. The summary is model text, quoted as data
-    in a text fence and cut to `VERIFY_SUMMARY_MAX` characters. `carried`,
-    the (head, text) an earlier comment quoted (`_carried_quote`), is quoted
-    as it was when there is no `summary`."""
-    who = (
-        "That refusal needs a human, who merges in person; the pr-merge lane "
-        "will not merge this pull request."
-        if person
-        else "That is the round cap (`merge.max-verify-fails`): the lanes "
-        "rework it, and the pr-merge lane will not merge this pull request "
-        "until a verdict passes."
-    )
+    """The needs-human comment for a verifier refusal: a function of the
+    refusal, the head and the quoted fail summary only, so a rerun renders the
+    same body. The summary is model text, quoted as data in a text fence and
+    cut to `VERIFY_SUMMARY_MAX` characters. `carried`, the (head, text) an
+    earlier comment quoted (`_carried_quote`), is quoted as it was when there
+    is no `summary`."""
     lines = [
         VERIFY_ESCALATION_MARKER,
         f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-        f"`{head}`. {who}",
+        f"`{head}`. That refusal needs a human, who merges in person; the "
+        "pr-merge lane will not merge this pull request.",
     ]
     quote = carried
     if summary:
@@ -3638,14 +3629,11 @@ def escalate_verify(
     refusal: str,
     inputs: Mapping[str, Any],
     summary: str | None = None,
-    person: bool = True,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal (`person`); for the
-    repeated-FAIL round cap, the same comment with no label, since the lanes
-    rework it (owner rule 2026-10-26). A `verify:repeated-fail` with no
-    `summary` (unreadable, or no fail at the head) quotes the last fail
-    summary its comment carried, so an unreadable artifact rewrites nothing
-    and the reason outlives the head."""
+    """`escalate` for a needs-human verifier refusal. A
+    `verify:repeated-fail` with no `summary` (unreadable, or no fail at the
+    head) quotes the last fail summary its comment carried, so an unreadable
+    artifact rewrites nothing and the reason outlives the head."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     carried = None
     if summary is None and refusal == verify_evidence.REPEATED_FAIL:
@@ -3657,18 +3645,7 @@ def escalate_verify(
             )
             inputs = {**inputs, "comments": comments}
         carried = _carried_quote(comments, identity)
-    body = verify_escalation_body(refusal, head, summary, carried, person)
-    if not person:
-        comment = upsert_marker_comment(
-            repo,
-            number,
-            identity,
-            body,
-            inputs.get("comments"),
-            marker=VERIFY_ESCALATION_MARKER,
-            post_changed=True,
-        )
-        return {"label": None, "comment": comment}
+    body = verify_escalation_body(refusal, head, summary, carried)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
 
@@ -3943,9 +3920,8 @@ def unattended_writes(
     already says the same and has for `merge.risk-escalation-minutes`
     (`_stood_unchanged`), the comment first rewritten to end with
     `RISK_ESCALATION_LINE` (once); once the score no longer holds it, a refusal
-    comment naming the head becomes `risk_cleared_body`; the escalation
-    (`escalate_verify`) for a verifier refusal that needs a human, and its
-    comment with no label for the repeated-FAIL cap; and the escalation for a
+    comment naming the head becomes `risk_cleared_body`; and the escalation
+    (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
     eligibility reason. Nothing is written before
     the identity and the credential chokepoint passed (`inputs["identity"]`)."""
@@ -4119,13 +4095,9 @@ def unattended_writes(
             except RuntimeError as exc:
                 report["errors"].append(f"reasons comment: {exc}")
     # A verifier refusal that needs a human gets the durable escalation
-    # signal, and the repeated-FAIL cap the same comment with no label;
-    # report-only never reaches here.
+    # signal; report-only never reaches here.
     verify = json_object((policy.details or {}).get("verify"))
-    person = verify.get("needsHuman") is True
-    if not stopped and (
-        person or verify.get("refusal") == verify_evidence.REPEATED_FAIL
-    ):
+    if not stopped and verify.get("needsHuman") is True:
         try:
             report["escalation"] = escalate_verify(
                 repo,
@@ -4134,7 +4106,6 @@ def unattended_writes(
                 str(verify.get("refusal")),
                 inputs,
                 _fail_summary(verify, inputs, number),
-                person,
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")

@@ -939,11 +939,9 @@ merge:
   skip-unchanged:
     max-minutes: 60
     max-skips: 3
-  # pr-verify FAILs at this many distinct heads of one PR hold it whatever a
-  # later pass says, so pushing until the verifier passes once does not merge
-  # it (owner decision 2026-10-21). The lanes, not a person, act at the cap
-  # (owner rule 2026-10-26): a comment quoting the FAIL, and a failing
-  # pr-merge/unarmed status once it stands.
+  # pr-verify FAILs at this many distinct heads of one PR hold it for a human
+  # whatever a later pass says, so pushing until the verifier passes once
+  # does not merge it (owner decision 2026-10-21).
   max-verify-fails: 3
   # Days a suite failing on main outside the merges' affected set stays
   # quarantined: its quarantine issue excuses its failures from demotion

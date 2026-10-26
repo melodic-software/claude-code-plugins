@@ -7,12 +7,13 @@
 //
 // The status shows a hold the lanes own on the pull request, in place of the
 // human-gated label (owner rule 2026-10-26: a person only for an intent or
-// design change or a HIGH or CRITICAL security issue). It is informational:
+// design change or a CRITICAL security issue). It is informational:
 // its context is not `ci-status`, the only check the main ruleset requires,
 // so it neither holds nor passes a merge. Each head's newest status in the
-// context is read first: one already in that state with that description
-// gets no write, and a `success` is written only over a status already
-// there, so an unchanged run writes nothing.
+// context is read first, trusted only when the GitHub Actions bot posted it
+// (any token with statuses: write can post the context): one already in that
+// state with that description gets no write, and a `success` is written only
+// over a status already there, so an unchanged run writes nothing.
 //
 // Environment:
 //   GH_TOKEN            the job's own token, with statuses: write
@@ -33,6 +34,9 @@ const DESCRIPTION_CHARS = 140;
 // Statuses read and written in one run at most (judgment: more open lane
 // pull requests than this is a run to look at).
 export const MAX_STATUSES = 100;
+// The GitHub Actions bot's user id, which every GITHUB_TOKEN posts as
+// (fix-ci-dispatch.mjs ACTIONS_BOT_ID).
+const ACTIONS_BOT_ID = 41898282;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -72,7 +76,10 @@ export async function main({ env = process.env, github } = {}) {
       try {
         // Newest first, so the first in the context is the one shown.
         const listed = await github("GET", `/repos/${repo}/commits/${status.sha}/statuses?per_page=100`);
-        const current = (Array.isArray(listed) ? listed : []).find((item) => item?.context === UNARMED_CONTEXT);
+        const newest = (Array.isArray(listed) ? listed : []).find((item) => item?.context === UNARMED_CONTEXT);
+        // Another creator's status in the context is not this job's: never
+        // read it as already shown.
+        const current = newest?.creator?.id === ACTIONS_BOT_ID ? newest : undefined;
         if (!changes(status, current)) {
           continue;
         }

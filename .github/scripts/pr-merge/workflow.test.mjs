@@ -346,6 +346,9 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(arm, /RISK_ESCALATION_MINUTES=\$\(yq '\.merge\."risk-escalation-minutes" \/\/ ""' "\$config"\)\n/);
   const post = job("unarmed-status");
   assert.match(post, /^ {4}needs: \[enable-auto-merge\]\n/);
+  // It runs whenever enable-auto-merge handed it statuses, after a failed
+  // step too, and only then.
+  assert.match(post, /\n {4}if: \$\{\{ !cancelled\(\) && needs\.enable-auto-merge\.outputs\.unarmed-statuses != '' \}\}\n/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(post)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),

@@ -4,8 +4,9 @@ bump: minor
 
 ### Changed
 
-- The merge gate pulls a person in only for a reason a person must clear (owner rule 2026-10-26): `babysit_risk.person_reasons` (`PERSON_CODES`: a CRITICAL security finding, a trusted-actor widening, a cost hold and every high path) is the one list the gate and `enable-auto-merge.mjs` read. A risk hold the lanes clear, such as review evidence not bound to the head or an unread listing, keeps its reasons comment and no longer gets the human-gated label however long it stands.
-- `babysit_verify_evidence.NEEDS_HUMAN` holds only `verify:untrusted-spec`. `verify:too-old` and `verify:spec-changed` hold for the lanes, and the `verify:repeated-fail` round cap stays but gets its quoting comment with no label.
+- The merge gate pulls a person in only for a reason a person must clear (owner rule 2026-10-26): `babysit_risk.person_reasons` (`PERSON_CODES`: a CRITICAL security finding, a trusted-actor widening, a cost hold, every high path, and `files-capped`, a listing past the files API's 3000-file cap) is the one list the gate and `enable-auto-merge.mjs` read. A risk hold the lanes clear, such as review evidence not bound to the head or a listing a read did not finish, keeps its reasons comment and no longer gets the human-gated label however long it stands.
+- The security lane's blocking findings hold as `security-finding` whether or not its evidence binds to the head.
+- `babysit_verify_evidence.NEEDS_HUMAN` drops `verify:spec-changed`, which the lanes judge again; the terminal repeated-FAIL cap, `verify:too-old` and `verify:untrusted-spec` stay a person's.
 - `evidence --lane-reviews` reports `reviewsPerson`, whether only a person clears the risk hold it names.
 
 ### Fixed

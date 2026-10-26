@@ -10,6 +10,7 @@ import { changes, MAX_STATUSES, main, parse } from "./post-unarmed-status.mjs";
 const REPO = "melodic-software/claude-code-plugins";
 const A = "a".repeat(40);
 const B = "b".repeat(40);
+const ACTIONS = { id: 41898282, login: "github-actions[bot]" };
 const ENV = { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "9", GITHUB_SERVER_URL: "https://github.com" };
 
 // `shown`: each head's statuses, newest first, as GitHub lists them.
@@ -54,7 +55,7 @@ test("a failing status is posted on its head with the run as its target", async 
 });
 
 test("an unchanged status writes nothing, and a success only replaces a status already shown", async () => {
-  const failing = { context: UNARMED_CONTEXT, state: "failure", description: "x" };
+  const failing = { context: UNARMED_CONTEXT, state: "failure", description: "x", creator: ACTIONS };
   const { posts } = await run(
     [
       { sha: A, state: "failure", description: "x" },
@@ -63,11 +64,24 @@ test("an unchanged status writes nothing, and a success only replaces a status a
     { [A]: [failing] },
   );
   assert.deepEqual(posts, []);
-  const cleared = await run([{ sha: A, state: "success", description: "armed for native auto-merge" }], { [A]: [{ context: "other", state: "success" }, failing] });
+  const cleared = await run([{ sha: A, state: "success", description: "armed for native auto-merge" }], { [A]: [{ context: "other", state: "success", creator: ACTIONS }, failing] });
   assert.deepEqual(
     cleared.posts.map(({ body }) => body.state),
     ["success"],
   );
+});
+
+// Any token with statuses: write can post the context (fix-ci-dispatch.mjs
+// reads the creator the same way).
+test("a status in the context another creator posted is not read as this job's", async () => {
+  const forged = { context: UNARMED_CONTEXT, state: "failure", description: "x", creator: { id: 7, login: "someone" } };
+  const { posts } = await run([{ sha: A, state: "failure", description: "x" }], { [A]: [forged] });
+  assert.deepEqual(
+    posts.map(({ body }) => body.state),
+    ["failure"],
+  );
+  const skipped = await run([{ sha: A, state: "success", description: "armed for native auto-merge" }], { [A]: [forged] });
+  assert.deepEqual(skipped.posts, []);
 });
 
 test("only well-formed statuses are read, one per head and at most MAX_STATUSES", () => {

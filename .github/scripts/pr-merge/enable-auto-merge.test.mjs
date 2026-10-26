@@ -40,7 +40,7 @@ import {
   VERIFY_TIMEOUT_MS,
   readRoom,
   TRUST_REFUSALS,
-  TRUST_UNREAD,
+  FILES_CAPPED_REASON,
   UNARMED_OUTPUT,
   verifyClears,
   verifyHold,
@@ -242,7 +242,7 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
@@ -254,7 +254,9 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
 
 // The refusal note's two bodies, written out by hand: the gate's reasons
 // marker on its own line, the head named on the next, the reason fenced.
-const laneNote = (reason) =>
+// The run's clock, and so the time a lane comment first noted its head.
+const NOW = "2026-10-23T10:00:00.000Z";
+const laneNote = (reason, since = NOW) =>
   [
     "<!-- babysit-merge-risk -->",
     `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. The lanes clear this reason on their own; the next scheduled run judges it again.`,
@@ -262,6 +264,7 @@ const laneNote = (reason) =>
     "```text",
     reason,
     "```",
+      `<!-- pr-merge-unarmed-since head=${HEAD} at=${since} -->`,
   ].join("\n");
 const personNote = (reason) =>
   [
@@ -342,17 +345,18 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
-// Owner rule 2026-10-26: a person only for intent, design or a HIGH or
-// CRITICAL security issue. The gate's `needsHuman` (babysit_verify_evidence
-// NEEDS_HUMAN, an untrusted spec alone) decides, so the round cap, an old
-// pull request and a changed spec are a lane's.
-test("only a verifier refusal the gate marks needsHuman is a person's; the round cap, an old pull request and a changed spec are a lane's", async () => {
+// Owner rule 2026-10-26: a person only for intent, design, a CRITICAL
+// security issue or a hold no lane can clear. The gate's `needsHuman`
+// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec, the terminal
+// repeated-FAIL cap, a pull request too old to verify) decides, so a changed
+// spec is a lane's.
+test("only a verifier refusal the gate marks needsHuman is a person's; a changed spec is a lane's", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
     pull(2, { verdict: refused("verify:spec-changed", false) }),
-    pull(3, { verdict: refused("verify:repeated-fail", false) }),
-    pull(4, { verdict: refused("verify:too-old", false) }),
+    pull(3, { verdict: refused("verify:repeated-fail", true) }),
+    pull(4, { verdict: refused("verify:too-old", true) }),
     pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
@@ -360,8 +364,10 @@ test("only a verifier refusal the gate marks needsHuman is a person's; the round
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: personNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: personNote(refusing("verify:too-old")) } },
+    { method: "POST", path: `${ISSUES}/4/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
 });
@@ -385,31 +391,48 @@ test("a refusal a lane clears is commented on, with no label", async () => {
 
 // Owner rule 2026-10-26: a read that failed is never a person's; the next
 // run reads it again, and nothing that failed to read arms.
-test("changed files that could not all be read are a lane's refusal, with no label and no arm", async () => {
-  // More than three pages: a listing the run does not read whole.
+// A listing past the page cap never reads whole, so its hold and cost paths
+// are never checked: a person's. A page that did not read is read again.
+test("a listing past the page cap is a person's refusal; one that did not read is a lane's; neither arms", async () => {
   const files = Array.from({ length: 300 }, (_, index) => ({ filename: `docs/${index}.md` }));
   const { code, notes, writes } = await run([pull(1, { files })]);
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
-  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote("its changed files could not all be read") } }]);
+  assert.deepEqual(notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(FILES_CAPPED_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files: null, filesCapped: false, verify: PASSED }), {
+    action: "none",
+    reason: "its changed files could not all be read",
+    clears: "lane",
+  });
 });
 
-test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has stood merge.risk-escalation-minutes, and an arm a passing one", async () => {
-  const standing = (updatedAt) => pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON), updatedAt)] } });
+test("a refusal a lane clears gets a failing pr-merge/unarmed status once it has stood merge.risk-escalation-minutes at the head, and an arm or a person's refusal a passing one", async () => {
+  // Timed from the first lane refusal at the head, so a reason whose detail
+  // changes every run does not restart it.
+  const standing = (since, said = MISSING_REASON) => pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(said, since))] } });
   const now = () => Date.parse("2026-10-23T11:00:00Z");
-  // 60 minutes on, by default and as configured; 59 is too soon.
-  assert.deepEqual((await run([standing("2026-10-23T10:00:00Z")], {}, { now })).statuses, [{ sha: HEAD, state: "failure", description: MISSING_REASON }]);
-  assert.deepEqual((await run([standing("2026-10-23T10:01:00Z")], {}, { now })).statuses, []);
-  assert.deepEqual((await run([standing("2026-10-23T10:31:00Z")], { RISK_ESCALATION_MINUTES: "29" }, { now })).statuses, [{ sha: HEAD, state: "failure", description: MISSING_REASON }]);
-  // A person's refusal carries the label instead.
-  const person = pull(2, { files: COST_FILES, discussion: { comments: [lanesSaid(personNote(COST_REASON), "2026-01-01T00:00:00Z")] }, labels: labels() });
-  assert.deepEqual((await run([person], {}, { now })).statuses, []);
+  const failing = [{ sha: HEAD, state: "failure", description: MISSING_REASON }];
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], {}, { now })).statuses, failing);
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z", "unreadable: RuntimeError: a detail that moves")], {}, { now })).statuses, failing);
+  assert.deepEqual((await run([standing("2026-10-23T10:01:00.000Z")], {}, { now })).statuses, []);
+  assert.deepEqual((await run([standing("2026-10-23T10:31:00.000Z")], { RISK_ESCALATION_MINUTES: "29" }, { now })).statuses, failing);
+  // A since line for another head starts the time again.
+  const moved = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z").replace(`head=${HEAD}`, `head=${"c".repeat(40)}`))] } });
+  assert.deepEqual((await run([moved], {}, { now })).statuses, []);
+  // A lane's refusal that becomes a person's withdraws the failing status.
+  const escalated = pull(2, { files: COST_FILES, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON, "2026-01-01T00:00:00.000Z"))] } });
+  assert.deepEqual((await run([escalated], {}, { now })).statuses, [{ sha: HEAD, state: "success", description: "a person clears this hold: needs-human" }]);
   const armed = await run([pull(3)], {}, { now });
   assert.deepEqual(armed.writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
   assert.deepEqual(armed.statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
   // Report-only hands the status job nothing.
-  assert.deepEqual((await run([standing("2026-10-23T10:00:00Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
+  assert.deepEqual((await run([standing("2026-10-23T10:00:00.000Z")], { REPORT_ONLY: "true" }, { now })).statuses, []);
 });
+
 
 const unlabeled = (at, typename = "User", name = "needs-human") => ({ createdAt: at, actor: { __typename: typename, login: "someone" }, label: { name } });
 
@@ -449,10 +472,20 @@ test("a changed refusal edits the one comment instead of posting another", async
 });
 
 test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
-  // reviewsPerson as babysit_risk.person_reasons answers for each (pinned
-  // in test_babysit_risk.py PersonReasonsTests).
-  const person_ = new Set(["security-finding: 1 CRITICAL", "high-path:**: 'a' mode '120000' (symlink)", "files-incomplete: x; trust-gate:trusted-actors: entries added", "cost-review-required: infra/main.tf", "high-path:docs/**: docs/a.md"]);
-  const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews, reviewsPerson: person_.has(reviews) });
+  // reviewsPerson as babysit_risk.person_reasons answers for each code,
+  // read from the Python, the one list.
+  const codes = (reviews) => reviews.split("; ").map((part) => part.slice(0, part.indexOf(": ")));
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const answer = (reviews) => {
+    const python = spawnSync(
+      "python3",
+      ["-c", "import json,sys\nfrom babysit_risk import Reason, Risk, person_reasons\nprint(json.dumps(bool(person_reasons([Reason(c, Risk.HIGH, 'd') for c in json.load(sys.stdin)]))))"],
+      { cwd: scripts, input: JSON.stringify(codes(reviews)), encoding: "utf8" },
+    );
+    assert.equal(python.status, 0, python.stderr);
+    return JSON.parse(python.stdout);
+  };
+  const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews, reviewsPerson: answer(reviews) });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
   const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "unreadable: RuntimeError: boom"];
   const person = [
@@ -465,7 +498,7 @@ test("a risk hold is a person's only for a security finding, a high path, a trus
   for (const reviews of lane) {
     // A lane's stays a lane's however long its comment has stood: past
     // merge.risk-escalation-minutes it gets a failing status, never a label.
-    const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews)), "2026-01-01T00:00:00Z")] } });
+    const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews), "2026-01-01T00:00:00.000Z"))] } });
     const late = await run([stood]);
     assert.deepEqual(late.notes, [], reviews);
     assert.deepEqual(late.statuses, [{ sha: HEAD, state: "failure", description: holding(reviews).slice(0, 140) }], reviews);
@@ -525,7 +558,7 @@ test("a lane's refusal over a person's comment still edits it, with no label", (
     { headRefOid: HEAD },
     [lanesSaid(personNote(HOLD_PATH_REASON))],
     { clears: "lane", reason: MISSING_REASON },
-    { bot: LANES.login, label: "needs-human" },
+    { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) },
   );
   assert.deepEqual(writes, { body: laneNote(MISSING_REASON), commentId: 77, label: null });
 });
@@ -932,7 +965,7 @@ test("the body hold agrees with the gate's BODY_MERGE_HOLD_RE", () => {
   assert.ok(expected.includes(true) && expected.includes(false));
 });
 
-test("TRUST_REFUSALS and TRUST_UNREAD are the reasons the gate's trust_refusal returns; only an untrusted label goes to a person", () => {
+test("TRUST_REFUSALS are the reasons the gate's trust_refusal returns, and each goes to a person", () => {
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const python = spawnSync(
     "python3",
@@ -944,12 +977,10 @@ test("TRUST_REFUSALS and TRUST_UNREAD are the reasons the gate's trust_refusal r
     { cwd: scripts, encoding: "utf8" },
   );
   assert.equal(python.status, 0, python.stderr);
-  assert.deepEqual([...TRUST_REFUSALS, TRUST_UNREAD].sort(), JSON.parse(python.stdout));
+  assert.deepEqual([...TRUST_REFUSALS].sort(), JSON.parse(python.stdout));
   for (const reason of TRUST_REFUSALS) {
     assert.equal(verifyClears({ head: "a".repeat(40), ineligible: reason }, "a".repeat(40)), "person", reason);
   }
-  // A read that failed: the next run reads the labels again.
-  assert.equal(verifyClears({ head: "a".repeat(40), ineligible: TRUST_UNREAD }, "a".repeat(40)), "lane");
   assert.equal(verifyClears({ head: "a".repeat(40), ineligible: "refs-issues:2" }, "a".repeat(40)), "lane");
 });
 

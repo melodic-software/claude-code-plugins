@@ -76,12 +76,12 @@ from a completed, successful one. Any other artifact is ignored.
   for a new head;
 - otherwise `verify:missing`.
 
-Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
-person (owner rule 2026-10-26). `verify:too-old`, `verify:repeated-fail` and
-`verify:spec-changed` hold for the lanes: the gate comments, a
-`verify:repeated-fail` comment quoting the newest head FAIL's summary
-(`Reader.fail_summary`), and enable-auto-merge.mjs shows a refusal that
-stands as a failing `pr-merge/unarmed` status. A `verify:fail` or `verify:earlier-fail` only waits:
+`verify:too-old`, `verify:repeated-fail` and `verify:untrusted-spec` need a
+human (`NEEDS_HUMAN`), who merges in person; a `verify:repeated-fail`
+escalation quotes the newest head FAIL's summary (`Reader.fail_summary`).
+`verify:spec-changed` holds for the lanes (owner rule 2026-10-26), and
+enable-auto-merge.mjs shows one that stands as a failing `pr-merge/unarmed`
+status. A `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
@@ -238,11 +238,13 @@ INELIGIBLE = "verify:ineligible"
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
 # The refusals only a person clears (owner rule 2026-10-26: a person only
-# for intent, design or a HIGH or CRITICAL security issue): an untrusted
-# spec, a provenance hold. The repeated-FAIL cap, an old pull request and a
-# changed spec hold for the lanes, which judge them again. The one list the
-# merge gate and enable-auto-merge.mjs (`needsHuman`) read.
-NEEDS_HUMAN = (UNTRUSTED_SPEC,)
+# for an intent or design change or a CRITICAL security issue, with trust
+# holds kept): an untrusted spec (provenance), and the two no lane can clear,
+# the repeated-FAIL cap (terminal: `merge.max-verify-fails`) and an old pull
+# request (judged from its creation, so it never clears). A changed spec
+# holds for the lanes, which judge it again. The one list the merge gate and
+# enable-auto-merge.mjs (`needsHuman`) read.
+NEEDS_HUMAN = (REPEATED_FAIL, TOO_OLD, UNTRUSTED_SPEC)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -1907,6 +1909,7 @@ def lane_risk_refusal(
         risk_input = babysit_risk.RiskInput(
             files=files,
             files_complete=complete,
+            files_capped=merge_policy.files_capped(pr),
             max_changed_lines=config.max_changed_lines,
             high_paths=config.denied_paths,
             lanes=lanes,

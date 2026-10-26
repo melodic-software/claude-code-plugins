@@ -1472,6 +1472,7 @@ class PersonReasonsTests(unittest.TestCase):
             "cost-review-required",
             "high-path:**",
             "high-path:**/.gitmodules",
+            "files-capped",
         )
         lane = (
             "evidence-unbound:claude-review",
@@ -1503,6 +1504,38 @@ class PersonReasonsTests(unittest.TestCase):
             [r.code for r in babysit_risk.person_reasons(holding(finding))],
             ["security-finding"],
         )
+
+    def test_a_blocking_security_finding_holds_whether_or_not_the_lane_binds(self):
+        # The lane reported it; unbound evidence must not hide it from the
+        # person routing.
+        for name, lane in (
+            (
+                "unbound",
+                LaneEvidence(
+                    "claude-security-review", False, "not bound", None, False, 2
+                ),
+            ),
+            (
+                "no marker",
+                LaneEvidence("claude-security-review", True, "no-marker", 1, False, 1),
+            ),
+        ):
+            with self.subTest(name):
+                result = score(_input(lanes=(BOTH_LANES_CLEAN[0], lane)))
+                self.assertIn(
+                    "security-finding",
+                    [r.code for r in babysit_risk.person_reasons(holding(result))],
+                )
+
+    def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
+        capped = score(_input(files_complete=False, files_capped=True))
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(capped))],
+            ["files-capped"],
+        )
+        unread = score(_input(files_complete=False))
+        self.assertTrue(holds(unread))
+        self.assertEqual(babysit_risk.person_reasons(holding(unread)), [])
 
 
 class SecurityBlockingTests(unittest.TestCase):

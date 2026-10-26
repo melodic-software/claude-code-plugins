@@ -167,6 +167,9 @@ class RiskInput:
     # Paths only a trusted author's own commits touched: the path floor and
     # the manifest review leave them out (owner decision 2026-10-22).
     floor_exempt: frozenset[str] = frozenset()
+    # The listing reached the files API's cap, so no read ever completes it
+    # and its paths can never all be judged.
+    files_capped: bool = False
 
 
 @dataclass(frozen=True)
@@ -937,6 +940,9 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     incomplete.extend(f"{f.path or '?'}: {p}" for f in files for p in f.problems)
     if incomplete:
         reasons.append(Reason("files-incomplete", Risk.MED, "; ".join(incomplete)))
+    if inp.files_capped is True:
+        detail = "the listing is past the files API's cap, so it never reads whole"
+        reasons.append(Reason(FILES_CAPPED_CODE, Risk.HIGH, detail))
     lines = sum(f.lines for f in files)
     limit = inp.max_changed_lines
     if limit is None and inp.lines_optional is True:
@@ -998,6 +1004,11 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             reasons.append(
                 Reason(f"evidence-unbound:{name}", Risk.MED, ": ".join(parts))
             )
+            # A blocking finding the lane did report holds whether or not its
+            # evidence binds to the head.
+            if name == _HOLDING_LANE and _is_count(count) and count > 0:
+                detail = f"{count} open, evidence unbound"
+                reasons.append(Reason(finding_code, finding_severity, detail))
             continue
         total = getattr(lane, "open_findings", None)
         if name != _HOLDING_LANE:
@@ -1058,14 +1069,16 @@ def holding(result: RiskResult) -> list[Reason]:
 
 
 # The holding reasons only a person clears (owner rule 2026-10-26: a person
-# only for an intent or design change or a HIGH or CRITICAL security issue;
-# cost and trust holds stay): a CRITICAL security finding, a trusted-actor
-# widening, a cost hold and every high path (the floor, a configured denied
-# path, or an aliasing path, symlink, submodule or mode change). The lanes
+# only for an intent or design change or a CRITICAL security issue, with
+# cost and trust holds kept, and for a hold no lane can clear): a CRITICAL
+# security finding, a trusted-actor widening, a cost hold, every high path
+# (the floor, a configured denied path, or an aliasing path, symlink,
+# submodule or mode change) and a listing past the files API's cap. The lanes
 # clear every other holding reason, such as review evidence not yet bound to
-# the head or an unread listing, by judging again. The one list both the
-# merge gate and enable-auto-merge.mjs read.
-PERSON_CODES = frozenset({LANES[_HOLDING_LANE][0], COST_CODE})
+# the head or a listing a read did not finish, by judging again. The one list
+# both the merge gate and enable-auto-merge.mjs read.
+FILES_CAPPED_CODE = "files-capped"
+PERSON_CODES = frozenset({LANES[_HOLDING_LANE][0], COST_CODE, FILES_CAPPED_CODE})
 PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:")
 
 
