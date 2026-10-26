@@ -137,7 +137,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/app-control:drive`](../plugins/app-control/skills/drive/SKILL.md) | `app-control` | Run the app, drive it, record evidence, never judge |
-| [`/app-control:map`](../plugins/app-control/skills/map/SKILL.md) | `app-control` | Generate and prove a control skill that /app-control:drive runs |
+| [`/app-control:map`](../plugins/app-control/skills/map/SKILL.md) | `app-control` | Generate, prove and keep current a control skill /app-control:drive runs |
 | [`/evals:design`](../plugins/evals/skills/design/SKILL.md) | `evals` | Interview for success criteria and scaffold an eval suite in the consumer repo |
 | [`/evals:methodology`](../plugins/evals/skills/methodology/SKILL.md) | `evals` | Answer LLM-evaluation design questions from Anthropic's official guidance |
 | [`/evals:plugin-eval`](../plugins/evals/skills/plugin-eval/SKILL.md) | `evals` | Preflight, price, run, and read a plugin eval suite around the CLI |
@@ -150,9 +150,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/testing:check-visual-parity`](../plugins/testing/skills/check-visual-parity/SKILL.md) | `testing` | Baseline screenshots before a change, pixel counts against them after |
 | [`/testing:cleanup`](../plugins/testing/skills/cleanup/SKILL.md) | `testing` | Rewrite, quarantine or delete low-value tests behind a mutation gate, or delete cannot-fail ones |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests, never retry blindly |
-| [`/testing:map-features`](../plugins/testing/skills/map-features/SKILL.md) | `testing` | Write a feature map that /testing:run-e2e drives entry point by entry point |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |
-| [`/testing:refresh-feature-map`](../plugins/testing/skills/refresh-feature-map/SKILL.md) | `testing` | Keep an existing feature map accurate, one PR per map at most |
 | [`/testing:run-e2e`](../plugins/testing/skills/run-e2e/SKILL.md) | `testing` | Start the app, drive real flows, capture evidence |
 | [`/testing:test-value`](../plugins/testing/skills/test-value/SKILL.md) | `testing` | Where expected values come from and which tests earn their keep |
 | [`/testing:write`](../plugins/testing/skills/write/SKILL.md) | `testing` | Write and place tests with TDD cadence across ecosystems |

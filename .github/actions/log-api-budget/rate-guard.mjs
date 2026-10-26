@@ -10,8 +10,9 @@
 // to that pool before its reset for the rest of the process, logs an error
 // naming the reset, and the process exits red. The stop also goes in the
 // job's stop file, so later steps, the gh wrapper's included, keep it. A response under the pool's
-// read-floor share left logs a warning once; belowFloor lets a caller skip a
-// read it can do without.
+// read-floor share of its planned budget left (planOf) logs a warning once;
+// belowFloor lets a caller skip a read it can do without. The stop reads only
+// the header's remaining and GitHub's refusals, never the plan.
 //
 // The margins are limits.api in pr-pipeline.yaml, read from resolve-config's
 // output (RESOLVED_CONFIG), over the defaults in pr-pipeline.schema.json,
@@ -22,7 +23,6 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import process from "node:process";
 
-import { recordContentWrite, recordReading } from "./api-budget.mjs";
 
 // GitHub's documented rate-limit signals, same page: a 403 or 429 whose
 // message names a rate limit, retry-after, x-ratelimit-remaining 0, and
@@ -42,6 +42,8 @@ export const SIGNALS = Object.freeze({
   primaryFallbackSeconds: 3600,
 });
 
+const MAX_RESET = 999_999_999_999;
+
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
 
 const SCHEMA = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
@@ -53,10 +55,13 @@ const defaultsOf = (properties) =>
       .map(([key, property]) => [key, property.default]),
   );
 
-// limits.api with every unset field filled from the schema's defaults. Throws
-// when the schema cannot be read.
+// limits.api with every unset field filled from the schema's defaults: the
+// pool's $defs entry, then the entry's own default (github-token's
+// limit-cap). Throws when the schema cannot be read.
 export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, schemaPath = SCHEMA } = {}) {
-  const defs = JSON.parse(readFileSync(schemaPath, "utf8")).$defs;
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+  const defs = schema.$defs;
+  const entries = schema.properties.limits.properties.api.properties;
   const pool = defaultsOf(defs["api-pool"].properties);
   const content = { ...pool, ...defaultsOf(defs["api-content-pool"].properties) };
   let set = {};
@@ -68,7 +73,7 @@ export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, schemaPa
     }
   }
   return Object.fromEntries(
-    API_POOLS.map((name) => [name, { ...(name === "content-creation" ? content : pool), ...(set[name] ?? {}) }]),
+    API_POOLS.map((name) => [name, { ...(name === "content-creation" ? content : pool), ...entries[name]?.default, ...(set[name] ?? {}) }]),
   );
 }
 
@@ -111,17 +116,73 @@ export function isContentWrite(url, method = "GET", body) {
 export const entryOf = (pool, token = process.env.API_BUDGET_TOKEN) =>
   pool === "graphql" ? "graphql" : API_POOLS.includes(token) ? token : "github-token";
 
+// One rate-limit reading, from a response's x-ratelimit-* headers, in
+// api-budget.bash's line shape, appended to $RUNNER_TEMP/api-budget/<token>
+// for the job-end notice the log-api-budget action writes. `token` names the
+// bucket (`github-token`, `lanes-app`); without it or RUNNER_TEMP nothing is
+// written. It lives here, not in api-budget.mjs (which re-exports it), so the
+// guard below keeps every call's reading without loading another module.
+// Never throws.
+const READING = { limit: /^\d+$/, remaining: /^\d+$/, used: /^\d+$/, reset: /^\d+$/, resource: /^[a-z_]+$/ };
+
+export function readingLine(status, headers) {
+  const values = Object.entries(READING).map(([key, re]) => {
+    const value = String(headers?.get?.(`x-ratelimit-${key}`) ?? "");
+    return re.test(value) ? value : "na";
+  });
+  return `${status} ${values.join(" ")}\n`;
+}
+
+export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = process.env.RUNNER_TEMP, status, headers }) {
+  if (!dir || !/^[a-z][a-z0-9-]{0,39}$/.test(token ?? "")) {
+    return;
+  }
+  try {
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    appendFileSync(join(dir, "api-budget", token), readingLine(status, headers));
+  } catch {
+    // A reading is never worth failing the job.
+  }
+}
+
+// Appends one content-creating write, as its epoch second, to
+// $RUNNER_TEMP/api-budget/content-creation, which api-budget.bash's gh wrapper
+// also appends to, for the job-end content-creation notice. Without
+// RUNNER_TEMP nothing is written. Never throws.
+export function recordContentWrite({ dir = process.env.RUNNER_TEMP, at }) {
+  if (!dir || !Number.isSafeInteger(at)) {
+    return;
+  }
+  try {
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    appendFileSync(join(dir, "api-budget", "content-creation"), `${at}\n`);
+  } catch {
+    // A count is never worth failing the job.
+  }
+}
+
 const intHeader = (get, name) => {
   const value = String(get(name) ?? "");
   return /^\d{1,12}$/.test(value) ? Number(value) : null;
 };
 
+// The budget a pool plans to: the header's limit, at most limitCap (null for
+// none). used is what the header says this window spent, and left what the
+// plan has after it, below zero once used passes the plan.
+export function planOf({ limit, remaining }, limitCap = null) {
+  const planned = limitCap === null ? limit : Math.min(limit, limitCap);
+  const used = limit - remaining;
+  return { planned, used, left: planned - used };
+}
+
 // One response's decision: latched (exhausted), the reset in epoch seconds
 // and where it came from, the pool to stop ("*" for every pool: a secondary
-// limit is not per resource), and low (under readFloor of the limit left).
+// limit is not per resource), and low (under readFloor of the planned budget
+// left, planOf with limitCap). Only the header's remaining and GitHub's
+// refusals latch.
 // headers is a Headers or a plain object of lower-case names; body is the
 // parsed body, or its text.
-export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null } = {}) {
+export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null } = {}) {
   const get = typeof headers?.get === "function" ? (name) => headers.get(name) : (name) => headers?.[name];
   let parsed = body;
   if (typeof body === "string") {
@@ -146,7 +207,8 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
   const tooMany = status === 429;
   const latched = remaining === 0 || retryAfter !== null || message || graphql || tooMany;
-  const low = readFloor !== null && limit > 0 && remaining !== null && remaining < readFloor * limit;
+  const plan = limit > 0 && remaining !== null ? planOf({ limit, remaining }, limitCap) : null;
+  const low = readFloor !== null && plan !== null && plan.left < readFloor * plan.planned;
   if (!latched) {
     return { latched, low, reset_source: null, reset: null, pool: null };
   }
@@ -165,7 +227,9 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   // A secondary limit is not per resource, whatever remaining says.
   const every = retryAfter !== null || secondary || ((message || tooMany) && remaining !== 0);
   const pool = every ? "*" : /^[a-z_]+$/.test(resource) ? resource : poolOf(url);
-  return { latched, low, reset_source: source, reset: at, pool };
+  // Stop-file readers take at most 12 digits, so a later stop is written at
+  // the largest they read.
+  return { latched, low, reset_source: source, reset: Math.min(at, MAX_RESET), pool };
 }
 
 export const resetLabel = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
@@ -199,19 +263,32 @@ function failProcess() {
 
 // The job's stop file, which api-budget.bash's gh wrapper shares: lines
 // `<pool> <reset epoch>`. A latch starts from the stops an earlier step wrote
-// and appends its own, so one stop holds for the whole job.
+// and appends its own, so one stop holds for the whole job. Every port reads
+// only whole lines matching STOP_LINE, each ended by \n (rate-guard.vectors.json's
+// stop_files), so a fragment a short write left spoils only the line it runs
+// into. A file that is missing holds no stop; one that exists but cannot be
+// read holds every pool until MAX_RESET (stop_file_errors), with an error.
+const STOP_LINE = /^([a-z_]+|\*) (\d{1,12})$/;
 const STOP_FILE = process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "api-budget", "stop") : null;
 
-function readStops(path) {
+function readStops(path, log) {
   const stops = new Map();
   let text = "";
   try {
     text = path ? readFileSync(path, "utf8") : "";
-  } catch {
-    text = "";
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      log(`::error::the rate guard's stop file ${path} cannot be read (${error?.code ?? error?.message}), so every GitHub API pool counts as stopped`);
+      stops.set("*", MAX_RESET);
+    }
   }
-  for (const [, pool, reset] of text.matchAll(/^([a-z_]+|\*) (\d{1,12})$/gm)) {
-    stops.set(pool, Math.max(stops.get(pool) ?? 0, Number(reset)));
+  // Split on \n alone: a multiline $ would also end a line at \r. The last
+  // piece has no \n after it, so it is never a line.
+  for (const line of text.split("\n").slice(0, -1)) {
+    const [, pool, reset] = STOP_LINE.exec(line) ?? [];
+    if (pool) {
+      stops.set(pool, Math.max(stops.get(pool) ?? 0, Number(reset)));
+    }
   }
   return stops;
 }
@@ -223,11 +300,11 @@ export function createRateLimitLatch({
   limits = () => apiLimits(),
   stopFile = STOP_FILE,
 } = {}) {
-  const stops = readStops(stopFile);
+  const stops = readStops(stopFile, log);
   const low = new Map();
   const warned = new Set();
   let config;
-  function readFloor(pool) {
+  function margin(pool, key) {
     if (config === undefined) {
       try {
         config = limits();
@@ -236,7 +313,7 @@ export function createRateLimitLatch({
         log("::warning::rate guard: limits.api and its schema defaults could not be read; the read floor is not checked");
       }
     }
-    const value = config?.[entryOf(pool)]?.["read-floor"];
+    const value = config?.[entryOf(pool)]?.[key];
     return typeof value === "number" ? value : null;
   }
 
@@ -261,26 +338,35 @@ export function createRateLimitLatch({
     const pool = poolOf(url);
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
-    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: readFloor(pool) });
+    const limitCap = margin(pool, "limit-cap");
+    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor"), limitCap });
     low.set(pool, verdict.low);
     if (verdict.latched) {
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
+      // The in-process stop holds either way; a later step only sees a
+      // recorded one, so a failed write is named.
+      let unrecorded = "";
       if (stopFile) {
         try {
           mkdirSync(dirname(stopFile), { recursive: true });
           appendFileSync(stopFile, `${verdict.pool} ${verdict.reset}\n`);
-        } catch {
-          // The in-process stop still holds.
+        } catch (error) {
+          unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
         }
       }
       log(
         `::error::${method} ${url} hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status}):` +
-          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); this step fails`,
+          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); this step fails${unrecorded}`,
       );
       fail();
     } else if (verdict.low && !warned.has(pool)) {
       warned.add(pool);
-      log(`::warning::GitHub's ${pool} API has under its read floor left (remaining ${response.headers?.get?.("x-ratelimit-remaining")} of ${response.headers?.get?.("x-ratelimit-limit")}); reads continue`);
+      const headers = response.headers;
+      const [limit, remaining] = ["limit", "remaining"].map((name) =>
+        Number(typeof headers?.get === "function" ? headers.get(`x-ratelimit-${name}`) : headers?.[`x-ratelimit-${name}`]),
+      );
+      const { planned, left } = planOf({ limit, remaining }, limitCap);
+      log(`::warning::GitHub's ${pool} API has under its read floor left (${left} of the planned ${planned}; header remaining ${remaining} of ${limit}); reads continue`);
     }
     return verdict;
   }
@@ -291,9 +377,9 @@ export function createRateLimitLatch({
     observe,
     belowFloor: (url) => low.get(poolOf(url)) === true,
     // A fetch that checks the latch before each request, counts a
-    // content-creating write, and reads each answer, recording its rate-limit
-    // reading for the job-end api-budget notice under token (API_BUDGET_TOKEN
-    // when unset), so a second client's readings never mix with the first's.
+    // content-creating write, and reads each answer, keeping its rate-limit
+    // reading under token (API_BUDGET_TOKEN when unset, recordReading), so a
+    // second client's readings never mix with the first's.
     guard: (fetchImpl, { token } = {}) =>
       async function guarded(url, init = {}) {
         check(url, init.method);

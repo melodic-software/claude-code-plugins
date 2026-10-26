@@ -250,20 +250,34 @@ test("a pr-merge risk comment at an old head comes off as head-moved", async () 
   assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
 });
 
-// Under merge.lane-prs native pr-merge never lists a lanes App PR, so nothing
-// would judge its new head and escalate again: the label stays.
-test("a pr-merge escalation at an old head on a lanes App PR is kept under lane-prs native, cleared under gate", async () => {
-  const native = world({ timeline: mergeEscalated(riskBody(OLD)), author: BOT });
-  const { logs } = await run(native, { LANE_PRS: "native" });
-  assert.equal(native.writes().length, 0);
-  assert.ok(logs.some((line) => /#7 kept: under merge\.lane-prs native/.test(line)), logs.join("\n"));
-  const gate = world({ timeline: mergeEscalated(riskBody(OLD)), author: BOT });
-  await run(gate, { LANE_PRS: "gate" });
-  assert.equal(gate.writes().length, 2);
-  // An adopted owner PR is still gated under native, so it clears.
-  const owner = world({ timeline: mergeEscalated(riskBody(OLD)), author: OWNER });
-  await run(owner, { LANE_PRS: "native" });
-  assert.equal(owner.writes().length, 2);
+// Under merge.lane-prs native, enable-auto-merge judges the new head
+// once the label is off and labels it again only for a cause a person must
+// clear, so the label comes off under native as under gate.
+test("a pr-merge escalation at an old head comes off under lane-prs native and gate alike", async () => {
+  for (const [lanePrs, author] of [["native", BOT], ["gate", BOT], ["native", OWNER]]) {
+    const w = world({ timeline: mergeEscalated(riskBody(OLD)), author });
+    await run(w, { LANE_PRS: lanePrs });
+    assert.equal(w.writes().length, 2, lanePrs);
+    assert.equal(w.writes()[1].method, "DELETE", lanePrs);
+  }
+  // At the current head it stays.
+  const current = world({ timeline: mergeEscalated(riskBody(HEAD)), author: BOT });
+  await run(current, { LANE_PRS: "native" });
+  assert.deepEqual(current.writes(), []);
+});
+
+// enable-auto-merge puts a missing label back under its standing escalation
+// comment with no new comment: that label is still pr-merge's.
+test("a label put back under pr-merge's standing escalation comment is pr-merge's", async () => {
+  const escalation = `<!-- work-items:escalation lane=pr-merge kind=escalated -->\n${riskBody(OLD)}`;
+  const relabeled = [commented(BOT, escalation, "2026-10-18T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")];
+  const w = world({ timeline: relabeled, author: BOT });
+  await run(w, { LANE_PRS: "native" });
+  assert.equal(w.writes().length, 2);
+  // Without the escalation line, an old comment pairs with no label.
+  const unpaired = world({ timeline: [commented(BOT, riskBody(OLD), "2026-10-18T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")], author: BOT });
+  await run(unpaired, { LANE_PRS: "native" });
+  assert.deepEqual(unpaired.writes(), []);
 });
 
 const sharedCopyBody = (head) =>
@@ -356,6 +370,24 @@ test("a pr-merge risk comment created long ago and rewritten to escalate just be
   assert.equal(w.writes().length, 2);
   assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
   assert.deepEqual(w.writes()[1], { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("a pr-merge escalation posted as a new comment beside an older reasons comment pairs with the label", async () => {
+  // babysit_merge.py posts the escalation new, then adds the label; the
+  // earlier reasons comment it extends stays as it was.
+  const line = "This refusal has stood unchanged at this head, so a person is needed: the pr-merge lane added the human-gated label.";
+  const timeline = (head) => [
+    commented(BOT, riskBody(head), "2026-10-18T08:30:00Z"),
+    commented(BOT, `${riskBody(head)}\n\n${line}`, "2026-10-18T09:59:59Z"),
+    labeled(BOT, "2026-10-18T10:00:00Z"),
+  ];
+  const moved = world({ timeline: timeline(OLD) });
+  await run(moved);
+  assert.equal(moved.writes().length, 2);
+  assert.equal(moved.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+  const current = world({ timeline: timeline(HEAD) });
+  await run(current);
+  assert.deepEqual(current.writes(), []);
 });
 
 test("an old pr-merge comment with nothing written beside a later label is kept", async () => {

@@ -899,6 +899,7 @@ test("main reports an invalid verify-authors value in the step summary", async (
 // The cases are shared with admit.test.mjs (split-child.vectors.json).
 const VECTORS = JSON.parse(readFileSync(new URL("../intake-triage/split-child.vectors.json", import.meta.url), "utf8"));
 const actorOf = (actor) => (actor ? { __typename: actor.type, login: actor.type === "Bot" ? "some-app" : "someone", databaseId: actor.id } : null);
+const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
 const childNode = ({ child }) => ({
   ...ISSUE,
   number: 8,
@@ -910,7 +911,7 @@ const childNode = ({ child }) => ({
 const parentNode = ({ child, parent }) =>
   child.parent === null
     ? null
-    : { ...ISSUE, number: child.parent.number, repository: { nameWithOwner: child.parent.repo ?? REPO }, body: VECTORS.parents[parent].body, author: actorOf(VECTORS.parents[parent].author), comments: { totalCount: VECTORS.parents[parent].comments.length, nodes: VECTORS.parents[parent].comments } };
+    : { ...ISSUE, number: child.parent.number, repository: { nameWithOwner: child.parent.repo ?? REPO }, body: VECTORS.parents[parent].body, author: actorOf(VECTORS.parents[parent].author), comments: { totalCount: VECTORS.parents[parent].comments.length, nodes: VECTORS.parents[parent].comments.map(commentOf) } };
 const withParent = (setup, parent) => {
   const github = fake(setup);
   return async (method, apiPath, body) =>

@@ -27,8 +27,9 @@
 // criteria as a task list. On an issue a listed human filed, admit.mjs and
 // pr-verify count the newest refinement as spec while it is unedited (owner
 // decision Q78); on any other issue its criteria count only once a listed
-// human posts them as their own. Only when that text already holds a task list
-// (admit.mjs hasTrustedCriteria) does it ask for one more triage, which runs
+// human posts them as their own. Only when that text, with this refinement
+// counted as posted, holds a task list (admit.mjs hasTrustedCriteria) does it
+// ask for one more triage, which runs
 // admission again: it takes the lanes App's `status: needs-decision` off, or,
 // for a `status: ready` issue admission has not taken, keeps the labels, adds
 // `needs-triage`, and sets the job's `redispatch` output. Otherwise the labels
@@ -42,7 +43,7 @@
 // question whether to close the issue. It never adds `agent-ready` or
 // `needs-human`, and files no issue. It lifts no App needs-decision while the
 // App's verdict comment lists a flag other than intent, or records that an
-// earlier flag is unknown (apply-verdict earlierFlags); that hold stays for a
+// earlier flag is unknown (admit.mjs earlierFlags); that hold stays for a
 // person.
 //
 // A split the model judges sound names exactly the held item numbers; the
@@ -83,9 +84,9 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
-import { earlierFlags, LANES_APP_LOGIN, MARKER, ownVerdict } from "./apply-verdict.mjs";
-import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, trustedTaskLines } from "./admit.mjs";
+import { ADMIT_MARKER, CONFIRMED, decisionStays, hasTrustedCriteria, loadRules, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
+import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
 export { REFINE_MARKER };
 const TASK = "- [ ] ";
@@ -166,28 +167,6 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
 }
 
-// Why the lanes App may not lift `status: needs-decision`, or null: someone
-// else set it, or the App's verdict comment lists a flag other than the intent
-// a refinement resolves, or records that an earlier flag is unknown
-// (apply-verdict earlierFlags null). Once lifted, a re-triage sees no hold and
-// so carries no earlier flag. No such comment lifts: refine's own question
-// hold writes none.
-async function decisionStays(github, base, comments, appId) {
-  const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
-  if (setter !== appId) {
-    return `a person set its ${NEEDS_DECISION}`;
-  }
-  if (!ownVerdict(comments, appId)) {
-    return null;
-  }
-  const flags = earlierFlags(comments, appId);
-  if (flags === null) {
-    return `its ${NEEDS_DECISION} stands: whether an earlier verdict flagged is unknown`;
-  }
-  const stops = flags.filter((flag) => flag !== "intent");
-  return stops.length > 0 ? `its ${NEEDS_DECISION} stands for flagged: ${stops.join(", ")}` : null;
-}
-
 // Up to four plain lowercase words from the title, each 4 or more letters or
 // digits, so no search qualifier or operator survives.
 export function searchTerms(title) {
@@ -228,18 +207,25 @@ async function candidates(github, repository, issue, trusted) {
 // A size split (owner Q93): an issue admission parked at SIZE_SPLIT_PENDING
 // is split into sub-issues before any run takes it. The model returns only
 // item numbers: `parts`, each a list of the 1-based numbers of the issue's
-// trusted task-list lines (admit.mjs trustedTaskLines), covering each once,
-// and `order`, pairs [a, b] that make part b wait on part a; parts no pair
-// links run in parallel. The script files each part as a sub-issue of the
-// issue, authored by the lanes App, whose body is admit.mjs splitChildHeader
-// and that part's lines copied as written (admission and pr-verify count it
-// as the listed human's text, splitChildBody), writes the order as native
+// trusted task-list lines (admit.mjs splitTaskLines: the listed human's, then
+// those of intake's refinement where admission counts it), covering each
+// once, and `order`, pairs [a, b] that make part b wait on part a; parts no
+// pair links run in parallel. The script files each part as a sub-issue of
+// the issue, authored by the lanes App, whose body is admit.mjs
+// splitChildHeader, naming the refinement when the part holds a line of it,
+// and that part's lines copied as written (admission and pr-verify trust it
+// under admit.mjs splitChildBody, the rule's one home), writes the order as native
 // blocked-by edges, puts the issue's open blockers on the parts nothing
 // precedes, moves the edges of issues the issue blocks onto the parts nothing
 // follows, and lists the sub-issues in the App's SIZE_SPLIT_MARKER comment.
 // No hold label and no born-triaged marker: intake triages each sub-issue.
 // A sub-issue never splits again, and the issue's body is never edited.
 export const MAX_PARTS = 10;
+
+// The split record's `items`: the digest of the lines split, and of the
+// refinement they copy when they copy one, so a newer refinement with the
+// same lines files no second set of sub-issues. Pure.
+export const splitDigest = ({ lines, source }) => linesDigest(source === null ? lines : [...lines, splitSourceLine(source)]);
 
 // Whether the lanes App's admission comment waits on SIZE_SPLIT_PENDING.
 export function sizeSplitPending(comments, appId) {
@@ -258,8 +244,8 @@ const ownSplit = (comments, appId) => {
 // {refine, reason, context} for an issue admission parked at
 // SIZE_SPLIT_PENDING, or null for any other: a parked issue is never refined
 // another way, and `note(why)` records why one is not split. Only an issue a
-// listed human filed splits, since only its text the sub-issues can carry
-// (admit.mjs splitChildBody). Reads only.
+// listed human filed splits, since only its text, and the refinement on it,
+// the sub-issues can carry (admit.mjs splitChildBody). Reads only.
 async function selectSizeSplit({ github, repository, number, issue, comments, humans, appId, startedAt, splitConfig, note }) {
   if (!sizeSplitPending(comments, appId)) {
     return null;
@@ -285,7 +271,8 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   if (own === null && (issue.sub_issues_summary?.total ?? 0) > 0) {
     return decline("it already has sub-issues");
   }
-  const lines = trustedTaskLines(await specOf(github, repository, number), humans, splitConfig().rules["task-list"]);
+  const split = splitTaskLines(await specOf(github, repository, number), humans, splitConfig().rules["task-list"], appId);
+  const { lines } = split;
   if (lines.length < 2) {
     return decline(`its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`);
   }
@@ -294,7 +281,7 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     reason: `Size large, waiting on its split into sub-issues; ${lines.length} trusted task-list lines`,
     context: {
       version: 1,
-      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: linesDigest(lines), max_parts: MAX_PARTS },
+      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: splitDigest(split), max_parts: MAX_PARTS },
       issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) },
       triage: String(lane[0].body),
     },
@@ -519,11 +506,7 @@ export function render(output, { body, from, checks = [], retriage = false } = {
   );
   section("Sources read", output.sources.map((item) => `- ${line(item)}`));
   parts.push(
-    !output.exact
-      ? "<sub>Automated refinement by the lanes App. Answer with a comment whose first line is `**Decision recorded.**`.</sub>"
-      : retriage
-        ? "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>"
-        : "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
+    !output.exact ? REFINE_FOOTERS.questions : retriage ? REFINE_FOOTERS.retriage : REFINE_FOOTERS.confirm,
   );
   return parts.join("\n");
 }
@@ -595,8 +578,8 @@ export function splitBody(body, taskList, moved) {
 // edit leaves the held items in place for the next triage to hold and split
 // again, reusing that comment.
 // `humans` and `rules` decide whether an exact refinement asks for a
-// re-triage (admit.mjs hasTrustedCriteria); a failed read of the spec throws
-// before any label write.
+// re-triage (admit.mjs hasTrustedCriteria, over the spec with this refinement
+// posted); a failed read of the spec throws before any label write.
 export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -640,14 +623,20 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "split", redispatch: true };
   }
   const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });
-  // Admission reads criteria only from a listed human's text, so a re-triage
-  // without them would refuse again: one read, before any label write.
+  // Admission reads criteria only from a listed human's text and, on an issue
+  // a listed human filed, the newest unedited refinement, so a re-triage
+  // without them would refuse again. It judges the spec as it will read once
+  // this refinement is posted, as the newest comment: one read, before any
+  // label write. Past admission's comment window the refinement is unread
+  // and admission refuses, so it asks for no triage.
   const untrusted = async () => {
-    if (hasTrustedCriteria(await specOf(github, repository, number), humans, rules["task-list"], appId)) {
+    const spec = await specOf(github, repository, number);
+    const refinement = { body: render(output, { body: issue.body, retriage: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
+    if (spec.commentCount < SPEC_COMMENTS && hasTrustedCriteria({ ...spec, comments: [...spec.comments, refinement] }, humans, rules["task-list"], appId)) {
       return false;
     }
     await post();
-    log(`refine: #${number} is exact; no listed human's text holds a task list yet, so the labels stay and no triage is asked`);
+    log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
   if (!output.exact) {
@@ -661,8 +650,23 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
   }
+  // Admission parks a refusal no person must answer at status: confirmed
+  // (admit.mjs): it resumes like the App's own needs-decision below.
+  const parked = !labels.includes(NEEDS_DECISION) && !labels.includes(READY) && !labels.includes(AGENT_READY) && labels.includes(CONFIRMED) &&
+    comments.some((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
+  if (parked) {
+    if (await untrusted()) {
+      return { outcome: "exact", redispatch: false };
+    }
+    await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    await removeLabel(github, base, CONFIRMED);
+    await post(true);
+    log(`refine: #${number} is exact; ${CONFIRMED} lifted and triage asked again`);
+    return { outcome: "exact", redispatch: true };
+  }
   // A `status: ready` issue admission has not taken (no needs-decision, no
-  // agent-ready) is triaged again when a listed human's text holds criteria.
+  // agent-ready) is triaged again when the text admission counts, with this
+  // refinement posted, holds criteria.
   if (!labels.includes(NEEDS_DECISION)) {
     if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
       await post();
@@ -784,8 +788,9 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   if (String(issue.title ?? "") !== context?.issue?.title || String(issue.body ?? "") !== context?.issue?.body || String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
     return skip("changed while the model ran");
   }
-  const lines = trustedTaskLines(await specOf(github, repository, number), humans, rules["task-list"]);
-  const digest = linesDigest(lines);
+  const split = splitTaskLines(await specOf(github, repository, number), humans, rules["task-list"], appId);
+  const { lines } = split;
+  const digest = splitDigest(split);
   if (digest !== context.size_split?.digest) {
     return skip("its trusted task-list lines changed while the model ran");
   }
@@ -817,7 +822,9 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const linked = new Set((await paginate(github, `${base}/sub_issues`)).map((item) => item?.id));
   const children = [];
   for (const [index, items] of record.parts.entries()) {
-    const body = `${splitChildHeader(number, index + 1, record.parts.length)}\n${items.map((n) => lines[n - 1]).join("\n")}`;
+    // A part that holds a refinement line names that refinement (splitChildBody).
+    const source = items.some((n) => n > split.human) ? split.source : null;
+    const body = `${splitChildHeader(number, index + 1, record.parts.length, source)}\n${items.map((n) => lines[n - 1]).join("\n")}`;
     let child = filed.find((item) => item.body === body);
     if (child === undefined) {
       child = await github("POST", `/repos/${repository}/issues`, { title: `${line(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });

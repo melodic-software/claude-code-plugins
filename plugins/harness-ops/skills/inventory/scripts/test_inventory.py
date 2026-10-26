@@ -3133,6 +3133,66 @@ class TestBuiltinPlugins(unittest.TestCase):
             _plugins(registrar=registrar)[0]["cc-plugin-agents-md"]["default_enabled"]
         )
 
+    def test_a_method_gate_is_gated_and_partial(self) -> None:
+        rec = self._test_module("isAvailable:xe,", "isAvailable(){return xe()},")
+        self.assertIs(rec["gated"], True)
+        self.assertIsNone(rec["gate_flags"])
+        self.assertIn("gate_flags", rec["partial"])
+
+    def test_a_plugin_loaded_twice_combines_its_conditions(self) -> None:
+        call = (
+            'Xue("cc-plugin-claude-test",'
+            '()=>import.meta.require("/$bunfs/root/c5.js"))'
+        )
+        old = f"if(i){call}}}"
+        self.assertIn(old, _plugin_modules()[1])
+
+        def loaded(new: str) -> dict:
+            loader = _plugin_modules()[1].replace(old, new)
+            return _plugins(loader=loader)[0]["cc-plugin-claude-test"]
+
+        # A guarded call followed by an unguarded one: it always loads.
+        rec = loaded(f"if(i){call};{call}}}")
+        self.assertEqual(rec["load"], "unconditional")
+        self.assertEqual(rec["load_guards"], [])
+        self.assertNotIn("load", rec["partial"])
+        # Two sites guarded differently: one guard list cannot hold either-or.
+        rec = loaded(f"if(i){call};if(q()){call}}}")
+        self.assertIsNone(rec["load"])
+        self.assertIsNone(rec["load_guards"])
+        self.assertIn("load", rec["partial"])
+
+    def test_a_command_registered_twice_is_not_collapsed(self) -> None:
+        tips = _plugin_modules()[5]
+        old = "async function Vn(p){await p.registerCommand(Xo)}"
+        self.assertIn(old, tips)
+        tips = tips.replace(
+            old,
+            old + "async function Vm(p){await p.registerCommand("
+            '{name:"diff",description:"Show the diff"})}',
+        )
+        rec = _plugins(tips=tips)[0]["cc-plugin-tips"]
+        self.assertEqual(
+            sorted((c["name"], c["description"]) for c in rec["commands"]),
+            [("diff", "Show the diff"), ("diff", "Toggle the diff panel")],
+        )
+        self.assertIn("commands", rec["partial"])
+
+    def test_an_unresolved_spread_in_classic_hooks_is_partial(self) -> None:
+        old = 'description:"Security default",'
+        self.assertIn(old, _plugin_modules()[2])
+
+        def sec(hooks: str) -> dict:
+            module = _plugin_modules()[2].replace(old, old + hooks)
+            return _plugins(sec=module)[0]["cc-plugin-sec-default"]
+
+        rec = sec("hooks:{a:1,...unk},")
+        self.assertEqual(rec["classic_hooks"], ["a"])
+        self.assertIn("classic_hooks", rec["partial"])
+        rec = sec("hooks:{a:1},")
+        self.assertEqual(rec["classic_hooks"], ["a"])
+        self.assertNotIn("classic_hooks", rec["partial"])
+
     def test_no_registrar_is_an_error(self) -> None:
         registrar = _plugin_modules()[0].replace(".builtinPlugins.set(", ".other.set(")
         plugins, notes = _plugins(registrar=registrar)

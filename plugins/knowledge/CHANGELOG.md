@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.6] - 2026-10-26
+
+### Changed
+
+- **`docpage-digest` profile:** worked examples for four tagging readings: a pointer that states what its target covers takes a vocabulary tag, a named Agent SDK option or callback is an SDK call, a request-body field of an Anthropic-served endpoint is a request parameter, and Basis anchors come from the rendered page's ids, percent-encoded where an id keeps a typographic apostrophe.
+
+## [0.27.5] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.27.4] - 2026-10-25
 
 ### Changed

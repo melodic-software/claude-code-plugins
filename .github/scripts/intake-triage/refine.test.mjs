@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitRecord } from "./admit.mjs";
-import { applySizeSplit, partitionProblem, sizeSplitPending } from "./refine.mjs";
+import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
+import { applySizeSplit, partitionProblem, sizeSplitPending, splitDigest } from "./refine.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
@@ -369,6 +369,25 @@ describe("applyRefinement", () => {
     assert.deepEqual(await apply(again, EXACT), { outcome: "skipped", redispatch: false });
   });
 
+  test("an exact refinement of an issue admission parked at status: confirmed lifts it and asks for re-triage", async () => {
+    const parked = { id: 61, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: no trusted-human acceptance criteria.`, user: { id: APP, type: "Bot" } };
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment(), parked], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, true);
+    const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed undefined");
+    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
+    assert.equal(done.length, 3);
+  });
+
+  test("an exact refinement of a status: confirmed issue admission never parked asks for no re-triage", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment()], events: [], spec: CONFIRMED });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, false);
+    assert.equal(writes(fake.calls).length, 1, "the comment only");
+  });
+
   test("an exact refinement of an issue already agent-ready asks for no re-triage", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }, { name: "agent-ready" }] }), comments: [laneComment()], events: [] });
     const result = await apply(fake, EXACT);
@@ -418,8 +437,10 @@ describe("applyRefinement", () => {
     );
   });
 
-  // Owner decision Q9: admission reads criteria only from a listed human's
-  // text, so a re-triage on the App's text alone would only refuse again.
+  // Owner decisions Q9 and Q78: admission reads criteria from a listed
+  // human's text and, on an issue a listed human filed, the newest unedited
+  // refinement, this one once posted; a re-triage on other text would only
+  // refuse again.
   for (const [branch, setup] of [
     ["the App's needs-decision", { issue: issueOf(), events: labeledBy(APP) }],
     ["a status: ready issue awaiting admission", { issue: issueOf({ labels: [{ name: "status: ready" }] }), events: [] }],
@@ -438,6 +459,45 @@ describe("applyRefinement", () => {
       const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: HUMAN_REFINED });
       assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
       assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
+    });
+
+    // A listed human filed it with no task list, so the refinement this
+    // run posts is the spec admission reads.
+    test(`an exact refinement of ${branch} re-triages when a listed human filed it and only this refinement will hold the task list`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: specOf() });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+      const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
+      const lifted = setup.events.length > 0 ? ["DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision"] : [];
+      assert.deepEqual(done, ["POST /repos/o/r/issues/7/labels", ...lifted, "POST /repos/o/r/issues/7/comments"]);
+      assert.deepEqual(writes(fake.calls)[0].body, { labels: ["needs-triage"] });
+      assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
+    });
+
+    test(`an exact refinement of ${branch} re-triages over an older unedited refinement with no task list: the newest counts`, async () => {
+      const older = { body: `${REFINE_MARKER}\nAn earlier refinement with no criteria.`, lastEditedAt: null, author: actor(APP), editor: null };
+      const spec = { ...specOf(), comments: { totalCount: 1, nodes: [older] } };
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+    });
+
+    test(`an exact refinement of ${branch} past admission's comment window keeps the labels: admission would not read it`, async () => {
+      const spec = { ...specOf(), comments: { totalCount: 100, nodes: [] } };
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+      );
+    });
+
+    test(`an exact refinement of ${branch} the lanes App filed with no task list keeps the labels: its refinement is no one's spec`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: { ...specOf(), author: actor(APP) } });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+        ["POST /repos/o/r/issues/7/comments"],
+      );
+      assert.match(writes(fake.calls)[0].body.body, /post them as your own comment/);
     });
 
     test(`an exact refinement of ${branch} reads the spec before its first label write and re-triages on a listed human's task list`, async () => {
@@ -995,6 +1055,66 @@ describe("size split", () => {
     assert.deepEqual(result, { outcome: "split", children: [71, 72] });
     const w = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
     assert.deepEqual(w, ["POST /repos/o/r/issues", "POST /repos/o/r/issues/7/sub_issues", "POST /repos/o/r/issues/72/dependencies/blocked_by", "PATCH /repos/o/r/issues/comments/900"]);
+  });
+
+  // A listed human's issue whose task lines are in intake's refinement only:
+  // admission counts that refinement, so the split copies its task-list lines,
+  // never its prose, and names it, and admission and pr-verify trust the parts
+  // (admit.mjs splitChildBody).
+  const REFINED_AT = "2026-10-22T00:00:00Z";
+  const refinementNode = ({ id = 901, body = `${REFINE_MARKER}\n**Refinement.** Keep the old flag.\n\n- [ ] R1\n- [ ] R2`, lastEditedAt = null } = {}) => ({
+    databaseId: id,
+    createdAt: REFINED_AT,
+    updatedAt: lastEditedAt ?? REFINED_AT,
+    body,
+    lastEditedAt,
+    author: { __typename: "Bot", databaseId: APP },
+    editor: lastEditedAt ? { __typename: "Bot", databaseId: APP } : null,
+  });
+  const refinedSpec = (body, nodes) => ({ ...specOf(body), comments: { totalCount: nodes.length, nodes } });
+
+  test("splits a parked issue whose task lines are only in the refinement admission counts, naming that refinement in each part that copies it", async () => {
+    const body = "The plugin list is out of date.";
+    const spec = refinedSpec(body, [refinementNode()]);
+    const selected = await select(fakeGitHub({ issue: sizeIssue({ body }), comments: [laneComment("none"), parked()], spec }));
+    assert.equal(selected.refine, true);
+    assert.deepEqual(selected.context.size_split.items, [
+      { n: 1, text: "- [ ] R1" },
+      { n: 2, text: "- [ ] R2" },
+    ], "only the refinement's task-list lines, never its prose");
+    const fake = splitFake({ issue: sizeIssue({ body }), spec });
+    const result = await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output: { parts: [[1], [2]], order: [] }, context: { issue: { number: 7, title: "Big work", body }, size_split: selected.context.size_split }, log: () => {} });
+    assert.deepEqual(result, { outcome: "split", children: [71, 72] });
+    const filed = writes(fake.calls).filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues");
+    assert.equal(filed[0].body.body.split("\n")[2], splitSourceLine({ id: 901, updatedAt: REFINED_AT }));
+    assert.deepEqual(filed.map(({ body: { type } }) => type), ["Task", "Task"], "each part takes the issue's Issue Type");
+    const parent = { ...spec, comments: spec.comments.nodes };
+    for (const { body: { body: text } } of filed) {
+      const child = { body: text, lastEditedAt: null, author: { __typename: "Bot", databaseId: APP }, editor: null, splitParent: { number: 7, spec: parent, appId: APP } };
+      assert.equal(splitChildBody(child, humans, rules["task-list"]), text, "admission and pr-verify trust the part");
+    }
+  });
+
+  test("an edited refinement gives the split none of its lines", async () => {
+    const body = "The plugin list is out of date.";
+    const notes = [];
+    const spec = refinedSpec(body, [refinementNode({ lastEditedAt: "2026-10-23T00:00:00Z" })]);
+    const selected = await select(fakeGitHub({ issue: sizeIssue({ body }), comments: [laneComment("none"), parked()], spec }), notes);
+    assert.equal(selected.refine, false);
+    assert.match(notes[0], /holds 0 task-list line/);
+  });
+
+  test("a part of only the listed human's lines names no refinement, and a newer refinement with the same lines is a different split", async () => {
+    const spec = refinedSpec(BODY, [refinementNode()]);
+    const fake = splitFake({ spec });
+    const lines = [...LINES, "- [ ] R1", "- [ ] R2"];
+    const digest = splitDigest({ lines, source: { id: 901, updatedAt: REFINED_AT } });
+    await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output: { parts: [[1, 2, 3], [4, 5]], order: [] }, context: { ...context, size_split: { digest } }, log: () => {} });
+    const filed = writes(fake.calls).filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues").map(({ body: { body: text } }) => text);
+    assert.equal(filed[0], CHILD_1.replace("- [ ] L2", "- [ ] L2\n  - [ ] L3"), "the human-only part keeps the plain header");
+    assert.match(filed[1], /\n<!-- size-split refinement=901 updated_at=2026-10-22T00:00:00Z -->\n/);
+    assert.notEqual(splitDigest({ lines, source: { id: 902, updatedAt: REFINED_AT } }), digest);
+    assert.equal(splitDigest({ lines: LINES, source: null }), linesDigest(LINES), "a human-only split keeps its digest");
   });
 
   test("an issue whose trusted lines changed while the model ran, or already split, gets nothing", async () => {

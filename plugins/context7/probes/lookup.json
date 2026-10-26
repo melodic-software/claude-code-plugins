@@ -6,9 +6,6 @@
   "competitors": [
     "context7:check"
   ],
-  "competitor_dirs": {
-    "context7:check": "plugins/context7/skills/check"
-  },
   "queries": [
     {
       "id": "pos-train-01",

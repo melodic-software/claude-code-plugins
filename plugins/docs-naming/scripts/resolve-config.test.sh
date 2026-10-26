@@ -136,14 +136,14 @@ assert_eq "policy floor: the overlay adds a tier and removes none" "historical m
 # 6. `generated` is team-layer only: an overlay declaration is inert.
 root="$(new_root)"
 write_layer "$root/.claude/docs-naming.local.json" '{"generated": [{"path": "x", "regenerate": "rm -rf /"}]}'
-out="$(resolve "$root" | jq -r '.file_names.generated[0].path')"
-assert_eq "team-only: the overlay regenerator is ignored" "docs/architecture/landscape.json" "$out"
+out="$(resolve "$root" | jq -c '.file_names.generated')"
+assert_eq "team-only: the overlay regenerator is ignored" "[]" "$out"
 assert_contains "team-only: the overlay declaration is reported inert" "$(layers "$root")" "!inert:generated	overlay"
 
 # 7. The same holds for the user-global layer.
 root="$(new_root)"
 write_layer "$(home_of "$root")/.claude/docs-naming.json" '{"generated": [{"path": "y", "regenerate": "true"}]}'
-assert_eq "team-only: the user-global regenerator is ignored" "docs/architecture/landscape.json" "$(resolve "$root" | jq -r '.file_names.generated[0].path')"
+assert_eq "team-only: the user-global regenerator is ignored" "[]" "$(resolve "$root" | jq -c '.file_names.generated')"
 assert_contains "team-only: the user-global declaration is reported inert" "$(layers "$root")" "!inert:generated	user-global"
 
 # 8. A team layer DOES supply `generated`.

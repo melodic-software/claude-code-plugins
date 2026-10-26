@@ -28,7 +28,9 @@
 // rate-limited run listing defers that pass, not fails it. A head whose check
 // runs handle it for good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
-// head's check-run read, and its UNKNOWN re-queries.
+// head's check-run read, and its UNKNOWN re-queries. A head recorded at the
+// per-head cap (resolve-conflicts or fix-ci) gets one `::warning::` as it is
+// recorded.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -42,8 +44,8 @@ import { prHold } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
-import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
-import { budgetedFetch } from "./request-budget.mjs";
+import { anyHandles, cappedAt, permanentlyHandles } from "./limit-stop.mjs";
+import { budgetedFetch, serverFailure } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -206,9 +208,18 @@ export async function dispatchConflicting({
       const options = { limits, failuresRetry: true, heldSkipsRelease: true };
       handled = anyHandles(existing, { now, ...options });
       if (permanentlyHandles(existing, options)) {
+        // Recording it means this warning shows once per head.
+        const capped = cappedAt(existing, options);
+        if (capped > 0) {
+          log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} failed or was skipped while held ${capped} time(s), the most one head gets; no ${activity} until a new push`);
+        }
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
+      if (serverFailure(error)) {
+        log(`::warning::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
       failed += 1;
       log(
         `::error::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}`,
@@ -278,7 +289,7 @@ export function createGitHubApi({
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -289,7 +300,7 @@ export function createGitHubApi({
     while (url) {
       const response = await fetch(url, { headers });
       if (!response.ok) {
-        throw new Error(`GET ${url} returned ${response.status}`);
+        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
       }
       rows.push(...(await response.json()));
       url = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1] ?? "";
@@ -551,6 +562,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
     fixes = await dispatchCiFixes({
       api: client,
+      record,
       runId: env.GITHUB_RUN_ID,
       log,
       appSenderId: Number(env.APP_SENDER_ID),

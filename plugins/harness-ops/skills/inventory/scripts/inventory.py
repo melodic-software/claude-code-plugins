@@ -2269,17 +2269,22 @@ def _parsed_written_elsewhere(src: str, ident: str, pos: int) -> bool:
     may change. A reference other than a spread into an array or call and a
     member read used as a value may let the array change later, so the
     array is then followed (`_flow_holds`) and counts as written unless
-    every place it reaches is known safe. Text in strings and comments is
-    no reference, and a write the parser resolves to another binding is
-    that binding's. A name the parser cannot answer for counts as
-    written."""
+    every place it reaches is known safe. A spread or a member read used as
+    a value changes nothing itself, but it is followed too, since the
+    engine looks names up on the prototypes for it (`@@iterator`, the key
+    read) and a module may patch them (`_sink_hit`). Text in strings and
+    comments is no reference, and a write the parser resolves to another
+    binding is that binding's. A name the parser cannot answer for counts
+    as written."""
     assert _PARSER is not None
     found = _PARSER.writes(src, *_chunk_span(src, pos), ident, pos)
     if found is None or not found["declares"]:
         return True
     if any(w != pos for _, w, _ in found["writes"]):
         return True
-    return bool(found["mutations"]) and not _flow_holds(src, ident, pos)
+    if not (found["mutations"] or found["reads"]):
+        return False
+    return not _flow_holds(src, ident, pos)
 
 
 # How many module-level steps `_flow_holds` takes before it gives up.
@@ -2292,18 +2297,22 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
     through aliases, returns, arguments and callbacks of array methods that
     never change the array; this follows the hops that leave the module:
 
-    - an export, to every module importing the exported name (a re-export
-      exports it again), when no module reads that name as a property,
-      since `ns.name` on a module namespace reaches the export too, and
-      every whole load of the exporting file reads other exports only by
-      name (`_namespace_holds`);
+    - an export, to every module whose import or re-export declaration
+      takes the exported name (`_imports_of`; a re-export exports it
+      again), when no module reads that name as a property, since
+      `ns.name` on a module namespace reaches the export too, and every
+      whole load of the exporting file reads other exports only by name
+      (`_namespace_holds`);
     - an argument to an imported function, to that function's parameter in
       the module its `from` path names in Bun's module table.
 
     Any hop it cannot follow, and more than FLOW_HOPS of them, is false, as
     is a bundle with a sink for a name the walk trusted (the built-in
     methods it called on the array, a name it relied on the prototypes not
-    holding, the lookups of a coercion): a module that may write one of
+    holding, a key it read as a value, and what the engine looks up for a
+    spread, a method building a new array or a coercion: `@@iterator`,
+    `next`, `constructor`, `@@species`, `@@isConcatSpreadable`,
+    `@@toPrimitive` and the rest): a module that may write one of
     those names on an object that could be a built-in prototype
     (`_sink_hit`)."""
     assert _PARSER is not None
@@ -2334,21 +2343,24 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
             name = hop[1]
             if name == "default" or _PARSER.keys_used(src, name, _module_spans(src)):
                 return False
-            held = _namespace_holds(src, span[0], name)
+            importers = _imports_of(src, name)
+            if importers is None:
+                return False
+            held = _namespace_holds(src, span[0], name, [p for _, p in importers])
             if held is None:
                 return False
             trusted.update(held)
             pending.extend(
-                (importer, {"import": name, "calls": hop[0] == "export-call"})
-                for importer in _importers(src, name)
+                (site, {"import": name, "calls": hop[0] == "export-call"})
+                for site in dict.fromkeys(s for s, _ in importers)
             )
     return not trusted or not _sink_hit(src, sorted(trusted))
 
 
 def _sink_hit(src: str, names: list[str]) -> tuple[str, str | None, int] | None:
     """The first place any module may write one of `names` (the built-in
-    methods and coercions the flow trusted) on an object that could be a
-    built-in prototype, or None. See the helper's `sinks` op."""
+    methods, keys and engine lookups the flow trusted) on an object that
+    could be a built-in prototype, or None. See the helper's `sinks` op."""
     assert _PARSER is not None
     for lo, hi in _module_spans(src):
         hits = _PARSER.sinks(src, lo, hi, names)
@@ -2389,59 +2401,42 @@ def _exporter_of(
     return lo, local
 
 
-@functools.lru_cache(maxsize=256)
-def _import_lists(src: str, name: str) -> tuple[tuple[tuple[int, int], str], ...]:
-    """Every `{...}from"<path>"` list holding `name` as a word: the module
-    holding it and the path it names. A superset of the modules that import
-    or re-export `name`; the parser's `flow` op reads the specifiers."""
-    token = re.compile(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])")
-    tail = re.compile(r"\s*from\s*([\"'`])(.*?)\1")
+def _imports_of(src: str, name: str) -> list[tuple[tuple[int, int], str]] | None:
+    """Every module whose import or re-export declaration takes `name` by
+    name (`import{name}from f`, `export{name}from f`), as the
+    `_chunk_span` the flow reads, with the path `f`. The declarations come
+    from the parser's AST, so a comment inside one hides none. None when a
+    module does not parse, since it may be one."""
+    assert _PARSER is not None
     out: list[tuple[tuple[int, int], str]] = []
-    for m in token.finditer(src):
-        opened = src.rfind("{", max(0, m.start() - 262_144), m.start())
-        closed = src.find("}", m.end())
-        if (
-            opened < 0
-            or closed < 0
-            or "}" in src[opened : m.start()]
-            or "{" in src[m.end() : closed]
-        ):
-            continue
-        path = tail.match(src, closed + 1)
-        if path is None:
-            continue
-        hit = (_chunk_span(src, m.start()), path.group(2))
-        if hit not in out:
-            out.append(hit)
-    return tuple(out)
+    for lo, hi in _module_spans(src):
+        found = _PARSER.imports(src, lo, hi)
+        if found is None:
+            return None
+        out.extend(
+            (_chunk_span(src, lo), path) for imported, path in found if imported == name
+        )
+    return out
 
 
-def _importers(src: str, name: str) -> list[tuple[int, int]]:
-    return list(dict.fromkeys(span for span, _ in _import_lists(src, name)))
-
-
-def _namespace_holds(src: str, lo: int, name: str) -> set[str] | None:
+def _namespace_holds(src: str, lo: int, name: str, paths: list[str]) -> set[str] | None:
     """The built-in names trusted in showing that no whole load of the
     module starting at `lo`, which exports `name`, reaches that export, or
     None when one may.
 
     Its files are the Bun module table's path for it and every file its
-    importers import `name` from; with neither, the file is unknown and
-    nothing rules out a namespace of it. Every module that loads one of
-    those files whole (`import(...)`, `require(...)`, `import*as`,
-    `export*`, the parser's `loads` op) is followed by the `namespace` op,
-    which accepts only reads of other exports by name. A module that may
-    load a file the parser cannot name (an aliased `require`,
-    `require.call`, `import(x)`) could load this one, so it fails the hop.
-    A promise settled
-    with the namespace reads its `then` export, so each file's module
-    must be known and export no `then`."""
+    importers import `name` from (`paths`); with neither, the file is
+    unknown and nothing rules out a namespace of it. Every module that
+    loads one of those files whole (`import(...)`, `require(...)`,
+    `import*as`, `export*`, the parser's `loads` op) is followed by the
+    `namespace` op, which accepts only reads of other exports by name. A
+    module that may load a file the parser cannot name (an aliased
+    `require`, `require.call`, `import(x)`) could load this one, so it
+    fails the hop. A promise settled with the namespace reads its `then`
+    export, so each file's module must be known and export no `then`."""
     assert _PARSER is not None
     path = _PARSER.module_path(src, lo)
-    files = {
-        p.rsplit("/", 1)[-1]
-        for p in ([path] if path else []) + [p for _, p in _import_lists(src, name)]
-    }
+    files = {p.rsplit("/", 1)[-1] for p in ([path] if path else []) + paths}
     if not files:
         return None
     trusted: set[str] = set()
@@ -4383,7 +4378,7 @@ def _builtin_plugin_loader(
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """The plugins the loader requires, each with its load condition, and the
     loader callee names. A walk that fails leaves every load unresolved."""
-    roster: dict[str, dict[str, Any]] = {}
+    sites: dict[str, list[list[str] | None]] = {}
     callees: set[str] = set()
     for latch in re.finditer(re.escape(_PLUGIN_LATCH) + r"=!0", src):
         block = _function_block(src, braces, latch.start())
@@ -4396,18 +4391,20 @@ def _builtin_plugin_loader(
             guards = {}
         for m in _PLUGIN_LOADER_CALL_RE.finditer(src, lo, hi):
             callees.add(m.group(1))
-            known = m.start() in guards
-            g = guards.get(m.start())
-            roster.setdefault(
-                _unescape(m.group(2)),
-                {
-                    "load": None
-                    if not known or g is None
-                    else ("conditional" if g else "unconditional"),
-                    "load_guards": g if known else None,
-                },
-            )
-    return roster, sorted(callees)
+            sites.setdefault(_unescape(m.group(2)), []).append(guards.get(m.start()))
+    return {name: _combined_load(gs) for name, gs in sites.items()}, sorted(callees)
+
+
+def _combined_load(sites: list[list[str] | None]) -> dict[str, Any]:
+    """One plugin's load condition from every call site that requires it.
+    Any unguarded site loads it unconditionally. Otherwise every site must be
+    read and guarded alike: `load_guards` is one conjunction, so sites guarded
+    differently (a disjunction) leave the load unresolved."""
+    if [] in sites:
+        return {"load": "unconditional", "load_guards": []}
+    if None in sites or any(g != sites[0] for g in sites):
+        return {"load": None, "load_guards": None}
+    return {"load": "conditional", "load_guards": sites[0]}
 
 
 def _object_value(
@@ -4446,6 +4443,24 @@ def _object_value(
 _PLAIN_PART_RE = re.compile(r"(?:(?:get|set|async)\s+)?" + _IDENT + r"\s*[:(]")
 
 
+def _object_keys(src: str, braces: BraceMap, open_i: int) -> tuple[list[str], bool]:
+    """An object literal's top-level keys, and whether every part was read: a
+    spread, or a quoted, computed or shorthand key, may hold any key."""
+    keys = sorted(_object_fields(src, braces, open_i, methods=True))
+    close = braces.pairs.get(open_i)
+    if close is None:
+        return keys, False
+    try:
+        parts = _split_top(src, braces, open_i + 1, close)
+    except (ValueError, IndexError):
+        return keys, False
+    for a, b in parts:
+        a, b = _strip_span(src, a, b)
+        if src.startswith("...", a) or not _PLAIN_PART_RE.match(src, a, b):
+            return keys, False
+    return keys, True
+
+
 def _merged_fields(
     src: str,
     braces: BraceMap,
@@ -4469,7 +4484,8 @@ def _merged_fields(
     complete = True
     last_unresolved = -1
     entries: list[tuple[int, dict[str, tuple[int, str, int]]]] = []
-    own = _object_fields(src, braces, open_i)
+    # Methods too: `isAvailable(){...}` is a present key, not an absent one.
+    own = _object_fields(src, braces, open_i, methods=True)
     for key, (form, pos) in own.items():
         entries.append((pos, {key: (open_i, form, pos)}))
     for a, b in _split_top(src, braces, open_i + 1, close):
@@ -4515,7 +4531,7 @@ def _merged_string(
     entry = fields.get(key)
     if entry is None:
         return None
-    resolved = resolve_field(src, braces, entry[0], key)
+    resolved = resolve_field(src, braces, entry[0], key, methods=entry[1] == "method")
     if resolved and resolved["source"] != "unresolved":
         return resolved
     ident = re.match(_IDENT + r"(?=\s*[,}])", src[entry[2] : entry[2] + 64])
@@ -4919,7 +4935,7 @@ def _plugin_commands(
     argument that is the enclosing arrow's own parameter passes another
     call's object through and is skipped; any other unresolved one leaves
     the list partial."""
-    out: dict[str, dict[str, Any]] = {}
+    out: list[dict[str, Any]] = []
     complete = True
     for m in re.finditer(r"\.(?:command\.register|registerCommand)\(", src[lo:hi]):
         paren = lo + m.end() - 1
@@ -4958,8 +4974,14 @@ def _plugin_commands(
         if rec["description_source"] == "absent" and not ok:
             rec["description_source"] = "unresolved"
         complete = complete and ok and rec["description_source"] != "unresolved"
-        out.setdefault(rec["name"], rec)
-    return list(out.values()), complete
+        if rec in out:
+            continue
+        if any(r["name"] == rec["name"] for r in out):
+            # Two registrations of one name: which runs last is not read, so
+            # both are kept and the list is partial.
+            complete = False
+        out.append(rec)
+    return out, complete
 
 
 def _plugin_registrations(
@@ -5217,17 +5239,18 @@ def extract_builtin_plugins(
         rec["hooks_module"] = hooks_module or (False if complete else None)
         rec["user_config"] = "userConfig" in fields or (False if complete else None)
         classic = fields.get("hooks")
-        rec["classic_hooks"] = (
-            sorted(_object_fields(src, braces, classic[2]))
-            if classic and classic[1] == "value" and src.startswith("{", classic[2])
-            else (None if classic is None else "unresolved")
-        )
+        classic_read = True
+        if classic and classic[1] == "value" and src.startswith("{", classic[2]):
+            # The keys read are a floor when a part of the object is not.
+            rec["classic_hooks"], classic_read = _object_keys(src, braces, classic[2])
+        else:
+            rec["classic_hooks"] = None if classic is None else "unresolved"
         mcp = fields.get("mcpServers")
         rec["mcp_servers"] = None if mcp is None else mcp[1]
         partial += [k for k in ("hooks_module", "user_config") if rec[k] is None]
         if not complete:
             partial += [k for k in ("classic_hooks", "mcp_servers") if rec[k] is None]
-        if rec["classic_hooks"] == "unresolved":
+        if rec["classic_hooks"] == "unresolved" or not classic_read:
             partial.append("classic_hooks")
         rec["skills"] = skills
         rec["agents"] = agents

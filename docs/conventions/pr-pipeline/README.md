@@ -295,16 +295,18 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 `.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
-exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
-`not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
+unappliable patch goes to `report-escalation`, as does a run that changed nothing and escalated a
+check. A patch that pushed escalates nothing, whatever the model escalated beside it: the new
+head's CI decides, and a red new head gets its own run. The one exception: a run at
+`model-rung` 0 that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 `fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
-without a retry. The same
+pushes and `ci-status` stays red. In a run that changed nothing, `protected-path`,
+`weaken-required` and `flaky` go to a person without a retry; beside a pushed patch, the new
+head's CI decides for them too. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
@@ -579,10 +581,11 @@ Every row refuses `.github/workflows/**` in any case and through any `..` segmen
 token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or in `docs/`,
 `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
 The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
-`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
-[HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
-trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
-whose code the token broker runs from main. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: only the
+narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
+main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
+`CODEOWNERS`, `.gitmodules` and the files that enforce the floor) waits for a person, and the
+security lane judges the rest, the trusted-actor list included. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
@@ -626,8 +629,8 @@ The schema checks each file's shape. The config reader also rejects:
 - an activity named `run` or `report`, `pr-run-activity`'s own job names;
 - any `extends:` value ([Not settled yet](#not-settled-yet)).
 
-The reader also adds the config file's own path and the trusted-actor list to
-`merge.diff-check.denied-paths`, whatever the config says.
+The reader adds no path to `merge.diff-check.denied-paths`: it resolves the config's own list,
+each entry once.
 
 ## Concurrency
 
@@ -692,9 +695,10 @@ and `C2` or `C3` lets the authority merge. Neither authority reads a work class
 - `off` is the default. The first rung a repository adopts is `C2`, together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - No work class is read, and no class, missing class or diff shape caps the rung. The only
-  class-named check is the local babysit lane's untrusted-provenance hold: a pull request whose
-  linked issue carries `work-class: untrusted-provenance`, or had it removed by a non-human, waits
-  for a human. The pr-merge lane merges on the verifier verdict
+  class-named check is the untrusted-provenance hold: a pull request whose linked issue carries
+  `work-class: untrusted-provenance` (any label naming untrusted work), or had it removed by a
+  non-human, waits for a human, in the local babysit lane and when `enable-auto-merge` arms a
+  lanes App pull request. The pr-merge lane merges on the verifier verdict
   ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
@@ -777,27 +781,45 @@ and its queued entries leave; two different identities, or an unreadable head co
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively. It holds only the takeover set
-  (owner direction 2026-10-23): `.github/standards/trusted-actors/**`,
-  `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`,
-  `.github/actions/resolve-config/**`, whose code the token broker runs from main in its signer
-  process, and `.github/actions/check-kill-switch/**`, whose output writer both actions use, and
-  `.github/actions/request-lane-token/**`, which mints the lanes App token. Agent permission config, package manifests and workflows merge on the review lanes. A
-  diff that touches a floor path scores HIGH and is never merged unattended. A
-  `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
-  `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
-  installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
-  `experimental.monitors` value, or a marketplace plugin added, removed, renamed or re-sourced, or
-  the marketplace renamed. A removed, renamed or copied manifest, and a side that cannot be read,
-  does not parse or repeats a key, holds. That reason waits for a human like any other HIGH one.
+- **Narrow path floor.** A fixed set of paths in the wrapper's code (`babysit_risk.HIGH_FLOOR`,
+  owner decisions Q-FLOOR (B) and
+  [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)),
+  joined with `merge.diff-check.denied-paths` (empty here) and
+  matched case-insensitively, scores HIGH whatever `high-path-floor` says and is never merged
+  unattended: `.github/actions/resolve-config/**`, whose code the token broker runs from main in
+  its signer process, `.github/actions/request-lane-token/**`, which mints the lanes App token,
+  `.github/actions/check-trusted-trigger/**` and the rate guard it sends every call through
+  (`.github/actions/log-api-budget/rate-guard.mjs`), `.github/actions/check-kill-switch/**`,
+  whose output writer both actions use, `**/CODEOWNERS`, `**/.gitmodules`, and the files that
+  enforce the floor: `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`,
+  `superseded.mjs` and `clear-escalations.mjs` there,
+  `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py`,
+  `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml`, which runs those
+  scripts and sets their environment, `docs/conventions/pr-pipeline.yaml`, and every module
+  those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
+  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
+  and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which
+  `enable-auto-merge.mjs` runs, with every `babysit-prs/scripts/` module they import
+  (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more). `test_merge_holds_sync.py` derives
+  both closures from their imports and requires them on the floor. No other path
+  is held for being trusted (owner direction 2026-10-24): the trusted-actor list and every other
+  path merge on the review lanes, which judge them. A
+  `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
+  installs or runs something new is a security-review finding, not a hold; where
+  `high-path-floor` is on, the gate still scores it HIGH as `manifest-review-required`, and this
+  repository sets it off. Here the security review is the only control on such a change: no
+  deterministic check holds it, and the review's CRITICAL rating of an added `hooks`,
+  `mcpServers`, `lspServers` or `monitors` key, or a marketplace entry added, removed or
+  repointed, is what holds it ([owner decision Q-FLOOR (B)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6399729716)).
 - **Trusted-actor widening.** A change that adds or widens an entry in
   `.github/standards/trusted-actors/trusted-actors.json` scores HIGH as
   `trust-gate:trusted-actors` in both lanes and waits for the owner, whatever `high-path-floor`
   says and whatever an adopted author's own paths leave off the floor. The gate compares the
   base and head entries: a change that only removes entries merges; an added or changed entry,
   any other key changed, a side that cannot be read or parsed or repeats a key, and an added,
-  removed, renamed or copied list hold. An owner cost decision does not clear it.
+  removed, renamed or copied list hold. An owner cost decision does not clear it. `ci-status`
+  holds the same widening on a lanes App pull request pushed after auto-merge is armed
+  (`merge-holds.mjs` `actorsHold`), lifted by a trusted person's approval of the head.
 - **Security findings.** The security lane flags; only a CRITICAL finding, its top tier, holds the
   merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
@@ -807,8 +829,7 @@ and its queued entries leave; two different identities, or an unreadable head co
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like
   any other HIGH reason. It catches:
   - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
-    file, `plugins/multi-agent/reference/defaults.yaml` (the model and effort per role), and any
-    file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
+    file, and any file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
     list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
   - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
@@ -881,7 +902,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   head last changed; the queue would eject it again on the same commits. A push resets the count.
   An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
-  failing `merge_group` runs.
+  failing `merge_group` runs. Under `merge.lane-prs` `native`, `enable-auto-merge` applies the
+  same cap before it arms a lanes App pull request (see [Native auto-merge](#native-auto-merge)).
 - **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
   When the base changed one since a pull request's merge base, the wrapper updates the branch from
   the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
@@ -947,7 +969,9 @@ except six:
   or submitted the newest review since that pin), a recent `updatedAt` does not refuse, since the
   pin comment and the enqueue refresh it; any other comment or review, such as a request to
   wait, refuses again, as does an unreadable one. The head commit test and every hold still
-  apply. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`);
+  apply. A person's merge-queue enqueue that the queue removed for failed checks also excuses
+  both idle tests ([Adoption](#adoption)). The decision records it as `eligibility.adoption`
+  (`idle-owner:<hours>h`, or `requeue-after-ejection`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
   request that is not adopted refuses `not-adopted:<reason>`. The candidate listing adds each
   trusted actor's open pull requests by its login on the list.
@@ -959,13 +983,13 @@ except six:
   reports and sets `false` to let it merge.
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
-  `high-path-floor` (true scores the scorer's fixed HIGH path set and the manifest review HIGH),
+  `high-path-floor` (true scores the manifest review HIGH; the fixed HIGH path floor scores
+  either way),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
-  `high-path-floor: true`, so a lane pull request on the floor waits for a human; the non-author verifier
-  verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  `high-path-floor: false` (owner direction 2026-10-24); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
-  2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor and both
-  caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
+  2026-10-17). The local babysit lane ignores these switches and keeps the manifest review and
+  both caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
   The schema still accepts it so existing configs validate, and a gate report whose config sets it
   carries a `configNotes` entry saying so. The review evidence, the security lane's CRITICAL findings, the
   cost hold and the trusted-actor widening hold still count.
@@ -1003,12 +1027,16 @@ naming the score, the reasons and the head. While `merge.report-only` is false, 
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
-rewrites that comment once to end with a line saying the refusal persisted and needs a person, then
-adds the tracker's human-gated role label when no label matches it ignoring case, so the pull
-request leaves the WIP count and reaches the attended queue. The rewrite dates the comment beside
-the label, which the head-moved clear needs to pair them. The minimum lets a review still
+posts a new comment, that comment's text ending with a line saying the refusal persisted and needs a
+person, then adds the tracker's human-gated role label when no label matches it ignoring case, so
+the pull request leaves the WIP count and reaches the attended queue. A new comment notifies and is
+dated beside the label, which the head-moved clear needs to pair them; an edit would do neither. An
+unchanged escalation is never posted again. The minimum lets a review still
 running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
-restart the time; a new head, or a score back at LOW, writes no label. A LOW score rewrites a
+restart the time, except on a comment already escalated at that head, where they are posted as a
+new escalation so the label never stands beside a comment without the escalation line; a new head,
+or a score back at LOW, writes no label. A comment that differs only in line endings or trailing
+whitespace counts as unchanged. A LOW score rewrites a
 refusal comment naming that head, unless it is escalated, to say the refusal no longer holds, so a
 later refusal at the head starts its time afresh. The merge gate never removes the label; the
 `head-moved` clear above removes it once the head moves, and otherwise a person does. When the
@@ -1018,8 +1046,9 @@ with write access; an unreadable default branch lifts nothing), it lifts that es
 run that finds the comment unchanged (same head and reasons) adds no label. A removal by a bot,
 the lanes App included, by an account off that list, or made through a GitHub App
 (`performed_via_github_app`) lifts nothing, and a new head or new
-reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
-escalations.
+reasons escalate afresh, each as a new comment. The same holds for pr-merge's verifier, held-major
+and shared-copy escalations. Under `merge.lane-prs` `native`, `enable-auto-merge` escalates a lanes
+App pull request instead, and posts its escalation to a person as a new comment the same way.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also
@@ -1099,21 +1128,36 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 (the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
-`merge.diff-check.denied-paths`, read on the files the head changes at each run, and whose
+`merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
+`HOLD_PATH_FLOOR`, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
+run, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
-the one issue its plain `Refs: #<n>` lines name; a failed read refuses), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
+the one issue its plain `Refs: #<n>` lines name; a failed read refuses) and whose issue clears
+the trust hold (`babysit_merge_policy.trust_refusal`: its labels read whole, none naming untrusted
+work in any spelling, and none ever removed by a non-human or through an App, so a label added
+after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed-by-non-human` or
+`issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
+issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
 heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
-review, the trust gate and the cost review all hold. Each such run also
+review, the trust gate and the cost review all hold; and `evidence --lane-queue` finds the merge
+queue has removed the head for failed checks fewer than `merge.max-queue-ejections` times since it
+last changed, the gate's own count and limit (`babysit_merge.queue_ejection_refusal`). GitHub does
+not re-arm a pull request the queue removes, so without this cap each scheduled run would arm a head
+that keeps failing its merge group again. At the cap the pull request is left unarmed with the
+gate's `<!-- babysit-merge-queue-ejections -->` comment and no label, since a push resets the
+count; an unread count leaves it unarmed with no comment, and the next run reads it again. An
+armed one is not disarmed on the count. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
-report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report, or
-one the gate would not reuse (`shared_refusal`: too old, a demotion record changed since, or a lane
-merge landed since that it does not count), it holds as a refusal does; one past the gate's
+report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
+holds as a refusal does; one the gate would not reuse, for any `shared_refusal`, is checked again
+as the gate does; one refused only because a demotion record was filed or changed since is first
+kept when the demotion records alone read as they were; one past the gate's
 two-minute reuse age only because a lane merge is still unverified is kept while main's head, its
 config commit, the demotion records and the unverified merges' full and canary runs are as they
 were (no run reached a conclusion since, no merge is past the six-hour dispatch deadline, and no
@@ -1133,11 +1177,19 @@ saved listing, head-ref map and run cache; an event run reads no link or verdict
 only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
 turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
 armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
-any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
+any of those, and does not turn it back on once a person has turned it off. A scheduled or
+hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
+`Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
+says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
+label only for a cause a person must clear: that hold line (owner decision Q-HOLDLINE), a
+configured denied path or a [path floor](#merge-authority) path, a cost hold, an untrusted spec,
+the repeated-FAIL round cap, a security finding or a trusted-actor widening. It puts the label
+back while the comment stands unless a person removed it since; a person's own hold text gets
+neither. GitHub then merges the pull request through the merge queue
 once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
-the body must still close, or with no closing issue name by a plain `Refs:` line, the one issue
-the pass judged, linked the same way (`merge-holds.mjs` `linkHold`), so a body edited after arming
-does not merge on a pass for another issue. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
+the body must still close, or with no closing issue name by a plain `Refs:` line, the issue the
+pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
+edited after arming to drop its link or name another issue does not merge on that pass. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
 armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
 adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
 missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a
@@ -1160,17 +1212,16 @@ hold paths, so one added after arming stops the merge without waiting for this j
 `Fail a lanes App pull request its body or a member holds` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
-`merge.diff-check.denied-paths` plus the paths resolve-config always adds and the merge gate's
-HIGH floor (`babysit_risk.HIGH_FLOOR`), and holds a plugin manifest or marketplace manifest
-change the gate's manifest review holds, both sides read and compared key by key as the gate
-compares them (`manifestChanges`), on each pull request
-event and in the merge queue, where a red group removes the pull request. A push that adds a hold
-path or such a manifest change fails `ci-status` on its own head. A person on the trusted-actor list
+`merge.diff-check.denied-paths` plus the path floor (`HOLD_PATH_FLOOR`, a constant of the module
+main has, so a pull request cannot rewrite it), and holds a trusted-actor list change that
+adds or widens an entry, both sides read at `BASE_SHA` and the head (`actorsHold`), on each pull
+request event and in the merge queue, where a red group removes the pull request. A push that
+adds a hold path or such a widening fails `ci-status` on its own head. A person on the trusted-actor list
 (as main has it) lifts either by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
 body hold or veto, and arming still skips the pull request, so that person merges it.
 Both also hold a pull request that changes one of the merge gate's cost paths
-(`babysit_risk.COST_PATHS`: the multi-agent role map, Pulumi, Terraform and Bicep files). An
+(`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
 line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
@@ -1192,6 +1243,26 @@ request the gate sends to a person. It runs only in the queue: pr-verify runs on
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
 verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
 `enable-auto-merge.mjs`'s, whose reader arms nothing they refuse.
+
+The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
+already carries `work-class: untrusted-provenance`. At arm time, `enable-auto-merge` refuses it
+through `evidence --lane-link`. In the merge queue, `ci-status`'s step `Fail a queued pull request
+carrying a hold label` reads the queued pull request's linked issue when an automation opened the
+pull request. The linked issue is its closing issues here, or with none, the one issue its plain
+`Refs:` lines name, by the base's `refsIssue`. The step fails when that issue carries a label
+containing `untrusted` in any ASCII case (as `babysit_merge_policy._untrusted` matches it), or had
+one removed by anyone other than a person on the base's trusted-actor list, or through an App. A
+lanes App pull request that does not link exactly one issue here also fails, so dropping the link
+after arming does not skip the check; another automation's pull request that links none passes. An
+unreadable link, label list, timeline or trusted-actor list fails closed. So a label added after
+the pull request opened, while it waits to be armed or sits in the queue, stops the merge, and a
+person on that list lifts it by removing the label and re-queuing. A person's own pull request is
+not read.
+
+A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
+issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
+label still holds. The way out is a new issue a person files for the work, and a new pull request
+linking it.
 
 ### Dependabot pull requests
 
@@ -1456,17 +1527,22 @@ is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-chec
 judges a person's pull request at each ready head, before it is idle. A pull request closing no
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
-problem, changes what the code is for, or loosens a hold the owner keeps; then it fails the
+problem, changes what the code is for, or loosens a hold the owner keeps (a hold on a real
+charge, not subscription spend such as a model, effort or schedule change); then it fails the
 verdict, as does unasked-for work on secret values or organization or repository settings.
 Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are judged
-like any other code; a change to the takeover set (the merge gate's HIGH floor) fails whatever
-the spec says. `any` judges every author's. Any other
+like any other code; a change to the takeover set (the merge gate's HIGH floor) is read with extra
+care and fails only when it lets someone outside the organization gain trust or weakens a check
+beyond what the spec asks. A diff too large to judge whole fails when a part not judged is a
+workflow, action, script, hook or binary, or a takeover-set file of any type, and passes with
+notes naming the parts not judged when they are all other prose or data. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, except a size split's sub-issue whose lines are its listed-human
-parent's task-list lines (below), so a lane pull request never supplies its own spec.
+parent's task-list lines or those of intake's refinement on it (below), so a lane pull request
+never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
@@ -1565,8 +1641,14 @@ head:
   opens with the split header for that parent, every line after the header is one of the parent's
   trusted task-list lines (a line of the parent's listed-human body or comments that starts with
   admission's `task-list`, "- [ ] " with its trailing space, from
-  `.github/actions/resolve-config/admission-rules.json` at the base branch; a missing or empty `task-list` counts nothing), and either nobody edited it or a
-  listed human last edited it. On that edited path a line may also be a trusted line with its box
+  `.github/actions/resolve-config/admission-rules.json` at the default branch, as resolve-pr reads it from main's checkout, whatever the pull request's base; a missing or empty `task-list` counts nothing), and either nobody edited it or a
+  listed human last edited it. A header whose third line is
+  `<!-- size-split refinement=<id> updated_at=<time> -->` also allows that refinement comment's
+  task-list lines, never its prose, heading or marker lines, and counts only while that comment is
+  still the lanes App's newest refinement on the parent, never edited, with `updated_at` equal to
+  its `created_at` or to the recorded time, on a parent body a listed human wrote, and last edited
+  if ever; a deleted, edited or superseded refinement leaves it untrusted, whoever edited the
+  sub-issue since. On the edited path a line may also be a trusted line with its box
   ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
   `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
   so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than
@@ -1682,13 +1764,16 @@ and any change holds. An attended gate run reads both fresh. Without the variabl
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
 `hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
 status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
-comment when the review returns a hold, or when a changed file (or a renamed file's old path)
-matches a hold path, which holds as `trust-gate` whatever the review says:
-
-- `.github/standards/trusted-actors/**`
-- `.github/actions/check-trusted-trigger/**`
-- `**/CODEOWNERS`
-- `**/.gitmodules`
+comment when the review returns a hold: `cost` (only for a real charge, as the wrapper's prompt
+defines it) or `critical-security`. `hold-paths` only flags the files it names for extra security
+scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
+what it gates, and only a CRITICAL finding there holds. The callers name
+`.github/standards/trusted-actors/**`, every entry of the narrow path floor above
+(`babysit_risk.HIGH_FLOOR`), and the security review's own criteria and eval cases
+(`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
+those last two are also the trust-gate paths ci-status's exempt-author check below fails on.
+`test_merge_holds_sync.py` checks that both callers' `hold-paths` and that check's
+`hold_patterns` each match every floor entry.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -1712,8 +1797,9 @@ them on every `pull_request` run, contract-only runs included:
   fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
-  author id, except that their PR fails when a changed file (or a renamed file's old path) matches
-  a hold path, since no lane reviews it to hold it; a person merges it. A draft is exempt.
+  author id, except that their PR fails when a changed file (or a renamed file's old path) is a
+  trust-gate path (the hold-paths above less the security review's own files), since no lane
+  reviews it; a person merges it. A draft is exempt.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
@@ -2012,10 +2098,16 @@ leg hands off (`run-claude-cli`'s `handoff` output: a credit stop, or class `aut
 401 or 402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent`
 runs on the key, and `check-intent-subscription` runs on the token, on a new runner, only after
 `check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
-`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. The read runner's callers
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. With the org secret
+`FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
+credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
+that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
+with it empty, the subscription leg is the last. The read runner's callers
 do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
 and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
-([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). Each lane's workflow names
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and with
+`FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, a third call on that token after the second hands off
+([Two calls on one credential each](pr-run-activity.md#two-calls-on-one-credential-each)). Each lane's workflow names
 its role as a literal, and the runner policy admits it. A lane on pr-run-activity-write.yml passes
 its role as the `role` input, and the lane record names that role's token as the run's credential.
 
@@ -2061,7 +2153,7 @@ with defaults.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the limit the pool's `x-ratelimit-limit` header reports: `plan`, `writer-pause`, `breaker` and `read-floor`, plus `per-minute` and `per-hour` for `content-creation`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`). The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) reads only `read-floor`, to warn once while calls continue; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to 1000, GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`, and the `github-token` entry). The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -2203,6 +2295,33 @@ person opened. A PR is adopted when all of these hold:
 - for a person's PR, its last update (`updatedAt`) and its head commit's committer date are both
   at least `idle-hours` old. Neither one alone is enough. An App's PR does not wait.
 
+A person's PR also skips the wait when a person put it in the merge queue and the queue removed
+it for failed checks (owner decision Q-REQ (a)). The person's enqueue of that head stands in for
+the idle wait, and grants nothing beyond it. In pr-merge, `babysit_merge_policy.ejected_enqueue`
+reads the enqueue from `read_merge_queue`, and `requeued_by_person` accepts it only when all of
+these hold:
+
+- the PR's newest merge-queue event is a `RemovedFromMergeQueueEvent` with reason
+  `failed_checks`, with no pushed commit or force push after it;
+- the `AddedToMergeQueueEvent` that queued the removed entry has an `actor` and an `enqueuer`
+  whose ids are both `kind: human` on the trusted-actor list. Logins and GitHub types are not
+  read, because GitHub types an App's enqueuer as a `User`;
+- GitHub had seen this head on the branch by the enqueue, and not since. That check reads the
+  newest `created_at` of GitHub Actions' check suites for the head commit on the PR's head
+  branch, which must be no later than the enqueue. GitHub sets it when a push arrives. A commit
+  dated in the past but pushed after the removal therefore does not pass, and neither does a head
+  that was reset away and pushed back;
+- no person has commented, reviewed or commented inline since the enqueue, counting a comment
+  edited since then. The lanes App and bots do not count. A request to wait, made before or after
+  the run failed, therefore keeps the idle rule, as a comment after the lane's pin does for its
+  own queued entry.
+
+The only newer queue event allowed is the lane's own entry at this head, as described in
+[The pr-merge lane](#the-pr-merge-lane). Anything else, or anything unreadable, falls back to the
+idle rule. The decision records `requeue-after-ejection`. The gate then runs unchanged: every
+hold, the verifier verdict, the head pin, and the `merge.max-queue-ejections` cap. If the lane's
+own retry is removed too, its enqueue is not a person's, so the PR waits `idle-hours`.
+
 An adopted PR that closes no issue in this repository is judged against its own title and body
 when a person (a `kind: human` id on the trusted list, not merely a GitHub `User`) opened it or
 an App in `spec-from-body-apps` did (an App whose bodies a script writes): resolve-pr gives the verifier that text as the spec, the verdict records `intent:
@@ -2242,9 +2361,10 @@ the author on the trusted-actor list, as every pr-unblock run does. A pushed fix
 PR and its head, so the next fix waits another `idle-hours`: a person's PR gets at most one fix
 round per idle window. A lanes App PR waits for no idle window, and its
 `Hold: a human merges this` line holds the merge, not a CI fix. With an `adoption` section the
-human-gated label holds a lanes App PR from `fix-ci` too; without one the tracker file and the
-trusted-actor list are not read, nothing is adopted, and only `do-not-merge` and `needs-human`
-hold.
+human-gated label holds a lanes App PR from `fix-ci` too, including the label `enable-auto-merge`
+adds for that line, since its pr-merge escalation comment is not a pr-unblock lane escalation;
+without one the tracker file and the trusted-actor list are not read, nothing is adopted, and only
+`do-not-merge` and `needs-human` hold.
 
 | Key | Default | Meaning |
 |---|---|---|

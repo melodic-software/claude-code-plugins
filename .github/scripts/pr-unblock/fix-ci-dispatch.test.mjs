@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
+import { emptyRecord, isHandled } from "./dispatch-record.mjs";
 import { RERUN_DUE_MINUTES } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
 
@@ -42,6 +43,15 @@ const check = (name, conclusion, extra = {}) => ({
   ...extra,
 });
 
+// A rollup check run as the REST check-runs listing returns it.
+const toRest = (run) => ({
+  name: run.name,
+  status: run.status.toLowerCase(),
+  conclusion: run.conclusion?.toLowerCase() ?? null,
+  output: { title: run.title ?? null },
+  completed_at: run.completedAt ?? null,
+});
+
 // The head's ci-lanes commit status as the GraphQL rollup returns it: the
 // creator recorded live from a pull request's ci-lanes status, which GraphQL
 // reports as login `github-actions`, not REST's `github-actions[bot]`.
@@ -74,10 +84,27 @@ function fakeApi({
   baseCommittedAt,
   comments = new Map(),
   labelEvents = new Map(),
+  history = new Map(),
 } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [], history: [] };
   return {
     calls,
+    // The head's check runs of one name and app over REST, every one of them:
+    // the test's history for the head, else the rollup's runs in REST's shape.
+    async listCheckRuns({ sha, checkName, appId }) {
+      calls.history.push(sha);
+      const rows = history.get(sha);
+      if (rows instanceof Error) {
+        throw rows;
+      }
+      if (rows) {
+        return rows;
+      }
+      const node = pages.flat().find((pull) => pull.headRefOid === sha);
+      return (node?.commits.nodes[0].commit.statusCheckRollup.contexts.nodes ?? [])
+        .filter((run) => run.__typename === "CheckRun" && run.name === checkName && run.checkSuite?.app?.databaseId === appId)
+        .map(toRest);
+    },
     // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
       calls.timeline.push(number);
@@ -243,19 +270,79 @@ test("a new base dispatches a failed or not-applicable head again, within the pe
   assert.equal(api.calls.list, 1, "the base tip comes with the listing");
 });
 
-test("many base moves on one unchanged head dispatch it at most three times", async () => {
-  const fix = (completedAt) => check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt });
-  const runs = [];
-  let dispatches = 0;
-  for (let hour = 1; hour <= 10; hour += 1) {
-    const base = `2026-10-22T${String(hour).padStart(2, "0")}:00:00Z`;
-    const { result } = await run({ pages: [[pr(9, { checks: [lanes("FAILURE"), ...runs] })]], baseCommittedAt: base });
-    if (result.dispatched.length > 0) {
-      dispatches += 1;
-      runs.push(fix(`2026-10-22T${String(hour).padStart(2, "0")}:30:00Z`));
+// GitHub's rollup lists only a check name's newest run, so the head's earlier
+// fix-ci runs are in the REST listing alone. A head context skips each time
+// (no failing check it counts) on a base that moves before every dispatcher
+// run is dispatched three times, then stopped at the cap: one warning on the
+// run that finds the cap, and the dispatch record (carried from run to run)
+// keeps every later run from reading the head at all.
+test("a head fix-ci-context skips after every base move is dispatched three times, then warned about once and never read again", async () => {
+  const head = "9".padStart(40, "a");
+  const history = [];
+  const record = emptyRecord();
+  const warning = "::warning::#9: head " + head + "'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push";
+  const cycles = [];
+  for (let hour = 1; hour <= 8; hour += 1) {
+    const at = (minute) => `2026-10-22T${String(hour).padStart(2, "0")}:${minute}:00Z`;
+    const newest = history.length === 0 ? [] : [check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt: history.at(-1).completed_at })];
+    const { api, lines } = await run(
+      {
+        pages: [[pr(9, { checks: [lanes("FAILURE"), ...newest] })]],
+        history: new Map([[head, [...history]]]),
+        baseCommittedAt: at("00"),
+      },
+      { record },
+    );
+    const dispatched = lines.some((line) => line.startsWith("dispatched fix-ci #9 "));
+    if (dispatched) {
+      history.push({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "neutral", output: { title: "Skipped: not-applicable" }, completed_at: at("30") });
     }
+    cycles.push({ dispatched, warned: lines.filter((line) => line === warning).length, calls: api.calls });
   }
-  assert.equal(dispatches, 3);
+  assert.deepEqual(cycles.map((cycle) => cycle.dispatched), [true, true, true, false, false, false, false, false]);
+  assert.deepEqual(cycles.map((cycle) => cycle.warned), [0, 0, 0, 1, 0, 0, 0, 0]);
+  assert.ok(isHandled(record, "pr-unblock / fix-ci", head), "the capped head is recorded");
+  // Run 4 read the head's runs and stopped before its required run; runs 5-8
+  // make no read past the listing.
+  assert.deepEqual([cycles[3].calls.history, cycles[3].calls.jobs], [[head], []]);
+  for (const { calls } of cycles.slice(4)) {
+    assert.deepEqual({ runs: calls.runs, timeline: calls.timeline, history: calls.history, jobs: calls.jobs }, { runs: 0, timeline: [], history: [], jobs: [] });
+  }
+});
+
+test("a head whose fix-ci runs include a run that is not retryable is not capped, and an untrusted-trigger skip does not count", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const rest = (conclusion, title = null) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion, output: { title }, completed_at: "2026-10-22T10:00:00Z" });
+  const record = emptyRecord();
+  const { lines } = await run(
+    {
+      pages: [[pr(1), pr(2), pr(3)]],
+      history: new Map([
+        [head(1), [rest("failure"), rest("failure"), rest("failure")]],
+        [head(2), [rest("failure"), rest("failure"), rest("success")]],
+        [head(3), [rest("failure"), rest("failure"), rest("neutral", "Skipped: untrusted-trigger")]],
+      ]),
+    },
+    { record, maxDispatch: 5, restarts: 5 },
+  );
+  assert.deepEqual(lines.filter((line) => line.startsWith("::warning::")), [
+    "::warning::#1: head " + head(1) + "'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push",
+  ]);
+  assert.deepEqual([1, 2, 3].map((number) => isHandled(record, "pr-unblock / fix-ci", head(number))), [true, false, false]);
+});
+
+test("a head whose fix-ci runs cannot be read is not dispatched: a rate limit or a 5xx waits, any other error fails", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const limited = Object.assign(new Error("GET check-runs returned 403"), { rateLimited: true });
+  const outage = Object.assign(new Error("GET check-runs returned 502"), { status: 502 });
+  const { lines, result } = await run(
+    { pages: [[pr(1), pr(2), pr(3)]], history: new Map([[head(1), limited], [head(2), new Error("GET check-runs returned 404")], [head(3), outage]]) },
+    { maxDispatch: 5 },
+  );
+  assert.deepEqual(result, { dispatched: [], failed: 1 });
+  assert.ok(lines.includes("::warning::#1: its pr-unblock / fix-ci run read is rate limited (GET check-runs returned 403); no fix-ci dispatched, a later run retries"), lines.join("\n"));
+  assert.ok(lines.includes("::error::#2: could not read its pr-unblock / fix-ci runs (GET check-runs returned 404); left for a later run"), lines.join("\n"));
+  assert.ok(lines.includes("::warning::#3: could not read its pr-unblock / fix-ci runs: GET check-runs returned 502; skipped, a later run retries"), lines.join("\n"));
 });
 
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
@@ -310,10 +397,21 @@ test("an awaiting-human skip left while the PR was held does not hold it once th
 test("a hold that cannot be read counts as a failed dispatch", async () => {
   const api = fakeApi({ pages: [[pr(1, humanGated)]] });
   api.listTimeline = async () => {
-    throw new Error("GET timeline returned 502");
+    throw Object.assign(new Error("GET timeline returned 404"), { status: 404 });
   };
   const result = await dispatchCiFixes({ api, runId: "1", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
   assert.deepEqual(result, { dispatched: [], failed: 1 });
+});
+
+test("a hold read GitHub still answers 5xx after its retries skips that PR with a warning and fails nothing", async () => {
+  const api = fakeApi({ pages: [[pr(1, humanGated), pr(2)]] });
+  api.listTimeline = async () => {
+    throw Object.assign(new Error("GET timeline returned 502"), { status: 502 });
+  };
+  const lines = [];
+  const result = await dispatchCiFixes({ api, runId: "1", log: (line) => lines.push(line), appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 2, workflowRunId: "7002" }], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#1:") && line.includes("502")));
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {
@@ -551,31 +649,46 @@ test("an adopted owner PR whose ci-status failed on infra only is the reconciler
 // no reason to wait, so fix-ci takes the head under its usual caps.
 test("a head whose required run's jobs cannot be read is dispatched fix-ci, and the log says why", async () => {
   const head = "5".padStart(40, "a");
-  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, new Error("GET returned 502")]]) });
+  const unreadable = Object.assign(new Error("GET returned 404"), { status: 404 });
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, unreadable]]) });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [5],
   );
-  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs (GET returned 502); dispatching fix-ci")), lines.join("\n"));
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs (GET returned 404); dispatching fix-ci")), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: required run unreadable)")), lines.join("\n"));
+});
+
+// An outage is no reason to spend a model run either: a required-run read
+// GitHub still answers 5xx after its retries skips that head for a later run.
+test("a required-run read GitHub still answers 5xx after its retries skips that head with a warning and fails nothing", async () => {
+  const outage = Object.assign(new Error("GET https://api.example/runs returned 502"), { status: 502 });
+  const { api, lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns: new Map([["5".padStart(40, "a"), outage]]) });
+  assert.deepEqual(result, { dispatched: [{ number: 6, workflowRunId: "7006" }], failed: 0 });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["6"]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5:") && line.includes("502") && line.includes("skipped")), lines.join("\n"));
 });
 
 test("an unreadable required run still keeps the per-head cap, the restart count and an in-flight run", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const fix = check("pr-unblock / fix-ci", "FAILURE");
+  // #1's three failures ran on an older base, so only the per-head cap stops it.
+  const oldFix = check("pr-unblock / fix-ci", "FAILURE", { completedAt: "2026-10-22T09:00:00Z" });
   const failed = lanes("FAILURE");
   const requiredRuns = new Map([1, 2, 3].map((number) => [head(number), new Error("GET returned 502")]));
   const { api, lines, result } = await run(
     {
-      pages: [[pr(1, { checks: [failed, fix, fix, fix] }), pr(2, { checks: [failed, fix, fix] }), pr(3)]],
+      pages: [[pr(1, { checks: [failed, oldFix, oldFix, oldFix] }), pr(2, { checks: [failed, fix, fix] }), pr(3)]],
       requiredRuns,
       workflowRuns: [{ id: 99, status: "in_progress", display_title: "pr-unblock fix-ci #3" }],
+      baseCommittedAt: "2026-10-22T10:00:00Z",
     },
     { maxDispatch: 5 },
   );
   assert.deepEqual(result.dispatched, []);
   assert.deepEqual(api.calls.dispatch, []);
-  assert.ok(lines.some((line) => line.startsWith("skip fix-ci #1:")), lines.join("\n"));
+  assert.ok(lines.includes(`::warning::#1: head ${head(1)}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`), lines.join("\n"));
+  assert.ok(!api.calls.jobs.includes(head(1)), "the cap stops #1 before its required run is read");
   assert.ok(lines.some((line) => line.startsWith("skip fix-ci #2:")), lines.join("\n"));
 });
 

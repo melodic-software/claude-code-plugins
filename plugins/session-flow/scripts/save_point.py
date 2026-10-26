@@ -15,7 +15,7 @@ Usage:
     save_point.py new --topic <slug> (--previous <file> | --no-previous)
                       [--memory-dir <root>] [--session-id <uuid>]
                       [--projects-root <dir>] [--repo-root <dir>] [--now <iso>]
-                      [--shape 2|3]
+                      [--shape 2|3] [--purpose <text>]
     save_point.py fill <file> --slots <json>
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
     save_point.py emit <file>
@@ -231,6 +231,26 @@ REWRITTEN = {
         "remaining item, or 'None. Remaining work runs inline'",
     ),
 }
+# `new --purpose` writes the stated purpose as the Resumption brief's first line
+# and points the brief and skills slots at it (save-point.md, "The purpose
+# argument tailors emphasis only").
+PURPOSE_PREFIX = "Purpose: "
+PURPOSE_SKILLS = "; selected for the Purpose line in Resumption brief, each serving it"
+
+
+def _brief_lines(purpose: str | None, instruction: str) -> list[str]:
+    if not purpose:
+        return [_fill("brief", instruction)]
+    return [
+        PURPOSE_PREFIX + purpose,
+        _fill(
+            "brief",
+            "five lines max below the Purpose line, framed from it: "
+            + instruction.split(": ", 1)[1],
+        ),
+    ]
+
+
 # A resolved entry moved into a committed doc leaves `- [hN] Promoted to <ref>: <its leading text>`.
 PROMOTED_PREFIX = "Promoted to "
 PROMOTED_MIN_QUOTE = 20
@@ -2177,6 +2197,7 @@ def _resume_prompt(
 
 def build_skeleton(
     *,
+    purpose: str | None = None,
     slug: str,
     session_id: str,
     date: str,
@@ -2317,8 +2338,12 @@ def build_skeleton(
                 )
                 lines = _splice_new_slot(lines, slot)
             section(title, lines)
+        elif title == "Resumption brief":
+            section(title, _brief_lines(purpose, REWRITTEN[title][1]))
         else:
             name, instruction = REWRITTEN[title]
+            if purpose and title == "Suggested skills":
+                instruction += PURPOSE_SKILLS
             section(title, [_fill(name, instruction)])
 
     # This session
@@ -2388,6 +2413,7 @@ def _next_rule_id(pred: Doc | None) -> int:
 
 def build_skeleton_3(
     *,
+    purpose: str | None = None,
     slug: str,
     session_id: str,
     date: str,
@@ -2517,12 +2543,14 @@ def build_skeleton_3(
         ]
     section("Direction changes", trail)
 
-    for title, name, instruction in (
-        (
-            "Resumption brief",
-            "brief",
+    section(
+        "Resumption brief",
+        _brief_lines(
+            purpose,
             "six lines max: when written and against which branch or commit, where the work stands, the single next action and the section that governs it; close with the obligation to read Current rules first",
         ),
+    )
+    for title, name, instruction in (
         (
             "Completion criteria",
             "criteria",
@@ -2586,7 +2614,11 @@ def build_skeleton_3(
             "decisions",
             "the decisions the remaining actions depend on, one line each with its reason; settled history stays in the archive",
         ),
-        ("Suggested skills", *REWRITTEN["Suggested skills"]),
+        (
+            "Suggested skills",
+            REWRITTEN["Suggested skills"][0],
+            REWRITTEN["Suggested skills"][1] + (PURPOSE_SKILLS if purpose else ""),
+        ),
     ):
         section(title, [slot(name, instruction)])
 
@@ -2654,6 +2686,10 @@ def cmd_new(args: argparse.Namespace) -> int:
     slug = args.topic
     if not SLUG_RE.match(slug):
         return _die(2, f"topic slug {slug!r} must match {SLUG_RE.pattern}")
+
+    purpose = " ".join((args.purpose or "").split()) or None
+    if purpose and ("<!--" in purpose or "-->" in purpose):
+        return _die(2, "--purpose must not carry '<!--' or '-->'; rewrite it without")
 
     session_id = args.session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     if not session_id:
@@ -2792,6 +2828,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         origin=origin,
         origin_path=origin_path,
         pred_transcript=pred_transcript,
+        purpose=purpose,
     )
     if args.shape == 2:
         content = build_skeleton(**common, pred_failed=pred_failed)
@@ -2884,6 +2921,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_new.add_argument(
         "--repo-root", help="repository root (default: git top level of the memory dir)"
+    )
+    p_new.add_argument(
+        "--purpose",
+        help="the invocation's purpose text: written as the Resumption brief's first line, and the skills slot is selected for it",
     )
     p_new.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_new.add_argument(

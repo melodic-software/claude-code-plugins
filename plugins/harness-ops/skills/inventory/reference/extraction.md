@@ -337,7 +337,10 @@ alias is expanded where `if(i)` reads it, and an `if(x)` whose body always exits
 `return`, `return v` or `throw`, or a block whose last statement is one and which holds no other
 exit or loader call) adds `!(x)` to what follows, unless `x` is exactly the loader's own latch. Any
 other exit, a latch test inside a compound condition, a call in any other position, or an `else`
-anywhere in the body leaves `load` null from there on. The guard text is minified code, kept verbatim: `c7r()` is a runtime check
+anywhere in the body leaves `load` null from there on. A plugin required at several call sites is
+`unconditional` when any site is; otherwise it keeps the guards only when every site was placed
+under the same ones, and `load` is null when they differ (`load_guards` is one conjunction and holds
+no either-or). The guard text is minified code, kept verbatim: `c7r()` is a runtime check
 this reader does not evaluate. `in_loader` is false for a registration the loader never requires
 (listed in `registered_not_loaded`; not proven live, so overlap detection skips it), and null when
 no loader was found.
@@ -368,16 +371,16 @@ since the spread may override it (a `name` dropped this way leaves the registrat
 |---|---|
 | `id` | the marketplace id did not resolve to one value from the registry walk's template |
 | `description`, `version` | the field is present but unresolved, or absent behind an unresolved spread |
-| `load` | the loader requires the plugin but the walk could not place the call (`load_guards` null), including any call after an unrecognized exit or a compound latch test |
+| `load` | the loader requires the plugin but the walk could not place the call (`load_guards` null), including any call after an unrecognized exit or a compound latch test, or its call sites are guarded differently and none is unguarded |
 | `default_enabled`, `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | not a `!0`/`!1` literal, or absent behind an unresolved spread (`default_enabled` also when the consumer's `??!0` rule is not found) |
 | `gated` | `isAvailable` absent behind an unresolved spread |
-| `gate_flags` | the gate expression did not read (getter, unbound identifier, unsplittable call), or a flag's default did not resolve. A list that did read is still a floor: `builtin_plugin_notes.floors` |
+| `gate_flags` | the gate expression did not read (getter, method, unbound identifier, unsplittable call), or a flag's default did not resolve. A list that did read is still a floor: `builtin_plugin_notes.floors` |
 | `skills` | the field is not an array, an element did not resolve, or a skill's name, description or `user_invocable` did not resolve; also any embedded `skills/*/SKILL.md` problem below |
 | `agents`, `commands`, `skills` (embedded files) | the manifest's `files` value or a path in it is not a literal, a file's text is not a literal or holds a `${...}` substitution, or its frontmatter has no `name` or a `description` `_frontmatter` does not parse (plain scalars, folded across indented lines, and `\|`/`>` block scalars parse) |
-| `commands` (registered) | the manifest's `calls` is not a literal array, it declares `command.register` and no command resolved, a registered object or its name or description did not resolve |
+| `commands` (registered) | the manifest's `calls` is not a literal array, it declares `command.register` and no command resolved, a registered object or its name or description did not resolve, or one name is registered with two different records (both are kept) |
 | `agents`, `commands`, `skills`, `hook_events` | a hooks module (or an unresolved spread) with no single readable manifest in the module |
 | `hook_events`, `commands` | the manifest's `hooks` or `calls` is not a literal array, or the manifest or its `scan`/`shipped` object holds a spread |
-| `hooks_module`, `user_config`, `classic_hooks`, `mcp_servers` | absent behind an unresolved spread; `classic_hooks` also when present and not an object literal |
+| `hooks_module`, `user_config`, `classic_hooks`, `mcp_servers` | absent behind an unresolved spread; `classic_hooks` also when present and not an object literal, or when the object holds a spread or a quoted, computed or shorthand key (the keys it lists are then a floor) |
 | `registration` | the name is registered more than once: the registrar is a `Map.set`, run order is not read, so the kept (first) record may not be the live one |
 
 `builtin_plugin_notes.mods_flag_in_bundle` is whether the bundle still spells
@@ -421,11 +424,16 @@ followed, inside a module by the helper's `flow` op and across modules by `_flow
 - a `return`, followed to every call of a function bound to one plain name;
 - an argument, followed into the callee's parameter, the callee being every function the name can
   hold, resolved back through parameters and object-literal arguments (`gn(e,{hook:n})` called as
-  `gn(x,{hook:!1})` holds no function);
+  `gn(x,{hook:!1})` holds no function); a destructured key's default (`{hook:n=d}`) counts whenever
+  the argument's value may be undefined (`undefined`, `void 0`, a missing argument, a variable with
+  no initializer, a `var` read before its initializer runs, an imported binding), a key the literal
+  lacks is read from `Object.prototype`, which the walk then trusts not to hold it, and a literal
+  setting its prototype (`__proto__:`) stays partial;
 - a method of the array: one that never changes it, with its callback's array parameter followed
   (`some`, `every`, `forEach`, `map`, `filter`, `find*`, `flatMap`, `reduce*`), or a name neither
   `Array.prototype` nor `Object.prototype` holds, whose call throws before anything runs;
-- an export, followed into every module importing that name, and again through a re-export;
+- an export, followed into every module whose import or re-export declaration takes that name, read
+  from the AST, and again through a re-export;
 - an argument to an imported function, followed into that function's parameter in the module the
   import's `from` path names in Bun's module table (an external, unknown or unexported source
   stays partial).
@@ -459,17 +467,39 @@ reference is `F.prototype.k` with a named key other than `constructor` (a call, 
 `F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
 given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
 built from a string: global `eval` other than a direct call, the global `Function` used other
-than for `typeof`, `instanceof` or a `.prototype` read, any member named `eval` or `Function`,
-and node:vm, since code in a new context still reaches this realm
-(`this.constructor.constructor("...")()` inside `runInNewContext`): any load of `vm` or
-`node:vm` except an import naming only `isContext`, and a runner's name (`runInThisContext`,
-`runInNewContext`, `runInContext`, `compileFunction`, `SourceTextModule`, `SyntheticModule`)
-read or destructured from any object. On each of 2.1.284 to 2.1.288 that is 4 modules
-using `Function` (lodash's `Function("return this")()`, a `new Function("")` probe, an unused
-syntax check, and ajv running the validator code it generates), 3 with a member `.eval(...)` (a CEL
-evaluator, the workflow runtime, a CLI command definition), and 1 with a direct `eval`
-(protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the workflow runtime, the plugin loader, a
-test kit).
+than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `constructor` (every
+further member, past any call on the way, names another key, a computed one known not to spell
+it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
+of `instanceof`) or a build cleared below, any member named `eval` or `Function`, and node:vm,
+since code in a new context still reaches this realm (`this.constructor.constructor("...")()`
+inside `runInNewContext`): any load of `vm` or `node:vm` except an import naming only
+`isContext`, and a runner's name
+(`runInThisContext`, `runInNewContext`, `runInContext`, `compileFunction`, `SourceTextModule`,
+`SyntheticModule`) read or destructured from any object. On each of 2.1.284 to 2.1.288 that
+includes 4 modules calling `Function` (lodash's `Function("return this")()`, a
+`new Function("")` probe, an unused syntax check, and ajv running the validator code it
+generates), 3 with a member `.eval(...)` (a CEL evaluator, the workflow runtime, a CLI command
+definition), and 1 with a direct `eval` (protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the
+workflow runtime, the plugin loader, a test kit). A load the scan cannot name (below) may load
+`node:vm`, so it is a sink too.
+
+`Function(...)` and `new Function(...)` build a function from strings and run none of its body;
+only a call runs it. So a use of the global `Function` is no sink when the function it builds is
+discarded (an expression statement, or a sequence operand other than the last, as in
+`try{return new Function(""),!0}catch(e){return!1}`), nor when it is called directly
+(`Function("return this")()`) with every argument a string literal or a template without
+substitutions and the code those spell, parsed with acorn as an unnamed function expression in a
+module, holds no sink by this same rule (followed up to 4 folds deep). The module goal rejects
+what only sloppy code allows (`with`) and parses the rest the same, except an HTML-like comment,
+so text holding `<!--` or `-->` is not folded. `test_reader_findings` pins the three shapes #9983 reports
+on 2.1.310 (lodash's probe, the `new Function("")` probe, an unused syntax check) as clearing;
+ajv's generated code is no constant and stays a sink. Any other use stays a sink: a stored function
+(`var F=Function("...");F()`), a body that is no constant (`Function(s)()`), `.call` or `.apply`
+on the result. The folded calls trust the global `Function` itself, so the rule counts `Function`
+among the trusted names: a write of it (`Function=g`, `globalThis.Function=g`), a definer given
+the key `"Function"`, or a computed key that may spell it, in any module, is a sink. Another call
+given the string (`tagTester("Function")`) is not: a callee that could write it by its parameter
+holds a computed write of its own.
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
@@ -491,15 +521,23 @@ name alone. Those shapes trust built-ins the sink rule then watches: `require`; 
 the literal does not hold. A promise settled with the namespace reads its `then` export, so the
 file's module must be known and export no `then`. A load the scan cannot name (`import(x)` with a
 specifier that is no literal; `require`, `import.meta.require` or `x.require` aliased, `.call`ed,
-behind a comma, or called with no literal) could load any file whole, so any such module fails
-every export hop; `typeof require`, `require.resolve` and a binding named `require` do not count.
-On 2.1.284 to 2.1.288 the chunk re-exporting the Explore and Plan array as
-`ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14 times, each read by name, but on 2.1.288 3
-modules hold a load the scan cannot name.
+behind a comma, or called with no literal; a computed member or destructured key whose value, read
+as the sink rule reads a computed key, is unknown or may be `require`, as in `module[k]`,
+`x["req"+"uire"]` and `{[k]:r}=globalThis`, other than the target of a plain `o[k]=v`) could
+load any file whole, so any such module fails every export hop; `typeof require`,
+`require.resolve` and a binding named `require` do not count. A computed read whose key is a
+parameter, a `for in` key or a string built with `+` is unknown, so a module holding one counts.
+On 2.1.284 to 2.1.288 the chunk
+re-exporting the Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14
+times, each read by name, but on 2.1.288 3 modules hold a load the scan cannot name without a
+computed key.
 
 Stated assumptions, not checked:
 
-- Code built from strings is not analyzed, only counted as a sink (above).
+- Code built from strings is not analyzed, only counted as a sink (above), except a direct call
+  of `Function` on constant strings, whose code is scanned as written.
+- Every function's `constructor` is `Function`, and only `Function.prototype` is checked for a
+  read of it: `(()=>0).constructor("...")()` builds code no rule counts.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
 - A spread is a copy of the elements, the reading both readers rest on: the sink rule does not
@@ -507,7 +545,7 @@ Stated assumptions, not checked:
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
+| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name without a computed key, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and at least the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 

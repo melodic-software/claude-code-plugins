@@ -3,6 +3,18 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-25
+
+### Added
+
+- `/verification:confirm` lists the lessons a run learned in its report, each with its scope and route, and its `## Next` names `/app-control:map refresh <feature>` for a lesson about a feature or drive step and `/corrections:codify` for any other. It never edits a control skill itself.
+
+## [0.11.1] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [0.11.0] - 2026-10-22
 
 ### Added

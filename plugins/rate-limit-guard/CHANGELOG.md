@@ -3,6 +3,18 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.10] - 2026-10-26
+
+### Changed
+
+- The band row now starts with the plugin's name, `rate-limit-guard: 5h 3% | 7d 73%`, so the row says whose it is beside other plugins' rows.
+
+## [2.0.9] - 2026-10-25
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#9684): `detect.version` accepts an exclusive `below` bound; no other change to this plugin.
+
 ## [2.0.8] - 2026-10-25
 
 ### Changed

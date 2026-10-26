@@ -130,11 +130,11 @@
       "id": 11,
       "name": "pr-body-attribution-opt-out-suppressed",
       "prompt": "/pull-request create from branch feat/512-add-widget. Assemble and create the PR.",
-      "expected_output": "With .claude/source-control.md declaring `pr_body_attribution: none`, the skill resolves that key across the three source-control.md layers (per reference/config-resolution.md, the same seam /commit's trailer_policy uses) and omits the `🤖 Generated with [Claude Code]…` attribution line from the assembled PR body entirely — the ATTRIBUTION value resolves to empty and the post-gate append to the body file is skipped. The section scaffold (the `briefing` default, since this fixture sets no pr_body_required_sections) and the `${CLOSES_LINE}` closing keyword are unaffected. trailer_policy is a separate key: this opt-out governs only the PR body, not the commit trailer.",
-      "files": [".claude/source-control.md"],
+      "expected_output": "With docs/conventions/source-control.yaml declaring `pr_body_attribution: none`, the skill resolves that key across the source-control layers (per reference/config-resolution.md, the same seam /commit's trailer_policy uses) and omits the `🤖 Generated with [Claude Code]…` attribution line from the assembled PR body entirely — the ATTRIBUTION value resolves to empty and the post-gate append to the body file is skipped. The section scaffold (the `briefing` default, since this fixture sets no pr_body_required_sections) and the `${CLOSES_LINE}` closing keyword are unaffected. trailer_policy is a separate key: this opt-out governs only the PR body, not the commit trailer.",
+      "files": ["docs/conventions/source-control.yaml"],
       "expectations": [
-        "pr_body_attribution: none from .claude/source-control.md is honored: the PR body carries no `🤖 Generated with [Claude Code]…` attribution line",
-        "The suppression is driven by resolving pr_body_attribution across the source-control.md layers, not by editing the plugin",
+        "pr_body_attribution: none from docs/conventions/source-control.yaml is honored: the PR body carries no `🤖 Generated with [Claude Code]…` attribution line",
+        "The suppression is driven by resolving pr_body_attribution across the source-control layers, not by editing the plugin",
         "The rest of the PR body (the section scaffold and the closing-keyword line) is assembled unchanged",
         "Suppressing the PR-body attribution is treated as independent of trailer_policy — the opt-out targets only the PR body"
       ]
@@ -245,7 +245,7 @@
     {
       "id": 20,
       "name": "pr-body-required-sections-none-overrides-lower-layer",
-      "prompt": "/pull-request create from branch feat/512-add-widget. The user-global ~/.claude/source-control.md declares pr_body_required_sections as the bullet list Summary, Test plan, Related. The repo's team-tracked .claude/source-control.md declares pr_body_required_sections as the literal keyword none. The gitignored local overlay .claude/source-control.local.md exists but does not set pr_body_required_sections. Resolve the effective section scaffold.",
+      "prompt": "/pull-request create from branch feat/512-add-widget. The user-global ~/.claude/source-control.md declares pr_body_required_sections as the bullet list Summary, Test plan, Related. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. The gitignored local overlay .claude/source-control.local.md exists but does not set pr_body_required_sections. Resolve the effective section scaffold.",
       "expected_output": "Per config-resolution.md's per-key override across the three layers, the team layer's `none` REPLACES the user-global list wholesale — the effective value is zero required sections, and the overlay's silence on the key changes nothing (an absent key in a later layer keeps the earlier winner; it never resets or re-imports a lower layer's list). The skill distinguishes `none` (a resolved value that wins the per-key override like any list would) from absence (which would have fallen through to the user-global list here). A local overlay declaring `none` over a team list would win the same way — the semantics are per-key precedence, identical to trailer_policy / pr_body_attribution.",
       "files": [],
       "expectations": [
@@ -385,7 +385,7 @@
     {
       "id": 30,
       "name": "pr-body-briefing-keyword-overrides-lower-list",
-      "prompt": "/pull-request create from branch feat/733-retry-uploads. The repo's team-tracked .claude/source-control.md declares pr_body_required_sections as the bullet list Summary, Test plan. The gitignored local overlay .claude/source-control.local.md declares pr_body_required_sections as the keyword briefing. Resolve the effective section scaffold.",
+      "prompt": "/pull-request create from branch feat/733-retry-uploads. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the bullet list Summary, Test plan. The gitignored local overlay .claude/source-control.local.md declares pr_body_required_sections as the keyword briefing. Resolve the effective section scaffold.",
       "expected_output": "The local overlay wins the per-key override, and its keyword briefing replaces the team layer's list whole. The effective required sections are Why, What changed, Scope and Verification; Summary and Test plan are not required and are not merged in. The reported source is the local overlay with the briefing keyword.",
       "files": [],
       "narration": true,

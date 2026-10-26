@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Product regression: the README stays as written, the failure goes to /bugs:write, and the pass is clean.",
+      "why": "names the regression class at the start of a line"
+    },
+    {
+      "answer": "**Triage class:** Product regression.",
+      "why": "labels the class in bold"
+    },
+    {
+      "answer": "This is a product regression against a healthy app.",
+      "why": "states the chosen class"
+    },
+    {
+      "answer": "I class it as a regression: Ready passed before and after.",
+      "why": "classes it in prose"
+    },
+    {
+      "answer": "The failed approval is a product regression.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "I'd classify the failure as a product regression.",
+      "why": "names the class after is or as"
+    },
+    {
+      "answer": "This failure is a product regression.",
+      "why": "names the class after is or as"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Doc drift: I would update approve-timesheet/README.md to say the page shows an error.",
+      "why": "records a lost behavior as current"
+    },
+    {
+      "answer": "Triage: doc drift, not a product regression. I would update approve-timesheet/README.md to say the page shows an error.",
+      "why": "names regression only to reject it"
+    },
+    {
+      "answer": "This is not a product regression; the files just describe it wrongly, so it is doc drift.",
+      "why": "negates regression"
+    },
+    {
+      "answer": "The failure is not a product regression; the files describe it wrongly.",
+      "why": "negates the class after is"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
 import { countFixRounds, logExcerpt, main, select } from "./fix-ci-context.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
@@ -225,6 +226,21 @@ test("one round under the cap proceeds", async () => {
   assert.equal(result.rounds, 2);
 });
 
+// apply-patch pushes a fix with no escalation and leaves the new head to its
+// own CI; this is the bound on that: a red head that is the lane's own fix
+// commit counts its round, and the cap's run hands the PR to a person.
+test("a red head the lane's fix commit made counts that round, and escalates once the rounds are spent", async () => {
+  const own = { sha: HEAD, author: { id: APP }, commit: { message: `Fix failing CI checks on work/x\n\n${TRAILER}\n` } };
+  const api = () => fakeApi({ commits: [{ sha: "b".repeat(40), author: { id: APP }, commit: { message: "Address review feedback" } }, own] });
+  const spent = await selectWith(api(), 1);
+  assert.equal(spent.decision, "escalate");
+  assert.equal(spent.escalationReason, "ci-fix-round-cap");
+  assert.equal(spent.rounds, 1);
+  const left = await selectWith(api(), 3);
+  assert.equal(left.decision, "proceed");
+  assert.equal(left.rounds, 1);
+});
+
 test("only the lanes App's commits carrying the fix-ci trailer count as rounds", () => {
   assert.equal(
     countFixRounds(
@@ -233,6 +249,13 @@ test("only the lanes App's commits carrying the fix-ci trailer count as rounds",
     ),
     1,
   );
+});
+
+// The round cap is fix-ci's only stop, so the trailer it counts must be the one apply-patch writes.
+test("a commit apply-patch writes for fix-ci counts as a round", () => {
+  const row = rowFor(loadRules(join(import.meta.dirname, "../../..")), { prepare: "ci-context" });
+  const message = commitMessage(row, { ref: "feature", base: "main", lane: "pr-unblock", activity: "fix-ci", issue: "1" });
+  assert.equal(countFixRounds([{ sha: "e".repeat(40), author: { id: APP }, commit: { message } }], APP), 1);
 });
 
 test("a closed pull request is skipped", async () => {

@@ -7,10 +7,13 @@ name: maintenance-reconcile-lost-runs
 # current head, or a pr-verify run, ended cancelled, timed_out or
 # startup_failure, on its first attempt, is re-run once with this job's own
 # token. The attempt number is the record: a run at attempt 2 was already
-# re-run and is never touched again. A pr-verify run whose judge step started,
-# or none of whose jobs started, is left to a person, so a head is never judged
-# twice. A pr-verify run that ended startup_failure with no jobs is held for
-# a person, not re-run.
+# re-run and is never touched again. A pr-verify run is also re-run when its
+# first attempt failed: a judgment that broke after it started, or a run the
+# lanes kill switch stopped, which fails so that it is re-run once the switch
+# is off. A pr-verify run whose verdict write started (it runs only when the
+# judgment succeeded) is not re-run, even when the write or upload failed, so
+# a head is never judged twice; the summary names the hold. A pr-verify run none of whose jobs started is not
+# re-run: a newer run for the same head judges it.
 #
 # A CI run on the PR's current head that ended failure only from an outside
 # outage (each failed job hit its time limit, failed in an install step, or
@@ -80,6 +83,10 @@ jobs:
       checks: read # a cut job's annotations: whether it lost its runner
       contents: read # check out main
       pull-requests: read # list the open PRs
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -157,3 +164,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

@@ -3,11 +3,14 @@ description: >
   At the end of a job, write the hub collector's api-budget notice for each
   named token, from the rate-limit readings the job's own API responses left
   in $RUNNER_TEMP/api-budget (api-budget.bash): one per refused (403/429)
-  response and one for the last, then one for the job's content-creating
-  writes (count and most in any 60 s). GET /rate_limit is never read: it reports a
-  different bucket from the one the job spends. Also writes each line and a
-  `<name>-cost=N` line to the step summary. A token with no reading gets no
-  line. Never fails the job.
+  response and one for the last. GET /rate_limit is never read: it reports a
+  different bucket from the one the job spends. Then an `api-calls <name>=N
+  not-modified=M` line: N is this job's own calls, which cost (the rise in a
+  counter every concurrent job shares) is not, and M its 304 answers, which
+  GitHub does not count. Then one line for the job's content-creating writes
+  (count and most in any 60 s). Also writes each line and a `<name>-cost=N`
+  line to the step summary. A token with no reading gets no line. Never fails
+  the job.
 
 inputs:
   tokens:
@@ -39,6 +42,10 @@ runs:
           [[ -n $lines ]] || continue
           printf '%s\n' "$lines"
           sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
+          # This job's own calls, one reading each: unlike cost, no other job's.
+          calls=$(awk '$1 != 304 { n++ } $1 == 304 { m++ } END { printf "api-calls %s=%d not-modified=%d", token, n, m }' token="$name" "$RUNNER_TEMP/api-budget/$name")
+          echo "$calls"
+          echo "$calls" >>"$GITHUB_STEP_SUMMARY"
           cost=${lines##*cost=}
           costs+=("$name-cost=${cost/na/unknown}")
         done
