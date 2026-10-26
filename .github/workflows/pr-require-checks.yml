@@ -3099,7 +3099,8 @@ jobs:
       # The lanes App's bot account id, which the trust-hold, cost-hold and
       # lanes-hold steps match a pull request author against. Its one source is
       # the repository variable; each step that reads it fails closed or keeps
-      # its hold when it is not a numeric id.
+      # its hold when it is not a numeric id, and the cost-hold and lanes-hold
+      # steps when it is not merge.agent-identity's trusted-actor id at the base.
       LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
       # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
       # wrapper and the job-end api-budget notice, since this job has no
@@ -3736,10 +3737,11 @@ jobs:
         with:
           node-version-file: .base/.node-version
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
-      # config names the human-gated label and the trusted-actor list names who
-      # may lift a hold; both are read at the base so the pull request cannot
-      # rewrite its own hold, as is merge-holds.mjs, whose refsIssue the cost
-      # step runs. A sparse checkout of the three files at the base SHA
+      # config names the human-gated label, the trusted-actor list names who
+      # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
+      # lanes App's id that LANES_APP_ID must equal; all are read at the base
+      # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
+      # whose refsIssue the cost step runs. A sparse checkout of the four files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
@@ -3762,6 +3764,7 @@ jobs:
             /.work-item-tracker.json
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
+            /docs/conventions/pr-pipeline.yaml
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -3855,6 +3858,10 @@ jobs:
               | if . == "" then "needs-human" else . end' <<<"$tracker") || keep "the tracker config is invalid"
           fi
           actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || keep "the trusted-actor list is unreadable"
+          # A stale or mistyped variable would miss the lanes App's escalation below.
+          identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || keep "merge.agent-identity is unreadable"
+          jq -e --arg login "$identity" --argjson id "$LANES_APP_ID" '[.actors[] | select(.login == $login) | .id] == [$id]' <<<"$actors" >/dev/null ||
+            keep "AUTOMATION_LANES_APP_SENDER_ID is not $identity's trusted-actor id"
           humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
           events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
           # The window opens at the newest removal a trusted person made directly, not through an App.
@@ -4659,10 +4666,27 @@ jobs:
           # exact value `false` lets a lanes App pull request merge.
           LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
           LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the job's LANES_APP_ID is not a numeric id."
+            exit 1
+          fi
+          # The id must be merge.agent-identity's entry in the base commit's
+          # trusted-actor list: a stale or mistyped variable would read the
+          # lanes App's pull request as another author's and skip every hold
+          # here and the trust hold's link rule. This step runs on every pull
+          # request and in the queue, so a mismatch turns ci-status red.
+          if [ ! -d "${BASE_CONFIG:-}" ] ||
+            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
+              | if length == 1 then .[0] else error("not one entry") end' "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
+            echo "::error::cannot read merge.agent-identity's trusted-actor id from the base commit's config; re-run this run."
+            exit 1
+          fi
+          if [ "$want" != "$LANES_APP_ID" ]; then
+            echo "::error::the job's LANES_APP_ID ($LANES_APP_ID, the AUTOMATION_LANES_APP_SENDER_ID variable) is not $identity's trusted-actor id ($want); correct the variable."
             exit 1
           fi
           pr=$PR_NUMBER

@@ -168,7 +168,7 @@ lanes() {
 
 reset() {
   export STUB_FAIL='' STUB_LABELS='needs-human' LANES_APP_ID="$APP_ID"
-  export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5}]}"
+  export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5},{\"kind\":\"bot\",\"id\":$APP_ID,\"login\":\"melodic-automation-lanes[bot]\"}]}"
   export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"base\":{\"ref\":\"main\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
   export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
   STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
@@ -199,6 +199,8 @@ expect() {
   mkdir -p "$config/.github/standards/trusted-actors"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
   [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  mkdir -p "$config/docs/conventions"
+  [[ " $STUB_FAIL " == *" identity "* ]] || printf 'merge:\n  agent-identity: melodic-automation-lanes[bot]\n' >"$config/docs/conventions/pr-pipeline.yaml"
   mkdir -p "$config/.github/scripts/pr-merge"
   [[ " $STUB_FAIL " == *" module "* ]] || cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$config/.github/scripts/pr-merge/"
   [[ " $STUB_FAIL " != *" tracker "* ]] || config=
@@ -556,7 +558,15 @@ reset
 export LANES_APP_ID=''
 expect "an unset lanes App id clears nothing" no no no
 
-for read in tracker actors events pull runs compare jobs notes comments deleted closing decision edited module; do
+# A numeric id that is not merge.agent-identity's trusted-actor id misses the
+# lanes App's escalation, which keeps the label.
+reset
+lifted
+STUB_COMMENTS="[$MARKER,$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
+export LANES_APP_ID=5
+expect "a lanes App id other than merge.agent-identity's clears nothing" no no no "is not melodic-automation-lanes[bot]'s trusted-actor id"
+
+for read in tracker actors identity events pull runs compare jobs notes comments deleted closing decision edited module; do
   reset
   export STUB_FAIL="$read"
   expect "an unreadable $read read clears nothing" no no no

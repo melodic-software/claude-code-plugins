@@ -59,6 +59,13 @@ if [[ "$step" == *"github.event.pull_request.body"* ]]; then
 else
   ok "step reads the body live"
 fi
+# shellcheck disable=SC2016 # workflow literals to match, not shell expansions
+if [[ "$step" == *"BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"* ]] &&
+  grep -qxF '            /docs/conventions/pr-pipeline.yaml' "$WORKFLOW"; then
+  ok "step reads the base commit's pr-pipeline.yaml and trusted-actor list from the base checkout"
+else
+  fail "step lacks BASE_CONFIG, or the base checkout lacks pr-pipeline.yaml"
+fi
 if [[ "$step" == *"GROUP_BASE_SHA: \${{ github.event.merge_group.base_sha }}"* && "$step" != *"pull_request.base"* ]]; then
   ok "step takes only the queue's base from the payload; a pull request's base is read live"
 else
@@ -193,6 +200,12 @@ approval() { jq -nc --arg login "$1" --argjson id "$2" --arg state "$3" --arg at
 review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
+# The base commit's config, as the base_config checkout holds it: this tree's
+# pr-pipeline.yaml and trusted-actor list. STUB_BASE_CONFIG replaces its path.
+mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors"
+cp "$ROOT/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/base-config/docs/conventions/"
+cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/base-config/.github/standards/trusted-actors/"
+
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
 expect() {
@@ -201,7 +214,7 @@ expect() {
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
-    LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -596,6 +609,21 @@ expect "a pull request number that is not a number fails closed" 1 0 "is not a n
 unset PR_NUMBER
 export STUB_APP_ID=''
 expect "a missing LANES_APP_ID fails closed without a call" 1 0 "::error::the job's LANES_APP_ID is not a numeric id"
+# A numeric id that is not merge.agent-identity's trusted-actor id would read
+# the lanes App's pull request as another author's and skip every hold.
+export STUB_APP_ID=315045210
+expect "a LANES_APP_ID other than merge.agent-identity's fails the lanes App's pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id (337595936)"
+STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+expect "a LANES_APP_ID other than merge.agent-identity's fails any pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id"
+STUB_PULL="$(pull 'Closes #1')"
 unset STUB_APP_ID
+export STUB_BASE_CONFIG=''
+expect "an unreadable base config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+export STUB_BASE_CONFIG="$TMP_ROOT/no-identity"
+mkdir -p "$STUB_BASE_CONFIG/docs/conventions" "$STUB_BASE_CONFIG/.github/standards/trusted-actors"
+printf 'merge:\n  diff-check: {}\n' >"$STUB_BASE_CONFIG/docs/conventions/pr-pipeline.yaml"
+cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$STUB_BASE_CONFIG/.github/standards/trusted-actors/"
+expect "a base config with no merge.agent-identity fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+unset STUB_BASE_CONFIG
 
 test_harness::report
