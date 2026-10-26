@@ -7,7 +7,7 @@
 # environment error, never a silent skip).
 #
 # The dry-run test runs every case's scaffold and parses every case file:
-# test-scope: plugins/harness-ops/skills/behavior-probes/cases/*
+# test-scope: plugins/harness-ops/skills/behavior-probes/cases/* plugins/harness-ops/scripts/changelog-releases.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

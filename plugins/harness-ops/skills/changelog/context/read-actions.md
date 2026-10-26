@@ -40,7 +40,7 @@ The default range for `diff` and `apply` is every release newer than the marker,
 to the newest published release. An explicit `vA..vB` is inclusive at both ends and ignores the
 marker; a single `vX` is that one release.
 
-The replay cap is ten releases or 300 core items (bullet lines in a release block, `[VSCode]` lines
+The replay cap is ten releases or 300 core items (bullet lines in a release, `[VSCode]` lines
 excluded), overridable with `--cap-releases` and `--cap-items` or the
 `HARNESS_OPS_CHANGELOG_CAP_RELEASES` and `HARNESS_OPS_CHANGELOG_CAP_ITEMS` environment variables. Beyond
 the cap, replaying items costs more than it returns: the current docs already carry the cumulative
@@ -75,21 +75,23 @@ action both check the body's first heading, which reads `# Claude Code changelog
 can serve another page's bytes under a 200, and a body with a different heading is not the
 changelog.
 
-Page-specific shape, the only facts this skill keeps about the page:
+This skill reads the page's release markup only through the plugin's `scripts/changelog-releases.sh`,
+the one parser the status script and the behavior-probes recheck share; its header names the
+release-marker forms it accepts. Items tagged `[VSCode]` belong to the extension and do not count
+as core items.
 
-- One release is one `<Update label="X.Y.Z" description="<Month D, YYYY>">` block closed by
-  `</Update>`; the newest release is the first block.
-- Items are `*` bullet lines inside a block. Lines tagged `[VSCode]` belong to the extension and
-  do not count as core items.
-- A release with no user-visible change carries the single line
-  `Bug fixes and reliability improvements`.
+- **Pointer**: when the status script reports no release markers parsed, or a sliced release
+  looks wrong, fetch <https://code.claude.com/docs/en/changelog.md> live and compare its release
+  markup with the parser; the markup spans the whole page, so no section anchor applies. **As of**: 2026-10-26. **Recheck trigger**: `range: not computed (no
+  release markers parsed ...)` from the status script on a body whose first heading is the
+  changelog's.
 
-Slice a release or range out of the local copy with the block boundaries:
+Slice a release or range out of the local copy with the parser:
 
 ```bash
 bash "<skill-dir>/../../scripts/fetch-docs.sh" --cache --max-age 0 --out "$TMPDIR/docs" changelog
 jq -r '.pages[0] | "\(.state) \(.reason)"' "$TMPDIR/docs/manifest.json"
-awk '/<Update label="2.1.261"/,/^<\/Update>/' "$TMPDIR/docs/changelog.md"
+bash "<skill-dir>/../../scripts/changelog-releases.sh" --blocks 2.1.261 "$TMPDIR/docs/changelog.md"
 ```
 
 ## Action: fetch
@@ -105,7 +107,7 @@ Read-only. Display changelog content.
 Read-only dry run of `apply`. It answers "is this range worth an `apply`?"
 
 1. Run the status script, with `--range` when the user gave one, or with the range the pasted
-   text's release blocks name when the input is pasted text (pasted text with no version skips
+   text's release markers name when the input is pasted text (pasted text with no version skips
    the script's cap). Show the `range`, `cap`, and any `warn` line.
 2. If `cap` reads `exceeded`, stop here and relay the `recommend` line. Do not fan out over items;
    the recommendation is the output.

@@ -19,8 +19,12 @@
 #   - HARNESS_OPS_CHANGELOG_LEDGER overrides the default path; --ledger wins over it
 #   - a PATH-stub `claude` older than the newest release produces the warn line
 #   - an unknown argument exits 3
+#   - the page's current `**X.Y.Z**` release headings parse like the older blocks:
+#     group headings are not items, the last release ends at end of file, and the
+#     shared parser's --blocks slice serves both forms
 #
-# Uses the fixtures under ../evals/fixtures (changelog-sample.md, ledger-marker.md),
+# Uses the fixtures under ../evals/fixtures (changelog-sample.md, changelog-current.md,
+# ledger-marker.md),
 # per-case fixture git repositories, and a PATH-stub `claude` so no real CLI or
 # network is touched. Invocations pass --changelog or feed the fetcher through
 # FETCH_DOCS_FIXTURE_DIR, so the network is never reached.
@@ -222,7 +226,7 @@ printf '# Claude Code changelog\n\nRelease notes now live elsewhere.\n' >"$TMP/n
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$TMP/no-blocks.md"
 assert_eq "no-blocks: exit 0" 0 "$RC"
 assert_contains "no-blocks: latest unknown" "$OUT" "latest: unknown"
-assert_contains "no-blocks: a parse failure is not an empty range" "$OUT" "range: not computed (no <Update label=...> release blocks parsed"
+assert_contains "no-blocks: a parse failure is not an empty range" "$OUT" "range: not computed (no release markers parsed"
 assert_not_contains "no-blocks: never reports up to date" "$OUT" "up to date"
 
 # --- Case 10: env override and --ledger precedence ------------------------------------
@@ -266,6 +270,30 @@ assert_eq "args: non-integer cap exits 3" 3 "$RC"
 run_in "$EMPTY" --help
 assert_eq "args: --help exits 0" 0 "$RC"
 assert_contains "args: --help prints the usage" "$OUT" "Usage:"
+
+# --- Case 14: the page's current release headings ---------------------------------------
+# changelog-current.md is a trimmed copy of the live page: 2.1.310 holds 26 bullets under
+# **Added** (3), **Changed** (3), **6 improvements** and **14 bug fixes**, two of them
+# [VSCode]; 2.1.308, 0.2.26 and 0.2.21 hold 1, 3 and 1, the last ending at end of file.
+CURRENT="$FIXTURES/changelog-current.md"
+run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CURRENT"
+assert_eq "current format: exit 0" 0 "$RC"
+assert_contains "current format: latest from the newest heading" "$OUT" "latest: 2.1.310"
+assert_contains "current format: group headings are not items, [VSCode] excluded" "$OUT" "range: 2.1.308..2.1.310 (2 releases, 25 core items)"
+assert_contains "current format: releases oldest first" "$OUT" "releases: 2.1.308 2.1.310"
+run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CURRENT" --range 0.2.21
+assert_contains "current format: the last release ends at end of file" "$OUT" "range: 0.2.21..0.2.21 (1 releases, 1 core items)"
+run_in "$EMPTY" --ledger "$LEDGER" --changelog "$CURRENT" --range 0.2.26..2.1.308
+assert_contains "current format: an explicit range across both eras" "$OUT" "range: 0.2.26..2.1.308 (2 releases, 4 core items)"
+
+# --- Case 15: the fetch action's slice through the shared parser ------------------------
+PARSER="$SCRIPT_DIR/../../../scripts/changelog-releases.sh"
+OUT="$(bash "$PARSER" --blocks 2.1.308 "$CURRENT")"
+assert_eq "slice current: one release, marker to last line" "$(printf '%s\n' '**2.1.308**' '' 'October 22, 2026' '' '* Bug fixes and reliability improvements' '')" "$OUT"
+OUT="$(bash "$PARSER" --blocks v2.1.260..2.1.261 "$CHANGELOG" | grep -c '^<Update label=')"
+assert_eq "slice old format: both releases of the range" 2 "$OUT"
+bash "$PARSER" --blocks 2.1 "$CURRENT" >/dev/null 2>&1
+assert_eq "slice: a malformed range exits 3" 3 "$?"
 
 # --- Summary ---------------------------------------------------------------------------
 if ((FAILED > 0)); then

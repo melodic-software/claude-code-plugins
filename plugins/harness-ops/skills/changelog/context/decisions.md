@@ -28,7 +28,7 @@ After the table, a **docs-lag** section lists each changelog-versus-docs disagre
 when that skill is installed, and is never a decision row.
 
 Item ids are stable: `<version>-<ordinal>`, the ordinal counted as three digits over every bullet of
-the release block in the order the fetched page lists them, whatever its prefix. `2.1.257-001` is the
+the release in the order the fetched page lists them, whatever its prefix. `2.1.257-001` is the
 first bullet of release `2.1.257`. The item files record each id, so a saved working set keeps its
 pointers if the page's layout later changes.
 

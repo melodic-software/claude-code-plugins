@@ -63,6 +63,7 @@ MIN_PYTHON = (3, 10)
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CASES = SKILL_DIR / "cases"
+CHANGELOG_PARSER = SKILL_DIR.parent.parent / "scripts" / "changelog-releases.sh"
 
 OUTCOMES = ("allow", "deny", "ran", "refused")
 NEGATIVE = ("deny", "refused")
@@ -745,20 +746,23 @@ def vkey(version: str) -> tuple[int, ...]:
 
 
 def changelog_items(text: str) -> list[tuple[str, str]]:
-    """(item id, bullet text) for every bullet inside an <Update label="X.Y.Z"> block."""
-    items, version, ordinal = [], None, 0
-    for line in text.splitlines():
-        opened = re.search(r'<Update label="(' + VERSION_RE + r')"', line)
-        if opened:
-            version, ordinal = opened.group(1), 0
-            continue
-        if line.strip().startswith("</Update>"):
-            version = None
-            continue
-        bullet = re.match(r"\s*[*-]\s+(.*)", line)
-        if version and bullet:
-            ordinal += 1
-            items.append((f"{version}-{ordinal:03d}", bullet.group(1)))
+    """(item id, bullet text) for every item the plugin's changelog parser reads."""
+    rows = subprocess.run(  # noqa: S603 - fixed argv
+        [bash_argv0(), CHANGELOG_PARSER.as_posix()],
+        input=text,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    ).stdout
+    items, ordinals = [], {}
+    for row in rows.splitlines():
+        kind, version, *rest = row.split("\t", 2)
+        if kind == "item":
+            ordinals[version] = ordinals.get(version, 0) + 1
+            items.append(
+                (f"{version}-{ordinals[version]:03d}", rest[0] if rest else "")
+            )
     return items
 
 
