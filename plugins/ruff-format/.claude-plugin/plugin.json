@@ -1,6 +1,6 @@
 {
   "name": "ruff-format",
-  "version": "0.11.6",
+  "version": "0.11.7",
   "description": "Rewrites Python with Ruff's safe fixes and formatter once per batch of tool calls and at git pre-commit, only when a Ruff config governs the file, using the consuming repo's own Ruff config; lint findings are reported at commit.",
   "author": {
     "name": "Melodic Software",

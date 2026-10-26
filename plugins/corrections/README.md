@@ -10,7 +10,7 @@ mistake it targets and to pass on the current code.
 | `/corrections:codify note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer |
 | `/corrections:codify group [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by mistake, each group's count next to the threshold; writes nothing |
 
-`codify` counts at `recurrence.min_occurrences` occurrences (default 2; set it in
+`codify` counts at `recurrence.min_occurrences` occurrences (default 2, at most 1000; set it in
 `corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
 there for yourself), or at once on a person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any

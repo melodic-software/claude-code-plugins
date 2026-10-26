@@ -34,9 +34,15 @@
 //   the merge queue only): the head merges on a PASS or PASS-NOTES that
 //   pr-verify.yml uploaded from a completed, successful run on main
 //   (verdictHold). The same approval of the head lifts it, the human merge
-//   path for a pull request pr-merge's gate sends to a person. FAILs and the
-//   repeated-FAIL cap are enable-auto-merge.mjs's, through pr-merge's own
-//   reader, which disarms such a pull request.
+//   path for a pull request pr-merge's gate sends to a person.
+// - A FAIL the gate's reader counts, when an evidence file is given with the
+//   verdicts: babysit_verify_evidence.py `evidence`'s report for the head,
+//   which ci-status runs from main's checkout in the merge queue
+//   (evidenceHold). It holds on every refusal but the three a pass decides
+//   (verify:missing, verify:spec-changed, verify:untrusted-spec, which
+//   verdictHold and linkHold judge here): the FAIL classes, verify:unreadable,
+//   verify:too-old and any refusal this module does not know. A report that
+//   does not read, or is for another head, holds. The same approval lifts it.
 // - A changed issue link, when a link file is given with the verdicts: the
 //   pass binds only while the live link is the one its verdict judged
 //   (linkHold), as pr-merge's reader binds it (babysit_verify_evidence.py
@@ -45,12 +51,14 @@
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
-// [<verdicts-file> <link-file>]. The link file holds {record, closing}: the
+// [<verdicts-file> <link-file> [<evidence-file>]]. The link file holds {record, closing}: the
 // verdict.json of the pass verdictHold counts (null when none was read) and
 // the pull request's closingIssuesReferences (totalCount, nodes with number
 // and repository.nameWithOwner). The verdicts file holds one {name, verdict, runId, run}
 // per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
 // named a pass at the head; GITHUB_REPOSITORY names the repository. The
+// evidence file holds the reader's one JSON line (Evidence.report); with
+// verdicts and no evidence file, the FAIL check holds as unreadable. The
 // discussion file holds one REST issue comment, review or review comment per
 // line; the files file one changed file per line, its path, renamed-from
 // path and status (changeOf); the denied-paths file the config's
@@ -246,6 +254,7 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/actions/check-kill-switch/**",
   ".github/actions/request-lane-token/**",
   ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
   ".github/scripts/pr-merge/merge-holds.mjs",
   ".github/scripts/pr-merge/enable-auto-merge.mjs",
   ".github/scripts/pr-merge/superseded.mjs",
@@ -858,6 +867,41 @@ export function verdictHold(records, repo, branch = "main") {
   return pass ? null : "pr-verify has not passed this head";
 }
 
+// The refusals of babysit_verify_evidence.py a pass decides: verdictHold and
+// linkHold judge the pass here, and an approval lifts them as it lifts this.
+const PASS_REFUSALS = Object.freeze(["verify:missing", "verify:spec-changed", "verify:untrusted-spec"]);
+
+// Why the reader's report for `head` holds it, or null: a refusal outside
+// PASS_REFUSALS (a FAIL class, verify:unreadable, verify:too-old or one this
+// module does not know) holds, and so does a report that does not read or
+// names another head.
+export function evidenceHold(report, head) {
+  if (
+    report === null ||
+    typeof report !== "object" ||
+    Array.isArray(report) ||
+    report.head !== head ||
+    !("refusal" in report) ||
+    (report.refusal !== null && typeof report.refusal !== "string")
+  ) {
+    return "its pr-verify FAILs could not be read";
+  }
+  const { refusal, detail } = report;
+  if (refusal === null || PASS_REFUSALS.includes(refusal)) {
+    return null;
+  }
+  return `pr-verify's reader refuses this head (${refusal}${typeof detail === "string" && detail ? `: ${detail}` : ""})`;
+}
+
+// The evidence file's verdict, a file that does not read included.
+function evidenceOf(file, head) {
+  try {
+    return evidenceHold(JSON.parse(readFileSync(file, "utf8")), head);
+  } catch {
+    return "its pr-verify FAILs could not be read";
+  }
+}
+
 // A log line can carry a changed file's name: escape what would start a
 // workflow command on a new line.
 const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
@@ -909,7 +953,7 @@ async function bodyByPerson(github, repo, number) {
 }
 
 export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
-  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile] = argv;
+  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile, evidenceFile] = argv;
   try {
     if (
       !/^[1-9][0-9]*$/.test(String(number)) ||
@@ -921,7 +965,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       !/^[0-9a-f]{40}$/.test(String(head))
     ) {
       throw new Error(
-        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file>]",
+        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file> [<evidence-file>]]",
       );
     }
     const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
@@ -971,6 +1015,15 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
         reasons.push(
           `${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`,
         );
+      }
+      const failed = evidenceFile ? evidenceOf(evidenceFile, head) : "its pr-verify FAILs could not be read";
+      if (!failed) {
+        const refusal = JSON.parse(readFileSync(evidenceFile, "utf8")).refusal;
+        console.log(`#${number}: no pr-verify FAIL hold: ${refusal ? `the reader refuses this head only on its pass (${refusal})` : "the reader allows this head"}.`);
+      } else if (lifters.length) {
+        console.log(`#${number}: no pr-verify FAIL hold: ${lifters.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
+      } else {
+        reasons.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       }
     }
     for (const reason of reasons) {
