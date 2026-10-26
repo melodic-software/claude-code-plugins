@@ -84,7 +84,8 @@
       "category": "pr-pipeline",
       "lanes": [
         { "id": "check-intent", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["PR_VERIFY_CLAUDE_API_KEY"] },
-        { "id": "check-intent-subscription", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "check-intent-subscription", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "check-intent-fallback", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
