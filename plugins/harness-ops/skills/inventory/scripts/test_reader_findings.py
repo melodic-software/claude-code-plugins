@@ -181,8 +181,9 @@ class TestOpenFindings(unittest.TestCase):
 
     def test_a_known_safe_read_keeps_the_literal(self) -> None:
         """The parser's only safe reads: a spread into an array or a call,
-        which copies the elements, and a member read used as a value. Both
-        readers keep the literal."""
+        which copies the elements, and a member read used as a value. In a
+        bundle with no module that may patch what they look up, both readers
+        keep the literal."""
         for read in (
             "pY.length",
             "x=pY[0]",
@@ -615,6 +616,73 @@ class TestOpenFindings(unittest.TestCase):
         self.assert_across_modules(
             True, reexport + 'f(){}export*from"/d.js";', awaited, "export var then;"
         )
+
+    # The third #5891 verifier: the engine looks names up on the prototypes
+    # for a spread and for a method building a new array, and a read the
+    # writes op deems safe still looks its key up, so a patch of any of them
+    # runs code the walk does not see.
+    #
+    # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5960777823
+
+    def test_a_patched_iterator_leaves_a_spread_partial(self) -> None:
+        """A spread calls Array.prototype[Symbol.iterator], so a patched one
+        yields `B` into the probe's own spread."""
+        patch = 'Array.prototype[Symbol.iterator]=function*(){yield"B"};'
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];' + patch, INITIAL, ["Agent", "B"], parser=PARTIAL
+        )
+        for named in (
+            'import{pY}from"/a.js";var c=[...pY];',
+            'import{pY}from"/a.js";f(...pY);',
+        ):
+            with self.subTest(named=named):
+                self.assert_across_modules(True, named, patch)
+
+    def test_a_patched_species_leaves_a_mapped_list_partial(self) -> None:
+        """`map` builds its result through the array's `constructor` and
+        that constructor's @@species. A `constructor` getter runs with the
+        array as `this` and pushes onto it; a @@species getter runs code
+        the walk does not follow. Either reads partial."""
+        named = 'import{pY}from"/a.js";var c=pY.map(function(e){return e});'
+        for module in (
+            'Object.defineProperty(Array,Symbol.species,{get(){g();return Array}});',
+            'Object.defineProperty(Array.prototype,"constructor",'
+            '{get(){this.push("B");return Array}});',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
+    def test_a_patched_concat_spreadable_leaves_the_list_partial(self) -> None:
+        """`concat` reads @@isConcatSpreadable on the array, so a getter for
+        it on Array.prototype runs with the array as `this`."""
+        patch = (
+            "Object.defineProperty(Array.prototype,Symbol.isConcatSpreadable,"
+            '{get(){this.push("B");return!0}});'
+        )
+        self.assert_pinned(
+            'var pY=[xt,"Artifact"];' + patch + "pY.concat([]);",
+            INITIAL,
+            ["Agent", "Edit", "Artifact", "B"],
+            parser=PARTIAL,
+        )
+        self.assert_across_modules(
+            True, 'import{pY}from"/a.js";var c=pY.concat(["x"]);', patch
+        )
+
+    def test_a_prototype_getter_leaves_a_member_read_partial(self) -> None:
+        """A member read used as a value changes nothing itself, but a
+        getter the prototypes hold for its key runs with the array as
+        `this`. A computed key the parser cannot name could be that key."""
+        getter = 'Object.defineProperty(Array.prototype,"zz",{get(){this.push("B")}});'
+        for read in ("var z=pY.zz;", 'var k="zz";var z=pY[k];'):
+            with self.subTest(read=read):
+                self.assert_pinned(
+                    'var pY=[xt,"Artifact"];' + getter + read,
+                    INITIAL,
+                    ["Agent", "Edit", "Artifact", "B"],
+                    parser=PARTIAL,
+                )
+        self.assert_across_modules(True, 'import{pY}from"/a.js";var z=pY.zz;', getter)
 
     def test_a_computed_key_known_to_name_no_trusted_name_clears(self) -> None:
         """#5901 key provenance: the flow trusts `includes`, so any module
@@ -1090,10 +1158,12 @@ class TestInstalledBuilds(unittest.TestCase):
     returned to a `.some(t)` caller and passed to an imported function.
     The flow follows every hop, and since #5901 every whole load of the
     re-exporting chunk too (13 to 14 per build, each read by name). It
-    trusts `some`, `includes` and `has` as built in, and the namespace
-    loads trust Promise.all and await, but every one of these builds has
-    modules that may write those names on an object the sink rule cannot
-    show is no prototype (a write whose key names nothing,
+    trusts `some`, `includes` and `has` as built in, each spread of the
+    array trusts `@@iterator` and `next` (2.1.287's yallist writes
+    `Symbol.iterator` on a prototype the sink rule cannot clear), and the
+    namespace loads trust Promise.all and await, but every one of these
+    builds has modules that may write those names on an object the sink
+    rule cannot show is no prototype (a write whose key names nothing,
     `Object.defineProperty(o,k,...)`) or that run code built from a string
     (ajv's `Function(...)`, a direct `eval`); 2.1.288 also has 3 modules
     with a load the parser cannot name. So both lists read partial

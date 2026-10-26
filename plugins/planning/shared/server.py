@@ -62,6 +62,7 @@ import detached  # noqa: E402  (beside this file; sys.path is set just above)
 import liveserve  # noqa: E402
 import session  # noqa: E402
 import session_bridge  # noqa: E402
+import share as share_cli  # noqa: E402  (state() has a local named share)
 import tunnel  # noqa: E402
 from session import DomainError  # noqa: E402
 
@@ -259,6 +260,7 @@ LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}  # the routes that
 UPLOAD_CHUNK = "/api/upload/chunk"
 UPLOAD_IMAGE = "/api/upload/image"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
+HEALTH = "/api/owner/health"  # owner: share.sh logs --summary on the page (App.health)
 GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image"),
               "/api/upload/image": ("person", "upload_image")}
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
@@ -1027,6 +1029,9 @@ class GuestHandler(BaseHTTPRequestHandler):
                 return self.static("proto.html", "text/html")
             if url.path == "/api/state":
                 return self.state()
+            if url.path == HEALTH:
+                self.authorize("owner")
+                return self.send(200, {"ok": True, **self.app.health()})
             if url.path in GET_ROUTES:
                 auth, method = GET_ROUTES[url.path]
                 pid = self.authorize(auth)
@@ -1358,6 +1363,12 @@ class App:
         finally:
             with self._chunk_lock:
                 self._chunk_readers.discard(pid)
+
+    def health(self):
+        """GET /api/owner/health (README "Logs", "Host Health"): what `share.sh logs --summary --json` gives for the whole
+        kept log, and the sections its plain text prints."""
+        s = share_cli.summarize(share_cli.log_lines(self.dir))
+        return {"summary": s, "sections": share_cli.summary_sections(s)}
 
     def hold_summary(self, message, ua, sender=None):
         """Keep a usage summary for the next batch: its count tokens (COUNT_TOKEN) added to the batch's counts, the

@@ -224,6 +224,8 @@ const JOBS = [
   "address-feedback",
   "address-feedback-handoff",
   "address-feedback-subscription",
+  "address-feedback-subscription-handoff",
+  "address-feedback-fallback",
   "apply-feedback-patch",
   "adjudicate-feedback",
   "publish-feedback",
@@ -233,8 +235,8 @@ const JOBS = [
 // job that needs a skipped job and lacks !cancelled() (or always()) is skipped
 // too, so the push and the reply would never run.
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
-  const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription"));
-  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "apply-feedback-patch", "adjudicate-feedback", "publish-feedback"]);
+  const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription" || need === "address-feedback-fallback"));
+  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-feedback", "publish-feedback"]);
   for (const job of [...after, "address-feedback", "address-feedback-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -245,7 +247,7 @@ test("pr-unblock.yml: every address-feedback job after a model call starts its i
 // round still posts its marker, so the round cap holds.
 test("pr-unblock.yml: publish-feedback runs exactly when the select job proceeded, whatever a model call reports", () => {
   const { gate, needs } = jobGate(UNBLOCK, "publish-feedback");
-  assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "apply-feedback-patch", "adjudicate-feedback"]);
+  assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-feedback"]);
   // The evaluator refuses any reference left unset: the gate reads nothing else.
   for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
     assert.equal(evaluate(gate, { "needs.address-feedback-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
@@ -258,17 +260,26 @@ test("pr-unblock.yml: publish-feedback runs exactly when the select job proceede
 // feedback-unadjudicated (adjudicate-feedback.mjs settleDisputes).
 test("pr-unblock.yml: adjudicate-feedback runs on an INCORRECT reply from the leg that answered, whatever its patch", () => {
   const { gate } = jobGate(UNBLOCK, "adjudicate-feedback");
-  const runs = (proceed, subResult, replies, disputed = "true", other = "") =>
-    evaluate(gate, {
+  // The answering leg: the fallback call when it ran, else the subscription
+  // call when it ran, else the key call. Every other leg reports `other`.
+  const runs = (proceed, subResult, replies, disputed = "true", other = "", fbResult = "skipped") => {
+    const leg = fbResult !== "skipped" ? "fb" : subResult !== "skipped" ? "sub" : "key";
+    return evaluate(gate, {
       "needs.address-feedback-select.outputs.proceed": proceed,
+      "needs.address-feedback-fallback.result": fbResult,
       "needs.address-feedback-subscription.result": subResult,
-      "needs.address-feedback-subscription.outputs.feedback-attempt": subResult === "skipped" ? "" : replies,
-      "needs.address-feedback.outputs.feedback-attempt": subResult === "skipped" ? replies : "",
-      "needs.address-feedback-subscription.outputs.feedback-disputed": subResult === "skipped" ? other : disputed,
-      "needs.address-feedback.outputs.feedback-disputed": subResult === "skipped" ? disputed : other,
+      "needs.address-feedback-fallback.outputs.feedback-attempt": leg === "fb" ? replies : "",
+      "needs.address-feedback-subscription.outputs.feedback-attempt": leg === "sub" ? replies : "",
+      "needs.address-feedback.outputs.feedback-attempt": leg === "key" ? replies : "",
+      "needs.address-feedback-fallback.outputs.feedback-disputed": leg === "fb" ? disputed : other,
+      "needs.address-feedback-subscription.outputs.feedback-disputed": leg === "sub" ? disputed : other,
+      "needs.address-feedback.outputs.feedback-disputed": leg === "key" ? disputed : other,
     });
+  };
   assert.equal(runs("true", "skipped", "1"), true, "the key call's INCORRECT reply");
   assert.equal(runs("true", "success", "1"), true, "the subscription call's INCORRECT reply after a handoff");
+  assert.equal(runs("true", "success", "1", "true", "", "success"), true, "the fallback call's INCORRECT reply after a second handoff");
+  assert.equal(runs("true", "success", "1", "", "true", "success"), false, "an earlier leg's INCORRECT reply never counts once the fallback call ran");
   assert.equal(runs("true", "skipped", "1", ""), false, "replies with no INCORRECT one");
   assert.equal(runs("true", "success", "1", "", "true"), false, "the other leg's INCORRECT reply never counts");
   assert.equal(runs("true", "skipped", ""), false, "no replies");
@@ -324,17 +335,22 @@ test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each
 
 test("pr-unblock.yml: apply-feedback-patch runs only on a written patch with replies from the leg that answered, not after a skip or an empty patch", () => {
   const { gate } = jobGate(UNBLOCK, "apply-feedback-patch");
-  const runs = (subResult, sub, first, replies = "1") =>
+  const runs = (subResult, sub, first, replies = "1", fbResult = "skipped", fb = "") =>
     evaluate(gate, {
+      "needs.address-feedback-fallback.result": fbResult,
       "needs.address-feedback-subscription.result": subResult,
+      "needs.address-feedback-fallback.outputs.scan-patch-state": fb,
       "needs.address-feedback-subscription.outputs.scan-patch-state": sub,
       "needs.address-feedback.outputs.scan-patch-state": first,
-      "needs.address-feedback-subscription.outputs.feedback-attempt": subResult === "skipped" ? "" : replies,
-      "needs.address-feedback.outputs.feedback-attempt": subResult === "skipped" ? replies : "",
+      "needs.address-feedback-fallback.outputs.feedback-attempt": fbResult === "skipped" ? "" : replies,
+      "needs.address-feedback-subscription.outputs.feedback-attempt": fbResult === "skipped" && subResult !== "skipped" ? replies : "",
+      "needs.address-feedback.outputs.feedback-attempt": fbResult === "skipped" && subResult === "skipped" ? replies : "",
     });
   assert.equal(runs("skipped", "", "written"), true, "the key call's patch, its subscription call skipped");
   assert.equal(runs("success", "written", ""), true, "the subscription call's patch after a handoff");
   assert.equal(runs("success", "", "written"), false, "the key call's patch is not taken once the subscription call ran");
+  assert.equal(runs("success", "", "", "1", "success", "written"), true, "the fallback call's patch after a second handoff");
+  assert.equal(runs("success", "written", "", "1", "success", ""), false, "the subscription call's patch is not taken once the fallback call ran");
   assert.equal(runs("skipped", "", "written", ""), false, "a patch with no replies");
   assert.equal(runs("skipped", "", "empty"), false);
   assert.equal(runs("skipped", "", ""), false);
@@ -346,6 +362,8 @@ const DEPENDENCY_JOBS = [
   "review-dependency",
   "review-dependency-handoff",
   "review-dependency-subscription",
+  "review-dependency-subscription-handoff",
+  "review-dependency-fallback",
   "apply-dependency-patch",
   "apply-dependency-verdict",
 ];
@@ -353,8 +371,8 @@ const DEPENDENCY_JOBS = [
 // As for address-feedback: a job that needs a skipped subscription call and
 // lacks !cancelled() is skipped too, so the push and the verdict would never run.
 test("pr-unblock.yml: every review-dependency job after a model call starts its if: with !cancelled()", () => {
-  const after = DEPENDENCY_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "review-dependency" || need === "review-dependency-subscription"));
-  assert.deepEqual(after, ["review-dependency-handoff", "review-dependency-subscription", "apply-dependency-patch", "apply-dependency-verdict"]);
+  const after = DEPENDENCY_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "review-dependency" || need === "review-dependency-subscription" || need === "review-dependency-fallback"));
+  assert.deepEqual(after, ["review-dependency-handoff", "review-dependency-subscription", "review-dependency-subscription-handoff", "review-dependency-fallback", "apply-dependency-patch", "apply-dependency-verdict"]);
   for (const job of [...after, "review-dependency", "review-dependency-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -365,7 +383,7 @@ test("pr-unblock.yml: every review-dependency job after a model call starts its 
 // round still posts its marker, so the round cap holds.
 test("pr-unblock.yml: apply-dependency-verdict runs exactly when the select job proceeded, whatever a model call reports", () => {
   const { gate, needs } = jobGate(UNBLOCK, "apply-dependency-verdict");
-  assert.deepEqual(needs, ["review-dependency-select", "review-dependency", "review-dependency-subscription", "apply-dependency-patch"]);
+  assert.deepEqual(needs, ["review-dependency-select", "review-dependency", "review-dependency-subscription", "review-dependency-fallback", "apply-dependency-patch"]);
   // The evaluator refuses any reference left unset: the gate reads nothing else.
   for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
     assert.equal(evaluate(gate, { "needs.review-dependency-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
@@ -392,8 +410,11 @@ test("pr-unblock.yml: review-dependency-not-run posts only when the select job d
 
 test("pr-unblock.yml: apply-dependency-patch runs only on a written patch beside a fix verdict from the leg that answered", () => {
   const { gate } = jobGate(UNBLOCK, "apply-dependency-patch");
-  const runs = (subResult, sub, first) =>
+  const runs = (subResult, sub, first, fbResult = "skipped", fb = []) =>
     evaluate(gate, {
+      "needs.review-dependency-fallback.result": fbResult,
+      "needs.review-dependency-fallback.outputs.scan-patch-state": fb[0] ?? "",
+      "needs.review-dependency-fallback.outputs.dependency-verdict": fb[1] ?? "",
       "needs.review-dependency-subscription.result": subResult,
       "needs.review-dependency-subscription.outputs.scan-patch-state": sub[0] ?? "",
       "needs.review-dependency-subscription.outputs.dependency-verdict": sub[1] ?? "",
@@ -404,6 +425,8 @@ test("pr-unblock.yml: apply-dependency-patch runs only on a written patch beside
   assert.equal(runs("success", ["written", "fix"], []), true, "the subscription call's fix after a handoff");
   assert.equal(runs("success", [], ["written", "fix"]), false, "the key call's fix is not taken once the subscription call ran");
   assert.equal(runs("success", ["written", ""], ["written", "fix"]), false, "one leg's patch never pairs with the other's verdict");
+  assert.equal(runs("success", [], [], "success", ["written", "fix"]), true, "the fallback call's fix after a second handoff");
+  assert.equal(runs("success", ["written", "fix"], [], "success", []), false, "the subscription call's fix is not taken once the fallback call ran");
   for (const verdict of ["merge", "close", "escalate", ""]) assert.equal(runs("skipped", [], ["written", verdict]), false, verdict);
   assert.equal(runs("skipped", [], ["empty", "fix"]), false);
   assert.equal(runs("skipped", [], ["", "fix"]), false);
@@ -415,6 +438,8 @@ const CONFLICT_JOBS = [
   "resolve-conflicts",
   "resolve-conflicts-handoff",
   "resolve-conflicts-subscription",
+  "resolve-conflicts-subscription-handoff",
+  "resolve-conflicts-fallback",
   "apply-conflict-patch",
   "report-conflict-status",
 ];
@@ -425,7 +450,7 @@ test("pr-unblock.yml: every resolve-conflicts job after the select job starts it
   for (const job of CONFLICT_JOBS.slice(1)) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
-  assert.deepEqual(jobGate(UNBLOCK, "apply-conflict-patch").needs, ["resolve-conflicts-select", "resolve-conflicts", "resolve-conflicts-subscription"]);
+  assert.deepEqual(jobGate(UNBLOCK, "apply-conflict-patch").needs, ["resolve-conflicts-select", "resolve-conflicts", "resolve-conflicts-subscription", "resolve-conflicts-fallback"]);
 });
 
 // The push job decides on the select job's merge state, proceed and the
@@ -433,10 +458,12 @@ test("pr-unblock.yml: every resolve-conflicts job after the select job starts it
 // The evaluator refuses any reference left unset, so the gate reads nothing else.
 test("pr-unblock.yml: apply-conflict-patch runs on a clean merge or a conflicted one with the answering leg's patch, whatever else a model call reports", () => {
   const { gate } = jobGate(UNBLOCK, "apply-conflict-patch");
-  const runs = (state, proceed, subResult = "skipped", sub = "", first = "") =>
+  const runs = (state, proceed, subResult = "skipped", sub = "", first = "", fbResult = "skipped", fb = "") =>
     evaluate(gate, {
       "needs.resolve-conflicts-select.outputs.merge-state": state,
       "needs.resolve-conflicts-select.outputs.proceed": proceed,
+      "needs.resolve-conflicts-fallback.result": fbResult,
+      "needs.resolve-conflicts-fallback.outputs.scan-patch-state": fb,
       "needs.resolve-conflicts-subscription.result": subResult,
       "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
       "needs.resolve-conflicts.outputs.scan-patch-state": first,
@@ -446,6 +473,8 @@ test("pr-unblock.yml: apply-conflict-patch runs on a clean merge or a conflicted
   assert.equal(runs("conflicted", "true", "skipped", "", "empty"), true);
   assert.equal(runs("conflicted", "true", "success", "written"), true);
   assert.equal(runs("conflicted", "true", "success", "", "written"), false);
+  assert.equal(runs("conflicted", "true", "success", "", "", "success", "written"), true, "the fallback call's patch");
+  assert.equal(runs("conflicted", "true", "success", "written", "", "success", ""), false, "not the subscription call's once the fallback call ran");
   assert.equal(runs("escalate", "false", "skipped", "", "written"), false);
   assert.equal(runs("", "", "skipped", "", "written"), false, "a kill-switch stop");
   assert.equal(runs("conflicted", "true", "skipped", "", "garbage"), false);
@@ -464,21 +493,37 @@ const FIX_CI_JOBS = [
   "fix-ci",
   "fix-ci-handoff",
   "fix-ci-subscription",
+  "fix-ci-subscription-handoff",
+  "fix-ci-fallback",
   "apply-patch",
   "fix-ci-rung-up",
   "fix-ci-rung-up-handoff",
   "fix-ci-rung-up-subscription",
+  "fix-ci-rung-up-subscription-handoff",
+  "fix-ci-rung-up-fallback",
   "apply-patch-rung-up",
   "fix-ci-unreported",
 ];
-const FIX_CI_CALLS = ["fix-ci", "fix-ci-subscription", "fix-ci-rung-up", "fix-ci-rung-up-subscription"];
+const FIX_CI_CALLS = ["fix-ci", "fix-ci-subscription", "fix-ci-fallback", "fix-ci-rung-up", "fix-ci-rung-up-subscription", "fix-ci-rung-up-fallback"];
 
 // As for address-feedback: a job that needs a skipped call and lacks
 // !cancelled() is skipped too, so the fallback, the push and the unreported
 // post would never run.
 test("pr-unblock.yml: every fix-ci job after a model call starts its if: with !cancelled()", () => {
   const after = FIX_CI_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => FIX_CI_CALLS.includes(need)));
-  assert.deepEqual(after, ["fix-ci-handoff", "fix-ci-subscription", "apply-patch", "fix-ci-rung-up-handoff", "fix-ci-rung-up-subscription", "apply-patch-rung-up", "fix-ci-unreported"]);
+  assert.deepEqual(after, [
+    "fix-ci-handoff",
+    "fix-ci-subscription",
+    "fix-ci-subscription-handoff",
+    "fix-ci-fallback",
+    "apply-patch",
+    "fix-ci-rung-up-handoff",
+    "fix-ci-rung-up-subscription",
+    "fix-ci-rung-up-subscription-handoff",
+    "fix-ci-rung-up-fallback",
+    "apply-patch-rung-up",
+    "fix-ci-unreported",
+  ]);
   for (const job of after) assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
 });
 
@@ -486,8 +531,18 @@ test("pr-unblock.yml: every fix-ci job after a model call starts its if: with !c
 // any output of its own. The fallback calls start on the handoff jobs' reads,
 // and the unreported post on fix-ci-context alone, so no forged output turns them.
 test("pr-unblock.yml: fix-ci's fallback calls and unreported post decide on base jobs alone, whatever a model call reports", () => {
-  const forged = /needs\.fix-ci(?:-rung-up)?(?:-subscription)?\.outputs\./;
-  for (const job of ["fix-ci-handoff", "fix-ci-subscription", "fix-ci-rung-up-handoff", "fix-ci-rung-up-subscription", "fix-ci-unreported"]) {
+  const forged = /needs\.fix-ci(?:-rung-up)?(?:-subscription|-fallback)?\.outputs\./;
+  for (const job of [
+    "fix-ci-handoff",
+    "fix-ci-subscription",
+    "fix-ci-subscription-handoff",
+    "fix-ci-fallback",
+    "fix-ci-rung-up-handoff",
+    "fix-ci-rung-up-subscription",
+    "fix-ci-rung-up-subscription-handoff",
+    "fix-ci-rung-up-fallback",
+    "fix-ci-unreported",
+  ]) {
     assert.doesNotMatch(jobGate(UNBLOCK, job).gate, forged, job);
   }
   // The evaluator refuses any reference left unset: each gate reads nothing else.
@@ -512,8 +567,11 @@ test("pr-unblock.yml: fix-ci's fallback calls and unreported post decide on base
 
 test("pr-unblock.yml: apply-patch runs on a written or empty patch, or a refused collection, from the leg that answered", () => {
   const { gate } = jobGate(UNBLOCK, "apply-patch");
-  const runs = (subResult, sub, first) =>
+  const runs = (subResult, sub, first, fbResult = "skipped", fb = []) =>
     evaluate(gate, {
+      "needs.fix-ci-fallback.result": fbResult,
+      "needs.fix-ci-fallback.outputs.scan-patch-state": fb[0] ?? "",
+      "needs.fix-ci-fallback.outputs.scan-collect-refused": fb[1] ?? "",
       "needs.fix-ci-subscription.result": subResult,
       "needs.fix-ci-subscription.outputs.scan-patch-state": sub[0] ?? "",
       "needs.fix-ci-subscription.outputs.scan-collect-refused": sub[1] ?? "",
@@ -527,6 +585,8 @@ test("pr-unblock.yml: apply-patch runs on a written or empty patch, or a refused
   assert.equal(runs("success", ["", "true"], []), true, "the subscription call's refused collection");
   assert.equal(runs("success", [], ["written"]), false, "the key call's patch is not taken once the subscription call ran");
   assert.equal(runs("success", [], ["", "true"]), false, "nor its refusal");
+  assert.equal(runs("success", [], [], "success", ["written"]), true, "the fallback call's patch after a second handoff");
+  assert.equal(runs("success", ["written"], [], "success", []), false, "the subscription call's patch is not taken once the fallback call ran");
   assert.equal(runs("skipped", [], ["", ""]), false, "a call that left no patch and refused none");
 });
 
@@ -628,4 +688,68 @@ test("pr-unblock-dispatch.yml: only a push cancels the dispatcher run going; a t
   assert.equal(cancels("push"), true);
   assert.equal(cancels("schedule"), false);
   assert.equal(cancels("workflow_dispatch"), false);
+});
+
+// The owner's one automatic hop past the subscription call: each lane's
+// third call starts only on its handoff jobs' reads, never on a call output a
+// hostile run job could forge, and only when the handoff job found the
+// fallback token set, so with the token empty neither new job runs.
+const THIRD_HOPS = [
+  ["pr-unblock.yml", "resolve-conflicts"],
+  ["pr-unblock.yml", "address-feedback"],
+  ["pr-unblock.yml", "review-dependency"],
+  ["pr-unblock.yml", "fix-ci"],
+  ["pr-unblock.yml", "fix-ci-rung-up"],
+  ["pr-refine.yml", "fix-docs"],
+  ["work-resolve-issue.yml", "resolve-issue"],
+];
+test("every read-runner lane starts its fallback call only on its handoff jobs' reads, with the fallback token set", () => {
+  for (const [file, first] of THIRD_HOPS) {
+    const sub = `${first}-subscription`;
+    const handoff = `${first}-handoff`;
+    const evidence = `${sub}-handoff`;
+    const fallback = `${first}-fallback`;
+    const forged = new RegExp(`needs\\.${first}(?:-subscription|-fallback)?\\.outputs\\.`);
+    const read = jobGate(file, evidence);
+    assert.deepEqual(read.needs, [handoff, sub], evidence);
+    const reads = (result, ready) =>
+      evaluate(read.gate, { [`needs.${sub}.result`]: result, [`needs.${handoff}.outputs.fallback-ready`]: ready });
+    assert.equal(reads("success", "true"), true, `${evidence} after the subscription call`);
+    assert.equal(reads("success", "false"), false, `${evidence} with the fallback token empty`);
+    assert.equal(reads("success", ""), false, `${evidence} when the presence read never ran`);
+    assert.equal(reads("skipped", "true"), false, `${evidence} with no subscription call`);
+    const third = jobGate(file, fallback);
+    assert.doesNotMatch(third.gate, forged, fallback);
+    // The issue lane's third call keeps its second call's admission, label
+    // and slot gates.
+    const base =
+      file === "work-resolve-issue.yml"
+        ? { "github.event.label.name": "agent-ready", "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": "false" }
+        : {};
+    const starts = (handedOff, ready) =>
+      evaluate(third.gate, { ...base, [`needs.${evidence}.outputs.handed-off`]: handedOff, [`needs.${handoff}.outputs.fallback-ready`]: ready });
+    assert.equal(starts("true", "true"), true, fallback);
+    assert.equal(starts("false", "true"), false, `${fallback} when the subscription call did not hand off`);
+    assert.equal(starts("", "true"), false, `${fallback} after a failed read`);
+    assert.equal(starts("true", "false"), false, `${fallback} with the fallback token empty`);
+    if (file === "work-resolve-issue.yml") {
+      assert.equal(
+        evaluate(third.gate, { ...base, "needs.admit.outputs.proceed": "false", [`needs.${evidence}.outputs.handed-off`]: "true", [`needs.${handoff}.outputs.fallback-ready`]: "true" }),
+        false,
+        `${fallback} without admission`,
+      );
+    }
+    const block = jobBlock(file, fallback).join("\n");
+    assert.match(block, /\n {6}fallback: fallback\n/, fallback);
+    assert.match(block, /\n {6}fallback-claude-code-oauth-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}\n/, fallback);
+    assert.doesNotMatch(block, /claude-api-key|\n {6}claude-code-oauth-token:|\n {6}fallback-ready:/, `${fallback} holds the fallback token alone and is the last leg`);
+    // The subscription call may hand off only on the presence read, a job
+    // that runs no head code, and holds no fallback token itself.
+    const subBlock = jobBlock(file, sub).join("\n");
+    assert.match(subBlock, new RegExp(`\\n {6}fallback-ready: \\$\\{\\{ needs\\.${handoff}\\.outputs\\.fallback-ready \\}\\}\\n`), sub);
+    assert.doesNotMatch(subBlock, /FALLBACK_CLAUDE_CODE_OAUTH_TOKEN/, sub);
+    const handoffBlock = jobBlock(file, handoff).join("\n");
+    assert.match(handoffBlock, /\n {10}PRESENT: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' \}\}\n/, handoff);
+    assert.doesNotMatch(handoffBlock.replace("secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != ''", ""), /secrets\./, `${handoff} reads only whether the token is set`);
+  }
 });

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The change narrows the kill switch.\n\ncritical-findings: 0",
+      "why": "no CRITICAL severity line"
+    },
+    {
+      "answer": "severity: SUGGESTION\n\ncritical-findings: 0",
+      "why": "a lower severity only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "decide.mjs widens the kill switch.\n\nseverity: CRITICAL\n\ncritical-findings: 1",
+      "why": "rates a finding CRITICAL"
+    },
+    {
+      "answer": "severity: `CRITICAL`",
+      "why": "backticked CRITICAL severity"
+    }
+  ]
+}

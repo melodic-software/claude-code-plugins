@@ -1,7 +1,9 @@
 // Expected values come from pr-merge.yml: a job waiting in its concurrency
 // group starts after the running one, and it sweeps every candidate when its
 // run is scheduled or a listed human started it (the "Check who started the
-// run" step). Only schedule runs re-fire refused lane runs, and
+// run" step). superseded.mjs counts the starter and any re-runner as listed
+// humans only by account id, since a login can pass to another account. Only
+// schedule runs re-fire refused lane runs, and
 // pull_request_target runs start no full CI run, so a merge job is superseded
 // only by one that does at least what it does. Every enable-auto-merge run
 // disarms on a hold, and only a scheduled or hand-started one arms. GitHub
@@ -120,9 +122,27 @@ test("a pending run a bot started stops before its sweep, so it supersedes nothi
   assert.equal(run.superseded, false);
 });
 
-test("a listed id with another login does not count as the listed human", async () => {
-  const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", { id: OWNER.id, login: "someone-else" })] });
-  assert.equal(run.superseded, false);
+test("a listed human's login held by a different id does not count as that human, as starter or re-runner", async () => {
+  const impostor = { id: 999001, login: OWNER.login };
+  for (const [actor, rerunner] of [[impostor, impostor], [OWNER, impostor], [impostor, OWNER]]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", actor, { rerunner })] });
+    assert.equal(run.superseded, false, `${actor.id} re-run by ${rerunner.id}`);
+  }
+});
+
+test("a listed human renamed since the list was written still counts, by id, as starter or re-runner", async () => {
+  const renamed = { id: OWNER.id, login: "renamed" };
+  for (const [actor, rerunner] of [[renamed, renamed], [OWNER, renamed], [renamed, OWNER]]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", actor, { rerunner })] });
+    assert.equal(run.superseded, true, `${actor.login} re-run by ${rerunner.login}`);
+  }
+});
+
+test("a run with no triggering actor id is not counted as a listed human's", async () => {
+  for (const rerunner of [{ login: OWNER.login }, { id: String(OWNER.id), login: OWNER.login }, null]) {
+    const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", OWNER, { rerunner })] });
+    assert.equal(run.superseded, false, JSON.stringify(rerunner));
+  }
 });
 
 test("a bot's run a listed human re-ran stops at the who step, so it supersedes nothing", async () => {
@@ -148,8 +168,10 @@ test("a hand-started run never supersedes a scheduled run, which alone re-fires 
 });
 
 test("a run of any other event, or with no actor, supersedes nothing", async () => {
-  const run = await check({ runs: [pending(600, "push"), { id: 601, event: "workflow_dispatch", status: "pending" }] });
-  assert.equal(run.superseded, false);
+  for (const event of ["schedule", "pull_request_target"]) {
+    const run = await check({ event, runs: [pending(600, "push"), { id: 601, event: "workflow_dispatch", status: "pending" }, pending(602, "workflow_run")] });
+    assert.equal(run.superseded, false, event);
+  }
 });
 
 test("a run whose listed status is not pending supersedes nothing", async () => {
@@ -219,19 +241,13 @@ test("a failed jobs read does the work, with a warning", async () => {
   assert.match(run.stdout, /^::warning title=superseded::.*status 502/m);
 });
 
-test("enable-auto-merge: a pending issue-lane or edit run a listed human started supersedes either", async () => {
-  for (const [event, next] of [
-    ["pull_request_target", "workflow_run"],
-    ["workflow_run", "pull_request_target"],
-    ["workflow_run", "workflow_run"],
-  ]) {
-    const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
-    assert.equal(run.superseded, true, `${event} by ${next}`);
-  }
+test("enable-auto-merge: a pending edit run a listed human started supersedes another", async () => {
+  const run = await check({ job: "enable-auto-merge", event: "pull_request_target", runs: [pending(600, "pull_request_target")] });
+  assert.equal(run.superseded, true);
 });
 
 test("enable-auto-merge: a scheduled and a hand-started run, which both arm, supersede each other and every event run", async () => {
-  for (const event of ["schedule", "workflow_dispatch", "pull_request_target", "workflow_run"]) {
+  for (const event of ["schedule", "workflow_dispatch", "pull_request_target"]) {
     for (const next of ["schedule", "workflow_dispatch"]) {
       const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
       assert.equal(run.superseded, true, `${event} by ${next}`);
@@ -241,10 +257,8 @@ test("enable-auto-merge: a scheduled and a hand-started run, which both arm, sup
 
 test("enable-auto-merge: an event run, which never arms, supersedes no scheduled or hand-started run", async () => {
   for (const event of ["schedule", "workflow_dispatch"]) {
-    for (const next of ["pull_request_target", "workflow_run"]) {
-      const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
-      assert.equal(run.superseded, false, `${event} by ${next}`);
-    }
+    const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, "pull_request_target")] });
+    assert.equal(run.superseded, false, event);
   }
 });
 
@@ -253,14 +267,4 @@ test("enable-auto-merge: a waiting merge job, or an enable-auto-merge job a cond
     const run = await check({ job: "enable-auto-merge", runs: [pending(600, "schedule")], jobs: { 600: jobs } });
     assert.equal(run.superseded, false);
   }
-});
-
-test("enable-auto-merge: an issue-lane run the lanes App started stops at the who step, so it supersedes nothing", async () => {
-  const run = await check({ job: "enable-auto-merge", event: "workflow_run", runs: [pending(600, "workflow_run", LANES_BOT)] });
-  assert.equal(run.superseded, false);
-});
-
-test("a merge job is never superseded by an issue-lane run, whose merge job never runs", async () => {
-  const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_run")] });
-  assert.equal(run.superseded, false);
 });
