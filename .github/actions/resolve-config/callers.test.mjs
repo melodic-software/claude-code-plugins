@@ -135,6 +135,15 @@ for (const [file, job, route, laneSwitch] of [
     assert.equal(evaluate(review.with["model-args"], failed), "");
   });
 
+  test(`${file}: the review grants the reusable's status job its read scopes and one write`, () => {
+    assert.deepEqual(jobs[job].permissions, {
+      actions: "read",
+      checks: "read",
+      contents: "read",
+      "pull-requests": "write",
+    });
+  });
+
   test(`${file}: the review runs only when the kill-switch job says proceed`, () => {
     const review = jobs[job];
     const gate = jobs["kill-switch"];
