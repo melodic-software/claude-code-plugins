@@ -719,7 +719,7 @@ the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's p
    options, `status --verbose` (it runs textconv), and any path that resolves outside the checkout
    (a bare `git diff` on such a path reads it as `--no-index`). `Bash(git *)` stays denied. It is
    also denied `Edit` on each path `apply-issue-patch` refuses: `deny-rules.mjs` builds the rules
-   from `apply-patch.mjs`'s path rules for the `issue` row's `refuse` list, matching no path that
+   from `protected-paths.mjs`'s path rules for the `issue` row's `refuse` list, matching no path that
    row would push (a plugin's `settings.json` stays writable), and the preamble names the
    patterns and says that when the change needs one, the run stops with `exit` `stopped` and a
    `reason` starting `patch-protected-path`. The rules cover the file tools and shell redirects,

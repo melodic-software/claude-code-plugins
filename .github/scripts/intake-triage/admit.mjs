@@ -6,8 +6,9 @@
 // Criteria 1, 5 and 6 (exact intent, no very-high security risk, no charge)
 // are already in `status: ready`: apply-verdict withholds it on any flag
 // (triage flags security only for a very-high risk) or a hold label, and the
-// cost rule adds needs-human. Criterion 4 (no protected path named) is not
-// applied. This checks the rest:
+// cost rule adds needs-human. Criterion 4 (no protected path named) applies
+// only to the paths the issue lane cannot push (unpushablePaths). This checks
+// the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -70,6 +71,7 @@ import { fileURLToPath } from "node:url";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
@@ -347,6 +349,40 @@ export function unrunnableCriteria(body, taskList, webHosts) {
   return { items: items.length, found };
 }
 
+// The patch-rules.json row apply-patch.mjs reads for an issue lane push
+// (TARGETS.issue).
+export const PATCH_ROW = "issue";
+let pushRefusalNames;
+// The protected-path refusals of that row in the default branch's
+// patch-rules.json beside this script, read once.
+export function issuePushRefusals() {
+  pushRefusalNames ??= JSON.parse(readFileSync(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url), "utf8"))[PATCH_ROW].refuse.filter(
+    (name) => PROTECTED_REFUSALS[name]?.kind === "protected-path",
+  );
+  return pushRefusalNames;
+}
+
+// A repository path a criterion names: a backticked span or a word, less a
+// trailing `:12` or `:3-9` and punctuation. Only a relative path with a `/`,
+// or a root CODEOWNERS or .gitmodules, counts: a bare file name or an
+// absolute runner path names no file of this repository.
+const pathTokens = (text) =>
+  [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
+    .map((token) =>
+      token
+        .replace(/^["'(\[]+/, "")
+        .replace(/[.,;:!?"')\]]+$/, "")
+        .replace(/:\d+(-\d+)?$/, ""),
+    )
+    .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
+
+// The paths the task-list items in `body` name that apply-patch refuses under
+// `names` (issuePushRefusals), in order, each once. Pure.
+export function unpushablePaths(body, taskList, names) {
+  const paths = taskItems(body, taskList).flatMap(({ text }) => pathTokens(text).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))));
+  return [...new Set(paths)];
+}
+
 // The refusal reason for unrunnableCriteria's result, with the split it
 // recommends, or null when every item is runnable.
 export function unrunnableReason({ items, found }) {
@@ -412,8 +448,9 @@ export function admissionSettled(labels, events, isMark) {
 // refusal that parks at needs-decision: an untrusted author or provenance or
 // a person-held label (the owner's 2026-10-26 rule keeps a person out of
 // every other refusal), or done-when items a lane run cannot perform, which
-// refine splits only from needs-decision (refine.mjs splitOf). Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts }) {
+// refine splits only from needs-decision (refine.mjs splitOf). Pure but for
+// `pushRefusals`, read from patch-rules.json when not given.
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, pushRefusals = issuePushRefusals() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -482,6 +519,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (unrunnable) {
     refuse.push(unrunnable);
     hold = true;
+  }
+  // apply-patch refuses the issue lane's push of these paths
+  // (patch-protected-path), so a run for such a criterion is spent for
+  // nothing; this refusal parks at status: confirmed, never with a person.
+  const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals);
+  if (unpushable.length > 0) {
+    refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {

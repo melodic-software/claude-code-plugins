@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { loadRules, PATH_RULES, REFUSALS, segments } from "./apply-patch.mjs";
+import { loadRules, REFUSALS } from "./apply-patch.mjs";
+import { PATH_RULES, segments } from "./protected-paths.mjs";
 import { denyRules, main, PATTERNS } from "./deny-rules.mjs";
 
 const REPO_ROOT = join(import.meta.dirname, "../../..");

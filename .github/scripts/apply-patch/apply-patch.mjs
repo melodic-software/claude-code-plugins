@@ -69,6 +69,9 @@ import { pathToFileURL } from "node:url";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { PREDICATES } from "./predicates.mjs";
+import { PROTECTED_REFUSALS } from "./protected-paths.mjs";
+
+export { segments } from "./protected-paths.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
 // A compressed binary patch inflates: any one patched blob, and all of them
@@ -85,48 +88,19 @@ const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
-// A path's segments in lower case with `.`, `..` and empty segments resolved,
-// so `.GitHub/x` and `a/../.github/x` read as `.github/x`.
-export function segments(path) {
-  const out = [];
-  for (const part of String(path).toLowerCase().split("/")) {
-    if (part === "..") {
-      out.pop();
-    } else if (part !== "" && part !== ".") {
-      out.push(part);
-    }
-  }
-  return out;
-}
-
-export const PATH_RULES = {
-  // The lane token has no workflows permission, so GitHub refuses the push.
-  "github-workflows": (s) => s[0] === ".github" && s[1] === "workflows",
-  // The three places GitHub reads a CODEOWNERS file from
-  // (docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners,
-  // as of 2026-10-22; recheck when that page names another location).
-  codeowners: (s) => s.at(-1) === "codeowners" && (s.length === 1 || (s.length === 2 && [".github", "docs"].includes(s[0]))),
-  gitmodules: (s) => s.at(-1) === ".gitmodules",
-  // A settings file outside plugins/, whose files are this repository's product.
-  settings: (s) => s[0] !== "plugins" && /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
-};
-const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
-const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
-
 // The refusal table. Every row must name every refusal but those in ALWAYS,
 // which apply to every row unnamed; any match refuses the whole patch, and
 // `kind` picks the row's escalation reason.
 export const ALWAYS = ["backslash"];
 export const REFUSALS = {
-  // A backslash reads as a directory separator on Windows checkouts.
-  backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
-  "github-workflows": { kind: "protected-path", test: pathRule("github-workflows") },
-  codeowners: { kind: "protected-path", test: pathRule("codeowners") },
-  gitmodules: { kind: "protected-path", test: pathRule("gitmodules") },
-  settings: { kind: "protected-path", test: pathRule("settings") },
+  backslash: PROTECTED_REFUSALS.backslash,
+  "github-workflows": PROTECTED_REFUSALS["github-workflows"],
+  codeowners: PROTECTED_REFUSALS.codeowners,
+  gitmodules: PROTECTED_REFUSALS.gitmodules,
+  settings: PROTECTED_REFUSALS.settings,
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
-  "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
+  "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
 };
 
 // The names of the refusals that match one changed entry; by default all.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // deny-rules.mjs: the Edit deny rules that keep a lane's model off the paths
-// apply-patch refuses, built from apply-patch's PATH_RULES for the refusals
+// apply-patch refuses, built from protected-paths.mjs's PATH_RULES for the refusals
 // one patch-rules.json row names. collect-base-activity passes them to the
 // issue lane's model, so a run whose change needs such a path is denied at
 // its first write and stops, where it would otherwise finish and be refused at
@@ -15,7 +15,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { PATH_RULES, RULES_PATH, segments } from "./apply-patch.mjs";
+import { RULES_PATH } from "./apply-patch.mjs";
+import { PATH_RULES, segments } from "./protected-paths.mjs";
 
 // Each path rule's Edit patterns, anchored at the checkout: a leading `/` in a
 // CLI rule anchors at the primary working directory
