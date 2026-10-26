@@ -22,13 +22,13 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
 
-    // #7970: with no stored Pin choice a 1280 px screen opens the side panels pinned, Pin labelled in view; a stored choice still wins.
+    // #7970: with no stored Pin choice a 1280 px screen opens the side panels pinned, Pin labeled in view; a stored choice still wins.
     // It stores Unpin, which the overlay checks below rely on.
     const pinState = () => page.evaluate(() => { const b = document.getElementById("pinBtn"); return {pinned: document.getElementById("layout").classList.contains("pinned"), pos: getComputedStyle(document.getElementById("fly")).position, pressed: b.getAttribute("aria-pressed"), label: b.innerText.trim(), shown: b.getClientRects().length > 0}; });
     await page.setViewportSize({width: 1280, height: 800}); await page.waitForTimeout(250);
     await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(300);
     const pin0 = await pinState();
-    ok("#7970: at 1280 px with no stored choice the side panel opens pinned, its Pin control labelled in view", pin0.pinned && pin0.pos === "static" && pin0.pressed === "true" && /^Pin\b/.test(pin0.label) && pin0.shown, JSON.stringify(pin0));
+    ok("#7970: at 1280 px with no stored choice the side panel opens pinned, its Pin control labeled in view", pin0.pinned && pin0.pos === "static" && pin0.pressed === "true" && /^Pin\b/.test(pin0.label) && pin0.shown, JSON.stringify(pin0));
     await page.click("#pinBtn"); await page.click("#flyClose"); await page.waitForTimeout(150);
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
     await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(300);
