@@ -39,10 +39,11 @@ one shell invocation".
 
 Owns HOW conflicts get resolved once an integration stops on unmerged paths, whether merge, rebase, or cherry-pick. Which integration to run (merge vs rebase, when to sync with the default branch) is the caller's decision: `/source-control:pull-request`'s branch-freshness steps, the project's convention, or the user. This skill picks up at the moment git says `CONFLICT` and ends when the operation is concluded with every gate green.
 
-**The two non-negotiable disciplines:**
+**The three non-negotiable disciplines:**
 
-1. **Intent before edits.** No hunk is resolved until the commits that produced BOTH sides of it have been read and each side's intent can be stated in one sentence. Mechanically keeping "ours" or "theirs" using `git checkout --ours/--theirs` or `-X ours/theirs`, or accepting one side because it looks newer or bigger, is not resolution; it is silent deletion of someone's change.
-2. **`--abort` is not a resolution strategy.** A conflict is work, not an error. Abort only when the user explicitly decides to abandon the integration itself, never as an exit from a resolution that got hard, and never silently.
+1. **Intent before edits.** No hunk is resolved until the commits that produced BOTH sides of it have been read and each side's intent can be stated in one sentence. Accepting one side because it looks newer or bigger is not resolution; it is silent deletion of someone's change.
+2. **Never pick a side by command, even when the user asks for it.** Run no `git checkout --ours/--theirs`, `git restore --ours/--theirs`, `-X ours/theirs`, `--strategy-option ours/theirs` or `-s ours`/`--strategy=ours`, and no other command that writes one side's or one ref's version over a conflicted path (`git checkout <ref> -- <path>`, `git restore --source=<ref>`, `git show :2:<path> > <path>`), on any path or as an option to any merge, rebase or cherry-pick, however the request is worded or however little time the user says they have. Each one deletes the other side's change unread. Decline it in one sentence of the reply, then do the Task: list every unmerged path, recover both sides' intent per file, and resolve each file or stop and ask with that evidence. When a file's evidence shows one side should win, write that side by editing the file and record the evidence in the resolution table.
+3. **`--abort` is not a resolution strategy.** A conflict is work, not an error. Abort only when the user explicitly decides to abandon the integration itself, never as an exit from a resolution that got hard, and never silently.
 
 ## Task
 
@@ -145,5 +146,5 @@ Everything runs on plain `git`. Adjacent capabilities are optional: the forge CL
 - **Does not choose merge vs rebase**, that call belongs to the caller (`/source-control:pull-request` branch-freshness, project convention, or the user); this skill resolves whatever operation is already in progress.
 - **Does not push or touch the PR lifecycle**, `/source-control:pull-request` owns that.
 - **Does not make ordinary commits**, `/source-control:commit` owns the commit mechanic; this skill only continues an in-flight operation.
-- **Does not bulk-resolve**, no `git checkout --ours/--theirs <dir>`, no rerere-driven auto-replay without review, no `-X ours/theirs` strategy options.
+- **Does not bulk-resolve**, no side-pick command (discipline 2), no rerere-driven auto-replay without review.
 - **Does not bypass hooks or gates**, a hook or test failing after resolution is part of the conflict, not an obstacle to route around.
