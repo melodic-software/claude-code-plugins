@@ -47,17 +47,26 @@ def _path() -> Path | None:
     return Path(name) if name else None
 
 
-def _load(path: Path) -> dict[str, Any]:
+def _load(path: Path) -> dict[str, Any] | None:
+    """The file's contents, {} when malformed, None when it could not be read."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        data = json.loads(text)
+    except ValueError:
         return {}
     return data if isinstance(data, dict) else {}
 
 
-# This process's parse of the file, by path, with the stat it was read at.
-# Every writer renames a new file into place (`put`, carry-run-cache.mjs), so
-# another process's write changes the inode and the next read parses again.
+# This process's parse of the file, by path, with the stat it was read at. A
+# memo is current only while the stat matching means the file is unchanged:
+# pr-merge.yml runs its gate processes one after another, and every writer
+# renames a new file into place (`put`, carry-run-cache.mjs), so another
+# process's write brings a new inode. A writer that rewrote the file in place
+# within one mtime tick at the same size, or a gate process running beside
+# this one, would be served the stale parse.
 _memo: dict[str, tuple[tuple[int, int, int, int], dict[str, Any]]] = {}
 
 
@@ -65,19 +74,27 @@ def _stamp(stat: os.stat_result) -> tuple[int, int, int, int]:
     return stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size
 
 
-def _read(path: Path) -> dict[str, Any]:
-    """The file's contents, parsed again only when it changed on disk. The
-    result is shared: callers copy before changing or serving it."""
+def _read(path: Path) -> dict[str, Any] | None:
+    """The file's contents ({} with no file), parsed again only when it changed
+    on disk, or None when it exists but could not be read. Only a parse is
+    kept, so a failed read is tried again. The result is shared: callers copy
+    before changing or serving it."""
     try:
         stamp = _stamp(path.stat())
-    except OSError:
+    except FileNotFoundError:
         _memo.pop(str(path), None)
         return {}
+    except OSError:
+        _memo.pop(str(path), None)
+        return None
     memo = _memo.get(str(path))
     if memo is not None and memo[0] == stamp:
         return memo[1]
     data = _load(path)
-    _memo[str(path)] = (stamp, data)
+    if data is None:
+        _memo.pop(str(path), None)
+    else:
+        _memo[str(path)] = (stamp, data)
     return data
 
 
@@ -117,7 +134,7 @@ def get_dated(
     path = _path()
     if path is None:
         return None
-    entry = _read(path).get(section, {})
+    entry = (_read(path) or {}).get(section, {})
     entry = entry.get(key) if isinstance(entry, dict) else None
     if not isinstance(entry, dict):
         return None
@@ -135,11 +152,16 @@ def get_dated(
 
 def put(section: str, key: str, value: Any, at: datetime | None = None) -> None:
     """Save `value`, read at `at` (now by default), replacing the file whole.
-    Best effort: a failed write leaves the next process to read GitHub."""
+    Best effort: a failed write leaves the next process to read GitHub, and a
+    file that could not be read is left as it is rather than replaced by this
+    entry alone."""
     path = _path()
     if path is None:
         return
-    data = dict(_read(path))
+    current = _read(path)
+    if current is None:
+        return
+    data = dict(current)
     entries = data.get(section)
     entries = dict(entries) if isinstance(entries, dict) else {}
     entries[key] = {"at": (at or now()).isoformat(), "value": value}

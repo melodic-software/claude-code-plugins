@@ -3,6 +3,7 @@ disk, and what it serves never aliases the parsed copy."""
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import pathlib
@@ -42,6 +43,7 @@ class ParsesOncePerProcess(unittest.TestCase):
         os.replace(tmp, self.path)
 
     def test_gets_and_puts_parse_the_file_once(self) -> None:
+        self.other_process_writes({})
         run_cache.put("s", "a", 1)
         for _ in range(50):
             self.assertEqual(run_cache.get("s", "a", None), 1)
@@ -49,7 +51,7 @@ class ParsesOncePerProcess(unittest.TestCase):
         for i in range(20):
             run_cache.put("s", f"k{i}", i)
             self.assertEqual(run_cache.get("s", f"k{i}", None), i)
-        self.assertLessEqual(self.parses, 1)
+        self.assertEqual(self.parses, 1)
         stored = json.loads(self.path.read_text(encoding="utf-8"))
         self.assertEqual(stored["s"]["k19"]["value"], 19)
         self.assertEqual(stored["s"]["a"]["value"], 1)
@@ -78,6 +80,32 @@ class ParsesOncePerProcess(unittest.TestCase):
             run_cache.put("s", "b", 2)
         self.assertIsNone(run_cache.get("s", "b", None))
         self.assertEqual(run_cache.get("s", "a", None), 1)
+
+    def test_a_failed_read_is_not_kept(self) -> None:
+        at = run_cache.now().isoformat()
+        self.other_process_writes({"s": {"a": {"at": at, "value": 1}}})
+        with mock.patch.object(
+            pathlib.Path, "read_text", side_effect=OSError(errno.EMFILE, "EMFILE")
+        ):
+            self.assertIsNone(run_cache.get("s", "a", None))
+        self.assertEqual(run_cache.get("s", "a", None), 1)
+
+    def test_a_put_after_a_failed_read_keeps_the_other_sections(self) -> None:
+        at = run_cache.now().isoformat()
+        written = {
+            "carried-run-record": {"r": {"at": at, "value": 7}},
+            "s": {"a": {"at": at, "value": 1}},
+        }
+        self.other_process_writes(written)
+        with mock.patch.object(
+            pathlib.Path, "read_text", side_effect=OSError(errno.EIO, "EIO")
+        ):
+            run_cache.put("s", "b", 2)
+        self.assertEqual(json.loads(self.path.read_bytes()), written)
+        run_cache.put("s", "b", 2)
+        self.assertEqual(run_cache.get("carried-run-record", "r", None), 7)
+        self.assertEqual(run_cache.get("s", "a", None), 1)
+        self.assertEqual(run_cache.get("s", "b", None), 2)
 
     def test_a_served_value_is_not_the_cached_copy(self) -> None:
         value = {"list": [1]}
