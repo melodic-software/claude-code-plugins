@@ -587,7 +587,8 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: only the
 narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
 main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
-`CODEOWNERS`, `.gitmodules` and the files that enforce the floor) waits for a person, and the
+`CODEOWNERS`, `.gitmodules` and the merge gate's own code; the other files that enforce the floor
+wait for a clean security review instead) waits for a person, and the
 security lane judges the rest, the trusted-actor list included. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
@@ -803,8 +804,17 @@ and its queued entries leave; two different identities, or an unreadable head co
   `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
   and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which
   `enable-auto-merge.mjs` runs, with every `babysit-prs/scripts/` module they import
-  (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more). `test_merge_holds_sync.py` derives
-  both closures from their imports and requires them on the floor. No other path
+  (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more), and every other script of
+  `.github/scripts/pr-merge/`. `test_merge_holds_sync.py` derives
+  both closures from their imports and requires them on the floor. Each entry has a class
+  (`babysit_risk.FLOOR_CLASSES`, `merge-holds.mjs` `HOLD_PATH_CLASSES`; owner decision Q26
+  option B): `trust` (the token, trigger and kill-switch actions, `CODEOWNERS`, `.gitmodules`)
+  and `gate` (the merge gate's own code and the config the token broker loads: every pr-merge
+  script and workflow, `babysit_merge*.py`, the ci-status workflow, the rate guard,
+  `resolve-config` and the pipeline config) wait for a person. `enforcement` (the other imported
+  modules and Python above) scores HIGH as `review-path:<glob>` until the
+  `claude-security-review` evidence binds to the head with no open finding, then merges with no
+  person; ci-status leaves those paths to the gate. No other path
   is held for being trusted (owner direction 2026-10-24): the trusted-actor list and every other
   path merge on the review lanes, which judge them. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
@@ -1132,7 +1142,7 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
-`HOLD_PATH_FLOOR`, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
+`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
 run, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
