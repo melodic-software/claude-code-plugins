@@ -800,7 +800,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   `.github/workflows/pr-require-checks.yml`, `.github/workflows/pr-merge.yml`, which runs those
   scripts and sets their environment, `docs/conventions/pr-pipeline.yaml`, and every module
   those scripts import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
-  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`),
+  `thread-scope.mjs`, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and
+  the `retry-fetch.mjs` copy in each of those two directories),
   and the Python that decides the holds: `babysit_risk.py` and `babysit_verify_evidence.py`, which
   `enable-auto-merge.mjs` runs, with every `babysit-prs/scripts/` module they import
   (`babysit_merge.py`, `babysit_merge_policy.py` and 14 more). `test_merge_holds_sync.py` derives

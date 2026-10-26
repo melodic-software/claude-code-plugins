@@ -234,8 +234,10 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/scripts/pr-unblock/address-feedback.mjs",
     ".github/scripts/pr-unblock/gate-source.mjs",
     ".github/scripts/pr-unblock/thread-scope.mjs",
+    ".github/scripts/pr-unblock/retry-fetch.mjs",
     ".github/scripts/work-resolve-issue/report-outcome.mjs",
     ".github/scripts/work-resolve-issue/limits.mjs",
+    ".github/scripts/work-resolve-issue/retry-fetch.mjs",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

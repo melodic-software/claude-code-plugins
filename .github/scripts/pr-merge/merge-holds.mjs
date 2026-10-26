@@ -274,8 +274,10 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/gate-source.mjs",
   ".github/scripts/pr-unblock/thread-scope.mjs",
+  ".github/scripts/pr-unblock/retry-fetch.mjs",
   ".github/scripts/work-resolve-issue/report-outcome.mjs",
   ".github/scripts/work-resolve-issue/limits.mjs",
+  ".github/scripts/work-resolve-issue/retry-fetch.mjs",
 ]);
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`
