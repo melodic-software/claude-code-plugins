@@ -1929,11 +1929,19 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   of the 24 hours is read. It stops at 350 REST calls, keeping 170 of them for the units, and says
   so: a workflow it read only part of is named in a warning, and its unit carries `window_complete:
   false`.
-- **judge**, one model leg per unit, holds read permissions only, runs with `--setting-sources
-  user` and `--permission-mode dontAsk`, and has Read, Grep and Glob over its data and the main
-  checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
-  as data. It returns at most three findings, each citing at least one `path`, `line` and exact
-  `quote` from main.
+- **judge**, one model leg per unit, runs ci-workflows' `run-claude-cli` as the `automations` role
+  on `AUTOMATIONS_CLAUDE_API_KEY`, holds read permissions only, runs with `--permission-mode
+  dontAsk`, and has Read, Grep and Glob over its data and the main checkout and no shell. It takes
+  the `triage-issue` route's profile. CI logs and titles reach it as data. It returns at most three
+  findings, each citing at least one `path`, `line` and exact `quote` from main. A unit whose key
+  leg hands off (a credit stop, a 401 or 402, or an empty key) with no permission denial is judged
+  by **judge-subscription** on `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`; with
+  `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, a unit that leg hands off (a limit stop, a credit stop, a
+  401 or 402) is judged by **judge-fallback** on that token, which never hands off. Each leg is its
+  own job holding one credential. A leg that hands off uploads a marker artifact naming the unit and
+  the launcher's reason, and **judge-handoffs** and **judge-subscription-handoffs**, which hold no
+  secret, check each marker against a closed set and build the next leg's matrix
+  (`handoff.mjs`). Each unit leaves one lane record (`lane-sweep`), from the leg that saw its end.
 - **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
   unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
   lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
@@ -2128,7 +2136,10 @@ runs on the key, and `check-intent-subscription` runs on the token, on a new run
 `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
 credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
 that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
-with it empty, the subscription leg is the last. The read runner's callers
+with it empty, the subscription leg is the last. The lane sweep's judge, on the `automations`
+role, has the same three legs per unit (`judge`, `judge-subscription`, `judge-fallback`), each
+started by a route job from the previous leg's handoff markers
+([The lane sweep](#the-lane-sweep)). The read runner's callers
 do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
 and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and with

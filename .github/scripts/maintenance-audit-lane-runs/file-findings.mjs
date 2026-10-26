@@ -64,8 +64,10 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
   let complete = true;
   for (const entry of readdirSync(findingsDir).sort()) {
     let data;
+    // download-artifact writes a lone matching artifact straight into the path.
+    const file = entry === "findings.json" ? join(findingsDir, entry) : join(findingsDir, entry, "findings.json");
     try {
-      data = JSON.parse(readFileSync(join(findingsDir, entry, "findings.json"), "utf8"));
+      data = JSON.parse(readFileSync(file, "utf8"));
     } catch {
       dropped.push({ unit: entry, title: null, reason: "unreadable" });
       complete = false;
