@@ -792,7 +792,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   unattended: `.github/actions/resolve-config/**`, whose code the token broker runs from main in
   its signer process, `.github/actions/request-lane-token/**`, which mints the lanes App token,
   `.github/actions/check-trusted-trigger/**` and the rate guard it sends every call through
-  (`.github/actions/log-api-budget/rate-guard.mjs`), `.github/actions/check-kill-switch/**`,
+  (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
+  (`.github/actions/log-api-budget/rate-limits.json`), `.github/actions/check-kill-switch/**`,
   whose output writer both actions use, `**/CODEOWNERS`, `**/.gitmodules`, and the files that
   enforce the floor: `.github/scripts/pr-merge/merge-holds.mjs`, `enable-auto-merge.mjs`,
   `superseded.mjs` and `clear-escalations.mjs` there,
@@ -1184,7 +1185,10 @@ and one error annotation and summary line naming each one still armed because it
 it posts no comment on the pull requests.
 Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
-saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and
+head-ref map and run cache and one artifact listing for the run, which its first pull request reads
+and every later one uses at any age, an allow included (`evidence --shared-listing`), since the
+merge queue runs the reader again at the head it merges; an event run reads no link or verdict,
+never arms, and
 only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
 turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
 armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
@@ -1256,14 +1260,41 @@ builds the group, and after a person lifts one with a later comment, `ci-status`
 
 In the merge queue the same step also requires a verifier pass at the queued pull request's live
 head: an unexpired `pr-verify-<pr>-<head>-pass` or `-pass-notes` artifact, with or without the
-head-branch digest, looked up by exact name and uploaded by a completed, successful
+head-branch digest, taken by exact name and uploaded by a completed, successful
 `workflow_run` run of `pr-verify.yml` on main here (`verdictHold` in `merge-holds.mjs`). Whatever
 GitHub does with an armed request when the head moves, the queue's check on the head it merges
 holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
-verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
-`enable-auto-merge.mjs`'s, whose reader arms nothing they refuse.
+verdict, and a pull request event makes no verdict read.
+
+The queue also runs pr-merge's verdict reader, `babysit_verify_evidence.py evidence --base-sha`,
+from a checkout of main for the queued pull request at its live head, on a listing of its own, and
+holds on its report (`evidenceHold` in `merge-holds.mjs`): every FAIL class the gate counts (a FAIL
+at the head under any number, an earlier FAIL tied by number, commit or head branch, the
+`merge.max-verify-fails` cap with other pull requests' FAILs for its issues, an untied FAIL whose
+record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploaded after
+`enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
+(`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
+`linkHold`. The same trusted approval of the head lifts it. A refusal the reader returns before
+it lists artifacts (`verify:too-old`, an unread config or commit list) reaches `merge-holds.mjs`
+with no pass names, so it holds the same way and the same approval lifts it. Otherwise the pass
+names come from the reader's listing. The reader starts from pr-merge's head-ref map and carried
+run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-started pr-merge run
+on main (`carry-run-cache.mjs read`; `ci-status` restores no Actions cache), so it reads only what
+landed since that run: about 73 requests for one pull request, where a cold reader makes about 860
+(measured 2026-10-25 on 6,620 artifacts, 294 of them FAILs). A head-ref map that does not read only
+leaves it reading more. With no carried run cache, or one whose carried sections are all empty
+(the artifact is kept for one day, so pr-merge with no successful scheduled or hand-started run
+that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
+`/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
+at once goes cold together: the cold reader starts only when the token's core pool has at least 900
+requests (one cold read's cost) times `max_entries_to_build`, plus the read floor (`limits.api`
+`read-floor` of the planned limit, inlined in the job env), left: 4,600 with the queue building 5. A rule or rate limit that does not read, a stop in the
+job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
+ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
+about 6 to 11. It reads with `ci-status`'s token, which holds no `issues`
+scope: an issue read that does not answer refuses `verify:unreadable`, which holds.
 
 The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
 already carries `work-class: untrusted-provenance`. At arm time, `enable-auto-merge` refuses it
@@ -2186,7 +2217,7 @@ with defaults.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to 1000, GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `pr-pipeline.schema.json` (`$defs/api-pool`, `$defs/api-content-pool`, and the `github-token` entry). The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
