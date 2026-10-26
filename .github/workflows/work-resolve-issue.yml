@@ -256,15 +256,6 @@ jobs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       handed-off: ${{ steps.handoff.outputs.handed-off }}
     steps:
-      # Whether the third call can run, never the token. resolve-issue-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last. It runs first, so a failed read still sets it.
-      - name: Check the fallback token
-        id: fallback
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
-
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -280,6 +271,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-issue
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+      # Whether the third call can run, never the token. resolve-issue-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last; a failed read leaves it empty, which hands nothing on.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
 
   # The subscription fallback, a second call on new VMs in the same slot: it
   # runs only on resolve-issue-handoff's read, holds the OAuth token alone,

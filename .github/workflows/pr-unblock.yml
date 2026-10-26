@@ -348,15 +348,6 @@ jobs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
-      # Whether the third call can run, never the token. resolve-conflicts-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last. It runs first, so a failed read still sets it.
-      - name: Check the fallback token
-        id: fallback
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
-
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -372,6 +363,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: resolve-conflicts
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
+
+      # Whether the third call can run, never the token. resolve-conflicts-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last; a failed read leaves it empty, which hands nothing on.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
 
   # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
   # only when resolve-conflicts-handoff read no check posted, which a credit
@@ -827,15 +827,6 @@ jobs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
-      # Whether the third call can run, never the token. address-feedback-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last. It runs first, so a failed read still sets it.
-      - name: Check the fallback token
-        id: fallback
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
-
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -851,6 +842,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: address-feedback
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
+
+      # Whether the third call can run, never the token. address-feedback-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last; a failed read leaves it empty, which hands nothing on.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
 
   # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
   # only when address-feedback-handoff read no check posted, which a credit
@@ -1631,15 +1631,6 @@ jobs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
-      # Whether the third call can run, never the token. review-dependency-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last. It runs first, so a failed read still sets it.
-      - name: Check the fallback token
-        id: fallback
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
-
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1655,6 +1646,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: review-dependency
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
+
+      # Whether the third call can run, never the token. review-dependency-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last; a failed read leaves it empty, which hands nothing on.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
 
   # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
   # only when review-dependency-handoff read no check posted, which a credit
@@ -2034,15 +2034,6 @@ jobs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
-      # Whether the third call can run, never the token. fix-ci-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last. It runs first, so a failed read still sets it.
-      - name: Check the fallback token
-        id: fallback
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
-
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2058,6 +2049,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: fix-ci
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
+
+      # Whether the third call can run, never the token. fix-ci-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last; a failed read leaves it empty, which hands nothing on.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
 
   # The subscription fallback, as a second call on new VMs: it runs only when
   # fix-ci posted no check, which a credit stop or an empty key leaves as a
@@ -2266,15 +2266,6 @@ jobs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
     steps:
-      # Whether the third call can run, never the token. fix-ci-rung-up-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last. It runs first, so a failed read still sets it.
-      - name: Check the fallback token
-        id: fallback
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
-
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2290,6 +2281,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: fix-ci-rung-up
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
+
+      # Whether the third call can run, never the token. fix-ci-rung-up-subscription passes it
+      # on as fallback-ready, so with the token empty its subscription leg
+      # stays the last; a failed read leaves it empty, which hands nothing on.
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
 
   fix-ci-rung-up-subscription:
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff]
