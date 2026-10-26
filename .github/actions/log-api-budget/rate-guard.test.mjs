@@ -109,9 +109,12 @@ test("the schema states no limits.api default: rate-limits.json holds the only c
   }
 });
 
-// GitHub documents GITHUB_TOKEN at 1,000 requests per hour per repository
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions);
-// the other pools plan to the limit their header reports.
+// github-token plans to a limit-cap of 1,000, the figure GitHub documents for
+// GITHUB_TOKEN per repository per hour
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions).
+// That is a planning cap, not this repository's live limit: its responses
+// report x-ratelimit-limit 5000. The other pools plan to the limit their
+// header reports.
 test("limit-cap defaults to 1000 for github-token only", () => {
   const limits = apiLimits({ resolvedPath: "" });
   assert.equal(limits["github-token"]["limit-cap"], 1000);

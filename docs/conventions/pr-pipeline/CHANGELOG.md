@@ -1,5 +1,25 @@
 # Changelog for the PR pipeline convention
 
+## [5.15.0] - 2026-10-26
+
+### Changed
+
+- The lane sweep's judge (`maintenance-audit-lane-runs.yml`) runs on ci-workflows' `run-claude-cli` as the `automations` role and spends its own API key, `AUTOMATIONS_CLAUDE_API_KEY`, in place of claude-code-action on the role's subscription token; claude-code-action never takes a key. A unit whose key leg hands off (a credit stop, a 401 or 402, or an empty key) with no permission denial is judged by the new `judge-subscription` job on `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`, and with `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, a unit that leg hands off by `judge-fallback` on that token. A matrix job's outputs are not per unit, so a handed-off leg uploads a marker artifact and the secret-free `judge-handoffs` and `judge-subscription-handoffs` jobs build the next leg's matrix from markers checked against a closed set (`handoff.mjs`). Each unit now leaves one `lane-sweep` lane record. `write-findings.mjs` reads the launcher's `structured-output-file`. The lane-funding catalog marks `automations` keyed and lists the three legs.
+
+## [5.14.2] - 2026-10-26
+
+### Fixed
+
+- `apply-patch.mjs` drops a pull request push, as held, when the pull request body carries a body hold (a line opening with `Hold:` in any case after any whitespace, NBSP included, with a bare CR also ending a line, or "do not merge"), read with merge-holds.mjs's `BODY_HOLD`, unless the lanes App opened the pull request: there the line holds the merge, not a fix. It covers every pull request push, merge rows included. The lanes App's login is now one export of merge-holds.mjs, which `clear-escalations.mjs` and `refire-refused.mjs` read too, and the write runner copies merge-holds.mjs beside apply-patch's base copy.
+
+## [5.14.1] - 2026-10-26
+
+### Fixed
+
+- pr-merge's `merge` and `enable-auto-merge` jobs no longer restore an Actions cache. They hold `id-token: write` and the lanes App token, and they restored the carried verdict reads by the bare prefix `pr-merge-run-cache-`. Any job in the default branch's cache scope can write that prefix, and the pinned restore extracts its archive into the workspace with no entry filter, so a crafted entry could replace a checked-out script before it ran (#9455). The carried reads and skippable refusals now travel as the `pr-merge-run-cache` artifact (`.github/scripts/pr-merge/carry-run-cache.mjs read`). Each job reads it from the newest scheduled or hand-started `pr-merge.yml` run on main whose head commit is on main, found the way the head-ref map is. The read removes any file at its path before it starts. The carried sections are still used only to count a FAIL. Only a scheduled or hand-started `merge` job uploads the file, since no other run's copy is read back, so a `pull_request_target` run no longer passes its reads to the next run. Permissions are unchanged.
+- A workflow test fails when a job holding `id-token: write` or a lanes App token restores a cache by a `restore-keys` prefix in any workflow, local composite actions included. The test finds a grant at any indentation, quoted or not, and counts `permissions: write-all`. A second test fails when a token-holding job in `pr-merge.yml` restores any cache.
+- pr-merge's head-ref map, lane records and carried run cache readers now also pass over every run while a tag named `main` exists, since a run on that tag reports `head_branch` main. `head-ref-map.mjs` `onMain` reads the tag (only a 404 lets a run count) and main's tip once per process through `check-trusted-trigger.mjs` `readDefaultBranchTip`, and remembers a failed or refused read so the process refuses every run. It then checks each run's head commit with `requireBehindTip`. `requireOnDefaultBranch` now composes those two helpers and behaves as before. The cost is two reads per process.
+
 ## [5.14.0] - 2026-10-26
 
 ### Changed
