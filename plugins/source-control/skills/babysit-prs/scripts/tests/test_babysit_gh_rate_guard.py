@@ -71,6 +71,7 @@ class SharedVectors(unittest.TestCase):
                     body=given["body"],
                     now=table["vector_now"],
                     read_floor=floor,
+                    limit_cap=vector.get("limit_cap"),
                 )
                 self.assertEqual(got, vector["expect"])
 

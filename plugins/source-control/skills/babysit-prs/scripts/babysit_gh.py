@@ -543,9 +543,12 @@ def evaluate_rate_response(
     body: Any,
     now: float,
     read_floor: float,
+    limit_cap: int | None = None,
 ) -> dict[str, Any]:
     """One response against the decision table: `latched`, `low`, `pool`,
-    `reset` (epoch seconds) and `reset_source`. `headers` are lowercase."""
+    `reset` (epoch seconds) and `reset_source`. `headers` are lowercase.
+    `low` measures what is left of the planned budget, the header's limit at
+    most `limit_cap`, as rate-guard.mjs planOf does."""
     remaining = _int_header(headers, "x-ratelimit-remaining")
     limit = _int_header(headers, "x-ratelimit-limit")
     reset_header = _int_header(headers, "x-ratelimit-reset")
@@ -570,7 +573,10 @@ def evaluate_rate_response(
     gql = any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
     too_many = status == 429
     latched = remaining == 0 or ra is not None or msg or gql or too_many
-    low = bool(limit and remaining is not None and remaining < read_floor * limit)
+    low = False
+    if limit and remaining is not None:
+        planned = limit if limit_cap is None else min(limit, limit_cap)
+        low = planned - (limit - remaining) < read_floor * planned
     result: dict[str, Any] = {
         "latched": latched,
         "low": low,
