@@ -20,7 +20,8 @@ POLICY_DIR="$SCRIPT_DIR/../.github/standards/runner-policy"
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
 # mk_tree <out-var>: a key-free read workflow, a write workflow that takes the
-# key, a read-only lane caller and a write-only lane caller.
+# key, a read-only lane caller (pr-unblock.yml, on the caller map) and a
+# write-only lane caller.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --sut "$SUT_MJS" --label read-caller-keys || return 1
@@ -58,14 +59,14 @@ jobs:
         with:
           private-key: ${{ secrets.app-private-key }}
 EOF
-  cat >"$dir/.github/workflows/pr-review.yml" <<'EOF'
+  cat >"$dir/.github/workflows/pr-unblock.yml" <<'EOF'
 on: pull_request
 jobs:
   claude:
     # A caller of this file must not pass app-private-key.
     uses: ./.github/workflows/pr-run-activity-read.yml
     with:
-      lane: pr-review
+      lane: pr-unblock
       activity: claude
     secrets:
       claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -110,7 +111,9 @@ run_case() {
   ok "$label"
 }
 
-CALLER=.github/workflows/pr-review.yml
+CALLER=.github/workflows/pr-unblock.yml
+REFINE=.github/workflows/pr-refine.yml
+ISSUE=.github/workflows/work-resolve-issue.yml
 READ=.github/workflows/pr-run-activity-read.yml
 WRITE=.github/workflows/pr-run-activity-write.yml
 # shellcheck disable=SC2016  # a literal workflow expression, never expanded
@@ -178,8 +181,38 @@ run_case "a read caller passing the automations role's Claude API key fails" 1 \
   "printf '      claude-api-key: \${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}\n' >>$CALLER" \
   "$CALLER:11: reads secrets.AUTOMATIONS_CLAUDE_API_KEY, which is not on the read-run allowlist"
 
-run_case "a read caller passing the issue-lane role's Claude API key passes" 0 \
-  "printf '      claude-api-key: \${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}\n' >>$CALLER"
+run_case "the issue lane passing its role's Claude API key passes" 0 \
+  "cp $CALLER $ISSUE && printf '      claude-api-key: \${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}\n' >>$ISSUE" \
+  "(2 caller(s))"
+
+run_case "the issue lane passing its role's Claude Code OAuth token passes" 0 \
+  "cp $CALLER $ISSUE && printf '      other: \${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}\n' >>$ISSUE"
+
+run_case "pr-refine passing the pr-unblock role's secrets passes" 0 \
+  "cp $CALLER $REFINE && printf '      claude-api-key: \${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}\n      other: \${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}\n' >>$REFINE"
+
+run_case "a read caller passing the fallback Claude Code OAuth token passes" 0 \
+  "printf '      fallback-claude-code-oauth-token: \${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}\n' >>$CALLER"
+
+run_case "pr-unblock passing the issue lane's Claude Code OAuth token fails" 1 \
+  "printf '      other: \${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}\n' >>$CALLER" \
+  "$CALLER:11: reads secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN, which is in neither the shared read-run set nor pr-unblock.yml's CALLER_SECRETS entry"
+
+run_case "the issue lane passing the pr-unblock role's Claude API key fails" 1 \
+  "cp $CALLER $ISSUE && printf '      claude-api-key: \${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}\n' >>$ISSUE" \
+  "$ISSUE:11: reads secrets.PR_UNBLOCK_CLAUDE_API_KEY, which is in neither the shared read-run set nor work-resolve-issue.yml's CALLER_SECRETS entry"
+
+run_case "a read caller missing from the map fails" 1 \
+  "cp $CALLER .github/workflows/pr-review.yml" \
+  ".github/workflows/pr-review.yml: its run reaches $READ, but CALLER_SECRETS in scripts/check-read-caller-keys.mjs has no entry for it"
+
+run_case "a workflow whose run reaches the read workflow through a caller and is missing from the map fails" 1 \
+  "printf 'on: workflow_call\njobs:\n  review:\n    uses: ./$CALLER\n' >.github/workflows/middle.yml" \
+  ".github/workflows/middle.yml: its run reaches $READ, but CALLER_SECRETS"
+
+run_case "a role secret in the read workflow itself fails" 1 \
+  "printf '        env:\n          K: \${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}\n' >>$READ" \
+  "$READ:16: reads secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN, a role secret, which only a caller with that role in CALLER_SECRETS may name"
 
 run_case "a read caller passing another role's Claude API key fails" 1 \
   "printf '      claude-api-key: \${{ secrets.INTAKE_CLAUDE_API_KEY }}\n' >>$CALLER" \

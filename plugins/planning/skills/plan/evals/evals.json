@@ -121,12 +121,12 @@
       "name": "outcome-gate-runs-script-and-catches-machine-path",
       "prompt": "/planning:plan migrate the dotfiles into chezmoi. [The drafted PLAN.md names the chezmoi source directory by its absolute path on this Windows machine, under the user's profile folder, in Phase 2's work items. Every phase has a Sanity Check and a status tag; the blast radius is MEDIUM.]",
       "files": [],
-      "expected_output": "At Step 4.7 it runs scripts/check-plan-outcome.sh against the draft PLAN.md rather than self-grading the mechanical criteria. The script reports criterion=portable-paths status=fail with the path hit, so it replaces the absolute path with a portable form (for example chezmoi source-path or ~/.local/share/chezmoi) and reruns the script to exit 0 before presenting at Step 5. It still checks by reading that every Brief acceptance criterion maps to a phase and no phase does Out-of-scope work, since the script does not claim that criterion.",
+      "expected_output": "At Step 4.7 it runs scripts/check-plan-outcome.sh against the draft PLAN.md rather than self-grading the mechanical criteria. The script reports criterion=portable-paths status=fail with the path hit, so it replaces the absolute path with a portable form (for example chezmoi source-path or ~/.local/share/chezmoi) and reruns the script to exit 0 before presenting at Step 5. The script's criteria criterion maps each acceptance criterion id to the phases whose Satisfies line names it; it still checks by reading that no phase does Out-of-scope work and every phase traces to a criterion, since the script does not claim that.",
       "expectations": [
         "Runs check-plan-outcome.sh on the draft PLAN.md at Step 4.7",
         "Treats the portable-paths failure as a FAIL and fixes the path before presenting",
         "Reruns the script and requires exit 0",
-        "Checks acceptance-criteria-to-phase mapping and Out-of-scope exclusion by reading rather than claiming the script covers it"
+        "Checks Out-of-scope exclusion and phase-to-criterion tracing by reading rather than claiming the script covers them"
       ]
     },
     {
@@ -499,6 +499,21 @@
         "Output notes that Phase 2 passing the Out-of-scope check does not clear it",
         "Output's action is to cut Phase 2 or surface it as an Open Decision for the user",
         "Output does not flag Phase 1, which covers both criteria"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "plan-reader-guardrails-publishes-derived-file",
+      "narration": true,
+      "prompt": "/planning:plan --reader guardrails add CSV export to the invoice list. I approve the plan as presented. The repository's docs/conventions/planning.yaml contains `plan_store: tracker` and `plan_reader: step-by-step`. PLAN.md has a ## Brief, a ## Design section whose Conventions followed names the existing report exporter with `Net new: none` and `Challenges a pattern: none`, and three phases. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "At the final persist step the skill resolves plan_reader to guardrails from the --reader argument, over the repository's step-by-step, reports that line, and records it in PLAN.md's Reader depth: line. It renders PLAN.guardrails.md beside PLAN.md: a one-line lead naming the guardrails depth, the ## Brief and ## Design sections copied as written (Conventions followed with its Net new: none and Challenges a pattern: none lines), and the Approval: and Reader depth: lines, with no phase bodies or phase outline. It invokes /work-items:track publish-plan 812 with the derived file, and PLAN.md keeps all three phases.",
+      "files": [],
+      "expectations": [
+        "Reports plan_reader guardrails and names the --reader argument as the supplying layer, over the repository file's step-by-step",
+        "Writes a derived PLAN.guardrails.md that carries ## Brief, ## Design with Conventions followed and its Net new: and Challenges a pattern: lines, and the Approval: line",
+        "The derived file holds no ### Phase sections and no phase outline",
+        "Invokes /work-items:track publish-plan with item 812 and the derived file, not PLAN.md",
+        "Does not reduce PLAN.md: it still holds ## Plan with all three phases"
       ]
     }
   ]
