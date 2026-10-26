@@ -70,6 +70,7 @@ import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
+import { retryFetch } from "./retry-fetch.mjs";
 
 export { segments } from "./protected-paths.mjs";
 
@@ -902,13 +903,19 @@ export async function push({
 }
 
 // The REST calls apply-patch makes. GitHub signs a commit made with no author
-// or committer as the App.
-export function createGitHubApi({ token, repository, apiUrl, fetch = globalThis.fetch }) {
+// or committer as the App. A read, and a write marked safeToResend, is sent
+// again after a network error or a 5xx (retry-fetch.mjs). A blob, a tree and
+// a commit are used only by the sha their answer names, and a ref update
+// carries the sha it sets, so each repeats to the same state. createRef is
+// sent once: a resend after a create that landed answers 422.
+export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = globalThis.fetch, sleep }) {
+  const fetch = retryFetch(rawFetch, { sleep });
   const repo = `${apiUrl}/repos/${repository}`;
   const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" };
-  async function request(path, method = "GET", body) {
+  async function request(path, method = "GET", body, safeToResend = false) {
     const response = await fetch(`${repo}/${path}`, {
       method,
+      safeToResend,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -929,11 +936,11 @@ export function createGitHubApi({ token, repository, apiUrl, fetch = globalThis.
     },
     // From git/ref, which GET /pulls can lag behind after a push.
     readBranch: async (ref) => (await request(`git/ref/heads/${refPath(ref)}`)).data.object.sha,
-    createBlob: async (content) => (await request("git/blobs", "POST", { content, encoding: "base64" })).data.sha,
-    createTree: async (baseTree, tree) => (await request("git/trees", "POST", { base_tree: baseTree, tree })).data.sha,
-    createCommit: async (message, tree, parents) => (await request("git/commits", "POST", { message, tree, parents })).data.sha,
+    createBlob: async (content) => (await request("git/blobs", "POST", { content, encoding: "base64" }, true)).data.sha,
+    createTree: async (baseTree, tree) => (await request("git/trees", "POST", { base_tree: baseTree, tree }, true)).data.sha,
+    createCommit: async (message, tree, parents) => (await request("git/commits", "POST", { message, tree, parents }, true)).data.sha,
     async updateRef(ref, sha, force) {
-      await request(`git/refs/${refPath(ref)}`, "PATCH", { sha, force });
+      await request(`git/refs/${refPath(ref)}`, "PATCH", { sha, force }, true);
     },
     // GitHub answers 422 when the ref already exists.
     async createRef(ref, sha) {

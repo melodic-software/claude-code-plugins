@@ -3,6 +3,37 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.0] - 2026-10-26
+
+### Added
+
+- `/source-control:pull-request prep` now runs `scripts/prep-warnings.sh` and lists two advisory warnings in its report before the first push: an existing `SKILL.md` or agent body that loses lines with no file added or changed under its eval home, and a changed path the unattended merge holds (`babysit_risk.HIGH_FLOOR` or the configured `merge.diff-check.denied-paths`, held for a person, or a plugin or marketplace manifest, which it compares base against head). The path rules are imported from `babysit_risk.py`, never restated. Neither warning blocks pull request creation. Found while landing #8714, where both cost extra push-and-review rounds.
+
+## [3.9.0] - 2026-10-26
+
+### Changed
+
+- `/source-control:pull-request create` arms event delivery for the PR it opened (the push channel, else the Monitor watch; polling in a cloud session) when the session will keep acting on it, through Steps 1-3 of the Monitor entry checklist, instead of ending Phase 2 and leaving monitoring to a separate `monitor` invocation. `create --pushed` still hands monitoring to its caller, which arms delivery through the same checklist.
+
+## [3.8.2] - 2026-10-26
+
+### Fixed
+
+- The babysit-prs verdict-evidence script's comment now names both artifacts pr-merge's carried reads come from: `pr-merge-run-cache` and `enable-auto-merge`'s `pr-merge-verify-run-cache`. Behavior is unchanged; a carried read still counts only toward a FAIL.
+
+## [3.8.1] - 2026-10-26
+
+### Changed
+
+- `babysit_gh.py` reads its `limits.api` defaults (`writer-pause`, `read-floor`, and github-token's `limit-cap`, which replaces the `GITHUB_TOKEN_LIMIT_CAP` constant) from `.github/actions/log-api-budget/rate-limits.json` instead of the pipeline schema, with the same values. A missing or invalid file still refuses every call, and a default that is not a number now does too.
+- `babysit_risk.HIGH_FLOOR` also holds `.github/actions/log-api-budget/rate-limits.json`, the rate-limit defaults `rate-guard.mjs` reads, so a change to one waits for a person.
+
+## [3.8.0] - 2026-10-26
+
+### Added
+
+- `/source-control:pull-request create` builds the `Summary` section's Problem and intent line from the linked item's `Problem:` and `- Intent (why, in the user's words):` lines when no local plan is found, reading the body from the GitHub issue read or, with a work-item tracker bound, `/work-items:track view`. A found plan still wins; the item text is framed as data and gets the plan line's shape and scrub, minus any closing keyword or `@` mention.
+
 ## [3.7.1] - 2026-10-26
 
 ### Changed

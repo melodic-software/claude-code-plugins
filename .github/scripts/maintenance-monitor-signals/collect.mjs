@@ -9,6 +9,7 @@ export const LIMITS = {
   prMergeRuns: 12,
   inProgressRuns: 30,
   failedRuns: 12,
+  failedRunPages: 5,
   failedJobsPerRun: 3,
   mainFailedJobs: 5,
   mergeGroupRuns: 10,
@@ -96,15 +97,31 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
     });
   }
 
+  // Fork and pull-request runs are dropped only after the read, so the read
+  // pages: a flood of them on one page must not hide a failed run of this
+  // repository's own. A run that fails mid-read shifts the pages, so one run
+  // can come back on two of them; it is kept once.
   await source("failed runs", async () => {
-    const runs = (await get(`/repos/${repo}/actions/runs?status=failure&created=${created}&per_page=100`)).workflow_runs;
+    const kept = new Map();
+    let unread = false;
+    for (let page = 1; page <= LIMITS.failedRunPages && kept.size < LIMITS.failedRuns; page += 1) {
+      const runs = (await get(`/repos/${repo}/actions/runs?status=failure&created=${created}&per_page=100&page=${page}`)).workflow_runs;
+      for (const r of runs) {
+        if (!SKIP_FAILED_EVENTS.has(r.event) && !SKIP_FAILED_PATHS.has(r.path) && ownHead(r) && completedInWindow(r)) kept.set(r.id, r);
+      }
+      unread = runs.length === 100;
+      if (!unread) break;
+    }
     data.failedRuns = [];
-    for (const run of runs.filter((r) => !SKIP_FAILED_EVENTS.has(r.event) && !SKIP_FAILED_PATHS.has(r.path) && ownHead(r) && completedInWindow(r)).slice(0, LIMITS.failedRuns)) {
+    for (const run of [...kept.values()].slice(0, LIMITS.failedRuns)) {
       const annotations = [];
       for (const job of failedJobs(await jobsOf(run.id)).slice(0, LIMITS.failedJobsPerRun)) {
         for (const a of await annotationsOf(job.id)) annotations.push({ level: a.annotation_level, message: a.message });
       }
       data.failedRuns.push({ id: run.id, url: run.html_url, name: run.name, event: run.event, annotations });
+    }
+    if (unread && kept.size < LIMITS.failedRuns) {
+      gaps.push(`failed runs: over ${LIMITS.failedRunPages * 100} failed runs in the window; the rest were not read`);
     }
   });
 

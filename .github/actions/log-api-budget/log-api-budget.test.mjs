@@ -657,9 +657,9 @@ test("ci-status sets the shell limit cap to github-token's limit-cap default", (
   assert.equal(Number(cap[1]), apiLimits({ resolvedPath: "" })["github-token"]["limit-cap"]);
 });
 
-// ci-status has no checkout of the schema, so its wrapper's floor is set in
-// the job env, pinned here to the schema default the Node guard reads.
-test("ci-status sets the shell read floor to the schema's read-floor default", () => {
+// ci-status has no checkout of rate-limits.json, so its wrapper's floor is set in
+// the job env, pinned here to the rate-limits.json default the Node guard reads.
+test("ci-status sets the shell read floor to the read-floor default", () => {
   const floor = /\n {6}API_BUDGET_READ_FLOOR: "?([0-9.]+)"?\n/.exec(CI);
   assert.ok(floor, "ci-status sets API_BUDGET_READ_FLOOR");
   assert.equal(Number(floor[1]), apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]);

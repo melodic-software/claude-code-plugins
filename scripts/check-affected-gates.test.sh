@@ -45,6 +45,34 @@ stale() {
   LC_ALL=C comm -13 <(workflow_gates "$1") <(listed_gates "$2")
 }
 
+# runner_machine_path_excludes <runner>: the ':(exclude)...' pathspecs the
+# runner's machine-specific-paths check passes to git grep.
+runner_machine_path_excludes() {
+  awk -F"'" '/^ +'"'"':\(exclude\)/ { print $2 }' "$1" | LC_ALL=C sort
+}
+
+# workflow_machine_path_excludes <workflow>: the pathspecs of the `exclude:`
+# input of the workflow's machine-paths step.
+workflow_machine_path_excludes() {
+  awk '/id: machine_paths$/ { m = 1 } m && /^ +exclude: / { e = 1; next } e { if ($1 ~ /^:\(exclude\)/) print $1; else exit }' "$1" |
+    LC_ALL=C sort
+}
+
+# workflow_machine_path_extensions <workflow>: an `extensions:` input of the
+# machine-paths step, which would override the default the runner scans.
+workflow_machine_path_extensions() {
+  awk '/id: machine_paths$/ { m = 1; next } m && /^ +- name: / { exit } m && /^ +extensions:/ { print }' "$1"
+}
+
+# machine_path_excludes_match <runner> <workflow>: 0 when both name the same
+# non-empty set of exclusions.
+machine_path_excludes_match() {
+  local r w
+  r="$(runner_machine_path_excludes "$1")"
+  w="$(workflow_machine_path_excludes "$2")"
+  [[ -n "$w" && "$r" == "$w" ]]
+}
+
 tmp="$(mktemp -d)" || exit 2
 trap 'rm -rf "$tmp"' EXIT
 
@@ -104,6 +132,23 @@ else
   bad "the runner's typos exclusions match the workflow's" "runner: ${runner_excludes//$'\n'/ } workflow: ${workflow_excludes//$'\n'/ }"
 fi
 
+# The machine-specific-paths exclusions in the runner are the `exclude:` input
+# of the workflow's machine-paths step.
+if machine_path_excludes_match "$RUNNER" "$WORKFLOW"; then
+  ok "the runner's machine-specific-paths exclusions match the workflow's"
+else
+  r="$(runner_machine_path_excludes "$RUNNER")"
+  w="$(workflow_machine_path_excludes "$WORKFLOW")"
+  bad "the runner's machine-specific-paths exclusions match the workflow's" "runner: ${r//$'\n'/ } workflow: ${w//$'\n'/ }"
+fi
+ext="$(workflow_machine_path_extensions "$WORKFLOW")"
+if [[ -z "$ext" ]]; then
+  ok "the machine-paths step scans the composite's default extensions, as the runner does"
+else
+  bad "the machine-paths step scans the composite's default extensions, as the runner does" \
+    "the step sets ${ext#"${ext%%[! ]*}"}; set machine_paths_types in scripts/check-affected.sh to match"
+fi
+
 # A fixture workflow: a gate added to a hygiene job without a row is found, a
 # gate in another job is not, and a row for a removed gate is stale.
 cat >"$tmp/workflow.yml" <<'YAML'
@@ -137,6 +182,58 @@ if [[ "$(stale "$tmp/workflow.yml" "$tmp/gates.txt")" == removed-gate ]]; then
   ok "a row for a gate the workflow dropped is reported"
 else
   bad "a row for a gate the workflow dropped is reported" "got: $(stale "$tmp/workflow.yml" "$tmp/gates.txt")"
+fi
+
+# A fixture machine-paths step and runner: the same exclusions match, and one
+# the runner drops or the workflow adds is a mismatch.
+cat >"$tmp/paths-workflow.yml" <<'YAML'
+jobs:
+  lint-repo:
+    steps:
+      - name: Check for machine-specific paths
+        id: machine_paths
+        with:
+          # a comment line between the id and the input
+          exclude: >-
+            :(exclude)a/**
+            :(exclude)b.json
+
+      - name: Next step
+        with:
+          exclude: >-
+            :(exclude)not-this-step/**
+YAML
+printf 'x=(\n  %s\n  %s\n)\n' "':(exclude)b.json'" "':(exclude)a/**'" >"$tmp/runner-same.sh"
+printf 'x=(\n  %s\n)\n' "':(exclude)a/**'" >"$tmp/runner-fewer.sh"
+if machine_path_excludes_match "$tmp/runner-same.sh" "$tmp/paths-workflow.yml"; then
+  ok "the same machine-paths exclusions in the runner and the workflow match"
+else
+  bad "the same machine-paths exclusions in the runner and the workflow match" \
+    "runner: $(runner_machine_path_excludes "$tmp/runner-same.sh") workflow: $(workflow_machine_path_excludes "$tmp/paths-workflow.yml")"
+fi
+if ! machine_path_excludes_match "$tmp/runner-fewer.sh" "$tmp/paths-workflow.yml"; then
+  ok "a machine-paths exclusion the runner lacks is a mismatch"
+else
+  bad "a machine-paths exclusion the runner lacks is a mismatch" "the runner missing :(exclude)b.json matched"
+fi
+if [[ -z "$(workflow_machine_path_extensions "$tmp/paths-workflow.yml")" ]]; then
+  ok "a machine-paths step without extensions: reports none"
+else
+  bad "a machine-paths step without extensions: reports none" "got: $(workflow_machine_path_extensions "$tmp/paths-workflow.yml")"
+fi
+cat >"$tmp/paths-ext.yml" <<'YAML'
+jobs:
+  lint-repo:
+    steps:
+      - name: Check for machine-specific paths
+        id: machine_paths
+        with:
+          extensions: "*.md"
+YAML
+if [[ -n "$(workflow_machine_path_extensions "$tmp/paths-ext.yml")" ]]; then
+  ok "a machine-paths step that sets extensions: is reported"
+else
+  bad "a machine-paths step that sets extensions: is reported" "no extensions: line found in the fixture"
 fi
 
 test_harness::report
