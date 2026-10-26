@@ -2146,7 +2146,7 @@ test("a refusal whose log does not name the kill switch on the step's last line 
   assert.deepEqual(writes(unread.calls), refired(30));
 });
 
-// Run 40127232943 (issue #9696): broker-check's `Check the kill switch` read
+// Run 40127232943: broker-check's `Check the kill switch` read
 // the repository kill switch on, so its broker ask was skipped and the run
 // ended green with no job failed and no log naming the reason.
 const KILL_SKIPPED = [
