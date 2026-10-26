@@ -1283,11 +1283,13 @@ run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-sta
 on main (`carry-run-cache.mjs read`; `ci-status` restores no Actions cache), so it reads only what
 landed since that run: about 73 requests for one pull request, where a cold reader makes about 860
 (measured 2026-10-25 on 6,620 artifacts, 294 of them FAILs). A head-ref map that does not read only
-leaves it reading more. With no carried run cache (the artifact is kept for one day, so pr-merge
-with no successful scheduled or hand-started run that long leaves none), the step reads GitHub's
-`/rate_limit`, which costs no request, and starts the cold reader only when the token's core pool
-has at least 900 requests (the cold read's cost) plus the read floor (`limits.api` `read-floor` of
-the planned limit, inlined in the job env) left. A rate limit that does not read, a stop in the
+leaves it reading more. With no carried run cache, or one whose carried sections are all empty
+(the artifact is kept for one day, so pr-merge with no successful scheduled or hand-started run
+that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
+`/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
+at once goes cold together: the cold reader starts only when the token's core pool has at least 900
+requests (one cold read's cost) times `max_entries_to_build`, plus the read floor (`limits.api`
+`read-floor` of the planned limit, inlined in the job env), left: 4,600 with the queue building 5. A rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
 ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
 about 6 to 11. It reads with `ci-status`'s token, which holds no `issues`

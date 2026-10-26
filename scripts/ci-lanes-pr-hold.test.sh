@@ -170,6 +170,10 @@ sys.stdout.buffer.write(buffer.getvalue())' "$record"
   jq -ce --arg id "$id" '.[$id] // error' <<<"${STUB_RUNS:-{\}}" 2>/dev/null || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
   ;;
 */pulls/*) printf '%s\n' "$STUB_PULL" ;;
+*/rules/branches/*)
+  [[ -n "${STUB_RULES-x}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
+  jq -nc --argjson n "${STUB_RULES:-1}" '[{type: "pull_request"}, {type: "merge_queue", parameters: {max_entries_to_build: $n, grouping_strategy: "ALLGREEN"}}]'
+  ;;
 *rate_limit*)
   [[ -n "${STUB_RATE:-}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
   printf '%s\n' "$STUB_RATE"
@@ -229,15 +233,21 @@ review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4
 
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
+WARM_CARRIED='{"carried-run-record":{"o/r|1":{"at":"2026-10-25T10:00:00Z","value":{}}},"carried-fail-head-ref":{},"carried-on-branch":{}}'
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
   rm -f "$TMP_ROOT/verify-listing.json"
   # A warm reader: the carry step wrote pr-merge's carried reads (STUB_COLD: none).
-  if [[ -n "${STUB_COLD:-}" ]]; then rm -f "$TMP_ROOT/babysit-run-cache.json"; else echo '{}' >"$TMP_ROOT/babysit-run-cache.json"; fi
+  # STUB_CARRIED replaces the carried file (all-empty sections are cold too).
+  if [[ -n "${STUB_COLD:-}" ]]; then
+    rm -f "$TMP_ROOT/babysit-run-cache.json"
+  else
+    printf '%s\n' "${STUB_CARRIED:-$WARM_CARRIED}" >"$TMP_ROOT/babysit-run-cache.json"
+  fi
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
-    GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
+    GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
     BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
@@ -637,8 +647,9 @@ done
 STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
   expect "in the merge queue, a reader that allows a head with no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
-# pool has the cold read's cost plus the read floor left: 900 + 0.1 x
-# min(limit, 1000) = 1000 here.
+# pool has the cold read's cost for every entry the queue builds at once
+# (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)
+# plus the read floor left: 900 x 1 + 0.1 x min(limit, 1000) = 1000 here.
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
 STUB_COLD=1 STUB_RATE="$(rate 1000)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
@@ -647,8 +658,18 @@ if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never st
 STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
 STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
+# Every entry the queue builds at once goes cold together on a missing cache,
+# so the need scales with max_entries_to_build: 900 x 5 + 100 = 4600.
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 4600)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 4599)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 4599 requests left, under the 4600 a cold read needs"
+STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 1899)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 1900 a cold read needs"
+STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 4600)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
+if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread queue rule is never started"; else fail "a cold reader with an unread queue rule ran"; fi
+STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
+STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
 STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' STUB_COLD='' STUB_RATE=''
+unset STUB_RULES STUB_CARRIED
 # The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
 # after arming to close or name another issue holds the group.
 NO_CLOSING='{"totalCount":0,"nodes":[]}'
