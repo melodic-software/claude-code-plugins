@@ -31,6 +31,12 @@ name: maintenance-reconcile-lost-runs
 # issue edit or a new spec comment), so pr-verify judges the head again
 # instead of leaving it at verify:spec-changed.
 #
+# A lanes App pull request whose newest pr-require-checks run failed, on its
+# first attempt, only in ci-status, which noted that the lanes kill switch was
+# on, has that ci-status re-run, recorded as above, by the first run after the
+# switch is lifted, whatever the run's age; it takes a place under the cap. A
+# run at a later attempt is left to a person.
+#
 # An intake-label-needs-triage run an issue event started whose first attempt
 # failed (a rate limit, most often) left the issue without its floor label;
 # its failed jobs are re-run once, taking no place under the cap.

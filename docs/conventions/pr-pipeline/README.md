@@ -1179,6 +1179,10 @@ lane ran before this setting; the `enable-auto-merge` job arms them in both mode
 While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
 anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
 was turned on stops in the merge queue; owner and Dependabot pull requests are not affected.
+Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs the
+failed `ci-status` of each open lanes App pull request whose newest checks run the switch failed on
+its first attempt, at most three per run, merge-critical first; while the switch is on it reads
+nothing.
 `ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
 hold paths, so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request its body or a member holds` runs

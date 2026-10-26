@@ -40,6 +40,14 @@
 //   their comments' times (`prefilterSpec`) keeps that full read off heads
 //   whose spec nobody touched since the pass. Once per passed checks run, as attempt 2 is never
 //   touched again; an edit or label later starts a new attempt-1 run.
+// - Switch: a lanes App PR whose newest pr-require-checks run failed, at
+//   attempt 1, only in ci-status, with ci-status's note that the lanes kill
+//   switch was on (KILL_SWITCH_NOTE). ci-status fails every lanes App PR while
+//   the switch is on, and nothing else re-runs it once the switch is lifted.
+//   This script reads nothing while the switch is on, so the first run after
+//   it is lifted re-runs that ci-status, recorded as a CI re-run, with no
+//   lookback: the switch may have been on for days. A run at attempt 2 or
+//   later is left to a person, since pr-verify trusts only a recorded attempt 2.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
 // github-actions[bot] starts. A merge-group run is not covered: a re-run puts
@@ -60,8 +68,10 @@
 //   RECORD_PATH          the file plan writes for the record uploads
 //   GH_TOKEN             the job's GITHUB_TOKEN (actions: write, pull-requests: read)
 //   GITHUB_REPOSITORY    owner/repo
-//   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list; unset checks no spec
-//   VERIFY_AUTHORS, LANE_IDENTITY, SPEC_FROM_BODY_APPS  as pr-verify.yml passes resolve-pr
+//   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list; unset checks no
+//                        spec and no kill-switch stop
+//   VERIFY_AUTHORS, LANE_IDENTITY, SPEC_FROM_BODY_APPS  as pr-verify.yml passes
+//                        resolve-pr; LANE_IDENTITY also names the lanes App
 //   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
 //   GITHUB_OUTPUT        plan writes record-1 to record-3 there (empty when unused)
@@ -77,7 +87,18 @@ import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
-import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, lostRunnerNoted, reconcilerRetries, stepsKnown, testedRun } from "./infra-failure.mjs";
+import {
+  AGGREGATE_JOBS,
+  FAILED,
+  firstFailure,
+  INFRA_BACKOFF_MINUTES,
+  infraOnly,
+  LOOKBACK_HOURS,
+  lostRunnerNoted,
+  reconcilerRetries,
+  stepsKnown,
+  testedRun,
+} from "./infra-failure.mjs";
 
 const STATUS_URL = ACTIONS.url;
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -187,13 +208,28 @@ const isLostLane = (r, since) =>
 // pull_request run that passed on its first attempt.
 const isPassedChecks = (r) =>
   RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
+// The error ci-status's lanes-hold step writes for a lanes App PR while the
+// kill switch is on (pr-require-checks.yml; reconcile.test.mjs pins it there).
+export const KILL_SWITCH_NOTE = "the lanes kill switch is on";
+// The checks run a lifted kill switch leaves red: failed on its first attempt.
+const isFailedChecks = (r) =>
+  RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1;
+// The failed ci-status job when it is the run's only failed job, else undefined.
+const onlyAggregateFailed = (jobs) =>
+  Array.isArray(jobs) && jobs.every((job) => !FAILED.has(job?.conclusion) || AGGREGATE_JOBS.has(job.name))
+    ? jobs.find((job) => AGGREGATE_JOBS.has(job?.name) && job.conclusion === "failure" && Number.isSafeInteger(job.id))
+    : undefined;
+// True when one of the ci-status job's check-run annotations is the kill-switch
+// error: a re-run with the switch off passes that step.
+export const killSwitchNoted = (annotations) =>
+  Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(KILL_SWITCH_NOTE));
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
 const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES * 60_000;
 const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra" || item.kind === "flake") {
+  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
   }
   if (item.kind === "intake") {
@@ -392,7 +428,7 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp }) {
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
     .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
     .sort(byMergeCriticality);
@@ -438,18 +474,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
         continue;
       }
       const set = rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha }));
+      // A run's latest jobs, with the annotations of a failed job whose steps
+      // did not list in full (infraCause reads them).
+      const readJobs = async (r) => {
+        const listed = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
+        if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
+          throw new Error(`run ${r.id}'s job listing is not one complete page`);
+        }
+        return withAnnotations(call, repo, listed.jobs, (job) => job?.conclusion === "failure");
+      };
       const tested = [];
       for (const runs of ciRunsByWorkflow(listing.workflow_runs)) {
-        tested.push(
-          await testedRun(runs, async (r) => {
-            const listed = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
-            if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
-              throw new Error(`run ${r.id}'s job listing is not one complete page`);
-            }
-            // infraCause reads a failed job's annotations.
-            return withAnnotations(call, repo, listed.jobs, (job) => job?.conclusion === "failure");
-          }),
-        );
+        tested.push(await testedRun(runs, readJobs));
       }
       // A re-run still going under a newer failed contract-only run is in
       // flight too, though classify sees only the newest run.
@@ -477,11 +513,19 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
         }
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
+      const checks = newestByWorkflow(listing.workflow_runs).find((r) => RECORDED_UPSTREAMS.has(r.path));
+      // A lanes App PR whose newest checks run the kill switch failed: its
+      // failed ci-status is re-run now that the switch is off.
+      if (set.length === 0 && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && isFailedChecks(checks)) {
+        const status = onlyAggregateFailed(await readJobs(checks));
+        if (status && killSwitchNoted(status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)))) {
+          set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
+        }
+      }
       // A pass the spec has since changed under: re-running the head's
       // passed checks starts pr-verify, which judges it again (resolve-pr's
       // `spec-changed`). Attempt 1 only, so each passed checks run is re-run
       // at most once; a later edit or label starts a new attempt-1 run.
-      const checks = newestByWorkflow(listing.workflow_runs).find((r) => RECORDED_UPSTREAMS.has(r.path));
       // A read that fails here re-runs nothing and is no listing failure: the
       // next tick asks again. A rate limit still stops the run.
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
@@ -648,9 +692,14 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (item.kind === "intake" || item.kind === "infra" || item.kind === "flake") {
+      if (item.kind === "intake" || item.kind === "infra" || item.kind === "flake" || item.kind === "switch") {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
-        const why = { intake: "", infra: ", which failed on infra only", flake: ", its one re-run before fix-ci takes it" }[item.kind];
+        const why = {
+          intake: "",
+          infra: ", which failed on infra only",
+          flake: ", its one re-run before fix-ci takes it",
+          switch: ": ci-status failed while the lanes kill switch was on",
+        }[item.kind];
         say(
           item.kind === "intake"
             ? `${where}: re-ran the failed jobs of floor-label run ${item.id}, whose first attempt failed`
@@ -766,8 +815,11 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     // exactly a head pr-verify would judge again. Without the trusted list
     // nothing is checked.
     let judgeSpec;
+    // The lanes App's account id, from the trusted list by merge.agent-identity.
+    let laneApp;
     if (env.TRUSTED_ACTORS_PATH) {
       const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      laneApp = env.LANE_IDENTITY ? trusted.logins.get(env.LANE_IDENTITY.toLowerCase()) : undefined;
       // The Refs read needs GraphQL errors back to tell a typo from a failure.
       const readRefs = injected ? github : createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, keepGraphQLErrors: true });
       judgeSpec = (upstreamRunId) =>
@@ -783,7 +835,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
         });
     }
-    result = await plan({ repo, call, say, since, now, readStatus, judgeSpec });
+    result = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp });
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
