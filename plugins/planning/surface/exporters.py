@@ -13,7 +13,9 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  recorded constraints and the ledger's `## Constraint ledger` rows), as do a
                  Decisions section from its decisions recap and the Deferred questions entries
                  from its deferred and planningOwned bullets, and the TLDR's `Restatement:` line
-                 stamps it confirmed or UNCONFIRMED. An answered row's own Constraints line is
+                 stamps it confirmed or UNCONFIRMED (`UNCONFIRMED (no restatement posted)` with
+                 no rev) beside a `Page title:` line, the Goal's fallback without a confirmed
+                 goal; the --brief gate reads both. An answered row's own Constraints line is
                  left out when a restated constraints or decisions line names its Q<N> and
                  holds its whole current answer; a row a newer question in the register
                  superseded stays in the ledger, out of Out-of-scope and Captured assumptions,
@@ -97,6 +99,7 @@ from server import (
     IMAGE_TYPES,
     MAX_VISUAL_FILE,
     load_json,
+    proposal_answer,
     read_visual_file,
     release_user_holds,
 )
@@ -432,11 +435,33 @@ def natural(qid):
     return (m.group(1), int(m.group(2) or 0), m.group(3))
 
 
+DECLINED = "the user declined Claude's proposal"
+
+
 def read(d):
+    """(doc, responses) as the exports see them. A proposed question the user has not answered
+    is left out, so it writes no register row, Brief line or report card, and its id is listed
+    in `pendingProposals` so the register numbers the rest as if it were there; a declined one
+    reads as archived, a withdrawn row."""
     d = Path(d)
     doc = load_json(d / "questions.json", {"questions": []})
     resp = load_json(d / "responses.json", EMPTY_RESPONSES)
     release_user_holds(doc, resp)
+    events, kept, pending = resp.get("events") or [], [], []
+    for q in doc.get("questions") or []:
+        answer = proposal_answer(q, events)
+        if answer == "pending":
+            pending.append(q["id"])
+            continue
+        if answer == "decline" and not q.get("archived"):
+            ats = [
+                e.get("at") or ""
+                for e in events
+                if e.get("id") == q["id"] and e.get("kind") == "proposal"
+            ]
+            q["archived"] = {"why": DECLINED, "at": max(ats, default="")}
+        kept.append(q)
+    doc["questions"], doc["pendingProposals"] = kept, pending
     return doc, resp
 
 
@@ -582,7 +607,8 @@ def register(doc, resp, extra=()):
     """One dict per question, in register order, with its Q<N> and settled status; `extra`
     names ledger-only ids that share the numbering."""
     qs = sorted(doc.get("questions") or [], key=lambda q: natural(q["id"]))
-    pos, contiguous = numbering([q["id"] for q in qs] + list(extra))
+    held = list(doc.get("pendingProposals") or [])
+    pos, contiguous = numbering([q["id"] for q in qs] + held + list(extra))
     events = resp.get("events") or []
     responses = resp.get("responses") or {}
     seed_rows = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
@@ -659,7 +685,7 @@ def merged_register(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    pos, contiguous = numbering(sorted(page_ids) + extra)
+    pos, contiguous = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
     seeded = (doc.get("meta") or {}).get("seededFrom") or {}
     cells = seeded.get("roundCells") or {}
     responses = resp.get("responses") or {}
@@ -1030,7 +1056,7 @@ def export_brief(d, text=None):
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
     rows = register(doc, resp, extra)
-    pos, _ = numbering(sorted(page_ids) + extra)
+    pos, _ = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
     for i in extra:
         status, _, title, res = old[i]
         rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))
@@ -1060,20 +1086,24 @@ def export_brief(d, text=None):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
-    if latest is not None:
-        # The stamp the --brief gate reads. The gate reads only this line, so it cannot see a
-        # Brief edited after the Confirm; the skill's rule, not the gate, asks for a new restate.
-        if restated and restated["rev"] == latest:
-            stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
-        elif restated:
-            stamp = (
-                f"UNCONFIRMED (latest rev {latest}); the sections below are from "
-                f"confirmed rev {restated['rev']}"
-            )
-        else:
-            stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
-        out.append(f"- Restatement: {stamp}")
+    # The stamp and page title the --brief gate reads; every page export carries both, so the
+    # gate tells it from a hand-written Brief. The gate judges confirmation by the stamp alone, so
+    # it cannot see a Brief edited after the Confirm; the skill's rule, not the gate, asks for a
+    # new restate.
+    if latest is None:
+        stamp = "UNCONFIRMED (no restatement posted)"
+    elif restated and restated["rev"] == latest:
+        stamp = f"confirmed at rev {latest}, {sign.get('at', '')}".rstrip(", ")
+    elif restated:
+        stamp = (
+            f"UNCONFIRMED (latest rev {latest}); the sections below are from "
+            f"confirmed rev {restated['rev']}"
+        )
+    else:
+        stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
+    out.append(f"- Restatement: {stamp}")
     title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    out.append(f"- Page title: {para(title)}")
     unset_problem = [f"- {f}: unknown" for f in PROBLEM_FIELDS]
     out += ["", "### Problem", "", *(bullets(sections.get("problem")) or unset_problem)]
     out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]

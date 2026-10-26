@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: resume-closed-mission
+description: Resuming a workspace whose MISSION.md carries a Status closed line must say the mission is closed and offer to reopen or revise it, not re-run the success-criteria check and offer close-or-revise again
+tags: [teach, pocock-24, closed-mission]
+expected_outcome: The reply says the sql-joins mission is closed and asks whether to reopen it as it stands or revise it with a new goal, without offering to close it again or starting a lesson.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach resume sql-joins. The workspace is at learning/topic/sql-joins/ in this directory. This run cannot write files, so tell me in your reply what we do this session."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: read-mission
+    type: tool_used
+    tool: Read
+    input_match: 'MISSION\.md'
+    arm: both
+  - name: offers-reopen
+    type: regex
+    pattern: '\bre-?open'
+    flags: 'i'
+    target: last_message
+  - name: no-close-offer-again
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply says the mission is already closed and offers the learner a choice between reopening it and revising it with a new goal, leaving the choice to the learner. FAIL if the reply offers to close or complete the mission (it is already closed), presents a close-or-revise choice, goes straight to teaching or reviewing a concept, or reopens or rewrites the mission itself without asking."

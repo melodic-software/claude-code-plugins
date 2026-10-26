@@ -76,7 +76,8 @@ permissions, and passes no App key.
 | `dependency-verdict` | `false` | Write file only: for the verdict script of a [`prepare: dependency-review`](#prepare-dependency-review) round, download the select job's `context.json` and the scanned verdict |
 | `dependency-context-attempt`, `dependency-run-sha256`, `dependency-head-sha` | `''` | Write file only: with `dependency-verdict`, the select job's `context-attempt`, `run-sha256` and `head-sha` outputs |
 | `dependency-run-attempt`, `dependency-verdict-sha256`, `dependency-patch-state` | `''` | Write file only: with `dependency-verdict`, the same read call's `dependency-attempt`, `dependency-sha256` and `scan-patch-state` outputs |
-| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop`, `no-key` or `handoff` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop`, `no-key` or `handoff` for its fallback call, on `claude-code-oauth-token`; `fallback` for its third call, on `fallback-claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `fallback-ready` | `''` | Read file only: the second call's `true` or `false`, from its handoff job, which run-claude-cli's `fallback-ready` takes; `true` lets the subscription leg hand off to the third call |
 | `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
 | `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
@@ -676,6 +677,17 @@ decline, so a kill switch or a refusal starts no second leg, and a failed read s
 since with no check posted `fix-docs-dispatch.mjs` dispatches the PR again. These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
 job, which head code can forge, knows whether it was a credit stop or an empty key.
+
+A third call runs each activity once more, on the central fallback subscription's token. Each
+handoff job also reads whether the org secret `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` is set and passes
+that as the second call's `fallback-ready`. With it `true`, the second call's subscription leg
+hands off on a limit stop, a credit stop, or a 401 or 402, and skips its scan, lane record and
+check as a first-call handoff does. A `<subscription>-handoff` job then reads this run's jobs with
+`handoff-evidence.sh handed-off`, and `<first>-fallback` runs on
+`fallback-claude-code-oauth-token` alone with `fallback: fallback`, as the last leg. With the
+secret empty, `fallback-ready` is `false`, so neither job runs and the second call is the last.
+Every job after the calls takes its inputs from the third call when it ran, else the second, else
+the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's presence.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
@@ -1684,10 +1696,14 @@ whose run can reach it (a job-level `uses:` in `./` or `melodic-software/claude-
 form, any case) and down through every reusable workflow those runs call. It fails when a file of
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
-a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
-`claude_code_oauth_token`, `pr_unblock_claude_code_oauth_token`,
-`issue_lane_claude_code_oauth_token`, `claude_api_key`, `pr_unblock_claude_api_key`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
-`secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
+a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` (case-insensitive,
+`-` read as `_`) in the shared set `fallback_claude_code_oauth_token`, `claude_code_oauth_token`,
+`claude_api_key`, `github_token` or, in a workflow whose run reaches the read file, in that
+workflow's own entry of the caller map: `pr-refine.yml` and `pr-unblock.yml` may also name
+`pr_unblock_claude_code_oauth_token` and `pr_unblock_claude_api_key`, `work-resolve-issue.yml`
+`issue_lane_claude_code_oauth_token` and `issue_lane_claude_api_key`; `toJSON(secrets)`,
+`secrets[...]` and bare `secrets` fail. A workflow whose run reaches the read file and has no entry
+in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`

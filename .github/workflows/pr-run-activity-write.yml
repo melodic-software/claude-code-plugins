@@ -1212,10 +1212,10 @@ jobs:
           echo "required=$required" >>"$GITHUB_OUTPUT"
 
       # apply-patch: the head checkout replaces .base, so the script's sibling
-      # imports (thread-scope.mjs and dependency-classify.mjs, beside the
-      # script's base-script copy), the patch-rules.json it reads, and the
-      # dependabot.yml whose pairs the dependency-manifests rule reads are
-      # copied out of the base first.
+      # imports (thread-scope.mjs, dependency-classify.mjs and merge-holds.mjs,
+      # beside the script's base-script copy), the patch-rules.json it reads,
+      # and the dependabot.yml whose pairs the dependency-manifests rule reads
+      # are copied out of the base first.
       - name: Copy the apply-patch base files
         id: apply-base
         if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
@@ -1223,9 +1223,10 @@ jobs:
           RULES: .github/actions/resolve-config/patch-rules.json
           DEST: ${{ runner.temp }}/apply-patch-base
         run: |
-          mkdir -p "$RUNNER_TEMP/pr-unblock" "$DEST/$(dirname "$RULES")"
+          mkdir -p "$RUNNER_TEMP/pr-unblock" "$RUNNER_TEMP/pr-merge" "$DEST/$(dirname "$RULES")"
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$RUNNER_TEMP/pr-unblock/"
+          cp .base/.github/scripts/pr-merge/merge-holds.mjs "$RUNNER_TEMP/pr-merge/"
           cp ".base/$RULES" "$DEST/$RULES"
           # A base without one leaves the rule's pairs unreadable: a row that
           # needs them fails before any write.
@@ -1391,7 +1392,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
+        uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1644,7 +1645,7 @@ jobs:
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@ba7af78d291f10bd75651857a0db2357c23df0fe # v0.65.13
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-

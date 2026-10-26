@@ -85,9 +85,9 @@ fails closed like every other guard-relevant unknown in this plugin.
      `node` as `command`.
 2. **Python floor on `PATH`**. The interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
-   that acts only on engine-referencing commands, and the skill-frontmatter belt that
-   Claude Code keeps armed for the rest of the session after `/disk-hygiene:clean` is
-   invoked. Both register unconditionally and resolve the kill switch by
+   that acts only on engine-referencing commands, and the skill-frontmatter belt, armed from
+   `/disk-hygiene:clean` until that process ends and treated as absent after a resume (the
+   clean skill's safety model holds the record). Both register unconditionally and resolve the kill switch by
    reading `disk_hygiene_enabled` from managed settings first, then the user `settings.json`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py`, parse it from
    there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not

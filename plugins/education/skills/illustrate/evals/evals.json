@@ -129,6 +129,30 @@
         "Does not publish an artifact, although the session can publish one",
         "Names the shipped ladder as the fact that decided the medium"
       ]
+    },
+    {
+      "id": 12,
+      "name": "other-bands-with-details-stay-a-hub",
+      "prompt": "/education:illustrate the lead singer of the foo fighters",
+      "expected_output": "Grounds the topic from a primary source, then draws the singer's other bands and side projects (such as Scream, Nirvana, Probot and Them Crooked Vultures) as one diagram of kind hub, with the singer (Dave Grohl) as the center and each other band as a branch. Details about a band, such as its years or his role in it, go in that diagram's text lines, one short line per branch, not into compare columns. When the run draws the Foo Fighters' albums, that diagram has kind timeline with every point dated.",
+      "files": [],
+      "expectations": [
+        "The diagram of the other bands has kind hub, not compare, flow or stack, with the singer as the center and each other band as a branch",
+        "Any detail about a band beyond its name (years, role) appears in the hub diagram's text lines, not in compare columns; a run that gives no per-band detail passes this check",
+        "If the run draws the band's albums, that diagram has kind timeline and every point carries its date in when"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "options-weighed-on-the-same-points-pick-compare",
+      "prompt": "/education:illustrate REST versus GraphQL for a mobile app's API",
+      "expected_output": "Grounds both options from primary sources, then draws them as one diagram of kind compare: one column per option, each column covering the same points (such as caching, fetching too much or too little data, and tooling) in the same order. It does not draw the two options as branches of a hub.",
+      "files": [],
+      "expectations": [
+        "The diagram that weighs REST against GraphQL has kind compare, with one column per option",
+        "The columns cover the same points, so a reader can read across them",
+        "Does not draw the two options as a hub"
+      ]
     }
   ]
 }

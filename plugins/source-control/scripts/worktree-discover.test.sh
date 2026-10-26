@@ -195,4 +195,91 @@ assert_exit "--repo-dir without a value is a usage error" 2 "$RC"
 run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$T/missing"
 assert_exit "a missing root file is a usage error" 2 "$RC"
 
+# --- --remove-input-files deletes the handed files and their dir (#8212) ---
+# The status block writes its two input files into a mktemp dir; the helper owns
+# their removal so the block needs no rm and no exit-status variable.
+# mkinputs <dir> <data root>: the two files the skill writes, the plugin option
+# left unconfigured.
+mkinputs() {
+  mkdir -p "$1"
+  # shellcheck disable=SC2016 # the literal unexpanded token is the point
+  printf '%s' '${user_config.worktree_root}' >"$1/worktree-root"
+  printf '%s' "$2" >"$1/data-root"
+}
+dir_state() { [[ -e "$1" ]] && echo present || echo absent; }
+
+inputs="$T/inputs-ok"
+mkinputs "$inputs" "$T/data"
+run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --remove-input-files
+assert_exit "--remove-input-files: exits 0" 0 "$RC"
+assert_eq "--remove-input-files: the files were read first" \
+  $'root\t'"$T/data/worktrees"$'\tplugin-data' "$(rows root "$T/data/worktrees")"
+assert_eq "--remove-input-files: input dir removed after success" absent "$(dir_state "$inputs")"
+
+inputs="$T/inputs-no-root"
+# shellcheck disable=SC2016 # the literal unexpanded token is the point
+mkinputs "$inputs" '${CLAUDE_PLUGIN_DATA}'
+run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --remove-input-files
+assert_exit "--remove-input-files: no root still exits 3" 3 "$RC"
+assert_eq "--remove-input-files: input dir removed after a non-zero exit" absent "$(dir_state "$inputs")"
+
+# The trap is armed when the flag is parsed, so a later usage error cleans up.
+inputs="$T/inputs-usage"
+mkinputs "$inputs" "$T/data"
+run_disc /dev/null "$T/bin/no-ghq" --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --remove-input-files --bogus
+assert_exit "--remove-input-files: unknown flag still exits 2" 2 "$RC"
+assert_eq "--remove-input-files: input dir removed after a later usage error" absent "$(dir_state "$inputs")"
+
+# The files are read after parsing, so an unreadable one before the flag is removed too.
+inputs="$T/inputs-newline"
+mkinputs "$inputs" "$T/data"$'\n'
+run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$inputs/data-root" \
+  --fallback-root-file "$inputs/worktree-root" --remove-input-files
+assert_exit "--remove-input-files: a root file holding a newline still exits 2" 2 "$RC"
+assert_eq "--remove-input-files: input dir removed after an unreadable file" absent "$(dir_state "$inputs")"
+
+inputs="$T/inputs-shared"
+mkinputs "$inputs" "$T/data"
+printf 'x\n' >"$inputs/unrelated"
+run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --remove-input-files
+assert_file_absent "--remove-input-files: handed file removed from a shared dir" "$inputs/data-root"
+assert_file_absent "--remove-input-files: the other handed file removed too" "$inputs/worktree-root"
+assert_file_exists "--remove-input-files: an unrelated file is kept" "$inputs/unrelated"
+
+inputs="$T/inputs-kept"
+mkinputs "$inputs" "$T/data"
+run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root"
+assert_file_exists "without --remove-input-files the input files stay" "$inputs/data-root"
+
+# The status.md block end to end under zsh, where `status=$?` aborts: the bare
+# helper call exits with the helper's code and leaves no temp directory.
+# run_zsh_block <inputs dir>: the block, run by zsh from a non-repository cwd.
+run_zsh_block() {
+  # shellcheck disable=SC2016 # zsh expands the positional parameters
+  (cd "$UNRELATED" && HOME="$T/home" GIT_CONFIG_GLOBAL=/dev/null REPO_FLEET_GHQ_BIN="$T/bin/no-ghq" \
+    zsh -fc 'bash "$1" --repo-dir "$2" --fallback-root-file "$3/worktree-root" \
+      --data-root-file "$3/data-root" --project-dir "$4" --remove-input-files' \
+    zsh "$DISCOVER" "$B" "$1" "$T/no-such-project" >/dev/null 2>&1)
+}
+if command -v zsh >/dev/null 2>&1; then
+  inputs="$T/inputs-zsh-ok"
+  mkinputs "$inputs" "$T/data"
+  run_zsh_block "$inputs"
+  assert_exit "zsh: the block exits with the helper's code on success" 0 "$?"
+  assert_eq "zsh: no temp directory left after success" absent "$(dir_state "$inputs")"
+  inputs="$T/inputs-zsh-no-root"
+  # shellcheck disable=SC2016 # the literal unexpanded token is the point
+  mkinputs "$inputs" '${CLAUDE_PLUGIN_DATA}'
+  run_zsh_block "$inputs"
+  assert_exit "zsh: the block exits with the helper's code on a refusal" 3 "$?"
+  assert_eq "zsh: no temp directory left after a refusal" absent "$(dir_state "$inputs")"
+else
+  skip_case "zsh not available: the status block's zsh run is not exercised"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1

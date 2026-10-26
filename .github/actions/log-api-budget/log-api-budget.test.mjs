@@ -194,7 +194,7 @@ test("api_budget_classify decides every rate-guard vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   const floor = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
   for (const vector of vectors.vectors) {
-    const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor };
+    const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor, cap: vector.limit_cap ?? null };
     const out = bash(tmpdir(), 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) });
     assert.deepEqual(JSON.parse(out.stdout), vector.expect, `${vector.name}: ${out.stderr}`);
   }
@@ -528,9 +528,138 @@ test("gh guard: under the read floor it warns once and keeps sending", () =>
     assert.equal(out.status, 0);
   }));
 
-// ci-status has no checkout of the schema, so its wrapper's floor is set in
-// the job env, pinned here to the schema default the Node guard reads.
-test("ci-status sets the shell read floor to the schema's read-floor default", () => {
+test("api_budget_is_content judges a gh call as rate-guard.mjs's isContentWrite judges its request", () => {
+  const writes = [
+    "api -X POST repos/o/r/issues/7/comments -f body=x",
+    "api repos/o/r/issues/7/labels -f labels[]=x",
+    "api --method PATCH /repos/o/r/issues/7 -f state=closed",
+    "api repos/o/r/pulls/7/comments/9/replies --input body.json",
+    "api graphql -f query=mutation{x}",
+    "api graphql -f 'query=mutation($id:ID!){x}' -F id=5",
+    "api graphql -f 'query=mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' -f id=PR_x",
+    "api -F id=5 graphql -f query=mutation{x}",
+    "api graphql -fquery=mutation{x}",
+    "api -XPATCH repos/o/r/issues/7",
+    "api --method=PATCH repos/o/r/issues/7",
+    "api repos/o/r/issues/7/labels --field=labels[]=x",
+    'api -H "Accept: x" repos/o/r/issues/7/comments -f body=x',
+    "api --hostname h repos/o/r/issues/7/comments -f body=x",
+    "api -p x repos/o/r/issues/7/comments -f body=x",
+    "api -X=POST repos/o/r/issues/7/comments",
+    "issue comment 7 --body x",
+    "pr edit 7 --add-label x",
+  ];
+  const others = [
+    "api repos/o/r/issues/7/comments",
+    "api -X DELETE repos/o/r/issues/7/labels/x",
+    "api -X POST repos/o/r/statuses/abc -f state=success",
+    "api graphql -f query=query{viewer{login}}",
+    "api graphql -f 'query=query($id:ID!){node(id:$id){id}}' -F id=5",
+    "api --method=GET repos/o/r/issues/7/comments -f per_page=1",
+    "pr view 7",
+  ];
+  const judge = (args) => bash(tmpdir(), `api_budget_is_content ${args}`).status === 0;
+  for (const args of writes) {
+    assert.equal(judge(args), true, args);
+  }
+  for (const args of others) {
+    assert.equal(judge(args), false, args);
+  }
+});
+
+test("the gh wrapper counts a content write, and the action emits the count and the busiest minute", () =>
+  withDir((dir) => {
+    guarded(dir, ["201 4000 - {}", "200 4000 - {}", "201 4000 - {}"], 'gh api -X POST repos/o/r/issues/7/comments -f body=x >/dev/null; gh api repos/o/r/issues/7 >/dev/null; gh api repos/o/r/issues/7/labels -f labels[]=y >/dev/null');
+    assert.equal(readFileSync(join(dir, "api-budget", "content-creation"), "utf8").trim().split("\n").length, 2);
+    writeFileSync(join(dir, "api-budget", "content-creation"), "1792748000\n1792748010\n1792748100\n");
+    assert.equal(bash(dir, "api_budget_emit_content").stdout, `${NOTICE}content-creation ${WHERE} count=3 max-per-minute=2\n`);
+    // Two writes a second apart across a clock-minute boundary, appended out of order, are in one 60 s window.
+    writeFileSync(join(dir, "api-budget", "content-creation"), "1792748040\n1792747000\n1792748039\n");
+    assert.equal(bash(dir, "api_budget_emit_content").stdout, `${NOTICE}content-creation ${WHERE} count=3 max-per-minute=2\n`);
+    rmSync(join(dir, "api-budget", "content-creation"));
+    assert.equal(bash(dir, "api_budget_emit_content").stdout, "");
+  }));
+
+test("the action writes the content-creation notice after the token lines", () =>
+  withDir((dir) => {
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    writeFileSync(join(dir, "api-budget", "content-creation"), "1792748000\n");
+    const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
+    writeFileSync(join(dir, "summary"), "");
+    writeFileSync(join(dir, "output"), "");
+    const out = execFileSync("bash", ["-c", run], {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        ...RUNNER,
+        RUNNER_TEMP: dir,
+        GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname,
+        GITHUB_STEP_SUMMARY: join(dir, "summary"),
+        GITHUB_OUTPUT: join(dir, "output"),
+        TOKENS: "github-token",
+      },
+    });
+    assert.equal(out, `${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n`);
+    assert.equal(readFileSync(join(dir, "summary"), "utf8"), `api-budget: content-creation ${WHERE} count=1 max-per-minute=1\n`);
+  }));
+
+// Every lane job that calls GitHub through the rate guard names its token and
+// ends by logging the budget, so the hub reads each job's spend and its
+// content-creating writes.
+test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-budget step", () => {
+  const jobs = {
+    "intake-triage.yml": { "born-triaged": "github-token", "apply-verdict": "lanes-app", "refine-select": "github-token", "apply-refinement": "lanes-app" },
+    "intake-label-needs-triage.yml": { "born-triaged": "github-token" },
+    "work-resolve-issue.yml": { admit: "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
+    "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token", "check-intent-fallback": "github-token" },
+    // label-unblocked's ACTIONS_TOKEN client records under github-token, so
+    // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
+    "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
+  };
+  for (const [file, tokens] of Object.entries(jobs)) {
+    const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+    for (const [job, names] of Object.entries(tokens)) {
+      const [token, logged = token] = [names].flat();
+      const block = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z0-9-]+:\\n|$)`).exec(text)?.[1] ?? "";
+      assert.match(block, new RegExp(`\\n {6,10}API_BUDGET_TOKEN: ${token}\\n`), `${file} ${job} names ${token}`);
+      // pr-verify keeps "Fail without a verdict" as each job's last step.
+      const steps = block.split(/\n {6}- name: /).filter((s) => !s.startsWith("Fail without a verdict\n"));
+      // Less the blank and comment lines that lead into the next step or job.
+      const last = steps.at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
+      assert.match(last, /^Log the API budget[^\n]*\n {8}if: always\(\)\n/, `${file} ${job} ends with the log step`);
+      assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
+      assert.match(last, new RegExp(`\\n {10}tokens: ${logged}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
+    }
+  }
+});
+
+// 950 used of a header limit of 5000 leaves 50 of a planned 1000, under a
+// floor of 100; without the cap the same reading is far over its floor.
+test("gh guard: API_BUDGET_LIMIT_CAP plans the floor to the cap, and only the header's remaining stops", () =>
+  withDir((dir) => {
+    const capped = guarded(dir, ["200 4050 - {}", "200 4050 - {}"], "gh api repos/o/r >/dev/null; gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1", API_BUDGET_LIMIT_CAP: "1000" });
+    assert.equal(capped.calls.length, 2);
+    assert.equal(capped.stderr.match(/::warning::/g)?.length, 1);
+    assert.equal(capped.status, 0);
+  }));
+
+test("gh guard: with no API_BUDGET_LIMIT_CAP the floor is a share of the header limit", () =>
+  withDir((dir) => {
+    const out = guarded(dir, ["200 4050 - {}"], "gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1" });
+    assert.equal(out.stderr, "");
+  }));
+
+// ci-status runs on GITHUB_TOKEN, so its cap is github-token's limit-cap
+// default, pinned here as the floor is below.
+test("ci-status sets the shell limit cap to github-token's limit-cap default", () => {
+  const cap = /\n {6}API_BUDGET_LIMIT_CAP: "?([0-9]+)"?\n/.exec(CI);
+  assert.ok(cap, "ci-status sets API_BUDGET_LIMIT_CAP");
+  assert.equal(Number(cap[1]), apiLimits({ resolvedPath: "" })["github-token"]["limit-cap"]);
+});
+
+// ci-status has no checkout of rate-limits.json, so its wrapper's floor is set in
+// the job env, pinned here to the rate-limits.json default the Node guard reads.
+test("ci-status sets the shell read floor to the read-floor default", () => {
   const floor = /\n {6}API_BUDGET_READ_FLOOR: "?([0-9.]+)"?\n/.exec(CI);
   assert.ok(floor, "ci-status sets API_BUDGET_READ_FLOOR");
   assert.equal(Number(floor[1]), apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]);

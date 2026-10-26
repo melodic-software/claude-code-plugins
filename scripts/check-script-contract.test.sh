@@ -109,7 +109,6 @@ REGISTRY=(
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"
   "check-skill-count-claims.sh|-|-|-"
-  "check-skill-description-voice.sh|-|-|-"
   "check-skill-leaf-names.sh|-|-|-"
   "check-skill-portability.sh|-|-|-"
   "check-skill-precompute-compose.sh|-|-|-"
