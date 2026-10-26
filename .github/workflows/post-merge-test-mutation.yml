@@ -254,14 +254,20 @@ jobs:
             .base/.github/scripts/post-merge-test-mutation/result.schema.json)
           lint="$MARKETPLACE/plugins/mutation-testing/scripts/suppression-lint.sh"
           # A rule path starting `//` is absolute. Bash runs only the covering
-          # tests, git's reads and restore, and the plugin's suppression lint.
+          # tests, the git reads the audit skill uses and restore, and the
+          # plugin's suppression lint. Read-only git forms run without an allow
+          # rule, so the denies keep git diff on the checkout's own paths (no
+          # --no-index, no path outside it) and from writing a file, and drop
+          # git log and git show, which the skill never runs.
           allowed="Skill(mutation-testing:audit),Read(/$MARKETPLACE/**),Edit,Agent"
           allowed="$allowed,Bash($HARNESS/scripts/run-covering-tests.sh *),Bash(git restore -- *)"
-          allowed="$allowed,Bash(git status *),Bash(git diff *),Bash(git branch *),Bash(git rev-parse *),Bash(git log *),Bash(git show *)"
+          allowed="$allowed,Bash(git status *),Bash(git diff *),Bash(git branch *),Bash(git rev-parse *)"
           allowed="$allowed,Bash(bash $lint *),Bash(bash \\\"$lint\\\" *)"
           denied="Write,NotebookEdit,WebFetch,WebSearch"
-          denied="$denied,Edit(./.git/**),Edit(./.base/**),Edit(./.claude/**)"
+          denied="$denied,Edit(./.git/**),Edit(./.base/**),Edit(./.claude/**),Edit(~/.*),Edit(~/.*/**)"
           denied="$denied,Read(//proc/**),Read(~/.*),Read(~/.*/**)"
+          denied="$denied,Bash(git log *),Bash(git show *),Bash(git diff *--no-index*),Bash(git diff *--output*)"
+          denied="$denied,Bash(git diff *~*),Bash(git diff * /*),Bash(git diff *../*)"
           args="--allowedTools \"$allowed\" --disallowedTools \"$denied\" --json-schema '$schema'"
           delimiter="prompt_$(openssl rand -hex 16)"
           {
