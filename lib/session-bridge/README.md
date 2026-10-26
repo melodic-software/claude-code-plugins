@@ -61,7 +61,8 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
 - `GET /api/wait?after=handled&replayed=<n>&timeout=<s>&watcher=<id>&pid=<pid>` blocks until the
   log holds unhandled events, at most `timeout` seconds (1 to 120, default 90). Events a dead turn
   never handled come back at once when any seq exceeds `replayed`. `after=<seq>` returns the
-  events past a seq instead. The answer is `{seq, timedOut, replayed?, events, note}`.
+  events past a seq instead. The answer is `{seq, timedOut, replayed?, note, events}`, `note`
+  ahead of the events it frames.
 - The first `watcher` id holds an in-memory lease; another id gets 409 `lease held` until the
   lease expires. `POST /api/lease {"action": "release"}` clears it, and a wait the old holder has
   in flight ends with 409 `lease released`. `GET /api/lease` shows the holder. A wait without a

@@ -265,7 +265,7 @@ test("read warns on a file it cannot use, and is quiet when no run has one", asy
   const quiet = await readRun(t, { pages: [[wf(8, "schedule")]] });
   assert.ok(!quiet.logs.some((line) => line.startsWith("::warning")));
   const bad = await readRun(t, { pages: [[wf(8, "schedule")]], files: { 8: "not json" } });
-  assert.match(bad.logs.at(-1), /^::warning::the run cache was not carried: /);
+  assert.ok(bad.logs.some((line) => line.startsWith("::warning::the pr-merge-run-cache file was not carried: ")));
 });
 
 test("read takes no file while a tag shares main's name", async (t) => {
@@ -320,6 +320,34 @@ test("read adds the verify file's carried sections to the merge file, every othe
 test("read writes the merge file as it is when the verify file does not read", async (t) => {
   const result = await readRun(t, { pages: [[wf(8, "schedule")]], files: { 8: mergeFile }, verify: { 8: "not json" } });
   assert.equal(result.written, mergeFile);
+  assert.ok(result.logs.some((line) => line.startsWith("::warning::the verifier reads were not carried: ")));
+});
+
+test("read carries the verify file's sections when the merge file does not read", async (t) => {
+  const carried = {
+    "carried-run-record": { [`${REPO}|9`]: entry(origin(9)) },
+    "carried-fail-head-ref": { [`${REPO}|90`]: entry({ head_ref: "feat/z" }) },
+    "carried-on-branch": {},
+  };
+  for (const bad of ["not json", "[]"]) {
+    const result = await readRun(t, {
+      pages: [[wf(9, "schedule"), wf(8, "schedule")]],
+      files: { 8: bad },
+      verify: { 9: verifyFile },
+    });
+    assert.deepEqual(JSON.parse(result.written), carried);
+    assert.ok(result.logs.some((line) => line.startsWith("::warning::the pr-merge-run-cache file was not carried: ")));
+  }
+});
+
+test("read writes nothing when neither file reads", async (t) => {
+  const result = await readRun(t, {
+    pages: [[wf(9, "schedule"), wf(8, "schedule")]],
+    files: { 8: "not json" },
+    verify: { 9: "not json" },
+  });
+  assert.equal(result.written, undefined);
+  assert.ok(result.logs.some((line) => line.startsWith("::warning::the pr-merge-run-cache file was not carried: ")));
   assert.ok(result.logs.some((line) => line.startsWith("::warning::the verifier reads were not carried: ")));
 });
 

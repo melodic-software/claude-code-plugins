@@ -32,6 +32,19 @@ Describe 'Invoke-CheckWithTimeout' -Tag 'lib' {
         $dispatch.result.severity | Should -Be 'INFO'
     }
 
+    It 'runs the check under this process''s PSModulePath, not the one the job''s pwsh builds' {
+        $path = Write-FixtureCheck -Name 'module-path' -Body 'ConvertTo-Json -Compress -InputObject @{ path = $env:PSModulePath }'
+        $saved = $env:PSModulePath
+        $env:PSModulePath = Join-Path $PSHOME 'Modules'
+        try {
+            $dispatch = Invoke-CheckWithTimeout -ScriptPath $path -TimeoutSec 60
+        } finally {
+            $env:PSModulePath = $saved
+        }
+        $dispatch.ok | Should -BeTrue
+        $dispatch.result.path | Should -BeExactly (Join-Path $PSHOME 'Modules')
+    }
+
     Context 'a string[] argument crosses the job boundary intact' {
         BeforeAll {
             $script:echoPath = Write-FixtureCheck -Name 'echo-names' -Body @'

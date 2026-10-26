@@ -1016,6 +1016,48 @@ test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async ()
 // dispatch event", API version 2022-11-28: 200 with workflow_run_id only when
 // return_run_details is true, else 204; rest/checks/runs "List check runs
 // for a Git reference" with check_name) and the GraphQL listing.
+// The dispatch follows up to 5 x 10 s of waiting. A pooled socket that sat
+// idle that long may have been dropped by GitHub, and a dispatch is not resent,
+// so it must go out on a connection no earlier request used. Real fetch
+// against a local server that keeps idle sockets open, as a pool would see.
+test("the GitHub adapter sends the dispatch on a connection no earlier request used", async () => {
+  const { createServer } = await import("node:http");
+  const seen = new Map();
+  const used = [];
+  const server = createServer((req, res) => {
+    if (!seen.has(req.socket)) {
+      seen.set(req.socket, seen.size + 1);
+    }
+    used.push(`${req.method} ${req.url.split("?")[0]} socket ${seen.get(req.socket)}`);
+    const answers = {
+      "/graphql": { data: { repository: { pullRequests: { nodes: [pr(1)], pageInfo: { hasNextPage: false, endCursor: null } } } } },
+      "/repos/octo/repo/commits/abc/check-runs": { total_count: 0, check_runs: [] },
+      "/repos/octo/repo/actions/workflows/pr-unblock.yml/dispatches": { workflow_run_id: 77 },
+    };
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(answers[req.url.split("?")[0]] ?? {}));
+  });
+  server.keepAliveTimeout = 60_000;
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const apiUrl = `http://127.0.0.1:${server.address().port}`;
+    const api = createGitHubApi({ token: "t0ken", repository: "octo/repo", apiUrl, graphqlUrl: `${apiUrl}/graphql`, fetch: globalThis.fetch });
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 50));
+    await api.listOpenPulls({ base: "main" });
+    await pause();
+    await api.listCheckRuns({ sha: "abc", checkName: CHECK_NAME, appId: 15368 });
+    await pause();
+    assert.deepEqual(await api.dispatchWorkflow({ workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: {} }), { workflowRunId: 77 });
+    const socket = (line) => line.split(" socket ")[1];
+    const dispatch = used.at(-1);
+    assert.match(dispatch, /^POST \/repos\/octo\/repo\/actions\/workflows\/pr-unblock\.yml\/dispatches /);
+    assert.ok(!used.slice(0, -1).some((line) => socket(line) === socket(dispatch)), used.join("; "));
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+});
+
 test("the GitHub adapter calls the documented endpoints", async () => {
   const requests = [];
   const responses = [

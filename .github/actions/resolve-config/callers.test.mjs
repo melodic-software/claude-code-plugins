@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -437,6 +437,17 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost"]) {
     assert.ok(intake.with.instructions.includes(`\n${line}\n`), line);
   }
+});
+
+test("intake-triage.yml: the model may apply duplicate, which admission refuses, and is told to name the candidate and not park a duplicate", () => {
+  const intake = workflow("intake-triage.yml").jobs["intake-triage"];
+  assert.ok(intake.with["allowed-labels"].trim().split("\n").includes("duplicate"));
+  const rules = JSON.parse(read("./admission-rules.json"));
+  assert.ok(rules["refuse-labels"].includes("duplicate"));
+  const text = intake.with.instructions.replace(/\s+/g, " ");
+  assert.match(text, /DUPLICATE\. When an open issue asks for the same thing, apply the `duplicate` label/);
+  assert.match(text, /name the candidate by number/);
+  assert.match(text, /apply no `status: needs-decision`/);
 });
 
 test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select, push or scan-refusal job, with a gated head", () => {
@@ -2532,6 +2543,7 @@ const COLLECT = fileURLToPath(new URL("../../scripts/read-patch/collect-patch.sh
 // left behind, then the scan job's scan. headRepo, given the checkout and a
 // scratch directory, returns the repository the scan reads the head's
 // objects from (the scan job's own checkout); by default the run's checkout.
+// seed maps paths to the bytes the head commit also holds.
 // The scan job's own API, as the leak scan reads it: getBranch on the
 // default branch answers the tip (d…), and getContent serves the gate only at
 // that tip. calls records what was asked.
@@ -2560,7 +2572,7 @@ function gateApi(gate, { tip = async () => ({ data: { commit: { sha: GATE_TIP } 
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
-async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }), env: extraEnv = {} } = {}) {
+async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }), env: extraEnv = {}, seed = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
@@ -2572,7 +2584,11 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   git("init", "-q", "-b", "main");
   git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "head");
   writeFileSync(join(work, "tracked.txt"), "unchanged\n");
-  git("add", "tracked.txt");
+  for (const [file, bytes] of Object.entries(seed)) {
+    mkdirSync(dirname(join(work, file)), { recursive: true });
+    writeFileSync(join(work, file), bytes);
+  }
+  git("add", "tracked.txt", ...Object.keys(seed));
   git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "tracked");
   const head = git("rev-parse", "HEAD").stdout.trim();
   writeFileSync(join(temp, "skill-reply", "reply.txt"), "lint-shell: fixed\n");
@@ -2719,7 +2735,7 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
   assert.equal(runs(ctx("cancelled"), true), true, "a cancelled scan");
   assert.equal(runs(ctx("success")), false);
   assert.equal(runs(ctx("skipped")), false);
-  assert.equal(runs(ctx("failure", "", "7")), false, "issue mode has no reply or verdict job");
+  assert.equal(runs(ctx("failure", "", "7")), true, "issue mode: report-outcome names the refusal");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure")), "output", "a failed scan whose outputs did not arrive");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure", "patch")), "patch");
   const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
@@ -2730,14 +2746,27 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
   const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
   const download = steps.find((step) => step.id === "scan-refused");
   const script = steps.find((step) => step.id === "act-script");
-  for (const [mode, activity] of [["inputs.review-replies", "address-feedback"], ["inputs.dependency-verdict", "review-dependency"]]) {
-    const values = { "inputs.review-replies": mode === "inputs.review-replies", "inputs.dependency-verdict": mode === "inputs.dependency-verdict", "inputs.lane": "pr-unblock", "runner.temp": "/t" };
-    const name = sub(upload.with.name, { ...ctx("failure"), "inputs.activity": activity });
+  for (const [mode, activity, lane, issue] of [
+    ["inputs.review-replies", "address-feedback", "pr-unblock", ""],
+    ["inputs.dependency-verdict", "review-dependency", "pr-unblock", ""],
+    ["", "resolve-issue", "work-resolve-issue", "7"],
+  ]) {
+    const values = {
+      "inputs.review-replies": mode === "inputs.review-replies",
+      "inputs.dependency-verdict": mode === "inputs.dependency-verdict",
+      "inputs.issue-number": issue,
+      "inputs.lane": lane,
+      "runner.temp": "/t",
+      "steps.lane-token.outputs.token": "t",
+      "steps.config.outputs.kind": "script",
+    };
+    const name = sub(upload.with.name, { ...ctx("failure", "", issue), "inputs.lane": lane, "inputs.activity": activity });
     const pattern = sub(download.with.pattern, values);
     assert.ok(pattern.endsWith("-*") && name.startsWith(pattern.slice(0, -1)), `${activity}: ${pattern} matches ${name}`);
+    assert.equal(evaluate(download.if, values), true, activity);
     assert.equal(sub(download.with.path, values), "/t/scan-refused", activity);
   }
-  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}");
+  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict || inputs.issue-number != '') && format('{0}/scan-refused', runner.temp) || '' }}");
   assert.equal(download["continue-on-error"], true);
   assert.equal(download.with["merge-multiple"], true);
   assert.equal(script.env.SCAN_REFUSED_READ, "${{ steps.scan-refused.outcome }}");
@@ -2909,6 +2938,11 @@ test("leak scan: a plain password or secret assignment warns, naming the kind of
 
 const HIDDEN = "assignment hidden by markup or escapes";
 const R2_TAIL = "A".repeat(20);
+// Markup and entities stay off the fixture lines below, so no source line
+// forms the shape it tests: the scan reads this whole file in any patch.
+const ENTITY_A = "&#65;";
+const QUOT = "&quot;";
+const TAG = "<b></b>";
 test("leak scan: an assignment never hides a credential the gate finds only in its normalized copy", async (t) => {
   const A40 = "A".repeat(40);
   const cases = {
@@ -2919,12 +2953,12 @@ test("leak scan: an assignment never hides a credential the gate finds only in i
     // The escaped token is the assignment's own value.
     "an entity-escaped token as the assignment's value": [`token = '&#x63;${CREDENTIALS["Cloudflare API token"].slice(1)}'\n`, "Cloudflare API token"],
     // The harness's cases 11-13: an R2 pair the folded copy shows, overlapping an assignment.
-    "an R2 assignment form across the assignment's edge": [`token = 'x.secret_access_key'=&#65;${R2_TAIL}\n`, HIDDEN],
+    "an R2 assignment form across the assignment's edge": [`token = '${"x"}.secret_access_key'=${ENTITY_A}${R2_TAIL}\n`, HIDDEN],
     "an R2 assignment form inside the assignment's value": [`token = 'secret_access_key=&#65;${R2_TAIL}'\n`, HIDDEN],
     "an R2 hex pair split by a tag around the assignment": [`token = '${"a".repeat(32)}' ${"b".repeat(32)}<b></b>${"b".repeat(32)}\n`, HIDDEN],
     // Case 14: an assignment only the folded copy shows.
-    "an entity-escaped assignment": ["password = &quot;hunter2-zz9&quot;\n", HIDDEN],
-    "a tag-split second assignment": [`${ASSIGNMENT} secret=<b></b>'abcdefgh1'\n`, HIDDEN],
+    "an entity-escaped assignment": [`password = ${QUOT}hunter2-zz9${QUOT}\n`, HIDDEN],
+    "a tag-split second assignment": [`${ASSIGNMENT} secret=${TAG}'abcdefgh1'\n`, HIDDEN],
     "a tag-split Cloudflare token": [`x cf<b></b>ut_${A40} y\n`, "Cloudflare API token"],
     // A raw R2 assignment form inside an assignment: blanking = and : would erase it, so the raw check names it.
     "a raw R2 assignment form inside the assignment's value": [`token = 'secret_access_key=${R2_TAIL}'\n`, "R2 key pair"],
@@ -2938,6 +2972,31 @@ test("leak scan: an assignment never hides a credential the gate finds only in i
   // Case 15: a plain assignment still only warns.
   const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
   assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 1 });
+});
+
+// The scan reads the whole of every file a patch makes, so a fixture line
+// that already forms a blocked shape blocks every lane patch touching its
+// file (runs 40284759986 and 40285160047 blocked on this label). Each file
+// here holds the scan's own fixtures; a patch adding one plain line passes.
+test("leak scan: the scan's own fixture files pass when a patch adds a plain line to them", async (t) => {
+  const files = [".github/actions/resolve-config/callers.test.mjs", "lib/publish-gate.test.mjs", "plugins/session-flow/skills/running-retro/scripts/test_observer.py"];
+  const seed = Object.fromEntries(files.map((file) => [file, readFileSync(new URL(`../../../${file}`, import.meta.url))]));
+  for (const file of files) {
+    const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, file), Buffer.concat([seed[file], Buffer.from("// plain\n")])), undefined, { seed });
+    assert.deepEqual({ clean, failed }, { clean: "true", failed: null }, file);
+  }
+  // The same files still block a real-shaped credential or a hidden assignment the patch adds.
+  const file = files[0];
+  const ghs = `${"ghs"}_${"A1b2".repeat(5)}${TAG}${"C3d4".repeat(5)}`;
+  for (const [line, label] of [
+    [`const key = "${KEY}";`, "Anthropic key"],
+    [`notes ${ghs}`, "GitHub token"],
+    [`password = ${QUOT}hunter2-zz9${QUOT}`, HIDDEN],
+  ]) {
+    const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, file), Buffer.concat([seed[file], Buffer.from(`${line}\n`)])), undefined, { seed });
+    assert.equal(clean, "false", label);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized${label === HIDDEN ? "" : "\nrotate this credential"}`, label);
+  }
 });
 
 test("leak scan: a credential-format file name blocks, and a PEM header alone blocks as a private key", async (t) => {
