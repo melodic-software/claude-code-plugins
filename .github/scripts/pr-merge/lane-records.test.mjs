@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 
 import { main, nextRecords } from "./lane-records.mjs";
 
+import { mainCall } from "./on-main.fixture.mjs";
+
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-23T12:00:00Z");
 const dir = mkdtempSync(join(tmpdir(), "lane-records-"));
@@ -64,8 +66,8 @@ async function readRun({ pages = [[]], files = {}, offMain = [], fail, planted }
     if (fail) throw fail;
     const page = /\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=(\d+)$/.exec(url)?.[1];
     if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
-    const base = /\/compare\/([0-9a-f]{40})\.\.\.refs\/heads\/main\?per_page=1$/.exec(url)?.[1];
-    if (base) return { status: offMain.includes(base) ? "diverged" : "ahead" };
+    const onMain = mainCall(url, { offMain });
+    if (onMain !== undefined) return onMain;
     const id = /\/actions\/runs\/(\d+)\/artifacts\?per_page=100$/.exec(url)?.[1];
     assert.ok(id, `unexpected call ${url}`);
     const artifacts = id in files ? [{ name: "pr-merge-lane-records", expired: false }] : [];
@@ -91,7 +93,7 @@ async function readRun({ pages = [[]], files = {}, offMain = [], fail, planted }
   };
 }
 
-test("the newest trusted run's records are read in five requests", async () => {
+test("the newest trusted run's records are read in seven requests", async () => {
   const records = { "pr-merge-dispatched-11": entry(9011), "pr-merge-rerun-11-attempt-2": entry(9012) };
   const result = await readRun({
     pages: [[wf(999, "schedule"), wf(8, "pull_request_target"), wf(7, "schedule"), wf(6, "workflow_dispatch")]],
@@ -100,9 +102,9 @@ test("the newest trusted run's records are read in five requests", async () => {
   // This run (999) is skipped, and a pull_request_target run is never asked.
   assert.deepEqual(result.downloads, [7]);
   assert.deepEqual(result.written, { version: 1, repo: REPO, records });
-  // The run listing, run 7's artifact filter, the compare of its head commit
-  // with main, and its download.
-  assert.equal(result.requests, 5);
+  // The run listing, run 7's artifact filter, the tag named main (absent),
+  // main's tip, the compare of run 7's head commit with it, and its download.
+  assert.equal(result.requests, 7);
 });
 
 test("a run whose head commit is not on main is passed over", async () => {

@@ -593,7 +593,7 @@ async function checkRerunner({ github, repository, runId, runAttempt, pool, deni
 // The run at headSha ran the default branch's own code: no tag shares the
 // branch's name (a run on that tag would report the same head_branch; only a
 // 404 proves it absent), and headSha is the branch tip or behind it.
-async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+export async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
   let tagAbsent = false;
   try {
     await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
