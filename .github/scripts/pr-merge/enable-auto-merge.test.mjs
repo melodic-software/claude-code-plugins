@@ -8,7 +8,7 @@
 // the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -34,6 +34,7 @@ import {
   main,
   pythonRoom,
   pythonVerify,
+  ReaderRateLimited,
   costLine,
   ghCalls,
   LANE_ROOM_TIMEOUT_MS,
@@ -724,6 +725,17 @@ test("each network trigger alone is sent again, and an error with another code i
   const { code, writes } = await run([pull(1)], {}, { armErrors: { PR_1: [coded("EPIPE_NOT_LISTED")] } });
   assert.equal(code, 1);
   assert.equal(writes.length, 1);
+});
+
+test("an arm GitHub answers with a rate limit is never sent again", async () => {
+  // GitHub answers a primary or secondary limit with 403 or 429; sending more
+  // while limited risks the integration's ban.
+  for (const status of [403, 429]) {
+    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [new GitHubError(status, "POST /graphql")] } });
+    assert.equal(code, 1);
+    assert.equal(writes.length, 1);
+    assert.deepEqual(slept, []);
+  }
 });
 
 test("the resend warning names the arm and its pull request", async () => {
@@ -1935,6 +1947,151 @@ test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a k
   assert.deepEqual(seen, [8 * 60_000]);
   assert.equal(LANE_ROOM_TIMEOUT_MS, 8 * 60_000);
   assert.equal(VERIFY_TIMEOUT_MS, 4 * 60_000);
+});
+
+// A reader child that exits 75 stopped on a GitHub rate limit
+// (babysit_gh.RATE_LIMIT_EXIT); a later child would call GitHub again before
+// the reset, so the run sends nothing more and fails red naming the pool.
+
+// The gate's real exhausted-pool exit: the guard's ::error, then its call count.
+function stoppedReader(dir) {
+  const script = join(dir, "stopped.py");
+  writeFileSync(
+    script,
+    `import sys
+sys.path.insert(0, ${JSON.stringify(BABYSIT_SCRIPTS)})
+import babysit_gh as gh
+raise gh.RateLimitExhausted("core", 4102444800, "x-ratelimit-reset reset, HTTP 403")
+`,
+  );
+  return script;
+}
+
+test("a gate reader stopped on a rate limit ends the run: no later pull request is read", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-stopped-"));
+  const env = { ...ENV, PATH: process.env.PATH, RUNNER_TEMP: "", VERIFY_EVIDENCE_SCRIPT: stoppedReader(dir) };
+  const pulls = [pull(1), pull(2)];
+  const { github, writes, calls, notes } = world(pulls);
+  const spawned = [];
+  let callsAtSpawn = null;
+  const spawn = (...args) => {
+    spawned.push(args[1].at(-2));
+    callsAtSpawn = calls.length;
+    return spawnSync(...args);
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env, github, verify: pythonVerify(env, { spawn }), room: room(), sleep: async () => {} });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(code, 1);
+  assert.deepEqual(spawned, ["1"]);
+  // Nothing after the stopped child: no detail read, verify or arm for #2.
+  assert.equal(calls.length, callsAtSpawn);
+  assert.deepEqual(writes(), []);
+  assert.deepEqual(notes, []);
+  // The stopped read's cost is still logged.
+  assert.ok(lines.some((line) => /^enable-auto-merge: #1 calls=/.test(String(line))), lines.join("\n"));
+  const errors = lines.filter((line) => String(line).startsWith("::error title=GitHub rate limit::"));
+  assert.equal(errors.length, 1, lines.join("\n"));
+  assert.match(errors[0], /the core pool is exhausted/);
+  assert.match(errors[0], /2100-01-01T00:00:00Z/);
+});
+
+// A lane-room reader stopped on a rate limit: its child wrote `pool` to the
+// job's stop file before exiting 75.
+async function roomStoppedOn(pool, pulls) {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-stop-"));
+  const stopFile = join(dir, "stop");
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+  const stderr =
+    `::error title=GitHub rate limit::the ${pool} pool is exhausted (x-ratelimit-reset reset, HTTP 403); no GitHub call is sent before 2100-01-01T00:00:00Z\n` +
+    'babysit-gh-calls {"total": 1}';
+  const stopped = () => {
+    writeFileSync(stopFile, `${pool} 4102444800\n`);
+    return { status: 75, signal: null, stdout: "", stderr };
+  };
+  const { github, writes, calls, notes, verified } = world(pulls);
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env: ENV, github, verify: world([]).verify, room: pythonRoom({ GITHUB_REPOSITORY: REPO }, stopped), sleep: async () => {}, latch });
+  } finally {
+    console.log = log;
+    rmSync(dir, { recursive: true, force: true });
+  }
+  return { code, writes: writes(), calls, notes, verified, lines };
+}
+
+test("a lane-room reader stopped on the REST pool disarms each armed lanes pull request and arms nothing", async () => {
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
+  const { code, writes, notes, verified, lines } = await roomStoppedOn("core", [armed, pull(2)]);
+  assert.equal(code, 1);
+  // An unread room holds as a refusal does: #1 is disarmed, #2 not armed.
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+  assert.deepEqual(notes, []);
+  assert.deepEqual(verified, []);
+  const errors = lines.filter((line) => String(line).startsWith("::error title=GitHub rate limit::"));
+  assert.equal(errors.length, 1, lines.join("\n"));
+  assert.match(errors[0], /the core pool is exhausted/);
+  assert.match(errors[0], /each armed lanes App pull request is disarmed/);
+});
+
+test("a lane-room reader stopped on the GraphQL pool sends no disarm and fails naming each armed lanes pull request", async () => {
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
+  const { code, writes, calls, notes, lines } = await roomStoppedOn("graphql", [armed, pull(2)]);
+  assert.equal(code, 1);
+  assert.deepEqual(writes, []);
+  // Only the listing was sent.
+  assert.deepEqual(
+    calls.map(({ body }) => body?.query === PULLS_QUERY),
+    [true],
+  );
+  assert.deepEqual(notes, []);
+  assert.ok(lines.some((line) => /^::error title=enable-auto-merge::#1 disarm not sent: GitHub's GraphQL rate limit is stopped until 2100-01-01T00:00:00/.test(String(line))), lines.join("\n"));
+  assert.ok(lines.some((line) => /^::error title=enable-auto-merge::.*still armed, its disarm failed, so the hold is not enforced: #1$/.test(String(line))), lines.join("\n"));
+});
+
+test("a verifier read stopped on a rate limit disarms the armed lanes pull requests after it and arms nothing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-verify-stop-"));
+  const stopFile = join(dir, "stop");
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+  const armed = { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } };
+  const { github, writes, notes } = world([pull(1), pull(2, armed), pull(3, armed)]);
+  const asked = [];
+  const verify = async ({ number }) => {
+    asked.push(number);
+    writeFileSync(stopFile, "core 4102444800\n");
+    throw new ReaderRateLimited(`#${number}'s verifier read`, "");
+  };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  let code;
+  try {
+    code = await main({ env: ENV, github, verify, room: room(), sleep: async () => {}, latch });
+  } finally {
+    console.log = log;
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(code, 1);
+  // One verifier read; every armed lanes pull request is disarmed, none armed.
+  assert.equal(asked.length, 1);
+  assert.deepEqual(
+    writes().sort((a, b) => a.id.localeCompare(b.id)),
+    [
+      { mutation: "disarm", id: "PR_2" },
+      { mutation: "disarm", id: "PR_3" },
+    ],
+  );
+  assert.deepEqual(notes, []);
+  assert.ok(lines.some((line) => String(line).startsWith("::error title=GitHub rate limit::")), lines.join("\n"));
 });
 
 // The gate holds on the security lane's open CRITICAL findings
