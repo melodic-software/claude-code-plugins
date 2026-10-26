@@ -188,7 +188,7 @@ export async function read({ env = process.env, actions: client, download } = {}
     download ??= (id, name) => ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name, file: CARRY_FILE })(id);
     const actions = sharedReads(client, env.PR_MERGE_READS_PATH);
     const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
-    const fetch = async (name) => {
+    const readArtifact = async (name) => {
       const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name, accept });
       if (id === undefined) return undefined;
       const text = download(id, name);
@@ -196,11 +196,11 @@ export async function read({ env = process.env, actions: client, download } = {}
       console.log(`${name} of run ${id}`);
       return text;
     };
-    const kept = await fetch(CARRY_ARTIFACT);
+    const kept = await readArtifact(CARRY_ARTIFACT);
     // A verify file that does not read leaves the merge job's file as it is.
     let verify;
     try {
-      verify = await fetch(VERIFY_ARTIFACT);
+      verify = await readArtifact(VERIFY_ARTIFACT);
     } catch (error) {
       console.log(`::warning::the verifier reads were not carried: ${escapeCommand(error?.message ?? error)}`);
     }
