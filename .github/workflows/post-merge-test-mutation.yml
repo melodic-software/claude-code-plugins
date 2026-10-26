@@ -1,0 +1,352 @@
+name: post-merge-test-mutation
+
+# The post-merge mutation lane: after a push to main that changes a source
+# file, runs /mutation-testing:audit on the lines that push changed and writes
+# the killed and surviving mutants to the job summary. Mutation testing runs
+# post-merge only, never on a pull request. Advisory: it gates nothing, and
+# surviving mutants never fail it.
+#
+# post-merge-select-mutation-range.yml takes the push (with the source-path
+# filter) and records its range; this workflow runs on that run's
+# workflow_run event, because claude-code-action refuses a push event
+# (src/github/context.ts:63-68, :251 at 16f9f71).
+#
+# Three jobs:
+# - prep: no model. Checks the kill switch and reads the range artifact.
+# - audit: the model, with contents: read only. Mutants run inside its Bash
+#   tool. CLAUDE_CODE_SUBPROCESS_ENV_SCRUB keeps the OAuth token out of every
+#   process the model starts, the mutated tests included; it keeps
+#   GITHUB_TOKEN, so that token is held to contents: read.
+# - report: no model. Validates the structured result, finds the pull request
+#   that merged the head, and writes the job summary. It reads only.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false".
+
+on:
+  # The triggering run is main's own gate workflow; this file checks out the
+  # pushed head, which is on main, and runs main's code only. Each guard below
+  # reads the event's fields.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [post-merge-select-mutation-range]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+# One run per pushed head; pushes never wait on one another.
+concurrency:
+  group: post-merge-test-mutation-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prep:
+    if: >-
+      github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # download the range artifact from the triggering run
+      contents: read # check out main for the kill-switch action
+    outputs:
+      proceed: ${{ steps.range.outputs.proceed }}
+      before: ${{ steps.range.outputs.before }}
+      after: ${{ steps.range.outputs.after }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing mutated"
+
+      - name: Download the range
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mutation-range
+          path: ${{ runner.temp }}/mutation-range
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      # The artifact's head must be the triggering run's head.
+      - name: Check the range
+        id: range
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          file="$RUNNER_TEMP/mutation-range/range.json"
+          if ! before=$(jq -r '.before // ""' "$file") || ! after=$(jq -r '.after // ""' "$file"); then
+            echo "::error::the range artifact is not readable"
+            exit 1
+          fi
+          [[ $after =~ ^[0-9a-f]{40}$ && $after == "$HEAD_SHA" ]] ||
+            { echo "::error::the range's head is not the triggering run's head"; exit 1; }
+          [[ -z $before || $before =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the range's base is not a SHA"; exit 1; }
+          {
+            echo "before=$before"
+            echo "after=$after"
+            echo "proceed=true"
+          } >>"$GITHUB_OUTPUT"
+
+  audit:
+    needs: prep
+    if: >-
+      needs.prep.outputs.proceed == 'true'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read # check out the pushed head; the model and the mutated tests can read this token
+    outputs:
+      result: ${{ steps.audit.outputs.structured_output }}
+      mode: ${{ steps.target.outputs.mode }}
+      restored: ${{ steps.restored.outputs.restored }}
+    steps:
+      - name: Check out the pushed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prep.outputs.after }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Tools, the plugin and the config reader come from main's tip, apart
+      # from the checkout the mutants edit.
+      - name: Check out main's tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.claude-plugin/
+            /plugins/
+            /.github/actions/check-kill-switch/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/log-api-budget/
+            /.github/actions/resolve-config/
+            /.github/actions/setup-runner-isolation/
+            /.github/scripts/post-merge-test-mutation/
+            /.github/CODEOWNERS
+            /.github/standards/github-actions-conventions/vocabulary.json
+            /.node-version
+            /docs/conventions/pr-pipeline.yaml
+            /docs/conventions/pr-pipeline/
+          sparse-checkout-cone-mode: false
+
+      # The head must be on main, and the diff target is the push's previous
+      # head, or the head's first parent when the push had none (a first push
+      # or a rewrite), said in the summary. The overlay is gitignored
+      # (.claude/**/*.local.*), so the audit sees a clean tree.
+      - name: Set the diff target
+        id: target
+        env:
+          BEFORE: ${{ needs.prep.outputs.before }}
+          AFTER: ${{ needs.prep.outputs.after }}
+        run: |
+          git merge-base --is-ancestor "$AFTER" refs/remotes/origin/main ||
+            { echo "::error::the pushed head $AFTER is not on main"; exit 1; }
+          if [[ -n $BEFORE ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            target=$BEFORE mode=range
+          else
+            target=$(git rev-parse "$AFTER^") || { echo "::error::the head has no parent to diff against"; exit 1; }
+            mode=commit
+            echo "::warning::no usable previous head; mutating only the head commit $AFTER"
+          fi
+          printf '.base/\n' >>.git/info/exclude
+          # shellcheck disable=SC2016 # the backticks are the markdown fence
+          printf '# Written by post-merge-test-mutation.yml.\n\n```yaml\ndiff-target: %s\n```\n' "$target" \
+            >.claude/mutation-testing.local.md
+          [ -z "$(git status --porcelain)" ] || { echo "::error::the checkout is not clean before the audit"; exit 1; }
+          {
+            echo "mode=$mode"
+            echo "target=$target"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+
+      # What the covering suites need, as a developer machine installs it;
+      # resolve-config's suites take their own lockfile.
+      - name: Install the test dependencies
+        run: |
+          bash scripts/setup-env.sh
+          npm ci --ignore-scripts --no-audit --no-fund --prefix .github/actions/resolve-config
+          git status --porcelain >"$RUNNER_TEMP/mutation-status-before"
+
+      # The verify-pr route's profile: a judgment model with its turn cap.
+      - name: Resolve the model
+        id: models
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: verify-pr
+          output-path: ${{ runner.temp }}/mutation-models.json
+
+      - name: Stage the plugin and the prompt
+        id: prompt
+        env:
+          MARKETPLACE: ${{ runner.temp }}/mutation-marketplace
+          HEAD_SHA: ${{ needs.prep.outputs.after }}
+          DIFF_TARGET: ${{ steps.target.outputs.target }}
+        run: |
+          [[ $MARKETPLACE =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "::error::the marketplace path has a name a rule cannot carry"; exit 1; }
+          mkdir -p "$MARKETPLACE"
+          cp -R .base/plugins .base/.claude-plugin "$MARKETPLACE/"
+          # The plugin loads in place from this copy; nothing the model starts
+          # may rewrite it.
+          chmod -R a-w "$MARKETPLACE"
+          marketplace=$(jq -r '.name' "$MARKETPLACE/.claude-plugin/marketplace.json")
+          [[ $marketplace =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "::error::the marketplace name is malformed"; exit 1; }
+          prompt=$(<.base/.github/scripts/post-merge-test-mutation/prompt.md)
+          prompt=${prompt//HEAD_SHA/$HEAD_SHA}
+          prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
+          schema=$(jq -c . .base/.github/scripts/post-merge-test-mutation/result.schema.json)
+          lint="$MARKETPLACE/plugins/mutation-testing/scripts/suppression-lint.sh"
+          # A rule path starting `//` is absolute. Bash runs only the covering
+          # tests, git's reads and restore, and the plugin's suppression lint.
+          allowed="Skill(mutation-testing:audit),Read(/$MARKETPLACE/**),Edit,Agent"
+          allowed="$allowed,Bash(scripts/run-covering-tests.sh *),Bash(git restore -- *)"
+          allowed="$allowed,Bash(git status *),Bash(git diff *),Bash(git branch *),Bash(git rev-parse *),Bash(git log *),Bash(git show *)"
+          allowed="$allowed,Bash(bash $lint *),Bash(bash \\\"$lint\\\" *)"
+          denied="Write,NotebookEdit,WebFetch,WebSearch"
+          denied="$denied,Edit(./.git/**),Edit(./.base/**),Edit(./.claude/**)"
+          denied="$denied,Read(//proc/**),Read(~/.*),Read(~/.*/**)"
+          args="--allowedTools \"$allowed\" --disallowedTools \"$denied\" --json-schema '$schema'"
+          delimiter="prompt_$(openssl rand -hex 16)"
+          {
+            echo "plugins=mutation-testing@$marketplace"
+            echo "claude-args=$args"
+            echo "prompt<<$delimiter"
+            printf '%s\n' "$prompt"
+            echo "$delimiter"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Isolate the runner
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: true
+
+      # A push to main lands through the merge queue, so the triggering
+      # run's actor can be github-merge-queue[bot]; the action refuses a bot
+      # not named here. The run executes main's own code. Never '*'.
+      - name: Run the mutation audit
+        id: audit
+        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
+        env:
+          # Strips the OAuth token and other credentials from Bash, hook and
+          # MCP subprocesses, the mutated tests included, and gives Bash its
+          # own PID namespace. It keeps GH_TOKEN and GITHUB_TOKEN (as in
+          # pr-run-activity-write.yml's skill step).
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          allowed_bots: github-merge-queue
+          plugin_marketplaces: ${{ runner.temp }}/mutation-marketplace
+          plugins: ${{ steps.prompt.outputs.plugins }}
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          settings: ${{ steps.models.outputs.settings-json }}
+          claude_args: >-
+            --setting-sources user
+            --permission-mode dontAsk
+            ${{ steps.models.outputs.claude-args }}
+            ${{ steps.prompt.outputs.claude-args }}
+
+      # The audit's own restore check is the model's report; this one is not.
+      # Tracked files must equal the pushed head, and the status must equal
+      # the one taken before the audit.
+      - name: Check the checkout is restored
+        id: restored
+        if: always() && steps.audit.outcome != 'skipped'
+        run: |
+          if git diff --quiet HEAD && git status --porcelain | cmp -s - "$RUNNER_TEMP/mutation-status-before"; then
+            echo "restored=true" >>"$GITHUB_OUTPUT"
+          else
+            git status --porcelain | head -20
+            echo "restored=false" >>"$GITHUB_OUTPUT"
+            echo "::error::the checkout differs from the pushed head after the audit"
+            exit 1
+          fi
+
+  report:
+    needs: [prep, audit]
+    if: ${{ !cancelled() && needs.prep.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main for the report script
+      pull-requests: read # find the pull request that merged the pushed head
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/log-api-budget/
+            /.github/scripts/post-merge-test-mutation/
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      # The structured output is untrusted model text: read through env and
+      # checked by the script, never interpolated into a command.
+      - name: Write the report
+        env:
+          STRUCTURED_OUTPUT: ${{ needs.audit.outputs.result }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          RESTORED: ${{ needs.audit.outputs.restored }}
+          BEFORE: ${{ needs.prep.outputs.before }}
+          AFTER: ${{ needs.prep.outputs.after }}
+          RANGE_MODE: ${{ needs.audit.outputs.mode }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .base/.github/scripts/post-merge-test-mutation/report.mjs

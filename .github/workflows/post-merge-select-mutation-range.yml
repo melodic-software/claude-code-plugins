@@ -1,0 +1,58 @@
+name: post-merge-select-mutation-range
+
+# Starts the post-merge mutation lane (post-merge-test-mutation.yml) on a push
+# to main that changes a source file, and hands it the pushed range. It runs
+# no model and checks out nothing: it only records the event's two SHAs as an
+# artifact. The lane is its own workflow because claude-code-action refuses a
+# push event (src/github/context.ts:63-68, :251 at 16f9f71); it runs on this
+# workflow's workflow_run event instead.
+#
+# The paths below equal `mutate` in .claude/mutation-testing.md;
+# .github/scripts/post-merge-test-mutation/report.test.mjs fails when they
+# differ.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.sh"
+      - "**/*.mjs"
+      - "**/*.js"
+      - "**/*.ts"
+      - "**/*.py"
+      - "!**/*.test.*"
+      - "!**/test_*.py"
+      - "!**/conftest.py"
+      - "!**/tests/**"
+      - "!**/evals/**"
+      - "!**/fixtures/**"
+      - "!**/vendor/**"
+
+permissions: {}
+
+jobs:
+  select-range:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      # Values arrive through env; the lane validates them again before use.
+      - name: Record the pushed range
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+        run: |
+          [[ $EVENT_AFTER =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the push names no head SHA"; exit 1; }
+          [[ $EVENT_BEFORE =~ ^[0-9a-f]{40}$ ]] || EVENT_BEFORE=""
+          mkdir -p "$RUNNER_TEMP/mutation-range"
+          jq -n --arg before "$EVENT_BEFORE" --arg after "$EVENT_AFTER" '{before: $before, after: $after}' \
+            >"$RUNNER_TEMP/mutation-range/range.json"
+
+      - name: Upload the range
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutation-range
+          path: ${{ runner.temp }}/mutation-range/range.json
+          if-no-files-found: error
+          retention-days: 7

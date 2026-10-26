@@ -1,0 +1,7 @@
+{
+  "name": "post-merge-test-mutation",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
