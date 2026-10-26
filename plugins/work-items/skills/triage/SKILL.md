@@ -181,8 +181,12 @@ one.
    from those `<n>` items. On yes, for each item in turn, post the comment below (after the
    objection window comment when step 5's window is on), then remove the label; a failed post
    leaves that item's label in place. Items the operator excludes keep it. The edit applies no
-   other label. The item rejoins the frontier, where admission decides it on its `work-class:`
-   label and who applied it, as for any item.
+   other label, so the item ends with no role label. `list-frontier --autonomous` lists it again,
+   and an attended `/work-items:work` run can pick it from there. No autonomous lane admits it:
+   the issue lane and the work loop's label path admit only on the autonomous-eligible role label.
+   A person who wants a lane to take it applies that label, under `/work-items:attend-queue`'s
+   flip rules. Any pull request that closes it is still held for a maintainer by its
+   `Decision defaulted` line.
 5. **Unattended** (an autonomous lane, CI, or any run with no operator turn): report the count and
    the list, and change nothing, whatever the lane directive authorizes.
 
@@ -193,6 +197,7 @@ Decision defaulted: <the recommendation>, veto before merge
 Basis: <verified, file:line or URL | judgment>
 Label test failed: no irreversible act, consent, secret, or undecided design choice is needed.
 Recommendation: <link to the RECOMMENDED line or the Decision recorded. comment>
+Next: an attended `/work-items:work` run can pick this item up; no autonomous lane takes it until a person applies <the autonomous-eligible role label>.
 Re-apply the label to object; the sweep then leaves this item alone.
 ```
 
