@@ -245,9 +245,9 @@ jobs:
       # The same body as dispatch-full-run's step of this name; see there.
       # WAIT_CAP: of the 15 minutes, the whole job took 97-127 s on the last
       # ten scheduled runs read on 2026-10-23 (the post-merge check 81-111 s
-      # of it). Add 180 s here, the re-run step's read-back sleeps (up to
-      # 170 s) and about 20 s of reads and uploads: about 8.5 minutes, which
-      # leaves 6.5 for slow reads. A timeout after the re-run POST would leave
+      # of it). Add 180 s here, the re-run step's POST waits (up to 30 s) and
+      # read-back sleeps (up to 170 s) and about 20 s of reads and uploads:
+      # about 9 minutes, which leaves 6 for slow reads. A timeout after the re-run POST would leave
       # its attempt 2 unrecorded, so the cap gives way, not the timeout.
       - name: Start the full CI run on main
         id: dispatch
@@ -313,7 +313,7 @@ jobs:
               fi
             elif [ -z "$status" ]; then
               error=$(tail -n 1 "$RUNNER_TEMP/dispatch-stderr")
-              if grep -qE 'dial tcp|tls: (handshake|first record)' "$RUNNER_TEMP/dispatch-stderr"; then
+              if grep -qE 'dial tcp|tls: (handshake|first record)|net/http: TLS handshake timeout' "$RUNNER_TEMP/dispatch-stderr"; then
                 why="the connection failed before the request was sent (gh exit $code: $error)"
                 wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
               else
@@ -334,7 +334,7 @@ jobs:
             waited=$((waited + wait))
           done
           if [ -z "$id" ]; then
-            echo "::warning::no full CI run started for $what after $try attempt(s): $why; the next push or scheduled pr-merge run starts one"
+            echo "::warning::no full CI run started for $what after $try attempt(s): $why; a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule"
             exit 0
           fi
           echo "started run $id"
@@ -404,11 +404,20 @@ jobs:
             echo "::notice::run $RUN_ID is at attempt $attempt; no re-run started or recorded"
             exit 0
           fi
-          if ! gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null 2>"$err"; then
+          # As the dispatch: at most three POSTs, sent again after a capped
+          # full-jitter wait only when gh's error shows the request never
+          # left; a rate limit stops above and is never sent again.
+          for try in 1 2 3; do
+            gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null 2>"$err" && break
             stopped "the re-run of run $RUN_ID"
-            echo "::warning::the re-run of run $RUN_ID was refused; the next run tries again"
-            exit 0
-          fi
+            if [ "$try" = 3 ] || ! grep -qE 'dial tcp|tls: (handshake|first record)|net/http: TLS handshake timeout' "$err"; then
+              echo "::warning::the re-run of run $RUN_ID was refused after $try attempt(s); the next run tries again"
+              exit 0
+            fi
+            wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
+            echo "::notice::attempt $try: the connection failed before the re-run was sent; waiting ${wait}s, then sending again"
+            sleep "$wait"
+          done
           # The re-run started, so a read that fails or still shows attempt 1
           # is retried for about three minutes, and a step that cannot confirm
           # attempt 2 fails instead of leaving that attempt unrecorded. A read
@@ -1801,17 +1810,19 @@ jobs:
       # is sent again, after a full-jitter backoff (up to
       # 10 s, then 20 s), only when gh's error shows the connection failed
       # before the request went out: a `dial tcp` error (a DNS lookup, a
-      # refused or unreachable connection, a connect timeout) or a failed TLS
-      # handshake. Any other answer, a 5xx, a timeout or a reset on an open
+      # refused or unreachable connection, a connect timeout) or a failed or
+      # timed-out TLS handshake. Any other answer, a 5xx, a timeout or a reset on an open
       # connection included, is not sent again: the run may exist, and a
       # second run would have no record. The waits sum to
       # at most WAIT_CAP seconds; one that does not fit is not taken. A
       # dispatch that still fails sets no run id and ends green with a
-      # warning: nothing is recorded or waited on, and the next push, or the
-      # post-merge-dispatch job's check on the next scheduled run for a lane
-      # merge, starts the run.
-      # WAIT_CAP: 45 minutes, less the wait step's 39 and about 1 for the
-      # reads and uploads, leaves 5; 180 s of it.
+      # warning: nothing is recorded or waited on. The post-merge-dispatch
+      # job's check on the next scheduled run starts the run only for a lane
+      # merge; any other merge waits for the next push or pr-require-checks'
+      # own schedule.
+      # WAIT_CAP: 45 minutes, less the wait step's 39, its alert send's
+      # waits (up to 30 s) and about 1 for the reads and uploads, leaves
+      # 4.5; 180 s of it.
       - name: Start the full CI run on main
         id: dispatch
         env:
@@ -1875,7 +1886,7 @@ jobs:
               fi
             elif [ -z "$status" ]; then
               error=$(tail -n 1 "$RUNNER_TEMP/dispatch-stderr")
-              if grep -qE 'dial tcp|tls: (handshake|first record)' "$RUNNER_TEMP/dispatch-stderr"; then
+              if grep -qE 'dial tcp|tls: (handshake|first record)|net/http: TLS handshake timeout' "$RUNNER_TEMP/dispatch-stderr"; then
                 why="the connection failed before the request was sent (gh exit $code: $error)"
                 wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
               else
@@ -1896,7 +1907,7 @@ jobs:
             waited=$((waited + wait))
           done
           if [ -z "$id" ]; then
-            echo "::warning::no full CI run started for $what after $try attempt(s): $why; the next push or scheduled pr-merge run starts one"
+            echo "::warning::no full CI run started for $what after $try attempt(s): $why; a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule"
             exit 0
           fi
           echo "started run $id"
@@ -1957,13 +1968,27 @@ jobs:
             read -r status head_sha conclusion <<<"$state"
             if [ "$status" = completed ]; then
               echo "run $RUN_ID completed: $conclusion"
-              if [[ "$conclusion" =~ ^(failure|timed_out|cancelled|startup_failure|action_required)$ ]] &&
-                ! gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
-                  -f ref=main -f "inputs[run-id]=$RUN_ID" -f "inputs[head-sha]=$head_sha" >/dev/null; then
-                echo "::error::could not send run $RUN_ID to post-merge-demotion-alert.yml; the next scheduled full run reports a red that lasts"
-                exit 1
-              fi
-              exit 0
+              [[ "$conclusion" =~ ^(failure|timed_out|cancelled|startup_failure|action_required)$ ]] || exit 0
+              # As the dispatch: at most three sends, sent again after a capped
+              # full-jitter wait only when gh's error shows the request never
+              # left. A rate limit is never sent again.
+              for try in 1 2 3; do
+                gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
+                  -f ref=main -f "inputs[run-id]=$RUN_ID" -f "inputs[head-sha]=$head_sha" >/dev/null 2>"$RUNNER_TEMP/alert-stderr" && exit 0
+                cat "$RUNNER_TEMP/alert-stderr" >&2
+                if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$RUNNER_TEMP/alert-stderr"; then
+                  echo "::error title=GitHub rate limit::the send of run $RUN_ID to post-merge-demotion-alert.yml was rate limited; nothing more is sent"
+                  exit 1
+                fi
+                if [ "$try" = 3 ] || ! grep -qE 'dial tcp|tls: (handshake|first record)|net/http: TLS handshake timeout' "$RUNNER_TEMP/alert-stderr"; then
+                  break
+                fi
+                wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
+                echo "::notice::attempt $try: the connection failed before the send; waiting ${wait}s, then sending again"
+                sleep "$wait"
+              done
+              echo "::error::could not send run $RUN_ID to post-merge-demotion-alert.yml after $try attempt(s); the next scheduled full run reports a red that lasts"
+              exit 1
             fi
           done
           echo "::warning::run $RUN_ID did not finish within 39 minutes; releasing the group"
