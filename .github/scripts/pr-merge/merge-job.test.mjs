@@ -307,36 +307,86 @@ test("the sweep cost names both tokens' spend, the candidates, those reached and
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Write the sweep cost"));
 });
 
-test("the run cache starts from the last run's kept reads and saves this run's under a new key", () => {
-  const names = steps.map((s) => s.name);
-  const order = [
-    "Restore the verdict reads the last run kept",
-    "Start the run cache from them",
-    "Run the merge gate on each candidate",
-    "Keep the verdict reads that never change",
-    "Save them for the next run",
-  ].map((name) => names.indexOf(name));
-  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
-  const key = "pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}";
+// The run cache's carried reads (carry-run-cache.mjs) reach both token-holding
+// jobs as the head-ref map does (#9416): read from the last trusted run's
+// pr-merge-run-cache artifact (with enable-auto-merge's
+// pr-merge-verify-run-cache added), each uploaded by scheduled and
+// hand-started runs only, the runs a later read accepts. Neither job restores an
+// Actions cache, which any job in main's cache scope can write (#9455).
+test("both token-holding jobs read the carried reads from the last trusted run's artifact, never a cache", () => {
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
   const runCache = "${{ runner.temp }}/babysit-run-cache.json";
-  const restore = step("Restore the verdict reads the last run kept");
-  assert.match(restore, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
-  assert.ok(restore.includes(`key: ${key}\n`) && restore.includes("restore-keys: pr-merge-run-cache-\n"));
-  assert.ok(restore.includes(`path: ${carried}\n`));
-  const start = step("Start the run cache from them");
-  assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
+  const read = "Read the verdict reads the last run kept";
+  for (const list of [steps, stepsOf(jobBlock("enable-auto-merge"))]) {
+    const names = list.map((s) => s.name);
+    assert.ok(names.indexOf(read) >= 0 && names.indexOf(read) < names.indexOf("Start the run cache from them"));
+    const block = step(read, list);
+    assert.match(block, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs read\n/);
+    assert.ok(block.includes(`CARRY_TO: ${carried}\n`) && block.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+    assert.match(block, /\n {8}timeout-minutes: 2\n/);
+    const start = step("Start the run cache from them", list);
+    assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
+    assert.match(start, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs\n/);
+    for (const name of [read, "Start the run cache from them"]) {
+      assert.match(step(name, list), /\n {8}continue-on-error: true\n/, name);
+    }
+    for (const s of list) assert.doesNotMatch(s.block, /uses: actions\/cache[@/]/, s.name);
+  }
+  const names = steps.map((s) => s.name);
+  const order = [
+    read,
+    "Skip refusals whose inputs have not changed",
+    "Run the merge gate on each candidate",
+    "Keep the verdict reads that never change",
+    "Keep the refusals the next run may skip",
+    "Upload the verdict reads for the next run",
+  ].map((name) => names.indexOf(name));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
   assert.ok(step("Run the merge gate on each candidate").includes(`BABYSIT_RUN_CACHE: ${runCache}\n`));
   const keep = step("Keep the verdict reads that never change");
   assert.ok(keep.includes(`CARRY_FROM: ${runCache}\n`) && keep.includes(`CARRY_TO: ${carried}\n`));
-  assert.match(keep, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
-  const save = step("Save them for the next run");
-  assert.match(save, /uses: actions\/cache\/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
-  assert.ok(save.includes(`key: ${key}\n`) && save.includes(`path: ${carried}\n`));
-  assert.match(save, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
-  for (const name of ["Restore the verdict reads the last run kept", "Start the run cache from them", "Keep the verdict reads that never change", "Save them for the next run"]) {
+  assert.ok(
+    keep.includes(
+      "always() && steps.gate.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  const upload = step("Upload the verdict reads for the next run");
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-run-cache\n") && upload.includes(`path: ${carried}\n`));
+  assert.ok(upload.includes("retention-days: 1\n"));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
+  for (const name of ["Keep the verdict reads that never change", "Upload the verdict reads for the next run"]) {
     assert.match(step(name), /\n {8}continue-on-error: true\n/, name);
   }
+});
+
+// The merge gate reads no lane verdict, so enable-auto-merge's reader is the
+// only one that fills run-record: a scheduled or hand-started run keeps its
+// reads as the merge job does and uploads them under a name of their own, and
+// only when it kept one, so an empty file never hides an older one.
+test("enable-auto-merge uploads its verifier reads for the next run", () => {
+  const list = stepsOf(jobBlock("enable-auto-merge"));
+  const carried = "${{ runner.temp }}/pr-merge-carried.json";
+  const names = list.map((s) => s.name);
+  const order = ["Arm and disarm auto-merge", "Keep the verdict reads that never change", "Upload the verdict reads for the next run"].map(
+    (name) => names.indexOf(name),
+  );
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
+  const keep = step("Keep the verdict reads that never change", list);
+  assert.match(keep, /\n {8}id: carry\n/);
+  assert.ok(keep.includes(`CARRY_FROM: \${{ runner.temp }}/babysit-run-cache.json\n`) && keep.includes(`CARRY_TO: ${carried}\n`));
+  assert.ok(
+    keep.includes(
+      "always() && steps.arm.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  assert.match(keep, /run: node \.base\/\.github\/scripts\/pr-merge\/carry-run-cache\.mjs\n/);
+  const upload = step("Upload the verdict reads for the next run", list);
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-verify-run-cache\n") && upload.includes(`path: ${carried}\n`));
+  assert.ok(upload.includes("retention-days: 1\n"));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.carry\.outputs\.kept == 'true'\n/);
+  for (const block of [keep, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
 });
 
 // The head-ref map (head-ref-map.mjs): read before the gate from the last
@@ -1070,13 +1120,13 @@ test("a missing or malformed skip file adds no row and the gate still runs", () 
   }
 });
 
-test("the skip step runs just before the gate and its record between the carry and the save, neither able to fail the job", () => {
+test("the skip step runs just before the gate and its record between the carry and the upload, neither able to fail the job", () => {
   const names = steps.map((s) => s.name);
   const at = (name) => names.indexOf(name);
   assert.equal(at("Skip refusals whose inputs have not changed"), at("Run the merge gate on each candidate") - 1);
   assert.ok(at("Record a failed lane merge") < at("Skip refusals whose inputs have not changed"));
   assert.equal(at("Keep the refusals the next run may skip"), at("Keep the verdict reads that never change") + 1);
-  assert.equal(at("Save them for the next run"), at("Keep the refusals the next run may skip") + 1);
+  assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
   assert.match(filter, /\n {8}if: steps\.candidates\.outcome == 'success'\n/);

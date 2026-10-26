@@ -72,9 +72,9 @@
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
 # then update the skill body and this suite in one change. Any session, a lane included, may
-# re-pin a digest after that re-read: tests/repin.sh rewrites one sha256 literal, and the commit
-# records the old and new digest and why the defense still holds, so the PR review judges the
-# change against the text it guards.
+# re-pin a digest after that re-read: tests/repin.sh rewrites the sha256 literal of each pin
+# it names, and the commit records the old and new digest and why the defense still holds, so
+# the PR review judges the change against the text it guards.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
@@ -104,7 +104,7 @@ FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 UPDATE_RULE="Read the git diff of this text first; the commit that updates the pin states, for each pin, old -> new and why the defense still holds."
 # Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
 # pins and the boundary failure have nothing for it to recompute.
-REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>' '<why the defense still holds>'"
+REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>'... '<why the defense still holds>'"
 PASS=0
 FAIL=0
 fail() {
@@ -508,11 +508,12 @@ done
 # it changes how the option is read, not what any round resolves.
 # Idea-stage routing, brainstorm handoff, problem first, withheld why question
 # The existing-control paragraph adds a check before presenting a mechanism option; it resolves no question and leaves the no-silent-resolve rule unchanged.
+# AC<n> ids prefix the EARS-section criteria and examples; the no-silent-resolve line is byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "72c58f0a264dcc23b121bacd2b0dcba855f4e2df81dcd62a6b79262542e89d8b"
+  "8ea4330b14a92567717d7e6f29c5e235a0321f692a87c116b2fe6b29c83b4719"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -556,11 +557,12 @@ pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate
   "6b0f094c39b858d405dd5c41418c9c28bde87f9cdd3bac774524fcb31149e228"
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The Problem, Work size and general-session entries point at context/problem-framing.md; they add Brief fields and touch no arbiter rule.
+# AC<n> ids prefix the criteria guidance and EARS examples; USER-RESERVED lines unchanged
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \
   "## Brief" \
-  "12fb15b012ac1707d98278319f165f3ce2a23d45e1b4a6cb28c7e0329d7511a3"
+  "2d69b0df3cc740badbb42b75c0677251bb990de8e892d8448359eb13c485f883"
 
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.

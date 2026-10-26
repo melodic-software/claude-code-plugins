@@ -206,6 +206,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/check-kill-switch/**",
     ".github/actions/request-lane-token/**",
     ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/rate-limits.json",
     ".github/scripts/pr-merge/merge-holds.mjs",
     ".github/scripts/pr-merge/enable-auto-merge.mjs",
     ".github/scripts/pr-merge/superseded.mjs",

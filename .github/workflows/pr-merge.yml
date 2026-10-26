@@ -805,25 +805,26 @@ jobs:
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
       # The verdict reads that never change (FAIL run records, FAIL head refs,
-      # run heads on main) carry over from the last run, so a sweep does not
-      # read them all again on its first candidate. A cache key is never
-      # overwritten, so each run saves a new one and restores the newest
-      # (https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
-      # Any job in the default branch's cache scope can write that prefix, so
-      # the entry is untrusted: each kept read lands in a carried-* section the
-      # gate uses only where it counts a FAIL, never to turn one away or allow
-      # a PASS, and reads GitHub for any other answer. Rules:
-      # .github/scripts/pr-merge/carry-run-cache.mjs. Any error leaves the
-      # run cache empty, and the gate reads GitHub.
-      - name: Restore the verdict reads the last run kept
+      # run heads on main) and the refusals the next run may skip carry over
+      # from the last run, so a sweep does not read them all again on its
+      # first candidate: the pr-merge-run-cache artifact, with the carried
+      # reads of enable-auto-merge's pr-merge-verify-run-cache added, each
+      # found the way the head-ref map is. Only that run's steps could upload
+      # them; neither goes through actions/cache, which any job in the
+      # default branch's cache scope can write. Each kept read still lands in
+      # a carried-* section the gate uses only where it counts a FAIL, never
+      # to turn one away or allow a PASS, and reads GitHub for any other
+      # answer. Rules: .github/scripts/pr-merge/carry-run-cache.mjs. Any error
+      # leaves the run cache empty, and the gate reads GitHub.
+      - name: Read the verdict reads the last run kept
         if: steps.candidates.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/pr-merge-carried.json
-          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-merge-run-cache-
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
 
       - name: Start the run cache from them
         if: steps.candidates.outcome == 'success'
@@ -1256,11 +1257,14 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-      # The next run's verdict reads, under this run's own key; also after a
-      # timeout, since the run cache is written as each candidate reads.
+      # The next run's verdict reads; also after a timeout, since the run
+      # cache is written as each candidate reads. Only a scheduled or
+      # hand-started run's file is read back, so only one uploads it.
       - name: Keep the verdict reads that never change
         id: carry
-        if: always() && steps.gate.outcome != 'skipped'
+        if: >-
+          always() && steps.gate.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/babysit-run-cache.json
@@ -1279,14 +1283,15 @@ jobs:
             --keys "$RUNNER_TEMP/skip-keys.json" --summary "$RUNNER_TEMP/pr-merge-summary.json" \
             --outputs-dir "$RUNNER_TEMP" --store "$RUNNER_TEMP/pr-merge-carried.json" --run-id "$GITHUB_RUN_ID"
 
-      - name: Save them for the next run
+      - name: Upload the verdict reads for the next run
         if: always() && steps.carry.outputs.carried == 'true'
         continue-on-error: true
-        timeout-minutes: 2
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
+          name: pr-merge-run-cache
           path: ${{ runner.temp }}/pr-merge-carried.json
-          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 1
+          if-no-files-found: ignore
 
       # The run's report: every candidate with its verdict, whether a full CI
       # run is started (or, in report-only mode, would have been), then the
@@ -1650,15 +1655,15 @@ jobs:
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
-      - name: Restore the verdict reads the last gate run kept
+      - name: Read the verdict reads the last run kept
         if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/pr-merge-carried.json
-          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-merge-run-cache-
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
 
       - name: Start the run cache from them
         if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -1738,6 +1743,35 @@ jobs:
           RISK_ESCALATION_MINUTES=$(yq '.merge."risk-escalation-minutes" // ""' "$config")
           export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
+
+      # The verdict reads this job's reader made, for the next run's two
+      # jobs: the merge gate reads no lane verdict, so only this reader fills
+      # run-record. Kept as the merge job keeps its own, and uploaded under a
+      # name of their own, so the merge job's file keeps its skip refusals;
+      # `read` adds only this file's carried-* sections to them. Only a
+      # scheduled or hand-started run's file is read back, so only one
+      # uploads it, and only when it kept a read: an empty file would hide an
+      # older one.
+      - name: Keep the verdict reads that never change
+        id: carry
+        if: >-
+          always() && steps.arm.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          CARRY_FROM: ${{ runner.temp }}/babysit-run-cache.json
+          CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
+
+      - name: Upload the verdict reads for the next run
+        if: always() && steps.carry.outputs.kept == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-verify-run-cache
+          path: ${{ runner.temp }}/pr-merge-carried.json
+          retention-days: 1
+          if-no-files-found: ignore
 
       - name: Log the API budget at job end
         id: budget-end

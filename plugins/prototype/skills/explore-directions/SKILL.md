@@ -114,9 +114,10 @@ Constraints:
 - **No remote fetch by construction.** Vendor everything inline so the page opens straight from
   `file://`. No external scripts, fonts, or data fetches. Enforce this rather than trusting it:
   emit a restrictive CSP meta tag in the page `<head>` so the browser blocks any remote resource:
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">`.
-  Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script);
-  only remote origins, CDNs, web fonts, `fetch`/XHR, are forbidden.
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:">`.
+  Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script),
+  and so do `data:` images and fonts (an existing app's inlined assets, below);
+  only remote origins, CDNs, remote web fonts, `fetch`/XHR, are forbidden.
 - **Ephemeral placement.** Generate the mockup via the platform's temp primitive, never a tracked
   path and never inside the repo. On Unix/Linux/Git Bash, create a private run directory and write
   the page inside it, echoing the directory in the same call:
@@ -127,12 +128,21 @@ Constraints:
   That is why the page takes a fixed name inside the generated directory rather than an
   `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows,
   a user-scoped temp under
-  `%LOCALAPPDATA%\Temp`. One file per run. The path is handed to the user to open from `file://`,
+  `%LOCALAPPDATA%\Temp`. One file per run, or one per variant when the person asks for separate
+  files. The path is handed to the user to open from `file://`,
   so do not delete it. It must still be readable when they open it.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable
   answer (per the shared discipline); the HTML is throwaway.
-- **Each variant declares its visual direction.** The mockup has no project styling system to
-  inherit, so with no declared direction every variant renders in one default house aesthetic.
+- **An existing app keeps its look.** When the variants change part of an app that exists, build
+  every variant from the app's own styling and markup: inline its CSS in the page's `<style>`
+  (never linked, per the rule above; fold its `@import`s in and turn its `url()` assets into
+  `data:` URIs), reproduce its surrounding page markup once (header, navigation, the page around
+  the feature) with synthetic values in place of every real value (records, user names, counts),
+  and let the variant containers wrap only the subtree under test. Every variant shares that look
+  and differs structurally. The per-variant direction below applies only when no app exists yet
+  or the person asked to change the app's design.
+- **Otherwise each variant declares its visual direction.** With no app look to keep, and no
+  declared direction, every variant renders in one default house aesthetic.
   Before writing a variant, state its direction. Background hex, accent hex, typeface, one-line
   rationale, and make it differ from its siblings on that axis as well as structurally. Generic
   steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
@@ -172,8 +182,9 @@ Before any code, record the plan as one line naming the route, the host and the 
 variants** unless the user asks for another number, and never more than 5: past five, new variants
 repeat earlier ones instead of disagreeing with them.
 
-**Optional reference pass.** Two to four candidate directions, each described by its layout,
-density, color and type, can seed step 2 in place of a blank page. They are distilled from a small
+**Optional reference pass.** Two to four candidate directions, each described by its layout and
+density, plus color and type only when no app exists or a redesign was asked, can seed step 2 in
+place of a blank page. They are distilled from a small
 set of comparable screens: other products that do the same job, and the app's own closest screens.
 Offer the pass before step 2, and only while the look is still open, meaning the user has given no
 direction and there is no host page under sub-shape A. If the user accepts, the step 2 variants
@@ -192,16 +203,17 @@ Sort every design choice into what must change between variants and what must no
 | Layout: how the regions are arranged | Must differ | A: one full-width table. B: a column of parcel cards. C: a map with a side list |
 | Information hierarchy: what the eye reads first | Must differ | A: status. B: expected delivery date. C: current location |
 | Primary affordance: the main thing to do | Must differ | A: select several and export. B: open one parcel. C: filter by region |
-| Visual direction | Must differ wherever the project's styling system leaves room, and always on the HTML mockup substrate; each variant declares its own direction instead of sharing one default look | A: muted grays. B: the brand blue. C: high-contrast map tiles |
+| Visual direction | Must differ only when no app exists or a redesign was asked; then each variant declares its own direction instead of sharing one default look. Otherwise every variant keeps the app's look | All three keep the app's own colors and type. Asked for a redesign: A muted grays, B the brand blue, C high-contrast map tiles |
 | The job the page does and the records it can reach | Identical | Every variant shows the same in-transit parcels for the same customer |
 | Component library and styling system | Identical | All three use the app's own table, card and map components |
 
-Every variant is required to be structurally different and visually distinct. When two drafts
-agree on the three structural "must differ" rows, they are one design shown twice, however
-different their colors or wording; structure comes first and the visual direction sits on top. Rewrite one of the
-pair under an explicit ban, such as "no table".
+Every variant is required to be structurally different, and visually distinct where the visual
+direction row asks for it. When two drafts agree on the three structural "must differ" rows, they
+are one design shown twice, however different their colors or wording; structure comes first and
+the visual direction sits on top. Rewrite one of the pair under an explicit ban, such as "no
+table".
 
-On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The HTML mockup has no project styling to defer to, so write its CSS here from each variant's declared direction.
+On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. On the HTML mockup, write the CSS here: for an existing app, inline the app's own CSS and match it in whatever a variant's structure adds; with no app, or a redesign asked, write it from each variant's declared direction.
 
 ### 3. Build the switcher
 
@@ -365,4 +377,5 @@ Ordered from the costliest outcome on `/shipments` down:
 | B's "Cancel shipment" button calls the live API while the team clicks through the review | A customer's real parcel is cancelled | Point every write (cancel, reroute, refund) at a stub, so the variants are read-only |
 | The chosen variant is merged as written | Prototype code with no tests and minimal error handling reaches customers and fails on the first carrier timeout | Rebuild the chosen design to production standards as part of folding it in |
 | A gets five sample parcels while B renders the live list of two hundred | B is judged on volume rather than on its layout | Load the records once, above the switcher, and pass the same set to every variant |
+| Three variants of one app's feature in three different looks: a mockup of `/shipments` drawn in three palettes and typefaces | The user judges which app looks best instead of which layout works, and rejects all three as not their app | Build every variant from the app's own CSS and surrounding page and vary only the subtree under test; a per-variant look needs no app yet or a redesign request |
 | The variants cannot differ: one parcel table recolored three times, or three variants forced into one shared frame with a fixed sidebar and column grid | There is nothing to choose between | Settle the step 2 must-differ rows first, and let each variant own its whole arrangement; share only small parts such as the page header |

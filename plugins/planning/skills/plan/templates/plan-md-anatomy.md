@@ -9,7 +9,7 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 
 ```markdown
 ## Brief
-<the Brief `/planning:interview` writes, in its Brief template's shape, kept as written. With no interview: a minimal Brief (Problem, Goal with its three lines, Out-of-scope) or one line `No Brief: <reason>`, per plan Step 1>
+<the Brief `/planning:interview` writes, in its Brief template's shape, kept as written except for criterion ids added per ../context/plan-template.md "Criterion ids". With no interview: a minimal Brief (Problem, Goal with its three lines, Out-of-scope) or one line `No Brief: <reason>`, per plan Step 1>
 
 ## Design
 <written by /planning:design-handoff when the design gate passes; /planning:plan keeps it as written. Omit for work with no design stage>
@@ -36,6 +36,9 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed as `c
 ### Goal
 <which Brief Problem it serves, What / Why / Done when, and the Brief's three Goal lines quoted verbatim>
 
+### Acceptance criteria
+<only when the plan adds criteria the Brief lacks: `- AC<n>: <criterion>`, numbered after the Brief's ids; omit otherwise>
+
 ### Load-bearing assumptions
 <Assumption | Source | Falsifying check | Response if false: one row per Brief Captured assumption written `<assumption>: revisit if <trigger>` (not the Quality bar, Variation intent or override lines) and per assumption the plan adds; the check names a phase Sanity Check; the response is Minor, Moderate or Major>
 
@@ -49,6 +52,7 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed as `c
 <Decision | What it changes in the plan | Basis (evidence) | Source, per ../context/tag-decisions.md "Presentation contract"; a deferred Brief question the plan resolved has Source `deferred Q<N>`>
 
 ### Phase 1: <name> [TODO]
+**Satisfies:** <the acceptance criterion ids this phase satisfies, e.g. AC1, AC3; per ../context/plan-template.md "Criterion ids">
 <file-by-file changes, rationale, per-phase sanity-check criteria>
 
 ### Phase N: <name> [TODO]
