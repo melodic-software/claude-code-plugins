@@ -1715,8 +1715,8 @@ jobs:
 
       # One lane record per run, naming the credential the leg ran on. A
       # handoff records nothing; the fallback call records the run under a
-      # name that says why it ran (until report-lane-outcome takes the reason
-      # itself, ci-workflows#806). An issue run keeps the lane's own name.
+      # name that says why it ran, and a credit-stop or no-key call records
+      # that reason as fallback-reason. An issue run keeps the lane's own name.
       - name: Record the launcher's lane outcome
         id: lane-record
         if: >-
@@ -1749,6 +1749,7 @@ jobs:
           step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at || steps.fallback-present.outputs.started-at }}
           step-timeout-minutes: ${{ steps.launch.outputs.step-minutes }}
           credential: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}
+          fallback-reason: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
 

@@ -590,10 +590,10 @@ async function checkRerunner({ github, repository, runId, runAttempt, pool, deni
   }
 }
 
-// The run at headSha ran the default branch's own code: no tag shares the
-// branch's name (a run on that tag would report the same head_branch; only a
-// 404 proves it absent), and headSha is the branch tip or behind it.
-async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+// The default branch's tip, read only while no tag shares the branch's name
+// (a run on that tag would report the same head_branch; only a 404 proves it
+// absent).
+export async function readDefaultBranchTip(github, repository, defaultBranch, reason) {
   let tagAbsent = false;
   try {
     await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
@@ -607,10 +607,22 @@ async function requireOnDefaultBranch(github, repository, defaultBranch, headSha
   if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
     throw new Stop(reason);
   }
-  const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tip.object.sha}`, reason);
+  return tip.object.sha;
+}
+
+// headSha is the tip `tipSha` or behind it.
+export async function requireBehindTip(github, repository, headSha, tipSha, reason) {
+  const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tipSha}`, reason);
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     throw new Stop(reason);
   }
+}
+
+// The run at headSha ran the default branch's own code: no tag shares the
+// branch's name, and headSha is the branch tip or behind it.
+async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+  const tip = await readDefaultBranchTip(github, repository, defaultBranch, reason);
+  await requireBehindTip(github, repository, headSha, tip, reason);
 }
 
 // What a record name says about this run: null when it does not list it,
