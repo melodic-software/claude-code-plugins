@@ -177,11 +177,11 @@ test("carries file to file, and writes nothing when the file is missing or unrea
 });
 
 // `read`, before the gate: the carried file comes only from the
-// pr-merge-run-cache artifact of the newest scheduled or hand-started
-// pr-merge.yml run on main other than this one whose head commit is on main
-// (rotation.mjs newestTrustedRun, head-ref-map.mjs onMain), as #9416's
-// head-ref map does; never from actions/cache, which any job in main's cache
-// scope can write (#9455).
+// pr-merge-run-cache and pr-merge-verify-run-cache artifacts, each of the
+// newest scheduled or hand-started pr-merge.yml run on main other than this
+// one whose head commit is on main (rotation.mjs newestTrustedRun,
+// head-ref-map.mjs onMain), as #9416's head-ref map does; never from
+// actions/cache, which any job in main's cache scope can write (#9455).
 const wf = (id, event, headSha = String(id).padStart(40, "a")) => ({
   id,
   event,
@@ -213,7 +213,7 @@ async function readRun(t, { pages = [[]], files = {}, verify = {}, offMain = [],
     ];
     return { total_count: artifacts.length, artifacts };
   };
-  const download = (id, name) => {
+  const download = (id, name = "pr-merge-run-cache") => {
     if (name === "pr-merge-verify-run-cache") {
       downloads.push(`verify:${id}`);
       return verify[id];
@@ -315,6 +315,12 @@ test("read adds the verify file's carried sections to the merge file, every othe
     "skip-unchanged": skip,
   });
   assert.equal(JSON.stringify(written["skip-unchanged"]), JSON.stringify(JSON.parse(mergeFile)["skip-unchanged"]));
+});
+
+test("read writes the merge file as it is when the verify file does not read", async (t) => {
+  const result = await readRun(t, { pages: [[wf(8, "schedule")]], files: { 8: mergeFile }, verify: { 8: "not json" } });
+  assert.equal(result.written, mergeFile);
+  assert.ok(result.logs.some((line) => line.startsWith("::warning::the verifier reads were not carried: ")));
 });
 
 test("read yields the carried sections of a run holding only one of the two files", async (t) => {

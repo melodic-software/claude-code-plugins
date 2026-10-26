@@ -197,7 +197,13 @@ export async function read({ env = process.env, actions: client, download } = {}
       return text;
     };
     const kept = await fetch(CARRY_ARTIFACT);
-    const verify = await fetch(VERIFY_ARTIFACT);
+    // A verify file that does not read leaves the merge job's file as it is.
+    let verify;
+    try {
+      verify = await fetch(VERIFY_ARTIFACT);
+    } catch (error) {
+      console.log(`::warning::the verifier reads were not carried: ${escapeCommand(error?.message ?? error)}`);
+    }
     if (kept === undefined && verify === undefined) {
       console.log("no earlier run cache to carry");
       return;

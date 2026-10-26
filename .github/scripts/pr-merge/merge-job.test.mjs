@@ -309,8 +309,9 @@ test("the sweep cost names both tokens' spend, the candidates, those reached and
 
 // The run cache's carried reads (carry-run-cache.mjs) reach both token-holding
 // jobs as the head-ref map does (#9416): read from the last trusted run's
-// pr-merge-run-cache artifact, and uploaded by scheduled and hand-started
-// merge jobs only, the runs a later read accepts. Neither job restores an
+// pr-merge-run-cache artifact (with enable-auto-merge's
+// pr-merge-verify-run-cache added), each uploaded by scheduled and
+// hand-started runs only, the runs a later read accepts. Neither job restores an
 // Actions cache, which any job in main's cache scope can write (#9455).
 test("both token-holding jobs read the carried reads from the last trusted run's artifact, never a cache", () => {
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
