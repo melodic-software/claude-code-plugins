@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
@@ -60,8 +61,9 @@ const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const SEND = `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242 -f inputs[head-sha]=${HEAD}`;
 // With notModified N, the first read finds the run in progress with ETag
 // "e1", the next N reads (sent with If-None-Match on it) are answered 304
-// with gh's exit 1, and the one after finds it completed.
-function runWait(conclusion, { dispatchFails = false, notModified = 0 } = {}) {
+// with gh's exit 1, and the one after finds it completed. With limited, every
+// read is refused with limitedMessage.
+function runWait(conclusion, { dispatchFails = false, notModified = 0, limited = false, limitedMessage = "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" } = {}) {
   const step = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   const body = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
     .exec(step)[1]
@@ -82,6 +84,7 @@ function runWait(conclusion, { dispatchFails = false, notModified = 0 } = {}) {
 printf '%s\\n' "$*" >>"${dir}/log"
 case "$*" in
   *-X\\ POST*) exit ${dispatchFails ? 1 : 0} ;;
+  ${limited ? `*) echo '${limitedMessage}' >&2; exit 1 ;;` : ""}
   *'-H If-None-Match: "e1"')
     n=$(cat "${dir}/n304")
     if [ "$n" -gt 0 ]; then
@@ -104,6 +107,7 @@ esac
       GH_TOKEN: "x",
       REPO: "o/r",
       RUN_ID: "4242",
+      RUNNER_TEMP: dir,
     },
     encoding: "utf8",
   });
@@ -118,6 +122,23 @@ esac
     sleeps,
   };
 }
+
+test("a rate-limited read of the full run stops the wait red after one read", () => {
+  const { status, out, reads, writes } = runWait("failure", { limited: true });
+  assert.equal(status, 1, out);
+  assert.equal(reads.length, 1);
+  assert.deepEqual(writes, []);
+  assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+});
+
+// gh's bare 429 message names no rate limit, and is one all the same.
+test("a bare HTTP 429 on the read of the full run stops the wait red after one read", () => {
+  const { status, out, reads, writes } = runWait("failure", { limited: true, limitedMessage: "gh: Too Many Requests (HTTP 429)" });
+  assert.equal(status, 1, out);
+  assert.equal(reads.length, 1);
+  assert.deepEqual(writes, []);
+  assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+});
 
 // A 304 is the run as last read: the wait keeps its three-minute pace and
 // sends the red run once it completes, as with plain reads.
@@ -400,12 +421,14 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
 
 // The dispatch POST's retry, run under bash against a stub gh that answers
 // each POST in turn from `answers` ({status, headers, body}, or {stderr} for
-// no response at all, with gh's error text), a stub sleep that logs its seconds and a stub date. The
-// expected waits come from the owner outage rule (at most three attempts;
-// retry-after, else x-ratelimit-reset for a primary limit, else at least
-// 60 s for a secondary one; otherwise a capped full-jitter backoff) and
-// GitHub's documented order
-// (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
+// no response at all, with gh's error text), a stub sleep that logs its seconds and a stub date
+// whose `+%s` is NOW. The expected answers come from the owner outage rule
+// (at most three attempts, a capped full-jitter backoff) and the owner's
+// ban rule: a rate limit is never sent again, and the step fails red naming
+// the reset, the later of retry-after and x-ratelimit-reset while remaining
+// is 0, else a minute on, as GitHub documents the waits
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+// Each expected reset below is `date -u -d @<seconds>` of the NOW sum.
 const NOW = 1792736000;
 const runBody = (block) =>
   /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
@@ -451,7 +474,8 @@ exit "$(cat "${dir}/code-$n" 2>/dev/null || echo 1)"
     { mode: 0o755 },
   );
   writeFileSync(join(dir, "bin", "sleep"), `#!/bin/sh\necho "$1" >>"${dir}/slept"\n`, { mode: 0o755 });
-  writeFileSync(join(dir, "bin", "date"), `#!/bin/sh\necho ${NOW}\n`, { mode: 0o755 });
+  const realDate = spawnSync("bash", ["-c", "command -v date"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(join(dir, "bin", "date"), `#!/bin/sh\nif [ "$1" = +%s ]; then echo ${NOW}; else exec ${realDate} "$@"; fi\n`, { mode: 0o755 });
   writeFileSync(join(dir, "body.sh"), step.body);
   writeFileSync(join(dir, "output"), "");
   const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
@@ -495,54 +519,98 @@ test("a dispatch answered at once records its run and waits for nothing", () => 
   assert.deepEqual(JSON.parse(r.record), { dispatcher_run_id: 77, run_id: 4242 });
 });
 
-test("a rate-limited dispatch waits retry-after seconds, then sends again", () => {
+// A rate limit stops the step red after its one POST, with no wait.
+const stopped = (r) => {
+  assert.equal(r.status, 1, r.out);
+  assert.equal(r.posts, 1);
+  assert.deepEqual(r.slept, []);
+  assert.doesNotMatch(r.output, /run-id=/);
+  // post-merge-dispatch's re-run step reads it and sends nothing.
+  assert.match(r.output, /^rate-limited=true$/m);
+  assert.equal(r.record, "");
+};
+
+test("a retry-after stops every pool until the later of it and a spent pool's reset", () => {
   const r = runDispatch([limited({ "Retry-After": "7", "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 100}` }), ok(4243)]);
-  assert.equal(r.status, 0, r.out);
-  assert.equal(r.posts, 2);
-  assert.deepEqual(r.slept, [7]);
-  assert.match(r.output, /^run-id=4243$/m);
+  stopped(r);
+  assert.match(r.out, /::error title=GitHub rate limit::every pool is exhausted \(HTTP 403: .*\); nothing more is sent before 2026-10-23T06:15:00Z/);
 });
 
-test("a primary limit with no retry-after waits until one second past the reset", () => {
-  const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}` }), ok(4244)]);
-  assert.equal(r.status, 0, r.out);
-  assert.deepEqual(r.slept, [31]);
-  assert.match(r.output, /^run-id=4244$/m);
+test("a primary limit with no retry-after names its pool and the reset", () => {
+  const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 30}`, "X-Ratelimit-Resource": "core" }), ok(4244)]);
+  stopped(r);
+  assert.match(r.out, /::error title=GitHub rate limit::the core pool is exhausted .*before 2026-10-23T06:13:50Z/);
+  // The merge job reads this through post-merge-dispatch's rate-limited output.
+  assert.match(r.output, /^stop=the core pool until 2026-10-23T06:13:50Z$/m);
 });
 
-test("a secondary limit named only by its message waits 60 s", () => {
+test("a secondary limit named only by its message stops every pool for a minute", () => {
   const r = runDispatch(
     [limited({ "X-Ratelimit-Remaining": "812" }, "You have exceeded a secondary rate limit"), ok(4245)],
     { jobId: "post-merge-dispatch", event: "schedule" },
   );
-  assert.equal(r.status, 0, r.out);
-  assert.deepEqual(r.slept, [60]);
-  assert.match(r.output, /^run-id=4245$/m);
+  stopped(r);
+  assert.match(r.out, /::error title=GitHub rate limit::every pool is exhausted .*before 2026-10-23T06:14:20Z/);
 });
 
-test("three rate-limited answers end green with a warning naming the merge, and no run id", () => {
-  const busy = limited({ "Retry-After": "5" });
-  const r = runDispatch([busy, busy, busy, ok(1)]);
+test("a 429 is stopped like a 403", () => {
+  const r = runDispatch([{ ...limited({ "Retry-After": "5" }), status: "429 Too Many Requests" }, ok(1)]);
+  stopped(r);
+});
+
+// Any 429 is a rate limit, and a limit no header times waits as
+// rate-guard.mjs classify decides: the minute for a secondary one, else the hour.
+const DISPATCH_URL = "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches";
+for (const [name, status, body] of [
+  ["a bare 429 with no headers or message", 429, ""],
+  ["a 403 whose message names a primary rate limit, with no headers", 403, JSON.stringify({ message: "API rate limit exceeded for installation" })],
+  ["a 403 whose message names a secondary rate limit, with no headers", 403, JSON.stringify({ message: "You have exceeded a secondary rate limit" })],
+  ["a 403 whose message names only abuse detection, with no headers", 403, JSON.stringify({ message: "You have triggered an abuse detection mechanism" })],
+]) {
+  test(`${name} stops every pool until the guard's reset`, () => {
+    const want = classify({ url: DISPATCH_URL, status, headers: {}, body }, { now: NOW * 1000 });
+    assert.equal(want.pool, "*");
+    for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+      const r = runDispatch([{ status: `${status} X`, headers: {}, body }, ok(1)], { jobId, event: "schedule" });
+      stopped(r);
+      assert.match(r.out, new RegExp(`::error title=GitHub rate limit::every pool is exhausted \\(HTTP ${status}: .*before ${resetLabel(want.reset)}`));
+    }
+  });
+}
+
+test("a secondary limit with a spent pool still stops every pool, as the guard does", () => {
+  const headers = { "x-ratelimit-remaining": "0", "x-ratelimit-reset": `${NOW + 30}`, "x-ratelimit-resource": "core" };
+  const body = JSON.stringify({ message: "You have exceeded a secondary rate limit" });
+  const want = classify({ url: DISPATCH_URL, status: 403, headers, body }, { now: NOW * 1000 });
+  assert.equal(want.pool, "*");
+  for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
+    const r = runDispatch([{ status: "403 X", headers, body }, ok(1)], { jobId, event: "schedule" });
+    stopped(r);
+    assert.match(r.out, new RegExp(`::error title=GitHub rate limit::every pool is exhausted \\(HTTP 403: .*before ${resetLabel(want.reset)}`));
+    assert.match(r.output, new RegExp(`^stop=every pool until ${resetLabel(want.reset)}$`, "m"));
+  }
+});
+
+const refused = () => limited({ "X-Ratelimit-Remaining": "900" }, "Resource not accessible by integration");
+
+test("a refusal ends green with a warning naming the merge, and no run id", () => {
+  const r = runDispatch([refused(), ok(1)]);
   assert.equal(r.status, 0, r.out);
-  assert.equal(r.posts, 3);
-  assert.deepEqual(r.slept, [5, 5]);
-  assert.match(r.out, new RegExp(`::warning::no full CI run started for merge ${HEAD} after 3 attempt\\(s\\): HTTP 403`));
+  assert.match(r.out, new RegExp(`::warning::no full CI run started for merge ${HEAD} after 1 attempt\\(s\\): HTTP 403`));
   assert.doesNotMatch(r.output, /run-id=/);
-  assert.equal(r.record, "");
 });
 
 test("a scheduled run's warning names main at the run's start, not a merge", () => {
-  const busy = limited({ "Retry-After": "5" });
-  const r = runDispatch([busy, busy, busy], { jobId: "post-merge-dispatch", event: "schedule" });
+  const r = runDispatch([refused()], { jobId: "post-merge-dispatch", event: "schedule" });
   assert.match(r.out, new RegExp(`::warning::no full CI run started for main \\(this run started at ${HEAD}\\)`));
 });
 
 test("a wait past the job's cap is not taken", () => {
-  const r = runDispatch([limited({ "X-Ratelimit-Remaining": "0", "X-Ratelimit-Reset": `${NOW + 1800}` }), ok(1)], { cap: "180" });
+  const r = runDispatch([{ stderr: 'Post "https://api.github.com/x": dial tcp: lookup api.github.com: no such host' }, ok(1)], { cap: "0" });
   assert.equal(r.status, 0, r.out);
   assert.equal(r.posts, 1);
   assert.deepEqual(r.slept, []);
-  assert.match(r.out, /::warning::.*a 1801s wait does not fit the 180s this job allows/);
+  assert.match(r.out, /::warning::.*wait does not fit the 0s this job allows/);
   assert.doesNotMatch(r.output, /run-id=/);
 });
 
@@ -594,21 +662,6 @@ test("no response once the request may have been sent is not sent again", () => 
     assert.match(r.out, /::warning::no full CI run started .*the request may have been sent; not sent again/, stderr);
     assert.doesNotMatch(r.output, /run-id=/);
   }
-});
-
-// post-merge-dispatch's 15 minutes hold its measured steps, the re-run
-// step's read-back after this one, and at most 180 s of waits here (the yaml
-// comment holds the numbers): a 181 s wait is not taken, two 60 s ones are.
-test("post-merge-dispatch takes at most 180 s of waits", () => {
-  const opts = { jobId: "post-merge-dispatch", event: "schedule" };
-  const over = runDispatch([limited({ "Retry-After": "181" }), ok(1)], opts);
-  assert.equal(over.posts, 1);
-  assert.deepEqual(over.slept, []);
-  assert.match(over.out, /a 181s wait does not fit the 180s this job allows/);
-  const secondary = limited({ "Retry-After": "60" });
-  const within = runDispatch([secondary, secondary, ok(4248)], opts);
-  assert.deepEqual(within.slept, [60, 60]);
-  assert.match(within.output, /^run-id=4248$/m);
 });
 
 test("a dispatch that returns no run id is not sent again and records nothing", () => {
