@@ -98,6 +98,13 @@ HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # The reconciler re-runs any failed lane run once; attempt 2 binds only when
 # attempt 1 failed on a usage limit.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# Or on a rejected Claude credential: this lane's publish-review failure line
+# (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
+# attempt 1 then left no verdict, so a re-run cannot trade one review for
+# another. It binds a re-run but does not start one (rate_limited), since a
+# re-run before the secret is fixed would spend the one allowed attempt. A
+# spent key needs no entry: publish.cjs reports it as `rate-limit`.
+AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")
 # Or when the review's own post hit GitHub's API rate limit: the message opens
 # with this lane's publish-review failure line (ci-workflows publish.cjs `fail`)
 # whose detail, the request error's message, opens with GitHub's primary or
@@ -108,6 +115,20 @@ PUBLISH_RATE_LIMIT_RE = re.compile(
     r"(?P<lane>[\w-]+): failure-class=publish-failed: [^(\n]*"
     r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
 )
+# Or when a kill switch stopped attempt 1 before the review started: the
+# caller's `kill-switch` job succeeded and its `Report the kill switch` step
+# wrote this lane's notice, whose `if` is the negation of the `proceed` output
+# the lane job needs, and attempt 1 has no lane job. Attempt 1 then left no
+# verdict. The step's text comes from the switch values only, and a head that
+# edits a caller to forge it unbinds through `lane_source`. Like `auth`, it
+# binds a re-run but does not start one: the gate cannot read the switch.
+KILL_SWITCH_JOB = "kill-switch"
+KILL_SWITCH_NOTICE_RE = {
+    "claude-review": re.compile(r"a kill switch stops this review \("),
+    "claude-security-review": re.compile(
+        r"a kill switch stops this security review \("
+    ),
+}
 MARKER_AUTHOR = "github-actions[bot]"
 MARKER_RE = re.compile(
     rf"^<!-- claude-lane-reviewed-head lane=([\w-]+) sha=({_SHA}) -->$"
@@ -376,9 +397,7 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
             raise Unbound("rerun-not-allowed")
         if first is None:
             raise Unbound("evidence-missing")
-        if first.get("conclusion") != "failure" or not rate_limited(
-            lane, _lane_job(lane, newest["id"], first)
-        ):
+        if not rerun_binds(lane, newest["id"], first):
             raise Unbound("rerun-not-allowed")
     job = _lane_job(lane, newest["id"], latest)
     if job.get("conclusion") != "success" or job.get("head_sha") != sha:
@@ -432,18 +451,67 @@ def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str
     return job
 
 
-def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
-    def limited(message: str) -> bool:
-        publish = PUBLISH_RATE_LIMIT_RE.match(message)
-        return bool(RATE_LIMIT_CLASS_RE.search(message)) or (
-            publish is not None and publish["lane"] == lane
-        )
+def _failures(job: Mapping[str, Any]) -> list[str]:
+    """The messages of the job's failure-level annotations."""
+    return [
+        str(a.get("message") or "")
+        for a in job["annotations"]
+        if isinstance(a, Mapping) and a.get("annotation_level") == "failure"
+    ]
 
+
+def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
+    """Whether `message` opens with `pattern` for this lane."""
+    found = pattern.match(message)
+    return found is not None and found["lane"] == lane
+
+
+def rate_limited(lane: str, job: Mapping[str, Any]) -> bool:
+    return any(
+        RATE_LIMIT_CLASS_RE.search(m) or _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m)
+        for m in _failures(job)
+    )
+
+
+def rerun_binds(lane: str, run_id: int, first: Mapping[str, Any]) -> bool:
+    """Whether attempt 1 (`first`) left no verdict, so attempt 2 binds: it
+    failed on a rate limit or a rejected credential (AUTH_FAILURE_RE), or a
+    kill switch stopped it (`_kill_switch_stopped`)."""
+    if first.get("conclusion") == "success":
+        return _kill_switch_stopped(lane, run_id, first)
+    if first.get("conclusion") != "failure":
+        return False
+    job = _lane_job(lane, run_id, first)
+    return rate_limited(lane, job) or any(
+        _lane_line(AUTH_FAILURE_RE, lane, m) for m in _failures(job)
+    )
+
+
+def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
+    """Whether a kill switch stopped this attempt before its lane job existed."""
+    jobs = attempt.get("jobs")
+    if not isinstance(jobs, list | tuple) or not all(
+        isinstance(job, Mapping) for job in jobs
+    ):
+        raise Unbound("evidence-missing")
+    suffix = LANES[lane][1]
+    if any(str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix for job in jobs):
+        return False
+    kills = [job for job in jobs if job.get("name") == KILL_SWITCH_JOB]
+    if len(kills) != 1 or kills[0].get("conclusion") != "success":
+        return False
+    kill = kills[0]
+    if kill.get("run_id") != run_id or kill.get("run_attempt") != attempt.get(
+        "run_attempt"
+    ):
+        raise Unbound("evidence-error")
+    if not isinstance(kill.get("annotations"), list | tuple):
+        raise Unbound("evidence-missing")
     return any(
         isinstance(a, Mapping)
-        and a.get("annotation_level") == "failure"
-        and limited(str(a.get("message") or ""))
-        for a in job["annotations"]
+        and a.get("annotation_level") == "notice"
+        and KILL_SWITCH_NOTICE_RE[lane].match(str(a.get("message") or ""))
+        for a in kill["annotations"]
     )
 
 
@@ -620,11 +688,11 @@ def _open_findings(
     head_spent = False
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped run has only the caller job and reviewed nothing.
+            # A draft-skipped or kill-switched run reviewed nothing.
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
-            ):
+            ) or _kill_switch_stopped(lane, item["id"], attempt):
                 continue
             job = _lane_job(lane, item["id"], attempt)
             rec = _record(lane, item["head_sha"], job)

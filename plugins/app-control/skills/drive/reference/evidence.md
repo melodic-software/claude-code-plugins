@@ -41,7 +41,7 @@ For a job. One object with these fields:
 | `mode` | `interactive` or `unattended` |
 | `launch` | The process this run launched: `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included), or `null` when the run launched nothing |
 | `ready` | `surfaces` (URL, port or command), `build`, `data`, `telemetry` |
-| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a capture step also has `process` (pid, name, start time and command line, plus the parent pid, uid and command line sha256 when a wrapper resolved to it) and `command` (the exact command run) |
+| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a step from a steps file also has `id` and `outcome` (`done`, `failed`, `skipped: optional` or `blocked: <reason>`) and `finally: true` for a finally step, and a step a failure ended is not listed; a capture step also has `process` (pid, name, start time and command line, plus the parent pid, uid and command line sha256 when a wrapper resolved to it) and `command` (the exact command run) |
 | `capability_gaps` | Signals and capture kinds the app or project does not provide |
 | `blocked` | Each step that needed a person or a grant, with its reason and the narrowest grant |
 | `cleanup` | What was stopped, and each evidence path with whether it exists and is not empty |
