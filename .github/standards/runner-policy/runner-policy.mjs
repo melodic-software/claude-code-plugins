@@ -2087,7 +2087,8 @@ async function resolveAutoApprovedContracts({
 
     const matchingBases = [];
     const basisFailures = [];
-    const declineReasons = [];
+    const surfaceDeclineReasons = [];
+    const objectDeclineReasons = [];
     for (const basis of [...bases].sort((left, right) =>
       left.revision.localeCompare(right.revision),
     )) {
@@ -2133,14 +2134,14 @@ async function resolveAutoApprovedContracts({
       }
       const diffField = securitySurfaceDiffField(basisSurface, candidateSurface);
       if (diffField) {
-        declineReasons.push(
+        surfaceDeclineReasons.push(
           `${diffField} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
         );
         continue;
       }
       const objectDiffPath = commitRelativeObjectDiffPath(basisObjects, candidateObjects);
       if (objectDiffPath) {
-        declineReasons.push(
+        objectDeclineReasons.push(
           `commit-relative reference ${objectDiffPath} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
         );
         continue;
@@ -2156,7 +2157,9 @@ async function resolveAutoApprovedContracts({
     if (matchingBases.length === 0) {
       diagnostics.set(
         reference,
-        declineReasons[0] ??
+        // A basis whose surface matched and failed only on an object diff is the closest.
+        objectDeclineReasons[0] ??
+          surfaceDeclineReasons[0] ??
           `no previously approved revision of ${parsed.workflow} could be diffed`,
       );
       continue;

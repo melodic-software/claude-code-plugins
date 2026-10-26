@@ -1157,6 +1157,10 @@ jobs:
         continue-on-error: true
         env:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+          # The surface-diff auto-approval fetches commit trees from api.github.com
+          # (runner-policy.mjs fetchCommitTree); authenticated, it skips the shared
+          # anonymous rate limit. The job token is read-only (`contents: read`).
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh runner-policy {0}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
@@ -3148,9 +3152,11 @@ jobs:
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
       # gh-read.sh, so each step that sources that file reads through it.
-      # Its read floor is pr-pipeline.schema.json's read-floor default
-      # (log-api-budget.test.mjs checks), as this job has no schema checkout.
+      # Its read floor and limit cap are pr-pipeline.schema.json's read-floor
+      # and github-token limit-cap defaults (log-api-budget.test.mjs checks),
+      # as this job has no schema checkout.
       API_BUDGET_READ_FLOOR: "0.1"
+      API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
         # shellcheck shell=bash
         # Rate-limit readings from a job's own API responses. GET /rate_limit reports
@@ -3199,7 +3205,8 @@ jobs:
         # leaves the step running.
         #
         #   api_budget_classify         jq filter: rate-guard.mjs's classify over
-        #                               {status, headers, body, now (ms), pool, floor}
+        #                               {status, headers, body, now (ms), pool, floor,
+        #                               cap}
         #   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
         #                               code_search or core, `any` for a non-api call
         #   api_budget_stop_until <pool>
@@ -3210,9 +3217,12 @@ jobs:
         #                               reads gh api -i output and stops its pool when
         #                               it is exhausted, returning 1 unless the
         #                               answer is a 2xx; under
-        #                               API_BUDGET_READ_FLOOR of the limit left, warns
-        #                               once (unset: no floor; ci-status sets it to
-        #                               the schema's read-floor default)
+        #                               API_BUDGET_READ_FLOOR of the planned budget
+        #                               left, warns once (unset: no floor; ci-status
+        #                               sets it to the schema's read-floor default);
+        #                               the plan is the header's limit, at most
+        #                               API_BUDGET_LIMIT_CAP (unset: no cap; ci-status
+        #                               sets github-token's limit-cap default)
         #   api_budget_emit <token>...  the hub collector's notice for each refused
         #                               (403/429) reading and for the last reading of
         #                               each resource, core last; cost is
@@ -3413,7 +3423,8 @@ jobs:
           | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
               | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql
           | ($rem == 0 or $ra != null or $msg or $gql or $many) as $latched
-          | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $rem < $in.floor * $lim) as $low
+          | (if $in.cap != null and $lim != null then ([$lim, $in.cap] | min) else $lim end) as $planned
+          | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $planned - ($lim - $rem) < $in.floor * $planned) as $low
           | if ($latched | not) then {latched: false, low: $low, reset_source: null, reset: null, pool: null}
             else (($in.now / 1000) | floor) as $n
             | [(if $ra != null then [$n + $ra, "retry-after"] else empty end),
@@ -3432,11 +3443,11 @@ jobs:
           start=$(awk 'NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { exit } { sub(/\r$/, "") } NR > 1 && $0 == "" { print NR; exit }' "$file")
           [[ -n $start ]] || return 0
           verdict=$(jq -rn --rawfile raw "$file" --argjson start "$start" --arg pool "$pool" --argjson now "$(($(date +%s) * 1000))" \
-            --arg floor "${API_BUDGET_READ_FLOOR:-}" '($raw | split("\n")) as $l
+            --arg floor "${API_BUDGET_READ_FLOOR:-}" --arg cap "${API_BUDGET_LIMIT_CAP:-}" '($raw | split("\n")) as $l
             | ($l[0] | split(" ")[1] | tonumber) as $status
             | ([$l[1:$start - 1][] | sub("\r$"; "") | capture("^(?<k>[^:]+):[ \t]*(?<v>.*)$") | {(.k | ascii_downcase): .v}] | add // {}) as $headers
             | {status: $status, headers: $headers, body: ($l[$start:] | join("\n")), now: $now, pool: $pool,
-               floor: ($floor | tonumber? // null)}
+               floor: ($floor | tonumber? // null), cap: ($cap | tonumber? // null)}
             | '"$API_BUDGET_CLASSIFY"' | "\(.latched) \(.low) \(.reset_source) \(.reset) \(.pool)"' 2>/dev/null) || return 0
           read -r latched low source reset stop <<<"$verdict"
           if [[ $latched == true ]]; then

@@ -41,7 +41,8 @@ trap 'rm -rf "$TMP"' EXIT
 
 # Hermeticity: the developer's environment must not leak retention knobs into the cases
 # (RETENTION_DAYS guard would trip every run if RETENTION_DAYS were exported machine-wide).
-unset RETENTION_DAYS CC_OTEL_RETENTION_DAYS CC_OTEL_BODY_RETENTION_DAYS CC_OTEL_COLD_KEEP_USER_PROMPTS
+unset RETENTION_DAYS CC_OTEL_RETENTION_DAYS CC_OTEL_BODY_RETENTION_DAYS CC_OTEL_COLD_KEEP_USER_PROMPTS \
+  CC_OTEL_HOT_MAX_MB CC_OTEL_HOT_TOTAL_MAX_MB
 
 # Stubs: stop hook + restart script touch markers so invocation is assertable; the compact
 # stub mimics a successful duckdb COPY by creating the cold temp it is handed ($2).
@@ -824,6 +825,109 @@ out="$(CC_OTEL_HOT_MAX_MB=abc bash "$SCRIPT" --dry-run 2>&1)"
 rc=$?
 assert_eq "non-integer CC_OTEL_HOT_MAX_MB exits 2" "2" "$rc"
 assert_contains "CC_OTEL_HOT_MAX_MB validation message" "$out" "CC_OTEL_HOT_MAX_MB must be"
+
+# --- 28a. total cap: three files each under the per-file cap, together over the total cap ---
+# 400 lines of ~1.4KB per file (~0.55MB each, ~1.7MB together) between 3d and 2.9d ago,
+# interleaved across files: each under a 1 MiB per-file cap, together over a 1 MiB total cap.
+total_store() { # <store>
+  local i t
+  for ((i = 0; i < 400; i++)); do
+    t=$((NOW - 3 * 86400 + i * 10))
+    real_log_line "${t}000000000" tool_decision "$big_pad" "$TOOL_EXTRA"
+  done >"$1/cc-logs.json"
+  for ((i = 0; i < 400; i++)); do
+    t=$((NOW - 3 * 86400 + i * 10 + 3))
+    real_metric_line "${t}000000000" "$big_pad" '"asInt":"1"'
+  done >"$1/cc-metrics.json"
+  for ((i = 0; i < 400; i++)); do
+    t=$((NOW - 3 * 86400 + i * 10 + 6))
+    real_trace_line "${t}000000000" "$big_pad" ""
+  done >"$1/cc-traces.json"
+}
+hot_total() { cat "$1"/cc-*.json | wc -c | tr -d ' \r'; }
+S="$(new_store totalcap)"
+total_store "$S"
+before_total="$(hot_total "$S")"
+size_ok=yes
+for f in cc-logs.json cc-metrics.json cc-traces.json; do
+  (($(wc -c <"$S/$f" | tr -d ' \r') < CAP_BYTES)) || size_ok=no
+done
+assert_eq "fixture: every hot file under the per-file cap" "yes" "$size_ok"
+if ((before_total > CAP_BYTES)); then pass "fixture: hot files together over the total cap"; else fail "fixture: hot files together over the total cap" "> $CAP_BYTES" "$before_total"; fi
+
+out="$(CC_OTEL_HOT_MAX_MB=1 CC_OTEL_HOT_TOTAL_MAX_MB=1 run_prune "$S" --dry-run)"
+assert_contains "dry-run reports the total cap" "$out" "hot_total_max_mb=1"
+assert_contains "dry-run names the total size prune" "$out" "hot_total: size_prune cutoff_epoch_seconds="
+assert_contains "dry-run counts all three files as size-pruned" "$out" "size_pruned_files=3"
+assert_eq "total-cap dry-run mutates nothing" "$before_total" "$(hot_total "$S")"
+
+rm -f "$TMP/stopped.marker"
+out="$(CC_OTEL_HOT_MAX_MB=1 CC_OTEL_HOT_TOTAL_MAX_MB=1 run_prune "$S")"
+rc=$?
+assert_eq "total-cap run exits 0" "0" "$rc"
+assert_contains "total-cap run prunes (no noop short-circuit)" "$out" "action=pruned"
+assert_eq "total-cap run stopped the Collector" "yes" "$([[ -e "$TMP/stopped.marker" ]] && echo yes || echo no)"
+rm -f "$TMP/stopped.marker"
+after_total="$(hot_total "$S")"
+if ((after_total <= CAP_BYTES && after_total > 0)); then pass "hot files together fit under the total cap"; else fail "hot files together fit under the total cap" "0 < bytes <= $CAP_BYTES" "$after_total"; fi
+newest=$((NOW - 3 * 86400 + 399 * 10))
+oldest=$((NOW - 3 * 86400))
+assert_contains "newest log line survives" "$(cat "$S/cc-logs.json")" "\"${newest}000000000\""
+assert_contains "newest metric line survives" "$(cat "$S/cc-metrics.json")" "\"$((newest + 3))000000000\""
+assert_contains "newest trace line survives" "$(cat "$S/cc-traces.json")" "\"$((newest + 6))000000000\""
+assert_not_contains "oldest log line dropped" "$(cat "$S/cc-logs.json")" "\"${oldest}000000000\""
+assert_not_contains "oldest metric line dropped" "$(cat "$S/cc-metrics.json")" "\"$((oldest + 3))000000000\""
+assert_not_contains "oldest trace line dropped" "$(cat "$S/cc-traces.json")" "\"$((oldest + 6))000000000\""
+
+# --- 28b. total cap stays quiet: files that together fit are not pruned for size ---
+S="$(new_store totalcap-under)"
+total_store "$S"
+cat "$S"/cc-*.json | cksum >"$TMP/totalcap-under.sum"
+out="$(CC_OTEL_HOT_MAX_MB=1 CC_OTEL_HOT_TOTAL_MAX_MB=8 run_prune "$S")"
+rc=$?
+assert_eq "under-total run exits 0" "0" "$rc"
+assert_contains "under-total run is a no-op" "$out" "action=noop-nothing-to-prune"
+assert_not_contains "under-total run reports no size prune" "$out" "size_prune"
+assert_eq "under-total files byte-identical" "$(cat "$TMP/totalcap-under.sum")" "$(cat "$S"/cc-*.json | cksum)"
+assert_eq "under-total run never stopped the Collector" "no" "$([[ -e "$TMP/stopped.marker" ]] && echo yes || echo no)"
+out="$(CC_OTEL_HOT_MAX_MB=1 CC_OTEL_HOT_TOTAL_MAX_MB=0 run_prune "$S")"
+assert_contains "total cap 0 disables the total size prune" "$out" "action=noop-nothing-to-prune"
+
+# --- 28c. total cap over many lines: the cut's sort output overflows a pipe buffer ---
+# 30000 small lines (~5MB): hundreds of KB of sorted rows follow the cut, so a cut reader that
+# stopped early would SIGPIPE sort and, under pipefail, end the prune before it reports.
+S="$(new_store totalcap-many)"
+for ((i = 0; i < 10000; i++)); do
+  t=$((NOW - 3 * 86400 + i * 3))
+  log_line "${t}000000000" "${t}000000000"
+done >"$S/cc-logs.json"
+for ((i = 0; i < 10000; i++)); do
+  t=$((NOW - 3 * 86400 + i * 3 + 1))
+  metric_line "${t}000000000" "${t}000000000"
+done >"$S/cc-metrics.json"
+for ((i = 0; i < 10000; i++)); do
+  trace_line "$((NOW - 3 * 86400 + i * 3 + 2))000000000"
+done >"$S/cc-traces.json"
+out="$(CC_OTEL_HOT_MAX_MB=0 CC_OTEL_HOT_TOTAL_MAX_MB=1 run_prune "$S" --dry-run)"
+rc=$?
+assert_eq "many-line total-cap dry-run exits 0" "0" "$rc"
+assert_contains "many-line total-cap dry-run reports" "$out" "action=dry-run"
+out="$(CC_OTEL_HOT_MAX_MB=0 CC_OTEL_HOT_TOTAL_MAX_MB=1 run_prune "$S")"
+rc=$?
+assert_eq "many-line total-cap run exits 0" "0" "$rc"
+after_total="$(hot_total "$S")"
+if ((after_total <= CAP_BYTES && after_total > 0)); then pass "many-line files together fit under the total cap"; else fail "many-line files together fit under the total cap" "0 < bytes <= $CAP_BYTES" "$after_total"; fi
+rm -f "$TMP/stopped.marker"
+
+out="$(CC_OTEL_HOT_TOTAL_MAX_MB=1.5 bash "$SCRIPT" --dry-run 2>&1)"
+rc=$?
+assert_eq "non-integer CC_OTEL_HOT_TOTAL_MAX_MB exits 2" "2" "$rc"
+assert_contains "CC_OTEL_HOT_TOTAL_MAX_MB validation message" "$out" "CC_OTEL_HOT_TOTAL_MAX_MB must be"
+out="$(CC_OTEL_HOT_MAX_MB=08 CC_OTEL_HOT_TOTAL_MAX_MB=09 CC_OTEL_STORE="$S" bash "$SCRIPT" --dry-run 2>&1)"
+rc=$?
+assert_eq "leading-zero caps read as base 10" "0" "$rc"
+assert_contains "leading-zero per-file cap reported in base 10" "$out" "hot_max_mb=8"
+assert_contains "leading-zero total cap reported in base 10" "$out" "hot_total_max_mb=9"
 
 # --- 29. --scrub-cold: dirty cold files rewritten in place, clean ones untouched, notice fires ---
 if [[ "$HAS_DUCKDB" == true ]]; then
