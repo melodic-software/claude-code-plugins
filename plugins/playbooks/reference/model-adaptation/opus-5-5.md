@@ -7,7 +7,7 @@
 > deliberate, because spawn-time model overrides can hand this file to a model it was not written
 > for.
 
-You are Claude Opus 5.5 reading doctrine authored by Claude Fable 5. The other chapters are
+You are Claude Opus 5.5 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic; this one states what this playbook does differently when you run it. Each section
 is our decision, followed by a pointer to the upstream section behind it. Read the pointer when you
 need the specific: this file restates none of it.

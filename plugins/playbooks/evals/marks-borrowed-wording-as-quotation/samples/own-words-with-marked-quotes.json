@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The two sources point at different bottlenecks. Source A ran the queue for six hours and saw SSD throughput hold until the log grew to about 40 GB, then lose two thirds of its rate in minutes; the authors call this the \"write amplification cliff\" and saw it on every SSD they tried. Source B looked at containers that start and stop often: each spent about nine seconds rebuilding its index before taking traffic, and across a day of scaling up and down that \"cold-start tax\" ate more capacity than any steady-state limit did. For a long-running deployment A matters more; for bursty autoscaling B does.",
+      "why": "own words throughout, coined terms quoted"
+    },
+    {
+      "answer": "A finds a storage limit, B a startup limit.\n\n- A: SSD throughput collapses once the log nears 40 GB. In the authors' words, \"we call this the write amplification cliff\".\n- B: new containers need about nine seconds to rebuild the index, a cost the authors name the “cold-start tax”.",
+      "why": "short, paraphrased, borrowed spans marked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Source A says throughput held steady until the log reached about 40 GB, then fell by two thirds within minutes, which they call the \"write amplification cliff\". Source B says each new container spent roughly nine seconds rebuilding its index before serving traffic, the \"cold-start tax\".",
+      "why": "near miss: terms quoted, but long source sentences copied without quotation marks"
+    },
+    {
+      "answer": "A identifies the write amplification cliff on SSDs; B identifies the cold-start tax in containers. A matters for long runs, B for autoscaling.",
+      "why": "coined terms used without marking them as borrowed"
+    },
+    {
+      "answer": "Our benchmark ran the queue on spinning disks and on SSDs for six hours. We measured the same queue in short-lived containers. Both found a bottleneck.",
+      "why": "stitches source sentences together unquoted"
+    }
+  ]
+}

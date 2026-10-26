@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: fable-5-session-reads-no-adaptation-chapter
+description: "Tagged contract-change with the Fable 5.1 case, but the before contract already says this: before meta-rule 3 says Claude Fable 5 reads no adaptation chapter, so the before version may pass too. Confound: the run model is Fable 5.1 while the prompt says Fable 5, so the model's own identity can pull it toward fable-5-1.md. A session armed as Fable 5 reads nothing under model-adaptation/ and says so"
+tags: [fable-5, regeneration-4346, contract-change]
+expected_outcome: "The reply opens with the line `Adaptation chapter read: none`, the run makes no Read call on any file under model-adaptation/, and the reply then answers the small task (the identifier that breaks snake_case is fetchUserRecord)."
+execution:
+  prompt: "/playbooks:fable-5. You are running as Claude Fable 5. Begin your reply with exactly one line of the form `Adaptation chapter read: <file name>`, naming the model-adaptation chapter file you read while arming this playbook, or `Adaptation chapter read: none` if you read none. Then do this small task: of the identifiers load_config, parse_args, fetchUserRecord, write_report and close_handle, say which one breaks snake_case. This run cannot write files or run commands, so say in your reply exactly what you do."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-adaptation-chapter-read
+    type: tool_used
+    tool: Read
+    input_match: 'model-adaptation/'
+    min: 0
+    max: 0
+    arm: both
+  - name: states-none-read
+    type: regex
+    target: last_message
+    pattern: 'Adaptation chapter read:\**\s*\**\s*[`"]?none\b'
+    flags: i
+    arm: both

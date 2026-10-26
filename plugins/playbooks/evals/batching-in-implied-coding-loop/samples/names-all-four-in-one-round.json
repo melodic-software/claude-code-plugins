@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Next round, all in parallel: Read billing/tax_rules.py, Read billing/currency.py, Read tests/test_invoice.py, and Grep for INVOICE_ROUNDING across the repo. None needs another's result.",
+      "why": "all four named, parallel"
+    },
+    {
+      "answer": "I send four calls in one round: tax_rules.py, currency.py, test_invoice.py, and a search for INVOICE_ROUNDING.",
+      "why": "one round wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "First I read billing/tax_rules.py. After that I'll look at currency.py, then the tests.",
+      "why": "serial, missing the config search"
+    },
+    {
+      "answer": "In parallel I read billing/tax_rules.py, billing/currency.py and tests/test_invoice.py.",
+      "why": "near miss: batched but omits the INVOICE_ROUNDING search"
+    },
+    {
+      "answer": "Read tax_rules.py. Then read currency.py. Then test_invoice.py. Then grep INVOICE_ROUNDING.",
+      "why": "names all four but serially"
+    }
+  ]
+}

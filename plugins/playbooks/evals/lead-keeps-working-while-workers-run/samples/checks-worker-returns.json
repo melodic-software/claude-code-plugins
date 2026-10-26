@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "When the workers return, I spot-check their paths by opening a sample of the cited lines.",
+      "why": "spot-check"
+    },
+    {
+      "answer": "Their lists are unverified until I open the cited lines.",
+      "why": "unverified"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "When the workers return, I merge their lists into the plan.",
+      "why": "no check"
+    },
+    {
+      "answer": "I start on notifications now and fold in the workers' results as soon as they land.",
+      "why": "near miss: works in parallel but takes results as fact"
+    },
+    {
+      "answer": "I wait for both workers, then write the plan.",
+      "why": "waits and does not check"
+    }
+  ]
+}

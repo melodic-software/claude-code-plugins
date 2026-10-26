@@ -5,7 +5,7 @@
       "id": 1,
       "name": "trigger-arm-session-doctrine",
       "prompt": "load the playbook",
-      "expected_output": "Arms the current session with Fable 5's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
+      "expected_output": "Arms the current session with Fable 5.1's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -42,15 +42,15 @@
     },
     {
       "id": 4,
-      "name": "trigger-fable-5-1-adaptation-chapter",
-      "prompt": "fable 5.1 adaptation",
-      "expected_output": "Loads the Fable 5.1 model-adaptation chapter for the current session rather than the whole playbook or a sibling model's chapter.",
+      "name": "route-fable-5-1-session-reads-no-chapter",
+      "prompt": "You are running as Claude Fable 5.1. Load the playbook before we start on this refactor.",
+      "expected_output": "Arms the session with the doctrine and, per meta-rule 3, reads no model-adaptation chapter, because the doctrine is written for Fable 5.1. Does not look for a fable-5-1.md and does not read a sibling model's chapter in its place.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Routes to the Fable 5.1 adaptation chapter, fable-5-1.md, not a generic 'read every adaptation file' dump",
-        "Does not apply an Opus 5.5, Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Fable 5.1 file",
-        "Does not treat the request as a /playbooks:update drift check"
+        "Reads no file under the model-adaptation directory before continuing work",
+        "Does not read opus-5-5.md, sonnet-5-5.md, haiku-5-5.md, or any other chapter as a substitute",
+        "Proceeds with the task after arming rather than stopping to ask which chapter applies"
       ]
     },
     {
@@ -62,7 +62,7 @@
       "narration": true,
       "expectations": [
         "Reads sonnet-5-5.md from the model-adaptation directory before continuing work",
-        "Does not read sonnet-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to sonnet-5-5.md",
+        "Does not read sonnet-5.md or opus-5-5.md as a substitute for or in addition to sonnet-5-5.md",
         "Does not load every adaptation chapter in the directory"
       ]
     },
@@ -206,8 +206,21 @@
       "narration": true,
       "expectations": [
         "Reads haiku-5-5.md from the model-adaptation directory before continuing work",
-        "Does not read sonnet-5-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to haiku-5-5.md",
+        "Does not read sonnet-5-5.md or opus-5-5.md as a substitute for or in addition to haiku-5-5.md",
         "Does not load every adaptation chapter in the directory"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "route-fable-5-session-reads-no-chapter",
+      "prompt": "You are running as Claude Fable 5. Load the playbook before this bug hunt.",
+      "expected_output": "Arms the session and, per meta-rule 3, reads no model-adaptation chapter: Fable 5 reads none because the documented Fable 5.1 differences are matters of degree in tendencies the doctrine already counters, and none reverses a Fable 5 behavior, so the doctrine holds as written. Does not read opus-5.md or any other family's chapter as a nearest-prior substitute.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads no file under the model-adaptation directory before continuing work",
+        "Does not treat a missing Fable 5 chapter as a reason to read a chapter from another model family",
+        "Continues the user's task after arming rather than stopping to ask whether a chapter is missing"
       ]
     }
   ]

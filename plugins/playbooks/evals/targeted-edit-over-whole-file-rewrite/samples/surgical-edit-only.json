@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I make one targeted edit to export/runner.py, replacing the line `DEFAULT_TIMEOUT_SECONDS = 30` with `DEFAULT_TIMEOUT_SECONDS = 60`. No other line changes. Runner's `timeout` parameter defaults to this constant, so new runners use 60 seconds; a caller passing its own timeout is unaffected.",
+      "why": "one-line replacement, notes the downstream effect"
+    },
+    {
+      "answer": "```diff\n--- a/export/runner.py\n+++ b/export/runner.py\n@@\n-DEFAULT_TIMEOUT_SECONDS = 30\n+DEFAULT_TIMEOUT_SECONDS = 60\n```\nThat is the whole change. I would run the export tests next to confirm.",
+      "why": "one-line diff plus a verification step"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the full updated export/runner.py:\n```python\nimport logging\nimport time\n\nfrom export.client import ExportClient\nfrom export.errors import ExportError\n\nlog = logging.getLogger(__name__)\n\nDEFAULT_TIMEOUT_SECONDS = 60\nMAX_ATTEMPTS = 3\n# ... rest of the file unchanged ...\n```\nI write this file in place of the old one.",
+      "why": "writes the file wholesale"
+    },
+    {
+      "answer": "I replace `DEFAULT_TIMEOUT_SECONDS = 30` with `DEFAULT_TIMEOUT_SECONDS = 60`, and while I'm there I sort the imports and add type hints to `_chunk`.",
+      "why": "near miss: correct targeted edit plus drive-by churn on other lines"
+    },
+    {
+      "answer": "I change the Runner signature to `def __init__(self, client=None, timeout=60):` and leave the constant alone.",
+      "why": "edits the wrong place, leaving the constant stale"
+    }
+  ]
+}

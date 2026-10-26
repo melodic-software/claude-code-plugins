@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: marks-borrowed-wording-as-quotation
+description: "Regression guard (expected to pass in both versions): the quoting rule from the Fable 5.1 chapter. Summarizing two retrieved sources, the reply carries them in its own words and marks every borrowed span, including each author's coined term, as a quotation"
+tags: [fable-5, regeneration-4346, regression-guard]
+expected_outcome: "The reply compares the two sources mostly in its own words. Each coined term the user asked to keep (write amplification cliff, cold-start tax) appears inside quotation marks or a blockquote, and no other sentence from either source is copied without quotation marks."
+execution:
+  prompt: "/playbooks:fable-5. You are running as Claude Fable 5.1. Compare these two short sources for a design note. Keep each author's own name for their main finding, because the team searches for those exact terms. Source A: 'Our benchmark ran the queue on spinning disks and on SSDs for six hours. On SSDs, throughput held steady until the log reached about 40 GB, then fell by two thirds within minutes. We call this the write amplification cliff, and it appeared on every SSD model we tested.' Source B: 'We measured the same queue in short-lived containers. Each new container spent roughly nine seconds rebuilding its index before serving traffic. Across a day of autoscaling, this cold-start tax cost more capacity than any steady-state bottleneck we found.' This run cannot write files or run commands, so say in your reply exactly what you write in the comparison."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: coined-terms-quoted
+    type: regex
+    target: last_message
+    pattern: '^(?=[\s\S]*(write amplification cliff[.,;:!?]?["”’]|^>[^\n]*write amplification cliff))(?=[\s\S]*(cold-start tax[.,;:!?]?["”’]|^>[^\n]*cold-start tax))'
+    flags: im
+    arm: both
+  - name: own-words-with-marked-quotes
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if the reply compares the two sources mainly in its own words, and every span copied word for word from either source (a coined term such as 'write amplification cliff' or 'cold-start tax', or any longer phrase) sits inside quotation marks or a blockquote. Short common words and numbers (SSD, nine seconds, 40 GB) need no marks. Attribution words are not quotation marks: 'Source A says' or 'according to B' followed by the source's own wording still counts as an unmarked copy. FAIL if the reply reproduces, outside quotation marks, a run of eight or more consecutive words from either source, for example 'throughput held steady until the log reached about 40 GB', 'fell by two thirds within minutes', 'spent roughly nine seconds rebuilding its index before serving traffic', or 'cost more capacity than any steady-state bottleneck'; FAIL if it uses either coined term without marking it as borrowed; FAIL if it mostly stitches the sources' sentences together instead of restating them."

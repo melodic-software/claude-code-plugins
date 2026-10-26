@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: independent-oracle-when-spec-allows
+description: "Tagged regression-guard as briefed, but the before contract has no independent-oracle rule (no oracle, brute-force or random-input check in SKILL.md or the context chapters); its only toggle is debugging.md's fix/revert toggle on the same reproduction. Likely to fail on the before version. When the specification is checkable, verification beyond the floor uses an independent oracle and a toggle that shows the check fails without the full fix"
+tags: [fable-5, regeneration-4346, regression-guard]
+expected_outcome: "The reply proposes an independent oracle for merge_ranges (a brute-force expansion of the ranges into sets of integers, a separate simple reference implementation, or spec-driven random inputs compared against one of those) and a toggle check: with the fix reverted or only half applied, the new check fails, and with the full fix it passes."
+execution:
+  prompt: "/playbooks:fable-5. You are running as Claude Fable 5.1. You fixed merge_ranges in intervals.py. Its specification: given a list of closed integer ranges [start, end], return the smallest sorted list of non-overlapping ranges covering exactly the same integers, so touching ranges such as [1, 3] and [4, 6] merge into [1, 6]. The bug was that touching ranges stayed separate; your fix changes one comparison and adds a sort before the merge loop. The existing unit tests, six hand-picked cases, now pass. Before you call this done: how do you verify it beyond the passing unit tests? This run cannot write files or run commands, so say in your reply exactly which checks you run and what each would show."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-an-oracle
+    type: regex
+    target: last_message
+    pattern: 'oracle|brute[- ]?force|reference implementation|naive implementation|random(ized|ly generated)? (inputs?|cases|ranges|lists)|property[- ]based|differential|expand(ing|s)? (each|every|the|all)? ?(range|ranges|interval)'
+    flags: i
+    arm: both
+  - name: oracle-and-toggle
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if both hold. (1) The reply proposes checking merge_ranges against an independent oracle derived from the specification rather than from the new code: for example expanding the input and output ranges into sets of integers and comparing them, a separate simple reference implementation, or many generated or random inputs checked against such an oracle or against the spec's properties (sorted, non-overlapping, same integers covered, touching ranges merged). (2) It names a toggle check in any wording: with the fix reverted, or only part of it applied (for example the comparison change without the sort), the new check must fail, and with the full fix it must pass, which shows the check can detect the bug. FAIL if the reply only adds more hand-picked cases, only reruns the existing tests, relies on reading the code, or omits either the oracle or the toggle."

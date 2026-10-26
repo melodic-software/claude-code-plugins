@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Next I send one round of four calls together, since none depends on another: Read billing/tax_rules.py, Read billing/currency.py, Read tests/test_invoice.py, and Grep for INVOICE_ROUNDING across the repository. Once all four return I compare the rounding path against the test's expected totals and pick the fix.",
+      "why": "four lookups batched; the later fix decision is legitimately sequenced"
+    },
+    {
+      "answer": "Tool calls, all in a single message:\n- Read billing/tax_rules.py\n- Read billing/currency.py\n- Read tests/test_invoice.py\n- Grep INVOICE_ROUNDING\nThen I reason on the full set.",
+      "why": "a grouped list issued at once"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I read billing/tax_rules.py first. Depending on what it shows, I'll read currency.py next turn, then the test file, and finally search for INVOICE_ROUNDING.",
+      "why": "one per turn with no real dependency"
+    },
+    {
+      "answer": "In parallel: Read billing/tax_rules.py, Read billing/currency.py, Read tests/test_invoice.py. That should be enough to find the bug.",
+      "why": "near miss: batched, but drops the INVOICE_ROUNDING search the report points at"
+    },
+    {
+      "answer": "Should I read tax_rules.py, currency.py and the tests, and search for INVOICE_ROUNDING? Let me know and I'll start.",
+      "why": "asks permission for implied reads"
+    }
+  ]
+}

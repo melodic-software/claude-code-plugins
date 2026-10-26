@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Source A reports a sudden throughput drop on SSDs, which it calls the \"write amplification cliff\". Source B finds that startup cost dominates, its \"cold-start tax\".",
+      "why": "straight quotes around both terms"
+    },
+    {
+      "answer": "A's finding:\n> We call this the write amplification cliff\n\nB names its finding the “cold-start tax”.",
+      "why": "blockquote for one term, curly quotes for the other"
+    },
+    {
+      "answer": "Source A puts it as \"then fell by two thirds within minutes. We call this the write amplification cliff\", while B speaks of a ‘cold-start tax’.",
+      "why": "term inside a longer quotation that starts earlier"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Source A calls it the write amplification cliff and source B calls it the cold-start tax.",
+      "why": "neither term marked"
+    },
+    {
+      "answer": "Source A calls it the \"write amplification cliff\"; Source B calls it the cold-start tax.",
+      "why": "near miss: one term quoted, the other not"
+    },
+    {
+      "answer": "The author's write amplification cliff contrasts with the team's cold-start tax.",
+      "why": "an apostrophe is not a quotation mark"
+    }
+  ]
+}

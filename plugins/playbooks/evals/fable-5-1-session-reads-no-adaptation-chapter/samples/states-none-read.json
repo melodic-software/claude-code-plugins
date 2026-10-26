@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Adaptation chapter read: none\n\nfetchUserRecord breaks snake_case; it is camelCase.",
+      "why": "exact line, then the task"
+    },
+    {
+      "answer": "Adaptation chapter read: `none`\n\nThe odd one out is fetchUserRecord.",
+      "why": "value in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Adaptation chapter read: fable-5-1.md\n\nfetchUserRecord breaks snake_case.",
+      "why": "names the Fable 5.1 chapter"
+    },
+    {
+      "answer": "I read no adaptation chapter. fetchUserRecord breaks snake_case.",
+      "why": "near miss: says none in prose but skips the requested line"
+    },
+    {
+      "answer": "fetchUserRecord breaks snake_case.",
+      "why": "omits the line entirely"
+    }
+  ]
+}

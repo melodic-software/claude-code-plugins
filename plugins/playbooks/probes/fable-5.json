@@ -1,0 +1,133 @@
+{
+  "skill": "playbooks:fable-5",
+  "plugin": "playbooks",
+  "skill_dir": "plugins/playbooks/skills/fable-5",
+  "ranking_note": "Authored blind from the before description at commit 4672d98d06, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling model-invoked playbooks skills.",
+  "competitors": [
+    "playbooks:boris",
+    "playbooks:skill-authoring",
+    "playbooks:repo-sweep"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Load the fable playbook before we start; I want your full operating doctrine active for this session."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Operate like Fable for this migration: careful framing, a real plan, and verification before you call anything done."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm running you on Opus 5.5 today. Pull up the adaptation notes for that model so you adjust how you work."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're kicking off a multi-day engineering task with lots of judgment calls. Arm yourself with your standing instructions first."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What changes in behavior should I expect on Fable 5.1 compared with 5? Show me the chapter on that model delta."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before you dive into this debugging session, load your chapters on debugging and recovery from stuck states."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm porting a prompt from Fable to Sonnet 5.5. What should I change for that model?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "This is a substantive rewrite of our auth layer with many steps. Bring in the doctrine on planning, orchestration and context economy before starting."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me the fable-5-playbook in full so this session follows it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We just switched this session to Fable 5.1; pull up your notes on adapting to it."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How does Boris Cherny run several Claude Code sessions at once? I want his workflow tips."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Help me create a new skill for our release process and write its SKILL.md description and gotchas section."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Start a repo sweep: plan which hygiene steps apply here and open the draft PR with the checklist."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What is the current per-token price of Opus 5.5 on the API, and its context window?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fix the typo in the README heading."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me hook ideas to make my CLAUDE.md and permissions setup better."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the next sweep step and commit it."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review this SKILL.md: is the category right and does it use progressive disclosure well?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a Python function that parses ISO 8601 dates."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What are the best Claude Code workflow tips for parallel sessions and loops?"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The change is in and the tests passed after each commit. I renamed the command-line flag --dry-run to --plan in cli/main.py. I moved config loading out of app/settings.py into a new file, app/config/loader.py. The feature flag ENABLE_CACHE now defaults to off, and so does ENABLE_RETRY. Commit a1b2c3d holds the move, and commit e4f5a6b holds the flag rename and the new defaults.",
+      "why": "each identifier in its own clause; paths and flags written normally"
+    },
+    {
+      "answer": "Done, tests green after both commits.\n\n- cli/main.py: the flag --dry-run is now --plan.\n- Config loading moved from app/settings.py to the new app/config/loader.py.\n- ENABLE_CACHE defaults to off.\n- ENABLE_RETRY defaults to off.\n- Commit a1b2c3d is the move; commit e4f5a6b is the rename and the defaults.",
+      "why": "plain list, one item per identifier"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done: --dry-run → --plan (cli/main.py), app/settings.py → app/config/loader.py, ENABLE_CACHE/ENABLE_RETRY now off, commits a1b2c3d/e4f5a6b. Tests green.",
+      "why": "arrows and slash-separated lists"
+    },
+    {
+      "answer": "I renamed --dry-run to --plan in cli/main.py and moved config loading from app/settings.py into app/config/loader.py. ENABLE_CACHE/ENABLE_RETRY now default off. Commit a1b2c3d is the move and e4f5a6b the rename and defaults.",
+      "why": "near miss: plain prose except one slash-separated pair of flags"
+    },
+    {
+      "answer": "Summary: settings-loader-config move done, flag-rename-defaults in e4f5a6b, a1b2c3d has the rest.",
+      "why": "hyphen-stacked runs standing for sequences"
+    },
+    {
+      "answer": "I renamed --dry-run to --plan and moved config loading into app/config/loader.py. Tests passed.",
+      "why": "omits the feature flags and commits"
+    }
+  ]
+}

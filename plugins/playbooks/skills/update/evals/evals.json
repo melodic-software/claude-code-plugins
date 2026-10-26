@@ -44,7 +44,7 @@
       "id": 4,
       "name": "fable-5-no-upstream-reports-self-authored",
       "prompt": "Run /playbooks:update and tell me whether the fable-5 pack needs a drift sync.",
-      "expected_output": "Reports that fable-5 is self-authored (introspected doctrine written by Claude Fable 5), has no external upstream and no vendored baseline, so there is no drift-check path. The only trigger for updating it is a model-version change — regenerate the pack from the newer model. No update script is run and no upstream is fetched for fable-5.",
+      "expected_output": "Reports that fable-5 is self-authored (introspected doctrine written by Claude Fable 5.1), has no external upstream and no vendored baseline, so there is no drift-check path. The only trigger for updating it is a model-version change — regenerate the pack from the newer model. No update script is run and no upstream is fetched for fable-5.",
       "files": [],
       "expectations": [
         "The run reports fable-5 as self-authored with no external upstream",

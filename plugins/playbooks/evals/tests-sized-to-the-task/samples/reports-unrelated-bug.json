@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Follow-up, not fixed here: parse_retry_delay in utils/backoff.py returns milliseconds but its callers read seconds.",
+      "why": "names the function"
+    },
+    {
+      "answer": "Separately, `parse_retry_delay()` has a unit mismatch worth a ticket.",
+      "why": "code span with parentheses"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I added --since and one test. Nothing else to report.",
+      "why": "omits the bug"
+    },
+    {
+      "answer": "I also noticed a units bug in the backoff helper; worth a follow-up.",
+      "why": "near miss: mentions it but not findably by name"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

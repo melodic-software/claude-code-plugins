@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Now, while both workers run, I do my own share: I search the notifications module for every call to the old client and record each file and line. When the payments and shipping lists come back I treat them as claims: I open a sample of the cited lines in each list, re-run the same search pattern on each module to compare counts, and send a list back with a sharper brief if its lines do not match. Only then do I combine all three lists into the migration plan.",
+      "why": "works now, checks returns before the plan"
+    },
+    {
+      "answer": "I start on notifications immediately rather than waiting. On each return I spot-check three cited lines and the reported total; a list without line numbers I re-dispatch with that requirement added. The plan uses only checked lists.",
+      "why": "terse, both halves present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I wait for both workers to return so I have the full picture, then audit notifications and spot-check their lists before writing the plan.",
+      "why": "near miss: verifies returns but blocks on the workers first"
+    },
+    {
+      "answer": "I audit notifications now. When the workers return I paste their lists straight into the plan next to mine.",
+      "why": "works in parallel but trusts returns as fact"
+    },
+    {
+      "answer": "I audit notifications now, then redo the payments and shipping searches myself from scratch so I do not need the workers' lists at all.",
+      "why": "duplicates the workers' searches in place of checking them"
+    }
+  ]
+}

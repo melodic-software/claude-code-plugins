@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Before first tool call: I'm auditing this repository read-only in four parts: lint configs, CI workflows and their triggers, TODO markers under src/, and missing license headers.\n\n[Glob for lint config files]\n[Read each workflow file]\n[Grep TODO under src/]\n[Grep for the license header across source files]\n\nClosing message: The audit is complete. There are <n> lint configuration files. There are <n> CI workflows: <name> runs on push and <name> runs nightly. src/ holds <n> TODO markers, most of them in <dir>. <n> source files lack a license header, listed below.",
+      "why": "short plan up front, closing covers all four parts for a cold reader"
+    },
+    {
+      "answer": "Before first tool call: Four read-only checks coming: lint configs, workflows, TODOs, license headers.\n\n[Glob] [Read x6] [Grep] [Grep]\n\nClosing message: Lint configs: <n>. Workflows: <n>, with triggers <list>. TODO markers in src/: <n>. Files without a license header: <n>.",
+      "why": "terse but both halves meet the bar"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Before first tool call: I'm auditing lint configs, workflows, TODOs and license headers.\n\n[tool calls]\n\nClosing message: All done; let me know if you want details.",
+      "why": "near miss: good opener, closing covers nothing"
+    },
+    {
+      "answer": "[Glob] [Read] [Grep] [Grep]\n\nClosing message: Lint configs <n>, workflows <n>, TODOs <n>, missing headers <n>.",
+      "why": "no message before the first tool call"
+    },
+    {
+      "answer": "Before first tool call: Starting.\n\n[tool calls]\n\nClosing message: <n> source files lack a license header.",
+      "why": "closing reports only the final part"
+    }
+  ]
+}

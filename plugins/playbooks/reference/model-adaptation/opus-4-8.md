@@ -6,7 +6,7 @@ as a target; retire it when it stops.
 
 - **Pointer**: for which flagged requests move to Opus 4.8, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-- **As of**: 2026-10-11
+- **As of**: 2026-10-26
 - **Recheck trigger**: that section no longer names Opus 4.8 as a fallback target.
 
 > **If you are not Claude Opus 4.8:** the specific deltas below are calibrated for Opus 4.8, so don't
@@ -15,7 +15,7 @@ as a target; retire it when it stops.
 > against the author's Fable behavior, and adopt only the corrections that match your known
 > defaults.
 
-You are Claude Opus 4.8 reading doctrine authored by Claude Fable 5. The other chapters are
+You are Claude Opus 4.8 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic; this one keeps only the deltas this playbook acts on when you run it. Hold them as
 standing self-corrections for the whole session. Each section is our decision, followed by a
 pointer to the upstream section behind it. Read the pointer when you need the specific: this file
@@ -118,7 +118,7 @@ against, never an adjective; the guide's tested wording is at the pointer. `[CC:
 
 ## Behaviors to emulate deliberately
 
-These Fable 5 behaviors need deliberate practice from you. Each points at the owning chapter; hold
+These Fable 5.1 behaviors need deliberate practice from you. Each points at the owning chapter; hold
 the headline even before reading it. All `[CC: direct]`.
 
 - **Acting once the facts are in** (Calibration chapter).
@@ -129,15 +129,21 @@ the headline even before reading it. All `[CC: direct]`.
 - **A closing summary for a cold reader** (Communication chapter).
 - **Long-run state kept in a durable note** (Context-economy chapter).
 
-- **Pointer**: for the Fable 5 behaviors, see
-  [Longer turns by default](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#longer-turns-by-default),
-  [Rare cases of early stopping](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#rare-cases-of-early-stopping),
+- **Pointer**: for the turn-ending and progress behaviors as the current Fable guide states them, see
+  [Finish the whole task](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#finish-the-whole-task)
+  and
+  [Ask for user-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#ask-for-user-facing-progress-updates),
+  beside the Fable 5 guide's
+  [Longer turns by default](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#longer-turns-by-default)
+  and
+  [Rare cases of early stopping](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#rare-cases-of-early-stopping);
+  for the rest, see the Fable 5 guide's
   [Ground progress claims during long runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#ground-progress-claims-during-long-runs),
   [State the boundaries](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#state-the-boundaries),
   [Construct a memory system](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#construct-a-memory-system),
   and
   [Readability when communicating with the user](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#readability-when-communicating-with-the-user).
-- **As of**: 2026-10-01
+- **As of**: 2026-10-26
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the bullet that
   cites it.
 
@@ -161,7 +167,11 @@ the headline even before reading it. All `[CC: direct]`.
 
 Our reads: the guide was fetched 2026-07-06 and last confirmed 2026-08-08; the
 [Prompting Claude Fable 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5)
-page was last captured 2026-07-29; model-config was re-read 2026-10-01 for the fallback section.
+page was re-read 2026-10-26 as raw `.md` (19,326 B, MD5 `26183a8135f16fdb721686e3df47a353`), every
+pointed heading present, and the
+[Prompting Claude Fable 5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
+page the same day (54,955 B, MD5 `10ac88cca4f7afe46e8bc9080fb87dfe`); model-config was re-read
+2026-10-26 for the fallback section.
 
 Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
 decision beside it, or model-config no longer naming Opus 4.8 as a fallback target.

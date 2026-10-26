@@ -186,7 +186,7 @@ tooling.
 | Topic | Ours | Verdict | Pointer | As of |
 |---|---|---|---|---|
 | Effort miscalibration in both directions | PLUGIN-PHILOSOPHY Effort tiers; opus-5 chapter overthinking guidance; fable-5-1 low-effort recall caveat | COVERED, plus a sharpening ADOPT (decided 2026-09-10). Explore evidence re-verified 2026-09-09. Work item: fold the article's two sharpest phrasings on miscalibration, in our words, into the existing surfaces | [How effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works) | 2026-09-09 |
-| A stronger model at lower effort | Nowhere; adaptation chapters deliberately carry no pricing | ADOPT (decided 2026-09-10). Land as a pricing-free section in the fable-5-1 model-adaptation chapter plus a one-line pointer in PLUGIN-PHILOSOPHY Effort tiers; numbers cited vendor-reported; pricing stays pointer-resolved through the claude-api skill | [Compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) and [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) | 2026-09-09 |
+| A stronger model at lower effort | Nowhere; adaptation chapters deliberately carry no pricing | ADOPT (decided 2026-09-10). Land as a pricing-free section in the fable-5-1 model-adaptation chapter plus a one-line pointer in PLUGIN-PHILOSOPHY Effort tiers; numbers cited vendor-reported; pricing stays pointer-resolved through the claude-api skill. Landing moved 2026-10-26 to `plugins/playbooks/reference/prompt-caching.md` "Effort against model choice" when that chapter was retired (#4346) | [Compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) and [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) | 2026-09-09 |
 | Effort sweeps on a non-saturated eval | `evals` plugin has zero effort content | ADOPT (decided 2026-09-10). Land as an effort-axis note in the evals plugin citing the bundled hillclimb per the Lane M posture, pointing at its published guide (finding 1) | [Tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort) | 2026-09-09 |
 | Effort changes mid-conversation and the cache | PLUGIN-PHILOSOPHY cache caveat + criteria I17-b carry the session-side version | COVERED session-side (decided 2026-09-10). The API-side model list is read at the pointer only inside whatever T1/T3 adoptions get written, per the Lane M beta posture; no separate surface | [Per-message effort (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta) | 2026-09-09 |
 
@@ -227,7 +227,8 @@ of this file's branch records the commits):
 1. New playbooks prompt-caching reference chapter (T1 chapter rows + T4 Batch/Admin/
    cost-optimize-mention/output-bounding rows), beta qualifiers carried.
 2. fable-5-1 model-adaptation chapter: pricing-free cross-model economics section, plus a
-   one-line pointer in PLUGIN-PHILOSOPHY Effort tiers (T3).
+   one-line pointer in PLUGIN-PHILOSOPHY Effort tiers (T3). Moved 2026-10-26 to
+   `plugins/playbooks/reference/prompt-caching.md` "Effort against model choice" (#4346).
 3. evals plugin effort-axis note citing the bundled hillclimb (T3).
 4. Sharpening pass folding the article's two phrasings into the existing effort surfaces
    (T3).

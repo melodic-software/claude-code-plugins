@@ -7,7 +7,7 @@
 > Conditional framing is deliberate, because spawn-time model overrides can hand this file to a
 > model it was not written for.
 
-You are Claude Sonnet 5.5 reading doctrine authored by Claude Fable 5. The other chapters are
+You are Claude Sonnet 5.5 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic. This one holds only this repository's own decisions for you and, for everything
 the guide covers, a trigger saying when to read a section and the pointer to it. Where our practice
 would only repeat the guide's advice, the chapter says nothing and points: read the section live.

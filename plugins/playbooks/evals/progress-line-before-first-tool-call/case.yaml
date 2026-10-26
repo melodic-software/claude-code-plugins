@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: progress-line-before-first-tool-call
+description: "Regression guard (expected to pass in both versions): on a long run the user hears the plan before the first tool call, and the closing message covers everything the turn did, for a reader who was not watching. Before, this binds through the Fable 5.1 chapter's progress section on top of the communication chapter"
+tags: [fable-5, regeneration-4346, regression-guard]
+expected_outcome: "The message before the first tool call is a short statement (one or two sentences) of what the turn will do. The closing message recaps all four parts of the audit (lint configs, CI workflows, TODO markers, license headers) with their placeholder results, not just the last step."
+execution:
+  prompt: "/playbooks:fable-5. You are running as Claude Fable 5.1. Audit a mid-sized service repository, read-only, in four parts: count the lint configuration files, list the CI workflow files and what triggers each, count the TODO markers under src/, and check which source files lack a license header. Expect about thirty tool calls. The repository is not in this workspace. This run cannot write files, run commands or read that repository, so say in your reply exactly what you do: write the message you post before your first tool call under the label `Before first tool call:`, then the tool calls as one bracketed line per part, then the message you post after the last tool call under the label `Closing message:`, using placeholders such as <n> for results you cannot observe."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: closing-covers-all-four-parts
+    type: regex
+    target: last_message
+    pattern: 'Closing message(?=[\s\S]*lint)(?=[\s\S]*workflow)(?=[\s\S]*TODO)(?=[\s\S]*licen[cs]e)'
+    flags: i
+    arm: both
+  - name: plan-first-recap-last
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if both hold. (1) The message before the first tool call is short, one or two sentences, and says what the turn is about to do; it is not empty, not only a greeting, and not a long multi-paragraph plan. (2) The closing message covers the whole turn: all four parts of the audit (lint configuration files, CI workflows, TODO markers, license headers) with their results or placeholders, written so a reader who saw none of the tool calls understands what was found. FAIL if the opening message is missing, empty, or a long essay, or if the closing message reports only the last part, only says the audit is done, or drops any of the four parts."

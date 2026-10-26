@@ -734,7 +734,7 @@
       "evidence": [
         "binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb",
         "platform docs claude-api-skill page (fetched 2026-09-09): bundled with Claude Code and published in the open-source skills repository",
-        "reference/model-adaptation/fable-5-1.md standing rule: 'this chapter carries no model ID, price, or limit. Resolve the current details through the claude-api skill at the moment of use'",
+        "reference/prompt-caching.md standing rule: 'Current prices, model IDs, limits and TTL values resolve through the pricing page or the bundled claude-api skill at the moment of use; this chapter carries practices, not numbers'",
         "reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate"
       ],
       "observation": {

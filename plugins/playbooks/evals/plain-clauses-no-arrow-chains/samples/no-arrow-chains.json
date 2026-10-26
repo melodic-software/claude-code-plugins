@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I renamed the flag --dry-run to --plan in cli/main.py. Config loading moved from app/settings.py into the new file app/config/loader.py.",
+      "why": "paths and double-dash flags, no arrows"
+    },
+    {
+      "answer": "Commit a1b2c3d moves config loading. Commit e4f5a6b renames the flag and turns ENABLE_CACHE and ENABLE_RETRY off by default.",
+      "why": "plain clauses"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Renamed --dry-run -> --plan in cli/main.py.",
+      "why": "ASCII arrow"
+    },
+    {
+      "answer": "Moved config loading app/settings.py → app/config/loader.py; everything else is in plain sentences.",
+      "why": "near miss: one Unicode arrow in otherwise plain prose"
+    },
+    {
+      "answer": "Flow: settings -> loader -> config.",
+      "why": "arrow chain"
+    }
+  ]
+}

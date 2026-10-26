@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I write a brute-force oracle: expand every range into its integers and compare sets.",
+      "why": "brute-force oracle"
+    },
+    {
+      "answer": "Generate 1,000 random inputs and compare merge_ranges against a naive implementation that walks every integer.",
+      "why": "random inputs and naive implementation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I add three more hand-picked cases, including [1, 3] and [4, 6].",
+      "why": "more hand-picked cases only"
+    },
+    {
+      "answer": "I re-run the six unit tests and read the diff once more to be sure the comparison is right.",
+      "why": "near miss: reruns and reads, no independent check"
+    },
+    {
+      "answer": "Done; the tests pass.",
+      "why": "no verification beyond the floor"
+    }
+  ]
+}

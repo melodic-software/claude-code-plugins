@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool calls at all"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/plugin/skills/fable-5/context/execution.md"}}
+      ],
+      "why": "reads a doctrine chapter only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/plugin/reference/model-adaptation/fable-5-1.md"}}
+      ],
+      "why": "reads the Fable 5.1 chapter"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/plugin/reference/model-adaptation/opus-5-5.md", "limit": 20}}
+      ],
+      "why": "near miss: a short read of a sibling chapter still counts"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/plugin/reference/model-adaptation/AGENTS.md"}}
+      ],
+      "why": "reads a file in the adaptation directory"
+    }
+  ]
+}

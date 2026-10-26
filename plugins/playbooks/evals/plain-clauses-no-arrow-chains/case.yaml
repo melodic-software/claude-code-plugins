@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: plain-clauses-no-arrow-chains
+description: "Regression guard (expected to pass in both versions): the density rule from the Fable 5.1 chapter, already house form in the communication chapter's decision block. A status report naming several files, flags and commits gives each its own plain clause, never an arrow chain, a hyphen-stacked run, or a slash-separated list"
+tags: [fable-5, regeneration-4346, regression-guard]
+expected_outcome: "The reply reports the flag rename, the file move, the two feature flags and the two commits in complete sentences, each identifier in its own plain clause. It contains no `->` or `→`, no run like settings-loader-config standing for a sequence, and no list like ENABLE_CACHE/ENABLE_RETRY. File paths and command-line flags written normally are fine."
+execution:
+  prompt: "/playbooks:fable-5. You are running as Claude Fable 5.1. You have just finished a change and must report it to the user, who did not watch the work. What you did: renamed the command-line flag --dry-run to --plan in cli/main.py; moved config loading out of app/settings.py into a new file app/config/loader.py; changed the default of the feature flags ENABLE_CACHE and ENABLE_RETRY from on to off; and made two commits, a1b2c3d (the move) and e4f5a6b (the flag rename and the defaults). The tests passed after each commit. This run cannot write files or run commands, so say in your reply exactly what you tell the user."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-arrow-chains
+    type: regex
+    target: last_message
+    pattern: '->|→'
+    match: not_contains
+    arm: both
+  - name: one-plain-clause-per-identifier
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if the reply reports the flag rename, the file move, the two feature-flag defaults and the two commits in plain prose or a plain list, giving each file, flag and commit its own clause with a verb (for example 'renamed --dry-run to --plan'). Ordinary file paths such as app/config/loader.py and command-line flags such as --dry-run are normal identifiers and never count against the reply. FAIL if the reply uses an arrow chain (->, →, =>) to show a rename, move or sequence; a hyphen-stacked run that strings several items into one token (for example settings-loader-config); or a slash-separated list of separate items (for example ENABLE_CACHE/ENABLE_RETRY or a1b2c3d/e4f5a6b). Also FAIL if it omits any of the four changes."

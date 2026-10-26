@@ -11,7 +11,7 @@ serves distilled guidance and performs no work of its own.
 |---|---|---|
 | `boris` | `/playbooks:boris` | Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com). 142 tips across 130 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, context engineering, maintenance routines, and effort, routed through a hub + topic reference files. |
 | `skill-authoring` | `/playbooks:skill-authoring` | Anthropic's internal skill-authoring playbook. 9 skill categories and 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger, first-run setup, persistent storage, effort-aware behavior, helper scripts, on-demand hooks) plus distribution guidance. |
-| `fable-5` | `/playbooks:fable-5` | Claude Fable 5's operating doctrine. Twelve trigger-routed chapters of introspected standing instructions (calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, trust boundaries), a cross-model note on reading dense images, and per-model-version adaptation chapters. Bare arms the session; `full` preloads every common chapter plus only the adaptation chapter routed to the session's model version (sibling versions' chapters carry deliberately reversed counter-steers, so they never co-load); a chapter name reads one. |
+| `fable-5` | `/playbooks:fable-5` | Claude Fable 5.1's operating doctrine. Trigger-routed chapters of introspected standing instructions (calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, trust boundaries), a cross-model note on reading dense images, and per-model-version adaptation chapters for the other current and fallback models. Bare arms the session; `full` preloads every common chapter plus only the adaptation chapter routed to the session's model version (sibling versions' chapters carry deliberately reversed counter-steers, so they never co-load); a chapter name reads one. |
 | `repo-sweep` | `/playbooks:repo-sweep` | Runs the `hygiene` catalog of skills through one repository per sweep: one branch, one draft PR holding the step checklist, one commit per step with `Playbook-Step` trailers, resumable after `/clear`. `plan` recommends and opens a selection page, `next` runs the first unticked step, `review` files defects after approval. |
 | `update` | `/playbooks:update` | Maintainer-facing drift-check and upstream sync for the vendored packs. `--check` (default) reports drift read-only; `--apply` refreshes the vendored baselines. Not for consumers. |
 
@@ -27,7 +27,7 @@ receive updates through `/plugin marketplace update` once a new plugin version i
 published.
 
 `fable-5` is **self-authored with no upstream**: introspected doctrine written by
-Claude Fable 5, not distilled from a remote source. It has no vendored baseline
+Claude Fable 5.1, not distilled from a remote source. It has no vendored baseline
 and no drift-check path; the only trigger for updating it is a model-version
 change (regenerate the pack from the newer model).
 

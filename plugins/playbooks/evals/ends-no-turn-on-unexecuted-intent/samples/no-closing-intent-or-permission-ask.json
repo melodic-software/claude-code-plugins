@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I edit jobs/purge.py line 18 to read cache_ttl_seconds and update the key's entry in docs/config.md. A search for cache_ttl now finds only cache_ttl_seconds. The rename is complete.",
+      "why": "does the work, closes on the outcome"
+    },
+    {
+      "answer": "Edited jobs/purge.py and docs/config.md. Next, I'll explain the result: all five places now use cache_ttl_seconds.\n\nDone.",
+      "why": "a mid-message 'Next, I'll' that is not the closing line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Loader and two call sites are updated. Next, I'll update jobs/purge.py and docs/config.md.",
+      "why": "closes on unexecuted intent"
+    },
+    {
+      "answer": "I updated jobs/purge.py. Should I also update docs/config.md?",
+      "why": "near miss: does one edit, then asks permission for the other"
+    },
+    {
+      "answer": "Two places remain. Would you like me to finish them?\n",
+      "why": "offer to continue with trailing newline"
+    }
+  ]
+}

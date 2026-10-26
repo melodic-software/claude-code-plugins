@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: lead-keeps-working-while-workers-run
+description: "Regression guard (expected to pass in both versions): the orchestration chapter's 'dispatch is not a blocking call' and 'every return is unverified synthesis', which the Fable 5.1 chapter reinforces under 'Do not suppress delegation'. With two workers running, the lead continues its own share instead of waiting, and treats the returns as claims to check before they drive an edit"
+tags: [fable-5, regeneration-4346, regression-guard]
+expected_outcome: "The reply starts its own share now (auditing the notifications module) while the two workers run, rather than waiting for them, and says it will spot-check each worker's reported call sites against the files before using them in the migration plan."
+execution:
+  prompt: "/playbooks:fable-5. You are running as Claude Fable 5.1. You are leading a migration off a deprecated HTTP client. You have just dispatched two workers: one lists every call to the old client in the payments module, the other does the same for the shipping module. Each will return a list of file paths and line numbers. Your own share is the notifications module, and after that the migration plan that combines all three lists. Neither worker has returned yet. None of these files is in this workspace. This run cannot write files, run commands or spawn agents, so say in your reply exactly what you do now and what you do when the workers return."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: checks-worker-returns
+    type: regex
+    target: last_message
+    pattern: 'verif|spot[- ]?check|unverified|recall-grade|re-?read|check (their|each|the|every) (claims?|returns?|findings?|results?|citations?|lists?|paths?|line)'
+    flags: i
+    arm: both
+  - name: works-while-waiting-verifies-returns
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if both hold. (1) The reply starts its own share now, auditing the notifications module (or other work no pending return feeds), while the workers run, instead of waiting, polling idly, or doing nothing until they return. (2) It treats the workers' returned lists as unverified claims: before they drive the migration plan or any edit, it checks them, for example by opening the cited lines, re-running a search, or spot-checking a sample, and it handles a return without citations or with wrong lines by checking or re-dispatching. FAIL if the reply waits for the workers before doing its own share, takes the returned lists into the plan as fact without any check, or redoes both workers' full searches itself in place of checking them."

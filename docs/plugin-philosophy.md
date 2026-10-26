@@ -1487,9 +1487,9 @@ same depth on two models):
   buys).
 - **Sweep model and effort together before raising either.** A lane outgrowing its level tests the
   newer model at lower effort before pinning the old one higher, on its own evals. Cross-model
-  economics and the flat-curve reading live in the fable-5 pack's model-adaptation chapter for the
-  newer model (`plugins/playbooks/reference/model-adaptation/fable-5-1.md`, "Cross-model effort
-  economics"); current prices resolve through the `claude-api` skill at decision time.
+  economics and the flat-curve reading live in the fable-5 pack's API chapter
+  (`plugins/playbooks/reference/prompt-caching.md`, "Effort against model choice"); current prices
+  resolve through the `claude-api` skill at decision time.
 - **Effort is the first lever in either direction; steering prose is the second.** We set the
   level to fit the lane's work and add prose only where that level still falls short (Pointer:
   for why, see

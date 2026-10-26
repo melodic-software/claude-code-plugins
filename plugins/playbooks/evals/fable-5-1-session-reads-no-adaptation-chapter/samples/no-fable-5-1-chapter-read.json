@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool calls at all"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/plugin/skills/fable-5/context/communication.md"}}
+      ],
+      "why": "reads a doctrine chapter, not the adaptation chapter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/plugin/reference/model-adaptation/fable-5-1.md"}}
+      ],
+      "why": "reads the Fable 5.1 adaptation chapter"
+    },
+    {
+      "answer": [
+        {"tool": "Glob", "input": {"pattern": "**/model-adaptation/*.md"}},
+        {"tool": "Read", "input": {"file_path": "/plugin/reference/model-adaptation/fable-5-1.md", "limit": 40}}
+      ],
+      "why": "near miss: a partial read of the chapter still counts"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/plugin/reference/model-adaptation/fable-5-1.md"}},
+        {"tool": "Read", "input": {"file_path": "/plugin/reference/model-adaptation/fable-5-1.md"}}
+      ],
+      "why": "reads it twice"
+    }
+  ]
+}

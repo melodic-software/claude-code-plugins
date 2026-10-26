@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: batching-in-implied-coding-loop
+description: "Regression guard (expected to pass in both versions): the execution chapter's batching rule, which the Fable 5.1 chapter makes binding on every tool round. Mid-loop, the next reads are implied by what was just read, not requested; the reply issues every independent lookup together in one round instead of one per turn"
+tags: [fable-5, regeneration-4346, regression-guard]
+expected_outcome: "The reply names all four lookups (the tax_rules module, the currency module, tests/test_invoice.py, and a search for INVOICE_ROUNDING) and says it issues them together in one round, because none needs another's output. It does not plan them one per turn."
+execution:
+  prompt: "/playbooks:fable-5. You are running as Claude Fable 5.1. You are fixing a rounding bug: invoices total one cent too high on some orders. You just read src/billing/invoice.py. It imports billing/tax_rules.py, calls currency.round_half_even from billing/currency.py, and is covered by tests/test_invoice.py. The bug report says the problem started when the config key INVOICE_ROUNDING was added, and you do not yet know where that key is read. None of these files is in this workspace. Take your next step in the fix. This run cannot write files, run commands or read those files, so say in your reply exactly which tool calls you make next and how you group them."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-all-four-in-one-round
+    type: regex
+    target: last_message
+    pattern: '^(?=[\s\S]*tax_rules)(?=[\s\S]*currency)(?=[\s\S]*test_invoice)(?=[\s\S]*INVOICE_ROUNDING)(?=[\s\S]*(together|parallel|one (tool )?(round|batch|message|turn)|single (tool )?(round|batch|message|turn)|same (tool )?(round|batch|message|turn)|at once|simultaneous|concurrent))'
+    flags: i
+    arm: both
+  - name: batches-independent-lookups
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if the reply plans the four next lookups (tax_rules, currency, the invoice test file, and a search for where INVOICE_ROUNDING is read) as one batch issued together in a single round, because none depends on another's output. Wording does not matter: 'in parallel', 'one round', 'all at once' and a single grouped list of calls all count. Sequencing a later step after the batch (for example deciding on a fix once the results are in) does not fail. FAIL if the reply issues the lookups one per turn or as a serial chain without a dependency that justifies it, if it omits any of the four lookups, or if it asks the user whether to read them."

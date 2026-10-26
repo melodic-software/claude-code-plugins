@@ -27,11 +27,12 @@ While reading, extract three things explicitly: local conventions (error-handlin
 
 ## Batch what doesn't depend
 
-**Trigger:** you can name two or more observations you need and none consumes another's output.
+**Trigger:** you can name two or more observations you need and none consumes another's output. This fires on every tool round, the mid-loop rounds included: inside a coding or computer-use loop nobody spells out the next lookups, and those are the rounds where one call per turn creeps back in.
 
-- Issue independent reads and searches as one parallel batch, never a serial chain, because each serial round-trip spends a turn learning one fact you already knew you needed.
+- Issue every independent call, reads and searches first among them, as one parallel batch, never a serial chain, because each serial round-trip spends a turn learning one fact you already knew you needed.
 - Plan observation deliberately: name the 3–5 facts that gate the next decision, gather them in one round, then reason on the complete set, because deciding on a partial batch bakes in conclusions the late-arriving facts contradict.
 - Serialize only when one result genuinely selects the next call.
+- Pointer: when a loop you run or author issues one call per turn, fetch [Batch independent tool calls in agent loops](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#batch-independent-tool-calls-in-agent-loops) live. As of: 2026-10-26. Recheck trigger: a re-read of that section no longer supporting this rule.
 
 ## The project's mechanism beats your default
 
@@ -96,7 +97,7 @@ At each green point, snapshot the state in version control (staging or committin
 The standard: a reviewer must be able to reconstruct your intent from the diff alone, without the conversation transcript. Apply:
 
 - **One intent per change.** Mechanical transformations (rename, move, reformat) travel separately from behavior changes. A five-line logic edit buried in a 400-line move is functionally invisible to review.
-- **No drive-by churn.** Do not reformat, reorder, or restyle lines your change does not require; every changed line spends reviewer attention, and attention spent on noise is attention not spent on your bug.
+- **No drive-by churn.** Do not reformat, reorder, or restyle lines your change does not require; every changed line spends reviewer attention, and attention spent on noise is attention not spent on your bug. The same rule governs the edit mechanism: change only the lines that must change, and rewrite a whole file only when most of it is changing. A rewrite that lands the same file costs the reviewer a full diff and you the output tokens, for no behavior. Pointer: when you catch yourself rewriting a file for a small change, fetch [Prefer targeted edits over whole-file rewrites](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#prefer-targeted-edits-over-whole-file-rewrites) live. As of: 2026-10-26. Recheck trigger: a re-read of that section no longer supporting this rule.
 - **If a hunk needs the chat to make sense, the diff is incomplete.** Move the missing "why" into the artifact: a rationale comment where the code is surprising, or the change description. Rationale, not narration: why this shape, never what the lines do.
 
 When a change has already entangled a mechanical sweep with behavior edits and grown past roughly a screenful of mixed hunks, split it now, because the cost of splitting rises with every further edit.
@@ -125,7 +126,9 @@ Otherwise apply the single absorb bar, and all three must hold:
 2. The fix costs under ~2 minutes.
 3. The fix is behavior-preserving.
 
-All three hold → fix in passing and mention it in the change description. Any one fails → log it in one line in the tracker, worklog, or final report, with file and symbol named so it is findable, and continue; a silent mental note is a discard. Sibling files and the same defect elsewhere in the codebase fail condition 1 by definition: log, never chase.
+All three hold → fix in passing and mention it in the change description. Any one fails → log it in one line in the tracker, worklog, or final report, with file and symbol named so it is findable, and continue; a silent mental note is a discard. Sibling files and the same defect elsewhere in the codebase fail condition 1 by definition: log, never chase. A bug or slow path the task can ship without goes in the summary as a follow-up and is fixed in this change only when the requested behavior depends on it; the absorb bar above does not reach it, because an unrequested fix is a scope change however small and behavior-preserving it looks.
+
+Tests are inside the fence too. A test gets committed on one of two grounds: the task calls for it, or the repository's pattern for this kind of change has one; its size follows the neighboring test files, which in most repositories means one focused test per behavior the task names. How you check your own work along the way is yours to choose; a scratch script or one-off check may be deleted once it has served, and it does not become an extra permanent test file unless it is the test the task or the repository's pattern calls for. The fence bounds extras, never the ask itself, which is implemented in full. Pointer: when deciding which checks to commit, fetch [Keep changes and tests to what the task asks for](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#keep-changes-and-tests-to-what-the-task-asks-for) live. As of: 2026-10-26. Recheck trigger: a re-read of that section no longer supporting this rule.
 
 **Failure mode prevented:** scope creep dressed as diligence: the twenty-file diff nobody asked for, simultaneously harder to review, harder to revert, and slower to land than the asked-for change plus a list of logged findings.
 
