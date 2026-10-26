@@ -717,7 +717,13 @@ the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's p
    no system, global, fsmonitor, hook, pager, external-diff or textconv program, and refuses
    `--output`, `--no-index`, `--orderfile`, their prefixes, `-O` alone or in a bundle of short
    options, `status --verbose` (it runs textconv), and any path that resolves outside the checkout
-   (a bare `git diff` on such a path reads it as `--no-index`). `Bash(git *)` stays denied. The no-prepare patch skill gets
+   (a bare `git diff` on such a path reads it as `--no-index`). `Bash(git *)` stays denied. It is
+   also denied `Edit` on each path `apply-issue-patch` refuses: `deny-rules.mjs` builds the rules
+   from `protected-paths.mjs`'s path rules for the `issue` row's `refuse` list, matching no path that
+   row would push (a plugin's `settings.json` stays writable), and the preamble names the
+   patterns and says that when the change needs one, the run stops with `exit` `stopped` and a
+   `reason` starting `patch-protected-path`. The rules cover the file tools and shell redirects,
+   not a wrapper's subprocess, so `apply-issue-patch` still refuses every path. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
    name its skill, `Grep`, `Glob`, `Edit`, `Write`, `Agent` and `Edit(./.lane/scratch/**)`, which
    approves a shell redirect into the scratch directory, and for `ai-slop:audit` each of
@@ -1997,7 +2003,8 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
   patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
-  that reason, and opens no PR, from a resumed branch either. A `done` run that committed nothing on a resume opens its PR from the
+  that reason, and opens no PR, from a resumed branch either. A `stopped` run whose `reason` starts `patch-protected-path`
+  (the early stop the preamble asks for) hands back the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
   checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
