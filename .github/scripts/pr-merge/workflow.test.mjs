@@ -540,6 +540,7 @@ for (const [name, status, body] of [
   ["a bare 429 with no headers or message", 429, ""],
   ["a 403 whose message names a primary rate limit, with no headers", 403, JSON.stringify({ message: "API rate limit exceeded for installation" })],
   ["a 403 whose message names a secondary rate limit, with no headers", 403, JSON.stringify({ message: "You have exceeded a secondary rate limit" })],
+  ["a 403 whose message names only abuse detection, with no headers", 403, JSON.stringify({ message: "You have triggered an abuse detection mechanism" })],
 ]) {
   test(`${name} stops every pool until the guard's reset`, () => {
     const want = classify({ url: DISPATCH_URL, status, headers: {}, body }, { now: NOW * 1000 });

@@ -296,7 +296,7 @@ jobs:
               message=$(jq -r '.message // ""' <<<"$body" 2>/dev/null || true)
               after=$(header retry-after) left=$(header x-ratelimit-remaining) reset=$(header x-ratelimit-reset)
               why="HTTP $status: ${message:-no message} (retry-after=${after:-none} remaining=${left:-none} reset=${reset:-none})"
-              if [ "$status" = 429 ] || [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
+              if [ "$status" = 429 ] || [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} =~ rate\ limit|abuse\ detection ]]; then
                 now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
                 if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
                 if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
@@ -1861,7 +1861,7 @@ jobs:
               message=$(jq -r '.message // ""' <<<"$body" 2>/dev/null || true)
               after=$(header retry-after) left=$(header x-ratelimit-remaining) reset=$(header x-ratelimit-reset)
               why="HTTP $status: ${message:-no message} (retry-after=${after:-none} remaining=${left:-none} reset=${reset:-none})"
-              if [ "$status" = 429 ] || [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
+              if [ "$status" = 429 ] || [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} =~ rate\ limit|abuse\ detection ]]; then
                 now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
                 if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
                 if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
